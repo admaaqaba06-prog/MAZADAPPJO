@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { AdminPanel } from './AdminPanel';
 import TermsModal from './TermsModal';
+
+const AdminPanel = lazy(() => import('./AdminPanel'));
 import { 
   Wallet as WalletIcon, 
   User,
@@ -298,7 +299,15 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             RIGHT ASIDE: LOGS DICTIONARY AUDITOR
             ========================================== */}
         <aside className="hidden lg:flex w-72 flex-col gap-4 shrink-0 select-none">
-          {currentUser && currentUser.role === 'admin' && <AdminPanel />}
+          {currentUser && currentUser.role === 'admin' && (
+            <Suspense fallback={
+              <div className="h-48 border border-dashed border-gray-200 rounded-2xl flex items-center justify-center text-xs text-gray-400 font-mono">
+                LOADING PANEL...
+              </div>
+            }>
+              <AdminPanel />
+            </Suspense>
+          )}
           
           <div className="bg-white border border-gray-200/80 rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex-1 flex flex-col">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
