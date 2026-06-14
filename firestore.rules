@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // wallets collection rules
+    match /wallets/{userId} {
+      allow read, write: if true;
+    }
+
+    // auctions collection rules
+    match /auctions/{auctionId} {
+      allow read, write: if true;
+    }
+
+    // bids collection rules
+    match /bids/{bidId} {
+      allow read, write: if true;
+    }
+
+    // users collection rules if any
+    match /users/{userId} {
+      allow read, write: if true;
+      
+      match /wallet/{document} {
+        allow read, write: if true;
+      }
+    }
+
+    // default catch-all rule
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

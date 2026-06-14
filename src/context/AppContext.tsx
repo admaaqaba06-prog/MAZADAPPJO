@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { db } from '../services/firebase';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -352,6 +354,87 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   }
 ];
 
+const DEMO_FALLBACK_AUCTIONS: AuctionItem[] = [
+  {
+    id: "demo-1",
+    title: "iPhone 15 Pro Max 256GB",
+    currentPrice: 850,
+    startingPrice: 500,
+    status: "live",
+    videoUrl: "",
+    thumbnailUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400",
+    totalBids: 12,
+    endTime: Date.now() + 3600000,
+    sellerName: "Tech Store JO",
+    description: "iPhone 15 Pro Max 256GB with dynamic features and pristine design.",
+    category: "Electronics",
+    minIncrement: 10,
+    currentBidderId: null,
+    currentBidderName: null,
+    duration: 3600,
+    sellerId: "seller-tech-store",
+    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
+    isFeatured: true,
+    viewersCount: 154,
+    // Add custom properties for other consumers
+    imageUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400",
+    endsAt: new Date(Date.now() + 3600000),
+    createdByName: "Tech Store JO"
+  } as unknown as AuctionItem,
+  {
+    id: "demo-2", 
+    title: "Rolex Submariner",
+    currentPrice: 4200,
+    startingPrice: 3000,
+    status: "live",
+    videoUrl: "",
+    thumbnailUrl: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400",
+    totalBids: 28,
+    endTime: Date.now() + 7200000,
+    sellerName: "Luxury JO",
+    description: "Elegant Rolex Submariner luxury timepiece.",
+    category: "Luxury",
+    minIncrement: 50,
+    currentBidderId: null,
+    currentBidderName: null,
+    duration: 7200,
+    sellerId: "seller-luxury-jo",
+    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
+    isFeatured: true,
+    viewersCount: 288,
+    // Add custom properties for other consumers
+    imageUrl: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400",
+    endsAt: new Date(Date.now() + 7200000),
+    createdByName: "Luxury JO"
+  } as unknown as AuctionItem,
+  {
+    id: "demo-3",
+    title: "MacBook Pro M3",
+    currentPrice: 1200,
+    startingPrice: 900,
+    status: "live", 
+    videoUrl: "",
+    thumbnailUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400",
+    totalBids: 7,
+    endTime: Date.now() + 5400000,
+    sellerName: "Apple Zone JO",
+    description: "High-performance MacBook Pro with M3 processor.",
+    category: "Electronics",
+    minIncrement: 20,
+    currentBidderId: null,
+    currentBidderName: null,
+    duration: 5400,
+    sellerId: "seller-apple-zone",
+    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
+    isFeatured: false,
+    viewersCount: 95,
+    // Add custom properties for other consumers
+    imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400",
+    endsAt: new Date(Date.now() + 5400000),
+    createdByName: "Apple Zone JO"
+  } as unknown as AuctionItem,
+];
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Core user states
   const [currentUser, setCurrentUser] = useState<User>(() => {
@@ -491,6 +574,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('mazad_authenticated') === 'true';
   });
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const walletRef = doc(db, 'wallets', currentUser.id);
+    getDoc(walletRef).then(snap => {
+      if (!snap.exists()) {
+        setDoc(walletRef, wallet).catch(e => {
+          console.warn("Failed to set initial wallet on Firestore:", e);
+        });
+      }
+    }).catch(e => {
+      console.warn("Failed to fetch wallet from Firestore:", e);
+    });
+    const unsub = onSnapshot(walletRef, (snap) => {
+      if (snap.exists()) {
+        setWallet(snap.data() as typeof wallet);
+      }
+    }, (err) => {
+      console.warn("Firestore 'wallets' subscription failure (retaining local state):", err);
+    });
+    return () => unsub();
+  }, [currentUser?.id]);
+
+  // Real-time auctions synchronization with Firestore and demo fallback
+  useEffect(() => {
+    const auctionsRefCol = collection(db, 'auctions');
+    const unsub = onSnapshot(auctionsRefCol, (snap) => {
+      if (snap.empty) {
+        console.log("Firestore 'auctions' collection is empty. Falling back to demo auctions.");
+        setAuctions(DEMO_FALLBACK_AUCTIONS);
+      } else {
+        const fetchedList: AuctionItem[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          let endTimeNum = Date.now() + 3600000;
+          if (data.endTime) {
+            endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
+          } else if (data.endsAt) {
+            endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
+          }
+          fetchedList.push({
+            id: docSnap.id,
+            title: data.title || '',
+            description: data.description || '',
+            category: data.category || 'Luxury',
+            startingPrice: data.startingPrice ?? 0,
+            currentPrice: data.currentPrice ?? (data.startingPrice ?? 0),
+            minIncrement: data.minIncrement ?? 10,
+            currentBidderId: data.currentBidderId || null,
+            currentBidderName: data.currentBidderName || null,
+            videoUrl: data.videoUrl || '',
+            thumbnailUrl: data.thumbnailUrl || data.imageUrl || 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=500&q=80',
+            endTime: endTimeNum,
+            duration: data.duration ?? 3600,
+            sellerId: data.sellerId || 'seller-system',
+            sellerName: data.sellerName || data.createdByName || 'Seller JO',
+            sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+            status: data.status || 'live',
+            isFeatured: data.isFeatured ?? false,
+            totalBids: data.totalBids ?? 0,
+            viewersCount: data.viewersCount ?? 15,
+            ...data
+          } as AuctionItem);
+        });
+        setAuctions(fetchedList);
+      }
+    }, (err) => {
+      console.warn("Firestore 'auctions' collection sync error, using demo fallbacks:", err);
+      setAuctions(DEMO_FALLBACK_AUCTIONS);
+    });
+    return () => unsub();
+  }, []);
 
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
@@ -683,6 +838,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         escrowBalance: newEscrow,
         totalBalance: newAvail + newEscrow
       };
+    });
+
+    const walletRef = doc(db, 'wallets', currentUser.id);
+    setDoc(walletRef, {
+      userId: currentUser.id,
+      availableBalance: wallet.availableBalance - incrementalDelta,
+      escrowBalance: wallet.escrowBalance + incrementalDelta,
+      totalBalance: wallet.totalBalance
+    }).catch(e => {
+      console.warn("Firestore wallet update permission warning or error: ", e);
+    });
+    addDoc(collection(db, 'bids'), {
+      auctionId,
+      amount,
+      bidderId: currentUser.id,
+      bidderName: currentUser.name,
+      timestamp: Date.now()
+    }).catch(e => {
+      console.warn("Firestore bid logging permission warning or error: ", e);
     });
 
     // If outbid other user: Restore their wallet (refund escrow)
