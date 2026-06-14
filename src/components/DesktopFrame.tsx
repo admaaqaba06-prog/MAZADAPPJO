@@ -277,16 +277,17 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
         </aside>
 
         {/* ==========================================
+        {/* ==========================================
             CENTER STAGE: PHONE WRAPPER FRAME
             ========================================== */}
-        <section className="flex-1 flex flex-col items-center justify-center min-w-0" id="center-iphone-frame-stage">
-          <div className="w-full lg:max-w-[430px] lg:h-[860px] bg-[#111111] lg:rounded-[48px] lg:border-[8px] lg:border-gray-200/90 flex flex-col overflow-hidden relative shadow-[0_20px_50px_-15px_rgba(0,0,0,0.06)] lg:ring-1 lg:ring-black/5">
+        <section className="flex-1 flex flex-col items-stretch lg:items-center lg:justify-center min-w-0 h-full w-full" id="center-iphone-frame-stage">
+          <div className={`w-full h-full lg:h-[860px] lg:max-w-[430px] flex flex-col overflow-hidden relative lg:rounded-[48px] lg:border-[8px] lg:border-gray-200/90 shadow-none lg:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.06)] lg:ring-1 lg:ring-black/5 ${activeView === 'live' ? 'bg-[#111111]' : 'bg-white lg:bg-[#111111]'}`}>
             
             {/* Dynamic island (fits pristine clean screen rules) */}
             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-full z-50 pointer-events-none hidden lg:block"></div>
 
             {/* Simulated Frame Screen Internal Viewport */}
-            <div className={`flex-1 w-full relative overflow-hidden h-[100dvh] lg:h-full flex flex-col ${activeView === 'live' ? 'bg-[#111111]' : 'bg-white'}`}>
+            <div className={`flex-1 w-full relative overflow-hidden h-full flex flex-col ${activeView === 'live' ? 'bg-[#111111]' : 'bg-white'}`}>
               {children}
             </div>
             

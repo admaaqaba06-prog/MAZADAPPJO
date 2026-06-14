@@ -326,21 +326,7 @@ const INITIAL_CHATS: ChatMessage[] = [
   }
 ];
 
-const INITIAL_ESCROWS: EscrowTransaction[] = [
-  {
-    id: 'escrow-1',
-    walletId: 'wallet-current',
-    auctionId: 'auction-jacket',
-    auctionTitle: 'Vintage Amiri Hand-Painted Silk Bomber',
-    bidderId: 'user-current',
-    bidderName: 'Tareq Al-Masri',
-    sellerId: 'seller-zain-profile',
-    sellerName: 'Zain Luxury Boutique',
-    amount: 1450,
-    status: 'locked',
-    timestamp: Date.now() - 600000
-  }
-];
+const INITIAL_ESCROWS: EscrowTransaction[] = [];
 
 const INITIAL_NOTIFICATIONS: Notification[] = [
   {
@@ -469,9 +455,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('mazad_wallet');
     return saved ? JSON.parse(saved) : {
       userId: 'user-current',
-      totalBalance: 3950,
-      availableBalance: 2500,
-      escrowBalance: 1450
+      totalBalance: 0,
+      availableBalance: 0,
+      escrowBalance: 0
     };
   });
   const [escrows, setEscrows] = useState<EscrowTransaction[]>(() => {
