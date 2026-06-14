@@ -81,7 +81,6 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
       <input
         type="file"
         accept="video/mp4,video/*"
-        capture="environment"
         onChange={handleFileSelect}
         ref={fileInputRef}
         style={{ display: 'none' }}

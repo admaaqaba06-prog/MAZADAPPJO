@@ -69,7 +69,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   return (
     <div 
-      className="min-h-screen bg-white text-gray-900 flex flex-col font-sans selection:bg-[#FF6B00]/20 overflow-x-hidden"
+      className="h-[100dvh] lg:min-h-screen bg-white text-gray-900 flex flex-col font-sans selection:bg-[#FF6B00]/20 overflow-x-hidden"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="desktop-frame-root"
     >
@@ -138,7 +138,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       </header>
 
       {/* 2. Main Structuring Section Grid */}
-      <main className="flex-1 w-full mx-auto max-w-7xl flex items-stretch lg:py-6 lg:px-4 gap-6 min-h-0">
+      <main className="flex-grow flex-1 w-full mx-auto max-w-7xl flex flex-col lg:flex-row items-stretch lg:py-6 lg:px-4 lg:gap-6 min-h-0">
         
         {/* ==========================================
             LEFT ASIDE: MERCHANDISE WALLET LEDGER
@@ -276,7 +276,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           </div>
         </aside>
 
-        {/* ==========================================
         {/* ==========================================
             CENTER STAGE: PHONE WRAPPER FRAME
             ========================================== */}

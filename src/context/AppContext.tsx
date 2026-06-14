@@ -71,6 +71,17 @@ interface AppContextProps {
   logout: () => void;
   registerUser: (name: string, email: string) => { success: boolean; message: string };
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
+
+  // Watch list & Auto-bid attributes
+  watchlist: string[];
+  toggleWatchlist: (auctionId: string) => void;
+  autoBids: { [auctionId: string]: number };
+  setAutoBid: (auctionId: string, maxBid: number) => void;
+  removeAutoBid: (auctionId: string) => void;
+
+  // Subscription Renewal Prompt
+  showSubscriptionPrompt: boolean;
+  setShowSubscriptionPrompt: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -549,6 +560,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about'>('discovery');
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
+
+  // Watchlist & Auto-bid state hooks
+  const [watchlist, setWatchlist] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mazad_watchlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [autoBids, setAutoBids] = useState<{ [auctionId: string]: number }>(() => {
+    try {
+      const saved = localStorage.getItem('mazad_autobids');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mazad_watchlist', JSON.stringify(watchlist));
+  }, [watchlist]);
+
+  useEffect(() => {
+    localStorage.setItem('mazad_autobids', JSON.stringify(autoBids));
+  }, [autoBids]);
 
   // Simulator controls
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
@@ -671,7 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       const cleanName = email.split('@')[0];
       const newUser: User = {
-        id: `user-${Date.now()}`,
+        id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
         email: email,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
@@ -691,7 +730,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithGoogle = useCallback(() => {
     const googleUser: User = {
-      id: `google-user-${Date.now()}`,
+      id: `google-user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
       name: 'Google User',
       email: 'gmail-oauth@google.com',
       avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
@@ -715,7 +754,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const registerUser = useCallback((name: string, email: string) => {
     const newUser: User = {
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
       name: name,
       email: email,
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
@@ -773,6 +812,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return u;
     }));
+    setShowSubscriptionPrompt(false);
     addNotification('💳 Subscription Activated', `Thank you! Your payment of ${price} JD was processed securely via CliQ Gateway.`, 'win');
   }, [currentUser, addNotification]);
 
@@ -783,7 +823,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: '🚫 Account restricted. Bidding disabled.' };
     }
     if (currentUser.subscriptionStatus !== 'active') {
-      return { success: false, message: '🎒 Bid rejected: Active subscription pass required.' };
+      setShowSubscriptionPrompt(true);
+      return { 
+        success: false, 
+        message: language === 'ar' 
+          ? '❌ انتهى مفعول اشتراكك! يرجى تجديد اشتراك المزاد الفضي لمواصلة المزايدة.' 
+          : '🎒 Bid rejected: Active subscription pass required. Please renew your subscription to place bids.' 
+      };
     }
 
     const auction = auctions.find(a => a.id === auctionId);
@@ -973,7 +1019,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
     videoFile?: File | Blob | null
   ) => {
-    const newListingId = `auction-new-${Date.now()}`;
+    const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const newListing: AuctionItem = {
       ...listingData,
       id: newListingId,
@@ -1401,6 +1447,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [isSimulating, language, addNotification]);
 
+  // 1. Watchlist and Auto-bid callback handles
+  const toggleWatchlist = useCallback((auctionId: string) => {
+    setWatchlist(prev => {
+      const exists = prev.includes(auctionId);
+      const updated = exists ? prev.filter(id => id !== auctionId) : [...prev, auctionId];
+      return updated;
+    });
+  }, []);
+
+  const setAutoBid = useCallback((auctionId: string, maxBid: number) => {
+    setAutoBids(prev => ({
+      ...prev,
+      [auctionId]: maxBid
+    }));
+  }, []);
+
+  const removeAutoBid = useCallback((auctionId: string) => {
+    setAutoBids(prev => {
+      const copy = { ...prev };
+      delete copy[auctionId];
+      return copy;
+    });
+  }, []);
+
+  // 2. Watch list - 5 minutes remaining alerts engine
+  const notifiedEndingSoonRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const checkTimer = setInterval(() => {
+      const now = Date.now();
+      watchlist.forEach(id => {
+        const item = auctions.find(a => a.id === id);
+        if (item && item.status === 'live') {
+          const diff = item.endTime - now;
+          if (diff > 0 && diff <= 5 * 60 * 1000) {
+            // Check if we already triggered an alert for this specific item cycle
+            const alertKey = `${id}-${Math.floor(item.endTime / 60000)}`;
+            if (!notifiedEndingSoonRef.current.has(alertKey)) {
+              notifiedEndingSoonRef.current.add(alertKey);
+              addNotification(
+                language === 'ar' ? '⏳ الوقت يداهمك!' : '⏳ Watched Item Closing Soon!',
+                language === 'ar'
+                  ? `المزاد المتابع "${item.title}" ينتهي في أقل من 5 دقائق! قدم عرضاً الآن لتضمن الصدارة.`
+                  : `Your watched item "${item.title}" ends in less than 5 minutes! Place a bid quickly!`,
+                'alert'
+              );
+            }
+          }
+        }
+      });
+    }, 12000); // stable 12 sec check
+
+    return () => clearInterval(checkTimer);
+  }, [watchlist, auctions, addNotification, language]);
+
+  // 3. Centralized Auto-Bid engine
+  const isAutoBiddingRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (isAutoBiddingRef.current) return;
+
+    const triggerable = auctions.find(auction => {
+      if (auction.status !== 'live') return false;
+      if (auction.currentBidderId === 'user-current') return false;
+      
+      const maxBid = autoBids[auction.id];
+      if (!maxBid) return false;
+
+      const nextRequiredBid = auction.currentPrice + (auction.totalBids > 0 ? auction.minIncrement : 0);
+      return nextRequiredBid <= maxBid;
+    });
+
+    if (triggerable) {
+      isAutoBiddingRef.current = true;
+      const nextBid = triggerable.currentPrice + (triggerable.totalBids > 0 ? triggerable.minIncrement : 0);
+      
+      const timer = setTimeout(() => {
+        const res = placeBid(triggerable.id, nextBid);
+        isAutoBiddingRef.current = false;
+        if (res.success) {
+          addNotification(
+            language === 'ar' ? '🤖 نظام المزايد التلقائي' : '🤖 Auto-Bid system',
+            language === 'ar'
+              ? `تم تقديم مزايدة تلقائية بقيمة ${nextBid} JOD للحفاظ على صدارتك في المزاد "${triggerable.title}".`
+              : `Auto-bid placed a counter-bid of ${nextBid} JOD on "${triggerable.title}" to secure your lead.`,
+            'info'
+          );
+        }
+      }, 1200);
+
+      return () => {
+        clearTimeout(timer);
+        isAutoBiddingRef.current = false;
+      };
+    }
+  }, [auctions, autoBids, placeBid, addNotification, language]);
+
   return (
     <AppContext.Provider value={{
       currentUser, setCurrentUser,
@@ -1436,7 +1577,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loginWithGoogle,
       logout,
       registerUser,
-      subscribeUser
+      subscribeUser,
+      watchlist,
+      toggleWatchlist,
+      autoBids,
+      setAutoBid,
+      removeAutoBid,
+      showSubscriptionPrompt,
+      setShowSubscriptionPrompt
     }}>
       {children}
     </AppContext.Provider>

@@ -29,6 +29,43 @@ export default function AuctionCard({ auction, showToast }: AuctionCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lang = localStorage.getItem('mjo_lang') || 'ar';
 
+  // IntersectionObserver to lazy-load video src when intersecting (BUG #4)
+  const [videoSrc, setVideoSrc] = useState<string>('');
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setVideoSrc(auction.videoUrl || '');
+          } else {
+            setVideoSrc('');
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+
+    observer.observe(videoElement);
+    return () => {
+      observer.unobserve(videoElement);
+    };
+  }, [auction.videoUrl]);
+
+  // Handle play/pause when videoSrc changes
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+    if (videoSrc) {
+      videoElement.load();
+      videoElement.play().catch(() => {});
+    } else {
+      videoElement.pause();
+    }
+  }, [videoSrc]);
+
   const triggerToast = (msg: string, type: 'success' | 'warning' | 'info') => {
     if (showToast) {
       showToast(msg, type);
@@ -185,7 +222,7 @@ export default function AuctionCard({ auction, showToast }: AuctionCardProps) {
         {auction.videoUrl ? (
           <video
             ref={videoRef}
-            src={auction.videoUrl}
+            src={videoSrc}
             autoPlay
             muted={videoMuted}
             loop

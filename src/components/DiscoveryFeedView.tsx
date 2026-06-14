@@ -20,6 +20,7 @@ import {
   Bookmark
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
+import { CountdownStoriesBar } from './CountdownStoriesBar';
 
 export const DiscoveryFeedView: React.FC = () => {
   const { auctions, setActiveAuctionId, setActiveView, notifications, language, setLanguage, approveListing } = useApp();
@@ -118,6 +119,9 @@ export const DiscoveryFeedView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Countdown Stories Bar */}
+      <CountdownStoriesBar />
 
       {/* Search Input block */}
       <div className="p-4 space-y-3.5">

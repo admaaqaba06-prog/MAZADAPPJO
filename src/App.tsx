@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { DesktopFrame } from './components/DesktopFrame';
+import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -34,22 +35,22 @@ function ActiveViewRenderer() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, currentUser } = useApp();
+  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt } = useApp();
 
   // 1. Verify Authentication Status
   if (!isAuthenticated) {
     return <LoginView />;
   }
 
-  // 2. Verify Active Subscription Paywall Status (Admins are immune)
-  if (currentUser?.subscriptionStatus !== 'active' && currentUser?.role !== 'admin') {
-    return <SubscriptionView />;
-  }
-
   // 3. Render Desktop Outer viewport wrapper frame
   return (
     <DesktopFrame>
       <ActiveViewRenderer />
+
+      {/* Global Subscription Prompt Modal */}
+      {showSubscriptionPrompt && (
+        <SubscriptionPromptModal onClose={() => setShowSubscriptionPrompt(false)} />
+      )}
     </DesktopFrame>
   );
 }

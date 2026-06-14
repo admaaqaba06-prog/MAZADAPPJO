@@ -82,43 +82,44 @@ export const ListingWizardView: React.FC = () => {
     setUploadPhase('transferring');
     setProgressVal(15);
 
+    let currentProgress = 15;
+
     const timing = setInterval(() => {
-      setProgressVal(prev => {
-        if (prev < 65) {
-          return prev + 15;
-        } else if (prev >= 65 && prev < 90) {
-          setUploadPhase('transcoding');
-          return prev + 10;
-        } else {
-          clearInterval(timing);
-          setUploadPhase('done');
-          
-          const key = videoPreset as keyof typeof presets;
-          // Trigger Creation inside central context lists with STATUS: "Processing" automatically!
-          createListing({
-            title,
-            description,
-            category,
-            startingPrice: Number(startingPrice),
-            minIncrement: Number(minIncrement),
-            videoUrl: videoSourceMode === 'custom' && customVideoUrl ? customVideoUrl : (presets[key]?.videoUrl || presets.luxury.videoUrl),
-            thumbnailUrl: customThumbnail || (videoSourceMode === 'custom' ? 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80' : presets[key]?.thumbnail) || presets.luxury.thumbnail,
-            endTime: Date.now() + Number(duration) * 1000,
-            duration: Number(duration),
-            isFeatured: false
-          }, videoSourceMode === 'custom' ? rawVideoFile : null);
+      if (currentProgress < 65) {
+        currentProgress += 15;
+        setProgressVal(currentProgress);
+      } else if (currentProgress >= 65 && currentProgress < 90) {
+        currentProgress += 10;
+        setUploadPhase('transcoding');
+        setProgressVal(currentProgress);
+      } else {
+        clearInterval(timing);
+        setUploadPhase('done');
+        setProgressVal(100);
+        
+        const key = videoPreset as keyof typeof presets;
+        // Trigger Creation inside central context lists with STATUS: "Processing" automatically!
+        createListing({
+          title,
+          description,
+          category,
+          startingPrice: Number(startingPrice),
+          minIncrement: Number(minIncrement),
+          videoUrl: videoSourceMode === 'custom' && customVideoUrl ? customVideoUrl : (presets[key]?.videoUrl || presets.luxury.videoUrl),
+          thumbnailUrl: customThumbnail || (videoSourceMode === 'custom' ? 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80' : presets[key]?.thumbnail) || presets.luxury.thumbnail,
+          endTime: Date.now() + Number(duration) * 1000,
+          duration: Number(duration),
+          isFeatured: false
+        }, videoSourceMode === 'custom' ? rawVideoFile : null);
 
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadPhase('draft');
-            setProgressVal(0);
-            // Instantly go to administrative board to approve/release
-            setActiveView('admin');
-          }, 1100);
-
-          return 100;
-        }
-      });
+        setTimeout(() => {
+          setIsUploading(false);
+          setUploadPhase('draft');
+          setProgressVal(0);
+          // Instantly go to administrative board to approve/release
+          setActiveView('admin');
+        }, 1100);
+      }
     }, 300);
   };
 

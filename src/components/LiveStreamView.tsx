@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { placeAuctionBid } from '../services/auctionService';
+import { SwipeToBid } from './SwipeToBid';
+import { Bot, Cpu } from 'lucide-react';
 
 export const LiveStreamView: React.FC = () => {
   const { 
@@ -32,7 +34,12 @@ export const LiveStreamView: React.FC = () => {
     setActiveView, 
     placeBid, 
     wallet,
-    language
+    language,
+    watchlist,
+    toggleWatchlist,
+    autoBids,
+    setAutoBid,
+    removeAutoBid
   } = useApp();
 
   const isAr = language === 'ar';
@@ -45,8 +52,10 @@ export const LiveStreamView: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [likesCount, setLikesCount] = useState<number>(1520);
-  const [isSaved, setIsSaved] = useState<boolean>(false);
+  const isSaved = watchlist.includes(currentItem?.id || '');
   const [commentCount, setCommentCount] = useState<number>(77);
+  const [showAutoBidPanel, setShowAutoBidPanel] = useState<boolean>(false);
+  const [autoBidInput, setAutoBidInput] = useState<string>('');
   const [showToast, setShowToast] = useState<string | null>(null);
   const [showCustomModal, setShowCustomModal] = useState<boolean>(false);
   const [customBidVal, setCustomBidVal] = useState<string>('150');
@@ -232,8 +241,13 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const handleSaveToggle = () => {
-    setIsSaved(!isSaved);
-    triggerToast(isSaved ? 'Removed from watchlist' : 'Saved to watchlist! 🔖');
+    if (!currentItem) return;
+    toggleWatchlist(currentItem.id);
+    if (isSaved) {
+      triggerToast(isAr ? 'تمت الإزالة من قائمة المتابعة' : 'Removed from watchlist 🔖');
+    } else {
+      triggerToast(isAr ? 'تمت الإضافة لقائمة المتابعة!' : 'Saved to watchlist! 🔖');
+    }
   };
 
   const isRolex = currentItem.id?.includes('rolex');
@@ -553,7 +567,7 @@ export const LiveStreamView: React.FC = () => {
               background: 'rgba(0,0,0,0.4)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              border: isSaved ? '1px solid rgba(255,107,0,0.4)' : '1px solid rgba(255,255,255,0.15)',
+              border: isSaved ? '1px solid #FF6B00' : '1px solid rgba(255,255,255,0.15)',
               borderRadius: '50%',
               color: 'white'
             }}
@@ -565,6 +579,39 @@ export const LiveStreamView: React.FC = () => {
             style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
           >
             {isAr ? 'حفظ' : 'SAVE'}
+          </span>
+        </div>
+
+        {/* Auto Bid Bot */}
+        <div className="flex flex-col items-center gap-0.5 font-sans">
+          <button 
+            type="button"
+            onClick={() => {
+              if (!currentItem) return;
+              setShowAutoBidPanel(!showAutoBidPanel);
+              const activeAutoLimit = autoBids[currentItem.id];
+              setAutoBidInput(activeAutoLimit ? activeAutoLimit.toString() : '');
+            }}
+            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
+            style={{
+              width: '36px',
+              height: '36px',
+              background: 'rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: autoBids[currentItem?.id || ''] ? '1px solid #FF6B00' : '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '50%',
+              color: 'white'
+            }}
+            id="stream-autobid-toggle"
+          >
+            <Bot className={`w-4 h-4 ${autoBids[currentItem?.id || ''] ? 'text-[#FF6B00] animate-bounce' : 'text-white'}`} style={{ width: '16px', height: '16px' }} />
+          </button>
+          <span 
+            className="font-extrabold uppercase tracking-widest leading-none mt-1 drop-shadow-md text-center"
+            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
+          >
+            {isAr ? 'تلقائي' : 'AUTOBID'}
           </span>
         </div>
       </div>
@@ -627,7 +674,9 @@ export const LiveStreamView: React.FC = () => {
                     onClick={() => {
                       setSelectedIncrement(val);
                       setActiveQuickBidVal(val);
-                      triggerToast(isAr ? `تعديل زيادة المزايدة الفورية بقيمة +${val} د.أ` : `Bid increment modified: +${val} JOD`);
+                      // Instantly trigger bidding and deduct from wallet!
+                      const requestedBidAmount = currentItem.currentPrice + val;
+                      executeBid(requestedBidAmount);
                       setTimeout(() => {
                         setActiveQuickBidVal(null);
                       }, 400);
@@ -642,33 +691,15 @@ export const LiveStreamView: React.FC = () => {
               })}
             </div>
 
-            {/* Solid Orange Primary Bidding CTA */}
-            <button
-              type="button"
-              onClick={() => {
-                executeBid(bidCTAAmount);
-                setIsMainBidClicked(true);
-                setTimeout(() => {
-                  setIsMainBidClicked(false);
-                }, 1000);
-              }}
-              disabled={currentUser.isBlocked || wallet.availableBalance < selectedIncrement}
-              className={`w-full bg-[#FF6B00] hover:bg-orange-600 text-white font-bold h-[48px] rounded-[14px] text-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-45 select-none shrink-0 cursor-pointer ${
-                isMainBidClicked ? 'main-bid-clicked-anim main-bid-glow' : ''
-              }`}
-              id="main-lot-bid-submit-cta"
-            >
-              {isMainBidClicked ? (
-                <Check className="w-4.5 h-4.5 text-white stroke-[3] animate-bounce" />
-              ) : (
-                <Gavel className="w-4.5 h-4.5 text-white" />
-              )}
-              <span>
-                {isAr 
-                  ? `زايد ${bidCTAAmount.toLocaleString()} JOD` 
-                  : `BID ${bidCTAAmount.toLocaleString()} JOD`}
-              </span>
-            </button>
+            {/* Gesture-Based Swipe To Bid Slider */}
+            <div className="w-full shrink-0 relative z-30" id="main-lot-bid-submit-cta">
+              <SwipeToBid
+                amount={bidCTAAmount}
+                onSwipeSuccess={() => executeBid(bidCTAAmount)}
+                disabled={currentUser.isBlocked || wallet.availableBalance < (bidCTAAmount - (currentItem?.currentBidderId === currentUser.id ? currentItem.currentPrice : 0))}
+                language={language}
+              />
+            </div>
           </div>
 
           {/* Bottom Nav Bar aligned inside gradient area */}
@@ -793,6 +824,92 @@ export const LiveStreamView: React.FC = () => {
               </button>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* Auto Bid Setup Dialog Panel (z-index 50) */}
+      {showAutoBidPanel && currentItem && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#121318] border border-white/10 rounded-3xl p-5.5 w-full max-w-sm space-y-4 shadow-[0_16px_48px_rgba(0,0,0,0.6)] animate-in fade-in duration-200">
+            
+            <div className="flex justify-between items-center">
+              <h3 className="text-[13px] font-black text-white tracking-wide uppercase flex items-center gap-1.5 font-sans">
+                <Bot className="w-4.5 h-4.5 text-[#FF6B00]" /> {isAr ? 'المزايد التلقائي' : 'AUTO-BID CONFIGURATION'}
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setShowAutoBidPanel(false)}
+                className="p-1 rounded-full hover:bg-white/10 text-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 font-sans">
+              <p className="text-[11px] text-gray-400 leading-normal">
+                {isAr
+                  ? 'سيقوم النظام بالمزايدة التلقائية نيابة عنك برفع عرضك بالقيمة الصغرى المطلوبة كلما تجاوز أحد سعرك، حتى يصل الحد الأقصى المعتمد لديك.'
+                  : 'The system will instantly bid on your behalf by the minimum increment whenever you get outbid, up to your designated maximum limit below.'}
+              </p>
+
+              {autoBids[currentItem.id] ? (
+                <div className="bg-[#FF6B00]/10 border border-[#FF6B00]/20 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[9px] font-black text-[#FF6B00] uppercase block">{isAr ? 'نشط حالياً بحد أقصى' : 'CURRENT ACTIVE LIMIT'}</span>
+                    <span className="text-sm font-black text-white">{autoBids[currentItem.id].toLocaleString()} JOD</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeAutoBid(currentItem.id);
+                      triggerToast(isAr ? 'تم إيقاف المزايد التلقائي' : 'Auto-bid disabled');
+                      setShowAutoBidPanel(false);
+                    }}
+                    className="px-3 py-1.5 bg-red-600/20 border border-red-500/30 text-red-400 rounded-lg text-[10px] font-extrabold hover:bg-red-600/30 transition-all cursor-pointer"
+                  >
+                    {isAr ? 'إيقاف التفعيل' : 'DISABLE'}
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white/5 border border-white/5 rounded-xl p-3">
+                  <span className="text-[9px] font-black text-gray-400 uppercase block">{isAr ? 'المزايدة التلقائية معطلة' : 'AUTO-BID STATUS'}</span>
+                  <span className="text-[11px] text-gray-500">{isAr ? 'ادخل الحد الأقصى أدناه للتفعيل' : 'Enter limit below to enable the autonomous bot.'}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5 pt-1.5">
+                <label className="text-[10px] font-black text-gray-400 uppercase block">{isAr ? 'الحد الأقصى للمزايدة التلقائية (دينار)' : 'MAXIMUM AUTO-BID LIMIT (JOD)'}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={autoBidInput}
+                    onChange={(e) => setAutoBidInput(e.target.value)}
+                    placeholder={(currentItem.currentPrice + currentItem.minIncrement * 3).toString()}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-[#FF6B00] transition-all font-sans"
+                  />
+                  <span className={`absolute ${isAr ? 'left-4' : 'right-4'} top-3 text-[11px] font-black text-gray-500`}>JOD</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const maxAmt = parseInt(autoBidInput, 10);
+                  const minPossible = currentItem.currentPrice + currentItem.minIncrement;
+                  if (isNaN(maxAmt) || maxAmt < minPossible) {
+                    triggerToast(isAr ? `الحد الأدنى للتفعيل هو ${minPossible} JOD` : `Minimum value must be at least ${minPossible} JOD`);
+                    return;
+                  }
+                  setAutoBid(currentItem.id, maxAmt);
+                  triggerToast(isAr ? 'تم تفعيل المزايد التلقائي بنجاح!' : 'Auto-bid configured successfully! 🤖');
+                  setShowAutoBidPanel(false);
+                }}
+                className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+              >
+                {isAr ? 'تفعيل المزايد التلقائي' : 'ACTIVATE ROBOTIC BIDDING'}
+              </button>
+            </div>
           </div>
         </div>
       )}
