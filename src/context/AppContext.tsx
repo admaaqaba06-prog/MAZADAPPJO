@@ -735,7 +735,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...data
           } as AuctionItem);
         });
-        setAuctions(fetchedList);
+
+        // Resolve video URLs asynchronously to avoid black screen and preserve IndexedDB custom videos
+        import('../utils/videoDb').then(({ resolveVideoUrl }) => {
+          Promise.all(fetchedList.map(async (item) => {
+            const resolvedUrl = await resolveVideoUrl(item.id, item.videoUrl, item.category);
+            return {
+              ...item,
+              videoUrl: resolvedUrl
+            };
+          })).then((resolvedList) => {
+            setAuctions(resolvedList);
+          });
+        }).catch((err) => {
+          console.error("Failed to import resolveVideoUrl in onSnapshot, setting raw list:", err);
+          setAuctions(fetchedList);
+        });
       }
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error, using demo fallbacks:", err);

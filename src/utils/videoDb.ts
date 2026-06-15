@@ -75,3 +75,31 @@ export async function deleteVideoBlob(id: string): Promise<void> {
     console.error('Error deleting video from IndexedDB:', err);
   }
 }
+
+export async function resolveVideoUrl(id: string, fbVideoUrl: string, category?: string): Promise<string> {
+  if (fbVideoUrl && fbVideoUrl.startsWith('blob:')) {
+    try {
+      const blob = await getVideoBlob(id);
+      if (blob) {
+        return URL.createObjectURL(blob);
+      }
+    } catch (e) {
+      console.error('Error resolving video url for id', id, e);
+    }
+  }
+
+  // Fallback map if the blob is missing or starts with 'blob:' but not in this browser's IndexedDB
+  if (!fbVideoUrl || fbVideoUrl.startsWith('blob:')) {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+    } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+    } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
+    }
+    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
+  }
+
+  return fbVideoUrl;
+}
