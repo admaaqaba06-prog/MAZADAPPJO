@@ -206,7 +206,7 @@ export const WalletView: React.FC = () => {
   if (currentUser?.role === 'admin') {
     return (
       <div 
-        className="flex-1 overflow-y-auto w-full flex flex-col bg-[#F3F6F8] pb-28 overscroll-behavior-y-contain select-none font-sans"
+        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F3F6F8] pb-4 overscroll-contain select-none font-sans"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="admin-treasury-root"
       >
@@ -667,7 +667,7 @@ export const WalletView: React.FC = () => {
   // 2. NORMAL BIDDER WALLET REPRESENTATION
   return (
     <div 
-      className="flex-1 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] pb-28 overscroll-behavior-y-contain select-none font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] pb-4 overscroll-contain select-none font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="wallet-ledger-root"
     >

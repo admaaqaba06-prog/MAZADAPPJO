@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
@@ -66,6 +66,76 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const activeEscrowsSum = escrows
     .filter(e => e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  if (isMobile) {
+    return (
+      <div 
+        className="h-[100dvh] max-h-[100dvh] w-full bg-white text-gray-900 flex flex-col font-sans selection:bg-[#FF6B00]/20 overflow-hidden"
+        style={{ direction: isAr ? 'rtl' : 'ltr' }}
+        id="mobile-layout-root"
+      >
+        {/* Main Application active view fills standard mobile viewport exactly */}
+        <div className="flex-1 min-h-0 w-full relative overflow-hidden flex flex-col">
+          {children}
+        </div>
+
+        {/* Global Bottom Navigation bar strictly at foot of phone screens */}
+        {activeView !== 'live' && (
+          <nav 
+            className="bg-white border-t border-gray-200/80 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-6 flex items-center justify-between text-[11px] font-bold tracking-wider text-gray-500 select-none h-16 shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]"
+            id="mobile-nav-bar"
+          >
+            <button 
+              onClick={() => setActiveView('discovery')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeView === 'discovery' ? 'text-[#FF6B00]' : 'text-gray-400 hover:text-gray-700'}`}
+            >
+              <Tv className="w-5 h-5" />
+              <span className="text-[9px] font-bold tracking-normal">{t.navDiscover}</span>
+            </button>
+            <button 
+              onClick={() => setActiveView('wallet')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeView === 'wallet' ? 'text-[#FF6B00]' : 'text-gray-400 hover:text-gray-700'}`}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-[9px] font-bold tracking-normal">{t.navWallet}</span>
+            </button>
+            <button 
+              onClick={() => setActiveView('upload')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeView === 'upload' ? 'text-[#FF6B00]' : 'text-gray-400 hover:text-gray-700'}`}
+            >
+              <PlusCircle className="w-5 h-5" />
+              <span className="text-[9px] font-bold tracking-normal">{t.navAddListing}</span>
+            </button>
+            {currentUser && currentUser.role === 'admin' && (
+              <button 
+                onClick={() => {
+                  setActiveView('admin');
+                  setIsSimulating(true);
+                }}
+                className={`flex flex-col items-center gap-1 transition-all ${activeView === 'admin' ? 'text-black font-black' : 'text-gray-400 hover:text-gray-700'}`}
+              >
+                <ShieldAlert className="w-5 h-5 text-orange-500" />
+                <span className="text-[9px] font-bold tracking-normal">{t.navAdmin}</span>
+              </button>
+            )}
+          </nav>
+        )}
+
+        <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -376,7 +446,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       {/* 3. Global Mobile Dynamic bottom navigation bar (Hidden on lg layout and when live) */}
       {activeView !== 'live' && (
         <nav 
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200/60 backdrop-blur-lg pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2.5 px-6 flex items-center justify-between text-[11px] font-bold tracking-wider text-gray-500 select-none h-16 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]"
+          className="lg:hidden bg-white border-t border-gray-200/60 pb-[env(safe-area-inset-bottom)] pt-2.5 px-6 flex items-center justify-between text-[11px] font-bold tracking-wider text-gray-500 select-none shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]"
           id="mobile-nav-bar"
         >
           <button 

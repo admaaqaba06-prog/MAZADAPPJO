@@ -60,6 +60,28 @@ export const LiveStreamView: React.FC = () => {
   // UI Interactive States
   const [selectedIncrement, setSelectedIncrement] = useState<number>(50);
   const [isMuted, setIsMuted] = useState<boolean>(true);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+
+  // Force automatic video loading and playback on change, avoiding iOS / Android black screens
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Reset video player stream and trigger playback programmatically safely
+    video.load();
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("Muted autoplay auto-triggered fallback on mobile device:", err);
+        // Fall back to explicit mute which mobile environments always authorize
+        video.muted = true;
+        setIsMuted(true);
+        video.play().catch((playError) => {
+          console.error("Forced mobile video playback authorization completely failed:", playError);
+        });
+      });
+    }
+  }, [currentItem?.id, currentItem?.videoUrl]);
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [likesCount, setLikesCount] = useState<number>(1520);
   const isSaved = watchlist.includes(currentItem?.id || '');
@@ -339,6 +361,7 @@ export const LiveStreamView: React.FC = () => {
       <div className="absolute inset-0 w-full h-[100dvh] z-0 overflow-hidden bg-[#111111]">
         {currentItem.videoUrl ? (
           <video
+            ref={videoRef}
             src={currentItem.videoUrl}
             poster={currentItem.thumbnailUrl}
             autoPlay
