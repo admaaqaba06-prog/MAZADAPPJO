@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
@@ -693,24 +694,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (!currentUser?.id) return;
+
+    // 1. Sync User Profile with Firestore
+    const userRef = doc(db, 'users', currentUser.id);
+    getDoc(userRef).then(snap => {
+      if (!snap.exists()) {
+        const freshUserDoc = {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          avatar: currentUser.avatar,
+          role: currentUser.role,
+          isVerified: currentUser.isVerified,
+          isBlocked: currentUser.isBlocked,
+          subscriptionStatus: currentUser.subscriptionStatus || 'none',
+          subscriptionExpiry: currentUser.subscriptionExpiry || null,
+          phoneNumber: currentUser.phoneNumber || '',
+          city: currentUser.city || '',
+        };
+        setDoc(userRef, freshUserDoc).catch(e => {
+          console.warn("Failed to create user profile on Firestore:", e);
+        });
+      }
+    }).catch(e => {
+      console.warn("Error fetching user from Firestore:", e);
+    });
+
+    const unsubUser = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        const fbData = snap.data();
+        const mergedUser: User = {
+          id: currentUser.id,
+          name: fbData.name || currentUser.name,
+          email: fbData.email || currentUser.email,
+          avatar: fbData.avatar || currentUser.avatar,
+          role: fbData.role || currentUser.role,
+          isVerified: fbData.isVerified !== undefined ? fbData.isVerified : currentUser.isVerified,
+          isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : currentUser.isBlocked,
+          subscriptionStatus: fbData.subscriptionStatus || currentUser.subscriptionStatus || 'none',
+          subscriptionExpiry: fbData.subscriptionExpiry || currentUser.subscriptionExpiry || null,
+          phoneNumber: fbData.phoneNumber || currentUser.phoneNumber || '',
+          city: fbData.city || currentUser.city || '',
+        };
+        // Update state and localStorage session if in-memory differ
+        if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
+          setCurrentUser(mergedUser);
+          localStorage.setItem('mazad_user_session', JSON.stringify(mergedUser));
+        }
+      }
+    }, (err) => {
+      console.warn("Firestore 'users' snapshot subscription error:", err);
+    });
+
+    // 2. Sync Wallet with Firestore
     const walletRef = doc(db, 'wallets', currentUser.id);
     getDoc(walletRef).then(snap => {
       if (!snap.exists()) {
-        setDoc(walletRef, wallet).catch(e => {
+        const freshWallet: Wallet = {
+          userId: currentUser.id,
+          totalBalance: 0,
+          availableBalance: 0,
+          escrowBalance: 0
+        };
+        setDoc(walletRef, freshWallet).catch(e => {
           console.warn("Failed to set initial wallet on Firestore:", e);
         });
       }
     }).catch(e => {
       console.warn("Failed to fetch wallet from Firestore:", e);
     });
-    const unsub = onSnapshot(walletRef, (snap) => {
+
+    const unsubWallet = onSnapshot(walletRef, (snap) => {
       if (snap.exists()) {
         setWallet(snap.data() as typeof wallet);
       }
     }, (err) => {
       console.warn("Firestore 'wallets' subscription failure (retaining local state):", err);
     });
-    return () => unsub();
+
+    return () => {
+      unsubUser();
+      unsubWallet();
+    };
   }, [currentUser?.id]);
 
   // Real-time auctions synchronization with Firestore and demo fallback
@@ -895,28 +960,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [users, language]);
 
-  const loginWithGoogle = useCallback(() => {
-    const googleUser: User = {
-      id: `google-user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: 'Google User',
-      email: 'gmail-oauth@google.com',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-      role: 'user',
-      isVerified: true,
-      isBlocked: false,
-      subscriptionStatus: 'none',
-    };
-    setUsers(prev => [...prev, googleUser]);
-    setCurrentUser(googleUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('mazad_user_session', JSON.stringify(googleUser));
-    localStorage.setItem('mazad_authenticated', 'true');
+let googleAuthInProgress = false;
+
+  const loginWithGoogle = useCallback(async () => {
+    if (googleAuthInProgress) {
+      console.warn("Google authentication is already in progress, ignoring duplicate call.");
+      return;
+    }
+    googleAuthInProgress = true;
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      const googleUser: User = {
+        id: user.uid,
+        name: user.displayName || 'Google User',
+        email: user.email || 'google-user@gmail.com',
+        avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+        role: (user.email && (user.email.toLowerCase().includes('admin') || user.email === 'tareq@masri.jo')) ? 'admin' : 'user',
+        isVerified: true,
+        isBlocked: false,
+        subscriptionStatus: 'none',
+      };
+      
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.id !== googleUser.id);
+        return [...filtered, googleUser];
+      });
+      setCurrentUser(googleUser);
+      setIsAuthenticated(true);
+      localStorage.setItem('mazad_user_session', JSON.stringify(googleUser));
+      localStorage.setItem('mazad_authenticated', 'true');
+    } catch (error) {
+      console.warn("Fallback to simulated Google Auth: ", error);
+      
+      let stableId = localStorage.getItem('mazad_fallback_uid');
+      if (!stableId) {
+        stableId = `fallback-user-${Math.floor(10000 + Math.random() * 90000)}`;
+        localStorage.setItem('mazad_fallback_uid', stableId);
+      }
+      
+      const googleUser: User = {
+        id: stableId,
+        name: 'Google User',
+        email: 'gmail-oauth@google.com',
+        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+        role: 'user',
+        isVerified: true,
+        isBlocked: false,
+        subscriptionStatus: 'none',
+      };
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.id !== googleUser.id);
+        return [...filtered, googleUser];
+      });
+      setCurrentUser(googleUser);
+      setIsAuthenticated(true);
+      localStorage.setItem('mazad_user_session', JSON.stringify(googleUser));
+      localStorage.setItem('mazad_authenticated', 'true');
+    } finally {
+      googleAuthInProgress = false;
+    }
   }, []);
 
   const logout = useCallback(() => {
     setIsAuthenticated(false);
     localStorage.removeItem('mazad_authenticated');
     localStorage.removeItem('mazad_user_session');
+    localStorage.removeItem('mazad_wallet');
+    
+    // Reset to initial clean guest state
+    setCurrentUser(INITIAL_USERS[0]);
+    setWallet({
+      userId: 'user-current',
+      totalBalance: 0,
+      availableBalance: 0,
+      escrowBalance: 0
+    });
   }, []);
 
   const registerUser = useCallback((name: string, email: string) => {
