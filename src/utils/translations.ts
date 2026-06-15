@@ -20,9 +20,8 @@ export const translations = {
     fullnameLabel: "FULL NAME",
     fullnamePlaceholder: "Tareq Al-Masri, etc.",
     registerBtn: "REGISTER & START",
-    presetAdmin: "Access as Administrator",
-    presetSeller: "Access as Zain Luxury Seller",
-    presetBuyer: "Access as Guest Bidder",
+    presetAdmin: "Access as Site Manager",
+    presetDemoUser: "Access as Demo User",
 
     // Paywall
     paywallTitle: "PREMIUM BIDDING ACCESS",
@@ -42,14 +41,14 @@ export const translations = {
       "Access all high-ticket watch, vehicle & fashion live streams",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
       "Instant CliQ wallet balance ledger deposits",
-      "Full administrative buyer/seller protection coverage"
+      "Full administrative active protection and deposit coverage"
     ],
 
     // Global
     langLabel: "العربية",
     logout: "Log Out",
     city: "Amman, Jordan",
-    verifiedMerchant: "Verified Merchant",
+    verifiedMerchant: "Verified User",
     escrowAudit: "CliQ Audited",
 
     // Views Nav
@@ -137,9 +136,8 @@ export const translations = {
     fullnameLabel: "الاسم الكامل",
     fullnamePlaceholder: "طارق المصري، إلخ.",
     registerBtn: "تسجيل الحساب والبدء",
-    presetAdmin: "الدخول كمسؤول النظام",
-    presetSeller: "الدخول كتاجر ساعات (زين الفايز)",
-    presetBuyer: "الدخول كمزايد ضيف سريع",
+    presetAdmin: "الدخول كمدير الموقع",
+    presetDemoUser: "الدخول كمستخدم تجريبي",
 
     // Paywall
     paywallTitle: "تفعيل منصة المزايدة الممتازة",
@@ -159,14 +157,14 @@ export const translations = {
       "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",
       "تفعيل أزرار المزايدة الفورية (+10، +25، +50، +100 دينار)",
       "إيداع فوري للأموال بمحفظتك عبر إرفاق وصلات كليك",
-      "حماية وضمان كامل للمستندات والعمليات بين المشتري والبائع"
+      "حماية وضمان كامل للأموال وحقوق المزايدات المودعة بالضمان"
     ],
 
     // Global
     langLabel: "English",
     logout: "تسجيل الخروج",
     city: "عمان، الأردن",
-    verifiedMerchant: "تاجر موثق",
+    verifiedMerchant: "حساب موثق",
     escrowAudit: "مدقق كليك",
 
     // Views Nav

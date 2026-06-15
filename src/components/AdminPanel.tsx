@@ -1,18 +1,91 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { db } from '../services/firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Film, User, ShieldAlert, Check, X, AlertCircle } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
-  const { users, currentUser, subscribeUser, setUsers, addNotification, language } = useApp();
+  const { users, currentUser, setUsers, addNotification, language } = useApp();
   const isAr = language === 'ar';
+  
+  const [activeTab, setActiveTab] = useState<'subscriptions' | 'auctions'>('auctions');
+  const [pendingAuctions, setPendingAuctions] = useState<any[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Filter users who have uploaded payment proof and are waiting for admin review
   const pendingRequests = users.filter(u => u.paymentProofImage);
 
-  const handleApprove = (userId: string) => {
-    // Approve the subscription
+  // Read pending auctions in real-time
+  useEffect(() => {
+    // Listen to pending and processing auctions
+    const q = query(
+      collection(db, 'auctions'),
+      where('status', 'in', ['pending', 'processing'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      }));
+      setPendingAuctions(list);
+    }, (error) => {
+      console.error("Error subscribing to pending auctions in AdminPanel:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const showToast = (msg: string, type: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  const handleApproveAuction = async (auctionId: string) => {
+    try {
+      await updateDoc(doc(db, 'auctions', auctionId), {
+        status: 'live',
+        approvedAt: serverTimestamp(),
+        approvedBy: currentUser?.id || 'admin-system'
+      });
+      showToast(isAr ? 'تم الموافقة على المزاد وهو الآن مباشر!' : 'Auction approved and now live!', 'success');
+      
+      addNotification(
+        isAr ? '🚀 تم إطلاق المزاد الحركي' : '🚀 Video Auction released direct!',
+        isAr ? 'تم تفعيل المزاد بنجاح ونقله إلى البثوث المباشرة.' : 'Video approved and pushed to live reels stream successfully.',
+        'win'
+      );
+    } catch (error) {
+      console.error("Error approving auction:", error);
+      showToast(isAr ? 'حدث خطأ أثناء الموافقة' : 'Error approving auction', 'warning');
+    }
+  };
+
+  const handleRejectAuction = async (auctionId: string) => {
+    try {
+      await updateDoc(doc(db, 'auctions', auctionId), {
+        status: 'rejected',
+        rejectedAt: serverTimestamp(),
+        rejectedBy: currentUser?.id || 'admin-system'
+      });
+      showToast(isAr ? 'تم رفض المزاد' : 'Auction rejected', 'success');
+
+      addNotification(
+        isAr ? '❌ تم رفض المزاد' : '❌ Live Auction request rejected',
+        isAr ? 'تم رفض نشر هذا المزاد لمخالفة الشروط.' : 'Listing was rejected due to content checks.',
+        'error'
+      );
+    } catch (error) {
+      console.error("Error rejecting auction:", error);
+      showToast(isAr ? 'حدث خطأ أثناء رفض المزاد' : 'Error rejecting auction', 'warning');
+    }
+  };
+
+  const handleApproveSubscription = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
     if (targetUser) {
-      // Clear paymentProofImage once approved/processed to remove from screen listing
       setUsers(prev => prev.map(u => {
         if (u.id === userId) {
           return { ...u, subscriptionStatus: 'active', paymentProofImage: undefined };
@@ -24,11 +97,11 @@ export const AdminPanel: React.FC = () => {
         isAr ? `تم تفعيل اشتراك ${targetUser.name} بنجاح.` : `Activated subscription pass for ${targetUser.name} successfully.`,
         'win'
       );
+      showToast(isAr ? 'تم تفعيل الاشتراك بنجاح' : 'Subscription approved successfully', 'success');
     }
   };
 
-  const handleReject = (userId: string) => {
-    // Reject subscription logic (clearing payment proof)
+  const handleRejectSubscription = (userId: string) => {
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
         return { ...u, subscriptionStatus: 'none', paymentProofImage: undefined };
@@ -40,6 +113,7 @@ export const AdminPanel: React.FC = () => {
       isAr ? 'تم رفض إيصال الدفع وجار إشعار المستخدم.' : 'Subscription payment proof was rejected.',
       'error'
     );
+    showToast(isAr ? 'تم رفض الاشتراك' : 'Subscription rejected', 'warning');
   };
 
   if (!currentUser || currentUser.role !== 'admin') {
@@ -47,69 +121,160 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="bg-white border border-[#E5E5E5] rounded-2xl p-5 flex flex-col shadow transition-all overflow-hidden font-sans">
-      <div className="text-sm font-bold mb-4 flex items-center justify-between border-b border-zinc-200 pb-2 text-zinc-900">
-        <span>{isAr ? 'طلبات الاشتراكات' : 'Subscription Requests'}</span>
-        <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-          {pendingRequests.length}
-        </span>
+    <div className="bg-white border border-[#E5E5E5] rounded-2xl p-5 flex flex-col shadow-md transition-all overflow-hidden font-sans relative" dir="rtl" id="admin-sidebar-curation-panel">
+      
+      {/* Toast Alert overlay */}
+      {toastMessage && (
+        <div className="absolute top-3 left-3 right-3 bg-zinc-900 text-white text-xs font-bold py-2.5 px-3 rounded-xl flex items-center gap-2 shadow-lg z-50 animate-bounce border border-zinc-700">
+          <AlertCircle className="w-4 h-4 text-[#FF6B00] shrink-0" />
+          <span className="flex-1">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Modern Dashboard Curation Header */}
+      <div className="flex gap-1.5 p-1 bg-zinc-100 rounded-xl mb-4 text-xs font-bold">
+        <button
+          onClick={() => setActiveTab('auctions')}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auctions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+        >
+          <Film className="w-3.5 h-3.5 text-[#FF6B00]" />
+          <span>{isAr ? 'المعروضات المعلقة' : 'Pending Reels'}</span>
+          {pendingAuctions.length > 0 && (
+            <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold">
+              {pendingAuctions.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('subscriptions')}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'subscriptions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+        >
+          <User className="w-3.5 h-3.5 text-[#FF6B00]" />
+          <span>{isAr ? 'الاشتراكات' : 'Subscriptions'}</span>
+          {pendingRequests.length > 0 && (
+            <span className="bg-[#FF6B00] text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold">
+              {pendingRequests.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      <div className="space-y-4 overflow-y-auto flex-1 scrollbar-none font-sans">
-        {pendingRequests.length === 0 ? (
-          <div className="text-xs text-zinc-500 text-center py-10">
-            {isAr 
-              ? 'لا توجد طلبات اشتراك معلقة حالياً.' 
-              : 'No pending subscriptions at the moment. Try to register a new user to test it!'}
-          </div>
-        ) : (
-          pendingRequests.map((u) => (
-            <div key={u.id} className="p-3 bg-zinc-50 rounded-xl border border-zinc-250 space-y-3">
-              <div className="flex justify-between items-center text-[11px] font-bold text-zinc-800">
-                <span>{u.name}</span>
-                <span className="text-[#FF6B00] text-[9px] font-black uppercase">
-                  {isAr ? 'قيد التدقيق' : 'Pending'}
-                </span>
-              </div>
-
-              {/* Transfer Details */}
-              <div className="bg-white border border-zinc-200 p-2.5 rounded-lg text-[11px] space-y-1">
-                <div>
-                  <span className="font-extrabold text-zinc-500">{isAr ? 'اسم المحول: ' : 'Transfer Name: '}</span>
-                  <span className="font-bold text-zinc-900">{u.transferFullName || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-extrabold text-zinc-500">{isAr ? 'هاتف المحول: ' : 'Transfer Phone: '}</span>
-                  <span className="font-mono font-bold text-zinc-900">{u.transferPhone || 'N/A'}</span>
-                </div>
-              </div>
-              
-              {/* Full-width interactive preview replacing Mock placeholder */}
-              <div className="w-full rounded-lg overflow-hidden border border-zinc-200 bg-white">
-                <img 
-                  src={u.paymentProofImage} 
-                  alt={isAr ? 'إيصال الدفع المرفوع' : 'Payment Screenshot'} 
-                  className="w-full h-auto object-contain max-h-56 select-all pointer-events-auto" 
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              
-              <div className="flex gap-1.5 pt-1">
-                <button
-                  onClick={() => handleApprove(u.id)}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  {isAr ? 'قبول واعتماد' : 'Approve'}
-                </button>
-                <button
-                  onClick={() => handleReject(u.id)}
-                  className="flex-1 bg-red-50 hover:bg-red-100 border border-red-250 text-red-700 font-bold text-[10px] py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  {isAr ? 'رفض' : 'Reject'}
-                </button>
-              </div>
+      <div className="space-y-4 overflow-y-auto max-h-[420px] scrollbar-none flex-1 font-sans">
+        
+        {/* Pending Reels/Video Auctions section */}
+        {activeTab === 'auctions' && (
+          pendingAuctions.length === 0 ? (
+            <div className="text-xs text-zinc-500 text-center py-10">
+              {isAr ? 'لا توجد مزادات معلقة للمراجعة حالياً.' : 'No pending video auctions at this moment.'}
             </div>
-          ))
+          ) : (
+            pendingAuctions.map((item) => (
+              <div key={item.id} className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-3 shadow-xs">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0 flex-1">
+                    <span className="bg-orange-100 text-[#FF6B00] text-[8px] font-black font-mono px-1.5 py-0.5 rounded uppercase">
+                      {item.category || (isAr ? 'عام' : 'GENERAL')}
+                    </span>
+                    <h4 className="font-extrabold text-[12px] text-zinc-900 truncate mt-1">{item.title}</h4>
+                    <p className="text-[10px] text-zinc-400 mt-0.5 font-mono">
+                      {isAr ? 'بواسطة: ' : 'Seller: '} <span className="font-sans font-bold text-zinc-700">{item.sellerName || item.createdByName || 'N/A'}</span>
+                    </p>
+                  </div>
+                  <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 uppercase tracking-widest font-mono">
+                    {item.startingPrice || 0} JOD
+                  </span>
+                </div>
+
+                {/* Real-time Video Stream Player Preview */}
+                {item.videoUrl && (
+                  <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black border border-zinc-200">
+                    <video
+                      src={item.videoUrl}
+                      controls
+                      playsInline
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-1.5 pt-1">
+                  <button
+                    onClick={() => handleApproveAuction(item.id)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10.5px] py-1.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {isAr ? 'موافقة وإطلاق' : 'APPROVE'}
+                  </button>
+                  <button
+                    onClick={() => handleRejectAuction(item.id)}
+                    className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-zinc-250 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    {isAr ? 'رفض' : 'REJECT'}
+                  </button>
+                </div>
+              </div>
+            ))
+          )
+        )}
+
+        {/* User Subscriptions section */}
+        {activeTab === 'subscriptions' && (
+          pendingRequests.length === 0 ? (
+            <div className="text-xs text-zinc-500 text-center py-10">
+              {isAr 
+                ? 'لا توجد طلبات اشتراك معلقة حالياً.' 
+                : 'No pending subscriptions at the moment.'}
+            </div>
+          ) : (
+            pendingRequests.map((u) => (
+              <div key={u.id} className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-3 shadow-xs">
+                <div className="flex justify-between items-center text-[11px] font-bold text-zinc-800">
+                  <span>{u.name}</span>
+                  <span className="text-[#FF6B00] text-[9px] font-black uppercase">
+                    {isAr ? 'إيصال معلق' : 'Reviewing'}
+                  </span>
+                </div>
+
+                <div className="bg-white border border-zinc-200 p-2.5 rounded-xl text-[11px] space-y-1">
+                  <div>
+                    <span className="font-extrabold text-zinc-500">{isAr ? 'اسم المحول: ' : 'Transfer Name: '}</span>
+                    <span className="font-bold text-zinc-900">{u.transferFullName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-zinc-500">{isAr ? 'هاتف المحول: ' : 'Transfer Phone: '}</span>
+                    <span className="font-mono font-bold text-zinc-900">{u.transferPhone || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="w-full rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                  <img 
+                    src={u.paymentProofImage} 
+                    alt={isAr ? 'إيصال الدفع' : 'Payment Proof'} 
+                    className="w-full h-auto object-contain max-h-56" 
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                
+                <div className="flex gap-1.5 pt-1">
+                  <button
+                    onClick={() => handleApproveSubscription(u.id)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] py-1.5 rounded-xl transition-all cursor-pointer"
+                  >
+                    {isAr ? 'قبول واعتماد' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleRejectSubscription(u.id)}
+                    className="flex-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all cursor-pointer"
+                  >
+                    {isAr ? 'رفض' : 'Reject'}
+                  </button>
+                </div>
+              </div>
+            ))
+          )
         )}
       </div>
     </div>

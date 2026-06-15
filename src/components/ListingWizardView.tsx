@@ -1,126 +1,79 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
-import { AuctionItem } from '../types';
-import { translations } from '../utils/translations';
-import { 
-  Upload, 
-  Tv, 
-  Watch, 
-  CheckCheck, 
-  FileText, 
-  Coins, 
-  Clock, 
-  AlertCircle, 
-  Sliders,
-  ChevronRight,
-  Sparkles,
-  RefreshCw,
-  FolderOpen
-} from 'lucide-react';
+import { Sparkles, CheckCircle } from 'lucide-react';
 
 export const ListingWizardView: React.FC = () => {
   const { createListing, setActiveView, language } = useApp();
-  const t = translations[language];
   const isAr = language === 'ar';
 
-  // State configurations
+  // Step state configurations
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate'>('Luxury');
-  const [startingPrice, setStartingPrice] = useState('1500');
-  const [minIncrement, setMinIncrement] = useState('50');
-  const [duration, setDuration] = useState('600'); // 10 minutes
+  const [startingPrice, setStartingPrice] = useState('');
+  const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate'>('Electronics');
+  const [duration, setDuration] = useState('3600'); // Default: 1 Hour (in seconds)
 
-  // Video assets preset references
-  const [videoSourceMode, setVideoSourceMode] = useState<'custom' | 'preset'>('custom');
+  // Video assets references
   const [customVideoUrl, setCustomVideoUrl] = useState<string | null>(null);
   const [rawVideoFile, setRawVideoFile] = useState<File | null>(null);
-  const [videoPreset, setVideoPreset] = useState<string>('luxury');
-  const [customThumbnail, setCustomThumbnail] = useState<string>('');
 
-  // Loader state variables
-  const [progressVal, setProgressVal] = useState(0);
+  // Success flow trigger
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadPhase, setUploadPhase] = useState<'draft' | 'transferring' | 'transcoding' | 'done'>('draft');
 
-  const presets = {
-    luxury: {
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80'
-    },
-    tech: {
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=500&q=80'
-    },
-    vehicle: {
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=500&q=80'
-    },
-    realEstate: {
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=500&q=80'
-    }
-  };
+  // Categories map to Arabic names and backend values
+  const categoriesOpt = [
+    { label: isAr ? 'هواتف' : 'Phones', value: 'Electronics' as const },
+    { label: isAr ? 'ساعات' : 'Watches', value: 'Luxury' as const },
+    { label: isAr ? 'سيارات' : 'Cars', value: 'Vehicles' as const },
+    { label: isAr ? 'أجهزة' : 'Electronics', value: 'Electronics' as const },
+    { label: isAr ? 'أخرى' : 'Other', value: 'Fashion' as const }
+  ];
+
+  // Duration Options in seconds
+  const durationPresets = [
+    { label: isAr ? '١ ساعة' : '1 Hour', value: '3600' },
+    { label: isAr ? '٣ ساعات' : '3 Hours', value: '10800' },
+    { label: isAr ? '٦ ساعات' : '6 Hours', value: '21600' },
+    { label: isAr ? '٢٤ ساعة' : '24 Hours', value: '86400' }
+  ];
 
   const handleSimulatedListingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      alert(isAr ? 'الرجاء ملء جميع مربعات الوصف المطلوبة.' : 'Kindly fill in all descriptions.');
+
+    if (!customVideoUrl) {
+      alert(isAr ? 'الرجاء رفع فيديو أولاً.' : 'Please upload a video first.');
       return;
     }
-    if (isNaN(Number(startingPrice)) || Number(startingPrice) <= 0) {
+    if (!title.trim()) {
+      alert(isAr ? 'الرجاء إدخال اسم المنتج.' : 'Please enter the product name.');
+      return;
+    }
+    if (!startingPrice || isNaN(Number(startingPrice)) || Number(startingPrice) <= 0) {
       alert(isAr ? 'حدد سعر بدء صحيح بالدينار الأردني.' : 'Specify correct JOD price.');
-      return;
-    }
-    if (videoSourceMode === 'custom' && !customVideoUrl) {
-      alert(isAr ? 'الرجاء تصوير أو رفع فيديو أولاً.' : 'Please record or upload a video first.');
       return;
     }
 
     setIsUploading(true);
-    setUploadPhase('transferring');
-    setProgressVal(15);
 
-    let currentProgress = 15;
+    // Save under 'processing' state so Admin can click and instantly release
+    createListing({
+      title,
+      description: isAr ? `معروض مميز: ${title}` : `Premium Lot: ${title}`,
+      category,
+      startingPrice: Number(startingPrice),
+      minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
+      videoUrl: customVideoUrl,
+      thumbnailUrl: 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80',
+      endTime: Date.now() + Number(duration) * 1000,
+      duration: Number(duration),
+      isFeatured: false
+    }, rawVideoFile);
 
-    const timing = setInterval(() => {
-      if (currentProgress < 65) {
-        currentProgress += 15;
-        setProgressVal(currentProgress);
-      } else if (currentProgress >= 65 && currentProgress < 90) {
-        currentProgress += 10;
-        setUploadPhase('transcoding');
-        setProgressVal(currentProgress);
-      } else {
-        clearInterval(timing);
-        setUploadPhase('done');
-        setProgressVal(100);
-        
-        const key = videoPreset as keyof typeof presets;
-        // Trigger Creation inside central context lists with STATUS: "Processing" automatically!
-        createListing({
-          title,
-          description,
-          category,
-          startingPrice: Number(startingPrice),
-          minIncrement: Number(minIncrement),
-          videoUrl: videoSourceMode === 'custom' && customVideoUrl ? customVideoUrl : (presets[key]?.videoUrl || presets.luxury.videoUrl),
-          thumbnailUrl: customThumbnail || (videoSourceMode === 'custom' ? 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80' : presets[key]?.thumbnail) || presets.luxury.thumbnail,
-          endTime: Date.now() + Number(duration) * 1000,
-          duration: Number(duration),
-          isFeatured: false
-        }, videoSourceMode === 'custom' ? rawVideoFile : null);
-
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadPhase('draft');
-          setProgressVal(0);
-          // Instantly go to administrative board to approve/release
-          setActiveView('admin');
-        }, 1100);
-      }
-    }, 300);
+    // Auto-redirect to home after 3 seconds
+    setTimeout(() => {
+      setIsUploading(false);
+      setActiveView('discovery');
+    }, 3000);
   };
 
   return (
@@ -129,74 +82,43 @@ export const ListingWizardView: React.FC = () => {
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="listing-wizard-root"
     >
-      
-      {/* Top Header */}
-      <div className="p-4 flex items-center justify-between border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-md z-40">
-        <h2 className="text-xs font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
-          {isAr ? 'استديو إنشاء المزاد' : 'LOT CREATION STUDIO'}
-        </h2>
-        <span className="text-[9px] bg-[#FF6B00]/10 text-[#FF6B00] font-mono px-2 py-0.5 rounded-full font-bold">
-          {isAr ? 'رفع اللوت' : 'CREATOR LIVE'}
-        </span>
-      </div>
-
+      {/* Dynamic Success View with Animation */}
       {isUploading ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-6" id="uploading-state-screen">
-          <div className="w-16 h-16 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] relative overflow-hidden shadow-sm">
-            <RefreshCw className="w-8 h-8 animate-spin" />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-5 text-center min-h-[400px]" id="upload-success-screen">
+          <div className="w-20 h-20 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 scale-110 animate-bounce shadow-sm">
+            <CheckCircle className="w-10 h-10" />
           </div>
-
-          <div className="text-center space-y-2 max-w-sm w-full">
-            <h3 className="text-xs font-extrabold text-[#FF6B00] tracking-wider uppercase font-mono">
-              {uploadPhase === 'transferring' ? (isAr ? 'جاري نقل اللوت وتجهيز الفيديو...' : 'TRANSMITTING VIDEO GRIDS...') : 
-               uploadPhase === 'transcoding' ? (isAr ? 'جاري التشفير والتأمين المالي...' : 'SECURING CONTRACT ESCROWS...') : (isAr ? 'تم الرفع بنجاح!' : 'SUBMISSION READY!')}
+          <div className="space-y-1.5">
+            <h3 className="text-base font-black text-emerald-600">
+              {isAr ? 'تم الإرسال! بانتظار موافقة الإدارة ✅' : 'Submitted! Pending Administration Approval ✅'}
             </h3>
-            
-            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
-              <div 
-                className="bg-[#FF6B00] h-full transition-all duration-300"
-                style={{ width: `${progressVal}%` }}
-              ></div>
-            </div>
-            <p className="text-[9.5px] text-gray-400 font-mono tracking-widest">{progressVal}% COMMITTED PACKETS</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-100/50 text-[9.5px] text-gray-500 font-mono text-left max-w-xs space-y-1 w-full" style={{ direction: 'ltr' }}>
-            <div>• Target Node: JORDAN-AMMAN-S3</div>
-            <div>• Encoder: H.264 HEVC 1080p Secure</div>
-            <div>• Status: TRANSMITTING_PACKETS</div>
+            <p className="text-xs text-gray-400">
+              {isAr ? 'سيتم توجيهك إلى الرئيسة تلقائياً خلال ٣ ثوانٍ...' : 'Auto-redirecting you home within 3 seconds...'}
+            </p>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSimulatedListingSubmit} className="p-4 space-y-5 text-xs font-sans" id="listing-wizard-form">
-          
-          {/* Section 1: Video File selector */}
-          <div className="bg-gray-50/50 border border-gray-200/60 rounded-2xl p-4 space-y-3.5 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-              <Upload className="w-4 h-4 text-[#FF6B00]" />
-              <h3 className="text-xs font-black text-gray-800 leading-none uppercase">{isAr ? 'مرفقات الفيديو والبث' : 'VIDEO RECORD & MEDIA SOURCE'}</h3>
-            </div>
+        <div className="max-w-md mx-auto w-full p-4 space-y-6">
+          {/* Header */}
+          <div className="text-center pb-2">
+            <h2 className="text-sm font-black tracking-wider text-[#FF6B00] uppercase font-mono">
+              {isAr ? 'استديو إنشاء المزاد' : 'LOT CREATION STUDIO'}
+            </h2>
+            <p className="text-[10px] text-gray-400 mt-1">
+              {isAr ? 'انشر منتجك للجميع بفيديو تفاعلي وبث حي' : 'Broadcast your product directly with live video auctions'}
+            </p>
+          </div>
 
-            {/* Video Source Tabs Switcher */}
-            <div className="flex bg-gray-100/80 p-1 rounded-xl gap-1 border border-gray-200/50">
-              <button
-                type="button"
-                onClick={() => setVideoSourceMode('custom')}
-                className={`flex-1 text-center py-2 text-[10.5px] font-bold rounded-lg transition-all cursor-pointer ${videoSourceMode === 'custom' ? 'bg-[#FF6B00] text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 bg-transparent'}`}
-              >
-                {isAr ? 'تصوير أو رفع فيديو' : 'Record / Upload'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setVideoSourceMode('preset')}
-                className={`flex-1 text-center py-2 text-[10.5px] font-bold rounded-lg transition-all cursor-pointer ${videoSourceMode === 'preset' ? 'bg-[#FF6B00] text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 bg-transparent'}`}
-              >
-                {isAr ? 'عرض تجريبي جاهز' : 'Preset Demo Loop'}
-              </button>
-            </div>
-
-            {videoSourceMode === 'custom' ? (
-              <div className="py-1">
+          <form onSubmit={handleSimulatedListingSubmit} className="space-y-6" id="listing-wizard-form">
+            
+            {/* STEP 1 — Video */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-extrabold text-gray-900 flex items-center gap-1.5">
+                <span className="text-[#FF6B00]">①</span> 
+                {isAr ? 'فيديو المعروض والمنتج' : 'Product Video'}
+              </label>
+              
+              <div className="bg-white rounded-2xl">
                 <VideoUploadForm 
                   onVideoSelect={(file, url) => {
                     setCustomVideoUrl(url);
@@ -205,140 +127,109 @@ export const ListingWizardView: React.FC = () => {
                   language={language} 
                 />
               </div>
-            ) : (
+            </div>
+
+            {/* STEP 2 — Product Info */}
+            <div className="space-y-4 pt-1">
+              <label className="text-xs font-extrabold text-gray-900 flex items-center gap-1.5 border-b border-gray-100 pb-1">
+                <span className="text-[#FF6B00]">②</span> 
+                {isAr ? 'بيانات ومواصفات المنتج' : 'Product Information'}
+              </label>
+
+              {/* Input Name */}
               <div className="space-y-1">
-                <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'اختر لوت الفيديو التجريبي' : 'SELECT PRESET VIDEO DEMO LOOP'}</label>
-                <select 
-                  value={videoPreset} 
-                  onChange={(e) => setVideoPreset(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 text-xs focus:outline-none focus:border-[#FF6B00]"
-                >
-                  <option value="luxury">{isAr ? 'عرض فاخر لساعة رولكس دايتونا الذهبية' : 'Rolex Daytona Gold watch Premium Show'}</option>
-                  <option value="tech">{isAr ? 'استعراض لابتوب ماك بوك برو باللون الأسود' : 'Stealth MacBook Pro Reveal Loop'}</option>
-                  <option value="vehicle">{isAr ? 'فيديو حماسي لسيارة بورشه ٩١١ على الحلبة' : 'Porsche 911 GT3 RS Track Drive'}</option>
-                  <option value="realEstate">{isAr ? 'فيديو داخلي لبنتهاوس دابوق الذكي الفخم' : 'Dabouq Contemporary Smart Penthouse Deck'}</option>
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'رابط صورة الغلاف أو اللوت (اختياري)' : 'LOT COVER THUMBNAIL IMAGE URL (OPTIONAL)'}</label>
-              <input
-                type="text"
-                placeholder={isAr ? 'اتركه فارغاً للاستخراج التلقائي من الفيديو' : 'Leave empty to auto-extract thumbnail'}
-                value={customThumbnail}
-                onChange={(e) => setCustomThumbnail(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 focus:outline-none focus:border-[#FF6B00]"
-              />
-            </div>
-          </div>
-
-          {/* Section 2: Product Specifications */}
-          <div className="bg-gray-50/50 border border-gray-200/60 rounded-2xl p-4 space-y-3.5 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-              <FileText className="w-4 h-4 text-[#FF6B00]" />
-              <h3 className="text-xs font-black text-gray-800 leading-none uppercase">{isAr ? 'مواصفات وتفاصيل المعروض' : 'LOT SPECIFICATIONS'}</h3>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'عنوان المزاد الرئيسي' : 'MAIN LISTING TITLE'}</label>
-              <input 
-                type="text" 
-                placeholder={isAr ? 'مثال: رولكس صبمارين جديدة مع العلبة والأوراق' : 'e.g. Unworn Rolex Submariner Gold Edition'}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 focus:outline-none focus:border-[#FF6B00]"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'تفاصيل حالة اللوت وسكوب الشحن' : 'LOT CONDITION & SHIP LOGISTICS'}</label>
-              <textarea 
-                rows={3}
-                placeholder={isAr ? 'اذكر الرقم التسلسلي، حالة الخدوش، الأوراق الثبوتية وقنوات الشحن للبلقاء أو عمان...' : 'Briefly mention serial card state, legal papers, delivery notes...'}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 focus:outline-none focus:border-[#FF6B00]"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'التصنيف' : 'CATEGORY'}</label>
-                <select 
-                  value={category} 
-                  onChange={(e) => setCategory(e.target.value as any)}
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 text-xs focus:outline-none focus:border-[#FF6B00]"
-                >
-                  <option value="Luxury">{isAr ? 'فاخر وثمين' : 'Luxury'}</option>
-                  <option value="Electronics">{isAr ? 'إلكترونيات وأجهزة' : 'Electronics'}</option>
-                  <option value="Vehicles">{isAr ? 'سيارات ومركبات' : 'Vehicles'}</option>
-                  <option value="Fashion">{isAr ? 'أزياء وماركات' : 'Fashion'}</option>
-                  <option value="Real Estate">{isAr ? 'عقارات وأراضي' : 'Real Estate'}</option>
-                </select>
+                <span className="text-[11px] font-bold text-gray-500 block">
+                  {isAr ? 'اسم المنتج' : 'Product Name'}
+                </span>
+                <input 
+                  type="text" 
+                  placeholder={isAr ? 'مثال: iPhone 15 Pro Max' : 'e.g. iPhone 15 Pro Max'}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors leading-none"
+                />
               </div>
 
+              {/* Input Price */}
               <div className="space-y-1">
-                <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'مدة صلاحية المزاد' : 'LIMIT DURATION'}</label>
-                <select 
-                  value={duration} 
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 text-xs focus:outline-none focus:border-[#FF6B00]"
-                >
-                  <option value="300">{isAr ? '٥ دقائق' : '5 Minutes'}</option>
-                  <option value="600">{isAr ? '١٠ دقائق (موصى به)' : '10 Minutes'}</option>
-                  <option value="1800">{isAr ? '٣٠ دقيقة' : '30 Minutes'}</option>
-                  <option value="7200">{isAr ? 'ساعتين' : '2 Hours'}</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'السعر الافتتاحي (بالدينار الأردني)' : 'STARTING BID (JOD)'}</label>
+                <span className="text-[11px] font-bold text-gray-500 block">
+                  {isAr ? 'السعر الابتدائي بالدينار' : 'Starting Price (JOD)'}
+                </span>
                 <input 
                   type="number" 
+                  placeholder="100"
                   value={startingPrice}
                   onChange={(e) => setStartingPrice(e.target.value)}
-                  placeholder="e.g. 1500"
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 focus:outline-none focus:border-[#FF6B00]"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors leading-none"
                 />
               </div>
 
+              {/* Select Category */}
               <div className="space-y-1">
-                <label className="text-[9.5px] text-gray-400 uppercase font-mono block font-bold">{isAr ? 'الحد الأدنى للزيادة' : 'MIN INCREMENT (JOD)'}</label>
-                <input 
-                  type="number" 
-                  value={minIncrement}
-                  onChange={(e) => setMinIncrement(e.target.value)}
-                  placeholder="e.g. 50"
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3 text-gray-800 focus:outline-none focus:border-[#FF6B00]"
-                />
+                <span className="text-[11px] font-bold text-gray-500 block">
+                  {isAr ? 'الفئة' : 'Category'}
+                </span>
+                <div className="relative">
+                  <select 
+                    value={category} 
+                    onChange={(e) => setCategory(e.target.value as any)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors appearance-none cursor-pointer"
+                  >
+                    {categoriesOpt.map((opt, idx) => (
+                      <option key={idx} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className={`absolute inset-y-0 ${isAr ? 'left-4' : 'right-4'} flex items-center pointer-events-none text-gray-400`}>
+                    ▼
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 text-orange-850">
-            <div className="flex gap-2 items-start">
-              <AlertCircle className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5" />
-              <p className="leading-relaxed text-[10.5px]">
-                {isAr ? 'عند التقديم، يتم إدراج اللوت فوراً تحت مراجعة التدقيق الإدارية. يرجى تصفح الصفحة الإدارية للموافقة على اللوت وتحريكه لبث مباشر الآن!' : 'Upon placement, listing is pending audits. Switch to the Admin Dashboard (Listings Tab) to instantly approve and release it live.'}
-              </p>
+            {/* STEP 3 — Duration */}
+            <div className="space-y-3 pt-1">
+              <label className="text-xs font-extrabold text-gray-900 flex items-center gap-1.5 border-b border-gray-100 pb-1">
+                <span className="text-[#FF6B00]">③</span> 
+                {isAr ? 'مدة صلاحية المزاد' : 'Auction Duration'}
+              </label>
+
+              <div className="grid grid-cols-4 gap-2">
+                {durationPresets.map((opt) => {
+                  const isSelected = duration === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setDuration(opt.value)}
+                      className={`py-3.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center border cursor-pointer ${
+                        isSelected 
+                          ? 'bg-[#FF6B00] border-transparent text-white shadow-sm' 
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <button 
-            type="submit" 
-            className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl shadow-[0_4px_16px_rgba(255,107,0,0.25)] hover:scale-[1.01] transition-all flex items-center justify-center gap-2 border border-transparent uppercase"
-            id="wizard-form-submit-btn"
-          >
-            <Sparkles className="w-4 h-4 text-white" /> 
-            <span>{isAr ? 'تقديم المعروض وغرفة البث للمراجعة' : 'TRANSMIT STREAM TO PROCESSING AUDITS'}</span>
-          </button>
+            {/* SUBMIT BUTTON */}
+            <div className="pt-4">
+              <button 
+                type="submit" 
+                className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-sm rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 border border-transparent cursor-pointer"
+                id="wizard-form-submit-btn"
+              >
+                <span>{isAr ? '🚀 نشر المزاد' : '🚀 Publish Auction'}</span>
+              </button>
+            </div>
 
-        </form>
+          </form>
+        </div>
       )}
-
     </div>
   );
 };

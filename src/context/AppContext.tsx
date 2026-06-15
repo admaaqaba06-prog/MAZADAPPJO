@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/firebase';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -106,7 +106,7 @@ const INITIAL_USERS: User[] = [
     name: 'Zain Al-Fayez',
     email: 'zain@fayez.corp',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    role: 'seller',
+    role: 'user',
     isVerified: true,
     isBlocked: false,
     phoneNumber: '+962 7 9111 2222',
@@ -119,7 +119,7 @@ const INITIAL_USERS: User[] = [
     name: 'Ramy Haddad',
     email: 'ramy@haddad.me',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    role: 'seller',
+    role: 'user',
     isVerified: false,
     isBlocked: false,
     phoneNumber: '+962 7 8333 4444',
@@ -337,7 +337,79 @@ const INITIAL_CHATS: ChatMessage[] = [
   }
 ];
 
-const INITIAL_ESCROWS: EscrowTransaction[] = [];
+const INITIAL_ESCROWS: EscrowTransaction[] = [
+  {
+    id: 'escrow-dep-zain-1',
+    walletId: 'wallet-zain',
+    auctionId: 'cliq-dep',
+    auctionTitle: 'CliQ Deposit (Zain Al-Fayez)',
+    bidderId: 'user-zain',
+    bidderName: 'Zain Al-Fayez',
+    sellerId: 'system',
+    sellerName: 'MAZADJOM CliQ Gateway',
+    amount: 25000,
+    status: 'released',
+    timestamp: Date.now() - 172800000,
+    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
+    cliqAlias: 'zain.fayez@cliq'
+  },
+  {
+    id: 'escrow-dep-ramy-1',
+    walletId: 'wallet-ramy',
+    auctionId: 'cliq-dep',
+    auctionTitle: 'CliQ Deposit (Ramy Haddad)',
+    bidderId: 'user-ramy',
+    bidderName: 'Ramy Haddad',
+    sellerId: 'system',
+    sellerName: 'MAZADJOM CliQ Gateway',
+    amount: 1500,
+    status: 'released',
+    timestamp: Date.now() - 86400000,
+    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
+    cliqAlias: 'ramy.h@cliq'
+  },
+  {
+    id: 'escrow-dep-nour-1',
+    walletId: 'wallet-nour',
+    auctionId: 'cliq-dep',
+    auctionTitle: 'CliQ Deposit (Nour El-Din)',
+    bidderId: 'user-nour',
+    bidderName: 'Nour El-Din',
+    sellerId: 'system',
+    sellerName: 'MAZADJOM CliQ Gateway',
+    amount: 850,
+    status: 'locked',
+    timestamp: Date.now() - 600000,
+    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
+    cliqAlias: 'nour.tech@cliq'
+  },
+  {
+    id: 'escrow-sub-zain',
+    walletId: 'wallet-zain',
+    auctionId: 'cliq-sub',
+    auctionTitle: 'Silver Auction Pass Activation (CliQ MAZADJOM)',
+    bidderId: 'user-zain',
+    bidderName: 'Zain Al-Fayez',
+    sellerId: 'system',
+    sellerName: 'MAZADJOM Registration',
+    amount: 100,
+    status: 'released',
+    timestamp: Date.now() - 250000000
+  },
+  {
+    id: 'escrow-sub-tareq',
+    walletId: 'wallet-current',
+    auctionId: 'cliq-sub',
+    auctionTitle: 'Silver Auction Pass Activation (CliQ MAZADJOM)',
+    bidderId: 'user-current',
+    bidderName: 'Tareq Al-Masri',
+    sellerId: 'system',
+    sellerName: 'MAZADJOM Registration',
+    amount: 100,
+    status: 'released',
+    timestamp: Date.now() - 150000000
+  }
+];
 
 const INITIAL_NOTIFICATIONS: Notification[] = [
   {
@@ -1020,17 +1092,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     videoFile?: File | Blob | null
   ) => {
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newListing: AuctionItem = {
+    const newListing: any = {
       ...listingData,
       id: newListingId,
       currentPrice: listingData.startingPrice,
-      sellerId: 'seller-current',
-      sellerName: sellerProfile?.storeName || 'Custom Merchant',
-      sellerLogo: sellerProfile?.storeLogo || currentUser.avatar,
-      status: 'processing', // Under verification list for admin dashboard approval flow
+      sellerId: currentUser?.id || 'seller-current',
+      sellerName: currentUser?.name || sellerProfile?.storeName || 'Custom Merchant',
+      sellerLogo: currentUser?.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
+      status: 'processing', // Under review direct!
       isFeatured: false,
       totalBids: 0,
-      viewersCount: 2
+      viewersCount: 2,
+      createdAt: new Date().getTime(),
+      createdById: currentUser?.id || 'guest',
+      createdByName: currentUser?.name || 'Seller JO'
     };
 
     if (videoFile) {
@@ -1041,16 +1116,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
+    // Save directly to Firestore for real-time synchronization
+    const docRef = doc(db, 'auctions', newListingId);
+    setDoc(docRef, newListing)
+      .then(() => {
+        console.log("Successfully created pending listing in Firestore:", newListingId);
+      })
+      .catch((err) => {
+        console.error("Firestore write failure on direct listing release:", err);
+      });
+
     setAuctions(prev => [newListing, ...prev]);
-    addNotification(
-      '📦 Video Listing Submitted',
-      `"${listingData.title}" is currently Uploaded & Processing. System administrators will audit content compatibility.`,
-      'info'
-    );
-  }, [sellerProfile, currentUser, addNotification]);
+    
+    if (language === 'ar') {
+      addNotification(
+        '📦 تم إرسال المزاد للمراجعة',
+        `تم رفع "${listingData.title}" بنجاح وهو الآن (قيد المراجعة). سيقوم مدير الموقع بمراجعته وتفعيله قريباً لتبدأ المزايدة المباشرة.`,
+        'info'
+      );
+    } else {
+      addNotification(
+        '📦 Auction Submitted for Review',
+        `"${listingData.title}" has been successfully submitted and is now (In Review). The site manager will audit and approve it soon to go live.`,
+        'info'
+      );
+    }
+  }, [sellerProfile, currentUser, addNotification, language]);
 
   // --- ADMIN ACTIONS ---
   const approveListing = useCallback((id: string) => {
+    // Write approval properties directly to Firestore database
+    const docRef = doc(db, 'auctions', id);
+    updateDoc(docRef, {
+      status: 'live',
+      approvedAt: serverTimestamp(),
+      approvedBy: currentUser?.id || 'admin-system',
+      endTime: Date.now() + 600 * 1000 // Fresh 10 Mins live timer
+    }).catch(err => {
+      console.error("Firestore approve write failed:", err);
+    });
+
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
         return { ...a, status: 'live', endTime: Date.now() + 600 * 1000 }; // Give it a fresh 10 Min live clock
@@ -1064,14 +1169,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'approve_listing',
       targetId: id,
       targetName: targetA?.title || 'Unknown Item',
-      adminName: 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin Tareq',
       timestamp: Date.now(),
       details: 'Visual stream quality & price guide certified.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions]);
+  }, [auctions, currentUser]);
 
   const rejectListing = useCallback((id: string) => {
+    // Write reject properties directly to Firestore database
+    const docRef = doc(db, 'auctions', id);
+    updateDoc(docRef, {
+      status: 'rejected',
+      rejectedAt: serverTimestamp(),
+      rejectedBy: currentUser?.id || 'admin-system'
+    }).catch(err => {
+      console.error("Firestore reject write failed:", err);
+    });
+
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
         return { ...a, status: 'rejected' };
@@ -1085,17 +1200,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'reject_listing',
       targetId: id,
       targetName: targetA?.title || 'Unknown Item',
-      adminName: 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin Tareq',
       timestamp: Date.now(),
       details: 'Video did not pass alignment checks.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions]);
+  }, [auctions, currentUser]);
 
   const verifySeller = useCallback((userId: string) => {
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        return { ...u, role: 'seller', isVerified: true };
+        return { ...u, isVerified: true };
       }
       return u;
     }));

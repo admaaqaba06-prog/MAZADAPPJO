@@ -1,21 +1,18 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Media uploads constraints: Limit to authenticated users, strict video format and 50MB size bounds
-    match /auctions/{auctionId}/{allPaths=**} {
+    match /auctions/{auctionId}/{uid}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null 
-                   && request.resource.contentType.matches('video/mp4')
-                   && request.resource.size < 50 * 1024 * 1024;
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && (request.resource.contentType == 'video/mp4'
+                        || request.resource.contentType == 'video/quicktime')
+                    && request.resource.size <= 50 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
-
-    // Direct profile image assets storage paths
-    match /users/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null 
-                   && request.auth.uid == userId 
-                   && request.resource.contentType.matches('image/.*')
-                   && request.resource.size < 5 * 1024 * 1024;
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

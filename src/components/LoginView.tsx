@@ -204,23 +204,15 @@ export const LoginView: React.FC = () => {
               style={{ textAlign: isAr ? 'right' : 'left' }}
             >
               <span>• {t.presetAdmin}</span>
-              <span className="text-[9px] font-mono bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">ADMIN</span>
-            </button>
-            <button 
-              onClick={() => handlePresetTrigger('zain@fayez.corp')} 
-              className="text-left py-1 text-gray-600 hover:text-[#FF6B00] font-sans flex items-center justify-between"
-              style={{ textAlign: isAr ? 'right' : 'left' }}
-            >
-              <span>• {t.presetSeller}</span>
-              <span className="text-[9px] font-mono bg-[#FF6B00]/10 text-[#FF6B00] px-1 py-0.5 rounded font-bold">SELLER</span>
+              <span className="text-[9px] font-mono bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">SITE MANAGER</span>
             </button>
             <button 
               onClick={() => handlePresetTrigger('guest@buyer.jo')} 
               className="text-left py-1 text-gray-600 hover:text-[#FF6B00] font-sans flex items-center justify-between"
               style={{ textAlign: isAr ? 'right' : 'left' }}
             >
-              <span>• {t.presetBuyer}</span>
-              <span className="text-[9px] font-mono bg-blue-100 text-blue-600 px-1 py-0.5 rounded font-bold">BUYER</span>
+              <span>• {t.presetDemoUser}</span>
+              <span className="text-[9px] font-mono bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold">DEMO USER</span>
             </button>
           </div>
         </div>

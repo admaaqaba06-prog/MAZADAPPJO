@@ -123,24 +123,19 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
       ) : (
         <label 
           htmlFor="video-upload-input"
-          className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-6 border-2 border-dashed border-[#FF6B00] bg-[#FFF8F3] hover:bg-[#FFF4EB] transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
+          className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-[#FFF8F3] hover:bg-[#FFF4EB] transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
           id="video-tap-area"
         >
           <div className="flex flex-col items-center text-center space-y-2.5">
-            <div className="w-11 h-11 rounded-full bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
-              <Video className="w-6 h-6" />
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs font-black text-[#FF6B00] tracking-tight">
-                {isAr ? 'اضغط لتصوير أو رفع فيديو' : 'Tap to record or upload video'}
+            <span className="text-4xl">📹</span>
+            <div className="space-y-1">
+              <p className="text-sm font-black text-[#FF6B00] tracking-tight">
+                اضغط لرفع فيديو المنتج
               </p>
-              <p className="text-[10px] text-gray-500 font-medium">
-                {isAr ? 'Tap to record or upload video' : 'اضغط لتصوير أو رفع فيديو'}
+              <p className="text-xs text-gray-400 font-bold">
+                MP4 أو أي صيغة فيديو
               </p>
             </div>
-            <p className="text-[9px] text-[#FF6B00]/70 font-mono uppercase tracking-widest font-bold">
-              MP4, MOV OR ANY VIDEO FORMAT
-            </p>
           </div>
         </label>
       )}

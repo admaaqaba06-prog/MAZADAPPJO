@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { db } from '../services/firebase';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { 
   Gavel, 
   Volume2, 
@@ -44,7 +46,109 @@ export const LiveStreamView: React.FC = () => {
 
   const isAr = language === 'ar';
 
-  const liveAuctions = auctions.filter(a => a.status === 'live');
+  const [liveAuctions, setLiveAuctions] = useState<any[]>([]);
+
+  useEffect(() => {
+    let unsubscribe: () => void;
+    try {
+      const q = query(
+        collection(db, 'auctions'),
+        where('status', '==', 'live'),
+        orderBy('approvedAt', 'desc')
+      );
+      
+      const processSnap = (snapshot: any) => {
+        const list = snapshot.docs.map((docSnap: any) => {
+          const data = docSnap.data();
+          let endTimeNum = Date.now() + 3600000;
+          if (data.endTime) {
+            endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
+          } else if (data.endsAt) {
+            endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
+          }
+          return {
+            id: docSnap.id,
+            title: data.title || '',
+            description: data.description || '',
+            category: data.category || 'Luxury',
+            startingPrice: data.startingPrice ?? 0,
+            currentPrice: data.currentPrice ?? (data.startingPrice ?? 0),
+            minIncrement: data.minIncrement ?? 10,
+            currentBidderId: data.currentBidderId || null,
+            currentBidderName: data.currentBidderName || null,
+            videoUrl: data.videoUrl || '',
+            thumbnailUrl: data.thumbnailUrl || data.imageUrl || 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=500&q=80',
+            endTime: endTimeNum,
+            duration: data.duration ?? 3600,
+            sellerId: data.sellerId || 'seller-system',
+            sellerName: data.sellerName || data.createdByName || 'Seller JO',
+            sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+            status: data.status || 'live',
+            isFeatured: data.isFeatured ?? false,
+            totalBids: data.totalBids ?? 0,
+            viewersCount: data.viewersCount ?? 15,
+            ...data
+          };
+        });
+        setLiveAuctions(list);
+      };
+
+      unsubscribe = onSnapshot(q, processSnap, (error) => {
+        console.warn("Live query with indexing failed, using simple status query fallback:", error);
+        const fallbackQ = query(
+          collection(db, 'auctions'),
+          where('status', '==', 'live')
+        );
+        const unsubFallback = onSnapshot(fallbackQ, (snapshot) => {
+          const list = snapshot.docs.map((docSnap: any) => {
+            const data = docSnap.data();
+            let endTimeNum = Date.now() + 3600000;
+            if (data.endTime) {
+              endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
+            } else if (data.endsAt) {
+              endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
+            }
+            return {
+              id: docSnap.id,
+              title: data.title || '',
+              description: data.description || '',
+              category: data.category || 'Luxury',
+              startingPrice: data.startingPrice ?? 0,
+              currentPrice: data.currentPrice ?? (data.startingPrice ?? 0),
+              minIncrement: data.minIncrement ?? 10,
+              currentBidderId: data.currentBidderId || null,
+              currentBidderName: data.currentBidderName || null,
+              videoUrl: data.videoUrl || '',
+              thumbnailUrl: data.thumbnailUrl || data.imageUrl || 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=500&q=80',
+              endTime: endTimeNum,
+              duration: data.duration ?? 3600,
+              sellerId: data.sellerId || 'seller-system',
+              sellerName: data.sellerName || data.createdByName || 'Seller JO',
+              sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+              status: data.status || 'live',
+              isFeatured: data.isFeatured ?? false,
+              totalBids: data.totalBids ?? 0,
+              viewersCount: data.viewersCount ?? 15,
+              ...data
+            };
+          });
+          list.sort((a, b) => {
+            const tA = a.approvedAt ? (a.approvedAt.seconds ? a.approvedAt.seconds * 1000 : Number(a.approvedAt)) : 0;
+            const tB = b.approvedAt ? (b.approvedAt.seconds ? b.approvedAt.seconds * 1000 : Number(b.approvedAt)) : 0;
+            return tB - tA;
+          });
+          setLiveAuctions(list);
+        });
+        unsubscribe = unsubFallback;
+      });
+    } catch (err) {
+      console.error("Failed to build live real-time query:", err);
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   const currentItem = liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0] || auctions[0];
 
   // UI Interactive States

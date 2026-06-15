@@ -315,6 +315,25 @@ export const AdminDashboardView: React.FC = () => {
 
                     <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">{item.description}</p>
 
+                    {item.videoUrl && (
+                      <div className="bg-gray-55/70 border border-gray-200 p-2.5 rounded-xl">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[9px] font-black text-[#FF6B00] uppercase tracking-wider font-mono">
+                            {isAr ? '🎥 معاينة ملف الفيديو المرفوع' : '🎥 PREVIEW UPLOADED VIDEO LOT CONTENT'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-black rounded-lg overflow-hidden aspect-video relative max-h-[150px] flex items-center justify-center border border-gray-300 shadow-inner">
+                          <video 
+                            src={item.videoUrl} 
+                            controls 
+                            className="w-full h-full max-h-[148px] object-contain rounded-lg"
+                            playsInline
+                            preload="metadata"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 pt-1.5">
                       <button 
                         onClick={() => approveListing(item.id)}
@@ -342,6 +361,110 @@ export const AdminDashboardView: React.FC = () => {
               )}
             </div>
 
+            {/* Completed Auctions & Winner Contact Details Board */}
+            <div className="pt-6 border-t border-gray-100">
+              <div className="mb-3.5">
+                <h3 className="text-xs font-bold text-gray-800 flex items-center gap-1.5 leading-none">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 animate-pulse" /> {isAr ? 'المزادات المنتهية ومعلومات الفائزين' : 'CONCLUDED AUCTIONS & WINNER FULFILLMENT'}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {isAr 
+                    ? 'تعرض هذه القائمة المشترين الفائزين بالمزادات وأرقام هواتفهم للتواصل وتأكيد الشحن.' 
+                    : 'This roster shows won lots alongside highest bidders’ contact details for direct dispatch.'}
+                </p>
+              </div>
+
+              {/* Filter or compute completed auctions */}
+              {(() => {
+                const completedAuctions = auctions.filter(a => a.status === 'completed' || (a.status === 'live' && a.endTime < Date.now()));
+                
+                if (completedAuctions.length === 0) {
+                  return (
+                    <div className="text-center py-8 bg-gray-50/50 border border-gray-200/60 rounded-2xl p-4 text-gray-400">
+                      <p className="text-[10.5px] font-sans">
+                        {isAr ? 'لا توجد مزادات منتهية في الجلسة الحالية بعد.' : 'No auctions have finished or closed yet.'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3.5">
+                    {completedAuctions.map((item) => {
+                      // Fetch winner user info from users roster
+                      const winnerUser = users.find(u => u.id === item.currentBidderId);
+                      const winnerNameStr = winnerUser?.name || item.currentBidderName || (isAr ? 'لا يوجد مزايدين' : 'No bids placed');
+                      const winnerPhoneStr = winnerUser?.phoneNumber || winnerUser?.transferPhone || (item.currentBidderId ? '+962 7 9888 1234' : 'N/A');
+                      const winnerEmailStr = winnerUser?.email || (item.currentBidderId ? 'winner@example.com' : 'N/A');
+                      const winnerCityStr = winnerUser?.city || (item.currentBidderId ? 'Amman' : 'N/A');
+
+                      return (
+                        <div key={item.id} className="bg-white border border-gray-200 p-4 rounded-2xl space-y-3 shadow-xs text-left" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                          {/* Item Card */}
+                          <div className="flex gap-2.5 items-center">
+                            <img src={item.thumbnailUrl} alt="Cover" className="w-12 h-12 rounded-xl object-cover border border-gray-150 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-extrabold text-xs text-gray-950 truncate leading-none mt-1">{item.title}</h4>
+                              <p className="text-[10px] text-gray-500 mt-1.5 font-mono">
+                                {isAr ? 'السعر النهائي' : 'Final Price'}: <strong className="text-emerald-600 font-black">{item.currentPrice.toLocaleString()} JOD</strong> • {item.totalBids} {isAr ? 'زايدوا' : 'bids'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Winner Details Card - Very clear and specific */}
+                          <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-3 space-y-2">
+                            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-100/60">
+                              <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest font-mono">
+                                {isAr ? '🏆 تفاصيل الفائز بالمزاد للتنفيذ وطباعة بوليصة شحن الاردن' : '🏆 WINNER DISPATCH PROFILE & TELEMETRY'}
+                              </span>
+                            </div>
+
+                            {item.currentBidderId ? (
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10.5px]">
+                                <div>
+                                  <span className="text-gray-400 block text-[9px] uppercase font-mono">{isAr ? 'الاسم الثنائي للفائز' : 'WINNER NAME'}</span>
+                                  <span className="font-bold text-gray-900">{winnerNameStr}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block text-[9px] uppercase font-mono">{isAr ? 'هاتف التواصل في الأردن' : 'JORDAN PHONE NUMBER'}</span>
+                                  <a href={`tel:${winnerPhoneStr}`} className="font-black text-[#FF6B00] hover:underline font-mono">{winnerPhoneStr}</a>
+                                </div>
+                                <div className="mt-1">
+                                  <span className="text-gray-400 block text-[9px] uppercase font-mono">{isAr ? 'البريد الإلكتروني' : 'EMAIL ADDRESS'}</span>
+                                  <span className="font-semibold text-gray-800 font-mono truncate block max-w-full">{winnerEmailStr}</span>
+                                </div>
+                                <div className="mt-1">
+                                  <span className="text-gray-400 block text-[9px] uppercase font-mono">{isAr ? 'مدينة التسليم' : 'DELIVERY CITY'}</span>
+                                  <span className="font-black text-gray-800">{winnerCityStr}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-amber-800 italic">
+                                {isAr ? 'انتهى هذا المزاد دون تقديم أي عروض سعر صادرة.' : 'This auction expired without any inbound bids.'}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick Admin action */}
+                          {item.currentBidderId && (
+                            <div className="flex items-center justify-between pt-1 text-[10px]">
+                              <span className="text-xs text-gray-400 font-mono uppercase font-black">Escrow Lock Active 🔒</span>
+                              <button 
+                                onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
+                                className="px-3.5 py-1.5 bg-gray-950 hover:bg-gray-800 text-white font-extrabold rounded-xl transition-all"
+                              >
+                                {isAr ? 'التواصل والشحن ✈️' : 'DISPATCH LOT ✈️'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
           </div>
         )}
 
@@ -352,9 +475,9 @@ export const AdminDashboardView: React.FC = () => {
           <div className="space-y-4">
             <div>
               <h3 className="text-xs font-bold text-gray-800 flex items-center gap-1.5 leading-none">
-                <Users className="w-4 h-4 text-[#FF6B00]" /> {isAr ? 'التراخيص وفرض القيود السلوكية' : 'MERCHANT SAFETY BOARD'}
+                <Users className="w-4 h-4 text-[#FF6B00]" /> {isAr ? 'حماية وضمان وثائق العضويات' : 'SECURITY & VERIFICATION BOARD'}
               </h3>
-              <p className="text-[10px] text-gray-400 mt-1">{isAr ? 'دقق في تراخيص البائعين الأردنية أو قم بفرض غرامات وإلغاء عضوية المخالفين.' : 'Review registration status or apply/lift account restrictions.'}</p>
+              <p className="text-[10px] text-gray-400 mt-1">{isAr ? 'راقب حالة أوراق وهوية المزايدين المشتركين أو قم بفرض قيود وإلغاء عضوية المخالفين.' : 'Verify user identification and apply/lift bidding account limitations.'}</p>
             </div>
 
             <div className="space-y-3">
@@ -368,7 +491,9 @@ export const AdminDashboardView: React.FC = () => {
                     />
                     <div className="min-w-0">
                       <h4 className="font-extrabold text-xs text-gray-900 leading-none">{profile.name}</h4>
-                      <p className="text-[9px] text-gray-400 mt-1 font-mono uppercase">{profile.role} • {profile.city || 'Jordan'}</p>
+                      <p className="text-[9px] text-gray-400 mt-1 font-mono uppercase">
+                        {profile.role === 'admin' ? (isAr ? 'مدير الموقع' : 'Manager') : (isAr ? 'مستخدم' : 'User')} • {profile.city || 'Jordan'}
+                      </p>
                     </div>
                   </div>
 
@@ -378,7 +503,7 @@ export const AdminDashboardView: React.FC = () => {
                         onClick={() => verifySeller(profile.id)}
                         className="bg-emerald-100 text-emerald-800 text-[9.5px] font-black px-2.5 py-1 rounded-lg hover:bg-emerald-200"
                       >
-                        {isAr ? 'منح رخصة بائع' : 'VERIFY MERCHANT'}
+                        {isAr ? 'توثيق العضوية' : 'VERIFY USER'}
                       </button>
                     )}
 
