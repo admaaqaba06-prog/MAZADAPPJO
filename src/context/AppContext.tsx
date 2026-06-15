@@ -597,7 +597,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_admin_actions', JSON.stringify(adminActions));
   }, [adminActions]);
 
-  // Revive custom blob videos on load from IndexedDB
+  // Revive custom blob videos on load from IndexedDB (Disabled as we use permanent Firebase Storage uploads now)
+  /*
   useEffect(() => {
     const reviveCustomVideos = async () => {
       let updatedAny = false;
@@ -628,6 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     reviveCustomVideos();
   }, []);
+  */
 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
@@ -1102,11 +1104,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser, addNotification]);
 
   // Seller registration wizard submission
-  const createListing = useCallback((
+  const createListing = useCallback(async (
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
     videoFile?: File | Blob | null
   ) => {
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    // ارفع الفيديو لـ Firebase Storage أولاً
+    let finalVideoUrl = listingData.videoUrl;
+    if (videoFile) {
+      try {
+        const { uploadVideoToStorage } = await import('../utils/videoDb');
+        const permanentUrl = await uploadVideoToStorage(newListingId, videoFile);
+        finalVideoUrl = permanentUrl;
+      } catch (err) {
+        console.error('Failed to upload custom video to Firebase Storage:', err);
+        // Fallback to storing in IndexedDB
+        try {
+          const { saveVideoBlob } = await import('../utils/videoDb');
+          await saveVideoBlob(newListingId, videoFile);
+        } catch (idbErr) {
+          console.error('IndexedDB backup storage failed:', idbErr);
+        }
+      }
+    }
+
     const newListing: any = {
       ...listingData,
       id: newListingId,
@@ -1120,16 +1142,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       viewersCount: 2,
       createdAt: new Date().getTime(),
       createdById: currentUser?.id || 'guest',
-      createdByName: currentUser?.name || 'Seller JO'
+      createdByName: currentUser?.name || 'Seller JO',
+      videoUrl: finalVideoUrl
     };
-
-    if (videoFile) {
-      import('../utils/videoDb').then(({ saveVideoBlob }) => {
-        saveVideoBlob(newListingId, videoFile).catch(err => {
-          console.error('Failed to store custom video file to IndexedDB:', err);
-        });
-      });
-    }
 
     // Save directly to Firestore for real-time synchronization
     const docRef = doc(db, 'auctions', newListingId);

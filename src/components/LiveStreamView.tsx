@@ -368,6 +368,8 @@ export const LiveStreamView: React.FC = () => {
             loop
             muted={isMuted}
             playsInline
+            webkit-playsinline="true"
+            x5-playsinline="true"
             className="w-full h-full object-cover opacity-100"
           />
         ) : (

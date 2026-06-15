@@ -2,6 +2,16 @@
 // Since localStorage cannot store large binary blobs (and has a 5MB size limit),
 // IndexedDB is the perfect browser API for caching and playing custom videos.
 
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../services/firebase';
+
+export async function uploadVideoToStorage(auctionId: string, blob: Blob): Promise<string> {
+  const storageRef = ref(storage, `auction-videos/${auctionId}_${Date.now()}.mp4`);
+  await uploadBytes(storageRef, blob);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
+
 const DB_NAME = 'MazadJoVideoStore';
 const STORE_NAME = 'customVideos';
 const DB_VERSION = 1;
