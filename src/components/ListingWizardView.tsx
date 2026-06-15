@@ -66,8 +66,8 @@ export const ListingWizardView: React.FC = () => {
       category,
       startingPrice: Number(startingPrice),
       minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
-      videoUrl: customVideoUrl,
-      thumbnailUrl: customThumbnailUrl || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80',
+      videoUrl: '',
+      thumbnailUrl: '',
       endTime: Date.now() + Number(duration) * 1000,
       duration: Number(duration),
       isFeatured: false
