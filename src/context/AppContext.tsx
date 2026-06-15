@@ -57,7 +57,8 @@ interface AppContextProps {
   // Seller Listing Creation
   createListing: (
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
-    videoFile?: File | Blob | null
+    videoFile?: File | Blob | null,
+    thumbnailFile?: File | Blob | null
   ) => void;
   
   // Custom WebSocket Sim control
@@ -1442,35 +1443,31 @@ let googleAuthInProgress = false;
   // Seller registration wizard submission
   const createListing = useCallback(async (
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
-    videoFile?: File | Blob | null
+    videoFile?: File | Blob | null,
+    thumbnailFile?: File | Blob | null
   ) => {
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
-    // ارفع الفيديو لـ Firebase Storage أولاً
-    let finalVideoUrl = listingData.videoUrl;
-    if (videoFile) {
-      try {
-        const { uploadVideoToStorage, saveVideoBlob } = await import('../utils/videoDb');
-        
-        // Save to IndexedDB locally so the creator can watch it instantly/locally from disk
-        try {
-          await saveVideoBlob(newListingId, videoFile);
-        } catch (idbErr) {
-          console.error('IndexedDB saving failed:', idbErr);
-        }
+    // رفع الفيديو لـ Firebase Storage أولاً
+    let finalVideoUrl = listingData.videoUrl || '';
+    let finalThumbnailUrl = listingData.thumbnailUrl || '';
 
-        const permanentUrl = await uploadVideoToStorage(newListingId, videoFile);
-        finalVideoUrl = permanentUrl;
-      } catch (err) {
-        console.error('Failed to upload custom video to Firebase Storage:', err);
-        // Fallback to storing in IndexedDB only
-        try {
-          const { saveVideoBlob } = await import('../utils/videoDb');
-          await saveVideoBlob(newListingId, videoFile);
-        } catch (idbErr) {
-          console.error('IndexedDB backup storage failed:', idbErr);
-        }
-      }
+    if (videoFile) {
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
+      const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
+      await uploadBytes(videoRef, videoFile);
+      finalVideoUrl = await getDownloadURL(videoRef);
+    }
+
+    if (thumbnailFile) {
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
+      const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
+      await uploadBytes(thumbRef, thumbnailFile);
+      finalThumbnailUrl = await getDownloadURL(thumbRef);
     }
 
     const newListing: any = {
@@ -1487,7 +1484,8 @@ let googleAuthInProgress = false;
       createdAt: new Date().getTime(),
       createdById: currentUser?.id || 'guest',
       createdByName: currentUser?.name || 'Seller JO',
-      videoUrl: finalVideoUrl
+      videoUrl: finalVideoUrl,
+      thumbnailUrl: finalThumbnailUrl
     };
 
     // Save directly to Firestore for real-time synchronization

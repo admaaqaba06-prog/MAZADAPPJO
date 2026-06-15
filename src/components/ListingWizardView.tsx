@@ -17,6 +17,10 @@ export const ListingWizardView: React.FC = () => {
   const [customVideoUrl, setCustomVideoUrl] = useState<string | null>(null);
   const [rawVideoFile, setRawVideoFile] = useState<File | null>(null);
 
+  // Thumbnail assets references
+  const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
+  const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
+
   // Success flow trigger
   const [isUploading, setIsUploading] = useState(false);
 
@@ -63,11 +67,11 @@ export const ListingWizardView: React.FC = () => {
       startingPrice: Number(startingPrice),
       minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
       videoUrl: customVideoUrl,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80',
+      thumbnailUrl: customThumbnailUrl || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=500&q=80',
       endTime: Date.now() + Number(duration) * 1000,
       duration: Number(duration),
       isFeatured: false
-    }, rawVideoFile);
+    }, rawVideoFile, rawThumbnailFile);
 
     // Auto-redirect to home after 3 seconds
     setTimeout(() => {
@@ -126,6 +130,51 @@ export const ListingWizardView: React.FC = () => {
                   }} 
                   language={language} 
                 />
+              </div>
+            </div>
+
+            {/* STEP 1.5 — Thumbnail Image */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-extrabold text-[#111827] flex items-center gap-1.5">
+                <span className="text-[#FF6B00]">①.⑤</span> 
+                {isAr ? 'صورة غلاف المزاد (اختياري)' : 'Auction Thumbnail Image (Optional)'}
+              </label>
+              
+              <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                {customThumbnailUrl ? (
+                  <div className="relative rounded-xl overflow-hidden max-h-[160px] bg-black">
+                    <img src={customThumbnailUrl} alt="Thumbnail Preview" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRawThumbnailFile(null);
+                        setCustomThumbnailUrl(null);
+                      }}
+                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer"
+                    >
+                      {isAr ? 'حذف صورة الغلاف' : 'Remove Cover'}
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <span className="text-2xl">🖼️</span>
+                    <span className="text-xs font-bold text-gray-600 mt-2">
+                      {isAr ? 'اضغط لرفع صورة غلاف' : 'Click to upload a cover image'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setRawThumbnailFile(file);
+                          setCustomThumbnailUrl(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
 

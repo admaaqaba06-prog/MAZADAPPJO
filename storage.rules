@@ -20,6 +20,14 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    match /auction-thumbnails/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.contentType.matches('image/.*')
+                    && request.resource.size <= 10 * 1024 * 1024;
+      allow update, delete: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
