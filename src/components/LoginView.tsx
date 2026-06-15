@@ -30,11 +30,7 @@ const FacebookIcon = () => (
   </svg>
 );
 
-const AppleIcon = () => (
-  <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-.96.04-2.13.64-2.82 1.45-.6.68-1.12 1.82-.98 2.93 1.07.08 2.16-.51 2.81-1.32z" />
-  </svg>
-);
+
 
 export const LoginView: React.FC = () => {
   const { 
@@ -137,65 +133,7 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const handleAppleClick = async () => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const { OAuthProvider, signInWithPopup } = await import('firebase/auth');
-      const { auth } = await import('../services/firebase');
-      const appleProvider = new OAuthProvider('apple.com');
-      const result = await signInWithPopup(auth, appleProvider);
-      const user = result.user;
 
-      const appleUser = {
-        id: user.uid,
-        name: user.displayName || 'Apple User',
-        email: user.email || `${user.uid}@apple.com`,
-        avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: 'user' as const,
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none' as const,
-      };
-
-      login(appleUser.email, 'password');
-      setCurrentUser(appleUser);
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== appleUser.id);
-        return [...filtered, appleUser];
-      });
-      localStorage.setItem('mazad_user_session', JSON.stringify(appleUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-      setSuccessMsg(isAr ? 'تم تسجيل الدخول بنجاح عبر أبل!' : 'Successfully signed in via Apple!');
-    } catch (error) {
-      console.warn("Fallback to simulated Apple Auth:", error);
-      let stableId = localStorage.getItem('mazad_fallback_uid');
-      if (!stableId) {
-        stableId = `fallback-user-${Math.floor(10000 + Math.random() * 90000)}`;
-        localStorage.setItem('mazad_fallback_uid', stableId);
-      }
-      const appleUser = {
-        id: `apple-${stableId}`,
-        name: 'Apple User',
-        email: 'apple-oauth@apple.com',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: 'user' as const,
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none' as const,
-      };
-
-      login(appleUser.email, 'password');
-      setCurrentUser(appleUser);
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== appleUser.id);
-        return [...filtered, appleUser];
-      });
-      localStorage.setItem('mazad_user_session', JSON.stringify(appleUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-      setSuccessMsg(isAr ? 'تم الدخول بنجاح كمستخدم تجريبي أبل!' : 'Successfully logged in as simulated Apple User!');
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -322,16 +260,7 @@ export const LoginView: React.FC = () => {
             <span>{isAr ? 'المتابعة باستخدام Facebook' : 'Continue with Facebook'}</span>
           </button>
 
-          {/* Continue with Apple */}
-          <button 
-            type="button"
-            onClick={handleAppleClick}
-            className="w-full h-11 flex items-center justify-center gap-3 bg-black hover:bg-neutral-900 text-white text-sm font-bold rounded-full shadow-sm transition-all"
-            id="apple-login-btn"
-          >
-            <AppleIcon />
-            <span>{isAr ? 'المتابعة باستخدام Apple' : 'Continue with Apple'}</span>
-          </button>
+
         </div>
 
         {/* Separator Line */}
