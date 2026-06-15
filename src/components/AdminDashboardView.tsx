@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { 
   ShieldCheck, 
   Users, 
@@ -44,7 +46,44 @@ export const AdminDashboardView: React.FC = () => {
   const t = translations[language];
   const isAr = language === 'ar';
 
-  const [activeTab, setActiveTab] = useState<'metrics' | 'payments' | 'listings' | 'users'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'payments' | 'listings' | 'users' | 'subscriptions'>('metrics');
+
+  const [subscriptionRequests, setSubscriptionRequests] = useState<any[]>([]);
+  const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'subscriptionRequests'), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setSubscriptionRequests(list.filter((r: any) => r.subscriptionStatus === 'pending'));
+    });
+    return () => unsub();
+  }, []);
+
+  const approveSubscription = async (request: any) => {
+    const expiry = request.plan === 'monthly'
+      ? Date.now() + 30 * 24 * 60 * 60 * 1000
+      : request.plan === 'quarterly'
+      ? Date.now() + 90 * 24 * 60 * 60 * 1000
+      : Date.now() + 365 * 24 * 60 * 60 * 1000;
+
+    await updateDoc(doc(db, 'subscriptionRequests', request.id), {
+      subscriptionStatus: 'active'
+    });
+    await updateDoc(doc(db, 'users', request.userId), {
+      subscriptionStatus: 'active',
+      subscriptionExpiry: expiry,
+      subscriptionTier: request.plan
+    });
+  };
+
+  const rejectSubscription = async (request: any) => {
+    await updateDoc(doc(db, 'subscriptionRequests', request.id), {
+      subscriptionStatus: 'rejected'
+    });
+    await updateDoc(doc(db, 'users', request.userId), {
+      subscriptionStatus: 'none'
+    });
+  };
 
   const pendingCliQDrops = escrows.filter(e => e.status === 'locked' && e.auctionId === 'cliq-dep');
   const pendingListingDrops = auctions.filter(a => a.status === 'processing');
@@ -75,9 +114,9 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu */}
       <div className="flex bg-gray-50 border-b border-gray-150 px-2.5 py-1.5 shrink-0 scrollbar-none overflow-x-auto text-[10px] font-black font-sans uppercase gap-1">
-        {(['metrics', 'payments', 'listings', 'users'] as const).map((tab) => {
+        {(['metrics', 'payments', 'listings', 'users', 'subscriptions'] as const).map((tab) => {
           const tabLabel = isAr 
-            ? (tab === 'metrics' ? 'الإحصائيات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'مراجعة المعروضات' : 'قائمة الأعضاء')
+            ? (tab === 'metrics' ? 'الإحصائيات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'مراجعة المعروضات' : tab === 'users' ? 'قائمة الأعضاء' : 'طلبات الاشتراك')
             : tab.toUpperCase();
           return (
             <button
@@ -614,7 +653,111 @@ export const AdminDashboardView: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'subscriptions' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-xs font-bold text-gray-800 flex items-center gap-1.5 leading-none">
+                <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> {isAr ? 'طلبات الاشتراك المعلقة' : 'PENDING SUBSCRIPTION PASSPORT REQUESTS'}
+              </h3>
+              <p className="text-[10px] text-gray-400 mt-1">{isAr ? 'مراجعة طلبات تفعيل العضوية والاشتراكات المالية والتحقق من إثباتات الدفع ولقطات الشاشة.' : 'Audit premium cliq payment transfer verification receipts for subscriber accounts.'}</p>
+            </div>
+
+            {subscriptionRequests.length === 0 ? (
+              <div className="border border-dashed border-gray-250 py-10 text-center rounded-2xl bg-gray-50/50">
+                <Sparkles className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                <p className="text-[11px] font-bold text-gray-400 font-sans">{isAr ? 'لا توجد طلبات اشتراك معلقة حالياً' : 'NO PENDING PREMIUM SIGNUPS'}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {subscriptionRequests.map((req) => (
+                  <div key={req.id} className="bg-white border border-gray-200/95 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn">
+                    <div className="space-y-2.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/20 rounded-full font-mono font-bold px-2.5 py-0.5 uppercase">
+                          {req.plan === 'monthly' ? (isAr ? 'شهري' : 'Monthly') : req.plan === 'quarterly' ? (isAr ? 'ربع سنوي' : 'Quarterly') : (isAr ? 'سنوي' : 'Annual')}
+                        </span>
+                        <span className="text-[9.5px] text-gray-500 font-mono font-bold">
+                          {req.price} JOD
+                        </span>
+                        <span className="text-[8.5px] text-gray-400 font-mono">
+                          {new Date(req.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 font-sans">
+                        <h4 className="font-extrabold text-xs text-gray-900 leading-none">{req.userName}</h4>
+                        <p className="text-[10px] text-gray-400">{req.userEmail}</p>
+                      </div>
+
+                      <div className="bg-gray-50 border border-gray-150 p-2.5 rounded-xl text-[10px] space-y-1">
+                        <p className="text-gray-600">
+                          <strong className="text-gray-800">{isAr ? 'الاسم بالكامل للتحويل:' : 'Transfer Full Name:'}</strong> {req.transferFullName || 'N/A'}
+                        </p>
+                        <p className="text-gray-600">
+                          <strong className="text-gray-800">{isAr ? 'رقم الهاتف المحول منه:' : 'Transfer Phone:'}</strong> {req.transferPhone || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {req.paymentProofImage && (
+                        <div className="relative group/proof cursor-pointer">
+                          <img 
+                            src={req.paymentProofImage} 
+                            alt="Payment Proof" 
+                            className="w-14 h-14 rounded-xl object-cover border border-gray-200 shadow-sm transition-transform hover:scale-105"
+                            onClick={() => setViewReceiptUrl(req.paymentProofImage)}
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          onClick={() => approveSubscription(req)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[9.5px] px-3 py-1.5 rounded-lg shadow-sm"
+                        >
+                          {isAr ? 'قبول وتفعيل' : 'APPROVE & PASS'}
+                        </button>
+                        <button
+                          onClick={() => rejectSubscription(req)}
+                          className="bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-[9.5px] px-3 py-1.5 rounded-lg"
+                        >
+                          {isAr ? 'رفض الطلب' : 'REJECT & BLOCK'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
+
+      {viewReceiptUrl && (
+        <div 
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setViewReceiptUrl(null)}
+        >
+          <div className="relative max-w-lg w-full bg-white rounded-3xl p-3 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <img 
+              src={viewReceiptUrl} 
+              alt="Receipt Full Preview" 
+              className="w-full max-h-[70vh] object-contain rounded-2xl"
+            />
+            <div className="mt-3 flex justify-between items-center px-1">
+              <span className="text-[10px] text-gray-400 font-mono uppercase">{isAr ? 'إثبات تحويل كليك' : 'CliQ Transfer Proof'}</span>
+              <button 
+                onClick={() => setViewReceiptUrl(null)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl px-4 py-1.5 text-[10px] font-black uppercase"
+              >
+                {isAr ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

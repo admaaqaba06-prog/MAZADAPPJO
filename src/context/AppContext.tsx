@@ -533,7 +533,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [auctions, setAuctions] = useState<AuctionItem[]>(() => {
     const saved = localStorage.getItem('mazad_auctions');
-    return saved ? JSON.parse(saved) : INITIAL_AUCTIONS;
+    const parsed = saved ? JSON.parse(saved) : INITIAL_AUCTIONS;
+    return parsed.map((item: any) => {
+      const rawThumbnail = item.thumbnailUrl || item.imageUrl || '';
+      if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
+        const cat = (item.category || '').toLowerCase();
+        const tit = (item.title || '').toLowerCase();
+        let finalThumbnail = rawThumbnail;
+        if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
+          finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
+        } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
+          finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80';
+        } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
+          finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80';
+        } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
+          finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80';
+        } else {
+          finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&q=80';
+        }
+        return { ...item, thumbnailUrl: finalThumbnail, imageUrl: finalThumbnail };
+      }
+      return item;
+    });
   });
   const [bids, setBids] = useState<Bid[]>(() => {
     const saved = localStorage.getItem('mazad_bids');
@@ -795,7 +816,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } else if (data.endsAt) {
             endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
           }
-          fetchedList.push({
+          const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
+          let finalThumbnail = rawThumbnail;
+
+          if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
+            const cat = (data.category || '').toLowerCase();
+            const tit = (data.title || '').toLowerCase();
+            if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
+              finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
+            } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
+              finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80';
+            } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
+              finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80';
+            } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
+              finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80';
+            } else {
+              finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&q=80';
+            }
+          }
+
+          const itemWithFallback = {
             id: docSnap.id,
             title: data.title || '',
             description: data.description || '',
@@ -806,7 +846,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             currentBidderId: data.currentBidderId || null,
             currentBidderName: data.currentBidderName || null,
             videoUrl: data.videoUrl || '',
-            thumbnailUrl: data.thumbnailUrl || data.imageUrl || 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=500&q=80',
             endTime: endTimeNum,
             duration: data.duration ?? 3600,
             sellerId: data.sellerId || 'seller-system',
@@ -817,7 +856,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             totalBids: data.totalBids ?? 0,
             viewersCount: data.viewersCount ?? 15,
             ...data
-          } as AuctionItem);
+          } as any;
+
+          itemWithFallback.thumbnailUrl = finalThumbnail;
+          itemWithFallback.imageUrl = finalThumbnail;
+          fetchedList.push(itemWithFallback as AuctionItem);
         });
 
         // Resolve video URLs asynchronously to avoid black screen and preserve IndexedDB custom videos
@@ -1074,12 +1117,38 @@ let googleAuthInProgress = false;
   }, []);
 
   const subscribeUser = useCallback((price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
+    const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
+    const reqId = `sub-req-${Date.now()}-${currentUser?.id}`;
+
+    const reqDoc = {
+      id: reqId,
+      userId: currentUser?.id || '',
+      userName: currentUser?.name || 'User',
+      userEmail: currentUser?.email || '',
+      price,
+      plan,
+      paymentProofImage: paymentProofImage || '',
+      transferFullName: transferFullName || '',
+      transferPhone: transferPhone || '',
+      subscriptionStatus: 'pending',
+      timestamp: Date.now()
+    };
+
+    // حفظ مباشر بدون dynamic import
+    setDoc(doc(db, 'subscriptionRequests', reqId), reqDoc)
+      .then(() => console.log('Subscription request saved to Firestore!'))
+      .catch(e => console.error('Failed to save subscription request:', e));
+
+    updateDoc(doc(db, 'users', currentUser?.id || ''), {
+      subscriptionStatus: 'pending'
+    }).catch(e => console.error('Failed to update user status:', e));
+
     setCurrentUser(prev => {
       if (!prev) return prev;
       const updated = { 
         ...prev, 
-        subscriptionStatus: 'active' as const, 
-        subscriptionExpiry: '2027-12-31', 
+        subscriptionStatus: 'pending' as const, 
+        subscriptionExpiry: null, 
         paymentProofImage,
         transferFullName,
         transferPhone
@@ -1091,8 +1160,8 @@ let googleAuthInProgress = false;
       if (currentUser && u.id === currentUser.id) {
         return { 
           ...u, 
-          subscriptionStatus: 'active' as const, 
-          subscriptionExpiry: '2027-12-31', 
+          subscriptionStatus: 'pending' as const, 
+          subscriptionExpiry: null, 
           paymentProofImage,
           transferFullName,
           transferPhone
@@ -1101,7 +1170,7 @@ let googleAuthInProgress = false;
       return u;
     }));
     setShowSubscriptionPrompt(false);
-    addNotification('💳 Subscription Activated', `Thank you! Your payment of ${price} JD was processed securely via CliQ Gateway.`, 'win');
+    addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك بـ ${price} JD. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
   }, [currentUser, addNotification]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
@@ -1330,7 +1399,7 @@ let googleAuthInProgress = false;
       amount: amount,
       status: 'locked', // Remains locked as payment verification flow until admin manually approves
       timestamp: Date.now(),
-      paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80', // Simulated screenshot receipt preview
+      paymentProofUrl: '', // Simulated screenshot receipt preview
       cliqAlias: alias
     };
     setEscrows(prev => [newCliQTransaction, ...prev]);
