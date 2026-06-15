@@ -227,6 +227,7 @@ export default function AuctionCard({ auction, showToast }: AuctionCardProps) {
             muted={videoMuted}
             loop
             playsInline
+            crossOrigin="anonymous"
             className="w-full h-full object-cover"
           />
         ) : (

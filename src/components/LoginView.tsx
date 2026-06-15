@@ -192,31 +192,6 @@ export const LoginView: React.FC = () => {
           <span>{t.googleLogin}</span>
         </button>
 
-        {/* Preset accounts helper console */}
-        <div className="mt-6 p-4 rounded-xl border border-gray-100 bg-gray-50/50 space-y-2">
-          <p className="text-[10px] font-bold text-gray-400 font-mono tracking-widest uppercase">
-            {isAr ? 'العضويات التجريبية السريعة' : 'QUICK ACCESS ROLES'}
-          </p>
-          <div className="grid grid-cols-1 gap-1.5 text-[11px]">
-            <button 
-              onClick={() => handlePresetTrigger('admin@mazad.jo')} 
-              className="text-left py-1 text-gray-600 hover:text-[#FF6B00] font-sans flex items-center justify-between"
-              style={{ textAlign: isAr ? 'right' : 'left' }}
-            >
-              <span>• {t.presetAdmin}</span>
-              <span className="text-[9px] font-mono bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">SITE MANAGER</span>
-            </button>
-            <button 
-              onClick={() => handlePresetTrigger('guest@buyer.jo')} 
-              className="text-left py-1 text-gray-600 hover:text-[#FF6B00] font-sans flex items-center justify-between"
-              style={{ textAlign: isAr ? 'right' : 'left' }}
-            >
-              <span>• {t.presetDemoUser}</span>
-              <span className="text-[9px] font-mono bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold">DEMO USER</span>
-            </button>
-          </div>
-        </div>
-
         {/* Toggle Mode */}
         <div className="text-center mt-6 text-xs text-gray-500">
           <span>{mode === 'login' ? t.signupPrompt : t.existingPrompt} </span>

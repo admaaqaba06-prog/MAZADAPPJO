@@ -114,7 +114,7 @@ export interface Notification {
 
 export interface AdminAction {
   id: string;
-  actionType: 'approve_listing' | 'reject_listing' | 'ban_user' | 'verify_seller' | 'release_escrow' | 'refund_escrow';
+  actionType: 'approve_listing' | 'reject_listing' | 'ban_user' | 'verify_seller' | 'release_escrow' | 'refund_escrow' | 'delete_auction';
   targetId: string;
   targetName: string;
   adminName: string;

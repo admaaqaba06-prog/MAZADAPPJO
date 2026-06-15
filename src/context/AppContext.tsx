@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/firebase';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -51,6 +51,7 @@ interface AppContextProps {
   unbanUser: (userId: string) => void;
   releaseEscrow: (escrowId: string) => void;
   refundEscrow: (escrowId: string) => void;
+  deleteAuction: (id: string) => void;
   
   // Seller Listing Creation
   createListing: (
@@ -82,6 +83,9 @@ interface AppContextProps {
   // Subscription Renewal Prompt
   showSubscriptionPrompt: boolean;
   setShowSubscriptionPrompt: (show: boolean) => void;
+
+  // Live Chat Comments System
+  sendChatMessage: (text: string) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -560,6 +564,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [deletedAuctionIds, setDeletedAuctionIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mazad_deleted_auctions');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mazad_deleted_auctions', JSON.stringify(deletedAuctionIds));
+  }, [deletedAuctionIds]);
+
   // Sync state changes with localStorage
   useEffect(() => {
     localStorage.setItem('mazad_users', JSON.stringify(users));
@@ -664,7 +681,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [autoBids]);
 
   // Simulator controls
-  const [isSimulating, setIsSimulating] = useState<boolean>(true);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
   // AUTH, MULTILINGUAL, & SUBSCRIPTION ADDITIONS
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
@@ -761,6 +778,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, []);
 
+  // Real-time escrows synchronization with Firestore
+  useEffect(() => {
+    const escrowsRefCol = collection(db, 'escrows');
+    const unsub = onSnapshot(escrowsRefCol, (snap) => {
+      if (!snap.empty) {
+        const fetchedEscrows: EscrowTransaction[] = [];
+        snap.forEach((docSnap) => {
+          fetchedEscrows.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as EscrowTransaction);
+        });
+        fetchedEscrows.sort((a, b) => b.timestamp - a.timestamp);
+        setEscrows(fetchedEscrows);
+      } else {
+        setEscrows(INITIAL_ESCROWS);
+      }
+    }, (err) => {
+      console.warn("Firestore 'escrows' collection sync error:", err);
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time chats synchronization with Firestore
+  useEffect(() => {
+    const chatsRefCol = collection(db, 'chats');
+    const unsub = onSnapshot(chatsRefCol, (snap) => {
+      if (!snap.empty) {
+        const fetchedChats: ChatMessage[] = [];
+        snap.forEach((docSnap) => {
+          fetchedChats.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as ChatMessage);
+        });
+        fetchedChats.sort((a, b) => a.timestamp - b.timestamp);
+        setChatMessages(fetchedChats);
+      } else {
+        setChatMessages(INITIAL_CHATS);
+      }
+    }, (err) => {
+      console.warn("Firestore 'chats' collection sync error:", err);
+    });
+    return () => unsub();
+  }, []);
+
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
   const escrowsRef = useRef(escrows);
@@ -789,21 +852,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const login = useCallback((email: string, pass: string) => {
-    const matched = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.toLowerCase().trim();
+    const isAdminEmail = cleanEmail.includes('admin') || cleanEmail === 'tareq@masri.jo';
+
+    if (isAdminEmail) {
+      if (pass !== '#MazadAdmin2026!') {
+        return { 
+          success: false, 
+          message: language === 'ar' 
+            ? 'خطأ أمني: رمز المرور السري للمسؤول غير صحيح. تم رفض الوصول الحقيقي للوحة التحكم.' 
+            : 'Security Error: Secret administrator passcode incorrect. Real panel access denied.' 
+        };
+      }
+    }
+
+    const matched = users.find(u => u.email.toLowerCase() === cleanEmail);
     if (matched) {
-      setCurrentUser(matched);
+      const updatedUser = { ...matched, role: (isAdminEmail ? 'admin' as const : matched.role) };
+      setCurrentUser(updatedUser);
       setIsAuthenticated(true);
-      localStorage.setItem('mazad_user_session', JSON.stringify(matched));
+      localStorage.setItem('mazad_user_session', JSON.stringify(updatedUser));
       localStorage.setItem('mazad_authenticated', 'true');
       return { success: true, message: 'Logged in successfully!' };
     } else {
-      const cleanName = email.split('@')[0];
+      const cleanName = cleanEmail.split('@')[0];
       const newUser: User = {
         id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
-        email: email,
+        email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: email.toLowerCase().includes('admin') ? 'admin' : 'user',
+        role: isAdminEmail ? 'admin' : 'user',
         isVerified: true,
         isBlocked: false,
         subscriptionStatus: 'none', // Block initially unless pre-subscribed user
@@ -815,7 +893,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('mazad_authenticated', 'true');
       return { success: true, message: 'New user account created & logged in!' };
     }
-  }, [users]);
+  }, [users, language]);
 
   const loginWithGoogle = useCallback(() => {
     const googleUser: User = {
@@ -986,14 +1064,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     // We update previous outbid bidder
     if (outbidUserId && outbidUserId !== currentUser.id) {
-      // Simulate restoring their wallet if they are in our mock user base
-      if (outbidUserId === 'user-current') {
-        // Our current user was outbid from background (handled in background tick)
-      } else {
-        // Background users get refunds silently
+      const prevEscrow = escrows.find(e => e.auctionId === auctionId && e.bidderId === outbidUserId && e.status === 'locked');
+      if (prevEscrow) {
+        // Update previous escrow status to refunded in Firestore
+        setDoc(doc(db, 'escrows', prevEscrow.id), { ...prevEscrow, status: 'refunded' as const }).catch(err => {
+          console.warn("Error refunding previous escrow in Firestore:", err);
+        });
+
+        // Update previous bidder's wallet account in Firestore
+        const prevWalletRef = doc(db, 'wallets', outbidUserId);
+        getDoc(prevWalletRef).then(snap => {
+          if (snap.exists()) {
+            const wData = snap.data();
+            const oldAvail = wData.availableBalance ?? 0;
+            const oldEsc = wData.escrowBalance ?? 0;
+            const refundAmt = prevEscrow.amount;
+            const newEsc = Math.max(0, oldEsc - refundAmt);
+            const newAvail = oldAvail + refundAmt;
+            setDoc(prevWalletRef, {
+              userId: outbidUserId,
+              availableBalance: newAvail,
+              escrowBalance: newEsc,
+              totalBalance: newAvail + newEsc
+            }).catch(err => console.error("Error refunding previous wallet in Firestore:", err));
+          }
+        });
       }
 
-      // If we are outbidding a background user, their escrow is updated
       setEscrows(prev => prev.map(e => {
         if (e.auctionId === auctionId && e.bidderId === outbidUserId && e.status === 'locked') {
           return { ...e, status: 'refunded' as const };
@@ -1002,19 +1099,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     }
 
+    let finalEndTime = auction.endTime;
+    const timeRemaining = finalEndTime - Date.now();
+    let antiSnipeTriggered = false;
+    // ANTI-SNIPING RULE: If placed in the last 10 seconds, extend by 15 seconds
+    if (timeRemaining > 0 && timeRemaining < 10000) {
+      finalEndTime += 15000;
+      antiSnipeTriggered = true;
+    }
+
     // Set updated state
     setAuctions(prev => prev.map(a => {
       if (a.id === auctionId) {
-        let finalEndTime = a.endTime;
-        const timeRemaining = finalEndTime - Date.now();
-        
-        let antiSnipeTriggered = false;
-        // ANTI-SNIPING RULE: If placed in the last 10 seconds, extend by 15 seconds
-        if (timeRemaining > 0 && timeRemaining < 10000) {
-          finalEndTime += 15000;
-          antiSnipeTriggered = true;
-        }
-
         return {
           ...a,
           currentPrice: amount,
@@ -1026,6 +1122,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return a;
     }));
+
+    // Update auction in Firestore!
+    const auctionDocRef = doc(db, 'auctions', auctionId);
+    setDoc(auctionDocRef, {
+      ...auction,
+      currentPrice: amount,
+      currentBidderId: currentUser.id,
+      currentBidderName: currentUser.name,
+      totalBids: auction.totalBids + 1,
+      endTime: finalEndTime
+    }, { merge: true }).catch(err => {
+      console.warn("Failed to update auction in Firestore:", err);
+    });
 
     // Update or Create corresponding Escrow transaction
     const newEscrowTransaction: EscrowTransaction = {
@@ -1043,9 +1152,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setEscrows(prev => {
-      // Filter out older locked escrow for the same user on this item
       const cleanPrev = prev.filter(e => !(e.auctionId === auctionId && e.bidderId === currentUser.id && e.status === 'locked'));
       return [newEscrowTransaction, ...cleanPrev];
+    });
+
+    // Save new escrow to Firestore!
+    setDoc(doc(db, 'escrows', newEscrowTransaction.id), newEscrowTransaction).catch(e => {
+      console.warn("Failed to write new escrow in Firestore:", e);
     });
 
     // Append beautiful green system Chat bid indicator
@@ -1062,6 +1175,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bidAmount: amount
     };
     setChatMessages(prev => [...prev, newBidChat]);
+
+    // Save system bid chat to Firestore!
+    setDoc(doc(db, 'chats', newBidChat.id), newBidChat).catch(e => {
+      console.warn("Failed to write system bid chat in Firestore:", e);
+    });
 
     // Send successful alert
     addNotification(
@@ -1096,12 +1214,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setEscrows(prev => [newCliQTransaction, ...prev]);
     
+    // Save new cliq request to Firestore!
+    setDoc(doc(db, 'escrows', newCliQTransaction.id), newCliQTransaction).catch(e => {
+      console.warn("Failed to write CliQ topup escrow transaction to Firestore:", e);
+    });
+    
     addNotification(
       '💸 CliQ Transfer Received',
       `Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.`,
       'verify'
     );
   }, [currentUser, addNotification]);
+
+  const sendChatMessage = useCallback(async (text: string) => {
+    if (!currentUser) return;
+    const newMsg: ChatMessage = {
+      id: `chat-${Date.now()}-${Math.random()}`,
+      auctionId: activeAuctionId || 'auction-rolex',
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userAvatar: currentUser.avatar,
+      text: text,
+      timestamp: Date.now(),
+      isSystem: false,
+      isBid: false
+    };
+
+    // Save to Firestore
+    try {
+      await setDoc(doc(db, 'chats', newMsg.id), newMsg);
+    } catch (e) {
+      console.warn("Firestore chat write error, saving locally:", e);
+      setChatMessages(prev => [...prev, newMsg]);
+    }
+  }, [currentUser, activeAuctionId]);
 
   // Seller registration wizard submission
   const createListing = useCallback(async (
@@ -1114,12 +1260,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let finalVideoUrl = listingData.videoUrl;
     if (videoFile) {
       try {
-        const { uploadVideoToStorage } = await import('../utils/videoDb');
+        const { uploadVideoToStorage, saveVideoBlob } = await import('../utils/videoDb');
+        
+        // Save to IndexedDB locally so the creator can watch it instantly/locally from disk
+        try {
+          await saveVideoBlob(newListingId, videoFile);
+        } catch (idbErr) {
+          console.error('IndexedDB saving failed:', idbErr);
+        }
+
         const permanentUrl = await uploadVideoToStorage(newListingId, videoFile);
         finalVideoUrl = permanentUrl;
       } catch (err) {
         console.error('Failed to upload custom video to Firebase Storage:', err);
-        // Fallback to storing in IndexedDB
+        // Fallback to storing in IndexedDB only
         try {
           const { saveVideoBlob } = await import('../utils/videoDb');
           await saveVideoBlob(newListingId, videoFile);
@@ -1136,7 +1290,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sellerId: currentUser?.id || 'seller-current',
       sellerName: currentUser?.name || sellerProfile?.storeName || 'Custom Merchant',
       sellerLogo: currentUser?.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
-      status: 'processing', // Under review direct!
+      status: 'live', // Go live instantly so everyone on any device sees it immediately!
       isFeatured: false,
       totalBids: 0,
       viewersCount: 2,
@@ -1150,7 +1304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, 'auctions', newListingId);
     setDoc(docRef, newListing)
       .then(() => {
-        console.log("Successfully created pending listing in Firestore:", newListingId);
+        console.log("Successfully created live listing in Firestore:", newListingId);
       })
       .catch((err) => {
         console.error("Firestore write failure on direct listing release:", err);
@@ -1160,15 +1314,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     if (language === 'ar') {
       addNotification(
-        '📦 تم إرسال المزاد للمراجعة',
-        `تم رفع "${listingData.title}" بنجاح وهو الآن (قيد المراجعة). سيقوم مدير الموقع بمراجعته وتفعيله قريباً لتبدأ المزايدة المباشرة.`,
-        'info'
+        '🚀 تم إطلاق المزاد مباشرة للجميع',
+        `تم نشر "${listingData.title}" بنجاح وهو الآن نشط ومتاح للمزايدة الحية وبث الفيديو أمام الجميع فورا!`,
+        'win'
       );
     } else {
       addNotification(
-        '📦 Auction Submitted for Review',
-        `"${listingData.title}" has been successfully submitted and is now (In Review). The site manager will audit and approve it soon to go live.`,
-        'info'
+        '🚀 Live Auction Released Instantly',
+        `"${listingData.title}" has been successfully active and went live! Bidding & streaming are now open to all users.`,
+        'win'
       );
     }
   }, [sellerProfile, currentUser, addNotification, language]);
@@ -1313,17 +1467,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetE = escrows.find(e => e.id === escrowId);
     if (!targetE) return;
 
-    // If it was a CliQ Top-Up transfer approval, add balance to wallet!
-    if (targetE.auctionId === 'cliq-dep') {
-      setWallet(prev => {
-        const added = targetE.amount;
-        const newAvail = prev.availableBalance + added;
-        return {
-          ...prev,
-          availableBalance: newAvail,
-          totalBalance: newAvail + prev.escrowBalance
-        };
+    // Save update to Firestore
+    import('firebase/firestore').then(({ doc, updateDoc, setDoc, getDoc }) => {
+      const escrowRef = doc(db, 'escrows', escrowId);
+      updateDoc(escrowRef, { status: 'released' }).catch(err => {
+        console.warn("Failed to write escrow release in Firestore:", err);
       });
+
+      // If it was a CliQ Top-Up transfer approval, add balance to wallet!
+      if (targetE.auctionId === 'cliq-dep') {
+        const bidderWalletRef = doc(db, 'wallets', targetE.bidderId);
+        getDoc(bidderWalletRef).then(walletSnap => {
+          if (walletSnap.exists()) {
+            const wData = walletSnap.data();
+            const oldAvail = wData.availableBalance ?? 0;
+            const oldEscrow = wData.escrowBalance ?? 0;
+            const added = targetE.amount;
+            const newAvail = oldAvail + added;
+            setDoc(bidderWalletRef, {
+              userId: targetE.bidderId,
+              availableBalance: newAvail,
+              escrowBalance: oldEscrow,
+              totalBalance: newAvail + oldEscrow
+            }).catch(err => console.error("Error updating approved wallet on Firebase:", err));
+          } else {
+            setDoc(bidderWalletRef, {
+              userId: targetE.bidderId,
+              availableBalance: targetE.amount,
+              escrowBalance: 0,
+              totalBalance: targetE.amount
+            }).catch(err => console.error("Error creating approved wallet on Firebase:", err));
+          }
+        });
+      }
+    });
+
+    if (targetE.auctionId === 'cliq-dep') {
+      if (targetE.bidderId === currentUser.id) {
+        setWallet(prev => {
+          const added = targetE.amount;
+          const newAvail = prev.availableBalance + added;
+          return {
+            ...prev,
+            availableBalance: newAvail,
+            totalBalance: newAvail + prev.escrowBalance
+          };
+        });
+      }
 
       addNotification(
         '💰 Wallet Capitalized!',
@@ -1331,7 +1521,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'win'
       );
     } else {
-      // General item buy release
       addNotification(
         '🤝 Escrow Funds Released',
         `Admin released payment to original merchant. Item shipping underway.`,
@@ -1349,7 +1538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details: 'Audited & validated. Transacted.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [escrows, addNotification]);
+  }, [escrows, currentUser, addNotification]);
 
   const refundEscrow = useCallback((escrowId: string) => {
     setEscrows(prev => prev.map(e => {
@@ -1362,7 +1551,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetE = escrows.find(e => e.id === escrowId);
     if (!targetE) return;
 
-    // Refund target balance
+    // Save update to Firestore
+    import('firebase/firestore').then(({ doc, updateDoc, setDoc, getDoc }) => {
+      const escrowRef = doc(db, 'escrows', escrowId);
+      updateDoc(escrowRef, { status: 'refunded' }).catch(err => {
+        console.warn("Failed to write escrow refund in Firestore:", err);
+      });
+
+      if (targetE.auctionId !== 'cliq-dep') {
+        const bidderWalletRef = doc(db, 'wallets', targetE.bidderId);
+        getDoc(bidderWalletRef).then(walletSnap => {
+          if (walletSnap.exists()) {
+            const wData = walletSnap.data();
+            const oldAvail = wData.availableBalance ?? 0;
+            const oldEsc = wData.escrowBalance ?? 0;
+            const amt = targetE.amount;
+            const newEsc = Math.max(0, oldEsc - amt);
+            const newAvail = oldAvail + amt;
+            setDoc(bidderWalletRef, {
+              userId: targetE.bidderId,
+              availableBalance: newAvail,
+              escrowBalance: newEsc,
+              totalBalance: newAvail + newEsc
+            }).catch(err => console.error("Error updating refunded wallet on Firebase:", err));
+          }
+        });
+      }
+    });
+
     if (targetE.bidderId === currentUser.id && targetE.auctionId !== 'cliq-dep') {
       setWallet(prev => {
         const amt = targetE.amount;
@@ -1394,6 +1610,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setAdminActions(prev => [action, ...prev]);
   }, [escrows, currentUser, addNotification]);
+
+  const deleteAuction = useCallback(async (id: string) => {
+    const targetA = auctions.find(a => a.id === id);
+    
+    // Optimistic instant local-only hiding to guarantee immediate disappearance
+    setDeletedAuctionIds(prev => prev.includes(id) ? prev : [...prev, id]);
+
+    try {
+      await deleteDoc(doc(db, 'auctions', id));
+    } catch (e) {
+      console.warn("Firestore delete auction error:", e);
+    }
+    
+    setAuctions(prev => prev.filter(a => a.id !== id));
+
+    const action: AdminAction = {
+      id: `admin-act-${Date.now()}-${Math.random()}`,
+      actionType: 'delete_auction',
+      targetId: id,
+      targetName: targetA?.title || 'Unknown Item',
+      adminName: currentUser?.name || 'Admin Tareq',
+      timestamp: Date.now(),
+      details: 'Administrator permanently removed listing from system.'
+    };
+    setAdminActions(prev => [action, ...prev]);
+
+    addNotification(
+      language === 'ar' ? '🗑️ تم مسح المزاد' : '🗑️ Auction Deleted',
+      language === 'ar' 
+        ? `قام المسؤول بمسح المزاد "${targetA?.title || ''}" نهائياً من المنصة.` 
+        : `Administrator permanently deleted "${targetA?.title || ''}".`,
+      'info'
+    );
+  }, [auctions, currentUser, language, addNotification, setDeletedAuctionIds]);
 
 
   // =========================================================
@@ -1687,13 +1937,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [auctions, autoBids, placeBid, addNotification, language]);
 
+  const visibleAuctions = auctions.filter(a => !deletedAuctionIds.includes(a.id));
+
   return (
     <AppContext.Provider value={{
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
       sellerProfiles, setSellerProfiles,
-      auctions, setAuctions,
+      auctions: visibleAuctions, setAuctions,
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,
@@ -1712,6 +1964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unbanUser,
       releaseEscrow,
       refundEscrow,
+      deleteAuction,
       createListing,
       isSimulating,
       setIsSimulating,
@@ -1729,7 +1982,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAutoBid,
       removeAutoBid,
       showSubscriptionPrompt,
-      setShowSubscriptionPrompt
+      setShowSubscriptionPrompt,
+      sendChatMessage
     }}>
       {children}
     </AppContext.Provider>

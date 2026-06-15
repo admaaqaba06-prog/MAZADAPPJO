@@ -7,7 +7,8 @@ import { storage } from '../services/firebase';
 
 export async function uploadVideoToStorage(auctionId: string, blob: Blob): Promise<string> {
   const storageRef = ref(storage, `auction-videos/${auctionId}_${Date.now()}.mp4`);
-  await uploadBytes(storageRef, blob);
+  const metadata = { contentType: blob.type || 'video/mp4' };
+  await uploadBytes(storageRef, blob, metadata);
   const downloadUrl = await getDownloadURL(storageRef);
   return downloadUrl;
 }

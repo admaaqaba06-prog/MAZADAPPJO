@@ -90,10 +90,10 @@ export const ListingWizardView: React.FC = () => {
           </div>
           <div className="space-y-1.5">
             <h3 className="text-base font-black text-emerald-600">
-              {isAr ? 'تم الإرسال! بانتظار موافقة الإدارة ✅' : 'Submitted! Pending Administration Approval ✅'}
+              {isAr ? 'تم إطلاق المزاد مباشرة بنجاح! 🚀' : 'Live Auction Released Instantly! 🚀'}
             </h3>
             <p className="text-xs text-gray-400">
-              {isAr ? 'سيتم توجيهك إلى الرئيسة تلقائياً خلال ٣ ثوانٍ...' : 'Auto-redirecting you home within 3 seconds...'}
+              {isAr ? 'سيتم توجيهك إلى المزاد تلقائياً خلال ٣ ثوانٍ...' : 'Auto-redirecting you home within 3 seconds...'}
             </p>
           </div>
         </div>

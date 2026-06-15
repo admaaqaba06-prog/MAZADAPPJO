@@ -20,7 +20,8 @@ import {
   FolderLock,
   X,
   Sparkles,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { placeAuctionBid } from '../services/auctionService';
@@ -41,10 +42,26 @@ export const LiveStreamView: React.FC = () => {
     toggleWatchlist,
     autoBids,
     setAutoBid,
-    removeAutoBid
+    removeAutoBid,
+    chatMessages,
+    sendChatMessage,
+    deleteAuction
   } = useApp();
 
   const isAr = language === 'ar';
+  
+  // Comment custom input states
+  const [showCommentInput, setShowCommentInput] = useState<boolean>(false);
+  const [newCommentVal, setNewCommentVal] = useState<string>('');
+  
+  const handleSendComment = () => {
+    if (!newCommentVal.trim()) return;
+    sendChatMessage(newCommentVal);
+    setNewCommentVal('');
+    setShowCommentInput(false);
+    setCommentCount(prev => prev + 1);
+    triggerToast(isAr ? '💬 تم إرسال تعليقك للجميع!' : '💬 Your comment was broadcast live!');
+  };
 
   const liveAuctions = React.useMemo(() => {
     const filtered = auctions.filter(a => a.status === 'live');
@@ -62,10 +79,20 @@ export const LiveStreamView: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
+  // Synchronize dynamic muted property directly to DOM element to override React's muted attribute mount bug
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
   // Force automatic video loading and playback on change, avoiding iOS / Android black screens
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Force muted property to match state before initiating playback to satisfy iOS Safari dynamic rules
+    video.muted = isMuted;
 
     // Reset video player stream and trigger playback programmatically safely
     video.load();
@@ -370,7 +397,20 @@ export const LiveStreamView: React.FC = () => {
             playsInline
             webkit-playsinline="true"
             x5-playsinline="true"
-            className="w-full h-full object-cover opacity-100"
+            crossOrigin="anonymous"
+            className="w-full h-full object-cover opacity-100 cursor-pointer"
+            onClick={() => {
+              const video = videoRef.current;
+              if (video) {
+                if (video.paused) {
+                  video.play().catch(e => console.error("Tap-to-play manually triggered error:", e));
+                  triggerToast(isAr ? '▶️ تم تشغيل الفيديو' : '▶️ Streaming Video');
+                } else {
+                  video.pause();
+                  triggerToast(isAr ? '⏸️ تم إيقاف الفيديو مؤقتاً' : '⏸️ Video Paused');
+                }
+              }
+            }}
           />
         ) : (
           <img 
@@ -511,7 +551,7 @@ export const LiveStreamView: React.FC = () => {
         <div className="flex flex-col items-center gap-0.5 font-sans">
           <button 
             type="button"
-            onClick={() => triggerToast(isAr ? 'صندوق التعليقات نشط ومحمي' : 'Chat feeds are secured.')}
+            onClick={() => setShowCommentInput(!showCommentInput)}
             className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
             style={{
               width: '36px',
@@ -649,6 +689,43 @@ export const LiveStreamView: React.FC = () => {
             {isAr ? 'تلقائي' : 'AUTOBID'}
           </span>
         </div>
+
+        {/* Secure Admin Delete Button */}
+        {currentUser?.role === 'admin' && (
+          <div className="flex flex-col items-center gap-0.5 font-sans" id={`admin-delete-rail-${currentItem?.id}`}>
+            <button 
+              type="button"
+              onClick={() => {
+                if (!currentItem) return;
+                const confirmMsg = isAr 
+                  ? `❗ هل أنت متأكد من مسح وإزالة هذا المزاد نهائياً ("${currentItem.title}")؟ لا يمكن التراجع عن هذا الإجراء.`
+                  : `❗ Are you sure you want to permanently delete and remove this auction ("${currentItem.title}")? This action is irreversible.`;
+                if (window.confirm(confirmMsg)) {
+                  deleteAuction(currentItem.id);
+                  triggerToast(isAr ? '🗑️ تم مسح المزاد بنجاح!' : '🗑️ Auction deleted successfully!');
+                }
+              }}
+              className="flex items-center justify-center transition-all bg-red-650 hover:bg-red-700 active:scale-95 cursor-pointer duration-150 shadow-[0_4px_12px_rgba(220,38,38,0.45)]"
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.25)',
+                outline: 'none'
+              }}
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+            </button>
+            <span 
+              className="font-extrabold uppercase tracking-widest leading-none mt-1 drop-shadow-md text-red-400 font-sans"
+              style={{ fontSize: '8.5px' }}
+            >
+              {isAr ? 'حذف' : 'DELETE'}
+            </span>
+          </div>
+        )}
+
       </div>
 
       {/* 6. BOTTOM GRADIENT OVERLAY WRAPPER (z-index 20) */}
@@ -659,6 +736,42 @@ export const LiveStreamView: React.FC = () => {
         
         {/* Clickable contents need pointer-events-auto */}
         <div className="pointer-events-auto space-y-1">
+          
+          {/* Real-time Live Comments Stream */}
+          <div 
+            className="w-full max-h-[140px] overflow-y-auto mb-2.5 space-y-1.5 pr-4 no-scrollbar flex flex-col justify-end pointer-events-auto"
+            style={{ 
+              maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 100%)',
+              WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 100%)'
+            }}
+          >
+            {chatMessages
+              .filter(msg => msg.auctionId === currentItem?.id)
+              .slice(-5) // Only display last 5 messages for responsive render performance
+              .map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={`flex items-start gap-1.5 px-2.5 py-1 rounded-xl w-max max-w-[85%] text-xs backdrop-blur-md select-none animate-in slide-in-from-bottom duration-300 font-sans ${
+                    msg.isBid 
+                      ? 'bg-[#FF6B00]/25 border border-[#FF6B00]/45 text-[#FF8A00] font-black shadow-[0_2px_10px_rgba(255,107,0,0.2)]' 
+                      : 'bg-black/45 text-white/95 border border-white/5 shadow-xs'
+                  }`}
+                >
+                  <img 
+                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=50&q=80'} 
+                    alt="avatar" 
+                    className="w-4.5 h-4.5 rounded-full object-cover shrink-0 border border-white/15"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="leading-tight">
+                    <span className="font-extrabold text-gray-300 mr-1 text-[11px] font-sans">
+                      {msg.userName}:
+                    </span>
+                    <span className="text-[11.5px] font-sans font-medium">{msg.text}</span>
+                  </div>
+                </div>
+              ))}
+          </div>
           
           {/* Product Header Title & Meta */}
           <div className="space-y-0.5">
@@ -805,6 +918,42 @@ export const LiveStreamView: React.FC = () => {
           </nav>
 
         </div>
+
+        {/* COMPACT REAL-TIME COMMENTS TYPING SHEET */}
+        {showCommentInput && (
+          <div 
+            className="absolute inset-x-0 bottom-0 z-[45] p-3.5 pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom duration-250 flex items-center gap-2 border-t border-white/10 rounded-t-3xl shadow-[0_-8px_32px_rgba(0,0,0,0.6)]"
+            style={{ backgroundColor: 'rgba(18,19,24,0.95)', backdropFilter: 'blur(20px)', pointerEvents: 'auto' }}
+          >
+            <input 
+              type="text"
+              value={newCommentVal}
+              onChange={(e) => setNewCommentVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendComment();
+                }
+              }}
+              placeholder={isAr ? 'اكتب تعليقاً عاماً للجميع...' : 'Type a public comment...'}
+              className="flex-grow h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-white text-[12px] font-medium placeholder-gray-500 outline-hidden focus:border-[#FF6B00]/70 transition-colors pointer-events-auto"
+              autoFocus
+            />
+            <button 
+              type="button"
+              onClick={handleSendComment}
+              className="h-11 px-5 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[12px] uppercase rounded-xl transition-all cursor-pointer min-w-[70px] flex items-center justify-center leading-none pointer-events-auto"
+            >
+              {isAr ? 'إرسال' : 'SEND'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => setShowCommentInput(false)}
+              className="w-11 h-11 bg-white/5 rounded-xl border border-[#ffffff10] text-gray-400 flex items-center justify-center hover:text-white cursor-pointer pointer-events-auto"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
       </div>
 

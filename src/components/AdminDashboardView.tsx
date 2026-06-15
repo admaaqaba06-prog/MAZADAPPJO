@@ -19,7 +19,8 @@ import {
   FileCheck2,
   Sparkles,
   RefreshCw,
-  LineChart
+  LineChart,
+  Trash2
 } from 'lucide-react';
 
 export const AdminDashboardView: React.FC = () => {
@@ -36,6 +37,7 @@ export const AdminDashboardView: React.FC = () => {
     unbanUser, 
     releaseEscrow, 
     refundEscrow,
+    deleteAuction,
     language
   } = useApp();
 
@@ -463,6 +465,88 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 );
               })()}
+            </div>
+
+            {/* CENTRAL INTERACTIVE LOT CONTROL & INSTANT DELETION DIRECTORY */}
+            <div className="pt-6 border-t border-gray-100 mt-6" id="admin-listings-directory">
+              <div className="mb-3.5">
+                <h3 className="text-xs font-bold text-gray-800 flex items-center gap-1.5 leading-none">
+                  <Trash2 className="w-4 h-4 text-red-600" /> {isAr ? 'دليل إدارة وحذف المزادات المرفوعة' : 'MASTER PLATFORM LISTINGS DIRECTORY'}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {isAr 
+                    ? 'صلاحيات الإدارة الفورية لمسح وإلغاء أي معروض أو مزاد نشط على المنصة نهائياً بضغطة زر.' 
+                    : 'System-wide executive command to instantly terminate and erase any active, pending or finished auction.'}
+                </p>
+              </div>
+
+              {auctions.length === 0 ? (
+                <div className="text-center py-6 bg-gray-50 rounded-2xl text-gray-400 text-[11px]">
+                  {isAr ? 'لا يوجد معروضات مسجلة على المنصة حالياً.' : 'No items found in active registry.'}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {auctions.map((item) => {
+                    let statusBadgeColor = 'bg-gray-150 text-gray-650';
+                    if (item.status === 'live') statusBadgeColor = 'bg-emerald-50 text-emerald-800 border border-emerald-100';
+                    if (item.status === 'processing') statusBadgeColor = 'bg-amber-50 text-amber-800 border border-amber-100';
+                    if (item.status === 'completed') statusBadgeColor = 'bg-blue-50 text-blue-800 border border-blue-100';
+                    if (item.status === 'rejected') statusBadgeColor = 'bg-red-50 text-red-800 border border-red-100';
+
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="bg-white border border-gray-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-xs hover:border-gray-250 transition-colors"
+                        id={`all-listings-admin-row-${item.id}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <img 
+                            src={item.thumbnailUrl} 
+                            alt={item.title} 
+                            className="w-11 h-11 rounded-lg object-cover border border-gray-150 shrink-0" 
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[9px] font-black text-gray-400 font-mono tracking-wider uppercase">
+                                {item.category}
+                              </span>
+                              <span className={`text-[8.5px] font-black font-mono px-1.5 py-0.5 rounded uppercase ${statusBadgeColor}`}>
+                                {item.status}
+                              </span>
+                            </div>
+                            <h4 className="font-extrabold text-[11.5px] text-gray-900 truncate mt-0.5" title={item.title}>
+                              {item.title}
+                            </h4>
+                            <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                              {isAr ? 'السعر الحالي' : 'Current Price'}: <strong className="text-gray-800">{item.currentPrice.toLocaleString()} JOD</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Instant delete option with full verification dialog prompt */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const conf = window.confirm(
+                              isAr
+                                ? `⚠️ هل أنت متأكد من مسح وحذف المزاد "${item.title}" بشكل كلي ونهائي من قاعدة البيانات؟`
+                                : `⚠️ Are you sure you want to completely delete "${item.title}" from the real database?`
+                            );
+                            if (conf) {
+                              deleteAuction(item.id);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-150 text-red-600 hover:text-red-750 text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          title="Delete Auction"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{isAr ? 'حذف نهائي' : 'Erase'}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
