@@ -41,7 +41,7 @@ export const ListingWizardView: React.FC = () => {
     { label: isAr ? '٢٤ ساعة' : '24 Hours', value: '86400' }
   ];
 
-  const handleSimulatedListingSubmit = (e: React.FormEvent) => {
+  const handleSimulatedListingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!customVideoUrl) {
@@ -59,25 +59,24 @@ export const ListingWizardView: React.FC = () => {
 
     setIsUploading(true);
 
-    // Save under 'processing' state so Admin can click and instantly release
-    createListing({
-      title,
-      description: isAr ? `معروض مميز: ${title}` : `Premium Lot: ${title}`,
-      category,
-      startingPrice: Number(startingPrice),
-      minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
-      videoUrl: '',
-      thumbnailUrl: '',
-      endTime: Date.now() + Number(duration) * 1000,
-      duration: Number(duration),
-      isFeatured: false
-    }, rawVideoFile, rawThumbnailFile);
-
-    // Auto-redirect to home after 3 seconds
-    setTimeout(() => {
+    try {
+      // Save under 'processing' state so Admin can click and instantly release
+      await createListing({
+        title,
+        description: isAr ? `معروض مميز: ${title}` : `Premium Lot: ${title}`,
+        category,
+        startingPrice: Number(startingPrice),
+        minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
+        videoUrl: '',
+        thumbnailUrl: '',
+        endTime: Date.now() + Number(duration) * 1000,
+        duration: Number(duration),
+        isFeatured: false
+      }, rawVideoFile, rawThumbnailFile);
+    } finally {
       setIsUploading(false);
       setActiveView('discovery');
-    }, 3000);
+    }
   };
 
   return (
