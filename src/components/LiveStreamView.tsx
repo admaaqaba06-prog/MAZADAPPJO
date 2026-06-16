@@ -396,7 +396,6 @@ export const LiveStreamView: React.FC = () => {
             playsInline
             webkit-playsinline="true"
             x5-playsinline="true"
-            crossOrigin="anonymous"
             className="w-full h-full object-cover opacity-100 cursor-pointer"
             onClick={() => {
               const video = videoRef.current;
