@@ -57,7 +57,7 @@ export const WalletView: React.FC = () => {
   
   // Normal Bidder Wallet States
   const [amount, setAmount] = useState<string>('500');
-  const [alias, setAlias] = useState<string>('zain.cliq');
+  const [alias, setAlias] = useState<string>('');
   const [fileUploaded, setFileUploaded] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -850,24 +850,9 @@ export const WalletView: React.FC = () => {
               <span className="font-extrabold text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
             </div>
             
-            <div className="flex justify-between items-center border-b border-orange-100 pb-2">
+            <div className="flex justify-between items-center pb-1">
               <span className="text-gray-500 font-bold">{isAr ? 'اسم الحساب المستلم' : 'Account Name'}:</span>
               <span className="font-black text-gray-900">{isAr ? 'مؤسسة مزاد الأردن' : 'MAZAD JO M'}</span>
-            </div>
- 
-            <div className="flex flex-col gap-1.5 pt-1">
-              <span className="text-gray-500 font-bold">{isAr ? 'رمز الحساب البنكي الدولي (IBAN)' : 'International IBAN Account'}</span>
-              <div className="flex items-center justify-between bg-white border border-orange-200/50 rounded-xl p-2.5 font-mono text-xs font-black text-gray-950 shadow-2xs">
-                <span className="tracking-wide">JO83 CAPS 1020 0085 4100 00</span>
-                <button
-                  type="button"
-                  onClick={handleCopyIBAN}
-                  className="bg-[#FF6B00] hover:bg-orange-600 active:scale-95 text-white font-black text-[10px] px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                >
-                  <Copy className="w-3 h-3 text-white" />
-                  <span>{copiedIBAN ? (isAr ? 'نسخ!' : 'Copied!') : (isAr ? 'نسخ' : 'Copy')}</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -955,7 +940,7 @@ export const WalletView: React.FC = () => {
                       type="text" 
                       value={alias}
                       onChange={(e) => setAlias(e.target.value)}
-                      placeholder="zain.cliq"
+                      placeholder={isAr ? "مثال: name@cliq" : "e.g. name@cliq"}
                       className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-gray-900 text-xs font-black focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
                     />
                     <div className={`absolute top-3 ${isAr ? 'left-3' : 'right-3'} text-gray-300`}>

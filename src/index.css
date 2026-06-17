@@ -7,7 +7,7 @@
 }
 
 html {
-  font-size: 13px !important; /* Globally shrink all font-sizes across the applet */
+  font-size: 16px !important; /* Globally set base font-size to 16px to ensure optimal mobile/desktop legibility */
 }
 
 body {
