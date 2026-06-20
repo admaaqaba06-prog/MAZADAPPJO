@@ -173,24 +173,11 @@ export const SubscriptionView: React.FC = () => {
           <div className="space-y-1.5 text-xs text-gray-800">
             <div className="flex justify-between border-b border-orange-100 pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
-              <span className="font-black text-gray-900">MAZAD JO M</span>
+              <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
             </div>
-            <div className="flex justify-between border-b border-orange-100 pb-1.5">
+            <div className="flex justify-between pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
               <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
-            </div>
-            <div className="flex flex-col gap-1.5 pt-1.5">
-              <span className="font-bold text-gray-500">{isAr ? 'رقم الحساب / الآيبان (IBAN)' : 'Account Number / IBAN'}:</span>
-              <div className="flex items-center justify-between bg-white border border-orange-200 rounded-xl p-2.5 font-mono text-xs font-black text-gray-900">
-                <span>JO83 CAPS 1020 0085 4100 00</span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-[10px] px-2.5 py-1 rounded-lg shrink-0 transition-colors cursor-pointer ml-2"
-                >
-                  {copied ? (isAr ? 'تم النسخ!' : 'Copied!') : (isAr ? 'نسخ' : 'Copy')}
-                </button>
-              </div>
             </div>
           </div>
         </div>

@@ -164,25 +164,12 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
           </div>
           <div className="space-y-1.5 text-xs text-gray-800">
             <div className="flex justify-between border-b border-orange-100 pb-1">
+              <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account'}:</span>
+              <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
+            </div>
+            <div className="flex justify-between pb-1">
               <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
               <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
-            </div>
-            <div className="flex justify-between border-b border-orange-100 pb-1">
-              <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account'}:</span>
-              <span className="font-black text-gray-900">MAZAD JO M</span>
-            </div>
-            <div className="flex flex-col gap-1 pt-1">
-              <span className="font-bold text-gray-500">{isAr ? 'رقم الحساب / الآيبان (IBAN)' : 'IBAN Code'}:</span>
-              <div className="flex items-center justify-between bg-white border border-orange-200 rounded-lg p-2 font-mono text-[11px] font-black text-gray-900">
-                <span>JO83 CAPS 1020 0085 4100 00</span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-[9px] px-2 py-1 rounded transition-colors cursor-pointer ml-1.5"
-                >
-                  {copied ? (isAr ? 'تم!' : 'Copied!') : (isAr ? 'نسخ' : 'Copy')}
-                </button>
-              </div>
             </div>
           </div>
         </div>

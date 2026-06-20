@@ -54,6 +54,52 @@ export const DiscoveryFeedView: React.FC = () => {
     return true;
   });
 
+  const formatItemTimeLeft = (item?: AuctionItem) => {
+    if (!item) return '12:30';
+    if (!item.endTime) return '12:30';
+    const secondsLeft = Math.max(0, Math.floor((item.endTime - Date.now()) / 1000));
+    if (secondsLeft <= 0) return '00:00';
+    const mm = Math.floor(secondsLeft / 60);
+    const ss = secondsLeft % 60;
+    return `${mm}:${ss < 10 ? '0' : ''}${ss}`;
+  };
+
+  const renderCardCover = (item?: AuctionItem, fallbackIcon?: React.ReactNode) => {
+    if (item && item.thumbnailUrl) {
+      return (
+        <>
+          <img 
+            src={item.thumbnailUrl} 
+            alt={item.title} 
+            className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-500 group-hover:scale-105"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+        </>
+      );
+    } else if (item && item.videoUrl) {
+      return (
+        <>
+          <video 
+            src={item.videoUrl} 
+            muted 
+            playsInline 
+            loop 
+            autoPlay 
+            className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+        </>
+      );
+    } else {
+      return (
+        <div className="transform group-hover:scale-105 duration-300 transition-transform z-10">
+          {fallbackIcon}
+        </div>
+      );
+    }
+  };
+
   const handleJoinLive = (id: string) => {
     setActiveAuctionId(id);
     setActiveView('live');
@@ -272,26 +318,30 @@ export const DiscoveryFeedView: React.FC = () => {
                       <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
                     </div>
 
-                    {/* Smartphone Icon */}
-                    <div className="transform group-hover:scale-105 duration-300 transition-transform">
-                      <Smartphone className="w-12 h-12 text-[#A8AEC6] stroke-[1.25]" />
-                    </div>
+                    {/* Dynamic Cover or Fallback Smartphone Icon */}
+                    {renderCardCover(filteredAuctions[0], <Smartphone className="w-12 h-12 text-[#A8AEC6] stroke-[1.25]" />)}
 
                     {/* Bottom overlay: Timer */}
                     <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
                       <Clock className="w-2.5 h-2.5 text-white/90" />
-                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">12:30</span>
+                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
+                        {formatItemTimeLeft(filteredAuctions[0])}
+                      </span>
                     </div>
                   </div>
 
                   {/* Metadata below the card */}
                   <div className="mt-2 text-left">
                     <span className="text-xs font-bold text-gray-950 block truncate leading-tight">
-                      {isAr ? 'آيفون ١٥ برو ماكس' : 'iPhone 15 Pro Max'}
+                      {filteredAuctions[0] ? filteredAuctions[0].title : (isAr ? 'آيفون ١٥ برو ماكس' : 'iPhone 15 Pro Max')}
                     </span>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#FF6B00]">280 JOD</span>
-                      <span className="text-[10px] font-bold text-gray-400">14 bids</span>
+                      <span className="text-sm font-black text-[#FF6B00]">
+                        {filteredAuctions[0] ? `${filteredAuctions[0].currentPrice} JOD` : '280 JOD'}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {filteredAuctions[0] ? `${filteredAuctions[0].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '١٤ مزايدة' : '14 bids')}
+                      </span>
                     </div>
                   </div>
 
@@ -318,26 +368,30 @@ export const DiscoveryFeedView: React.FC = () => {
                       <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
                     </div>
 
-                    {/* Shirt/Tshirt Icon */}
-                    <div className="transform group-hover:scale-105 duration-300 transition-transform">
-                      <Shirt className="w-12 h-12 text-[#2D6A4F] stroke-[1.25]" />
-                    </div>
+                    {/* Dynamic Cover or Fallback Shirt Icon */}
+                    {renderCardCover(filteredAuctions[1], <Shirt className="w-12 h-12 text-[#2D6A4F] stroke-[1.25]" />)}
 
                     {/* Bottom overlay: Timer */}
                     <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
                       <Clock className="w-2.5 h-2.5 text-white/90" />
-                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">44:10</span>
+                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
+                        {filteredAuctions[1] ? formatItemTimeLeft(filteredAuctions[1]) : '44:10'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Metadata below the card */}
                   <div className="mt-2 text-left">
                     <span className="text-xs font-bold text-gray-950 block truncate leading-tight">
-                      {isAr ? 'جاكيت فنتج' : 'Vintage Jacket'}
+                      {filteredAuctions[1] ? filteredAuctions[1].title : (isAr ? 'جاكيت فنتج' : 'Vintage Jacket')}
                     </span>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#FF6B00]">38 JOD</span>
-                      <span className="text-[10px] font-bold text-gray-400">7 bids</span>
+                      <span className="text-sm font-black text-[#FF6B00]">
+                        {filteredAuctions[1] ? `${filteredAuctions[1].currentPrice} JOD` : '38 JOD'}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {filteredAuctions[1] ? `${filteredAuctions[1].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '٧ مزايدات' : '7 bids')}
+                      </span>
                     </div>
                   </div>
 
@@ -367,6 +421,9 @@ export const DiscoveryFeedView: React.FC = () => {
                   } else if (item.category === 'Vehicles') {
                     bgCardColor = 'bg-[#1C2023]';
                     itemDefaultIcon = <Car className="w-12 h-12 text-gray-400 stroke-[1.25]" />;
+                  } else if (item.category === 'Fashion' || item.category === 'أزياء') {
+                    bgCardColor = 'bg-[#1E1122]';
+                    itemDefaultIcon = <Shirt className="w-12 h-12 text-[#E29578] stroke-[1.25]" />;
                   }
 
                   return (
@@ -381,16 +438,14 @@ export const DiscoveryFeedView: React.FC = () => {
                           <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
                         </div>
 
-                        {/* Custom Dynamic Icon */}
-                        <div className="transform group-hover:scale-105 duration-300 transition-transform">
-                          {itemDefaultIcon}
-                        </div>
+                        {/* Custom Dynamic Cover or default Category Icon */}
+                        {renderCardCover(item, itemDefaultIcon)}
 
                         {/* Bottom overlay: Timer */}
                         <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
                           <Clock className="w-2.5 h-2.5 text-white/90" />
                           <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
-                            {Math.floor(Math.random() * 59)}:20
+                            {formatItemTimeLeft(item)}
                           </span>
                         </div>
                       </div>
@@ -402,7 +457,9 @@ export const DiscoveryFeedView: React.FC = () => {
                         </span>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-sm font-black text-[#FF6B00]">{item.currentPrice} JOD</span>
-                          <span className="text-[10px] font-bold text-gray-400">{item.totalBids} bids</span>
+                          <span className="text-[10px] font-bold text-gray-400">
+                            {item.totalBids || 0} {isAr ? 'مزايدات' : 'bids'}
+                          </span>
                         </div>
                       </div>
 

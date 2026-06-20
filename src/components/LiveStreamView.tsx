@@ -88,6 +88,7 @@ export const LiveStreamView: React.FC = () => {
 
   // Force automatic video loading and playback on change, avoiding iOS / Android black screens
   useEffect(() => {
+    let active = true;
     const video = videoRef.current;
     if (!video) return;
 
@@ -99,15 +100,28 @@ export const LiveStreamView: React.FC = () => {
     const playPromise = video.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
+        if (!active) return;
+        if (err && (err.name === 'AbortError' || err.message?.includes('interrupted'))) {
+          console.log("Muted autoplay video play request was interrupted (safe/expected on navigation or source change).");
+          return;
+        }
         console.warn("Muted autoplay auto-triggered fallback on mobile device:", err);
         // Fall back to explicit mute which mobile environments always authorize
         video.muted = true;
         setIsMuted(true);
         video.play().catch((playError) => {
-          console.error("Forced mobile video playback authorization completely failed:", playError);
+          if (!active) return;
+          if (playError && (playError.name === 'AbortError' || playError.message?.includes('interrupted'))) {
+            return;
+          }
+          console.warn("Forced mobile video playback authorization completely failed or was interrupted:", playError);
         });
       });
     }
+
+    return () => {
+      active = false;
+    };
   }, [currentItem?.id, currentItem?.videoUrl]);
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [likesCount, setLikesCount] = useState<number>(1520);
@@ -401,7 +415,10 @@ export const LiveStreamView: React.FC = () => {
               const video = videoRef.current;
               if (video) {
                 if (video.paused) {
-                  video.play().catch(e => console.error("Tap-to-play manually triggered error:", e));
+                  video.play().catch(e => {
+                    if (e && (e.name === 'AbortError' || e.message?.includes('interrupted'))) return;
+                    console.warn("Tap-to-play manually triggered error:", e);
+                  });
                   triggerToast(isAr ? '▶️ تم تشغيل الفيديو' : '▶️ Streaming Video');
                 } else {
                   video.pause();
