@@ -18,6 +18,7 @@ export interface User {
   paymentProofImage?: string;
   transferFullName?: string;
   transferPhone?: string;
+  password?: string;
 }
 
 export interface SellerProfile {

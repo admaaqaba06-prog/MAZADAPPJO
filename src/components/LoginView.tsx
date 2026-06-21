@@ -49,6 +49,7 @@ export const LoginView: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -152,11 +153,19 @@ export const LoginView: React.FC = () => {
         setErrorMsg(res.message);
       }
     } else {
-      if (!name || !email) {
-        setErrorMsg(isAr ? 'الرجاء ملء جميع الحقول المطلوبة.' : 'Kindly fill in all required fields.');
+      if (!name || !email || !password || !confirmPassword) {
+        setErrorMsg(isAr ? 'الرجاء ملء جميع الحقول المطلوبة بما في ذلك كلمة المرور وتأكيدها.' : 'Kindly fill in all required fields including password and confirmation.');
         return;
       }
-      const res = registerUser(name, email);
+      if (password.length < 6) {
+        setErrorMsg(isAr ? 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg(isAr ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.');
+        return;
+      }
+      const res = registerUser(name, email, password);
       if (res.success) {
         setSuccessMsg(res.message);
       } else {
@@ -279,7 +288,7 @@ export const LoginView: React.FC = () => {
             <>
               {/* Full Name for register */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-500 tracking-wider block uppercase">
+                <label className="text-[11px] font-bold text-gray-400 block pb-0.5">
                   {isAr ? 'الاسم الكامل' : 'Full Name'}
                 </label>
                 <input 
@@ -287,13 +296,13 @@ export const LoginView: React.FC = () => {
                   placeholder={t.fullnamePlaceholder || "Tareq Al-Masri"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                  className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
                 />
               </div>
 
               {/* Email Address */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-500 tracking-wider block uppercase">
+                <label className="text-[11px] font-bold text-gray-400 block pb-0.5">
                   {isAr ? 'البريد الإلكتروني' : 'Email address'}
                 </label>
                 <input 
@@ -301,8 +310,47 @@ export const LoginView: React.FC = () => {
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                  className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
                 />
+              </div>
+
+              {/* Password for register */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-gray-400 block pb-0.5">
+                  {isAr ? 'كلمة المرور' : 'Password'}
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"}
+                    placeholder={isAr ? "أنشئ كلمة مرور (6 أحرف أو أكثر)" : "Create password (6+ characters)"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-4 pr-11 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors z-10"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password for register */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-gray-400 block pb-0.5">
+                  {isAr ? 'تأكيد كلمة المرور' : 'Confirm Password'}
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"}
+                    placeholder={isAr ? "أعد إدخال كلمة المرور للتأكيد" : "Retype password for confirmation"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-4 pr-11 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
+                  />
+                </div>
               </div>
             </>
           ) : (

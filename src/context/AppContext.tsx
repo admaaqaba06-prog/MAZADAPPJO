@@ -72,7 +72,7 @@ interface AppContextProps {
   login: (email: string, pass: string) => { success: boolean; message: string };
   loginWithGoogle: () => void;
   logout: () => void;
-  registerUser: (name: string, email: string) => { success: boolean; message: string };
+  registerUser: (name: string, email: string, password?: string) => { success: boolean; message: string };
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
 
   // Watch list & Auto-bid attributes
@@ -733,6 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subscriptionExpiry: currentUser.subscriptionExpiry || null,
           phoneNumber: currentUser.phoneNumber || '',
           city: currentUser.city || '',
+          password: currentUser.password || '',
         };
         setDoc(userRef, freshUserDoc).catch(e => {
           console.warn("Failed to create user profile on Firestore:", e);
@@ -757,6 +758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subscriptionExpiry: fbData.subscriptionExpiry || currentUser.subscriptionExpiry || null,
           phoneNumber: fbData.phoneNumber || currentUser.phoneNumber || '',
           city: fbData.city || currentUser.city || '',
+          password: fbData.password || currentUser.password || '',
         };
         // Update state and localStorage session if in-memory differ
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
@@ -933,6 +935,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, []);
 
+  // Real-time all users database synchronization with Firestore
+  useEffect(() => {
+    const usersRefCol = collection(db, 'users');
+    const unsub = onSnapshot(usersRefCol, (snap) => {
+      if (!snap.empty) {
+        const fetchedUsers: User[] = [];
+        snap.forEach((docSnap) => {
+          fetchedUsers.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as User);
+        });
+        setUsers(prev => {
+          // Merge lists, preferring Firestore data
+          const merged = [...prev];
+          fetchedUsers.forEach(fu => {
+            const idx = merged.findIndex(u => u.id === fu.id);
+            if (idx > -1) {
+              merged[idx] = { ...merged[idx], ...fu };
+            } else {
+              merged.push(fu);
+            }
+          });
+          return merged;
+        });
+      }
+    }, (err) => {
+      console.warn("Firestore 'users' collection sync error:", err);
+    });
+    return () => unsub();
+  }, []);
+
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
   const escrowsRef = useRef(escrows);
@@ -977,30 +1011,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const matched = users.find(u => u.email.toLowerCase() === cleanEmail);
     if (matched) {
+      // If user has a password set, verify it
+      if (matched.password && matched.password !== pass) {
+        return {
+          success: false,
+          message: language === 'ar'
+            ? 'كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.'
+            : 'Incorrect password, please try again.'
+        };
+      }
+
       const updatedUser = { ...matched, role: (isAdminEmail ? 'admin' as const : matched.role) };
       setCurrentUser(updatedUser);
       setIsAuthenticated(true);
       localStorage.setItem('mazad_user_session', JSON.stringify(updatedUser));
       localStorage.setItem('mazad_authenticated', 'true');
-      return { success: true, message: 'Logged in successfully!' };
-    } else {
-      const cleanName = cleanEmail.split('@')[0];
-      const newUser: User = {
-        id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
-        email: cleanEmail,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: isAdminEmail ? 'admin' : 'user',
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none', // Block initially unless pre-subscribed user
+      return { 
+        success: true, 
+        message: language === 'ar' ? 'تم تسجيل الدخول بنجاح!' : 'Logged in successfully!' 
       };
-      setUsers(prev => [...prev, newUser]);
-      setCurrentUser(newUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('mazad_user_session', JSON.stringify(newUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-      return { success: true, message: 'New user account created & logged in!' };
+    } else {
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'هذا البريد الإلكتروني غير مسجل، يرجى إنشاء حساب أولاً.'
+          : 'This email is not registered. Please create an account first.'
+      };
     }
   }, [users, language]);
 
@@ -1084,24 +1120,43 @@ let googleAuthInProgress = false;
     });
   }, []);
 
-  const registerUser = useCallback((name: string, email: string) => {
+  const registerUser = useCallback((name: string, email: string, password = '') => {
+    const cleanEmail = email.toLowerCase().trim();
+    
+    // Check if the email already exists in users list
+    const exists = users.some(u => u.email.toLowerCase() === cleanEmail);
+    if (exists) {
+      return { 
+        success: false, 
+        message: language === 'ar' 
+          ? 'عذراً، هذا البريد الإلكتروني مسجل بالفعل.' 
+          : 'Sorry, this email is already registered.' 
+      };
+    }
+
     const newUser: User = {
       id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
       name: name,
-      email: email,
+      email: cleanEmail,
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      role: email.toLowerCase().includes('admin') ? 'admin' : 'user',
+      role: cleanEmail.includes('admin') ? 'admin' : 'user',
       isVerified: true,
       isBlocked: false,
       subscriptionStatus: 'none',
+      password: password,
     };
     setUsers(prev => [...prev, newUser]);
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     localStorage.setItem('mazad_user_session', JSON.stringify(newUser));
     localStorage.setItem('mazad_authenticated', 'true');
-    return { success: true, message: 'Account registered successfully!' };
-  }, []);
+    return { 
+      success: true, 
+      message: language === 'ar' 
+        ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' 
+        : 'New user account created & logged in!' 
+    };
+  }, [users, language]);
 
   // General Notification Handler
   const addNotification = useCallback((title: string, description: string, type: Notification['type']) => {
