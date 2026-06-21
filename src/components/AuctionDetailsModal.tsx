@@ -66,16 +66,11 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
 
   if (!auction) return null;
 
-  const handlePlaceBidAmt = (amt: number) => {
+  const handlePlaceBidAmt = async (amt: number) => {
     setFeedback(null);
-    const result = placeBid(auction.id, amt);
+    const result = await placeBid(auction.id, amt);
     if (result.success) {
-      setFeedback({ type: 'success', msg: isAr ? `🚀 تم تقديم مزايدتكم بقيمة ${amt.toLocaleString()} د.أ بنجاح!` : `🚀 Bid of ${amt.toLocaleString()} JOD logged successfully!` });
-      
-      // Async background sync with Firebase Firestore
-      placeAuctionBid(auction.id, amt, currentUser.id, currentUser.name).catch((err) => {
-        console.warn("Background Firestore bid sync error:", err);
-      });
+       setFeedback({ type: 'success', msg: isAr ? `🚀 تم تقديم مزايدتكم بقيمة ${amt.toLocaleString()} د.أ بنجاح!` : `🚀 Bid of ${amt.toLocaleString()} JOD logged successfully!` });
     } else {
       setFeedback({ type: 'err', msg: result.message });
     }

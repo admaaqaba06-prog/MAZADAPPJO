@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db, auth } from '../services/firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth, functions } from '../services/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  updateProfile 
+} from 'firebase/auth';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -40,7 +49,7 @@ interface AppContextProps {
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about') => void;
 
   // Real-time Event Actions
-  placeBid: (auctionId: string, amount: number) => { success: boolean; message: string };
+  placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
   triggerCliQTopUp: (amount: number, alias: string, receiptName: string) => void;
   addNotification: (title: string, description: string, type: Notification['type']) => void;
   
@@ -69,10 +78,10 @@ interface AppContextProps {
   language: 'en' | 'ar';
   setLanguage: (lang: 'en' | 'ar') => void;
   isAuthenticated: boolean;
-  login: (email: string, pass: string) => { success: boolean; message: string };
-  loginWithGoogle: () => void;
-  logout: () => void;
-  registerUser: (name: string, email: string, password?: string) => { success: boolean; message: string };
+  login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
+  registerUser: (name: string, email: string, password?: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
 
   // Watch list & Auto-bid attributes
@@ -512,15 +521,7 @@ const DEMO_FALLBACK_AUCTIONS: AuctionItem[] = [
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Core user states
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    const saved = localStorage.getItem('mazad_user_session');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (_) {}
-    }
-    return INITIAL_USERS[0];
-  });
+  const [currentUser, setCurrentUser] = useState<User>(INITIAL_USERS[0]);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(INITIAL_SELLERS[0]);
   
   // Lists persistent initialization
@@ -710,39 +711,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
     return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'en';
   });
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('mazad_authenticated') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
+  // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
-    if (!currentUser?.id) return;
+    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const uid = firebaseUser.uid;
+        const userRef = doc(db, 'users', uid);
+        
+        try {
+          const idTokenResult = await firebaseUser.getIdTokenResult();
+          const isAdmin = !!idTokenResult.claims.admin;
+          const currentRole: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
 
-    // 1. Sync User Profile with Firestore
-    const userRef = doc(db, 'users', currentUser.id);
-    getDoc(userRef).then(snap => {
-      if (!snap.exists()) {
-        const freshUserDoc = {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          avatar: currentUser.avatar,
-          role: currentUser.role,
-          isVerified: currentUser.isVerified,
-          isBlocked: currentUser.isBlocked,
-          subscriptionStatus: currentUser.subscriptionStatus || 'none',
-          subscriptionExpiry: currentUser.subscriptionExpiry || null,
-          phoneNumber: currentUser.phoneNumber || '',
-          city: currentUser.city || '',
-          password: currentUser.password || '',
-        };
-        setDoc(userRef, freshUserDoc).catch(e => {
-          console.warn("Failed to create user profile on Firestore:", e);
-        });
+          const userSnap = await getDoc(userRef);
+          let loadedUser: User;
+          
+          if (!userSnap.exists()) {
+            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
+            const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+            
+            loadedUser = {
+              id: uid,
+              name: firebaseUser.displayName || capitalizedName,
+              email: firebaseUser.email || '',
+              avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              role: currentRole,
+              isVerified: true,
+              isBlocked: false,
+              subscriptionStatus: 'none',
+              subscriptionExpiry: null,
+              phoneNumber: '',
+              city: '',
+            };
+            await setDoc(userRef, {
+              id: uid,
+              name: loadedUser.name,
+              email: loadedUser.email,
+              avatar: loadedUser.avatar,
+              role: 'user',
+              isVerified: true,
+              isBlocked: false,
+              subscriptionStatus: 'none',
+              subscriptionExpiry: null,
+              phoneNumber: '',
+              city: '',
+            });
+          } else {
+            const fbData = userSnap.data();
+            loadedUser = {
+              id: uid,
+              name: fbData.name || firebaseUser.displayName || 'User',
+              email: fbData.email || firebaseUser.email || '',
+              avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              role: currentRole,
+              isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
+              isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
+              subscriptionStatus: fbData.subscriptionStatus || 'none',
+              subscriptionExpiry: fbData.subscriptionExpiry || null,
+              phoneNumber: fbData.phoneNumber || '',
+              city: fbData.city || '',
+            };
+          }
+          
+          setCurrentUser(loadedUser);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error("Error setting up user profile in auth change:", error);
+          const fallbackUser: User = {
+            id: uid,
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email || '',
+            avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            role: 'user',
+            isVerified: true,
+            isBlocked: false,
+            subscriptionStatus: 'none',
+            subscriptionExpiry: null,
+            phoneNumber: '',
+            city: '',
+          };
+          setCurrentUser(fallbackUser);
+          setIsAuthenticated(true);
+        }
+      } else {
+        setCurrentUser(INITIAL_USERS[0]);
+        setIsAuthenticated(false);
       }
-    }).catch(e => {
-      console.warn("Error fetching user from Firestore:", e);
     });
 
+    return () => unsubAuth();
+  }, []);
+
+  // 2. Real-time synchronizations of logged-in User profile and Wallet with Firestore
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id || currentUser.id === 'user-current') return;
+
+    // A. Real-time user profile sync
+    const userRef = doc(db, 'users', currentUser.id);
     const unsubUser = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
         const fbData = snap.data();
@@ -751,30 +818,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name: fbData.name || currentUser.name,
           email: fbData.email || currentUser.email,
           avatar: fbData.avatar || currentUser.avatar,
-          role: fbData.role || currentUser.role,
+          role: currentUser.role, // Strictly retain the claims-derived role
           isVerified: fbData.isVerified !== undefined ? fbData.isVerified : currentUser.isVerified,
           isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : currentUser.isBlocked,
           subscriptionStatus: fbData.subscriptionStatus || currentUser.subscriptionStatus || 'none',
           subscriptionExpiry: fbData.subscriptionExpiry || currentUser.subscriptionExpiry || null,
           phoneNumber: fbData.phoneNumber || currentUser.phoneNumber || '',
           city: fbData.city || currentUser.city || '',
-          password: fbData.password || currentUser.password || '',
         };
-        // Update state and localStorage session if in-memory differ
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(mergedUser);
-          localStorage.setItem('mazad_user_session', JSON.stringify(mergedUser));
         }
       }
     }, (err) => {
       console.warn("Firestore 'users' snapshot subscription error:", err);
     });
 
-    // 2. Sync Wallet with Firestore
+    // B. Real-time wallet sync
     const walletRef = doc(db, 'wallets', currentUser.id);
     getDoc(walletRef).then(snap => {
       if (!snap.exists()) {
-        const freshWallet: Wallet = {
+        const freshWallet = {
           userId: currentUser.id,
           totalBalance: 0,
           availableBalance: 0,
@@ -790,17 +854,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const unsubWallet = onSnapshot(walletRef, (snap) => {
       if (snap.exists()) {
-        setWallet(snap.data() as typeof wallet);
+        const data = snap.data();
+        const rawAvail = data.availableBalance ?? 0;
+        const rawEscrow = data.escrowBalance ?? 0;
+        // Divide by 1000 dynamically to convert fils (integers) to JOD (decimals) representation for the UI.
+        const availableBalance = rawAvail / 1000;
+        const escrowBalance = rawEscrow / 1000;
+        setWallet({
+          userId: data.userId || currentUser.id,
+          availableBalance,
+          escrowBalance,
+          totalBalance: availableBalance + escrowBalance
+        });
       }
     }, (err) => {
-      console.warn("Firestore 'wallets' subscription failure (retaining local state):", err);
+      console.warn("Firestore 'wallets' subscription failure:", err);
     });
 
     return () => {
       unsubUser();
       unsubWallet();
     };
-  }, [currentUser?.id]);
+  }, [isAuthenticated, currentUser?.id]);
 
   // Real-time auctions synchronization with Firestore and demo fallback
   useEffect(() => {
@@ -814,10 +889,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snap.forEach((docSnap) => {
           const data = docSnap.data();
           let endTimeNum = Date.now() + 3600000;
-          if (data.endTime) {
-            endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
-          } else if (data.endsAt) {
+          if (data.endsAt) {
             endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
+          } else if (data.endTime) {
+            endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
+            // Automatically migrate documents with old format in background to preserve sync integrity
+            const docRef = doc(db, 'auctions', docSnap.id);
+            updateDoc(docRef, {
+              endsAt: Timestamp.fromMillis(endTimeNum)
+            }).then(() => {
+              console.log(`[Migration] Successfully set endsAt for old auction doc: ${docSnap.id}`);
+            }).catch(e => {
+              console.warn(`[Migration] Failed to migrate endsAt on ${docSnap.id}:`, e);
+            });
           }
           const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
           let finalThumbnail = rawThumbnail;
@@ -838,14 +922,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
 
+          const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
+          const currentPrice = (data.currentPriceFils !== undefined ? data.currentPriceFils / 1000 : (data.currentPrice ?? startingPrice));
+          const minIncrement = (data.minIncrementFils !== undefined ? data.minIncrementFils / 1000 : (data.minIncrement ?? 10));
+
           const itemWithFallback = {
             id: docSnap.id,
             title: data.title || '',
             description: data.description || '',
             category: data.category || 'Luxury',
-            startingPrice: data.startingPrice ?? 0,
-            currentPrice: data.currentPrice ?? (data.startingPrice ?? 0),
-            minIncrement: data.minIncrement ?? 10,
+            startingPrice,
+            currentPrice,
+            minIncrement,
             currentBidderId: data.currentBidderId || null,
             currentBidderName: data.currentBidderName || null,
             videoUrl: data.videoUrl || '',
@@ -896,9 +984,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!snap.empty) {
         const fetchedEscrows: EscrowTransaction[] = [];
         snap.forEach((docSnap) => {
+          const rawData = docSnap.data();
+          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
           fetchedEscrows.push({
             id: docSnap.id,
-            ...docSnap.data()
+            ...rawData,
+            amount
           } as EscrowTransaction);
         });
         fetchedEscrows.sort((a, b) => b.timestamp - a.timestamp);
@@ -994,169 +1085,174 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_language', lang);
   }, []);
 
-  const login = useCallback((email: string, pass: string) => {
+  const login = useCallback(async (email: string, pass: string) => {
     const cleanEmail = email.toLowerCase().trim();
-    const isAdminEmail = cleanEmail.includes('admin') || cleanEmail === 'tareq@masri.jo';
-
-    if (isAdminEmail) {
-      if (pass !== '#MazadAdmin2026!') {
-        return { 
-          success: false, 
-          message: language === 'ar' 
-            ? 'خطأ أمني: رمز المرور السري للمسؤول غير صحيح. تم رفض الوصول الحقيقي للوحة التحكم.' 
-            : 'Security Error: Secret administrator passcode incorrect. Real panel access denied.' 
-        };
-      }
-    }
-
-    const matched = users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (matched) {
-      // If user has a password set, verify it
-      if (matched.password && matched.password !== pass) {
-        return {
-          success: false,
-          message: language === 'ar'
-            ? 'كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.'
-            : 'Incorrect password, please try again.'
-        };
-      }
-
-      const updatedUser = { ...matched, role: (isAdminEmail ? 'admin' as const : matched.role) };
-      setCurrentUser(updatedUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('mazad_user_session', JSON.stringify(updatedUser));
-      localStorage.setItem('mazad_authenticated', 'true');
+    try {
+      await signInWithEmailAndPassword(auth, cleanEmail, pass);
       return { 
         success: true, 
         message: language === 'ar' ? 'تم تسجيل الدخول بنجاح!' : 'Logged in successfully!' 
       };
-    } else {
-      return {
-        success: false,
-        message: language === 'ar'
-          ? 'هذا البريد الإلكتروني غير مسجل، يرجى إنشاء حساب أولاً.'
-          : 'This email is not registered. Please create an account first.'
-      };
-    }
-  }, [users, language]);
+    } catch (error: any) {
+      console.error("Firebase auth login error:", error);
 
-let googleAuthInProgress = false;
+      // Attempt self-healing auto-registration if user is not found or credential was wrong (likely unregistered)
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+        try {
+          console.log("[Auto-register] Email not found or invalid credential in clear environment; attempting fallback auto-registration...", cleanEmail);
+          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+          const user = userCredential.user;
+          
+          const nameFromEmail = cleanEmail.split('@')[0];
+          const name = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+          await updateProfile(user, { displayName: name });
+          
+          const userRef = doc(db, 'users', user.uid);
+          const freshUserDoc = {
+            id: user.uid,
+            name: name,
+            email: cleanEmail,
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            role: 'user',
+            isVerified: true,
+            isBlocked: false,
+            subscriptionStatus: 'none',
+            subscriptionExpiry: null,
+            phoneNumber: '',
+            city: '',
+          };
+          await setDoc(userRef, freshUserDoc);
+          
+          return { 
+            success: true, 
+            message: language === 'ar' 
+              ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' 
+              : 'Account auto-registered and logged in successfully!' 
+          };
+        } catch (regError: any) {
+          console.warn("[Auto-register] Fail fallback:", regError);
+          // If already in use, it was indeed a wrong password
+          if (regError.code === 'auth/email-already-in-use') {
+            let errorMsg = language === 'ar' 
+              ? 'خطأ في البريد الإلكتروني أو كلمة المرور، يرجى المحاولة مرة أخرى.' 
+              : 'Incorrect email or password, please try again.';
+            return { success: false, message: errorMsg };
+          }
+        }
+      }
+
+      let errorMsg = error.message;
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        errorMsg = language === 'ar' 
+          ? 'خطأ في البريد الإلكتروني أو كلمة المرور، يرجى المحاولة مرة أخرى.' 
+          : 'Incorrect email or password, please try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = language === 'ar' 
+          ? 'البريد الإلكتروني المكتوب غير صالح.' 
+          : 'The email address is invalid.';
+      } else {
+        errorMsg = error.message || errorMsg;
+      }
+      return { success: false, message: errorMsg };
+    }
+  }, [language]);
 
   const loginWithGoogle = useCallback(async () => {
-    if (googleAuthInProgress) {
-      console.warn("Google authentication is already in progress, ignoring duplicate call.");
-      return;
-    }
-    googleAuthInProgress = true;
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      const googleUser: User = {
-        id: user.uid,
-        name: user.displayName || 'Google User',
-        email: user.email || 'google-user@gmail.com',
-        avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-        role: (user.email && (user.email.toLowerCase().includes('admin') || user.email === 'tareq@masri.jo')) ? 'admin' : 'user',
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none',
-      };
-      
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== googleUser.id);
-        return [...filtered, googleUser];
-      });
-      setCurrentUser(googleUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('mazad_user_session', JSON.stringify(googleUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-    } catch (error) {
-      console.warn("Fallback to simulated Google Auth: ", error);
-      
-      let stableId = localStorage.getItem('mazad_fallback_uid');
-      if (!stableId) {
-        stableId = `fallback-user-${Math.floor(10000 + Math.random() * 90000)}`;
-        localStorage.setItem('mazad_fallback_uid', stableId);
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        const freshUserDoc = {
+          id: user.uid,
+          name: user.displayName || 'Google User',
+          email: user.email || '',
+          avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+          role: 'user',
+          isVerified: true,
+          isBlocked: false,
+          subscriptionStatus: 'none',
+          subscriptionExpiry: null,
+          phoneNumber: '',
+          city: '',
+        };
+        await setDoc(userRef, freshUserDoc);
       }
+    } catch (error) {
+      console.warn("Google Auth popup failed: ", error);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      setCurrentUser(INITIAL_USERS[0]);
+      setIsAuthenticated(false);
+      setWallet({
+        userId: 'user-current',
+        totalBalance: 0,
+        availableBalance: 0,
+        escrowBalance: 0
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  }, []);
+
+  const registerUser = useCallback(async (name: string, email: string, password = '') => {
+    const cleanEmail = email.toLowerCase().trim();
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+      const user = userCredential.user;
       
-      const googleUser: User = {
-        id: stableId,
-        name: 'Google User',
-        email: 'gmail-oauth@google.com',
-        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+      await updateProfile(user, { displayName: name });
+      
+      const userRef = doc(db, 'users', user.uid);
+      const freshUserDoc = {
+        id: user.uid,
+        name: name,
+        email: cleanEmail,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         role: 'user',
         isVerified: true,
         isBlocked: false,
         subscriptionStatus: 'none',
+        subscriptionExpiry: null,
+        phoneNumber: '',
+        city: '',
       };
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== googleUser.id);
-        return [...filtered, googleUser];
-      });
-      setCurrentUser(googleUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('mazad_user_session', JSON.stringify(googleUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-    } finally {
-      googleAuthInProgress = false;
-    }
-  }, []);
+      await setDoc(userRef, freshUserDoc);
 
-  const logout = useCallback(() => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('mazad_authenticated');
-    localStorage.removeItem('mazad_user_session');
-    localStorage.removeItem('mazad_wallet');
-    
-    // Reset to initial clean guest state
-    setCurrentUser(INITIAL_USERS[0]);
-    setWallet({
-      userId: 'user-current',
-      totalBalance: 0,
-      availableBalance: 0,
-      escrowBalance: 0
-    });
-  }, []);
-
-  const registerUser = useCallback((name: string, email: string, password = '') => {
-    const cleanEmail = email.toLowerCase().trim();
-    
-    // Check if the email already exists in users list
-    const exists = users.some(u => u.email.toLowerCase() === cleanEmail);
-    if (exists) {
       return { 
-        success: false, 
+        success: true, 
         message: language === 'ar' 
-          ? 'عذراً، هذا البريد الإلكتروني مسجل بالفعل.' 
-          : 'Sorry, this email is already registered.' 
+          ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' 
+          : 'Account registered successfully!' 
       };
+    } catch (error: any) {
+      console.error("Firebase auth registration error:", error);
+      let errorMsg = error.message;
+      if (error.code === 'auth/email-already-in-use') {
+        errorMsg = language === 'ar' 
+          ? 'عذراً، هذا البريد الإلكتروني مسجل بالفعل.' 
+          : 'Sorry, this email is already registered.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMsg = language === 'ar' 
+          ? 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.' 
+          : 'Password must be at least 6 characters.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = language === 'ar' 
+          ? 'البريد الإلكتروني المكتوب غير صالح.' 
+          : 'The email address is invalid.';
+      } else {
+        errorMsg = error.message || errorMsg;
+      }
+      return { success: false, message: errorMsg };
     }
-
-    const newUser: User = {
-      id: `user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: name,
-      email: cleanEmail,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      role: cleanEmail.includes('admin') ? 'admin' : 'user',
-      isVerified: true,
-      isBlocked: false,
-      subscriptionStatus: 'none',
-      password: password,
-    };
-    setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('mazad_user_session', JSON.stringify(newUser));
-    localStorage.setItem('mazad_authenticated', 'true');
-    return { 
-      success: true, 
-      message: language === 'ar' 
-        ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' 
-        : 'New user account created & logged in!' 
-    };
-  }, [users, language]);
+  }, [language]);
 
   // General Notification Handler
   const addNotification = useCallback((title: string, description: string, type: Notification['type']) => {
@@ -1172,65 +1268,61 @@ let googleAuthInProgress = false;
     setNotifications(prev => [newNotif, ...prev]);
   }, []);
 
-  const subscribeUser = useCallback((price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
+  const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
     const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
-    const reqId = `sub-req-${Date.now()}-${currentUser?.id}`;
 
-    const reqDoc = {
-      id: reqId,
-      userId: currentUser?.id || '',
-      userName: currentUser?.name || 'User',
-      userEmail: currentUser?.email || '',
-      price,
-      plan,
-      paymentProofImage: paymentProofImage || '',
-      transferFullName: transferFullName || '',
-      transferPhone: transferPhone || '',
-      subscriptionStatus: 'pending',
-      timestamp: Date.now()
-    };
+    try {
+      const subscribeCallable = httpsCallable<{ 
+        price: number; 
+        plan: string; 
+        paymentProofImage: string; 
+        transferFullName: string; 
+        transferPhone: string 
+      }, { success: boolean; message: string }>(functions, 'requestSubscription');
 
-    // حفظ مباشر بدون dynamic import
-    setDoc(doc(db, 'subscriptionRequests', reqId), reqDoc)
-      .then(() => console.log('Subscription request saved to Firestore!'))
-      .catch(e => console.error('Failed to save subscription request:', e));
+      await subscribeCallable({
+        price,
+        plan,
+        paymentProofImage: paymentProofImage || '',
+        transferFullName: transferFullName || '',
+        transferPhone: transferPhone || ''
+      });
 
-    setDoc(doc(db, 'users', currentUser?.id || ''), {
-      subscriptionStatus: 'pending'
-    }, { merge: true }).catch(e => console.error('Failed to update user status:', e));
-
-    setCurrentUser(prev => {
-      if (!prev) return prev;
-      const updated = { 
-        ...prev, 
-        subscriptionStatus: 'pending' as const, 
-        subscriptionExpiry: null, 
-        paymentProofImage,
-        transferFullName,
-        transferPhone
-      };
-      localStorage.setItem('mazad_user_session', JSON.stringify(updated));
-      return updated;
-    });
-    setUsers(prev => prev.map(u => {
-      if (currentUser && u.id === currentUser.id) {
-        return { 
-          ...u, 
+      setCurrentUser(prev => {
+        if (!prev) return prev;
+        const updated = { 
+          ...prev, 
           subscriptionStatus: 'pending' as const, 
           subscriptionExpiry: null, 
           paymentProofImage,
           transferFullName,
           transferPhone
         };
-      }
-      return u;
-    }));
-    setShowSubscriptionPrompt(false);
-    addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك بـ ${price} JD. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
+        return updated;
+      });
+      setUsers(prev => prev.map(u => {
+        if (currentUser && u.id === currentUser.id) {
+          return { 
+            ...u, 
+            subscriptionStatus: 'pending' as const, 
+            subscriptionExpiry: null, 
+            paymentProofImage,
+            transferFullName,
+            transferPhone
+          };
+        }
+        return u;
+      }));
+      setShowSubscriptionPrompt(false);
+      addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
+    } catch (error: any) {
+      console.error("Cloud function requestSubscription failed:", error);
+      addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
+    }
   }, [currentUser, addNotification]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
-  const placeBid = useCallback((auctionId: string, amount: number): { success: boolean; message: string } => {
+  const placeBid = useCallback(async (auctionId: string, amount: number): Promise<{ success: boolean; message: string }> => {
     // 1. Double check blocking status
     if (currentUser.isBlocked) {
       return { success: false, message: '🚫 Account restricted. Bidding disabled.' };
@@ -1245,232 +1337,46 @@ let googleAuthInProgress = false;
       };
     }
 
-    const auction = auctions.find(a => a.id === auctionId);
-    if (!auction) {
-      return { success: false, message: 'Auction listing not found.' };
-    }
-    if (auction.status !== 'live') {
-      return { success: false, message: 'This auction is not accepting bids.' };
-    }
-
-    // Must exceed current price
-    const minRequired = auction.currentPrice + (auction.totalBids > 0 ? auction.minIncrement : 0);
-    if (amount < minRequired) {
-      return { success: false, message: `Minimum bid of ${minRequired} JOD required.` };
-    }
-
-    // Bidder's previous bid on this auction (if any)
-    const existingEscrow = escrows.find(e => e.auctionId === auctionId && e.bidderId === currentUser.id && e.status === 'locked');
-    const previousCommittedAmount = existingEscrow ? existingEscrow.amount : 0;
-    
-    // Total budget calculation
-    const incrementalDelta = amount - previousCommittedAmount;
-
-    if (wallet.availableBalance < incrementalDelta) {
-      return { 
-        success: false, 
-        message: `Insufficient Wallet Funds! You need ${incrementalDelta} JOD more. Top-up via CliQ instantly.` 
-      };
-    }
-
-    // Dedut bid difference only, and lock funds to escrow
-    setWallet(prev => {
-      const newAvail = prev.availableBalance - incrementalDelta;
-      const newEscrow = prev.escrowBalance + incrementalDelta;
+    try {
+      const placeBidCallable = httpsCallable<{ auctionId: string; amount: number }, { success: boolean; message: string }>(functions, 'placeBid');
+      const result = await placeBidCallable({ auctionId, amount });
+      if (result.data.success) {
+        addNotification(
+          '🏆 Winning Bid Placed',
+          `Locked ${amount.toLocaleString()} JOD securely in Mazad Escrow.`,
+          'win'
+        );
+      }
       return {
-        ...prev,
-        availableBalance: newAvail,
-        escrowBalance: newEscrow,
-        totalBalance: newAvail + newEscrow
+        success: result.data.success,
+        message: result.data.message
       };
-    });
-
-    const walletRef = doc(db, 'wallets', currentUser.id);
-    setDoc(walletRef, {
-      userId: currentUser.id,
-      availableBalance: wallet.availableBalance - incrementalDelta,
-      escrowBalance: wallet.escrowBalance + incrementalDelta,
-      totalBalance: wallet.totalBalance
-    }).catch(e => {
-      console.warn("Firestore wallet update permission warning or error: ", e);
-    });
-    addDoc(collection(db, 'bids'), {
-      auctionId,
-      amount,
-      bidderId: currentUser.id,
-      bidderName: currentUser.name,
-      timestamp: Date.now()
-    }).catch(e => {
-      console.warn("Firestore bid logging permission warning or error: ", e);
-    });
-
-    // If outbid other user: Restore their wallet (refund escrow)
-    const outbidUserId = auction.currentBidderId;
-    const outbidUserAmount = auction.currentPrice;
-    
-    // We update previous outbid bidder
-    if (outbidUserId && outbidUserId !== currentUser.id) {
-      const prevEscrow = escrows.find(e => e.auctionId === auctionId && e.bidderId === outbidUserId && e.status === 'locked');
-      if (prevEscrow) {
-        // Update previous escrow status to refunded in Firestore
-        setDoc(doc(db, 'escrows', prevEscrow.id), { ...prevEscrow, status: 'refunded' as const }).catch(err => {
-          console.warn("Error refunding previous escrow in Firestore:", err);
-        });
-
-        // Update previous bidder's wallet account in Firestore
-        const prevWalletRef = doc(db, 'wallets', outbidUserId);
-        getDoc(prevWalletRef).then(snap => {
-          if (snap.exists()) {
-            const wData = snap.data();
-            const oldAvail = wData.availableBalance ?? 0;
-            const oldEsc = wData.escrowBalance ?? 0;
-            const refundAmt = prevEscrow.amount;
-            const newEsc = Math.max(0, oldEsc - refundAmt);
-            const newAvail = oldAvail + refundAmt;
-            setDoc(prevWalletRef, {
-              userId: outbidUserId,
-              availableBalance: newAvail,
-              escrowBalance: newEsc,
-              totalBalance: newAvail + newEsc
-            }).catch(err => console.error("Error refunding previous wallet in Firestore:", err));
-          }
-        });
-      }
-
-      setEscrows(prev => prev.map(e => {
-        if (e.auctionId === auctionId && e.bidderId === outbidUserId && e.status === 'locked') {
-          return { ...e, status: 'refunded' as const };
-        }
-        return e;
-      }));
+    } catch (error: any) {
+      console.error("Cloud function placeBid error:", error);
+      return {
+        success: false,
+        message: error.message || 'Bidding failed.'
+      };
     }
-
-    let finalEndTime = auction.endTime;
-    const timeRemaining = finalEndTime - Date.now();
-    let antiSnipeTriggered = false;
-    // ANTI-SNIPING RULE: If placed in the last 10 seconds, extend by 15 seconds
-    if (timeRemaining > 0 && timeRemaining < 10000) {
-      finalEndTime += 15000;
-      antiSnipeTriggered = true;
-    }
-
-    // Set updated state
-    setAuctions(prev => prev.map(a => {
-      if (a.id === auctionId) {
-        return {
-          ...a,
-          currentPrice: amount,
-          currentBidderId: currentUser.id,
-          currentBidderName: currentUser.name,
-          totalBids: a.totalBids + 1,
-          endTime: finalEndTime
-        };
-      }
-      return a;
-    }));
-
-    // Update auction in Firestore!
-    const auctionDocRef = doc(db, 'auctions', auctionId);
-    setDoc(auctionDocRef, {
-      ...auction,
-      currentPrice: amount,
-      currentBidderId: currentUser.id,
-      currentBidderName: currentUser.name,
-      totalBids: auction.totalBids + 1,
-      endTime: finalEndTime
-    }, { merge: true }).catch(err => {
-      console.warn("Failed to update auction in Firestore:", err);
-    });
-
-    // Update or Create corresponding Escrow transaction
-    const newEscrowTransaction: EscrowTransaction = {
-      id: `escrow-${Date.now()}-${Math.random()}`,
-      walletId: 'wallet-current',
-      auctionId: auctionId,
-      auctionTitle: auction.title,
-      bidderId: currentUser.id,
-      bidderName: currentUser.name,
-      sellerId: auction.sellerId,
-      sellerName: auction.sellerName,
-      amount: amount,
-      status: 'locked',
-      timestamp: Date.now()
-    };
-
-    setEscrows(prev => {
-      const cleanPrev = prev.filter(e => !(e.auctionId === auctionId && e.bidderId === currentUser.id && e.status === 'locked'));
-      return [newEscrowTransaction, ...cleanPrev];
-    });
-
-    // Save new escrow to Firestore!
-    setDoc(doc(db, 'escrows', newEscrowTransaction.id), newEscrowTransaction).catch(e => {
-      console.warn("Failed to write new escrow in Firestore:", e);
-    });
-
-    // Append beautiful green system Chat bid indicator
-    const newBidChat: ChatMessage = {
-      id: `chat-event-${Date.now()}-${Math.random()}`,
-      auctionId: auctionId,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userAvatar: currentUser.avatar,
-      text: `placed a winning bid of ${amount.toLocaleString()} JOD`,
-      timestamp: Date.now(),
-      isSystem: false,
-      isBid: true,
-      bidAmount: amount
-    };
-    setChatMessages(prev => [...prev, newBidChat]);
-
-    // Save system bid chat to Firestore!
-    setDoc(doc(db, 'chats', newBidChat.id), newBidChat).catch(e => {
-      console.warn("Failed to write system bid chat in Firestore:", e);
-    });
-
-    // Send successful alert
-    addNotification(
-      '🏆 Winning Bid Placed',
-      `Locked ${amount.toLocaleString()} JOD securely in Mazad Escrow for ${auction.title}`,
-      'win'
-    );
-
-    return { 
-      success: true, 
-      message: `Successfully bid ${amount} JOD! You are currently the highest bidder.` 
-    };
-  }, [currentUser, auctions, escrows, wallet, addNotification]);
+  }, [currentUser, language, addNotification]);
 
   // CliQ Jordanian instant receipt topup simulation
-  const triggerCliQTopUp = useCallback((amount: number, alias: string, receiptName: string) => {
-    // Standard mock verification transaction
-    const newCliQTransaction: EscrowTransaction = {
-      id: `cliq-${Date.now()}-${Math.random()}`,
-      walletId: 'wallet-current',
-      auctionId: 'cliq-dep',
-      auctionTitle: `CliQ Fast Top-up request`,
-      bidderId: currentUser.id,
-      bidderName: currentUser.name,
-      sellerId: 'system',
-      sellerName: 'Central Reserve Bank',
-      amount: amount,
-      status: 'locked', // Remains locked as payment verification flow until admin manually approves
-      timestamp: Date.now(),
-      paymentProofUrl: '', // Simulated screenshot receipt preview
-      cliqAlias: alias
-    };
-    setEscrows(prev => [newCliQTransaction, ...prev]);
-    
-    // Save new cliq request to Firestore!
-    setDoc(doc(db, 'escrows', newCliQTransaction.id), newCliQTransaction).catch(e => {
-      console.warn("Failed to write CliQ topup escrow transaction to Firestore:", e);
-    });
-    
-    addNotification(
-      '💸 CliQ Transfer Received',
-      `Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.`,
-      'verify'
-    );
-  }, [currentUser, addNotification]);
+  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, receiptName: string) => {
+    try {
+      const topUpCallable = httpsCallable<{ amount: number; alias: string; receiptName: string }, { success: boolean; message: string }>(functions, 'requestTopUp');
+      const result = await topUpCallable({ amount, alias, receiptName });
+      if (result.data.success) {
+        addNotification(
+          '💸 CliQ Transfer Received',
+          `Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.`,
+          'verify'
+        );
+      }
+    } catch (error: any) {
+      console.error("Cloud function requestTopUp error:", error);
+      addNotification('❌ Top-up Error', error.message || 'Failed to request top-up.', 'alert');
+    }
+  }, [addNotification]);
 
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
@@ -1525,6 +1431,7 @@ let googleAuthInProgress = false;
       finalThumbnailUrl = await getDownloadURL(thumbRef);
     }
 
+    const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
     const newListing: any = {
       ...listingData,
       id: newListingId,
@@ -1540,7 +1447,9 @@ let googleAuthInProgress = false;
       createdById: currentUser?.id || 'guest',
       createdByName: currentUser?.name || 'Seller JO',
       videoUrl: finalVideoUrl,
-      thumbnailUrl: finalThumbnailUrl
+      thumbnailUrl: finalThumbnailUrl,
+      endTime: endTimeMs,
+      endsAt: Timestamp.fromMillis(endTimeMs)
     };
 
     // Save directly to Firestore for real-time synchronization
@@ -1573,19 +1482,23 @@ let googleAuthInProgress = false;
   // --- ADMIN ACTIONS ---
   const approveListing = useCallback((id: string) => {
     // Write approval properties directly to Firestore database
+    const freshEndTime = Date.now() + 600 * 1000;
+    const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
+
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
       status: 'live',
       approvedAt: serverTimestamp(),
       approvedBy: currentUser?.id || 'admin-system',
-      endTime: Date.now() + 600 * 1000 // Fresh 10 Mins live timer
+      endTime: freshEndTime, // Fresh 10 Mins live timer
+      endsAt: endsAtTimestamp
     }).catch(err => {
       console.error("Firestore approve write failed:", err);
     });
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'live', endTime: Date.now() + 600 * 1000 }; // Give it a fresh 10 Min live clock
+        return { ...a, status: 'live', endTime: freshEndTime, endsAt: endsAtTimestamp }; // Give it a fresh 10 Min live clock
       }
       return a;
     }));
@@ -1699,160 +1612,39 @@ let googleAuthInProgress = false;
   }, [currentUser]);
 
   // ESCROW RELEASES (CRITICAL MONEY FLOW SYSTEM)
-  const releaseEscrow = useCallback((escrowId: string) => {
-    setEscrows(prev => prev.map(e => {
-      if (e.id === escrowId) {
-        return { ...e, status: 'released' as const };
+  const releaseEscrow = useCallback(async (escrowId: string) => {
+    try {
+      const releaseCallable = httpsCallable<{ escrowId: string }, { success: boolean; message: string }>(functions, 'releaseEscrow');
+      const result = await releaseCallable({ escrowId });
+      if (result.data.success) {
+        addNotification(
+          '🤝 Escrow Funds Released',
+          `The escrow transaction has been approved and settled successfully.`,
+          'info'
+        );
       }
-      return e;
-    }));
-
-    const targetE = escrows.find(e => e.id === escrowId);
-    if (!targetE) return;
-
-    // Save update to Firestore
-    import('firebase/firestore').then(({ doc, updateDoc, setDoc, getDoc }) => {
-      const escrowRef = doc(db, 'escrows', escrowId);
-      updateDoc(escrowRef, { status: 'released' }).catch(err => {
-        console.warn("Failed to write escrow release in Firestore:", err);
-      });
-
-      // If it was a CliQ Top-Up transfer approval, add balance to wallet!
-      if (targetE.auctionId === 'cliq-dep') {
-        const bidderWalletRef = doc(db, 'wallets', targetE.bidderId);
-        getDoc(bidderWalletRef).then(walletSnap => {
-          if (walletSnap.exists()) {
-            const wData = walletSnap.data();
-            const oldAvail = wData.availableBalance ?? 0;
-            const oldEscrow = wData.escrowBalance ?? 0;
-            const added = targetE.amount;
-            const newAvail = oldAvail + added;
-            setDoc(bidderWalletRef, {
-              userId: targetE.bidderId,
-              availableBalance: newAvail,
-              escrowBalance: oldEscrow,
-              totalBalance: newAvail + oldEscrow
-            }).catch(err => console.error("Error updating approved wallet on Firebase:", err));
-          } else {
-            setDoc(bidderWalletRef, {
-              userId: targetE.bidderId,
-              availableBalance: targetE.amount,
-              escrowBalance: 0,
-              totalBalance: targetE.amount
-            }).catch(err => console.error("Error creating approved wallet on Firebase:", err));
-          }
-        });
-      }
-    });
-
-    if (targetE.auctionId === 'cliq-dep') {
-      if (targetE.bidderId === currentUser.id) {
-        setWallet(prev => {
-          const added = targetE.amount;
-          const newAvail = prev.availableBalance + added;
-          return {
-            ...prev,
-            availableBalance: newAvail,
-            totalBalance: newAvail + prev.escrowBalance
-          };
-        });
-      }
-
-      addNotification(
-        '💰 Wallet Capitalized!',
-        `Admin approved CliQ verification. ${targetE.amount.toLocaleString()} JOD added to your active balance.`,
-        'win'
-      );
-    } else {
-      addNotification(
-        '🤝 Escrow Funds Released',
-        `Admin released payment to original merchant. Item shipping underway.`,
-        'info'
-      );
+    } catch (error: any) {
+      console.error("Cloud function releaseEscrow failed:", error);
+      addNotification('❌ Release Error', error.message || 'Failed to release escrow.', 'alert');
     }
+  }, [addNotification]);
 
-    const action: AdminAction = {
-      id: `admin-act-${Date.now()}-${Math.random()}`,
-      actionType: 'release_escrow',
-      targetId: escrowId,
-      targetName: targetE ? `Escrow: ${targetE.auctionTitle}` : 'Escrow Item',
-      adminName: 'Admin Tareq',
-      timestamp: Date.now(),
-      details: 'Audited & validated. Transacted.'
-    };
-    setAdminActions(prev => [action, ...prev]);
-  }, [escrows, currentUser, addNotification]);
-
-  const refundEscrow = useCallback((escrowId: string) => {
-    setEscrows(prev => prev.map(e => {
-      if (e.id === escrowId) {
-        return { ...e, status: 'refunded' as const };
+  const refundEscrow = useCallback(async (escrowId: string) => {
+    try {
+      const refundCallable = httpsCallable<{ escrowId: string }, { success: boolean; message: string }>(functions, 'refundEscrow');
+      const result = await refundCallable({ escrowId });
+      if (result.data.success) {
+        addNotification(
+          '🛡️ Escrow Refunded Successfully',
+          `Secured funds have been returned to user's available balance.`,
+          'refund'
+        );
       }
-      return e;
-    }));
-
-    const targetE = escrows.find(e => e.id === escrowId);
-    if (!targetE) return;
-
-    // Save update to Firestore
-    import('firebase/firestore').then(({ doc, updateDoc, setDoc, getDoc }) => {
-      const escrowRef = doc(db, 'escrows', escrowId);
-      updateDoc(escrowRef, { status: 'refunded' }).catch(err => {
-        console.warn("Failed to write escrow refund in Firestore:", err);
-      });
-
-      if (targetE.auctionId !== 'cliq-dep') {
-        const bidderWalletRef = doc(db, 'wallets', targetE.bidderId);
-        getDoc(bidderWalletRef).then(walletSnap => {
-          if (walletSnap.exists()) {
-            const wData = walletSnap.data();
-            const oldAvail = wData.availableBalance ?? 0;
-            const oldEsc = wData.escrowBalance ?? 0;
-            const amt = targetE.amount;
-            const newEsc = Math.max(0, oldEsc - amt);
-            const newAvail = oldAvail + amt;
-            setDoc(bidderWalletRef, {
-              userId: targetE.bidderId,
-              availableBalance: newAvail,
-              escrowBalance: newEsc,
-              totalBalance: newAvail + newEsc
-            }).catch(err => console.error("Error updating refunded wallet on Firebase:", err));
-          }
-        });
-      }
-    });
-
-    if (targetE.bidderId === currentUser.id && targetE.auctionId !== 'cliq-dep') {
-      setWallet(prev => {
-        const amt = targetE.amount;
-        const newEsc = prev.escrowBalance - amt;
-        const newAvail = prev.availableBalance + amt;
-        return {
-          ...prev,
-          availableBalance: newAvail,
-          escrowBalance: newEsc,
-          totalBalance: newAvail + newEsc
-        };
-      });
-
-      addNotification(
-        '🛡️ Escrow Refunded Successfully',
-        `Your bid funds of ${targetE.amount.toLocaleString()} JOD have been securely returned to available wallet.`,
-        'refund'
-      );
+    } catch (error: any) {
+      console.error("Cloud function refundEscrow failed:", error);
+      addNotification('❌ Refund Error', error.message || 'Failed to refund escrow.', 'alert');
     }
-
-    const action: AdminAction = {
-      id: `admin-act-${Date.now()}-${Math.random()}`,
-      actionType: 'refund_escrow',
-      targetId: escrowId,
-      targetName: targetE ? `Refund: ${targetE.auctionTitle}` : 'Escrow Item',
-      adminName: 'Admin Tareq',
-      timestamp: Date.now(),
-      details: 'Bidders refunded instantly on request / rejection.'
-    };
-    setAdminActions(prev => [action, ...prev]);
-  }, [escrows, currentUser, addNotification]);
+  }, [addNotification]);
 
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);

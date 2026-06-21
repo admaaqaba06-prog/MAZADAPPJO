@@ -234,18 +234,13 @@ export const LiveStreamView: React.FC = () => {
     );
   }
 
-  const executeBid = (amount: number) => {
-    const res = placeBid(currentItem.id, amount);
+  const executeBid = async (amount: number) => {
+    const res = await placeBid(currentItem.id, amount);
     if (!res.success) {
       triggerToast(res.message);
     } else {
       triggerToast(isAr ? '🚀 تم تقديم المزايدة بنجاح!' : '🚀 Bid Placed Successfully!');
       setCommentCount(prev => prev + 1);
-
-      // Async background sync with Firebase Firestore
-      placeAuctionBid(currentItem.id, amount, currentUser.id, currentUser.name).catch((err) => {
-        console.warn("Background Firestore bid sync error:", err);
-      });
     }
   };
 

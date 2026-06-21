@@ -13,76 +13,113 @@ exports.scheduledAuctionCloser = functions.pubsub
   .onRun(async (context) => {
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
+    const nowMs = now.toMillis();
     
-    console.log('[scheduledAuctionCloser] Executing minute cron check for expired active listings...');
+    console.log('[scheduledAuctionCloser] Executing minute cron check for expired active listings and migrating old listings...');
 
     try {
-      // Query active/live auctions that have reached or passed their expiration threshold
-      const expiredQuery = await db.collection('auctions')
-        .where('status', 'in', ['active', 'live'])
-        .where('endsAt', '<=', now)
+      // Query all auctions in states: active, live, upcoming
+      const querySnap = await db.collection('auctions')
+        .where('status', 'in', ['active', 'live', 'upcoming'])
         .get();
 
-      if (expiredQuery.empty) {
-        console.log('[scheduledAuctionCloser] No expired active listings found.');
+      if (querySnap.empty) {
+        console.log('[scheduledAuctionCloser] No active, live, or upcoming listings found.');
         return null;
       }
 
-      console.log(`[scheduledAuctionCloser] Found ${expiredQuery.size} expired listings. Settle process initiated...`);
+      console.log(`[scheduledAuctionCloser] Scanning ${querySnap.size} active/live/upcoming listings for migration and expiration check...`);
 
-      const promises = expiredQuery.docs.map(async (auctionDoc) => {
+      const promises = querySnap.docs.map(async (auctionDoc) => {
         const auctionId = auctionDoc.id;
         const auctionData = auctionDoc.data();
-        const winnerId = auctionData.currentBidderId;
-        const winnerName = auctionData.currentBidderName;
-        const finalPrice = auctionData.currentPrice || auctionData.startingPrice;
-        const totalBids = auctionData.totalBids || 0;
+        let endsAt = auctionData.endsAt;
+        let endTime = auctionData.endTime;
+        let endsAtMs = 0;
+        let needsMigration = false;
 
-        return db.runTransaction(async (transaction) => {
-          const freshDoc = await transaction.get(auctionDoc.ref);
-          const freshData = freshDoc.data();
-
-          // Double check status inside transaction to prevent double settlement
-          if (freshData.status === 'completed' || freshData.status === 'ended') {
-            return;
-          }
-
-          if (totalBids > 0 && winnerId) {
-            // 1. Mark auction as completed successfully with final price & winner
-            transaction.update(auctionDoc.ref, {
-              status: 'completed',
-              settledAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            // 2. Increment wonCount for the lucky platform winner
-            const winnerRef = db.collection('users').doc(winnerId);
-            transaction.set(winnerRef, {
-              wonCount: admin.firestore.FieldValue.increment(1)
-            }, { merge: true });
-
-            console.log(`[scheduledAuctionCloser] Settled auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
-
-            // 3. Dispatch victory notification to high-bidder
-            const winnerSnap = await transaction.get(winnerRef);
-            if (winnerSnap.exists() && winnerSnap.data().fcmToken) {
-              const token = winnerSnap.data().fcmToken;
-              await admin.messaging().send({
-                token: token,
-                notification: {
-                  title: 'تهانينا! لقد فزت بالمزاد 🎉',
-                  body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
-                }
-              }).catch(err => console.warn(`[scheduledAuctionCloser FCM Error] ${err.message}`));
-            }
+        // 1. Resolve endsAt to epoch ms
+        if (endsAt) {
+          if (typeof endsAt === 'object' && typeof endsAt.toMillis === 'function') {
+            endsAtMs = endsAt.toMillis();
+          } else if (endsAt.seconds !== undefined) {
+            endsAtMs = endsAt.seconds * 1000;
           } else {
-            // 4. Close listing as ended without bidders
-            transaction.update(auctionDoc.ref, {
-              status: 'ended',
-              settledAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            console.log(`[scheduledAuctionCloser] Expired auction ${auctionId} ended without any bids.`);
+            endsAtMs = new Date(endsAt).getTime();
           }
-        });
+        }
+
+        // 2. Fallback to endTime & Migrate if endsAt is absent
+        if (!endsAt && endTime) {
+          endsAtMs = typeof endTime === 'number' ? endTime : (endTime.seconds ? endTime.seconds * 1000 : Date.parse(endTime));
+          endsAt = admin.firestore.Timestamp.fromMillis(endsAtMs);
+          needsMigration = true;
+        }
+
+        if (needsMigration && endsAt) {
+          console.log(`[scheduledAuctionCloser] Migrating old auction ${auctionId} - setting endsAt to Firestore Timestamp.`);
+          await auctionDoc.ref.update({
+            endsAt: endsAt,
+            endTime: endsAtMs
+          }).catch(err => console.error(`Migration fail for auction ${auctionId}`, err));
+        }
+
+        // 3. Check if active/live auction has expired
+        const isLive = auctionData.status === 'active' || auctionData.status === 'live';
+        const isExpired = endsAtMs > 0 && endsAtMs <= nowMs;
+
+        if (isLive && isExpired) {
+          console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
+          const winnerId = auctionData.currentBidderId;
+          const winnerName = auctionData.currentBidderName;
+          const finalPrice = auctionData.currentPrice || auctionData.startingPrice;
+          const totalBids = auctionData.totalBids || 0;
+
+          return db.runTransaction(async (transaction) => {
+            const freshDoc = await transaction.get(auctionDoc.ref);
+            const freshData = freshDoc.data();
+
+            if (freshData.status === 'completed' || freshData.status === 'ended') {
+              return;
+            }
+
+            if (totalBids > 0 && winnerId) {
+              // Mark completed
+              transaction.update(auctionDoc.ref, {
+                status: 'completed',
+                settledAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+
+              // Increment win count
+              const winnerRef = db.collection('users').doc(winnerId);
+              transaction.set(winnerRef, {
+                wonCount: admin.firestore.FieldValue.increment(1)
+              }, { merge: true });
+
+              console.log(`[scheduledAuctionCloser] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
+
+              // Notify winner via FCM
+              const winnerSnap = await transaction.get(winnerRef);
+              if (winnerSnap.exists() && winnerSnap.data().fcmToken) {
+                const token = winnerSnap.data().fcmToken;
+                await admin.messaging().send({
+                  token: token,
+                  notification: {
+                    title: 'تهانينا! لقد فزت بالمزاد 🎉',
+                    body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
+                  }
+                }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
+              }
+            } else {
+              // Close without bidder
+              transaction.update(auctionDoc.ref, {
+                status: 'ended',
+                settledAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+              console.log(`[scheduledAuctionCloser] Closed unsold auction ${auctionId}`);
+            }
+          });
+        }
       });
 
       await Promise.all(promises);
@@ -154,3 +191,543 @@ exports.onBidCreated = functions.firestore
     }
     return null;
   });
+
+/**
+ * 3. placeBid Callable Cloud Function
+ * Handles the high-frequency and critical bidding business rules transactionally in a single Firestore runTransaction block.
+ * Ensures subscription checking, blocking, pricing thresholds, sniper extensions, wallet deductively atomic locking,
+ * and outbid user refunding are guaranteed without race-conditions or browser-side vulnerability bypasses.
+ * Balances and calculations are implemented in integer FILS to prevent float decimals loss.
+ */
+exports.placeBid = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const userId = context.auth.uid;
+  const { auctionId, amount } = data; // amount is in JOD (double)
+
+  if (!auctionId || typeof amount !== 'number' || amount <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid auctionId or amount.');
+  }
+
+  const db = admin.firestore();
+  
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // 1. Get user profile
+      const userRef = db.collection('users').doc(userId);
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'User profile not found.');
+      }
+      const userData = userSnap.data();
+      if (userData.isBlocked) {
+        throw new functions.https.HttpsError('permission-denied', 'Account restricted. Bidding disabled.');
+      }
+      if (userData.subscriptionStatus !== 'active') {
+        throw new functions.https.HttpsError('permission-denied', 'Active subscription pass required to place bids.');
+      }
+
+      // 2. Get auction item
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const auctionSnap = await transaction.get(auctionRef);
+      if (!auctionSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Auction listing not found.');
+      }
+      const auctionData = auctionSnap.data();
+      if (auctionData.status !== 'live' && auctionData.status !== 'active') {
+        throw new functions.https.HttpsError('failed-precondition', 'This auction is not accepting bids.');
+      }
+
+      // Determine end time, prioritizing endsAt Timestamp over old endTime
+      let endTime = auctionData.endsAt || auctionData.endTime;
+      if (typeof endTime === 'object' && endTime.seconds) {
+        endTime = endTime.seconds * 1000;
+      } else if (typeof endTime === 'string') {
+        endTime = Date.parse(endTime);
+      }
+      if (endTime && endTime <= Date.now()) {
+        throw new functions.https.HttpsError('failed-precondition', 'This auction has already ended.');
+      }
+
+      // 3. Get bidder's wallet
+      const walletRef = db.collection('wallets').doc(userId);
+      const walletSnap = await transaction.get(walletRef);
+      let walletData = {
+        userId,
+        availableBalance: 0,
+        escrowBalance: 0,
+        totalBalance: 0
+      };
+      if (walletSnap.exists) {
+        const d = walletSnap.data();
+        walletData.availableBalance = d.availableBalance || 0;
+        walletData.escrowBalance = d.escrowBalance || 0;
+        walletData.totalBalance = walletData.availableBalance + walletData.escrowBalance;
+      }
+
+      // 4. Convert bid amount to fils (integers)
+      const amountFils = Math.round(amount * 1000);
+
+      const currentPriceFils = Math.round((auctionData.currentPrice || auctionData.startingPrice || 0) * 1000);
+      const minIncrementFils = Math.round((auctionData.minIncrement || 10) * 1000);
+      
+      const totalBids = auctionData.totalBids || 0;
+      const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
+
+      if (amountFils < minRequiredFils) {
+        throw new functions.https.HttpsError('failed-precondition', `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.`);
+      }
+
+      // 5. Query if the bidder has an existing locked escrow for this auction
+      const existingEscrowsQuery = await db.collection('escrows')
+        .where('auctionId', '==', auctionId)
+        .where('bidderId', '==', userId)
+        .where('status', '==', 'locked')
+        .get();
+      
+      let existingEscrowDoc = null;
+      let previousCommittedAmountFils = 0;
+      if (!existingEscrowsQuery.empty) {
+        existingEscrowDoc = existingEscrowsQuery.docs[0];
+        const prevEscData = existingEscrowDoc.data();
+        previousCommittedAmountFils = prevEscData.amountFils || Math.round((prevEscData.amount || 0) * 1000);
+      }
+
+      // Incremental delta calculation in fils
+      const incrementalDeltaFils = amountFils - previousCommittedAmountFils;
+
+      if (walletData.availableBalance < incrementalDeltaFils) {
+        throw new functions.https.HttpsError('failed-precondition', `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.`);
+      }
+
+      // 6. Update current bidder's wallet
+      const newAvailFils = walletData.availableBalance - incrementalDeltaFils;
+      const newEscrowFils = walletData.escrowBalance + incrementalDeltaFils;
+      const newTotalFils = newAvailFils + newEscrowFils;
+
+      transaction.set(walletRef, {
+        userId,
+        availableBalance: newAvailFils,
+        escrowBalance: newEscrowFils,
+        totalBalance: newTotalFils
+      }, { merge: true });
+
+      // 7. Write new bid document
+      const bidRef = db.collection('bids').doc();
+      transaction.set(bidRef, {
+        id: bidRef.id,
+        auctionId,
+        amount: amount, 
+        amountFils: amountFils, 
+        bidderId: userId,
+        bidderName: userData.name || 'User',
+        bidderAvatar: userData.avatar || '',
+        timestamp: Date.now()
+      });
+
+      // 8. Update/Create current bidder's escrow transaction for this auction
+      if (existingEscrowDoc) {
+        transaction.update(existingEscrowDoc.ref, {
+          amount: amount,
+          amountFils: amountFils,
+          timestamp: Date.now()
+        });
+      } else {
+        const escrowRef = db.collection('escrows').doc();
+        transaction.set(escrowRef, {
+          id: escrowRef.id,
+          walletId: 'wallet-current',
+          auctionId: auctionId,
+          auctionTitle: auctionData.title || 'Auction Name',
+          bidderId: userId,
+          bidderName: userData.name || 'User',
+          sellerId: auctionData.sellerId || 'seller-system',
+          sellerName: auctionData.sellerName || 'Seller',
+          amount: amount,
+          amountFils: amountFils,
+          status: 'locked',
+          timestamp: Date.now()
+        });
+      }
+
+      // 9. Handle refunding the previous highest bidder
+      const outbidUserId = auctionData.currentBidderId;
+      if (outbidUserId && outbidUserId !== userId) {
+        // Find previous locked escrow for this auction belonging to the outbid user
+        const prevEscrowsQuery = await db.collection('escrows')
+          .where('auctionId', '==', auctionId)
+          .where('bidderId', '==', outbidUserId)
+          .where('status', '==', 'locked')
+          .get();
+
+        if (!prevEscrowsQuery.empty) {
+          const prevEscrowDoc = prevEscrowsQuery.docs[0];
+          const prevEscrow = prevEscrowDoc.data();
+          const prevRefundFils = prevEscrow.amountFils || Math.round((prevEscrow.amount || 0) * 1000);
+
+          // Mark it as refunded
+          transaction.update(prevEscrowDoc.ref, { status: 'refunded' });
+
+          // Return funds to their wallet
+          const prevWalletRef = db.collection('wallets').doc(outbidUserId);
+          const prevWalletSnap = await transaction.get(prevWalletRef);
+          if (prevWalletSnap.exists) {
+            const pwData = prevWalletSnap.data();
+            const oldPrevAvailFils = pwData.availableBalance || 0;
+            const oldPrevEscrowFils = pwData.escrowBalance || 0;
+
+            const newPrevEscrowFils = Math.max(0, oldPrevEscrowFils - prevRefundFils);
+            const newPrevAvailFils = oldPrevAvailFils + prevRefundFils;
+            const newPrevTotalFils = newPrevAvailFils + newPrevEscrowFils;
+
+            transaction.set(prevWalletRef, {
+              userId: outbidUserId,
+              availableBalance: newPrevAvailFils,
+              escrowBalance: newPrevEscrowFils,
+              totalBalance: newPrevTotalFils
+            }, { merge: true });
+          }
+        }
+      }
+
+      // 10. Update the auction details (anti-sniping and pricing)
+      let finalEndTime = endTime || Date.now();
+      const timeRemaining = finalEndTime - Date.now();
+      if (timeRemaining > 0 && timeRemaining < 10000) {
+        finalEndTime += 15000;
+      }
+
+      transaction.update(auctionRef, {
+        currentPrice: amount,
+        currentPriceFils: amountFils,
+        currentBidderId: userId,
+        currentBidderName: userData.name || 'User',
+        totalBids: totalBids + 1,
+        endTime: finalEndTime,
+        endsAt: admin.firestore.Timestamp.fromMillis(finalEndTime),
+        previousBidderId: outbidUserId || null
+      });
+
+      // 11. Create a beautiful system Chat bid indicator
+      const chatRef = db.collection('chats').doc();
+      transaction.set(chatRef, {
+        id: chatRef.id,
+        auctionId,
+        userId,
+        userName: userData.name || 'User',
+        userAvatar: userData.avatar || '',
+        text: `placed a winning bid of ${amount.toLocaleString()} JOD`,
+        timestamp: Date.now(),
+        isSystem: false,
+        isBid: true,
+        bidAmount: amount
+      });
+
+      return {
+        success: true,
+        message: `Successfully bid ${amount} JOD! You are currently the highest bidder.`,
+        amount,
+        finalEndTime
+      };
+    });
+  } catch (error) {
+    console.error('Error during transaction:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Transaction failed.');
+  }
+});
+
+/**
+ * 4. releaseEscrow Callable Cloud Function
+ * Admin approved release of locked escrow funds. Adds balance to user wallet if it represents cliq fast topup.
+ */
+exports.releaseEscrow = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const handlerUserId = context.auth.uid;
+  const { escrowId } = data;
+
+  if (!escrowId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid escrowId.');
+  }
+
+  const db = admin.firestore();
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // Verify user role
+      const handlerUserRef = db.collection('users').doc(handlerUserId);
+      const handlerSnap = await transaction.get(handlerUserRef);
+      if (!handlerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
+      }
+      const handlerData = handlerSnap.data();
+      if (handlerData.role !== 'admin' && !context.auth.token.admin) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
+      }
+
+      const escrowRef = db.collection('escrows').doc(escrowId);
+      const escrowSnap = await transaction.get(escrowRef);
+      if (!escrowSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Escrow transaction not found.');
+      }
+      const escrowData = escrowSnap.data();
+      if (escrowData.status !== 'locked') {
+        throw new functions.https.HttpsError('failed-precondition', 'Escrow is not locked.');
+      }
+
+      // Mark escrow as released
+      transaction.update(escrowRef, { status: 'released' });
+
+      // If it was a CliQ Top-Up transfer approval, add balance to wallet!
+      if (escrowData.auctionId === 'cliq-dep') {
+        const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
+        const bidderWalletSnap = await transaction.get(bidderWalletRef);
+        const addedFils = escrowData.amountFils || Math.round((escrowData.amount || 0) * 1000);
+
+        if (bidderWalletSnap.exists) {
+          const wData = bidderWalletSnap.data();
+          const oldAvail = wData.availableBalance || 0;
+          const oldEscrow = wData.escrowBalance || 0;
+          const newAvail = oldAvail + addedFils;
+
+          transaction.set(bidderWalletRef, {
+            userId: escrowData.bidderId,
+            availableBalance: newAvail,
+            escrowBalance: oldEscrow,
+            totalBalance: newAvail + oldEscrow
+          }, { merge: true });
+        } else {
+          transaction.set(bidderWalletRef, {
+            userId: escrowData.bidderId,
+            availableBalance: addedFils,
+            escrowBalance: 0,
+            totalBalance: addedFils
+          });
+        }
+      }
+
+      // Log admin action
+      const actionRef = db.collection('adminActions').doc();
+      transaction.set(actionRef, {
+        id: actionRef.id,
+        actionType: 'release_escrow',
+        targetId: escrowId,
+        targetName: `Escrow: ${escrowData.auctionTitle || 'Auction Item'}`,
+        adminName: handlerData.name || 'Admin',
+        timestamp: Date.now(),
+        details: 'Admin reviewed and approved release.'
+      });
+
+      return { success: true, message: 'Escrow released successfully.' };
+    });
+  } catch (error) {
+    console.error('Error in releaseEscrow:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 5. refundEscrow Callable Cloud Function
+ * Refund locked escrow funds back to bidder’s available balance & subtract from escrow.
+ */
+exports.refundEscrow = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const handlerUserId = context.auth.uid;
+  const { escrowId } = data;
+
+  if (!escrowId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid escrowId.');
+  }
+
+  const db = admin.firestore();
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // Verify user role
+      const handlerUserRef = db.collection('users').doc(handlerUserId);
+      const handlerSnap = await transaction.get(handlerUserRef);
+      if (!handlerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
+      }
+      const handlerData = handlerSnap.data();
+      if (handlerData.role !== 'admin' && !context.auth.token.admin) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
+      }
+
+      const escrowRef = db.collection('escrows').doc(escrowId);
+      const escrowSnap = await transaction.get(escrowRef);
+      if (!escrowSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Escrow transaction not found.');
+      }
+      const escrowData = escrowSnap.data();
+      if (escrowData.status !== 'locked') {
+        throw new functions.https.HttpsError('failed-precondition', 'Escrow is not locked.');
+      }
+
+      // Mark escrow as refunded
+      transaction.update(escrowRef, { status: 'refunded' });
+
+      // Return escrow funds back to bidder’s wallet (availableBalance increase, escrowBalance decrease)
+      if (escrowData.auctionId !== 'cliq-dep') {
+        const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
+        const bidderWalletSnap = await transaction.get(bidderWalletRef);
+        const refundAmtFils = escrowData.amountFils || Math.round((escrowData.amount || 0) * 1000);
+
+        if (bidderWalletSnap.exists) {
+          const wData = bidderWalletSnap.data();
+          const oldAvail = wData.availableBalance || 0;
+          const oldEscrow = wData.escrowBalance || 0;
+
+          const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
+          const newAvail = oldAvail + refundAmtFils;
+
+          transaction.set(bidderWalletRef, {
+            userId: escrowData.bidderId,
+            availableBalance: newAvail,
+            escrowBalance: newEscrow,
+            totalBalance: newAvail + newEscrow
+          }, { merge: true });
+        }
+      }
+
+      // Log admin action
+      const actionRef = db.collection('adminActions').doc();
+      transaction.set(actionRef, {
+        id: actionRef.id,
+        actionType: 'refund_escrow',
+        targetId: escrowId,
+        targetName: `Refund: ${escrowData.auctionTitle || 'Auction Item'}`,
+        adminName: handlerData.name || 'Admin',
+        timestamp: Date.now(),
+        details: 'Admin reviewed and approved refund.'
+      });
+
+      return { success: true, message: 'Escrow refunded successfully.' };
+    });
+  } catch (error) {
+    console.error('Error in refundEscrow:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 6. requestTopUp Callable Cloud Function
+ * Enrolls a manual Top-Up request as a locked CliQ escrow transfer record on the database safely.
+ */
+exports.requestTopUp = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const userId = context.auth.uid;
+  const { amount, alias, receiptName } = data; // amount is in JOD (double)
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid top-up amount.');
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const userSnap = await db.collection('users').doc(userId).get();
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User profile not found.');
+    }
+    const userData = userSnap.data();
+
+    const escrowId = `cliq-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const amountFils = Math.round(amount * 1000);
+
+    const newCliQTransaction = {
+      id: escrowId,
+      walletId: 'wallet-current',
+      auctionId: 'cliq-dep',
+      auctionTitle: 'CliQ Fast Top-up request',
+      bidderId: userId,
+      bidderName: userData.name || 'User',
+      sellerId: 'system',
+      sellerName: 'Central Reserve Bank',
+      amount: amount,
+      amountFils: amountFils,
+      status: 'locked',
+      timestamp: Date.now(),
+      paymentProofUrl: receiptName || '',
+      cliqAlias: alias || ''
+    };
+
+    await db.collection('escrows').doc(escrowId).set(newCliQTransaction);
+
+    return { success: true, escrowId, message: 'Top-up request registered successfully.' };
+  } catch (error) {
+    console.error('Error in requestTopUp:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 7. requestSubscription Callable Cloud Function
+ * Enrolls a premium/pro subscription request safely on the server side 
+ * and marks the user's subscriptionStatus as 'pending'.
+ */
+exports.requestSubscription = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+
+  const userId = context.auth.uid;
+  const { price, plan, paymentProofImage, transferFullName, transferPhone } = data;
+
+  const db = admin.firestore();
+
+  try {
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User profile not found.');
+    }
+
+    const userData = userSnap.data();
+    const reqId = `sub-req-${Date.now()}-${userId}`;
+
+    const newRequest = {
+      id: reqId,
+      userId: userId,
+      userName: userData.name || 'User',
+      userEmail: userData.email || '',
+      price: price || 15,
+      plan: plan || 'premium',
+      paymentProofImage: paymentProofImage || '',
+      transferFullName: transferFullName || '',
+      transferPhone: transferPhone || '',
+      subscriptionStatus: 'pending',
+      timestamp: Date.now()
+    };
+
+    const batch = db.batch();
+    
+    // 1. Create the subscription request document
+    const reqRef = db.collection('subscriptionRequests').doc(reqId);
+    batch.set(reqRef, newRequest);
+
+    // 2. Set user status to pending on user document
+    batch.set(userRef, {
+      subscriptionStatus: 'pending',
+      subscriptionExpiry: null,
+      paymentProofImage: paymentProofImage || '',
+      transferFullName: transferFullName || '',
+      transferPhone: transferPhone || ''
+    }, { merge: true });
+
+    await batch.commit();
+
+    return { success: true, reqId, message: 'Subscription request registered successfully.' };
+
+  } catch (error) {
+    console.error('Error in requestSubscription:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+

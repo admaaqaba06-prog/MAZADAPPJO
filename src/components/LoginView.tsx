@@ -76,67 +76,38 @@ export const LoginView: React.FC = () => {
     setSuccessMsg('');
     try {
       const { FacebookAuthProvider, signInWithPopup } = await import('firebase/auth');
-      const { auth } = await import('../services/firebase');
+      const { auth, db } = await import('../services/firebase');
+      const { doc, getDoc, setDoc } = await import('firebase/firestore');
       const facebookProvider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, facebookProvider);
-      const user = result.user;
+      const fbUser = result.user;
 
-      const fbUser = {
-        id: user.uid,
-        name: user.displayName || 'Facebook User',
-        email: user.email || `${user.uid}@facebook.com`,
-        avatar: user.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        role: 'user' as const,
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none' as const,
-      };
-
-      // Authenticate inside context first
-      login(fbUser.email, 'password');
-      
-      // Override with true FB account data instantly
-      setCurrentUser(fbUser);
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== fbUser.id);
-        return [...filtered, fbUser];
-      });
-      localStorage.setItem('mazad_user_session', JSON.stringify(fbUser));
-      localStorage.setItem('mazad_authenticated', 'true');
+      const userRef = doc(db, 'users', fbUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        const freshUserDoc = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'Facebook User',
+          email: fbUser.email || `${fbUser.uid}@facebook.com`,
+          avatar: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+          role: 'user',
+          isVerified: true,
+          isBlocked: false,
+          subscriptionStatus: 'none',
+          subscriptionExpiry: null,
+          phoneNumber: '',
+          city: '',
+        };
+        await setDoc(userRef, freshUserDoc);
+      }
       setSuccessMsg(isAr ? 'تم تسجيل الدخول بنجاح عبر فيسبوك!' : 'Successfully signed in via Facebook!');
     } catch (error) {
-      console.warn("Fallback to simulated Facebook Auth:", error);
-      let stableId = localStorage.getItem('mazad_fallback_uid');
-      if (!stableId) {
-        stableId = `fallback-user-${Math.floor(10000 + Math.random() * 90000)}`;
-        localStorage.setItem('mazad_fallback_uid', stableId);
-      }
-      const fbUser = {
-        id: `fb-${stableId}`,
-        name: 'Facebook User',
-        email: 'fb-oauth@facebook.com',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        role: 'user' as const,
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none' as const,
-      };
-
-      login(fbUser.email, 'password');
-      setCurrentUser(fbUser);
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.id !== fbUser.id);
-        return [...filtered, fbUser];
-      });
-      localStorage.setItem('mazad_user_session', JSON.stringify(fbUser));
-      localStorage.setItem('mazad_authenticated', 'true');
-      setSuccessMsg(isAr ? 'تم الدخول بنجاح كمستخدم تجريبي فيسبوك!' : 'Successfully logged in as simulated Facebook User!');
+      console.warn("Facebook login failed:", error);
+      setErrorMsg(isAr ? 'فشل تسجيل الدخول عبر فيسبوك.' : 'Facebook Sign-In failed.');
     }
   };
 
-
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -146,7 +117,7 @@ export const LoginView: React.FC = () => {
         setErrorMsg(isAr ? 'الرجاء ملء كافة الحقول المطلوبة.' : 'Kindly fill in all required fields.');
         return;
       }
-      const res = login(email, password);
+      const res = await login(email, password);
       if (res.success) {
         setSuccessMsg(res.message);
       } else {
@@ -165,7 +136,7 @@ export const LoginView: React.FC = () => {
         setErrorMsg(isAr ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.');
         return;
       }
-      const res = registerUser(name, email, password);
+      const res = await registerUser(name, email, password);
       if (res.success) {
         setSuccessMsg(res.message);
       } else {

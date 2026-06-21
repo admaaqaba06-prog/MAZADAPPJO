@@ -2,32 +2,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return request.auth != null && (request.auth.token.role == 'admin' || request.auth.token.admin == true);
+    }
+
+    // 1. Users block
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isSignedIn() 
+                    && isOwner(userId)
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.isBlocked == false
+                    && request.resource.data.subscriptionStatus == 'none';
+      allow update: if isSignedIn() 
+                    && (isAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isBlocked', 'subscriptionStatus', 'subscriptionExpiry', 'isVerified', 'wonCount'])));
+      allow delete: if isAdmin();
     }
 
+    // 2. Auctions block
     match /auctions/{auctionId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.createdById == request.auth.uid;
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && (isAdmin() || (resource.data.createdById == request.auth.uid && (resource.data.totalBids == 0 || resource.data.totalBids == null) && resource.data.status == 'upcoming'));
     }
 
+    // 3. Bids subcollection (writable ONLY by Cloud Functions)
     match /auctions/{auctionId}/bids/{bidId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if false;
     }
 
-    match /escrows/{escrowId} {
-      allow read, write: if true;
-    }
-
+    // 4. Wallets (writable ONLY by Cloud Functions)
     match /wallets/{walletId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && (isOwner(walletId) || isAdmin());
+      allow write: if false;
     }
 
-    match /chats/{chatId} {
-      allow read, write: if true;
+    // 5. Escrow Transactions (writable ONLY by Cloud Functions)
+    match /escrows/{escrowId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
+      allow write: if false;
     }
 
+    // 6. Subscription Requests (writable ONLY by Cloud Functions)
     match /subscriptionRequests/{reqId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow write: if false;
+    }
+
+    // 7. Chats
+    match /chats/{chatId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
   }
 }
