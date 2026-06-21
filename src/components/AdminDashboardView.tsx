@@ -76,6 +76,23 @@ export const AdminDashboardView: React.FC = () => {
     });
   };
 
+  const approveUserDirect = async (user: any) => {
+    // Default to monthly if no request details exist
+    const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    await updateDoc(doc(db, 'users', user.id), {
+      subscriptionStatus: 'active',
+      subscriptionExpiry: expiry,
+      subscriptionTier: 'monthly'
+    });
+  };
+
+  const rejectUserDirect = async (user: any) => {
+    await updateDoc(doc(db, 'users', user.id), {
+      subscriptionStatus: 'none',
+      subscriptionExpiry: null
+    });
+  };
+
   const rejectSubscription = async (request: any) => {
     await updateDoc(doc(db, 'subscriptionRequests', request.id), {
       subscriptionStatus: 'rejected'
@@ -87,6 +104,12 @@ export const AdminDashboardView: React.FC = () => {
 
   const pendingCliQDrops = escrows.filter(e => e.status === 'locked' && e.auctionId === 'cliq-dep');
   const pendingListingDrops = auctions.filter(a => a.status === 'processing');
+  
+  const pendingByUsersOnly = users.filter((u: any) => {
+    const isPending = u.subscriptionStatus === 'pending';
+    const hasRequest = subscriptionRequests.some((r: any) => r.userId === u.id);
+    return isPending && !hasRequest;
+  });
   
   // Computations
   const activeAuctionsNum = auctions.filter(a => a.status === 'live').length;
@@ -793,6 +816,50 @@ export const AdminDashboardView: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {pendingByUsersOnly.length > 0 && (
+              <div className="space-y-3 mt-6 pt-6 border-t border-gray-200" id="instant-approval-failsafe-section">
+                <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl">
+                  <h4 className="text-xs font-bold text-[#FF6B00] flex items-center gap-1.5 uppercase">
+                    <ShieldCheck className="w-4 h-4" />
+                    {isAr ? 'أعضاء في انتظار التفعيل (تفعيل فوري)' : 'PENDING ACCOUNTS (READY FOR DIRECT VIP ACTIVATION)'}
+                  </h4>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    {isAr 
+                      ? 'هؤلاء الأعضاء قاموا بطلب تفعيل اشتراك. لم يتم إرفاق إيصال الدفع تلقائياً بسبب حجم الصورة الكبير. يمكنك تفعيل حساباتهم فوراً من هنا.' 
+                      : 'These users requested a membership pass but their screenshot exceeded the storage limit. Use the button below to grant instant bidding level status.'}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  {pendingByUsersOnly.map((user) => (
+                    <div key={user.id} className="bg-white border border-gray-150 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                      <div>
+                        <h5 className="font-extrabold text-xs text-gray-900 leading-none">{user.name}</h5>
+                        <p className="text-[10px] text-gray-400 mt-1">{user.email}</p>
+                        <span className="inline-block text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1.5 border border-amber-100">
+                          {isAr ? 'اشتراك معلّق' : 'Subscription Pending'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => approveUserDirect(user)}
+                          className="bg-[#FF6B00] hover:bg-[#E05E00] text-white font-extrabold text-[11px] px-3.5 py-1.5 rounded-xl shadow-xs"
+                        >
+                          {isAr ? 'تفعيل فوري' : 'APPROVE VIP'}
+                        </button>
+                        <button
+                          onClick={() => rejectUserDirect(user)}
+                          className="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 font-bold text-[11px] px-3 py-1.5 rounded-xl"
+                        >
+                          {isAr ? 'رفض' : 'REJECT'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

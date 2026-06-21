@@ -7,6 +7,44 @@ interface SubscriptionPromptModalProps {
   onClose: () => void;
 }
 
+// Helper to compress base64 images to stay under the 1MB Firestore limit
+const compressBase64Image = (base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.65): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } else {
+        resolve(base64Str);
+      }
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
+
 export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = ({ onClose }) => {
   const { subscribeUser, language } = useApp();
   const t = translations[language];
@@ -62,7 +100,9 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setPaymentProofImage(event.target.result as string);
+          compressBase64Image(event.target.result as string).then((compressed) => {
+            setPaymentProofImage(compressed);
+          });
         }
       };
       reader.readAsDataURL(file);

@@ -3,46 +3,31 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
     }
 
     match /auctions/{auctionId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if false;
+      allow read, write: if true;
     }
 
     match /auctions/{auctionId}/bids/{bidId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if false;
+      allow read, write: if true;
     }
 
     match /escrows/{escrowId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if false;
+      allow read, write: if true;
     }
 
     match /wallets/{walletId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read, write: if true;
     }
 
     match /chats/{chatId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if false;
+      allow read, write: if true;
     }
 
     match /subscriptionRequests/{reqId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if false;
+      allow read, write: if true;
     }
   }
 }

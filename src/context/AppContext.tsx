@@ -1140,9 +1140,9 @@ let googleAuthInProgress = false;
       .then(() => console.log('Subscription request saved to Firestore!'))
       .catch(e => console.error('Failed to save subscription request:', e));
 
-    updateDoc(doc(db, 'users', currentUser?.id || ''), {
+    setDoc(doc(db, 'users', currentUser?.id || ''), {
       subscriptionStatus: 'pending'
-    }).catch(e => console.error('Failed to update user status:', e));
+    }, { merge: true }).catch(e => console.error('Failed to update user status:', e));
 
     setCurrentUser(prev => {
       if (!prev) return prev;
