@@ -17,6 +17,7 @@ import {
   Plus, 
   User, 
   ChevronUp, 
+  ChevronDown,
   FolderLock,
   X,
   Sparkles,
@@ -277,6 +278,60 @@ export const LiveStreamView: React.FC = () => {
     }
   };
 
+  // Support desktop wheel and keyboard events for shifting channels (REELS scrolling on desktop/laptop)
+  useEffect(() => {
+    let lastScrollTime = 0;
+    const scrollCooldown = 800; // ms cooldown to avoid rapid skips
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is currently typing in the comment box or another input field
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+      
+      if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        shiftChannel('prev');
+      } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault();
+        shiftChannel('next');
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      // Ignore wheel events if scrolling some scrollable element inside like comments stream or modal
+      const target = e.target as HTMLElement;
+      if (target && target.closest('.overflow-y-auto, .overflow-auto')) {
+        return;
+      }
+
+      // Throttle wheel scroll
+      const now = Date.now();
+      if (now - lastScrollTime < scrollCooldown) return;
+
+      if (Math.abs(e.deltaY) > 30) {
+        e.preventDefault();
+        if (e.deltaY > 0) {
+          shiftChannel('next');
+          lastScrollTime = now;
+        } else {
+          shiftChannel('prev');
+          lastScrollTime = now;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    // Listen with passive: false to allow e.preventDefault()
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [liveAuctions, currentItem, showCommentInput]);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     setStartY(e.touches[0].clientY);
   };
@@ -429,6 +484,46 @@ export const LiveStreamView: React.FC = () => {
             className="w-full h-full object-cover opacity-100 animate-fade-in"
           />
         )}
+      </div>
+      
+      {/* 1.5 Laptop/Desktop keyboard/wheel navigation widget (left side) */}
+      <div 
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 hidden md:flex flex-col items-center gap-2.5 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-2xl scale-100 transition-all hover:border-white/20 select-none"
+        id="desktop-reel-scroller-widget"
+      >
+        <button
+          type="button"
+          onClick={() => shiftChannel('prev')}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#FF6B00] hover:text-white border border-white/10 transition-all flex items-center justify-center cursor-pointer text-zinc-300 active:scale-95"
+          title={isAr ? "البث السابق (سهم للأعلى)" : "Previous stream (Arrow Up)"}
+        >
+          <ChevronUp className="w-5 h-5" />
+        </button>
+        
+        <div className="flex flex-col items-center justify-center text-center font-mono py-1">
+          <span className="text-xs font-black text-white leading-none">
+            {liveAuctions.findIndex(a => a.id === currentItem?.id) !== -1 
+              ? liveAuctions.findIndex(a => a.id === currentItem?.id) + 1 
+              : 1}
+          </span>
+          <div className="w-5 h-[1.5px] bg-white/15 my-1" />
+          <span className="text-[9px] font-black text-zinc-500 leading-none">
+            {liveAuctions.length || 1}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => shiftChannel('next')}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#FF6B00] hover:text-white border border-white/10 transition-all flex items-center justify-center cursor-pointer text-zinc-300 active:scale-95"
+          title={isAr ? "البث التالي (سهم للأسفل / مسافة)" : "Next stream (Arrow Down / Space)"}
+        >
+          <ChevronDown className="w-5 h-5" />
+        </button>
+
+        <span className="text-[7.5px] text-zinc-400 font-extrabold uppercase tracking-wider text-center max-w-[70px] leading-tight mt-1">
+          {isAr ? "تصفح بالأسهم أو العجلة" : "Scroll Wheel / Arrow Keys"}
+        </span>
       </div>
 
       {/* 2. Light Toast alerts on action triggers (z-index 50) */}

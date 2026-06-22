@@ -1686,11 +1686,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Whenever any live auction is outbid, we refund the user's locked escrow
   // =========================================================
   useEffect(() => {
+    const activeUserId = currentUser?.id || 'user-current';
     auctions.forEach(auction => {
-      if (auction.status === 'live' && auction.currentBidderId && auction.currentBidderId !== 'user-current') {
+      if (auction.status === 'live' && auction.currentBidderId && auction.currentBidderId !== activeUserId) {
         // Look for the user's locked escrow for this specific auction
         const clientCommittedEscrow = escrows.find(
-          e => e.auctionId === auction.id && e.bidderId === 'user-current' && e.status === 'locked'
+          e => e.auctionId === auction.id && e.bidderId === activeUserId && e.status === 'locked'
         );
         if (clientCommittedEscrow) {
           const refundAmount = clientCommittedEscrow.amount;
@@ -1808,10 +1809,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 🚨 OUTBID THE USER: Refund checking!
         // If the current highest bidder is the current client user, and we are outbidding them:
-        if (auditAuction.currentBidderId === 'user-current') {
+        const activeUserId = currentUser?.id || 'user-current';
+        if (auditAuction.currentBidderId === activeUserId) {
           // Find their active escrow for this auction
           const clientEscrow = escrowsRef.current.find(
-            e => e.auctionId === auditAuction.id && e.bidderId === 'user-current' && e.status === 'locked'
+            e => e.auctionId === auditAuction.id && e.bidderId === activeUserId && e.status === 'locked'
           );
           if (clientEscrow) {
             const refundAmount = clientEscrow.amount;
@@ -1936,9 +1938,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (isAutoBiddingRef.current) return;
 
+    const activeUserId = currentUser?.id || 'user-current';
     const triggerable = auctions.find(auction => {
       if (auction.status !== 'live') return false;
-      if (auction.currentBidderId === 'user-current') return false;
+      if (auction.currentBidderId === activeUserId) return false;
       
       const maxBid = autoBids[auction.id];
       if (!maxBid) return false;
