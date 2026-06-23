@@ -1,5 +1,5 @@
 /**
- * Script: set-admin.js
+ * Script: set-admin.cjs
  * Purpose: Local Node.js Firebase Admin script to assign Custom User Claims (admin: true, role: 'admin') and update Firestore.
  * 
  * Usage:
@@ -7,7 +7,7 @@
  *   2. Save the downloaded JSON file in this directory as `service-account.json`.
  *   3. Run the following commands:
  *      npm install firebase-admin
- *      node set-admin.js <YOUR_USER_UID>
+ *      node set-admin.cjs <YOUR_USER_UID>
  */
 
 const admin = require('firebase-admin');
@@ -19,28 +19,76 @@ const uid = process.argv[2];
 
 if (!uid) {
   console.error('\x1b[31m%s\x1b[0m', '❌ Error: Please provide the User UID.');
-  console.error('Usage: node set-admin.js <USER_UID>');
+  console.error('Usage: node set-admin.cjs <USER_UID>');
   process.exit(1);
 }
 
-const serviceAccountPath = path.join(__dirname, 'service-account.json');
+let serviceAccountPath = path.join(__dirname, 'service-account.json');
+
+// Windows hidden extensions support: Check if service-account.json.json exists
+if (!fs.existsSync(serviceAccountPath)) {
+  const doubleJsonPath = path.join(__dirname, 'service-account.json.json');
+  if (fs.existsSync(doubleJsonPath)) {
+    console.log('💡 Note: Detected "service-account.json.json" (caused by Windows hiding file extensions), using it...');
+    serviceAccountPath = doubleJsonPath;
+  }
+}
+
+// Still not found? Let's check if there is any file containing 'service' and 'account' in its name (e.g., service-account.json, service-account (2).json, etc.)
+if (!fs.existsSync(serviceAccountPath)) {
+  try {
+    const files = fs.readdirSync(__dirname);
+    const matchedFile = files.find(f => {
+      const lower = f.toLowerCase();
+      return lower.includes('service') && lower.includes('account');
+    });
+    if (matchedFile) {
+      console.log(`💡 Note: Found nearby service account file named "${matchedFile}", using it...`);
+      serviceAccountPath = path.join(__dirname, matchedFile);
+    }
+  } catch (e) {
+    // Ignore error
+  }
+}
 
 if (!fs.existsSync(serviceAccountPath)) {
   console.error('\x1b[31m%s\x1b[0m', '❌ Error: "service-account.json" not found!');
   console.error('Please download your Firebase Service Account private key JSON file, rename it to "service-account.json" and place it in the same directory as this script.');
+  console.error('\n💡 Windows Tip: Windows might have hidden the actual extension, so your file might actually be named "service-account.json.json" or "service-account". Make sure the file exists in your project directory.');
   process.exit(1);
 }
 
 // Initialize the Admin SDK
 console.log('🔄 Initializing Firebase Admin SDK...');
-const serviceAccount = require(serviceAccountPath);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+let serviceAccount;
+try {
+  const rawData = fs.readFileSync(serviceAccountPath, 'utf8');
+  // Clean potential UTF-8 BOM characters that often happen in Windows text files
+  const cleanData = rawData.replace(/^\uFEFF/, '');
+  serviceAccount = JSON.parse(cleanData);
+} catch (parseError) {
+  console.error('\x1b[31m%s\x1b[0m', `❌ Error reading or parsing "${path.basename(serviceAccountPath)}"!`);
+  console.error('Details:', parseError.message);
+  console.error('Please make sure you downloaded the complete, valid private key JSON file from your Firebase console, and that it has not been modified or corrupted.');
+  process.exit(1);
+}
+
+// Resolve the actual admin object to handle ESM/CJS interop safely
+const firebaseAdmin = admin && admin.credential ? admin : ((admin && admin.default) || admin);
+
+if (!firebaseAdmin || !firebaseAdmin.credential) {
+  console.error('\x1b[31m%s\x1b[0m', '❌ Error: Failed to load Firebase Admin SDK properties correctly.');
+  console.error('This usually happens due to Node.js module interop issues. Please make sure "firebase-admin" is installed.');
+  process.exit(1);
+}
+
+firebaseAdmin.initializeApp({
+  credential: firebaseAdmin.credential.cert(serviceAccount)
 });
 
-const auth = admin.auth();
-const db = admin.firestore();
+const auth = firebaseAdmin.auth();
+const db = firebaseAdmin.firestore();
 
 async function grantAdmin(userUid) {
   try {
