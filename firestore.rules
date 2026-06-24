@@ -72,5 +72,18 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
+
+    // 8. Site Settings
+    match /siteSettings/{settingsId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    // 9. System Health Logs
+    match /system_health/{logId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow create: if true;
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
   }
 }

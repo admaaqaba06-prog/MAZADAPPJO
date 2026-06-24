@@ -2,8 +2,65 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- PWA Core Setup -->
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MAZAD JO" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    
+    <!-- Standard SEO Meta Tags -->
     <title>MAZAD JO | Ultra-Premium Live Commerce & Social Auctions</title>
+    <meta name="description" content="Jordan's premier live-video luxury auction house. Bid on exclusive high-spec cars, bespoke luxury watches, designer streetwear, and Dabouq real estate with active CliQ Escrow." />
+    <meta name="keywords" content="mazad jo, jordan auctions, luxury auction amman, live video commerce, cliq escrow, rolex amman, porsche jordan, real estate dabouq" />
+    <meta name="author" content="MAZAD JO Ltd." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://mazad.jo" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mazad.jo" />
+    <meta property="og:title" content="MAZAD JO | Ultra-Premium Live Commerce & Social Auctions" />
+    <meta property="og:description" content="Step into the arena of live bidding. Secure your verified CliQ pass, watch high-fidelity video streams, and acquire certified assets safely with automatic escrow protection." />
+    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:site_name" content="MAZAD JO" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ar_JO" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://mazad.jo" />
+    <meta name="twitter:title" content="MAZAD JO | Live Commerce & Luxury Auctions" />
+    <meta name="twitter:description" content="Live video shopping and certified luxury auctions with real-time escrows. Jordan's premier marketplace." />
+    <meta name="twitter:image" content="/icon.svg" />
+
+    <!-- Structured Data: JSON-LD for Search Indexing -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "OnlineStore",
+        "@id": "https://mazad.jo#organization",
+        "name": "MAZAD JO",
+        "url": "https://mazad.jo",
+        "logo": "https://mazad.jo/icon.svg",
+        "description": "Jordan's premier live commerce platform for secure luxury auctions with CliQ escrow protection.",
+        "currenciesAccepted": "JOD",
+        "paymentAccepted": "Bank Transfer, CliQ Escrow, Credit Card",
+        "areaServed": {
+          "@type": "Country",
+          "name": "Jordan"
+        },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://mazad.jo/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

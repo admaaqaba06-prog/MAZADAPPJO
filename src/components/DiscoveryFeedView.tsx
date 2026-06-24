@@ -15,17 +15,38 @@ import {
   LayoutGrid,
   Calendar,
   ArrowDown,
-  Bookmark
+  Bookmark,
+  Bell
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
+import { AuctionCardSkeleton, EmptyState } from './FeedbackStates';
 
 export const DiscoveryFeedView: React.FC = () => {
-  const { auctions, setActiveAuctionId, setActiveView, language, setLanguage, approveListing, currentUser } = useApp();
+  const { 
+    auctions, 
+    setActiveAuctionId, 
+    setActiveView, 
+    language, 
+    setLanguage, 
+    approveListing, 
+    currentUser,
+    notifications,
+    setShowNotifications
+  } = useApp();
+  
+  const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => setIsLoading(false), 550);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, activeTab, searchTerm]);
 
   const t = translations[language];
   const isAr = language === 'ar';
@@ -127,22 +148,36 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
 
         {/* Action Header controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button 
             onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-            className="px-3 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold text-gray-700 font-sans transition-all"
+            className="px-2.5 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-[11px] font-bold text-gray-700 font-sans transition-all shrink-0"
             id="discover-lang-btn"
           >
             {language === 'en' ? 'العربية' : 'EN'}
           </button>
 
+          <button
+            onClick={() => setShowNotifications(true)}
+            className="relative p-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+            title={isAr ? 'الإشعارات' : 'Notifications'}
+            id="mobile-header-bell"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#FF6B00] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
           <button 
             onClick={() => setActiveView('upload')}
-            className="px-3.5 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold text-gray-900 flex items-center gap-1 transition-all"
+            className="px-3 py-1.5 border border-[#FF6B00] bg-[#FF6B00]/5 hover:bg-[#FF6B00]/10 rounded-xl text-[11px] font-bold text-[#FF6B00] flex items-center gap-1 transition-all shrink-0"
             id="sell-wizard-btn"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[3] text-gray-500" /> 
-            <span>{isAr ? 'بيع +' : '+ Sell'}</span>
+            <Plus className="w-3 h-3 stroke-[3]" /> 
+            <span>{isAr ? 'بيع' : 'Sell'}</span>
           </button>
         </div>
       </div>
@@ -302,11 +337,17 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Dual-Column High Fidelity grid list of live streams preview */}
       <div className="flex-grow px-4 pb-12">
-        {filteredAuctions.length > 0 ? (
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <AuctionCardSkeleton key={n} />
+            ))}
+          </div>
+        ) : filteredAuctions.length > 0 ? (
           activeTab === 'live' ? (
             <div className="relative">
               {/* Dual-column grid styled EXACTLY like the user's high-fidelity mockup */}
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 {/* Simulated Grid Item 1: Phone card */}
                 <div 
                   onClick={() => handleJoinLive(filteredAuctions[0]?.id || '')}
@@ -486,8 +527,8 @@ export const DiscoveryFeedView: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* Upcoming / Default Single Column Grid with exact style overlays */
-            <div className="grid grid-cols-1 gap-4">
+            /* Upcoming / Default Responsive Grid with exact style overlays */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
               {filteredAuctions.map(item => (
                 <div 
                   key={item.id} 
@@ -554,13 +595,11 @@ export const DiscoveryFeedView: React.FC = () => {
             </div>
           )
         ) : (
-          <div className="text-center py-20 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200/80 space-y-2">
-            <Smartphone className="w-10 h-10 text-gray-300 mx-auto animate-bounce" />
-            <h3 className="text-xs font-bold text-gray-500 uppercase">{isAr ? 'لم يعثر على مزادات نشطة مطابقة للبحث' : 'No auctions found'}</h3>
-            <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
-              {isAr ? 'غير شروط الفرز لعرض قائمة المعروضات الفاخرة الأخرى المتاحة حالياً.' : 'Reset filters or swap categories to view other hot premium slots.'}
-            </p>
-          </div>
+          <EmptyState 
+            title={auctions.length === 0 ? (isAr ? 'لا توجد مزادات بعد' : 'No auctions yet') : (isAr ? 'لم يتم العثور على أي مزادات مطابقة' : 'No auctions found')}
+            description={auctions.length === 0 ? (isAr ? 'لا توجد أي مزادات نشطة أو مجدولة على المنصة حالياً.' : 'There are no active or scheduled auctions on the platform currently.') : (isAr ? 'يرجى تغيير فئة الفرز أو مسح كلمات البحث للوصول لمعروضات فاخرة أخرى.' : 'No active or upcoming slots match your filter conditions. Try changing categories or resetting search parameters.')}
+            language={isAr ? 'ar' : 'en'}
+          />
         )}
       </div>
 

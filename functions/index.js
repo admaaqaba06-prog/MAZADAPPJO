@@ -292,6 +292,31 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
         previousCommittedAmountFils = prevEscData.amountFils || Math.round((prevEscData.amount || 0) * 1000);
       }
 
+      // Query if there is a previous locked escrow belonging to the outbid user
+      const outbidUserId = auctionData.currentBidderId;
+      let prevEscrowDoc = null;
+      let prevRefundFils = 0;
+      let prevWalletSnap = null;
+      let prevWalletRef = null;
+
+      if (outbidUserId && outbidUserId !== userId) {
+        const prevEscrowsQuery = await db.collection('escrows')
+          .where('auctionId', '==', auctionId)
+          .where('bidderId', '==', outbidUserId)
+          .where('status', '==', 'locked')
+          .get();
+
+        if (!prevEscrowsQuery.empty) {
+          prevEscrowDoc = prevEscrowsQuery.docs[0];
+          const prevEscrow = prevEscrowDoc.data();
+          prevRefundFils = prevEscrow.amountFils || Math.round((prevEscrow.amount || 0) * 1000);
+
+          // Get the outbid user's wallet BEFORE any sets/updates are done in the transaction
+          prevWalletRef = db.collection('wallets').doc(outbidUserId);
+          prevWalletSnap = await transaction.get(prevWalletRef);
+        }
+      }
+
       // Incremental delta calculation in fils
       const incrementalDeltaFils = amountFils - previousCommittedAmountFils;
 
@@ -299,7 +324,7 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('failed-precondition', `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.`);
       }
 
-      // 6. Update current bidder's wallet
+      // 6. Update current bidder's wallet (All reads are now done! Safe to start writing)
       const newAvailFils = walletData.availableBalance - incrementalDeltaFils;
       const newEscrowFils = walletData.escrowBalance + incrementalDeltaFils;
       const newTotalFils = newAvailFils + newEscrowFils;
@@ -350,42 +375,26 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
       }
 
       // 9. Handle refunding the previous highest bidder
-      const outbidUserId = auctionData.currentBidderId;
-      if (outbidUserId && outbidUserId !== userId) {
-        // Find previous locked escrow for this auction belonging to the outbid user
-        const prevEscrowsQuery = await db.collection('escrows')
-          .where('auctionId', '==', auctionId)
-          .where('bidderId', '==', outbidUserId)
-          .where('status', '==', 'locked')
-          .get();
+      if (outbidUserId && outbidUserId !== userId && prevEscrowDoc) {
+        // Mark it as refunded
+        transaction.update(prevEscrowDoc.ref, { status: 'refunded' });
 
-        if (!prevEscrowsQuery.empty) {
-          const prevEscrowDoc = prevEscrowsQuery.docs[0];
-          const prevEscrow = prevEscrowDoc.data();
-          const prevRefundFils = prevEscrow.amountFils || Math.round((prevEscrow.amount || 0) * 1000);
+        // Return funds to their wallet
+        if (prevWalletSnap && prevWalletSnap.exists && prevWalletRef) {
+          const pwData = prevWalletSnap.data();
+          const oldPrevAvailFils = pwData.availableBalance || 0;
+          const oldPrevEscrowFils = pwData.escrowBalance || 0;
 
-          // Mark it as refunded
-          transaction.update(prevEscrowDoc.ref, { status: 'refunded' });
+          const newPrevEscrowFils = Math.max(0, oldPrevEscrowFils - prevRefundFils);
+          const newPrevAvailFils = oldPrevAvailFils + prevRefundFils;
+          const newPrevTotalFils = newPrevAvailFils + newPrevEscrowFils;
 
-          // Return funds to their wallet
-          const prevWalletRef = db.collection('wallets').doc(outbidUserId);
-          const prevWalletSnap = await transaction.get(prevWalletRef);
-          if (prevWalletSnap.exists) {
-            const pwData = prevWalletSnap.data();
-            const oldPrevAvailFils = pwData.availableBalance || 0;
-            const oldPrevEscrowFils = pwData.escrowBalance || 0;
-
-            const newPrevEscrowFils = Math.max(0, oldPrevEscrowFils - prevRefundFils);
-            const newPrevAvailFils = oldPrevAvailFils + prevRefundFils;
-            const newPrevTotalFils = newPrevAvailFils + newPrevEscrowFils;
-
-            transaction.set(prevWalletRef, {
-              userId: outbidUserId,
-              availableBalance: newPrevAvailFils,
-              escrowBalance: newPrevEscrowFils,
-              totalBalance: newPrevTotalFils
-            }, { merge: true });
-          }
+          transaction.set(prevWalletRef, {
+            userId: outbidUserId,
+            availableBalance: newPrevAvailFils,
+            escrowBalance: newPrevEscrowFils,
+            totalBalance: newPrevTotalFils
+          }, { merge: true });
         }
       }
 
@@ -473,16 +482,21 @@ exports.releaseEscrow = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('failed-precondition', 'Escrow is not locked.');
       }
 
+      // Read bidder wallet BEFORE writing to escrow, if it is a CliQ Top-up
+      let bidderWalletSnap = null;
+      const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
+      if (escrowData.auctionId === 'cliq-dep') {
+        bidderWalletSnap = await transaction.get(bidderWalletRef);
+      }
+
       // Mark escrow as released
       transaction.update(escrowRef, { status: 'released' });
 
       // If it was a CliQ Top-Up transfer approval, add balance to wallet!
       if (escrowData.auctionId === 'cliq-dep') {
-        const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
-        const bidderWalletSnap = await transaction.get(bidderWalletRef);
         const addedFils = escrowData.amountFils || Math.round((escrowData.amount || 0) * 1000);
 
-        if (bidderWalletSnap.exists) {
+        if (bidderWalletSnap && bidderWalletSnap.exists) {
           const wData = bidderWalletSnap.data();
           const oldAvail = wData.availableBalance || 0;
           const oldEscrow = wData.escrowBalance || 0;
@@ -562,16 +576,21 @@ exports.refundEscrow = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('failed-precondition', 'Escrow is not locked.');
       }
 
+      // Read bidder wallet BEFORE writing to escrow, if not a cliq-dep
+      let bidderWalletSnap = null;
+      const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
+      if (escrowData.auctionId !== 'cliq-dep') {
+        bidderWalletSnap = await transaction.get(bidderWalletRef);
+      }
+
       // Mark escrow as refunded
       transaction.update(escrowRef, { status: 'refunded' });
 
       // Return escrow funds back to bidder’s wallet (availableBalance increase, escrowBalance decrease)
       if (escrowData.auctionId !== 'cliq-dep') {
-        const bidderWalletRef = db.collection('wallets').doc(escrowData.bidderId);
-        const bidderWalletSnap = await transaction.get(bidderWalletRef);
         const refundAmtFils = escrowData.amountFils || Math.round((escrowData.amount || 0) * 1000);
 
-        if (bidderWalletSnap.exists) {
+        if (bidderWalletSnap && bidderWalletSnap.exists) {
           const wData = bidderWalletSnap.data();
           const oldAvail = wData.availableBalance || 0;
           const oldEscrow = wData.escrowBalance || 0;

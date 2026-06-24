@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
+import { logAnalyticsEvent } from '../services/analyticsService';
 import { httpsCallable } from 'firebase/functions';
 import { 
   GoogleAuthProvider, 
@@ -47,11 +48,15 @@ interface AppContextProps {
   setActiveAuctionId: (id: string | null) => void;
   activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about';
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about') => void;
+  showNotifications: boolean;
+  setShowNotifications: (show: boolean) => void;
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
   triggerCliQTopUp: (amount: number, alias: string, receiptName: string) => void;
   addNotification: (title: string, description: string, type: Notification['type']) => void;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
   
   // Admin Operations
   approveListing: (id: string) => void;
@@ -97,432 +102,74 @@ interface AppContextProps {
 
   // Live Chat Comments System
   sendChatMessage: (text: string) => void;
+
+  // Maintenance & Operational Flags & Health logs
+  maintenanceMode: {
+    enabled: boolean;
+    messageAr?: string;
+    messageEn?: string;
+    expectedDuration?: string;
+  };
+  featureFlags: {
+    enableLiveAuctions: boolean;
+    enableSubscriptions: boolean;
+    enableWallets: boolean;
+    enablePushNotifications: boolean;
+  };
+  updateMaintenanceMode: (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => Promise<void>;
+  updateFeatureFlag: (flag: string, value: boolean) => Promise<void>;
+  systemHealthLogs: any[];
+  logSystemHealth: (type: 'error' | 'payment_fail' | 'bid_fail' | 'wallet_fail', title: string, details: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
 
-// Initial Sample Data (Luxury Jordan-centric vibe)
-const INITIAL_USERS: User[] = [
-  {
-    id: 'user-current',
-    name: 'Tareq Al-Masri',
-    email: 'tareq@masri.jo',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    role: 'user',
-    isVerified: true,
-    isBlocked: false,
-    phoneNumber: '+962 7 9888 1234',
-    city: 'Amman',
-    subscriptionStatus: 'active',
-    subscriptionExpiry: '2026-12-31'
-  },
-  {
-    id: 'user-zain',
-    name: 'Zain Al-Fayez',
-    email: 'zain@fayez.corp',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    role: 'user',
-    isVerified: true,
-    isBlocked: false,
-    phoneNumber: '+962 7 9111 2222',
-    city: 'Amman',
-    subscriptionStatus: 'active',
-    subscriptionExpiry: '2027-01-15'
-  },
-  {
-    id: 'user-ramy',
-    name: 'Ramy Haddad',
-    email: 'ramy@haddad.me',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    role: 'user',
-    isVerified: false,
-    isBlocked: false,
-    phoneNumber: '+962 7 8333 4444',
-    city: 'Aqaba',
-    subscriptionStatus: 'none',
-  },
-  {
-    id: 'user-nour',
-    name: 'Nour El-Din',
-    email: 'nour@nour.tech',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-    role: 'user',
-    isVerified: true,
-    isBlocked: true, // Blocked user demonstration
-    phoneNumber: '+962 7 7555 6666',
-    city: 'Irbid',
-    subscriptionStatus: 'expired',
-  }
-];
+// Clean Initial Production States (No Demo/Mock Data)
+const DEFAULT_UNAUTHENTICATED_USER: User = {
+  id: 'unauthenticated',
+  name: 'User',
+  email: '',
+  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+  role: 'user',
+  isVerified: false,
+  isBlocked: false,
+  subscriptionStatus: 'none',
+  createdAt: ''
+};
 
-const INITIAL_SELLERS: SellerProfile[] = [
-  {
-    id: 'seller-zain-profile',
-    userId: 'user-zain',
-    storeName: 'Zain Luxury Boutique',
-    storeLogo: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-    bio: 'Direct importer of ultra-premium watches, design luxury collectibles, and top-tier limited edition streetwear in Amman.',
-    rating: 4.9,
-    totalSales: 142,
-    isVerifiedMerchant: true,
-    joinedDate: '2025-05-10'
-  },
-  {
-    id: 'seller-ramy-profile',
-    userId: 'user-ramy',
-    storeName: 'Haddad Auto Club & Tech',
-    storeLogo: 'https://images.unsplash.com/photo-1549399542-7eed3385d6de?auto=format&fit=crop&w=150&q=80',
-    bio: 'Curator of collectible high-performance vehicles, bespoke tech assemblies, and elite gadgetry in Jordan.',
-    rating: 4.2,
-    totalSales: 19,
-    isVerifiedMerchant: false, // For merchant approval demonstration
-    joinedDate: '2026-03-01'
-  }
-];
-
-const INITIAL_AUCTIONS: AuctionItem[] = [
-  {
-    id: 'auction-rolex',
-    title: 'Rolex Cosmograph Daytona - Black Oyster',
-    description: 'Breathtaking 18ct white gold Rolex Daytona under original manufacturer warranty. Features highly coveted black dial with chromatic sub-dials. Flawless ceramic cerachrom bezel. Certified 2025 stamp, complete set of matching box and papers.',
-    category: 'Luxury',
-    startingPrice: 18500,
-    currentPrice: 20200,
-    minIncrement: 100,
-    currentBidderId: 'user-zain',
-    currentBidderName: 'Zain Al-Fayez',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=500&q=80',
-    endTime: Date.now() + 450 * 1000, // 7.5 minutes from now
-    duration: 600,
-    sellerId: 'seller-zain-profile',
-    sellerName: 'Zain Luxury Boutique',
-    sellerLogo: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-    status: 'live',
-    isFeatured: true,
-    totalBids: 18,
-    viewersCount: 247
-  },
-  {
-    id: 'auction-macbook',
-    title: 'Custom Stealth M4 Pro MacBook Workstation',
-    description: 'Pre-production ultra-spec MacBook Pro. Features 16-Core CPU, 40-Core GPU, 128GB Unified Memory, and a bespoke matte carbon anodized chassis. Certified pre-release unit directly sourced for technophile elites.',
-    category: 'Electronics',
-    startingPrice: 3200,
-    currentPrice: 3750,
-    minIncrement: 50,
-    currentBidderId: null,
-    currentBidderName: null,
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=500&q=80',
-    endTime: Date.now() + 1800 * 1000, // 30 minutes from now
-    duration: 3600,
-    sellerId: 'seller-zain-profile',
-    sellerName: 'Zain Luxury Boutique',
-    sellerLogo: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-    status: 'live',
-    isFeatured: false,
-    totalBids: 9,
-    viewersCount: 89
-  },
-  {
-    id: 'auction-porsche',
-    title: 'Porsche 911 GT3 RS (992) Allocation Slot',
-    description: 'Fully customizable Jordan dealer allocation slot for the mythical 992 GT3 RS. Includes complete bespoke PTS (Paint to Sample) configuration clearance. Escrow lock on first bid required.',
-    category: 'Vehicles',
-    startingPrice: 120000,
-    currentPrice: 125000,
-    minIncrement: 1000,
-    currentBidderId: null,
-    currentBidderName: null,
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=500&q=80',
-    endTime: Date.now() + 7200 * 1000, // 2 hours
-    duration: 7200,
-    sellerId: 'seller-ramy-profile',
-    sellerName: 'Haddad Auto Club',
-    sellerLogo: 'https://images.unsplash.com/photo-1549399542-7eed3385d6de?auto=format&fit=crop&w=150&q=80',
-    status: 'live',
-    isFeatured: true,
-    totalBids: 5,
-    viewersCount: 421
-  },
-  {
-    id: 'auction-villa',
-    title: 'Dabouq Contemporary Smart-Penthouse',
-    description: 'High-concept architecture facing Jordan’s most prestigious hill. Panoramic sky deck, intelligent glass facade, bespoke biometric vault, and private security grid. 100% verified legal papers.',
-    category: 'Real Estate',
-    startingPrice: 420000,
-    currentPrice: 420000,
-    minIncrement: 5000,
-    currentBidderId: null,
-    currentBidderName: null,
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=500&q=80',
-    endTime: Date.now() + 86400 * 1000, // 24 hours
-    duration: 86400,
-    sellerId: 'seller-ramy-profile',
-    sellerName: 'Haddad Auto Club',
-    sellerLogo: 'https://images.unsplash.com/photo-1549399542-7eed3385d6de?auto=format&fit=crop&w=150&q=80',
-    status: 'upcoming',
-    isFeatured: false,
-    totalBids: 0,
-    viewersCount: 15
-  },
-  {
-    id: 'auction-jacket',
-    title: 'Vintage Amiri Hand-Painted Silk Bomber',
-    description: 'Extremely rare artisan runway custom bomber in pure heavyweight Italian mulberry silk. Intricate hand-painted Jordan desert-falcon design. Worn once by a global designer star at Amman Fashion Week.',
-    category: 'Fashion',
-    startingPrice: 1200,
-    currentPrice: 1450,
-    minIncrement: 50,
-    currentBidderId: 'user-current',
-    currentBidderName: 'Tareq Al-Masri',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=500&q=80',
-    endTime: Date.now() + 15 * 60 * 1000, // 15 mins
-    duration: 3600,
-    sellerId: 'seller-zain-profile',
-    sellerName: 'Zain Luxury Boutique',
-    sellerLogo: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-    status: 'live',
-    isFeatured: false,
-    totalBids: 12,
-    viewersCount: 104
-  }
-];
-
-const INITIAL_CHATS: ChatMessage[] = [
-  {
-    id: 'chat-1',
-    auctionId: 'auction-rolex',
-    userId: 'user-zain',
-    userName: 'Zain Al-Fayez',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    text: 'A clean bezel, no micro-scratches. Inspected personally in Switzerland.',
-    timestamp: Date.now() - 600000,
-    isSystem: false,
-    isBid: false
-  },
-  {
-    id: 'chat-2',
-    auctionId: 'auction-rolex',
-    userId: 'system',
-    userName: 'MAZAD ESCROW',
-    userAvatar: '',
-    text: '🔒 Bidding is backed by 100% active CLIQ Escrow. Funds are pre-authorized on bid.',
-    timestamp: Date.now() - 400000,
-    isSystem: true,
-    isBid: false
-  },
-  {
-    id: 'chat-3',
-    auctionId: 'auction-rolex',
-    userId: 'user-ramy',
-    userName: 'Ramy Haddad',
-    userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    text: 'Is dynamic shipping insured to Aqaba?',
-    timestamp: Date.now() - 300000,
-    isSystem: false,
-    isBid: false
-  },
-  {
-    id: 'chat-4',
-    auctionId: 'auction-rolex',
-    userId: 'user-zain',
-    userName: 'Zain Luxury Boutique',
-    userAvatar: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-    text: 'Yes! Platinum DHL delivery with secure armoured lock box included.',
-    timestamp: Date.now() - 250000,
-    isSystem: false,
-    isBid: false
-  },
-  {
-    id: 'chat-role-bid',
-    auctionId: 'auction-rolex',
-    userId: 'user-zain',
-    userName: 'Zain Al-Fayez',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    text: 'placed a winning bid of 20,200 JOD',
-    timestamp: Date.now() - 100000,
-    isSystem: false,
-    isBid: true,
-    bidAmount: 20200
-  }
-];
-
-const INITIAL_ESCROWS: EscrowTransaction[] = [
-  {
-    id: 'escrow-dep-zain-1',
-    walletId: 'wallet-zain',
-    auctionId: 'cliq-dep',
-    auctionTitle: 'CliQ Deposit (Zain Al-Fayez)',
-    bidderId: 'user-zain',
-    bidderName: 'Zain Al-Fayez',
-    sellerId: 'system',
-    sellerName: 'MAZADJOM CliQ Gateway',
-    amount: 25000,
-    status: 'released',
-    timestamp: Date.now() - 172800000,
-    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
-    cliqAlias: 'zain.fayez@cliq'
-  },
-  {
-    id: 'escrow-dep-ramy-1',
-    walletId: 'wallet-ramy',
-    auctionId: 'cliq-dep',
-    auctionTitle: 'CliQ Deposit (Ramy Haddad)',
-    bidderId: 'user-ramy',
-    bidderName: 'Ramy Haddad',
-    sellerId: 'system',
-    sellerName: 'MAZADJOM CliQ Gateway',
-    amount: 1500,
-    status: 'released',
-    timestamp: Date.now() - 86400000,
-    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
-    cliqAlias: 'ramy.h@cliq'
-  },
-  {
-    id: 'escrow-dep-nour-1',
-    walletId: 'wallet-nour',
-    auctionId: 'cliq-dep',
-    auctionTitle: 'CliQ Deposit (Nour El-Din)',
-    bidderId: 'user-nour',
-    bidderName: 'Nour El-Din',
-    sellerId: 'system',
-    sellerName: 'MAZADJOM CliQ Gateway',
-    amount: 850,
-    status: 'locked',
-    timestamp: Date.now() - 600000,
-    paymentProofUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=150&q=80',
-    cliqAlias: 'nour.tech@cliq'
-  },
-  {
-    id: 'escrow-sub-zain',
-    walletId: 'wallet-zain',
-    auctionId: 'cliq-sub',
-    auctionTitle: 'Silver Auction Pass Activation (CliQ MAZADJOM)',
-    bidderId: 'user-zain',
-    bidderName: 'Zain Al-Fayez',
-    sellerId: 'system',
-    sellerName: 'MAZADJOM Registration',
-    amount: 100,
-    status: 'released',
-    timestamp: Date.now() - 250000000
-  },
-  {
-    id: 'escrow-sub-tareq',
-    walletId: 'wallet-current',
-    auctionId: 'cliq-sub',
-    auctionTitle: 'Silver Auction Pass Activation (CliQ MAZADJOM)',
-    bidderId: 'user-current',
-    bidderName: 'Tareq Al-Masri',
-    sellerId: 'system',
-    sellerName: 'MAZADJOM Registration',
-    amount: 100,
-    status: 'released',
-    timestamp: Date.now() - 150000000
-  }
-];
-
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: 'notif-1',
-    userId: 'user-current',
-    title: 'Elite Seller Account Activated',
-    description: 'Welcome to Mazad Jo. Your premium bank billing credentials have been registered.',
-    type: 'verify',
-    timestamp: Date.now() - 86400000,
-    read: false
-  }
-];
-
-const DEMO_FALLBACK_AUCTIONS: AuctionItem[] = [
-  {
-    id: "demo-1",
-    title: "iPhone 15 Pro Max 256GB",
-    currentPrice: 850,
-    startingPrice: 500,
-    status: "live",
-    videoUrl: "",
-    thumbnailUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400",
-    totalBids: 12,
-    endTime: Date.now() + 3600000,
-    sellerName: "Tech Store JO",
-    description: "iPhone 15 Pro Max 256GB with dynamic features and pristine design.",
-    category: "Electronics",
-    minIncrement: 10,
-    currentBidderId: null,
-    currentBidderName: null,
-    duration: 3600,
-    sellerId: "seller-tech-store",
-    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
-    isFeatured: true,
-    viewersCount: 154,
-    // Add custom properties for other consumers
-    imageUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400",
-    endsAt: new Date(Date.now() + 3600000),
-    createdByName: "Tech Store JO"
-  } as unknown as AuctionItem,
-  {
-    id: "demo-2", 
-    title: "Rolex Submariner",
-    currentPrice: 4200,
-    startingPrice: 3000,
-    status: "live",
-    videoUrl: "",
-    thumbnailUrl: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400",
-    totalBids: 28,
-    endTime: Date.now() + 7200000,
-    sellerName: "Luxury JO",
-    description: "Elegant Rolex Submariner luxury timepiece.",
-    category: "Luxury",
-    minIncrement: 50,
-    currentBidderId: null,
-    currentBidderName: null,
-    duration: 7200,
-    sellerId: "seller-luxury-jo",
-    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
-    isFeatured: true,
-    viewersCount: 288,
-    // Add custom properties for other consumers
-    imageUrl: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400",
-    endsAt: new Date(Date.now() + 7200000),
-    createdByName: "Luxury JO"
-  } as unknown as AuctionItem,
-  {
-    id: "demo-3",
-    title: "MacBook Pro M3",
-    currentPrice: 1200,
-    startingPrice: 900,
-    status: "live", 
-    videoUrl: "",
-    thumbnailUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400",
-    totalBids: 7,
-    endTime: Date.now() + 5400000,
-    sellerName: "Apple Zone JO",
-    description: "High-performance MacBook Pro with M3 processor.",
-    category: "Electronics",
-    minIncrement: 20,
-    currentBidderId: null,
-    currentBidderName: null,
-    duration: 5400,
-    sellerId: "seller-apple-zone",
-    sellerLogo: "https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80",
-    isFeatured: false,
-    viewersCount: 95,
-    // Add custom properties for other consumers
-    imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400",
-    endsAt: new Date(Date.now() + 5400000),
-    createdByName: "Apple Zone JO"
-  } as unknown as AuctionItem,
-];
+const INITIAL_USERS: User[] = [];
+const INITIAL_SELLERS: SellerProfile[] = [];
+const INITIAL_AUCTIONS: AuctionItem[] = [];
+const INITIAL_CHATS: ChatMessage[] = [];
+const INITIAL_ESCROWS: EscrowTransaction[] = [];
+const INITIAL_NOTIFICATIONS: Notification[] = [];
+const DEMO_FALLBACK_AUCTIONS: AuctionItem[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Core user states
-  const [currentUser, setCurrentUser] = useState<User>(INITIAL_USERS[0]);
-  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(INITIAL_SELLERS[0]);
+  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_UNAUTHENTICATED_USER);
+  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+
+  // Maintenance & Operations States
+  const [maintenanceMode, setMaintenanceMode] = useState({
+    enabled: false,
+    messageAr: 'المنصة خاضعة للصيانة المجدولة حالياً لتحديث أنظمة التشفير وحسابات الضمان بنظام كليك.',
+    messageEn: 'The platform is currently undergoing scheduled maintenance to upgrade security protocols and CliQ escrow systems.',
+    expectedDuration: '1 hr'
+  });
+
+  const [featureFlags, setFeatureFlags] = useState({
+    enableLiveAuctions: true,
+    enableSubscriptions: true,
+    enableWallets: true,
+    enablePushNotifications: true
+  });
+
+  const [systemHealthLogs, setSystemHealthLogs] = useState<any[]>([]);
+
+  // Sliding window rate limiters for fraud prevention
+  const lastBidTimestampRef = useRef<number>(0);
+  const bidTimestampsRef = useRef<number[]>([]);
   
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(() => {
@@ -676,6 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about'>('discovery');
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
   // Watchlist & Auto-bid state hooks
   const [watchlist, setWatchlist] = useState<string[]>(() => {
@@ -848,13 +496,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsAuthenticated(true);
         }
       } else {
-        setCurrentUser(INITIAL_USERS[0]);
+        setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
         setIsAuthenticated(false);
       }
     });
 
     return () => unsubAuth();
   }, []);
+
+  // 1.5. Real-time site settings, maintenance mode, and feature flags syncing
+  useEffect(() => {
+    const maintenanceRef = doc(db, 'siteSettings', 'maintenanceMode');
+    const flagsRef = doc(db, 'siteSettings', 'featureFlags');
+
+    const unsubMaint = onSnapshot(maintenanceRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setMaintenanceMode({
+          enabled: data.enabled === true,
+          messageAr: data.messageAr || 'المنصة خاضعة للصيانة المجدولة حالياً لتحديث أنظمة التشفير وحسابات الضمان بنظام كليك.',
+          messageEn: data.messageEn || 'The platform is currently undergoing scheduled maintenance to upgrade security protocols and CliQ escrow systems.',
+          expectedDuration: data.expectedDuration || '1 hr'
+        });
+      } else {
+        setMaintenanceMode({
+          enabled: false,
+          messageAr: 'المنصة خاضعة للصيانة المجدولة حالياً لتحديث أنظمة التشفير وحسابات الضمان بنظام كليك.',
+          messageEn: 'The platform is currently undergoing scheduled maintenance to upgrade security protocols and CliQ escrow systems.',
+          expectedDuration: '1 hr'
+        });
+      }
+    }, (err) => {
+      console.warn("Error subscribing to maintenanceMode:", err);
+    });
+
+    const unsubFlags = onSnapshot(flagsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setFeatureFlags({
+          enableLiveAuctions: data.enableLiveAuctions !== false,
+          enableSubscriptions: data.enableSubscriptions !== false,
+          enableWallets: data.enableWallets !== false,
+          enablePushNotifications: data.enablePushNotifications !== false,
+        });
+      } else {
+        setFeatureFlags({
+          enableLiveAuctions: true,
+          enableSubscriptions: true,
+          enableWallets: true,
+          enablePushNotifications: true,
+        });
+      }
+    }, (err) => {
+      console.warn("Error subscribing to featureFlags:", err);
+    });
+
+    return () => {
+      unsubMaint();
+      unsubFlags();
+    };
+  }, []);
+
+  // Sync System Health logs (For admins)
+  useEffect(() => {
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+    if (!isStrictAdmin) {
+      setSystemHealthLogs([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'system_health'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const unsubHealth = onSnapshot(q, (snap) => {
+      const logs: any[] = [];
+      snap.forEach((doc) => {
+        logs.push({ id: doc.id, ...doc.data() });
+      });
+      setSystemHealthLogs(logs);
+    }, (err) => {
+      console.warn("Error subscribing to system_health logs:", err);
+    });
+
+    return () => unsubHealth();
+  }, [currentUser]);
 
   // 2. Real-time synchronizations of logged-in User profile and Wallet with Firestore
   useEffect(() => {
@@ -886,21 +614,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'users' snapshot subscription error:", err);
     });
 
-    // B. Real-time wallet sync
+    // B. Real-time wallet sync with self-healing check and retries to avoid race conditions with Auth trigger
     const walletRef = doc(db, 'wallets', currentUser.id);
-    getDoc(walletRef).then(async (snap) => {
-      if (!snap.exists()) {
-        try {
-          const { httpsCallable } = await import('firebase/functions');
-          const initWalletCallable = httpsCallable(functions, 'initializeUserWallet');
-          await initWalletCallable();
-        } catch (e) {
-          console.warn("Failed to initialize user wallet via Cloud Function:", e);
+    const checkAndInitWallet = async (attempt = 1) => {
+      try {
+        const snap = await getDoc(walletRef);
+        if (!snap.exists()) {
+          if (attempt < 3) {
+            // Wait 1.5 seconds and retry to let the server Auth trigger finish writing
+            setTimeout(() => {
+              checkAndInitWallet(attempt + 1);
+            }, 1500);
+          } else {
+            // If still doesn't exist after retries, trigger the cloud function
+            const { httpsCallable } = await import('firebase/functions');
+            const initWalletCallable = httpsCallable(functions, 'initializeUserWallet');
+            await initWalletCallable();
+            console.log("Wallet successfully initialized via Cloud Function on fallback.");
+          }
         }
+      } catch (e: any) {
+        console.warn("Wallet init check attempt " + attempt + " failed:", e);
       }
-    }).catch(e => {
-      console.warn("Failed to fetch wallet from Firestore:", e);
-    });
+    };
+    checkAndInitWallet();
 
     const unsubWallet = onSnapshot(walletRef, (snap) => {
       if (snap.exists()) {
@@ -1033,7 +770,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    if (currentUser.role === 'admin') {
+    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' && (currentUser.role === 'admin' || currentUser.isAdmin === true);
+    if (isStrictAdmin) {
       const escrowsRefCol = collection(db, 'escrows');
       const unsub = onSnapshot(escrowsRefCol, (snap) => {
         const fetchedEscrows: EscrowTransaction[] = [];
@@ -1307,7 +1045,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
-      setCurrentUser(INITIAL_USERS[0]);
+      setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
       setIsAuthenticated(false);
       setWallet({
         userId: 'user-current',
@@ -1322,18 +1060,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const registerUser = useCallback(async (name: string, email: string, password = '', phone = '') => {
     const cleanEmail = email.toLowerCase().trim();
+    const cleanPhone = phone.trim();
+    const cleanName = name.trim();
     const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
+
+    // Duplicate Account & Sybil / Fraud Protection Validation
+    try {
+      const { getDocs, query, collection, where } = await import('firebase/firestore');
+      
+      // 1. Check for duplicate phone number
+      if (cleanPhone) {
+        const phoneQuery = query(collection(db, 'users'), where('phone', '==', cleanPhone));
+        const phoneSnap = await getDocs(phoneQuery);
+        if (!phoneSnap.empty) {
+          await logAnalyticsEvent('rate_limit_triggered', null, cleanEmail, { 
+            reason: 'duplicate_account_phone_blocked', 
+            attemptedPhone: cleanPhone 
+          });
+          return {
+            success: false,
+            message: language === 'ar'
+              ? '❌ رقم الهاتف هذا مسجل مسبقاً بحساب آخر. تمنع قوانين المنصة الحسابات المتكررة.'
+              : '🚫 Duplicate Account: A verified account with this phone number already exists.'
+          };
+        }
+      }
+
+      // 2. Check for duplicate name
+      if (cleanName) {
+        const nameQuery = query(collection(db, 'users'), where('name', '==', cleanName));
+        const nameSnap = await getDocs(nameQuery);
+        if (!nameSnap.empty) {
+          await logAnalyticsEvent('rate_limit_triggered', null, cleanEmail, { 
+            reason: 'duplicate_account_name_blocked', 
+            attemptedName: cleanName 
+          });
+          return {
+            success: false,
+            message: language === 'ar'
+              ? '❌ الاسم مسجل بالفعل! يرجى إدخال اسمك الكامل وثنائي تجنباً للاشتباه بالاحتيال.'
+              : '🚫 Duplicate Name: A user with this display name is already registered.'
+          };
+        }
+      }
+    } catch (dbErr) {
+      console.warn("Skip pre-registration security query fallback: ", dbErr);
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const user = userCredential.user;
       
-      await updateProfile(user, { displayName: name });
+      await updateProfile(user, { displayName: cleanName });
       
       const userRef = doc(db, 'users', user.uid);
       const freshUserDoc = {
         id: user.uid,
         uid: user.uid,
-        name: name,
+        name: cleanName,
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         role: isAdminEmail ? 'admin' : 'user',
@@ -1343,12 +1127,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isBlocked: false,
         subscriptionStatus: 'none',
         subscriptionExpiry: null,
-        phoneNumber: phone || '',
-        phone: phone || '',
+        phoneNumber: cleanPhone || '',
+        phone: cleanPhone || '',
         city: '',
         createdAt: new Date().toISOString()
       };
       await setDoc(userRef, freshUserDoc);
+
+      // Track successful registration in Analytics
+      await logAnalyticsEvent('user_registration', user.uid, cleanEmail, {
+        method: 'email_password',
+        name: cleanName,
+        isAdmin: isAdminEmail
+      });
 
       return { 
         success: true, 
@@ -1390,6 +1181,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
+
+    // Native HTML5 Web Push Notification Fallback
+    if (featureFlags.enablePushNotifications && 'Notification' in window && window.Notification.permission === 'granted') {
+      try {
+        new window.Notification(title, {
+          body: description,
+          icon: '/icon.svg',
+          tag: newNotif.id,
+          silent: false
+        });
+      } catch (e) {
+        console.warn('Native push notification error: ', e);
+      }
+    }
+  }, [featureFlags.enablePushNotifications]);
+
+  const markAsRead = useCallback((id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
   const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
@@ -1397,6 +1210,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!currentUser) {
       addNotification('❌ Error', 'User must be logged in.', 'alert');
+      return;
+    }
+
+    if (!featureFlags.enableSubscriptions) {
+      addNotification(
+        language === 'ar' ? '⚠️ الاشتراكات معطلة' : '⚠️ Subscriptions Disabled',
+        language === 'ar' ? 'عمليات ترقية الاشتراكات معطلة مؤقتاً للصيانة المجدولة.' : 'Subscription upgrades are temporarily disabled for system maintenance.',
+        'alert'
+      );
       return;
     }
 
@@ -1466,12 +1288,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
     } catch (error: any) {
       console.error("[requestSubscription] Failed. Function: requestSubscription, userId:", currentUser.id, "databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753, error:", error);
+      await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
       addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
     }
-  }, [currentUser, addNotification, functions]);
+  }, [currentUser, addNotification, functions, logSystemHealth, featureFlags, language]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
   const placeBid = useCallback(async (auctionId: string, amount: number): Promise<{ success: boolean; message: string }> => {
+    // 0. Feature flag check
+    if (!featureFlags.enableLiveAuctions) {
+      return { 
+        success: false, 
+        message: language === 'ar' 
+          ? '⚠️ المزايدة على المعروضات معطلة مؤقتاً للصيانة المجدولة.' 
+          : '🚫 Live Bidding is temporarily disabled for scheduled maintenance.' 
+      };
+    }
+
+    const now = Date.now();
+
     // 1. Double check blocking status
     if (currentUser.isBlocked) {
       return { success: false, message: '🚫 Account restricted. Bidding disabled.' };
@@ -1486,15 +1321,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
+    // 2. Bid Spam & Timing Protection (Min 1.5 seconds cooldown between bids)
+    const lastBidTime = lastBidTimestampRef.current;
+    if (now - lastBidTime < 1500) {
+      await logAnalyticsEvent('bid_spam_blocked', currentUser.id, currentUser.email, {
+        auctionId,
+        bidAmount: amount,
+        timeSinceLastBidMs: now - lastBidTime,
+        type: 'bot_spam_protection'
+      });
+      return {
+        success: false,
+        message: language === 'ar'
+          ? '⚠️ تم حظر المزايدة السريعة! يرجى الانتظار 1.5 ثانية بين المزايدات لحماية استقرار المزاد.'
+          : '🚫 Spam Protection: Please wait at least 1.5 seconds between bids.'
+      };
+    }
+
+    // 3. Sliding Window Rate Limiting (Max 10 bids per 60 seconds)
+    const updatedWindow = bidTimestampsRef.current.filter(ts => now - ts < 60000);
+    if (updatedWindow.length >= 10) {
+      await logAnalyticsEvent('rate_limit_triggered', currentUser.id, currentUser.email, {
+        auctionId,
+        windowSizeSec: 60,
+        requestCount: updatedWindow.length,
+        type: 'bidding_rate_limit'
+      });
+      return {
+        success: false,
+        message: language === 'ar'
+          ? '⚠️ تم تجاوز حد المزايدات المسموح به (10 مزايدات في الدقيقة). يرجى الانتظار دقيقة واحدة.'
+          : '🚫 Rate Limit Exceeded: Max 10 bids per minute. Please pause for a moment.'
+      };
+    }
+
     try {
       const placeBidCallable = httpsCallable<{ auctionId: string; amount: number }, { success: boolean; message: string }>(functions, 'placeBid');
       const result = await placeBidCallable({ auctionId, amount });
       if (result.data.success) {
+        // Update security refs
+        lastBidTimestampRef.current = Date.now();
+        bidTimestampsRef.current = [...updatedWindow, Date.now()];
+
+        // Record analytical conversion metric
+        await logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
+          auctionId,
+          amount
+        });
+
         addNotification(
           '🏆 Winning Bid Placed',
           `Locked ${amount.toLocaleString()} JOD securely in Mazad Escrow.`,
           'win'
         );
+      } else {
+        await logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`);
       }
       return {
         success: result.data.success,
@@ -1502,15 +1383,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } catch (error: any) {
       console.error("Cloud function placeBid error:", error);
+      await logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${error.message || String(error)}`);
       return {
         success: false,
         message: error.message || 'Bidding failed.'
       };
     }
-  }, [currentUser, language, addNotification]);
+  }, [currentUser, language, addNotification, logSystemHealth, featureFlags]);
 
   // CliQ Jordanian instant receipt topup simulation
   const triggerCliQTopUp = useCallback(async (amount: number, alias: string, receiptName: string) => {
+    if (!featureFlags.enableWallets) {
+      addNotification(
+        language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled',
+        language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.',
+        'alert'
+      );
+      return;
+    }
+
     try {
       const topUpCallable = httpsCallable<{ amount: number; alias: string; receiptName: string }, { success: boolean; message: string }>(functions, 'requestTopUp');
       const result = await topUpCallable({ amount, alias, receiptName });
@@ -1520,12 +1411,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.`,
           'verify'
         );
+      } else {
+        await logSystemHealth('payment_fail', 'CliQ Payment Failed', `Amount: ${amount} JOD, Alias: ${alias}, Receipt: ${receiptName}, Message: ${result.data.message}`);
       }
     } catch (error: any) {
       console.error("Cloud function requestTopUp error:", error);
+      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Receipt: ${receiptName}, Error: ${error.message || String(error)}`);
       addNotification('❌ Top-up Error', error.message || 'Failed to request top-up.', 'alert');
     }
-  }, [addNotification]);
+  }, [addNotification, logSystemHealth, featureFlags, language]);
 
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
@@ -1606,6 +1500,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDoc(docRef, newListing)
       .then(() => {
         console.log("Successfully created live listing in Firestore:", newListingId);
+        // Log auction created event to Firestore Analytics
+        logAnalyticsEvent('auction_created', currentUser?.id || null, currentUser?.email || null, {
+          auctionId: newListingId,
+          title: listingData.title,
+          startingPrice: listingData.startingPrice,
+          category: listingData.category
+        });
       })
       .catch((err) => {
         console.error("Firestore write failure on direct listing release:", err);
@@ -1658,7 +1559,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'approve_listing',
       targetId: id,
       targetName: targetA?.title || 'Unknown Item',
-      adminName: currentUser?.name || 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
       details: 'Visual stream quality & price guide certified.'
     };
@@ -1689,7 +1590,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'reject_listing',
       targetId: id,
       targetName: targetA?.title || 'Unknown Item',
-      adminName: currentUser?.name || 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
       details: 'Video did not pass alignment checks.'
     };
@@ -1716,12 +1617,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'verify_seller',
       targetId: userId,
       targetName: targetU?.name || 'Unknown User',
-      adminName: 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
       details: 'Submited company license validated.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [users]);
+  }, [users, currentUser]);
 
   const banUser = useCallback((userId: string) => {
     setUsers(prev => prev.map(u => {
@@ -1741,7 +1642,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'ban_user',
       targetId: userId,
       targetName: targetU?.name || 'Unknown User',
-      adminName: 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
       details: 'Banned due to bidding spam / non-payment.'
     };
@@ -1814,7 +1715,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionType: 'delete_auction',
       targetId: id,
       targetName: targetA?.title || 'Unknown Item',
-      adminName: currentUser?.name || 'Admin Tareq',
+      adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
       details: 'Administrator permanently removed listing from system.'
     };
@@ -2124,6 +2025,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [auctions, autoBids, placeBid, addNotification, language]);
 
+  const logSystemHealth = useCallback(async (type: 'error' | 'payment_fail' | 'bid_fail' | 'wallet_fail', title: string, details: string) => {
+    try {
+      await addDoc(collection(db, 'system_health'), {
+        type,
+        title,
+        details,
+        userId: currentUser?.id || 'anonymous',
+        userEmail: currentUser?.email || 'anonymous',
+        timestamp: new Date().toISOString(),
+        browser: navigator.userAgent
+      });
+    } catch (err) {
+      console.warn("Failed to write to system_health collection:", err);
+    }
+  }, [currentUser]);
+
+  const updateMaintenanceMode = useCallback(async (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => {
+    const maintenanceRef = doc(db, 'siteSettings', 'maintenanceMode');
+    try {
+      await setDoc(maintenanceRef, {
+        enabled,
+        messageAr: messageAr || 'المنصة خاضعة للصيانة المجدولة حالياً لتحديث أنظمة التشفير وحسابات الضمان بنظام كليك.',
+        messageEn: messageEn || 'The platform is currently undergoing scheduled maintenance to upgrade security protocols and CliQ escrow systems.',
+        expectedDuration: expectedDuration || '1 hr',
+        updatedAt: new Date().toISOString(),
+        updatedBy: currentUser?.email || 'admin'
+      }, { merge: true });
+
+      addNotification(
+        '🔧 Maintenance Status Updated',
+        `Maintenance mode is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
+        'success'
+      );
+    } catch (err) {
+      console.error("Error updating maintenance mode:", err);
+      logSystemHealth('error', 'Failed to update Maintenance Mode', err instanceof Error ? err.message : String(err));
+    }
+  }, [currentUser, addNotification, logSystemHealth]);
+
+  const updateFeatureFlag = useCallback(async (flag: string, value: boolean) => {
+    const flagsRef = doc(db, 'siteSettings', 'featureFlags');
+    try {
+      await setDoc(flagsRef, {
+        [flag]: value,
+        updatedAt: new Date().toISOString(),
+        updatedBy: currentUser?.email || 'admin'
+      }, { merge: true });
+
+      addNotification(
+        '⚙️ Feature Flag Updated',
+        `${flag} has been set to ${value ? 'ENABLED' : 'DISABLED'}.`,
+        'success'
+      );
+    } catch (err) {
+      console.error("Error updating feature flag:", err);
+      logSystemHealth('error', `Failed to update Feature Flag: ${flag}`, err instanceof Error ? err.message : String(err));
+    }
+  }, [currentUser, addNotification, logSystemHealth]);
+
   const visibleAuctions = auctions.filter(a => !deletedAuctionIds.includes(a.id));
 
   return (
@@ -2144,6 +2104,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       placeBid,
       triggerCliQTopUp,
       addNotification,
+      markAsRead,
+      markAllAsRead,
       approveListing,
       rejectListing,
       verifySeller,
@@ -2170,7 +2132,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       removeAutoBid,
       showSubscriptionPrompt,
       setShowSubscriptionPrompt,
-      sendChatMessage
+      showNotifications,
+      setShowNotifications,
+      sendChatMessage,
+      maintenanceMode,
+      featureFlags,
+      updateMaintenanceMode,
+      updateFeatureFlag,
+      systemHealthLogs,
+      logSystemHealth
     }}>
       {children}
     </AppContext.Provider>

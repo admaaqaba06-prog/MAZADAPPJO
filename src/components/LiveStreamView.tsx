@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { db } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { 
   Gavel, 
   Volume2, 
@@ -11,24 +9,15 @@ import {
   MessageSquare, 
   Share2, 
   Bookmark, 
-  MapPin, 
-  Home, 
-  Search, 
-  Plus, 
-  User, 
-  ChevronUp, 
-  ChevronDown,
+  X, 
+  Sparkles, 
   FolderLock,
-  X,
-  Sparkles,
-  Check,
-  Trash2
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
-import { placeAuctionBid } from '../services/auctionService';
-import { SwipeToBid } from './SwipeToBid';
 
-
+// --- MAIN REELS COMPONENT ---
 export const LiveStreamView: React.FC = () => {
   const { 
     currentUser, 
@@ -41,189 +30,47 @@ export const LiveStreamView: React.FC = () => {
     language,
     watchlist,
     toggleWatchlist,
-    autoBids,
-    setAutoBid,
-    removeAutoBid,
     chatMessages,
-    sendChatMessage,
-    deleteAuction
+    sendChatMessage
   } = useApp();
 
   const isAr = language === 'ar';
-  
-  // Comment custom input states
-  const [showCommentInput, setShowCommentInput] = useState<boolean>(false);
-  const [newCommentVal, setNewCommentVal] = useState<string>('');
-  
-  const handleSendComment = () => {
-    if (!newCommentVal.trim()) return;
-    sendChatMessage(newCommentVal);
-    setNewCommentVal('');
-    setShowCommentInput(false);
-    setCommentCount(prev => prev + 1);
-    triggerToast(isAr ? '💬 تم إرسال تعليقك للجميع!' : '💬 Your comment was broadcast live!');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Global mute state so unmuting one unmutes all reels (Standard reels UX)
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [showToast, setShowToast] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setShowToast(msg);
+    setTimeout(() => setShowToast(null), 3000);
   };
 
-  const liveAuctions = React.useMemo(() => {
-    const filtered = auctions.filter(a => a.status === 'live');
-    return [...filtered].sort((a, b) => {
+  // Get live and upcoming auctions
+  const liveAuctions = useMemo(() => {
+    const filtered = auctions.filter(a => a.status === 'live' || a.status === 'upcoming');
+    const displayList = filtered.length > 0 ? filtered : auctions;
+    return [...displayList].sort((a, b) => {
       const tA = a.approvedAt ? (a.approvedAt.seconds ? a.approvedAt.seconds * 1000 : Number(a.approvedAt)) : (a.createdAt || 0);
       const tB = b.approvedAt ? (b.approvedAt.seconds ? b.approvedAt.seconds * 1000 : Number(b.approvedAt)) : (b.createdAt || 0);
       return tB - tA;
     });
   }, [auctions]);
 
-  const currentItem = liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0] || auctions[0];
-
-  // UI Interactive States
-  const [selectedIncrement, setSelectedIncrement] = useState<number>(50);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-
-  // Synchronize dynamic muted property directly to DOM element to override React's muted attribute mount bug
+  // Set initial active auction if none is set
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = isMuted;
+    if (liveAuctions.length > 0 && !activeAuctionId) {
+      setActiveAuctionId(liveAuctions[0].id);
     }
-  }, [isMuted]);
+  }, [liveAuctions, activeAuctionId, setActiveAuctionId]);
 
-  // Force automatic video loading and playback on change, avoiding iOS / Android black screens
-  useEffect(() => {
-    let active = true;
-    const video = videoRef.current;
-    if (!video) return;
-
-    // Force muted property to match state before initiating playback to satisfy iOS Safari dynamic rules
-    video.muted = isMuted;
-
-    // Reset video player stream and trigger playback programmatically safely
-    video.load();
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        if (!active) return;
-        if (err && (err.name === 'AbortError' || err.message?.includes('interrupted'))) {
-          console.log("Muted autoplay video play request was interrupted (safe/expected on navigation or source change).");
-          return;
-        }
-        console.warn("Muted autoplay auto-triggered fallback on mobile device:", err);
-        // Fall back to explicit mute which mobile environments always authorize
-        video.muted = true;
-        setIsMuted(true);
-        video.play().catch((playError) => {
-          if (!active) return;
-          if (playError && (playError.name === 'AbortError' || playError.message?.includes('interrupted'))) {
-            return;
-          }
-          console.warn("Forced mobile video playback authorization completely failed or was interrupted:", playError);
-        });
-      });
-    }
-
-    return () => {
-      active = false;
-    };
-  }, [currentItem?.id, currentItem?.videoUrl]);
-  const [isLiked, setIsLiked] = useState<boolean>(false);
-  const [likesCount, setLikesCount] = useState<number>(1520);
-  const isSaved = watchlist.includes(currentItem?.id || '');
-  const [commentCount, setCommentCount] = useState<number>(77);
-
-  const [showToast, setShowToast] = useState<string | null>(null);
-  const [showCustomModal, setShowCustomModal] = useState<boolean>(false);
-  const [customBidVal, setCustomBidVal] = useState<string>('150');
-  const [startY, setStartY] = useState<number | null>(null);
-  const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
-  const [activeQuickBidVal, setActiveQuickBidVal] = useState<number | null>(null);
-  const [isMainBidClicked, setIsMainBidClicked] = useState<boolean>(false);
-
-  // Real-time dynamic bid bubble state
-  const [lastBidderName, setLastBidderName] = useState<string>('');
-  const [lastBidderAvatar, setLastBidderAvatar] = useState<string>('');
-  const [showBidBubble, setShowBidBubble] = useState<boolean>(false);
-  const [prevPrice, setPrevPrice] = useState<number>(currentItem?.currentPrice || 0);
-
-  // Sync price reference and handle active/reset trigger on channel change
-  useEffect(() => {
-    if (!currentItem) return;
-    setPrevPrice(currentItem.currentPrice);
-    setShowBidBubble(false);
-  }, [currentItem?.id]);
-
-  // Sync and display bubble dynamically when bids are placed
-  useEffect(() => {
-    if (!currentItem) return;
-    if (currentItem.currentPrice > prevPrice) {
-      const bName = currentItem.currentBidderName || (isAr ? 'مزايد مجهول' : 'Anonymous Bidder');
-      setLastBidderName(bName);
-
-      let avatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80';
-      const isClientUser = currentItem.currentBidderId === 'user-current' || bName === currentUser.name;
-      if (isClientUser) {
-        avatar = currentUser.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80';
-      } else {
-        const name = bName.toLowerCase();
-        if (name.includes('karam')) {
-          avatar = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80';
-        } else if (name.includes('reem')) {
-          avatar = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=100&q=80';
-        } else if (name.includes('faisal')) {
-          avatar = 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=80';
-        } else if (name.includes('yasmin') || name.includes('yasmine')) {
-          avatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80';
-        } else if (name.includes('majd')) {
-          avatar = 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&q=80';
-        }
-      }
-
-      setLastBidderAvatar(avatar);
-      setShowBidBubble(true);
-      setPrevPrice(currentItem.currentPrice);
-
-      const timer = setTimeout(() => {
-        setShowBidBubble(false);
-      }, 3500);
-      return () => clearTimeout(timer);
-    } else if (currentItem.currentPrice < prevPrice) {
-      setPrevPrice(currentItem.currentPrice);
-    }
-  }, [currentItem?.currentPrice, prevPrice, isAr, currentUser]);
-
-  // Time remaining dynamic state
-  const [timeLeftStr, setTimeLeftStr] = useState<string>('23:28:51');
-
-  useEffect(() => {
-    if (!currentItem) return;
-    const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((currentItem.endTime - Date.now()) / 1000));
-      if (remainingSecs > 0) {
-        const hrs = Math.floor(remainingSecs / 3600);
-        const mins = Math.floor((remainingSecs % 3600) / 60);
-        const secs = remainingSecs % 60;
-        setTimeLeftStr(
-          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        );
-      } else {
-        const now = new Date();
-        const hrs = 10 - (now.getHours() % 12);
-        const mins = 59 - now.getMinutes();
-        const secs = 59 - now.getSeconds();
-        setTimeLeftStr(
-          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        );
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [currentItem]);
-
-  if (!currentItem) {
+  if (liveAuctions.length === 0) {
     return (
-      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#111111] p-6 text-gray-400 font-sans h-[100dvh]" id="no-live-stream-fallback">
+      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#111111] p-6 text-gray-400 font-sans h-full" id="no-live-stream-fallback">
         <FolderLock className="w-12 h-12 text-[#FF6B00] mb-3 animate-bounce" />
         <h3 className="font-extrabold text-sm uppercase text-white">{isAr ? 'لا يوجد بثوث نشطة حالياً' : 'No channels active'}</h3>
         <p className="text-xs text-gray-500 max-w-xs mt-1">
-          {isAr ? 'يرجى تقديم مزاد جديد عبر زر الإنشاء ومن ثم اعتماده في الصفحة الإدارية لفتحه فوراً!' : 'Submit a lot from the creator wizard and approve it in the admin dashboard!'}
+          {isAr ? 'يرجى تقديم مزاد جديد عبر زر الإنشاء ومن ثم اعتماده لفتحه فوراً!' : 'Submit a lot from the creator wizard and approve it to open it!'}
         </p>
         <button 
           onClick={() => setActiveView('discovery')}
@@ -235,8 +82,191 @@ export const LiveStreamView: React.FC = () => {
     );
   }
 
+  return (
+    <div className="relative w-full h-full bg-[#0a0a0a] flex flex-col overflow-hidden" id="reels-view-root">
+      
+      {/* Toast Overlay */}
+      {showToast && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#FF6B00] text-white px-4 py-2 rounded-xl text-[11px] font-black tracking-wide shadow-[0_8px_32px_rgba(255,107,0,0.35)] animate-bounce text-center">
+          {showToast}
+        </div>
+      )}
+
+      {/* REELS VERTICAL FEED CONTAINER */}
+      <div 
+        ref={containerRef}
+        className="flex-1 w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar select-none relative"
+        style={{ scrollbarWidth: 'none' }}
+        id="reels-feed-scroll"
+      >
+        {liveAuctions.map((item, index) => {
+          const isActive = item.id === activeAuctionId;
+          return (
+            <ReelCard 
+              key={item.id}
+              item={item}
+              isActive={isActive}
+              isMuted={isMuted}
+              setIsMuted={setIsMuted}
+              triggerToast={triggerToast}
+              onVisible={() => {
+                if (activeAuctionId !== item.id) {
+                  setActiveAuctionId(item.id);
+                }
+              }}
+              placeBid={placeBid}
+              currentUser={currentUser}
+              wallet={wallet}
+              watchlist={watchlist}
+              toggleWatchlist={toggleWatchlist}
+              chatMessages={chatMessages}
+              sendChatMessage={sendChatMessage}
+              language={language}
+              isAr={isAr}
+            />
+          );
+        })}
+      </div>
+
+    </div>
+  );
+};
+
+// --- SINGLE REEL CARD COMPONENT ---
+interface ReelCardProps {
+  item: any;
+  isActive: boolean;
+  isMuted: boolean;
+  setIsMuted: (muted: boolean) => void;
+  triggerToast: (msg: string) => void;
+  onVisible: () => void;
+  placeBid: any;
+  currentUser: any;
+  wallet: any;
+  watchlist: string[];
+  toggleWatchlist: (id: string) => void;
+  chatMessages: any[];
+  sendChatMessage: (text: string) => void;
+  language: string;
+  isAr: boolean;
+}
+
+const ReelCard: React.FC<ReelCardProps> = ({
+  item,
+  isActive,
+  isMuted,
+  setIsMuted,
+  triggerToast,
+  onVisible,
+  placeBid,
+  currentUser,
+  wallet,
+  watchlist,
+  toggleWatchlist,
+  chatMessages,
+  sendChatMessage,
+  language,
+  isAr
+}) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Local likes, saves, comments interaction
+  const [isLiked, setIsLiked] = useState<boolean>(false);
+  const [likesCount, setLikesCount] = useState<number>(() => {
+    // Return a beautiful random high number based on item title
+    return Math.floor(((item.title?.charCodeAt(0) || 75) * 12) + 242);
+  });
+  const [isSaved, setIsSaved] = useState<boolean>(() => watchlist.includes(item.id));
+  const [commentCount, setCommentCount] = useState<number>(() => {
+    return Math.floor(((item.title?.charCodeAt(1) || 82) * 2) + 14);
+  });
+
+  const [showCommentsModal, setShowCommentsModal] = useState<boolean>(false);
+  const [commentText, setCommentText] = useState<string>('');
+  const [selectedLotDetailsId, setSelectedLotDetailsId] = useState<string | null>(null);
+
+  // Time remaining dynamic state
+  const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
+
+  // Trigger onVisible when intersecting
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onVisible();
+        }
+      },
+      { threshold: 0.6 } // When 60% of card is in screen
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+    return () => observer.disconnect();
+  }, [onVisible]);
+
+  // Sync isSaved with global watchlist
+  useEffect(() => {
+    setIsSaved(watchlist.includes(item.id));
+  }, [watchlist, item.id]);
+
+  // Handle countdown timers per card
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remainingSecs = Math.max(0, Math.floor((item.endTime - Date.now()) / 1000));
+      if (remainingSecs > 0) {
+        const hrs = Math.floor(remainingSecs / 3600);
+        const mins = Math.floor((remainingSecs % 3600) / 60);
+        const secs = remainingSecs % 60;
+        setTimeLeftStr(
+          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+      } else {
+        // Fallback simulated cyclical ending soon
+        const now = new Date();
+        const hrs = 4 - (now.getHours() % 4);
+        const mins = 59 - now.getMinutes();
+        const secs = 59 - now.getSeconds();
+        setTimeLeftStr(
+          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [item]);
+
+  // Sync mute property and play/pause based on isActive
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = isMuted;
+
+    if (isActive) {
+      video.load();
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+          if (e && (e.name === 'AbortError' || e.message?.includes('interrupted'))) return;
+          console.log("Reels autoplay muted required:", e);
+          video.muted = true;
+          setIsMuted(true);
+          video.play().catch(pe => console.warn("Reels play blocked completely:", pe));
+        });
+      }
+    } else {
+      video.pause();
+    }
+  }, [isActive, isMuted, item.videoUrl]);
+
   const executeBid = async (amount: number) => {
-    const res = await placeBid(currentItem.id, amount);
+    if (currentUser.isBlocked) {
+      triggerToast(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
+      return;
+    }
+    const res = await placeBid(item.id, amount);
     if (!res.success) {
       triggerToast(res.message);
     } else {
@@ -245,812 +275,378 @@ export const LiveStreamView: React.FC = () => {
     }
   };
 
-  const triggerToast = (msg: string) => {
-    setShowToast(msg);
-    setTimeout(() => setShowToast(null), 3050);
-  };
-
-  const handleCustomBidSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = parseInt(customBidVal, 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      setSelectedIncrement(parsed);
-      setShowCustomModal(false);
-      triggerToast(isAr ? `تم تحديد زيادة مخصصة: +${parsed} د.أ` : `Custom increment set: +${parsed} JOD`);
-    }
-  };
-
-  const shiftChannel = (direction: 'next' | 'prev') => {
-    if (liveAuctions.length <= 1) return;
-    const currentIndex = liveAuctions.findIndex(a => a.id === currentItem.id);
-    let nextIndex = currentIndex;
-
-    if (direction === 'next') {
-      nextIndex = (currentIndex + 1) % liveAuctions.length;
-    } else {
-      nextIndex = (currentIndex - 1 + liveAuctions.length) % liveAuctions.length;
-    }
-
-    const nextId = liveAuctions[nextIndex]?.id;
-    if (nextId) {
-      setActiveAuctionId(nextId);
-      triggerToast(isAr ? 'تم الانتقال لقناة البث الأخرى' : 'Swiped to next lot');
-    }
-  };
-
-  // Support desktop wheel and keyboard events for shifting channels (REELS scrolling on desktop/laptop)
-  useEffect(() => {
-    let lastScrollTime = 0;
-    const scrollCooldown = 800; // ms cooldown to avoid rapid skips
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is currently typing in the comment box or another input field
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-        return;
-      }
-      
-      if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        shiftChannel('prev');
-      } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
-        e.preventDefault();
-        shiftChannel('next');
-      }
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      // Ignore wheel events if scrolling some scrollable element inside like comments stream or modal
-      const target = e.target as HTMLElement;
-      if (target && target.closest('.overflow-y-auto, .overflow-auto')) {
-        return;
-      }
-
-      // Throttle wheel scroll
-      const now = Date.now();
-      if (now - lastScrollTime < scrollCooldown) return;
-
-      if (Math.abs(e.deltaY) > 30) {
-        e.preventDefault();
-        if (e.deltaY > 0) {
-          shiftChannel('next');
-          lastScrollTime = now;
-        } else {
-          shiftChannel('prev');
-          lastScrollTime = now;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    // Listen with passive: false to allow e.preventDefault()
-    window.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('wheel', handleWheel);
-    };
-  }, [liveAuctions, currentItem, showCommentInput]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setStartY(e.touches[0].clientY);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (startY === null) return;
-    const endY = e.changedTouches[0].clientY;
-    const diffY = startY - endY;
-
-    if (Math.abs(diffY) > 50) {
-      if (diffY > 0) {
-        shiftChannel('next');
-      } else {
-        shiftChannel('prev');
-      }
-    }
-    setStartY(null);
-  };
-
-  const handleLikeToggle = () => {
+  const handleLikeToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!isLiked) {
-      setLikesCount(prev => prev + 1);
       setIsLiked(true);
-      triggerToast('Liked! ❤️');
+      setLikesCount(prev => prev + 1);
+      triggerToast(isAr ? '❤️ تمت الإضافة للمفضلة!' : '❤️ Added to favorites!');
     } else {
-      setLikesCount(prev => prev - 1);
       setIsLiked(false);
+      setLikesCount(prev => prev - 1);
     }
   };
 
-  const handleSaveToggle = () => {
-    if (!currentItem) return;
-    toggleWatchlist(currentItem.id);
-    if (isSaved) {
-      triggerToast(isAr ? 'تمت الإزالة من قائمة المتابعة' : 'Removed from watchlist 🔖');
-    } else {
-      triggerToast(isAr ? 'تمت الإضافة لقائمة المتابعة!' : 'Saved to watchlist! 🔖');
-    }
+  const handleSaveToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleWatchlist(item.id);
+    const saved = !isSaved;
+    setIsSaved(saved);
+    triggerToast(saved ? (isAr ? '🔖 تم الحفظ في قائمتك!' : '🔖 Saved to Watchlist!') : (isAr ? 'تمت الإزالة' : 'Removed'));
   };
 
-  const isRolex = currentItem.id?.includes('rolex');
-  const isPorsche = currentItem.id?.includes('porsche');
+  const handleShareClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerToast(isAr ? '🔗 تم نسخ رابط المزاد لمشاركته!' : '🔗 Auction link copied to clipboard!');
+  };
 
-  const formattedTitle = isRolex 
-    ? 'Rolex Cosmograph Daytona' 
-    : isPorsche 
-    ? 'Porsche 911 GT3 RS (992)' 
-    : currentItem.title;
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    sendChatMessage(commentText);
+    setCommentText('');
+    setCommentCount(prev => prev + 1);
+    triggerToast(isAr ? '💬 تم إرسال تعليقك فوراً!' : '💬 Comment broadcasted live!');
+  };
 
-  const formattedSubtitle = isRolex
-    ? (isAr ? 'اصدار ذهبي عيار ١٨ مع كامل الملحقات المعتمدة والعلبة والشهادات • غير مستخدم' : '18ct Gold Edition • Complete set with warranty papers • Brand New')
-    : isPorsche
-    ? (isAr ? 'تخصيص كامل للنخبة PTS • لون رمادي مميز مع باقة السباقات الحصرية • جديد كلياً' : 'Elite allocation PTS clearance • Stealth GT3 Gray with track packages • Brand New')
-    : (isAr ? 'جديد (غير مستخدم) • مع الضمان الرسمي والعلبة والكتيبات • تيتانيوم طبيعي' : 'Brand New (Unused) • Titanium Natural • Agent Warranty Covered');
+  const formattedTitle = useMemo(() => {
+    if (!item.title) return '';
+    return item.title.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+  }, [item.title]);
 
-  const bidCTAAmount = currentItem.currentPrice + selectedIncrement;
+  const bidIncrement = item.minIncrement || 50;
+  const nextBidAmount = item.currentPrice + bidIncrement;
+
+  const cardChatMessages = useMemo(() => {
+    return chatMessages
+      .filter(msg => msg.auctionId === item.id)
+      .slice(-4);
+  }, [chatMessages, item.id]);
 
   return (
     <div 
-      className="flex flex-col h-[100dvh] w-full bg-[#111111] overflow-hidden relative select-none touch-pan-y font-sans text-white pb-[env(safe-area-inset-bottom)]"
-      style={{ direction: isAr ? 'rtl' : 'ltr' }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      id="live-tiktok-swipe-container"
+      ref={cardRef}
+      className="w-full h-full snap-start snap-always shrink-0 relative overflow-hidden flex flex-col bg-zinc-950 text-white"
+      id={`reel-card-${item.id}`}
     >
-      <style>{`
-        .bid-btn-glass {
-          background: rgba(255, 255, 255, 0.15);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          border-radius: 50px;
-          color: white;
-          font-weight: bold;
-          transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, transform 0.15s ease;
-        }
-        .bid-btn-glass:active {
-          transform: scale(0.95);
-          box-shadow: 0 0 20px rgba(255, 107, 0, 0.7);
-          border-color: #FF6B00;
-          background: rgba(255, 107, 0, 0.3);
-        }
-        .bid-btn-active {
-          background: rgba(255, 107, 0, 0.35) !important;
-          border-color: rgba(255, 107, 0, 0.8) !important;
-          box-shadow: 0 0 24px rgba(255, 107, 0, 0.6),
-                      inset 0 0 12px rgba(255, 107, 0, 0.1) !important;
-          transform: scale(0.96) !important;
-        }
-        
-        @keyframes main-btn-scale {
-          0% { transform: scale(1); }
-          20% { transform: scale(0.97); }
-          50% { transform: scale(1.02); }
-          100% { transform: scale(1); }
-        }
-
-        @keyframes orange-ripple {
-          0% {
-            box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7), 0 0 0 0 rgba(255, 107, 0, 0.4);
-          }
-          100% {
-            box-shadow: 0 0 0 15px rgba(255, 107, 0, 0), 0 0 25px rgba(255, 107, 0, 0);
-          }
-        }
-
-        .main-bid-glow {
-          box-shadow: 0 0 30px rgba(255, 107, 0, 0.8) !important;
-        }
-
-        .main-bid-clicked-anim {
-          animation: main-btn-scale 0.4s ease-out, orange-ripple 0.6s ease-out;
-        }
-      `}</style>
-      
-      {/* 1. PRODUCT IMAGE / VIDEO FULL-SCREEN BACKGROUND (z-index 0) */}
-      <div className="absolute inset-0 w-full h-[100dvh] z-0 overflow-hidden bg-[#111111]">
-        {currentItem.videoUrl ? (
+      {/* 1. MEDIA BACKGROUND */}
+      <div className="absolute inset-0 w-full h-full z-0 overflow-hidden bg-[#0d0d0d]">
+        {item.videoUrl ? (
           <video
             ref={videoRef}
-            src={currentItem.videoUrl}
-            poster={currentItem.thumbnailUrl}
-            autoPlay
+            src={item.videoUrl}
+            poster={item.thumbnailUrl}
             loop
-            muted={isMuted}
             playsInline
             webkit-playsinline="true"
             x5-playsinline="true"
-            className="w-full h-full object-cover opacity-100 cursor-pointer"
+            className="w-full h-full object-cover opacity-90 cursor-pointer"
             onClick={() => {
               const video = videoRef.current;
               if (video) {
                 if (video.paused) {
-                  video.play().catch(e => {
-                    if (e && (e.name === 'AbortError' || e.message?.includes('interrupted'))) return;
-                    console.warn("Tap-to-play manually triggered error:", e);
-                  });
-                  triggerToast(isAr ? '▶️ تم تشغيل الفيديو' : '▶️ Streaming Video');
+                  video.play().catch(() => {});
+                  triggerToast(isAr ? '▶️ تشغيل' : '▶️ Play');
                 } else {
                   video.pause();
-                  triggerToast(isAr ? '⏸️ تم إيقاف الفيديو مؤقتاً' : '⏸️ Video Paused');
+                  triggerToast(isAr ? '⏸️ إيقاف مؤقت' : '⏸️ Pause');
                 }
               }
             }}
           />
         ) : (
           <img 
-            src={currentItem.thumbnailUrl} 
-            alt={currentItem.title} 
-            className="w-full h-full object-cover opacity-100 animate-fade-in"
+            src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80'} 
+            alt={item.title} 
+            className="w-full h-full object-cover opacity-85"
           />
         )}
-      </div>
-      
-      {/* 1.5 Laptop/Desktop keyboard/wheel navigation widget (left side) */}
-      <div 
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 hidden md:flex flex-col items-center gap-2.5 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-2xl scale-100 transition-all hover:border-white/20 select-none"
-        id="desktop-reel-scroller-widget"
-      >
-        <button
-          type="button"
-          onClick={() => shiftChannel('prev')}
-          className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#FF6B00] hover:text-white border border-white/10 transition-all flex items-center justify-center cursor-pointer text-zinc-300 active:scale-95"
-          title={isAr ? "البث السابق (سهم للأعلى)" : "Previous stream (Arrow Up)"}
-        >
-          <ChevronUp className="w-5 h-5" />
-        </button>
         
-        <div className="flex flex-col items-center justify-center text-center font-mono py-1">
-          <span className="text-xs font-black text-white leading-none">
-            {liveAuctions.findIndex(a => a.id === currentItem?.id) !== -1 
-              ? liveAuctions.findIndex(a => a.id === currentItem?.id) + 1 
-              : 1}
-          </span>
-          <div className="w-5 h-[1.5px] bg-white/15 my-1" />
-          <span className="text-[9px] font-black text-zinc-500 leading-none">
-            {liveAuctions.length || 1}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => shiftChannel('next')}
-          className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#FF6B00] hover:text-white border border-white/10 transition-all flex items-center justify-center cursor-pointer text-zinc-300 active:scale-95"
-          title={isAr ? "البث التالي (سهم للأسفل / مسافة)" : "Next stream (Arrow Down / Space)"}
-        >
-          <ChevronDown className="w-5 h-5" />
-        </button>
-
-        <span className="text-[7.5px] text-zinc-400 font-extrabold uppercase tracking-wider text-center max-w-[70px] leading-tight mt-1">
-          {isAr ? "تصفح بالأسهم أو العجلة" : "Scroll Wheel / Arrow Keys"}
-        </span>
+        {/* Subtle Dark Vignette Gradients */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/50 pointer-events-none" />
       </div>
 
-      {/* 2. Light Toast alerts on action triggers (z-index 50) */}
-      {showToast && (
-        <div className="absolute top-22 left-1/2 -translate-x-1/2 z-50 bg-[#FF6B00] text-white px-4 py-2.5 rounded-2xl text-[11px] font-black tracking-wide shadow-[0_8px_32px_rgba(255,107,0,0.35)] animate-bounce text-center">
-          {showToast}
-        </div>
-      )}
-
-      {/* 3. TOP BAR (z-index 25) */}
-      <div 
-        className="absolute top-0 inset-x-0 z-25 px-4 pt-4 pb-3 flex items-center justify-between"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 25%)' }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-[#FF6B00] flex items-center justify-center shadow-md">
-            <Gavel className="w-4 h-4 text-white stroke-[2.5]" />
+      {/* 2. COMPACT TOP STATUS OVERLAYS (z-index 20) */}
+      <div className="absolute top-4 inset-x-0 z-20 px-4 flex items-center justify-between pointer-events-none">
+        
+        {/* Live / Status tag */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="bg-[#FF6B00] text-white text-[8px] font-black tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className="w-1 h-1 bg-white rounded-full animate-ping" />
+            <span>{isAr ? 'مباشر' : 'LIVE'}</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-base font-black tracking-tight text-white drop-shadow-md leading-none">
-              {isAr ? 'مزاد جو' : 'Mazad Jo'}
-            </span>
-            <span className="text-[10px] font-black text-emerald-400 font-sans mt-1 bg-black/40 px-2 py-0.5 rounded-full border border-white/5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              {isAr ? 'المحفظة:' : 'Wallet:'} {wallet.availableBalance.toLocaleString()} JOD
-            </span>
-          </div>
+          <span className="bg-black/45 backdrop-blur-md border border-white/10 text-white text-[8px] font-black tracking-wider px-2 py-0.5 rounded-full uppercase">
+            {item.category || (isAr ? 'فاخر' : 'Luxury')}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Mute and specs triggers */}
+        <div className="flex items-center gap-2 pointer-events-auto">
           <button 
             type="button"
             onClick={() => {
               setIsMuted(!isMuted);
-              triggerToast(isMuted ? (isAr ? '🔊 تم تشغيل الصوت' : '🔊 Audio Enabled') : (isAr ? '🔇 كتم الصوت' : '🔇 Audio Muted'));
+              triggerToast(isMuted ? (isAr ? '🔊 تم تفعيل الصوت' : '🔊 Audio On') : (isAr ? '🔇 كتم الصوت' : '🔇 Audio Muted'));
             }}
-            className="text-white hover:text-[#FF6B00] transition-colors p-2 rounded-full bg-black/45 hover:bg-black/60 border border-white/10 flex items-center justify-center cursor-pointer min-w-[44px] min-h-[44px]"
-            aria-label="Toggle Audio"
+            className="w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:text-[#FF6B00] transition-colors cursor-pointer min-w-[32px] min-h-[32px]"
           >
-            {isMuted ? <VolumeX className="w-5 h-5 text-zinc-300" /> : <Volume2 className="w-5 h-5 text-[#FF6B00]" />}
+            {isMuted ? <VolumeX className="w-4 h-4 text-zinc-400" /> : <Volume2 className="w-4 h-4 text-[#FF6B00]" />}
           </button>
-          
+
           <button 
             type="button"
-            onClick={() => {
-              setActiveView('discovery');
-              triggerToast(isAr ? 'العودة لقائمة الاكتشاف' : 'Navigated back to Main Discovery Catalog');
-            }}
-            className="relative text-white hover:text-[#FF6B00] transition-colors p-2 rounded-full bg-black/45 hover:bg-black/60 border border-white/10 flex items-center justify-center cursor-pointer min-w-[44px] min-h-[44px]"
-            aria-label="Open Notifications"
+            onClick={() => setSelectedLotDetailsId(item.id)}
+            className="w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:text-[#FF6B00] transition-colors cursor-pointer min-w-[32px] min-h-[32px]"
           >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#FF6B00] text-white rounded-full flex items-center justify-center text-[9px] font-black leading-none animate-pulse">
-              3
-            </span>
+            <Sparkles className="w-4 h-4 text-amber-400" />
           </button>
         </div>
+
       </div>
 
-      {/* 4. CURRENT BID & COUNTDOWN BOX (z-index 20) */}
-      <div className="absolute top-[72px] left-4 z-20 flex flex-col items-start space-y-1.5 max-w-[260px]" style={{ direction: 'ltr' }}>
-        
-        {/* Bid and Timer compact semi-transparent panel */}
-        <div className="grid grid-cols-2 gap-3 items-center bg-black/70 backdrop-blur-md py-2 px-3 rounded-xl border border-white/10 shadow-lg">
-          {/* Current Bid with left orange highlight border */}
-          <div className="border-l-2 border-[#FF6B00] pl-2">
-            <span className="text-[8px] text-zinc-400 font-extrabold uppercase tracking-wider block leading-none">CURRENT BID</span>
-            <span className="text-base font-black text-white leading-none font-sans block mt-0.5">
-              {currentItem.currentPrice.toLocaleString()}{' '}
-              <span className="text-[9px] text-[#FF6B00] font-black">JOD</span>
+      {/* 3. COMPACT TIME & CURRENT PRICE OVERLAYS (z-index 10) */}
+      <div className="absolute top-16 left-4 z-10 flex flex-col space-y-1 text-left ltr" style={{ direction: 'ltr' }}>
+        <div className="bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-3.5 shadow-lg select-none">
+          <div className="border-r border-white/10 pr-3.5">
+            <span className="text-[7.5px] text-zinc-400 font-extrabold uppercase tracking-wider block leading-none">CURRENT</span>
+            <span className="text-sm font-black text-white block mt-0.5 leading-none">
+              {item.currentPrice.toLocaleString()} <span className="text-[9px] text-[#FF6B00] font-bold">JD</span>
             </span>
           </div>
-
-          {/* Time left countdown */}
-          <div className="space-y-0.5 pl-1.5 border-l border-white/5">
-            <span className="text-[8px] text-zinc-400 font-extrabold uppercase tracking-wider block leading-none">TIME LEFT</span>
-            <span className="text-[13px] font-black text-white font-mono tracking-wide block mt-0.5 leading-none">
+          <div>
+            <span className="text-[7.5px] text-zinc-400 font-extrabold uppercase tracking-wider block leading-none">TIME LEFT</span>
+            <span className="text-[11px] font-black text-white font-mono block mt-0.5 leading-none tracking-wide text-emerald-400">
               {timeLeftStr}
             </span>
           </div>
         </div>
-
-        {/* Watching orange pill */}
-        <div className="flex">
-          <span className="inline-flex items-center gap-1 bg-[#FF6B00]/25 border border-[#FF6B00]/40 text-[#FF6B00] px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shadow-[0_2px_10px_rgba(255,107,0,0.15)]">
-            <span className="w-1 h-1 bg-[#FF6B00] rounded-full animate-pulse" />
-            <span>342 WATCHING</span>
-          </span>
-        </div>
       </div>
 
-      {/* 5. RIGHT SIDE ACTIONS (z-index 20) */}
-      <div 
-        className="absolute z-20 flex flex-col items-center"
-        style={{
-          right: '12px',
-          bottom: '140px',
-          gap: '16px'
-        }}
-      >
+      {/* 4. FLOATING RIGHT ACTION BUTTONS (z-index 20) */}
+      <div className="absolute right-3 bottom-44 z-20 flex flex-col items-center gap-4">
         
-        {/* Heart/Like */}
-        <div className="flex flex-col items-center gap-0.5 font-sans">
+        {/* Like */}
+        <div className="flex flex-col items-center gap-0.5">
           <button 
             type="button"
             onClick={handleLikeToggle}
-            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
-            style={{
-              width: '36px',
-              height: '36px',
-              background: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: isLiked ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%',
-              color: 'white'
-            }}
+            className={`w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 hover:brightness-110 cursor-pointer min-w-[36px] min-h-[36px] ${
+              isLiked ? 'border-red-500 text-red-500' : 'border-white/15 text-white'
+            }`}
           >
-            <Heart className={`w-4 h-4 ${isLiked ? 'text-red-500 fill-red-500' : 'text-white'}`} />
+            <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
           </button>
-          <span 
-            className="font-black drop-shadow-md leading-none mt-1"
-            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
-          >
+          <span className="text-[9px] font-extrabold text-zinc-300 drop-shadow-md select-none">
             {likesCount}
           </span>
         </div>
 
         {/* Comment */}
-        <div className="flex flex-col items-center gap-0.5 font-sans">
+        <div className="flex flex-col items-center gap-0.5">
           <button 
             type="button"
-            onClick={() => setShowCommentInput(!showCommentInput)}
-            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
-            style={{
-              width: '36px',
-              height: '36px',
-              background: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%',
-              color: 'white'
-            }}
+            onClick={() => setShowCommentsModal(true)}
+            className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all active:scale-90 hover:brightness-110 cursor-pointer min-w-[36px] min-h-[36px]"
           >
-            <MessageSquare className="w-4 h-4 text-white" />
+            <MessageSquare className="w-4 h-4" />
           </button>
-          <span 
-            className="font-black drop-shadow-md leading-none mt-1"
-            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
-          >
+          <span className="text-[9px] font-extrabold text-zinc-300 drop-shadow-md select-none">
             {commentCount}
           </span>
         </div>
 
-        {/* HISTORY Orange Circle */}
-        <div className="flex flex-col items-center gap-0.5 font-sans">
+        {/* Save */}
+        <div className="flex flex-col items-center gap-0.5">
           <button 
             type="button"
-            onClick={() => {
-              setSelectedLotId(currentItem.id);
-              triggerToast(isAr ? 'عرض سجل عروض المزايدة التاريخية' : 'Opening Bid Ledger History logs');
-            }}
-            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150 shadow-[0_4px_16px_rgba(255,107,0,0.35)] hover:brightness-110"
-            style={{
-              width: '36px',
-              height: '36px',
-              background: '#FF6B00',
-              borderRadius: '50%',
-              color: 'white',
-              border: 'none',
-              outline: 'none'
-            }}
+            onClick={handleSaveToggle}
+            className={`w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 hover:brightness-110 cursor-pointer min-w-[36px] min-h-[36px] ${
+              isSaved ? 'border-[#FF6B00] text-[#FF6B00]' : 'border-white/15 text-white'
+            }`}
           >
-            <Gavel className="w-4 h-4 text-white" />
+            <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-[#FF6B00] text-[#FF6B00]' : ''}`} />
           </button>
-          <span 
-            className="font-black uppercase tracking-widest leading-none mt-1 drop-shadow-md"
-            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
-          >
-            {isAr ? 'السجل' : 'HISTORY'}
+          <span className="text-[9px] font-extrabold text-zinc-300 drop-shadow-md select-none">
+            {isSaved ? (isAr ? 'محفوظ' : 'Saved') : (isAr ? 'حفظ' : 'Save')}
           </span>
         </div>
 
         {/* Share */}
-        <div className="flex flex-col items-center gap-0.5 font-sans">
+        <div className="flex flex-col items-center gap-0.5">
           <button 
             type="button"
-            onClick={() => triggerToast(isAr ? 'تم نسخ الرابط لمشاركة المزاد!' : 'Auction link copied to clipboard!')}
-            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
-            style={{
-              width: '36px',
-              height: '36px',
-              background: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%',
-              color: 'white'
-            }}
+            onClick={handleShareClick}
+            className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all active:scale-90 hover:brightness-110 cursor-pointer min-w-[36px] min-h-[36px]"
           >
-            <Share2 className="w-4 h-4 text-white" />
+            <Share2 className="w-4 h-4" />
           </button>
-          <span 
-            className="font-extrabold uppercase tracking-widest leading-none mt-1 drop-shadow-md"
-            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
-          >
-            {isAr ? 'مشاركة' : 'SHARE'}
+          <span className="text-[9px] font-extrabold text-zinc-300 drop-shadow-md select-none">
+            {isAr ? 'مشاركة' : 'Share'}
           </span>
         </div>
-
-        {/* Bookmark */}
-        <div className="flex flex-col items-center gap-0.5 font-sans">
-          <button 
-            type="button"
-            onClick={handleSaveToggle}
-            className="flex items-center justify-center transition-all active:scale-95 cursor-pointer duration-150"
-            style={{
-              width: '36px',
-              height: '36px',
-              background: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: isSaved ? '1px solid #FF6B00' : '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%',
-              color: 'white'
-            }}
-          >
-            <Bookmark className={`w-4 h-4 ${isSaved ? 'text-[#FF6B00] fill-[#FF6B00]' : 'text-white'}`} style={{ width: '16px', height: '16px' }} />
-          </button>
-          <span 
-            className="font-extrabold uppercase tracking-widest leading-none mt-1 drop-shadow-md"
-            style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}
-          >
-            {isAr ? 'حفظ' : 'SAVE'}
-          </span>
-        </div>
-
-
 
       </div>
 
-      {/* 6. BOTTOM GRADIENT OVERLAY WRAPPER (z-index 20) */}
-      <div 
-        className="absolute bottom-0 inset-x-0 z-20 flex flex-col pt-16 pb-1 px-3.5 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 40%)' }}
-      >
+      {/* 5. BOTTOM OVERLAY INFORMATION & CONTROLS (z-index 10) */}
+      <div className="absolute bottom-0 inset-x-0 z-10 px-4 pb-4 pt-16 flex flex-col gap-3 pointer-events-none bg-gradient-to-t from-black/95 via-black/40 to-transparent">
         
-        {/* Clickable contents need pointer-events-auto */}
-        <div className="pointer-events-auto space-y-1">
+        {/* Title, bio and simulated chat */}
+        <div className="space-y-2 pointer-events-auto select-text">
           
-          {/* Real-time Live Comments Stream */}
+          {/* Chat Stream overlay */}
           <div 
-            className="w-full max-h-[140px] overflow-y-auto mb-2.5 space-y-1.5 pr-4 no-scrollbar flex flex-col justify-end pointer-events-auto"
+            className="w-full max-h-[100px] overflow-y-auto mb-1 space-y-1 pr-4 no-scrollbar flex flex-col justify-end pointer-events-auto"
             style={{ 
-              maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 100%)',
-              WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 100%)'
+              maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)',
+              WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)'
             }}
           >
-            {chatMessages
-              .filter(msg => msg.auctionId === currentItem?.id)
-              .slice(-5) // Only display last 5 messages for responsive render performance
-              .map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={`flex items-start gap-1.5 px-2.5 py-1 rounded-xl w-max max-w-[85%] text-xs backdrop-blur-md select-none animate-in slide-in-from-bottom duration-300 font-sans ${
-                    msg.isBid 
-                      ? 'bg-[#FF6B00]/25 border border-[#FF6B00]/45 text-[#FF8A00] font-black shadow-[0_2px_10px_rgba(255,107,0,0.2)]' 
-                      : 'bg-black/45 text-white/95 border border-white/5 shadow-xs'
-                  }`}
-                >
-                  <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=50&q=80'} 
-                    alt="avatar" 
-                    className="w-4.5 h-4.5 rounded-full object-cover shrink-0 border border-white/15"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="leading-tight">
-                    <span className="font-extrabold text-gray-300 mr-1 text-[11px] font-sans">
-                      {msg.userName}:
-                    </span>
-                    <span className="text-[11.5px] font-sans font-medium">{msg.text}</span>
-                  </div>
-                </div>
-              ))}
+            {cardChatMessages.map((msg) => (
+              <div 
+                key={msg.id} 
+                className={`flex items-start gap-1 px-2 py-0.5 rounded-lg w-max max-w-[85%] text-[10.5px] backdrop-blur-md select-none font-sans ${
+                  msg.isBid 
+                    ? 'bg-[#FF6B00]/20 border border-[#FF6B00]/40 text-[#FF8A00] font-black' 
+                    : 'bg-black/40 text-white/90 border border-white/5'
+                }`}
+              >
+                <span className="font-extrabold text-gray-300 mr-1">{msg.userName}:</span>
+                <span className="font-medium">{msg.text}</span>
+              </div>
+            ))}
           </div>
-          
-          {/* Product Header Title & Meta */}
-          <div className="space-y-0.5">
-            <h2 className="text-[19px] font-black text-white tracking-tight leading-tight select-all drop-shadow-lg">
+
+          <div>
+            <h2 className="text-[17px] font-black text-white tracking-tight leading-tight select-all">
               {formattedTitle}
             </h2>
+            <p className="text-[10px] text-zinc-300 leading-relaxed font-sans max-w-[80%] mt-0.5 line-clamp-2">
+              {item.description}
+            </p>
           </div>
-
-          {/* Real-time Bid simulated bubble - only shown when showBidBubble is active */}
-          <div 
-            className={`transition-all duration-500 ease-in-out transform ${
-              showBidBubble 
-                ? 'opacity-100 scale-100 translate-y-[-2px] max-h-[80px] p-2 border border-white/10 mt-1 mb-2 shadow-xl' 
-                : 'opacity-0 scale-95 -translate-y-2 max-h-0 p-0 m-0 border-transparent overflow-hidden pointer-events-none'
-            } flex items-center justify-between backdrop-blur-md rounded-2xl`}
-            style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          >
-            <div className="flex items-center gap-2">
-              <img 
-                src={lastBidderAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} 
-                alt="Bidder" 
-                className="w-7 h-7 rounded-full object-cover border border-white/20 shadow-sm" 
-              />
-              <div className="flex flex-col">
-                <span className="text-[7px] bg-[#FF6B00]/25 text-[#FF6B00] border border-[#FF6B00]/40 px-1.5 py-0.2 rounded font-black uppercase tracking-wider block w-max leading-none">
-                  NEW BID
-                </span>
-                <span className="text-[11px] text-white font-extrabold block mt-0.5 leading-none">
-                  {lastBidderName}
-                </span>
-              </div>
-            </div>
-            <span className="text-xs font-black text-white font-sans bg-white/10 px-2 rounded-xl border border-white/5 shadow-inner">
-              {currentItem.currentPrice.toLocaleString()} JOD
-            </span>
-          </div>
-
-          {/* Overall bottom area (No solid black background: floating directly on video) */}
-          <div className="space-y-1.5 py-1.5 pointer-events-auto">
-            {/* Quick bid buttons row */}
-            <div className="grid grid-cols-3 gap-2">
-              {[25, 50, 100].map((val) => {
-                const isActive = activeQuickBidVal === val;
-                return (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => {
-                      setSelectedIncrement(val);
-                      setActiveQuickBidVal(val);
-                      // Instantly trigger bidding and deduct from wallet!
-                      const requestedBidAmount = currentItem.currentPrice + val;
-                      executeBid(requestedBidAmount);
-                      setTimeout(() => {
-                        setActiveQuickBidVal(null);
-                      }, 400);
-                    }}
-                    className={`bid-btn-glass text-white font-bold text-[13px] h-[38px] px-4 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                      isActive ? 'bid-btn-active' : ''
-                    }`}
-                  >
-                    +{val} {isAr ? 'د.أ' : 'JD'}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Gesture-Based Swipe To Bid Slider */}
-            <div className="w-full shrink-0 relative z-30" id="main-lot-bid-submit-cta">
-              <SwipeToBid
-                amount={bidCTAAmount}
-                onSwipeSuccess={() => executeBid(bidCTAAmount)}
-                disabled={currentUser.isBlocked || wallet.availableBalance < (bidCTAAmount - (currentItem?.currentBidderId === currentUser.id ? currentItem.currentPrice : 0))}
-                language={language}
-              />
-            </div>
-          </div>
-
-          {/* Bottom Nav Bar aligned inside gradient area */}
-          <nav 
-            className="bg-black/85 backdrop-blur-md border border-white/10 px-4 flex items-center justify-between text-[11px] font-bold tracking-wider text-gray-400 select-none h-[60px] rounded-xl relative z-40"
-            id="live-tiktok-bottom-nav"
-          >
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveView('discovery');
-                triggerToast(isAr ? 'الانتقال للرئيسية' : 'Swapped to Main Feed View');
-              }}
-              className="flex flex-col items-center justify-center gap-1 hover:text-white transition-colors cursor-pointer min-w-[44px]"
-            >
-              <Home className="w-4.5 h-4.5 text-gray-400" />
-              <span className="text-[8px] font-black uppercase tracking-widest">{isAr ? 'الرئيسية' : 'HOME'}</span>
-            </button>
-
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveView('discovery');
-                triggerToast(isAr ? 'استكشاف لوتات المزاد المتاحة' : 'Opening Explore Listing Filters');
-              }}
-              className="flex flex-col items-center justify-center gap-1 hover:text-white transition-colors cursor-pointer min-w-[44px]"
-            >
-              <Search className="w-4.5 h-4.5 text-gray-400" />
-              <span className="text-[8px] font-black uppercase tracking-widest">{isAr ? 'استكشاف' : 'EXPLORE'}</span>
-            </button>
-
-            {/* Large Floating Glowing Plus Center Action Button */}
-            <div className="relative -top-3">
-              <div className="absolute inset-0 bg-gradient-to-tr from-[#FF6B00] to-[#FF8A00] rounded-full blur-md opacity-35" />
-              <button 
-                type="button"
-                onClick={() => {
-                  setActiveView('upload');
-                  triggerToast(isAr ? 'إنشاء إعلان مزاد جديد للموافقة السريعة' : 'Launching studio listing wizard');
-                }}
-                className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#FF6B00] to-[#FF8A00] flex items-center justify-center text-white active:scale-95 transition-all shadow-lg border border-[#FF6B00]/15 font-black relative z-10 hover:brightness-105 cursor-pointer min-w-[44px] min-h-[44px]"
-              >
-                <Plus className="w-5.5 h-5.5 text-white stroke-[3.5]" />
-              </button>
-            </div>
-
-            <button 
-              type="button"
-              onClick={() => triggerToast(isAr ? 'البث المباشر المفتوح حالياً!' : 'You are inside the active Live Auction room!')}
-              className="flex flex-col items-center justify-center gap-1 text-[#FF6B00] relative cursor-pointer min-w-[44px]"
-            >
-              <Gavel className="w-4.5 h-4.5 text-[#FF6B00]" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-[#FF6B00]">{isAr ? 'مباشر' : 'LIVE'}</span>
-              <span className="absolute -top-0.5 w-1 h-1 bg-[#FF6B00] rounded-full shadow-[0_0_4px_#FF6B00] animate-pulse"></span>
-            </button>
-
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveView('wallet');
-                triggerToast(isAr ? 'تصفح محفظة الحساب والضمانات المعتمدة' : 'Direct secure financial wallet');
-              }}
-              className="flex flex-col items-center justify-center gap-1 hover:text-white transition-colors cursor-pointer min-w-[44px]"
-            >
-              <User className="w-4.5 h-4.5 text-gray-400" />
-              <span className="text-[8px] font-black uppercase tracking-widest">{isAr ? 'حسابي' : 'PROFILE'}</span>
-            </button>
-          </nav>
-
         </div>
 
-        {/* COMPACT REAL-TIME COMMENTS TYPING SHEET */}
-        {showCommentInput && (
-          <div 
-            className="absolute inset-x-0 bottom-0 z-[45] p-3.5 pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom duration-250 flex items-center gap-2 border-t border-white/10 rounded-t-3xl shadow-[0_-8px_32px_rgba(0,0,0,0.6)]"
-            style={{ backgroundColor: 'rgba(18,19,24,0.95)', backdropFilter: 'blur(20px)', pointerEvents: 'auto' }}
-          >
-            <input 
-              type="text"
-              value={newCommentVal}
-              onChange={(e) => setNewCommentVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendComment();
-                }
-              }}
-              placeholder={isAr ? 'اكتب تعليقاً عاماً للجميع...' : 'Type a public comment...'}
-              className="flex-grow h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-white text-[12px] font-medium placeholder-gray-500 outline-hidden focus:border-[#FF6B00]/70 transition-colors pointer-events-auto"
-              autoFocus
-            />
-            <button 
-              type="button"
-              onClick={handleSendComment}
-              className="h-11 px-5 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[12px] uppercase rounded-xl transition-all cursor-pointer min-w-[70px] flex items-center justify-center leading-none pointer-events-auto"
-            >
-              {isAr ? 'إرسال' : 'SEND'}
-            </button>
-            <button 
-              type="button"
-              onClick={() => setShowCommentInput(false)}
-              className="w-11 h-11 bg-white/5 rounded-xl border border-[#ffffff10] text-gray-400 flex items-center justify-center hover:text-white cursor-pointer pointer-events-auto"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        {/* Quick increments & Prominent Place Bid CTA Button */}
+        <div className="space-y-2 pointer-events-auto">
+          {/* Increments bar */}
+          <div className="grid grid-cols-3 gap-2">
+            {[25, 50, 100].map((val) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => executeBid(item.currentPrice + val)}
+                className="h-9 px-3 rounded-xl bg-white/10 hover:bg-[#FF6B00]/25 hover:border-[#FF6B00]/40 border border-white/10 text-white font-extrabold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-inner active:scale-95"
+              >
+                +{val} <span className="text-[8px] font-normal opacity-70">{isAr ? 'د.أ' : 'JD'}</span>
+              </button>
+            ))}
           </div>
-        )}
+
+          {/* Prominent Gavel Bid CTA Button */}
+          <button
+            type="button"
+            onClick={() => executeBid(nextBidAmount)}
+            className="w-full h-11 bg-gradient-to-r from-[#FF6B00] to-[#FF8A00] text-white rounded-xl flex items-center justify-between px-5 active:scale-95 transition-all shadow-[0_8px_20px_rgba(255,107,0,0.3)] hover:brightness-105 cursor-pointer font-black"
+            disabled={currentUser.isBlocked || wallet.availableBalance < nextBidAmount}
+          >
+            <div className="flex items-center gap-1.5">
+              <Gavel className="w-4 h-4 text-white stroke-[2.5]" />
+              <span className="text-xs uppercase tracking-wider">{isAr ? 'قدّم مزايدة فوراً' : 'PLACE BID'}</span>
+            </div>
+            <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border border-white/10">
+              {isAr ? 'المزايدة التالية:' : 'Next Bid:'} {nextBidAmount.toLocaleString()} JOD
+            </span>
+          </button>
+        </div>
 
       </div>
 
-      {/* Render specification details slide modal (z-index 40) */}
-      {selectedLotId && (
+      {/* 6. MODALS */}
+      {/* Specs Details slide-up sheet */}
+      {selectedLotDetailsId && (
         <AuctionDetailsModal 
-          lotId={selectedLotId} 
-          onClose={() => setSelectedLotId(null)} 
+          lotId={selectedLotDetailsId} 
+          onClose={() => setSelectedLotDetailsId(null)} 
         />
       )}
 
-      {/* Custom Bid Increment Dialog Modal (z-index 50) */}
-      {showCustomModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#121318] border border-white/10 rounded-3xl p-5.5 w-full max-w-sm space-y-4 shadow-[0_16px_48px_rgba(0,0,0,0.6)] animate-in fade-in duration-200">
+      {/* Floating Comments overlay sheet */}
+      {showCommentsModal && (
+        <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-[#121318] border-t border-white/10 rounded-t-3xl max-h-[60%] flex flex-col animate-in slide-in-from-bottom duration-250">
             
-            <div className="flex justify-between items-center">
-              <h3 className="text-[13px] font-black text-white tracking-wide uppercase flex items-center gap-1.5 font-sans">
-                <Sparkles className="w-4 h-4 text-[#FF6B00]" /> {isAr ? 'تحديد زيادة مخصصة للمزايدة' : 'SET CUSTOM INCREMENT'}
-              </h3>
+            <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
+              <span className="text-xs font-black tracking-wider uppercase text-zinc-300">
+                {isAr ? 'التعليقات المباشرة' : 'LIVE FEED CHAT'} ({commentCount})
+              </span>
               <button 
                 type="button"
-                onClick={() => setShowCustomModal(false)}
-                className="p-1 rounded-full hover:bg-white/10 text-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+                onClick={() => setShowCommentsModal(false)}
+                className="p-1 rounded-full hover:bg-white/5 text-zinc-400 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCustomBidSubmit} className="space-y-4">
-              <div className="bg-[#0A0B0D] p-3 rounded-2xl flex items-center justify-between border border-white/5">
-                <input 
-                  type="number" 
-                  value={customBidVal} 
-                  onChange={(e) => setCustomBidVal(e.target.value)}
-                  placeholder="e.g. 150"
-                  className="bg-transparent text-lg font-sans font-black text-white focus:outline-none w-full text-center"
-                  autoFocus
-                />
-                <span className="text-xs font-black text-[#FF6B00] font-sans ml-2">JOD</span>
-              </div>
+            {/* List of comments */}
+            <div className="flex-grow overflow-y-auto p-4 space-y-3 no-scrollbar min-h-[160px]">
+              {chatMessages.filter(msg => msg.auctionId === item.id).length > 0 ? (
+                chatMessages
+                  .filter(msg => msg.auctionId === item.id)
+                  .map((msg) => (
+                    <div key={msg.id} className="flex gap-2.5 items-start font-sans">
+                      <img 
+                        src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
+                        alt="User" 
+                        className="w-7 h-7 rounded-full object-cover border border-white/10"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex-1 min-w-0 bg-white/5 border border-white/5 px-3 py-2 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-zinc-300 truncate block">
+                            {msg.userName}
+                          </span>
+                          <span className="text-[8px] text-zinc-500 shrink-0 block">
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-zinc-200 leading-normal mt-0.5">
+                          {msg.text}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-zinc-500 text-center">
+                  <MessageSquare className="w-6 h-6 text-zinc-600 mb-1.5" />
+                  <p className="text-[10px] uppercase font-black tracking-wider">
+                    {isAr ? 'لا توجد تعليقات بعد' : 'No comments yet'}
+                  </p>
+                </div>
+              )}
+            </div>
 
-              <div className="text-[10.5px] text-gray-400 leading-relaxed text-center font-sans uppercase">
-                {isAr ? 'جميع المزايدات مضمونة بخدمة كليك للتحويل المالي المباشر' : 'All bids committed are backed by escrow credit balances'}
-              </div>
-
+            {/* Message input */}
+            <form onSubmit={handleCommentSubmit} className="p-3.5 border-t border-white/5 flex gap-2 shrink-0 pb-[calc(env(safe-area-inset-bottom)+14px)] bg-black/40">
+              <input 
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder={isAr ? 'اكتب تعليقاً عاماً...' : 'Type a public comment...'}
+                className="flex-grow h-10 px-3 bg-white/5 border border-white/10 rounded-xl text-zinc-100 text-[12px] font-medium placeholder-gray-500 outline-none focus:border-[#FF6B00]/70 transition-colors pointer-events-auto"
+                autoFocus
+              />
               <button 
-                type="submit" 
-                className="w-full bg-[#FF6B00] text-white font-black py-3 rounded-2xl shadow-lg transition-all hover:scale-[1.01] cursor-pointer min-h-[44px]"
+                type="submit"
+                className="h-10 px-4 bg-[#FF6B00] hover:bg-orange-600 text-white font-extrabold text-[12px] rounded-xl transition-all cursor-pointer flex items-center justify-center leading-none"
               >
-                {isAr ? 'حفظ وتأكيد الزيادة لزر المزايدة السريع' : 'CONFIRM AND SAVE'}
+                {isAr ? 'إرسال' : 'SEND'}
               </button>
             </form>
 
           </div>
         </div>
       )}
-
-
 
     </div>
   );

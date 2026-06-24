@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
 import { 
   User as UserIcon, 
   HelpCircle, 
@@ -57,6 +58,12 @@ export const WalletView: React.FC = () => {
   
   // Normal Bidder Wallet States
   const [amount, setAmount] = useState<string>('500');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 600);
+    return () => clearTimeout(timer);
+  }, []);
   const [alias, setAlias] = useState<string>('');
   const [fileUploaded, setFileUploaded] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
@@ -203,7 +210,8 @@ export const WalletView: React.FC = () => {
   const activeSubscribers = users.filter(u => u.subscriptionStatus === 'active');
 
   // 1. ADMIN USER CONSOLE DESIGN (THE CORE CASH FLOW & AUDIT LEDGER)
-  if (currentUser?.role === 'admin') {
+  const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+  if (isStrictAdmin) {
     return (
       <div 
         className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F3F6F8] pb-4 overscroll-contain select-none font-sans"
@@ -714,7 +722,7 @@ export const WalletView: React.FC = () => {
                   <h3 className="text-lg font-black text-gray-900 leading-tight">
                     {currentUser.name}
                   </h3>
-                  {currentUser.role === 'admin' && (
+                  {isStrictAdmin && (
                     <span className="text-[8px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
                       {isAr ? 'مسؤول' : 'ADMIN'}
                     </span>
@@ -1020,7 +1028,12 @@ export const WalletView: React.FC = () => {
           </div>
           
           <div className="space-y-3">
-            {currentLockedEscrows.length > 0 ? (
+            {isLoading ? (
+              <>
+                <WalletRowSkeleton />
+                <WalletRowSkeleton />
+              </>
+            ) : currentLockedEscrows.length > 0 ? (
               currentLockedEscrows.map((escrow) => (
                 <div 
                   key={escrow.id} 
@@ -1067,7 +1080,13 @@ export const WalletView: React.FC = () => {
           </div>
  
           <div className="space-y-2.5">
-            {historicEscrows.length > 0 ? (
+            {isLoading ? (
+              <>
+                <WalletRowSkeleton />
+                <WalletRowSkeleton />
+                <WalletRowSkeleton />
+              </>
+            ) : historicEscrows.length > 0 ? (
               historicEscrows.map((escrow) => {
                 const isDeposit = escrow.status === 'released' || escrow.auctionId === 'cliq-dep';
                 return (
@@ -1100,9 +1119,11 @@ export const WalletView: React.FC = () => {
                 );
               })
             ) : (
-              <div className="text-center py-7 bg-white rounded-2xl border border-gray-100 text-xs text-gray-400">
-                {isAr ? 'سجل المعاملات السابقة خالٍ حالياً.' : 'Your CBJ audit ledger is empty.'}
-              </div>
+              <EmptyState 
+                title={isAr ? 'لا توجد معاملات بعد' : 'No transactions yet'}
+                description={isAr ? 'لم تقم بأي حوالات أو تسويات من قبل في محفظتك الموثقة.' : 'Your verified digital wallet has not initiated any financial clearances.'}
+                language={isAr ? 'ar' : 'en'}
+              />
             )}
           </div>
         </div>
