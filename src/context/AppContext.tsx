@@ -81,7 +81,7 @@ interface AppContextProps {
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  registerUser: (name: string, email: string, password?: string) => Promise<{ success: boolean; message: string }>;
+  registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
 
   // Watch list & Auto-bid attributes
@@ -719,12 +719,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         const userRef = doc(db, 'users', uid);
+        const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase().trim() : '';
+        const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
         
         try {
           const idTokenResult = await firebaseUser.getIdTokenResult();
-          const isAdmin = !!idTokenResult.claims.admin;
-          const currentRole: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
-
+          const isAdmin = !!idTokenResult.claims.admin || isAdminEmail;
+          let currentRole: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
+ 
           let userSnap;
           try {
             userSnap = await getDoc(userRef);
@@ -740,6 +742,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             
             loadedUser = {
               id: uid,
+              uid: uid,
               name: firebaseUser.displayName || capitalizedName,
               email: firebaseUser.email || '',
               avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
@@ -748,40 +751,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               isBlocked: false,
               subscriptionStatus: 'none',
               subscriptionExpiry: null,
-              phoneNumber: '',
+              phoneNumber: firebaseUser.phoneNumber || '',
+              phone: firebaseUser.phoneNumber || '',
               city: '',
+              createdAt: new Date().toISOString()
             };
             try {
               await setDoc(userRef, {
                 id: uid,
+                uid: uid,
                 name: loadedUser.name,
                 email: loadedUser.email,
                 avatar: loadedUser.avatar,
-                role: 'user',
+                role: currentRole,
                 isVerified: true,
                 isBlocked: false,
                 subscriptionStatus: 'none',
                 subscriptionExpiry: null,
-                phoneNumber: '',
+                phoneNumber: firebaseUser.phoneNumber || '',
+                phone: firebaseUser.phoneNumber || '',
                 city: '',
+                createdAt: new Date().toISOString()
               });
             } catch (error) {
               handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
             }
           } else {
             const fbData = userSnap.data();
+            let loadedRole: 'admin' | 'user' = fbData.role || currentRole;
+            
+            if (isAdminEmail && fbData.role !== 'admin') {
+              loadedRole = 'admin';
+              try {
+                await updateDoc(userRef, { role: 'admin' });
+              } catch (updateErr) {
+                console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
+              }
+            }
+            
             loadedUser = {
               id: uid,
+              uid: uid,
               name: fbData.name || firebaseUser.displayName || 'User',
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-              role: currentRole,
+              role: loadedRole,
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
               subscriptionStatus: fbData.subscriptionStatus || 'none',
               subscriptionExpiry: fbData.subscriptionExpiry || null,
               phoneNumber: fbData.phoneNumber || '',
+              phone: fbData.phone || fbData.phoneNumber || '',
               city: fbData.city || '',
+              createdAt: fbData.createdAt || new Date().toISOString()
             };
           }
           
@@ -791,15 +813,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error("Error setting up user profile in auth change:", error);
           const fallbackUser: User = {
             id: uid,
+            uid: uid,
             name: firebaseUser.displayName || 'User',
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: 'user',
+            role: isAdminEmail ? 'admin' : 'user',
             isVerified: true,
             isBlocked: false,
             subscriptionStatus: 'none',
             subscriptionExpiry: null,
             phoneNumber: '',
+            phone: '',
             city: '',
           };
           setCurrentUser(fallbackUser);
@@ -846,17 +870,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // B. Real-time wallet sync
     const walletRef = doc(db, 'wallets', currentUser.id);
-    getDoc(walletRef).then(snap => {
+    getDoc(walletRef).then(async (snap) => {
       if (!snap.exists()) {
-        const freshWallet = {
-          userId: currentUser.id,
-          totalBalance: 0,
-          availableBalance: 0,
-          escrowBalance: 0
-        };
-        setDoc(walletRef, freshWallet).catch(e => {
-          console.warn("Failed to set initial wallet on Firestore:", e);
-        });
+        try {
+          const { httpsCallable } = await import('firebase/functions');
+          const initWalletCallable = httpsCallable(functions, 'initializeUserWallet');
+          await initWalletCallable();
+        } catch (e) {
+          console.warn("Failed to initialize user wallet via Cloud Function:", e);
+        }
       }
     }).catch(e => {
       console.warn("Failed to fetch wallet from Firestore:", e);
@@ -1178,18 +1200,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await updateProfile(user, { displayName: name });
           
           const userRef = doc(db, 'users', user.uid);
+          const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
           const freshUserDoc = {
             id: user.uid,
+            uid: user.uid,
             name: name,
             email: cleanEmail,
             avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: 'user',
+            role: isAutoAdmin ? 'admin' : 'user',
             isVerified: true,
             isBlocked: false,
             subscriptionStatus: 'none',
             subscriptionExpiry: null,
             phoneNumber: '',
+            phone: '',
             city: '',
+            createdAt: new Date().toISOString()
           };
           await setDoc(userRef, freshUserDoc);
           
@@ -1236,18 +1262,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) {
+        const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
         const freshUserDoc = {
           id: user.uid,
+          uid: user.uid,
           name: user.displayName || 'Google User',
           email: user.email || '',
           avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-          role: 'user',
+          role: isGoogleAdmin ? 'admin' : 'user',
           isVerified: true,
           isBlocked: false,
           subscriptionStatus: 'none',
           subscriptionExpiry: null,
-          phoneNumber: '',
+          phoneNumber: user.phoneNumber || '',
+          phone: user.phoneNumber || '',
           city: '',
+          createdAt: new Date().toISOString()
         };
         await setDoc(userRef, freshUserDoc);
       }
@@ -1272,8 +1302,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const registerUser = useCallback(async (name: string, email: string, password = '') => {
+  const registerUser = useCallback(async (name: string, email: string, password = '', phone = '') => {
     const cleanEmail = email.toLowerCase().trim();
+    const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const user = userCredential.user;
@@ -1283,16 +1314,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const userRef = doc(db, 'users', user.uid);
       const freshUserDoc = {
         id: user.uid,
+        uid: user.uid,
         name: name,
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: 'user',
+        role: isAdminEmail ? 'admin' : 'user',
         isVerified: true,
         isBlocked: false,
         subscriptionStatus: 'none',
         subscriptionExpiry: null,
-        phoneNumber: '',
+        phoneNumber: phone || '',
+        phone: phone || '',
         city: '',
+        createdAt: new Date().toISOString()
       };
       await setDoc(userRef, freshUserDoc);
 
@@ -1341,55 +1375,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
     const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
 
+    if (!currentUser) {
+      addNotification('❌ Error', 'User must be logged in.', 'alert');
+      return;
+    }
+
     try {
-      const subscribeCallable = httpsCallable<{ 
-        price: number; 
-        plan: string; 
-        paymentProofImage: string; 
-        transferFullName: string; 
-        transferPhone: string 
+      let downloadURL = '';
+
+      if (paymentProofImage && paymentProofImage.startsWith('data:')) {
+        // Upload payment proof screenshot directly to Firebase Storage inside payment-proofs/{userId}/{timestamp-fileName}
+        const { getStorage, ref, uploadString, getDownloadURL } = await import('firebase/storage');
+        const storage = getStorage();
+        const fileName = `${Date.now()}_proof.png`;
+        const proofRef = ref(storage, `payment-proofs/${currentUser.id}/${fileName}`);
+        
+        const uploadResult = await uploadString(proofRef, paymentProofImage, 'data_url');
+        downloadURL = await getDownloadURL(uploadResult.ref);
+      } else {
+        downloadURL = paymentProofImage || '';
+      }
+
+      // Invoke the Callable Cloud Function requestSubscription
+      const { httpsCallable } = await import('firebase/functions');
+      const requestSubCallable = httpsCallable<{
+        price: number;
+        plan: string;
+        paymentProofUrl: string;
+        paymentProofImage: string;
+        transferFullName: string;
+        transferPhone: string;
       }, { success: boolean; message: string }>(functions, 'requestSubscription');
 
-      await subscribeCallable({
+      await requestSubCallable({
         price,
         plan,
-        paymentProofImage: paymentProofImage || '',
+        paymentProofUrl: downloadURL,
+        paymentProofImage: downloadURL,
         transferFullName: transferFullName || '',
         transferPhone: transferPhone || ''
       });
 
       setCurrentUser(prev => {
         if (!prev) return prev;
-        const updated = { 
+        return { 
           ...prev, 
           subscriptionStatus: 'pending' as const, 
           subscriptionExpiry: null, 
-          paymentProofImage,
+          paymentProofImage: downloadURL,
           transferFullName,
           transferPhone
         };
-        return updated;
       });
+
       setUsers(prev => prev.map(u => {
         if (currentUser && u.id === currentUser.id) {
           return { 
             ...u, 
             subscriptionStatus: 'pending' as const, 
             subscriptionExpiry: null, 
-            paymentProofImage,
+            paymentProofImage: downloadURL,
             transferFullName,
             transferPhone
           };
         }
         return u;
       }));
+
       setShowSubscriptionPrompt(false);
       addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
     } catch (error: any) {
-      console.error("Cloud function requestSubscription failed:", error);
+      console.error("[requestSubscription] Failed. Function: requestSubscription, userId:", currentUser.id, "databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753, error:", error);
       addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
     }
-  }, [currentUser, addNotification]);
+  }, [currentUser, addNotification, functions]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
   const placeBid = useCallback(async (auctionId: string, amount: number): Promise<{ success: boolean; message: string }> => {

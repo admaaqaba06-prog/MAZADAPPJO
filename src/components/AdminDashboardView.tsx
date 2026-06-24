@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { 
   ShieldCheck, 
@@ -60,45 +60,69 @@ export const AdminDashboardView: React.FC = () => {
   }, []);
 
   const approveSubscription = async (request: any) => {
-    const expiry = request.plan === 'monthly'
-      ? Date.now() + 30 * 24 * 60 * 60 * 1000
-      : request.plan === 'quarterly'
-      ? Date.now() + 90 * 24 * 60 * 60 * 1000
-      : Date.now() + 365 * 24 * 60 * 60 * 1000;
+    const plan = request.plan || 'monthly';
+    let durationDays = 30;
+    if (plan === 'quarterly') {
+      durationDays = 90;
+    } else if (plan === 'annual' || plan === 'yearly') {
+      durationDays = 365;
+    }
+
+    const now = new Date();
+    const expiryDate = new Date();
+    expiryDate.setDate(now.getDate() + durationDays);
 
     await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-      subscriptionStatus: 'active'
+      subscriptionStatus: 'approved',
+      status: 'approved'
     });
+
     await updateDoc(doc(db, 'users', request.userId), {
       subscriptionStatus: 'active',
-      subscriptionExpiry: expiry,
-      subscriptionTier: request.plan
+      subscriptionPlan: plan,
+      subscriptionTier: plan,
+      subscriptionExpiry: expiryDate.getTime(),
+      subscriptionApprovedAt: serverTimestamp(),
+      subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
     });
   };
 
   const approveUserDirect = async (user: any) => {
-    // Default to monthly if no request details exist
-    const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const expiryDate = new Date();
+    expiryDate.setDate(now.getDate() + 30); // Default to 30 days
+
     await updateDoc(doc(db, 'users', user.id), {
       subscriptionStatus: 'active',
-      subscriptionExpiry: expiry,
-      subscriptionTier: 'monthly'
+      subscriptionPlan: 'monthly',
+      subscriptionTier: 'monthly',
+      subscriptionExpiry: expiryDate.getTime(),
+      subscriptionApprovedAt: serverTimestamp(),
+      subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
     });
   };
 
   const rejectUserDirect = async (user: any) => {
     await updateDoc(doc(db, 'users', user.id), {
-      subscriptionStatus: 'none',
-      subscriptionExpiry: null
+      subscriptionStatus: 'rejected',
+      subscriptionExpiry: null,
+      subscriptionPlan: null,
+      subscriptionApprovedAt: null,
+      subscriptionExpiresAt: null
     });
   };
 
   const rejectSubscription = async (request: any) => {
     await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-      subscriptionStatus: 'rejected'
+      subscriptionStatus: 'rejected',
+      status: 'rejected'
     });
     await updateDoc(doc(db, 'users', request.userId), {
-      subscriptionStatus: 'none'
+      subscriptionStatus: 'rejected',
+      subscriptionExpiry: null,
+      subscriptionPlan: null,
+      subscriptionApprovedAt: null,
+      subscriptionExpiresAt: null
     });
   };
 
@@ -153,17 +177,24 @@ export const AdminDashboardView: React.FC = () => {
             : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : 'PREMIUM SUBS');
           
           const isActive = activeTab === tab;
+          const hasPendingRequests = tab === 'subscriptions' && subscriptionRequests.length > 0;
+          
           return (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
                 isActive 
                   ? 'bg-gray-900 text-white shadow-sm' 
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {tabLabel}
+              <span>{tabLabel}</span>
+              {hasPendingRequests && (
+                <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
+                  {subscriptionRequests.length}
+                </span>
+              )}
             </button>
           );
         })}
@@ -177,6 +208,32 @@ export const AdminDashboardView: React.FC = () => {
             ========================================== */}
         {activeTab === 'metrics' && (
           <div className="space-y-6">
+            
+            {subscriptionRequests.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900 uppercase">
+                      {isAr ? 'طلب اشتراك جديد معلق' : 'NEW PENDING SUBSCRIPTION'}
+                    </h4>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      {isAr 
+                        ? `هناك ${subscriptionRequests.length} طلب اشتراك بانتظار مراجعته والموافقة عليها وتفعيلها.`
+                        : `There are ${subscriptionRequests.length} pending subscription requests awaiting your review and approval.`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('subscriptions')}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap self-end sm:self-auto"
+                >
+                  {isAr ? 'عرض الطلبات والمراجعة' : 'REVIEW NOW'}
+                </button>
+              </div>
+            )}
             
             {/* Elegant 4-Card Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -775,6 +832,12 @@ export const AdminDashboardView: React.FC = () => {
                       <div>
                         <h4 className="font-extrabold text-sm text-gray-900 leading-none">{req.userName}</h4>
                         <p className="text-[10px] text-gray-400 mt-1">{req.userEmail}</p>
+                        {req.createdAt && (
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            <span className="font-semibold">{isAr ? 'تاريخ الطلب: ' : 'Requested At: '}</span>
+                            {new Date(req.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-US')}
+                          </p>
+                        )}
                       </div>
 
                       <div className="bg-gray-50 border border-gray-150 p-3 rounded-xl text-xs space-y-1.5">

@@ -12,7 +12,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return request.auth != null && (request.auth.token.role == 'admin' || request.auth.token.admin == true);
+      return request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.admin == true || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     // 1. Users block
@@ -20,7 +24,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow create: if isSignedIn() 
                     && isOwner(userId)
-                    && request.resource.data.role == 'user'
+                    && (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && request.resource.data.email == 'admaaqaba06@gmail.com'))
                     && request.resource.data.isBlocked == false
                     && request.resource.data.subscriptionStatus == 'none';
       allow update: if isSignedIn() 
@@ -54,10 +58,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 6. Subscription Requests (writable ONLY by Cloud Functions)
+    // 6. Subscription Requests
     match /subscriptionRequests/{reqId} {
-      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      allow write: if false;
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // 7. Chats

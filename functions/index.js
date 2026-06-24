@@ -1,7 +1,9 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 
 admin.initializeApp();
+const db = getFirestore('ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753');
 
 /**
  * 1. scheduledAuctionCloser (BUG #2 & BUG #6 Compliance)
@@ -11,7 +13,6 @@ admin.initializeApp();
 exports.scheduledAuctionCloser = functions.pubsub
   .schedule('every 1 minutes')
   .onRun(async (context) => {
-    const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
     const nowMs = now.toMillis();
     
@@ -140,7 +141,6 @@ exports.onBidCreated = functions.firestore
   .onCreate(async (snapshot, context) => {
     const bidData = snapshot.data();
     const auctionId = context.params.auctionId;
-    const db = admin.firestore();
 
     const amount = bidData.amount;
     const bidderId = bidData.bidderId;
@@ -210,8 +210,6 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid auctionId or amount.');
   }
 
-  const db = admin.firestore();
-  
   try {
     return await db.runTransaction(async (transaction) => {
       // 1. Get user profile
@@ -452,8 +450,6 @@ exports.releaseEscrow = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid escrowId.');
   }
 
-  const db = admin.firestore();
-
   try {
     return await db.runTransaction(async (transaction) => {
       // Verify user role
@@ -543,8 +539,6 @@ exports.refundEscrow = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid escrowId.');
   }
 
-  const db = admin.firestore();
-
   try {
     return await db.runTransaction(async (transaction) => {
       // Verify user role
@@ -629,8 +623,6 @@ exports.requestTopUp = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid top-up amount.');
   }
 
-  const db = admin.firestore();
-
   try {
     const userSnap = await db.collection('users').doc(userId).get();
     if (!userSnap.exists) {
@@ -678,9 +670,7 @@ exports.requestSubscription = functions.https.onCall(async (data, context) => {
   }
 
   const userId = context.auth.uid;
-  const { price, plan, paymentProofImage, transferFullName, transferPhone } = data;
-
-  const db = admin.firestore();
+  const { price, plan, paymentProofUrl, paymentProofImage, transferFullName, transferPhone } = data;
 
   try {
     const userRef = db.collection('users').doc(userId);
@@ -691,32 +681,35 @@ exports.requestSubscription = functions.https.onCall(async (data, context) => {
 
     const userData = userSnap.data();
     const reqId = `sub-req-${Date.now()}-${userId}`;
+    const proofUrl = paymentProofUrl || paymentProofImage || '';
 
     const newRequest = {
       id: reqId,
       userId: userId,
       userName: userData.name || 'User',
       userEmail: userData.email || '',
+      plan: plan || 'monthly',
       price: price || 15,
-      plan: plan || 'premium',
-      paymentProofImage: paymentProofImage || '',
+      paymentProofUrl: proofUrl,
+      paymentProofImage: proofUrl,
       transferFullName: transferFullName || '',
       transferPhone: transferPhone || '',
       subscriptionStatus: 'pending',
-      timestamp: Date.now()
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     const batch = db.batch();
     
-    // 1. Create the subscription request document
+    // 1. Create the subscription request document inside subscriptionRequests
     const reqRef = db.collection('subscriptionRequests').doc(reqId);
     batch.set(reqRef, newRequest);
 
     // 2. Set user status to pending on user document
     batch.set(userRef, {
       subscriptionStatus: 'pending',
-      subscriptionExpiry: null,
-      paymentProofImage: paymentProofImage || '',
+      subscriptionPlan: plan || 'monthly',
+      paymentProofUrl: proofUrl,
+      paymentProofImage: proofUrl,
       transferFullName: transferFullName || '',
       transferPhone: transferPhone || ''
     }, { merge: true });
@@ -728,6 +721,86 @@ exports.requestSubscription = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error('Error in requestSubscription:', error);
     throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 8. onUserCreated (Auth Trigger)
+ * Automatically triggers on user signup in Auth to construct profile doc & wallet safely on the server side.
+ */
+exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
+  const uid = user.uid;
+  const userRef = db.collection('users').doc(uid);
+  const walletRef = db.collection('wallets').doc(uid);
+
+  const cleanEmail = user.email ? user.email.toLowerCase().trim() : '';
+  const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
+
+  const batch = db.batch();
+
+  // Create user doc if not exists
+  batch.set(userRef, {
+    id: uid,
+    uid: uid,
+    name: user.displayName || 'User',
+    email: cleanEmail,
+    avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+    role: isAutoAdmin ? 'admin' : 'user',
+    isVerified: true,
+    isBlocked: false,
+    subscriptionStatus: 'none',
+    subscriptionExpiry: null,
+    phoneNumber: user.phoneNumber || '',
+    phone: user.phoneNumber || '',
+    city: '',
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  // Create wallet doc if not exists
+  batch.set(walletRef, {
+    userId: uid,
+    availableBalance: 0,
+    escrowBalance: 0,
+    totalBalance: 0,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  try {
+    await batch.commit();
+    console.log(`[onUserCreated] Successfully initialized user profile and wallet for uid: ${uid}`);
+  } catch (err) {
+    console.error(`[onUserCreated Error] Failed for uid: ${uid}, databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753`, err);
+  }
+  return null;
+});
+
+/**
+ * 9. initializeUserWallet (Callable)
+ * Safely initializes or checks the presence of a user's wallet from server context.
+ */
+exports.initializeUserWallet = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const userId = context.auth.uid;
+
+  try {
+    const walletRef = db.collection('wallets').doc(userId);
+    const walletSnap = await walletRef.get();
+    if (!walletSnap.exists) {
+      await walletRef.set({
+        userId,
+        availableBalance: 0,
+        escrowBalance: 0,
+        totalBalance: 0,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log(`[initializeUserWallet] Initialized wallet for ${userId}`);
+    }
+    return { success: true, message: 'Wallet checked/initialized.' };
+  } catch (error) {
+    console.error(`[initializeUserWallet Error] Failed for userId: ${userId}, databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753`, error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to initialize wallet.');
   }
 });
 

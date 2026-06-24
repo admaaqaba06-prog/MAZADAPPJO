@@ -5,6 +5,7 @@
 
 export interface User {
   id: string;
+  uid?: string;
   name: string;
   email: string;
   avatar: string;
@@ -12,12 +13,18 @@ export interface User {
   isVerified: boolean;
   isBlocked: boolean;
   phoneNumber?: string;
+  phone?: string;
   city?: string;
-  subscriptionStatus: 'active' | 'expired' | 'none';
-  subscriptionExpiry?: string;
+  subscriptionStatus: 'active' | 'pending' | 'rejected' | 'expired' | 'none';
+  subscriptionExpiry?: string | number | null;
+  subscriptionPlan?: string;
+  subscriptionTier?: string;
+  subscriptionApprovedAt?: string;
+  subscriptionExpiresAt?: string;
   paymentProofImage?: string;
   transferFullName?: string;
   transferPhone?: string;
+  createdAt?: string;
 }
 
 export interface SellerProfile {

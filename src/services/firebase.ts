@@ -5,14 +5,14 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
-  authDomain: "mazadjoapp.firebaseapp.com",
-  projectId: "mazadjoapp",
-  storageBucket: "mazadjoapp.firebasestorage.app",
-  messagingSenderId: "622832200971",
-  appId: "1:622832200971:web:f0dcf4d08a22fdcc29460e",
-  firestoreDatabaseId: "ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753",
-  measurementId: ""
+  apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "mazadjoapp.firebaseapp.com",
+  projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || "mazadjoapp",
+  storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || "mazadjoapp.firebasestorage.app",
+  messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || "622832200971",
+  appId: (import.meta as any).env.VITE_FIREBASE_APP_ID || "1:622832200971:web:f0dcf4d08a22fdcc29460e",
+  firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || "ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753",
+  measurementId: (import.meta as any).env.VITE_FIREBASE_MEASUREMENT_ID || ""
 };
 
 const app = initializeApp(firebaseConfig);

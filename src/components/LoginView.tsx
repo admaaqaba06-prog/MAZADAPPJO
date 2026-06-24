@@ -51,6 +51,7 @@ export const LoginView: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -136,7 +137,7 @@ export const LoginView: React.FC = () => {
         setErrorMsg(isAr ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.');
         return;
       }
-      const res = await registerUser(name, email, password);
+      const res = await registerUser(name, email, password, phone);
       if (res.success) {
         setSuccessMsg(res.message);
       } else {
@@ -267,6 +268,20 @@ export const LoginView: React.FC = () => {
                   placeholder={t.fullnamePlaceholder || "Tareq Al-Masri"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
+                />
+              </div>
+
+              {/* Phone Number for register */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-gray-400 block pb-0.5">
+                  {isAr ? 'رقم الهاتف (اختياري)' : 'Phone Number (Optional)'}
+                </label>
+                <input 
+                  type="tel" 
+                  placeholder="07xxxxxxxx"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all text-start"
                 />
               </div>
