@@ -23,7 +23,8 @@ function ActiveViewRenderer() {
     case 'wallet':
       return <WalletView />;
     case 'admin':
-      if (currentUser?.role !== 'admin') {
+      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+      if (!isStrictAdmin) {
         return <DiscoveryFeedView />;
       }
       return <AdminDashboardView />;

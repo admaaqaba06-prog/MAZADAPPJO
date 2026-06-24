@@ -724,8 +724,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         try {
           const idTokenResult = await firebaseUser.getIdTokenResult();
-          const isAdmin = !!idTokenResult.claims.admin || isAdminEmail;
-          let currentRole: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
+          const hasAdminClaim = !!idTokenResult.claims.admin;
+          // Admin Dashboard must appear only if:
+          // (Firebase custom claim admin == true OR users/{uid}.role == "admin") WITH THE STRICT CONDITION that the email is admaaqaba06@gmail.com
+          let currentRole: 'admin' | 'user' = isAdminEmail ? 'admin' : 'user';
+          let isAdminField = isAdminEmail;
  
           let userSnap;
           try {
@@ -747,6 +750,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: firebaseUser.email || '',
               avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: currentRole,
+              isAdmin: isAdminField,
+              accountStatus: 'active',
               isVerified: true,
               isBlocked: false,
               subscriptionStatus: 'none',
@@ -764,6 +769,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 email: loadedUser.email,
                 avatar: loadedUser.avatar,
                 role: currentRole,
+                isAdmin: isAdminField,
+                accountStatus: 'active',
                 isVerified: true,
                 isBlocked: false,
                 subscriptionStatus: 'none',
@@ -778,14 +785,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             const fbData = userSnap.data();
-            let loadedRole: 'admin' | 'user' = fbData.role || currentRole;
+            let loadedRole: 'admin' | 'user' = isAdminEmail ? 'admin' : 'user';
             
             if (isAdminEmail && fbData.role !== 'admin') {
               loadedRole = 'admin';
               try {
-                await updateDoc(userRef, { role: 'admin' });
+                await updateDoc(userRef, { role: 'admin', isAdmin: true });
               } catch (updateErr) {
                 console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
+              }
+            } else if (!isAdminEmail && fbData.role === 'admin') {
+              loadedRole = 'user';
+              try {
+                await updateDoc(userRef, { role: 'user', isAdmin: false });
+              } catch (downgradeErr) {
+                console.warn("Failed to automatically downgrade unauthorized admin role in Firestore:", downgradeErr);
               }
             }
             
@@ -796,6 +810,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: loadedRole,
+              isAdmin: isAdminEmail && (hasAdminClaim || fbData.role === 'admin' || fbData.isAdmin === true),
+              accountStatus: fbData.accountStatus || 'active',
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
               subscriptionStatus: fbData.subscriptionStatus || 'none',
@@ -818,6 +834,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: isAdminEmail ? 'admin' : 'user',
+            isAdmin: isAdminEmail,
+            accountStatus: 'active',
             isVerified: true,
             isBlocked: false,
             subscriptionStatus: 'none',
@@ -1319,6 +1337,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         role: isAdminEmail ? 'admin' : 'user',
+        isAdmin: isAdminEmail,
+        accountStatus: 'active',
         isVerified: true,
         isBlocked: false,
         subscriptionStatus: 'none',

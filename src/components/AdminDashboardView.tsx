@@ -52,12 +52,17 @@ export const AdminDashboardView: React.FC = () => {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+    if (!isStrictAdmin) {
+      setSubscriptionRequests([]);
+      return;
+    }
     const unsub = onSnapshot(collection(db, 'subscriptionRequests'), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setSubscriptionRequests(list.filter((r: any) => r.subscriptionStatus === 'pending'));
     });
     return () => unsub();
-  }, []);
+  }, [currentUser]);
 
   const approveSubscription = async (request: any) => {
     const plan = request.plan || 'monthly';
@@ -851,13 +856,13 @@ export const AdminDashboardView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3.5 shrink-0">
-                      {req.paymentProofImage && (
+                      {(req.paymentProofImage || req.paymentProofUrl) && (
                         <div className="relative cursor-pointer max-w-[70px]">
                           <img 
-                            src={req.paymentProofImage} 
+                            src={req.paymentProofImage || req.paymentProofUrl} 
                             alt="Payment Proof" 
                             className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-xs transition-transform hover:scale-105"
-                            onClick={() => setViewReceiptUrl(req.paymentProofImage)}
+                            onClick={() => setViewReceiptUrl(req.paymentProofImage || req.paymentProofUrl)}
                           />
                         </div>
                       )}

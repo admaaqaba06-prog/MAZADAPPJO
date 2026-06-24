@@ -47,6 +47,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   const t = translations[language];
   const isAr = language === 'ar';
+  const isStrictAdmin = currentUser && currentUser.email === 'admaaqaba06@gmail.com' && (currentUser.role === 'admin' || currentUser.isAdmin === true);
 
   const liveAuctions = auctions.filter(a => a.status === 'live');
 
@@ -160,7 +161,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <PlusCircle className="w-5 h-5" />
               <span className="text-[9px] font-bold tracking-normal">{t.navAddListing}</span>
             </button>
-            {currentUser && currentUser.role === 'admin' && (
+            {isStrictAdmin && (
               <button 
                 onClick={() => {
                   setActiveView('admin');
@@ -252,7 +253,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     {currentUser.name}
                   </span>
                   <span className="text-[9px] font-black text-red-500 tracking-wider uppercase mt-0.5">
-                    {currentUser.role === 'admin' 
+                    {isStrictAdmin 
                       ? (isAr ? 'مستشار النظام' : 'SYSTEM CRITICAL') 
                       : (isAr ? 'عضو موثق' : 'VERIFIED USER')}
                   </span>
@@ -392,7 +393,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <span>{isAr ? 'إنشاء إدراج بائع' : 'Sell'}</span>
               </button>
 
-              {currentUser && currentUser.role === 'admin' && (
+              {isStrictAdmin && (
                 <button
                   onClick={() => {
                     setActiveView('admin');

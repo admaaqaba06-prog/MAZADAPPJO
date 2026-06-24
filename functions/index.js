@@ -746,6 +746,8 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
     email: cleanEmail,
     avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
     role: isAutoAdmin ? 'admin' : 'user',
+    isAdmin: isAutoAdmin,
+    accountStatus: 'active',
     isVerified: true,
     isBlocked: false,
     subscriptionStatus: 'none',

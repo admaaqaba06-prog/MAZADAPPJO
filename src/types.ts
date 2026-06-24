@@ -10,6 +10,8 @@ export interface User {
   email: string;
   avatar: string;
   role: 'user' | 'seller' | 'admin';
+  isAdmin?: boolean;
+  accountStatus?: 'active' | 'blocked' | string;
   isVerified: boolean;
   isBlocked: boolean;
   phoneNumber?: string;
