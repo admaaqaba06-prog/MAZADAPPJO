@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db, auth, functions } from '../services/firebase';
+import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { 
   GoogleAuthProvider, 
@@ -10,7 +10,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -725,7 +725,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const isAdmin = !!idTokenResult.claims.admin;
           const currentRole: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
 
-          const userSnap = await getDoc(userRef);
+          let userSnap;
+          try {
+            userSnap = await getDoc(userRef);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.GET, `users/${uid}`);
+          }
+          
           let loadedUser: User;
           
           if (!userSnap.exists()) {
@@ -745,19 +751,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               phoneNumber: '',
               city: '',
             };
-            await setDoc(userRef, {
-              id: uid,
-              name: loadedUser.name,
-              email: loadedUser.email,
-              avatar: loadedUser.avatar,
-              role: 'user',
-              isVerified: true,
-              isBlocked: false,
-              subscriptionStatus: 'none',
-              subscriptionExpiry: null,
-              phoneNumber: '',
-              city: '',
-            });
+            try {
+              await setDoc(userRef, {
+                id: uid,
+                name: loadedUser.name,
+                email: loadedUser.email,
+                avatar: loadedUser.avatar,
+                role: 'user',
+                isVerified: true,
+                isBlocked: false,
+                subscriptionStatus: 'none',
+                subscriptionExpiry: null,
+                phoneNumber: '',
+                city: '',
+              });
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
+            }
           } else {
             const fbData = userSnap.data();
             loadedUser = {
@@ -979,9 +989,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time escrows synchronization with Firestore
   useEffect(() => {
-    const escrowsRefCol = collection(db, 'escrows');
-    const unsub = onSnapshot(escrowsRefCol, (snap) => {
-      if (!snap.empty) {
+    if (!isAuthenticated || !currentUser?.id) {
+      return;
+    }
+
+    if (currentUser.role === 'admin') {
+      const escrowsRefCol = collection(db, 'escrows');
+      const unsub = onSnapshot(escrowsRefCol, (snap) => {
         const fetchedEscrows: EscrowTransaction[] = [];
         snap.forEach((docSnap) => {
           const rawData = docSnap.data();
@@ -993,15 +1007,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } as EscrowTransaction);
         });
         fetchedEscrows.sort((a, b) => b.timestamp - a.timestamp);
-        setEscrows(fetchedEscrows);
-      } else {
-        setEscrows(INITIAL_ESCROWS);
-      }
-    }, (err) => {
-      console.warn("Firestore 'escrows' collection sync error:", err);
-    });
-    return () => unsub();
-  }, []);
+        setEscrows(fetchedEscrows.length > 0 ? fetchedEscrows : INITIAL_ESCROWS);
+      }, (err) => {
+        console.warn("Firestore 'escrows' collection sync error:", err);
+      });
+      return () => unsub();
+    } else {
+      // Standard user: listen to escrows where bidderId == userId or sellerId == userId
+      const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id));
+      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id));
+
+      let bidderEscrows: EscrowTransaction[] = [];
+      let sellerEscrows: EscrowTransaction[] = [];
+
+      const updateMergedEscrows = () => {
+        const mergedMap = new Map<string, EscrowTransaction>();
+        bidderEscrows.forEach(e => mergedMap.set(e.id, e));
+        sellerEscrows.forEach(e => mergedMap.set(e.id, e));
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => b.timestamp - a.timestamp);
+        setEscrows(mergedList.length > 0 ? mergedList : INITIAL_ESCROWS);
+      };
+
+      const unsubBidder = onSnapshot(bidderEscrowsQuery, (snap) => {
+        const list: EscrowTransaction[] = [];
+        snap.forEach((docSnap) => {
+          const rawData = docSnap.data();
+          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
+          list.push({
+            id: docSnap.id,
+            ...rawData,
+            amount
+          } as EscrowTransaction);
+        });
+        bidderEscrows = list;
+        updateMergedEscrows();
+      }, (err) => {
+        console.warn("Firestore 'escrows' (bidder) sync error:", err);
+      });
+
+      const unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
+        const list: EscrowTransaction[] = [];
+        snap.forEach((docSnap) => {
+          const rawData = docSnap.data();
+          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
+          list.push({
+            id: docSnap.id,
+            ...rawData,
+            amount
+          } as EscrowTransaction);
+        });
+        sellerEscrows = list;
+        updateMergedEscrows();
+      }, (err) => {
+        console.warn("Firestore 'escrows' (seller) sync error:", err);
+      });
+
+      return () => {
+        unsubBidder();
+        unsubSeller();
+      };
+    }
+  }, [isAuthenticated, currentUser?.id, currentUser?.role]);
 
   // Real-time chats synchronization with Firestore
   useEffect(() => {
@@ -1028,6 +1095,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
+    if (!isAuthenticated || currentUser?.role !== 'admin') {
+      return;
+    }
     const usersRefCol = collection(db, 'users');
     const unsub = onSnapshot(usersRefCol, (snap) => {
       if (!snap.empty) {
@@ -1056,7 +1126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'users' collection sync error:", err);
     });
     return () => unsub();
-  }, []);
+  }, [isAuthenticated, currentUser?.role]);
 
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
