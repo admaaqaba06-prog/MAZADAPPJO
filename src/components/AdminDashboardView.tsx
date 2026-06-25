@@ -40,6 +40,7 @@ export const AdminDashboardView: React.FC = () => {
     auctions, 
     escrows, 
     adminActions, 
+    adminActionsError,
     approveListing, 
     rejectListing, 
     verifySeller, 
@@ -409,7 +410,11 @@ export const AdminDashboardView: React.FC = () => {
               </div>
 
               <div className="divide-y divide-gray-100 max-h-52 overflow-y-auto pr-1">
-                {adminActions.length > 0 ? (
+                {adminActionsError ? (
+                  <div className="text-center py-8 text-red-500 text-xs font-medium">
+                    {isAr ? 'عذراً، فشل تحميل سجل العمليات.' : 'Unable to load admin actions'}
+                  </div>
+                ) : adminActions.length > 0 ? (
                   adminActions.map((action) => (
                     <div key={action.id} className="py-3 flex items-start gap-4">
                       <div className="w-2 h-2 rounded-full bg-[#FF6B00] mt-1 shrink-0" />

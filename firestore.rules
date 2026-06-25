@@ -100,5 +100,11 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
+
+    // 11. Admin Actions
+    match /adminActions/{actionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
   }
 }

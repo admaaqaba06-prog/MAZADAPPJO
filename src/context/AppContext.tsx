@@ -42,6 +42,7 @@ interface AppContextProps {
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   adminActions: AdminAction[];
   setAdminActions: React.Dispatch<React.SetStateAction<AdminAction[]>>;
+  adminActionsError?: string;
 
   // Active View State
   activeAuctionId: string | null;
@@ -233,6 +234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('mazad_admin_actions');
     return saved ? JSON.parse(saved) : [];
   });
+  const [adminActionsError, setAdminActionsError] = useState<string | undefined>(undefined);
 
   const [deletedAuctionIds, setDeletedAuctionIds] = useState<string[]>(() => {
     try {
@@ -581,6 +583,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => unsubHealth();
+  }, [currentUser]);
+
+  // Sync adminActions collection in real-time (For admins)
+  useEffect(() => {
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    if (!isStrictAdmin) {
+      setAdminActions([]);
+      setAdminActionsError(undefined);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'adminActions'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const unsubAdminActions = onSnapshot(q, (snap) => {
+      const actions: AdminAction[] = [];
+      snap.forEach((doc) => {
+        actions.push({ id: doc.id, ...doc.data() } as AdminAction);
+      });
+      setAdminActions(actions);
+      setAdminActionsError(undefined);
+    }, (err) => {
+      console.error("Error subscribing to adminActions logs:", err);
+      setAdminActions([]);
+      setAdminActionsError("Unable to load admin actions");
+    });
+
+    return () => unsubAdminActions();
   }, [currentUser]);
 
   // 2. Real-time synchronizations of logged-in User profile and Wallet with Firestore
@@ -1065,47 +1098,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanName = name.trim();
     const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
 
-    // Duplicate Account & Sybil / Fraud Protection Validation
+    // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
-      const { getDocs, query, collection, where } = await import('firebase/firestore');
+      const checkDuplicate = httpsCallable<{ phone: string; name: string }, { phoneExists: boolean; nameExists: boolean; duplicate: boolean }>(
+        functions,
+        'checkDuplicateAccount'
+      );
+      const dupResult = await checkDuplicate({ phone: cleanPhone, name: cleanName });
       
-      // 1. Check for duplicate phone number
-      if (cleanPhone) {
-        const phoneQuery = query(collection(db, 'users'), where('phone', '==', cleanPhone));
-        const phoneSnap = await getDocs(phoneQuery);
-        if (!phoneSnap.empty) {
-          await logAnalyticsEvent('rate_limit_triggered', null, cleanEmail, { 
-            reason: 'duplicate_account_phone_blocked', 
-            attemptedPhone: cleanPhone 
-          });
-          return {
-            success: false,
-            message: language === 'ar'
-              ? '❌ رقم الهاتف هذا مسجل مسبقاً بحساب آخر. تمنع قوانين المنصة الحسابات المتكررة.'
-              : '🚫 Duplicate Account: A verified account with this phone number already exists.'
-          };
-        }
+      if (dupResult.data && dupResult.data.duplicate) {
+        await logAnalyticsEvent('rate_limit_triggered', null, cleanEmail, { 
+          reason: 'duplicate_account_blocked', 
+          attemptedPhone: cleanPhone,
+          attemptedName: cleanName 
+        });
+        return {
+          success: false,
+          message: language === 'ar'
+            ? 'يوجد حساب مسجل مسبقاً بنفس رقم الهاتف أو الاسم. تواصل مع الدعم.'
+            : 'An account with the same phone number or name already exists. Please contact support.'
+        };
       }
-
-      // 2. Check for duplicate name
-      if (cleanName) {
-        const nameQuery = query(collection(db, 'users'), where('name', '==', cleanName));
-        const nameSnap = await getDocs(nameQuery);
-        if (!nameSnap.empty) {
-          await logAnalyticsEvent('rate_limit_triggered', null, cleanEmail, { 
-            reason: 'duplicate_account_name_blocked', 
-            attemptedName: cleanName 
-          });
-          return {
-            success: false,
-            message: language === 'ar'
-              ? '❌ الاسم مسجل بالفعل! يرجى إدخال اسمك الكامل وثنائي تجنباً للاشتباه بالاحتيال.'
-              : '🚫 Duplicate Name: A user with this display name is already registered.'
-          };
-        }
-      }
-    } catch (dbErr) {
-      console.warn("Skip pre-registration security query fallback: ", dbErr);
+    } catch (dupErr) {
+      console.warn("Skip pre-registration security Cloud Function query fallback: ", dupErr);
     }
 
     try {
@@ -1119,6 +1134,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: user.uid,
         uid: user.uid,
         name: cleanName,
+        normalizedName: cleanName.toLowerCase().trim(),
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         role: isAdminEmail ? 'admin' : 'user',
@@ -1130,6 +1146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscriptionExpiry: null,
         phoneNumber: cleanPhone || '',
         phone: cleanPhone || '',
+        normalizedPhone: cleanPhone.replace(/\D/g, ''),
         city: '',
         createdAt: new Date().toISOString()
       };
@@ -2104,6 +2121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,
+      adminActionsError,
       activeAuctionId, setActiveAuctionId,
       activeView, setActiveView,
       placeBid,

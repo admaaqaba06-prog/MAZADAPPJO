@@ -12,7 +12,11 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return request.auth != null && (request.auth.token.role == "admin" || request.auth.token.admin == true);
+      return request.auth != null &&
+        (
+          request.auth.token.admin == true ||
+          request.auth.token.email == "admaaqaba06@gmail.com"
+        );
     }
 
     // 1. Payment Proofs (Readable only by owner & admin; writable only by owner)

@@ -337,7 +337,7 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       }, { merge: true });
 
       // 7. Write new bid document
-      const bidRef = db.collection('bids').doc();
+      const bidRef = db.collection('auctions').doc(auctionId).collection('bids').doc();
       transaction.set(bidRef, {
         id: bidRef.id,
         auctionId,
@@ -824,4 +824,54 @@ exports.initializeUserWallet = functions.runWith({ cors: true }).https.onCall(as
     throw new functions.https.HttpsError('internal', error.message || 'Failed to initialize wallet.');
   }
 });
+
+/**
+ * 10. checkDuplicateAccount (Callable)
+ * Server-side validation to check for duplicate phone numbers and names using Admin SDK.
+ * Bypasses firestore client-side read security rules to ensure robust security.
+ */
+exports.checkDuplicateAccount = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const phone = data.phone || '';
+  const name = data.name || '';
+
+  const normalizedPhone = phone.replace(/\D/g, '');
+  const normalizedName = name.trim().toLowerCase();
+
+  let phoneExists = false;
+  let nameExists = false;
+
+  console.log(`[checkDuplicateAccount] Checking duplicate for phone: ${phone} (${normalizedPhone}) and name: ${name} (${normalizedName})`);
+
+  try {
+    if (normalizedPhone) {
+      const phoneSnap = await db.collection('users')
+        .where('normalizedPhone', '==', normalizedPhone)
+        .limit(1)
+        .get();
+      if (!phoneSnap.empty) {
+        phoneExists = true;
+      }
+    }
+
+    if (normalizedName) {
+      const nameSnap = await db.collection('users')
+        .where('normalizedName', '==', normalizedName)
+        .limit(1)
+        .get();
+      if (!nameSnap.empty) {
+        nameExists = true;
+      }
+    }
+
+    return {
+      phoneExists,
+      nameExists,
+      duplicate: phoneExists || nameExists
+    };
+  } catch (error) {
+    console.error('[checkDuplicateAccount Error]', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to check duplicates.');
+  }
+});
+
 
