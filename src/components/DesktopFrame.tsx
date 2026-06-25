@@ -380,20 +380,15 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               )}
             </aside>
 
-            {/* COLUMN 2: CENTER REEL (TikTok Web style center reel, w: 420px - 520px, h: 75vh - 85vh) */}
-            <main className="flex-1 flex items-center justify-center overflow-hidden" id="center-reels-feed-container">
-              <div 
-                className="w-[460px] max-w-[520px] min-w-[420px] h-[80vh] max-h-[85vh] min-h-[75vh] bg-black rounded-2xl shadow-2xl overflow-hidden relative"
-                id="center-reel-main-wrapper"
-              >
-                <Suspense fallback={
-                  <div className="flex-1 h-full flex items-center justify-center bg-zinc-950">
-                    <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
-                  </div>
-                }>
-                  {children}
-                </Suspense>
-              </div>
+            {/* COLUMN 2: CENTER REEL (TikTok Web style center reel) */}
+            <main className="flex-1 h-full flex flex-col overflow-hidden" id="center-reels-feed-container">
+              <Suspense fallback={
+                <div className="flex-1 h-full flex items-center justify-center bg-zinc-950">
+                  <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
+                </div>
+              }>
+                {children}
+              </Suspense>
             </main>
 
             {/* COLUMN 3: RIGHT DETAILS PANEL (360px) */}
