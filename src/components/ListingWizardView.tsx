@@ -73,9 +73,14 @@ export const ListingWizardView: React.FC = () => {
         duration: Number(duration),
         isFeatured: false
       }, rawVideoFile, rawThumbnailFile);
+      
+      // Only redirect on success
+      setActiveView('discovery');
+    } catch (err: any) {
+      console.error("Failed to upload listing:", err);
+      alert(isAr ? `فشل رفع المزاد: ${err.message || err}` : `Failed to upload listing: ${err.message || err}`);
     } finally {
       setIsUploading(false);
-      setActiveView('discovery');
     }
   };
 

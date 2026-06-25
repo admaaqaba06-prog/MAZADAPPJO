@@ -55,6 +55,16 @@ export const WalletView: React.FC = () => {
   
   const t = translations[language];
   const isAr = language === 'ar';
+
+  const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+
+  // Filter escrows strictly for the current user if they are not admin
+  const myEscrows = isStrictAdmin 
+    ? escrows 
+    : (currentUser ? escrows.filter(e => e.bidderId === currentUser.id || e.sellerId === currentUser.id) : []);
+
+  const myPendingDeposits = myEscrows.filter(e => e.auctionId === 'cliq-dep' && e.status === 'locked');
+  const myWonAuctionsPayments = myEscrows.filter(e => e.auctionId !== 'cliq-dep' && e.auctionId !== 'cliq-sub');
   
   // Normal Bidder Wallet States
   const [amount, setAmount] = useState<string>('500');
@@ -210,7 +220,6 @@ export const WalletView: React.FC = () => {
   const activeSubscribers = users.filter(u => u.subscriptionStatus === 'active');
 
   // 1. ADMIN USER CONSOLE DESIGN (THE CORE CASH FLOW & AUDIT LEDGER)
-  const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
   if (isStrictAdmin) {
     return (
       <div 
@@ -685,7 +694,7 @@ export const WalletView: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B00]"></div>
           <h2 className="text-[12px] font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
-            {isAr ? 'التدقيق والذمم المالية' : 'FINANCIAL BALANCE & AUDIT'}
+            {isAr ? 'محفظتي ورصيدي' : 'MY WALLET & BALANCE'}
           </h2>
         </div>
       </div>
@@ -782,7 +791,7 @@ export const WalletView: React.FC = () => {
             <div className="flex justify-between items-center">
               <div className="space-y-0.5">
                 <span className="text-[9px] text-[#FF6B00] font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'الرصيد الإجمالي للمحفظة' : 'TOTAL LEDGER BALANCE'}
+                  {isAr ? 'رصيد المحفظة' : 'WALLET BALANCE'}
                 </span>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className="text-[44px] font-black font-mono tracking-tight leading-none text-white">
@@ -805,31 +814,18 @@ export const WalletView: React.FC = () => {
             {/* Dash border separating */}
             <div className="border-t border-white/10 border-dashed" />
  
-            {/* Split layout: AVAILABLE vs ESCROW */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Left Column: AVAILABLE */}
-              <div className={isAr ? 'border-l border-white/5 pl-2' : 'border-r border-white/5 pr-2'}>
+            {/* Split layout: AVAILABLE only */}
+            <div className="grid grid-cols-1 gap-4">
+              {/* AVAILABLE Column stretched */}
+              <div>
                 <div className="flex items-center gap-1.5 text-emerald-400">
-                  <Wallet className="w-3 h-3 text-emerald-400" />
-                  <span className="text-[9px] font-black tracking-wider uppercase font-mono">
-                    {isAr ? 'المتاح للمزايدة' : 'AVAILABLE BID FUND'}
+                  <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[9.5px] font-black tracking-wider uppercase font-mono">
+                    {isAr ? 'الرصيد المتاح للمزايدة' : 'AVAILABLE BALANCE'}
                   </span>
                 </div>
-                <p className="text-xl font-bold text-white font-mono tracking-tight mt-1">
+                <p className="text-2xl font-black text-white font-mono tracking-tight mt-1">
                   {wallet.availableBalance.toLocaleString()} <span className="text-xs text-emerald-400 font-mono font-medium">JOD</span>
-                </p>
-              </div>
-              
-              {/* Right Column: ESCROWED */}
-              <div className={isAr ? 'pr-2' : 'pl-2'}>
-                <div className="flex items-center gap-1.5 text-amber-400">
-                  <Lock className="w-3 h-3 text-amber-400" />
-                  <span className="text-[9px] font-black tracking-wider uppercase font-mono">
-                    {isAr ? 'مأمن كعربون معلّق' : 'LOCKED ESCROWED'}
-                  </span>
-                </div>
-                <p className="text-xl font-bold text-white font-mono tracking-tight mt-1">
-                  {wallet.escrowBalance.toLocaleString()} <span className="text-xs text-amber-400 font-mono font-medium">JOD</span>
                 </p>
               </div>
             </div>
@@ -1018,12 +1014,12 @@ export const WalletView: React.FC = () => {
           </div>
         </div>
  
-        {/* 5. CURRENT LOCKED MARGINS */}
+        {/* 5. MY PENDING DEPOSITS */}
         <div className="space-y-3 pt-1">
           <div className="flex items-center gap-1.5 px-1">
-            <Lock className="w-3.5 h-3.5 text-[#FF6B00]" />
+            <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
             <span className="text-[10px] font-black font-mono tracking-widest text-gray-500 uppercase">
-              {isAr ? 'مبالغ الضمان المحجوزة للمزادات' : 'ACTIVE ESCROW MUTUAL MARGINS'}
+              {isAr ? 'طلبات الإيداع المعلقة الخاصة بي' : 'MY PENDING DEPOSITS'}
             </span>
           </div>
           
@@ -1033,49 +1029,63 @@ export const WalletView: React.FC = () => {
                 <WalletRowSkeleton />
                 <WalletRowSkeleton />
               </>
-            ) : currentLockedEscrows.length > 0 ? (
-              currentLockedEscrows.map((escrow) => (
+            ) : myPendingDeposits.length > 0 ? (
+              myPendingDeposits.map((escrow) => (
                 <div 
                   key={escrow.id} 
                   className="bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:border-gray-200 transition-all"
-                  id={`locked-escrow-row-${escrow.id}`}
+                  id={`my-pending-deposit-row-${escrow.id}`}
                 >
                   <div className="min-w-0 flex-1 pr-3 pl-3">
-                    <span className="text-[8.5px] px-2 py-0.5 rounded-full bg-amber-55/10 border border-amber-300/30 text-amber-700 font-mono font-black uppercase block w-max leading-none">
-                      {escrow.auctionId === 'cliq-dep' ? (isAr ? 'مراجعة الحوالة البنكية' : 'BANKING PROCESS') : (isAr ? 'عربون مزاد مجمّد' : 'AUCTION ESCROW')}
+                    <span className="text-[8.5px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-black uppercase block w-max leading-none">
+                      {isAr ? 'قيد التدقيق والتحقق' : 'UNDER SYSTEM AUDIT'}
                     </span>
-                    <h5 className="font-extrabold text-[12.5px] text-gray-950 truncate mt-2">{escrow.auctionTitle}</h5>
+                    <h5 className="font-extrabold text-[12.5px] text-gray-950 truncate mt-2">
+                      {isAr ? 'شحن رصيد المحفظة عبر كليك' : 'Wallet Top-Up via CliQ'}
+                    </h5>
                     <p className="text-[9.5px] text-gray-400 mt-0.5 flex items-center gap-1">
-                      <span>{isAr ? 'الطرف المستفيد' : 'Beneficiary Node'}:</span>
-                      <span className="font-mono text-gray-600 font-black">{escrow.cliqAlias || escrow.sellerName}</span>
+                      <span>{isAr ? 'الاسم المستعار:' : 'CliQ Alias:'}</span>
+                      <span className="font-mono text-gray-600 font-black">{escrow.cliqAlias}</span>
                     </p>
                   </div>
  
                   <div className="text-right shrink-0">
                     <div className="text-sm font-black font-mono text-amber-600">
-                      -{escrow.amount.toLocaleString()} JOD
+                      +{escrow.amount.toLocaleString()} JOD
                     </div>
                     <span className="text-[9px] text-gray-450 font-mono uppercase font-black block mt-1.5 flex items-center justify-end gap-1">
-                      <Clock className="w-3 h-3 animate-spin text-amber-500" /> 
-                      <span>{isAr ? 'محجوز مؤقتاً' : 'LOCKED'}</span>
+                      <Clock className="w-3 h-3 animate-pulse text-amber-500" /> 
+                      <span>{isAr ? 'بانتظار التأكيد' : 'PENDING'}</span>
                     </span>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-7 bg-white rounded-2xl border border-gray-100 text-xs text-gray-400">
-                <BoxNoneIcon isAr={isAr} />
+                <div className="flex flex-col items-center justify-center space-y-2 p-1">
+                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mb-1">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <p className="font-bold text-gray-500 text-[11px] uppercase tracking-wide">
+                    {isAr ? 'لا يوجد طلبات إيداع معلقة' : 'No Pending Deposits'}
+                  </p>
+                  <p className="text-[9.5px] text-gray-450 leading-normal max-w-[250px] mx-auto">
+                    {isAr 
+                      ? 'تظهر طلبات التعبئة هنا فور رفع إشعار التحويل البنكي بانتظار موافقة الإدارة.'
+                      : 'Pending cliq top-ups will be listed here after submitting the bank slip receipt.'}
+                  </p>
+                </div>
               </div>
             )}
           </div>
         </div>
  
-        {/* 6. HISTORY LOGS */}
+        {/* 6. MY WON AUCTIONS PAYMENTS */}
         <div className="space-y-3 pt-1">
           <div className="flex items-center gap-1.5 px-1">
-            <History className="w-3.5 h-3.5 text-[#FF6B00]" />
+            <CheckCircle className="w-3.5 h-3.5 text-[#FF6B00]" />
             <span className="text-[10px] font-black font-mono tracking-widest text-gray-500 uppercase">
-              {isAr ? 'أرشيف المعاملات الدفترية' : 'TRANSFERS & SETTLEMENTS LEDGER'}
+              {isAr ? 'دفعات وضمانات مزاداتي' : 'MY WON AUCTIONS PAYMENTS'}
             </span>
           </div>
  
@@ -1086,16 +1096,24 @@ export const WalletView: React.FC = () => {
                 <WalletRowSkeleton />
                 <WalletRowSkeleton />
               </>
-            ) : historicEscrows.length > 0 ? (
-              historicEscrows.map((escrow) => {
-                const isDeposit = escrow.status === 'released' || escrow.auctionId === 'cliq-dep';
+            ) : myWonAuctionsPayments.length > 0 ? (
+              myWonAuctionsPayments.map((escrow) => {
+                const isReleased = escrow.status === 'released';
                 return (
                   <div 
                     key={escrow.id} 
                     className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center hover:border-gray-150 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                    id={`my-won-auction-row-${escrow.id}`}
                   >
                     <div className="space-y-1">
-                      <h5 className="font-black text-gray-900 text-xs leading-none">
+                      <span className={`text-[8px] font-mono inline-block px-1.5 py-0.5 rounded-md font-black uppercase mt-1 ${
+                        isReleased 
+                          ? 'bg-emerald-50 text-emerald-650 border border-emerald-100' 
+                          : 'bg-amber-50 text-amber-600 border border-amber-100'
+                      }`}>
+                        {isReleased ? (isAr ? 'تم تحرير الدفع' : 'RELEASED / WON') : (isAr ? 'ضمان معلّق' : 'LOCKED IN ESCROW')}
+                      </span>
+                      <h5 className="font-black text-gray-900 text-xs mt-1">
                         {escrow.auctionTitle}
                       </h5>
                       <p className="text-[9px] text-gray-400 font-mono">
@@ -1104,15 +1122,11 @@ export const WalletView: React.FC = () => {
                     </div>
                     
                     <div className="text-right">
-                      <div className={`font-mono font-black text-xs ${escrow.status === 'released' ? 'text-[#FF6B00]' : 'text-emerald-700'}`}>
-                        {escrow.status === 'released' ? '-' : '+'}{escrow.amount.toLocaleString()} JOD
+                      <div className={`font-mono font-black text-xs ${isReleased ? 'text-[#FF6B00]' : 'text-amber-600'}`}>
+                        -{escrow.amount.toLocaleString()} JOD
                       </div>
-                      <span className={`text-[8px] font-mono inline-block px-2 py-0.5 rounded-md font-black uppercase mt-1.5 ${
-                        escrow.status === 'released' 
-                          ? 'bg-orange-50 text-orange-600 border border-orange-100' 
-                          : 'bg-emerald-50 text-emerald-650 border border-emerald-100'
-                      }`}>
-                        {escrow.status === 'released' ? (isAr ? 'عربون مسحوب' : 'RELEASED TO WIN') : (isAr ? 'تم الشحن' : 'CREDITED')}
+                      <span className="text-[9px] text-gray-450 font-mono mt-1 block">
+                        {new Date(escrow.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')}
                       </span>
                     </div>
                   </div>
@@ -1120,8 +1134,8 @@ export const WalletView: React.FC = () => {
               })
             ) : (
               <EmptyState 
-                title={isAr ? 'لا توجد معاملات بعد' : 'No transactions yet'}
-                description={isAr ? 'لم تقم بأي حوالات أو تسويات من قبل في محفظتك الموثقة.' : 'Your verified digital wallet has not initiated any financial clearances.'}
+                title={isAr ? 'لا توجد دفعات مزادات بعد' : 'No won auctions payments'}
+                description={isAr ? 'تظهر دفعات وضمانات المزادات التي شاركت بها أو فزت بها هنا.' : 'Secure deposits and released payments for your bids will be recorded here.'}
                 language={isAr ? 'ar' : 'en'}
               />
             )}

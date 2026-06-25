@@ -121,17 +121,30 @@ export const AdminDashboardView: React.FC = () => {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
     if (!isStrictAdmin) {
       setSubscriptionRequests([]);
       return;
     }
     const unsub = onSnapshot(collection(db, 'subscriptionRequests'), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setSubscriptionRequests(list.filter((r: any) => r.subscriptionStatus === 'pending'));
+      setSubscriptionRequests(list.filter((r: any) => r.subscriptionStatus === 'pending' || r.status === 'pending'));
     });
     return () => unsub();
   }, [currentUser]);
+
+  // Console logging for verification as requested by the user
+  useEffect(() => {
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    if (!isStrictAdmin) return;
+
+    const pendingAuctionsCount = auctions.filter((a: any) => a.status === 'pending' || a.status === 'processing' || a.approvalStatus === 'pending').length;
+    const pendingSubsCount = subscriptionRequests.length;
+
+    console.log("Approval listener fired");
+    console.log("Pending auctions count", pendingAuctionsCount);
+    console.log("Pending subscriptions count", pendingSubsCount);
+  }, [auctions, subscriptionRequests, currentUser]);
 
   const approveSubscription = async (request: any) => {
     const plan = request.plan || 'monthly';

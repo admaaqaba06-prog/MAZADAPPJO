@@ -172,39 +172,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const bidTimestampsRef = useRef<number[]>([]);
   
   // Lists persistent initialization
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('mazad_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
     const saved = localStorage.getItem('mazad_seller_profiles');
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
   });
-  const [auctions, setAuctions] = useState<AuctionItem[]>(() => {
-    const saved = localStorage.getItem('mazad_auctions');
-    const parsed = saved ? JSON.parse(saved) : INITIAL_AUCTIONS;
-    return parsed.map((item: any) => {
-      const rawThumbnail = item.thumbnailUrl || item.imageUrl || '';
-      if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
-        const cat = (item.category || '').toLowerCase();
-        const tit = (item.title || '').toLowerCase();
-        let finalThumbnail = rawThumbnail;
-        if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
-          finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
-        } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
-          finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80';
-        } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
-          finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80';
-        } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
-          finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80';
-        } else {
-          finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&q=80';
-        }
-        return { ...item, thumbnailUrl: finalThumbnail, imageUrl: finalThumbnail };
-      }
-      return item;
-    });
-  });
+  const [auctions, setAuctions] = useState<AuctionItem[]>([]);
   const [bids, setBids] = useState<Bid[]>(() => {
     const saved = localStorage.getItem('mazad_bids');
     return saved ? JSON.parse(saved) : [];
@@ -230,10 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('mazad_notifications');
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
-  const [adminActions, setAdminActions] = useState<AdminAction[]>(() => {
-    const saved = localStorage.getItem('mazad_admin_actions');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [adminActions, setAdminActions] = useState<AdminAction[]>([]);
   const [adminActionsError, setAdminActionsError] = useState<string | undefined>(undefined);
 
   const [deletedAuctionIds, setDeletedAuctionIds] = useState<string[]>(() => {
@@ -1260,37 +1230,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let downloadURL = '';
 
       if (paymentProofImage && paymentProofImage.startsWith('data:')) {
-        // Upload payment proof screenshot directly to Firebase Storage inside payment-proofs/{userId}/{timestamp-fileName}
-        const { getStorage, ref, uploadString, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage();
-        const fileName = `${Date.now()}_proof.png`;
-        const proofRef = ref(storage, `payment-proofs/${currentUser.id}/${fileName}`);
-        
-        const uploadResult = await uploadString(proofRef, paymentProofImage, 'data_url');
-        downloadURL = await getDownloadURL(uploadResult.ref);
+        try {
+          // Upload payment proof screenshot directly to Firebase Storage inside payment-proofs/{userId}/{timestamp-fileName}
+          const { getStorage, ref, uploadString, getDownloadURL } = await import('firebase/storage');
+          const storage = getStorage();
+          const fileName = `${Date.now()}_proof.png`;
+          const proofRef = ref(storage, `payment-proofs/${currentUser.id}/${fileName}`);
+          
+          const uploadResult = await uploadString(proofRef, paymentProofImage, 'data_url');
+          downloadURL = await getDownloadURL(uploadResult.ref);
+        } catch (storageErr: any) {
+          console.error("Firebase Storage write failure during payment proof upload. Code:", storageErr.code, "Message:", storageErr.message);
+          addNotification(
+            language === 'ar' ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed',
+            language === 'ar' ? `لم نتمكن من رفع صورة إثبات الدفع. رمز الخطأ: ${storageErr.code || 'unknown'}` : `Failed to upload payment proof. Code: ${storageErr.code || 'unknown'}`,
+            'alert'
+          );
+          throw storageErr;
+        }
       } else {
         downloadURL = paymentProofImage || '';
       }
 
-      // Invoke the Callable Cloud Function requestSubscription
-      const { httpsCallable } = await import('firebase/functions');
-      const requestSubCallable = httpsCallable<{
-        price: number;
-        plan: string;
-        paymentProofUrl: string;
-        paymentProofImage: string;
-        transferFullName: string;
-        transferPhone: string;
-      }, { success: boolean; message: string }>(functions, 'requestSubscription');
-
-      await requestSubCallable({
-        price,
-        plan,
+      // 1. Direct write to Firestore "subscriptionRequests" collection to ensure absolute reliability
+      const reqId = `sub-req-${Date.now()}-${currentUser.id}`;
+      const newRequest = {
+        id: reqId,
+        userId: currentUser.id,
+        userName: currentUser.name || 'User',
+        userEmail: currentUser.email || '',
+        plan: plan,
+        price: price,
         paymentProofUrl: downloadURL,
         paymentProofImage: downloadURL,
+        paymentImageUrl: downloadURL, // For explicit user-requested compatibility
+        amount: price,                // For explicit user-requested compatibility
         transferFullName: transferFullName || '',
-        transferPhone: transferPhone || ''
-      });
+        transferPhone: transferPhone || '',
+        status: 'pending',            // For explicit user-requested compatibility
+        subscriptionStatus: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        await setDoc(doc(db, 'subscriptionRequests', reqId), newRequest);
+        console.log("Subscription request created", newRequest);
+      } catch (dbErr: any) {
+        console.error("Direct subscriptionRequest write to Firestore failed. Code:", dbErr.code, "Message:", dbErr.message);
+        addNotification(
+          language === 'ar' ? '❌ فشل حفظ الطلب' : '❌ Firestore Write Failed',
+          language === 'ar' ? `فشل تسجيل طلب الاشتراك بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to record subscription request. Code: ${dbErr.code || 'unknown'}`,
+          'alert'
+        );
+        throw dbErr;
+      }
+
+      // 2. Call the cloud function as a background update; catch errors safely so it is non-blocking
+      try {
+        const { httpsCallable } = await import('firebase/functions');
+        const requestSubCallable = httpsCallable<{
+          price: number;
+          plan: string;
+          paymentProofUrl: string;
+          paymentProofImage: string;
+          transferFullName: string;
+          transferPhone: string;
+         }, { success: boolean; message: string }>(functions, 'requestSubscription');
+
+        await requestSubCallable({
+          price,
+          plan,
+          paymentProofUrl: downloadURL,
+          paymentProofImage: downloadURL,
+          transferFullName: transferFullName || '',
+          transferPhone: transferPhone || ''
+        });
+      } catch (cfErr: any) {
+        console.warn("Cloud function [requestSubscription] warning/bypass (using Direct Firestore fallback instead):", cfErr.code, cfErr.message || cfErr);
+      }
 
       setCurrentUser(prev => {
         if (!prev) return prev;
@@ -1321,7 +1338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setShowSubscriptionPrompt(false);
       addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
     } catch (error: any) {
-      console.error("[requestSubscription] Failed. Function: requestSubscription, userId:", currentUser.id, "error:", error);
+      console.error("[requestSubscription] Overall process failure. Code:", error.code, "Message:", error.message, "error:", error);
       await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
       addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
     }
@@ -1484,6 +1501,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     videoFile?: File | Blob | null,
     thumbnailFile?: File | Blob | null
   ) => {
+    if (!currentUser) {
+      const errMsg = language === 'ar' ? 'يجب تسجيل الدخول لرفع المزاد.' : 'User must be logged in to upload a listing.';
+      addNotification('❌ Error', errMsg, 'alert');
+      throw new Error(errMsg);
+    }
+
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
     // رفع الفيديو لـ Firebase Storage أولاً
@@ -1491,21 +1514,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let finalThumbnailUrl = listingData.thumbnailUrl || '';
 
     if (videoFile) {
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const storage = getStorage();
-      const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
-      const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
-      await uploadBytes(videoRef, videoFile);
-      finalVideoUrl = await getDownloadURL(videoRef);
+      try {
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const storage = getStorage();
+        const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
+        const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
+        await uploadBytes(videoRef, videoFile);
+        finalVideoUrl = await getDownloadURL(videoRef);
+      } catch (videoErr: any) {
+        console.error("Firebase Storage write failure during video upload. Code:", videoErr.code, "Message:", videoErr.message);
+        addNotification(
+          language === 'ar' ? '❌ فشل رفع الفيديو' : '❌ Video Upload Failed',
+          language === 'ar' ? `تعذر رفع فيديو المزاد. رمز الخطأ: ${videoErr.code || 'unknown'}` : `Failed to upload video. Code: ${videoErr.code || 'unknown'}`,
+          'alert'
+        );
+        throw videoErr;
+      }
     }
 
     if (thumbnailFile) {
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const storage = getStorage();
-      const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
-      const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
-      await uploadBytes(thumbRef, thumbnailFile);
-      finalThumbnailUrl = await getDownloadURL(thumbRef);
+      try {
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const storage = getStorage();
+        const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
+        const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
+        await uploadBytes(thumbRef, thumbnailFile);
+        finalThumbnailUrl = await getDownloadURL(thumbRef);
+      } catch (thumbErr: any) {
+        console.error("Firebase Storage write failure during thumbnail upload. Code:", thumbErr.code, "Message:", thumbErr.message);
+        addNotification(
+          language === 'ar' ? '❌ فشل رفع الصورة' : '❌ Thumbnail Upload Failed',
+          language === 'ar' ? `تعذر رفع الصورة المصغرة. رمز الخطأ: ${thumbErr.code || 'unknown'}` : `Failed to upload thumbnail. Code: ${thumbErr.code || 'unknown'}`,
+          'alert'
+        );
+        throw thumbErr;
+      }
     }
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
@@ -1513,16 +1556,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...listingData,
       id: newListingId,
       currentPrice: listingData.startingPrice,
-      sellerId: currentUser?.id || 'seller-current',
-      sellerName: currentUser?.name || sellerProfile?.storeName || 'Custom Merchant',
-      sellerLogo: currentUser?.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
-      status: 'live', // Go live instantly so everyone on any device sees it immediately!
+      sellerId: currentUser.id,
+      sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
+      sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
+      status: 'pending', // Save under 'pending' status so Admin can review and approve
+      approvalStatus: 'pending',
+      isApproved: false,
       isFeatured: false,
       totalBids: 0,
       viewersCount: 2,
       createdAt: new Date().getTime(),
-      createdById: currentUser?.id || 'guest',
-      createdByName: currentUser?.name || 'Seller JO',
+      createdById: currentUser.id, // Strictly match currentUser.id to comply with firestore.rules
+      createdByName: currentUser.name || 'Seller JO',
       videoUrl: finalVideoUrl,
       thumbnailUrl: finalThumbnailUrl,
       endTime: endTimeMs,
@@ -1531,33 +1576,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Save directly to Firestore for real-time synchronization
     const docRef = doc(db, 'auctions', newListingId);
-    setDoc(docRef, newListing)
-      .then(() => {
-        console.log("Successfully created live listing in Firestore:", newListingId);
-        // Log auction created event to Firestore Analytics
-        logAnalyticsEvent('auction_created', currentUser?.id || null, currentUser?.email || null, {
-          auctionId: newListingId,
-          title: listingData.title,
-          startingPrice: listingData.startingPrice,
-          category: listingData.category
-        });
-      })
-      .catch((err) => {
-        console.error("Firestore write failure on direct listing release:", err);
+    try {
+      await setDoc(docRef, newListing);
+      console.log("Auction created", newListing);
+      // Log auction created event to Firestore Analytics
+      logAnalyticsEvent('auction_created', currentUser.id, currentUser.email || null, {
+        auctionId: newListingId,
+        title: listingData.title,
+        startingPrice: listingData.startingPrice,
+        category: listingData.category
       });
+    } catch (dbErr: any) {
+      console.error("Direct auction write to Firestore failed. Code:", dbErr.code, "Message:", dbErr.message);
+      addNotification(
+        language === 'ar' ? '❌ فشل حفظ المزاد' : '❌ Firestore Write Failed',
+        language === 'ar' ? `فشل تسجيل المزاد الجديد بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to create auction. Code: ${dbErr.code || 'unknown'}`,
+        'alert'
+      );
+      throw dbErr;
+    }
 
     setAuctions(prev => [newListing, ...prev]);
     
     if (language === 'ar') {
       addNotification(
-        '🚀 تم إطلاق المزاد مباشرة للجميع',
-        `تم نشر "${listingData.title}" بنجاح وهو الآن نشط ومتاح للمزايدة الحية وبث الفيديو أمام الجميع فورا!`,
+        '⏳ المزاد بانتظار موافقة الإدارة',
+        `تم رفع "${listingData.title}" بنجاح وهو الآن بانتظار مراجعة الإدارة والموافقة عليه قبل البث العام.`,
         'win'
       );
     } else {
       addNotification(
-        '🚀 Live Auction Released Instantly',
-        `"${listingData.title}" has been successfully active and went live! Bidding & streaming are now open to all users.`,
+        '⏳ Auction Awaiting Review',
+        `"${listingData.title}" has been successfully uploaded and is pending admin approval before public release.`,
         'win'
       );
     }
@@ -1572,17 +1622,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
       status: 'live',
+      approvalStatus: 'approved',
+      isApproved: true,
       approvedAt: serverTimestamp(),
       approvedBy: currentUser?.id || 'admin-system',
       endTime: freshEndTime, // Fresh 10 Mins live timer
       endsAt: endsAtTimestamp
     }).catch(err => {
-      console.error("Firestore approve write failed:", err);
+      console.error("Firestore approve write failed. Code:", err.code, "Message:", err.message, err);
+      addNotification(
+        language === 'ar' ? '❌ فشل اعتماد المزاد' : '❌ Approve Listing Failed',
+        `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
+        'alert'
+      );
     });
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'live', endTime: freshEndTime, endsAt: endsAtTimestamp }; // Give it a fresh 10 Min live clock
+        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp }; // Give it a fresh 10 Min live clock
       }
       return a;
     }));
@@ -1598,22 +1655,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details: 'Visual stream quality & price guide certified.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions, currentUser]);
+  }, [auctions, currentUser, addNotification, language]);
 
   const rejectListing = useCallback((id: string) => {
     // Write reject properties directly to Firestore database
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
       status: 'rejected',
+      approvalStatus: 'rejected',
+      isApproved: false,
       rejectedAt: serverTimestamp(),
       rejectedBy: currentUser?.id || 'admin-system'
     }).catch(err => {
-      console.error("Firestore reject write failed:", err);
+      console.error("Firestore reject write failed. Code:", err.code, "Message:", err.message, err);
+      addNotification(
+        language === 'ar' ? '❌ فشل رفض المزاد' : '❌ Reject Listing Failed',
+        `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
+        'alert'
+      );
     });
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'rejected' };
+        return { ...a, status: 'rejected', approvalStatus: 'rejected', isApproved: false };
       }
       return a;
     }));
@@ -1629,7 +1693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details: 'Video did not pass alignment checks.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions, currentUser]);
+  }, [auctions, currentUser, addNotification, language]);
 
   const verifySeller = useCallback((userId: string) => {
     setUsers(prev => prev.map(u => {

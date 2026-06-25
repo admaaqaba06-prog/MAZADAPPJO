@@ -56,7 +56,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   const t = translations[language];
   const isAr = language === 'ar';
-  const isStrictAdmin = currentUser && currentUser.email === 'admaaqaba06@gmail.com' && (currentUser.role === 'admin' || currentUser.isAdmin === true);
+  const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
   const liveAuctions = auctions.filter(a => a.status === 'live');
 

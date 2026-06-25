@@ -23,7 +23,7 @@ function ActiveViewRenderer() {
     case 'wallet':
       return <WalletView />;
     case 'admin':
-      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
       if (!isStrictAdmin) {
         return <DiscoveryFeedView />;
       }
@@ -98,7 +98,7 @@ function MaintenanceView() {
 function MainAppShell() {
   const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView } = useApp();
 
-  const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+  const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
 
   // 1. Verify Maintenance Mode
   if (maintenanceMode.enabled && !isStrictAdmin) {
