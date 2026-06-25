@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db, auth, dbCustom, functions, OperationType, handleFirestoreError } from '../services/firebase';
+import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { httpsCallable } from 'firebase/functions';
 import { 
@@ -581,56 +581,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => unsubHealth();
-  }, [currentUser]);
-
-  // One-time administrative migration of custom database data to default database
-  useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
-    if (!isStrictAdmin) return;
-
-    const migrationKey = 'mazad_unification_migrated_v4';
-    if (localStorage.getItem(migrationKey)) return;
-
-    const runMigration = async () => {
-      console.log('🤖 Admin identified: Starting client-side database unification migration to (default)...');
-      const collectionsToMigrate = [
-        'users',
-        'wallets',
-        'auctions',
-        'bids',
-        'chats',
-        'escrows',
-        'subscriptionRequests',
-        'offlineSubscribers',
-        'analytics_events',
-        'featureFlags',
-        'maintenanceMode',
-        'system_health'
-      ];
-
-      for (const col of collectionsToMigrate) {
-        try {
-          const customColRef = collection(dbCustom, col);
-          const snap = await getDocs(customColRef);
-          if (snap.empty) {
-            console.log(`🤖 [Migration] No documents found in custom collection: ${col}`);
-            continue;
-          }
-          console.log(`🤖 [Migration] Found ${snap.size} documents in custom ${col}. Migrating...`);
-          for (const docSnap of snap.docs) {
-            const defaultDocRef = doc(db, col, docSnap.id);
-            await setDoc(defaultDocRef, docSnap.data(), { merge: true });
-          }
-          console.log(`🤖 [Migration] Successfully copied ${col} to (default)`);
-        } catch (err: any) {
-          console.error(`🤖 [Migration Error] Failed to migrate ${col}:`, err);
-        }
-      }
-      localStorage.setItem(migrationKey, 'true');
-      console.log('🤖 Client-side database unification migration complete!');
-    };
-
-    runMigration();
   }, [currentUser]);
 
   // 2. Real-time synchronizations of logged-in User profile and Wallet with Firestore
