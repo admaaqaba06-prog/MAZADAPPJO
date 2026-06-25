@@ -11,7 +11,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -1205,6 +1205,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
+  const logSystemHealth = useCallback(async (type: 'error' | 'payment_fail' | 'bid_fail' | 'wallet_fail', title: string, details: string) => {
+    try {
+      await addDoc(collection(db, 'system_health'), {
+        type,
+        title,
+        details,
+        userId: currentUser?.id || 'anonymous',
+        userEmail: currentUser?.email || 'anonymous',
+        timestamp: new Date().toISOString(),
+        browser: navigator.userAgent
+      });
+    } catch (err) {
+      console.warn("Failed to write to system_health collection:", err);
+    }
+  }, [currentUser]);
+
   const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
     const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
 
@@ -2007,14 +2023,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
         isAutoBiddingRef.current = false;
-        if (res.success) {
-          addNotification(
-            language === 'ar' ? '🤖 نظام المزايد التلقائي' : '🤖 Auto-Bid system',
-            language === 'ar'
-              ? `تم تقديم مزايدة تلقائية بقيمة ${nextBid} JOD للحفاظ على صدارتك في المزاد "${triggerable.title}".`
-              : `Auto-bid placed a counter-bid of ${nextBid} JOD on "${triggerable.title}" to secure your lead.`,
-            'info'
-          );
+        if (res) {
+          res.then(result => {
+            if (result.success) {
+              addNotification(
+                language === 'ar' ? '🤖 نظام المزايد التلقائي' : '🤖 Auto-Bid system',
+                language === 'ar'
+                  ? `تم تقديم مزايدة تلقائية بقيمة ${nextBid} JOD للحفاظ على صدارتك في المزاد "${triggerable.title}".`
+                  : `Auto-bid placed a counter-bid of ${nextBid} JOD on "${triggerable.title}" to secure your lead.`,
+                'info'
+              );
+            }
+          });
         }
       }, 1200);
 
@@ -2023,23 +2043,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAutoBiddingRef.current = false;
       };
     }
-  }, [auctions, autoBids, placeBid, addNotification, language]);
-
-  const logSystemHealth = useCallback(async (type: 'error' | 'payment_fail' | 'bid_fail' | 'wallet_fail', title: string, details: string) => {
-    try {
-      await addDoc(collection(db, 'system_health'), {
-        type,
-        title,
-        details,
-        userId: currentUser?.id || 'anonymous',
-        userEmail: currentUser?.email || 'anonymous',
-        timestamp: new Date().toISOString(),
-        browser: navigator.userAgent
-      });
-    } catch (err) {
-      console.warn("Failed to write to system_health collection:", err);
-    }
-  }, [currentUser]);
+  }, [auctions, autoBids, placeBid, addNotification, language, currentUser]);
 
   const updateMaintenanceMode = useCallback(async (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => {
     const maintenanceRef = doc(db, 'siteSettings', 'maintenanceMode');

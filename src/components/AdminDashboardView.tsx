@@ -26,7 +26,11 @@ import {
   LineChart,
   Trash2,
   Database,
-  Settings
+  Settings,
+  Activity,
+  ShieldAlert,
+  Server,
+  HardDrive
 } from 'lucide-react';
 
 export const AdminDashboardView: React.FC = () => {
@@ -1019,6 +1023,397 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ==========================================
+            TAB: HEALTH & OPERATIONS (Maintenance & Feature Flags Control Panel)
+            ========================================== */}
+        {activeTab === 'health' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Description */}
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+              <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#FF6B00] animate-pulse" /> 
+                {isAr ? 'مركز التحكم التشغيلي والجاهزية الفنية' : 'OPERATIONAL CONTROL CENTER & SYSTEM HEALTH'}
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {isAr 
+                  ? 'قم بإدارة حالة الصيانة الطارئة للعامة، بوابات المزايدين والمحافظ بنظام كليك، ومعاينة سجل الأخطاء والعمليات فورا.' 
+                  : 'Manage system-wide maintenance mode, toggle key transaction gates, and monitor operational log streams.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Side: System Controls & Feature Gates */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* 1. Maintenance Toggle Card */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <Server className="w-4 h-4 text-gray-400" />
+                      <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+                        {isAr ? 'مفتاح الصيانة الطارئة' : 'Emergency Maintenance'}
+                      </h4>
+                    </div>
+                    
+                    {/* Nice Toggle switch */}
+                    <button
+                      onClick={() => handleMaintenanceToggle(!maintEnabled)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        maintEnabled ? 'bg-amber-500' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          maintEnabled ? (isAr ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {maintEnabled ? (
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex gap-2.5 text-[11px] text-amber-800">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p>
+                        {isAr 
+                          ? 'تنبيه: منصة المزاد مغلقة الآن في وجه العامة وسيتم عرض شاشة الصيانة. المشرفين المعتمدين فقط يمكنهم التصفح حالياً.' 
+                          : 'Attention: The public platform is currently locked. Non-admin users will see the maintenance cover. Authorized admins can continue.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex gap-2.5 text-[11px] text-emerald-800">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <p>
+                        {isAr 
+                          ? 'المنصة تعمل بنشاط ومتاحة بالكامل لجميع المزايدين والمستخدمين العامين.' 
+                          : 'System is fully operational and open to public bidders across Jordan.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Settings Fields */}
+                  <div className="space-y-3.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                        {isAr ? 'الوقت المتوقع للإنجاز' : 'Expected Duration Estimate'}
+                      </label>
+                      <input
+                        type="text"
+                        value={maintDuration}
+                        onChange={(e) => setMaintDuration(e.target.value)}
+                        placeholder="e.g. 1 hr, 30 mins"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                          {isAr ? 'رسالة الصيانة (عربي)' : 'Maintenance Message (Arabic)'}
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={maintMsgAr}
+                          onChange={(e) => setMaintMsgAr(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-right focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                          {isAr ? 'رسالة الصيانة (إنجليزي)' : 'Maintenance Message (English)'}
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={maintMsgEn}
+                          onChange={(e) => setMaintMsgEn(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-left focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        onClick={saveMaintenanceSettings}
+                        className="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs"
+                      >
+                        {isAr ? 'حفظ الرسائل والتفاصيل' : 'SAVE DETAILS'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Feature Flags Switchboard */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                    <Settings className="w-4 h-4 text-gray-400" />
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+                      {isAr ? 'بوابات الميزات الفعالة' : 'Feature Gates & System Valves'}
+                    </h4>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {/* Live Auctions Gate */}
+                    <div className="py-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                          {isAr ? 'المزايدات المباشرة' : 'Live Auctions & Bidding'}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {isAr 
+                            ? 'تعطيل قدرة الأعضاء على تقديم مزايدات جديدة على المعروضات.' 
+                            : 'Disable public users from locking or sending real-time bids.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                          featureFlags?.enableLiveAuctions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                        }`}>
+                          {featureFlags?.enableLiveAuctions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                        </span>
+                        <button
+                          onClick={() => updateFeatureFlag('enableLiveAuctions', !featureFlags?.enableLiveAuctions)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            featureFlags?.enableLiveAuctions ? 'bg-emerald-505 bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              featureFlags?.enableLiveAuctions ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Subscriptions Gate */}
+                    <div className="py-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                          {isAr ? 'بوابات دفع الاشتراكات الممتازة' : 'Subscription Upgrades'}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {isAr 
+                            ? 'توقيف مؤقت لاستلام طلبات تجديد أو ترقية باقات كليك الذهبية.' 
+                            : 'Prevent cliq-based gold member upgrades during updates.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                          featureFlags?.enableSubscriptions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                        }`}>
+                          {featureFlags?.enableSubscriptions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                        </span>
+                        <button
+                          onClick={() => updateFeatureFlag('enableSubscriptions', !featureFlags?.enableSubscriptions)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            featureFlags?.enableSubscriptions ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              featureFlags?.enableSubscriptions ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Wallets Deposits Gate */}
+                    <div className="py-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                          {isAr ? 'شحن المحافظ المالية (كليك)' : 'Digital Wallet Deposits'}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {isAr 
+                            ? 'حظر شحن أرصدة المزايدة أو رفع إيصالات التحويل لتدقيقها.' 
+                            : 'Lock wallet deposit modules during transaction reconciliation.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                          featureFlags?.enableWallets ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                        }`}>
+                          {featureFlags?.enableWallets ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                        </span>
+                        <button
+                          onClick={() => updateFeatureFlag('enableWallets', !featureFlags?.enableWallets)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            featureFlags?.enableWallets ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              featureFlags?.enableWallets ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Push Notifications Gate */}
+                    <div className="py-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                          {isAr ? 'الإشعارات الفورية (Web Push)' : 'Web Push Notification Services'}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {isAr 
+                            ? 'إغلاق أو تفعيل خوادم إرسال التنبيهات المباشرة لمتصفحات الهواتف والويب.' 
+                            : 'Toggle native web push alerts for outbids and payment confirmations.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                          featureFlags?.enablePushNotifications ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                        }`}>
+                          {featureFlags?.enablePushNotifications ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                        </span>
+                        <button
+                          onClick={() => updateFeatureFlag('enablePushNotifications', !featureFlags?.enablePushNotifications)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            featureFlags?.enablePushNotifications ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              featureFlags?.enablePushNotifications ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Database State Backups & Recovery */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                    <HardDrive className="w-4 h-4 text-gray-400" />
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+                      {isAr ? 'النسخ الاحتياطي وإدارة الكوارث' : 'Backup & Disaster Recovery'}
+                    </h4>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="space-y-1">
+                      <span className="text-gray-400 text-[10px] block uppercase font-bold">{isAr ? 'تاريخ آخر تصدير لقاعدة البيانات' : 'LAST RECOVERY SNAPSHOT'}</span>
+                      <span className="font-mono text-gray-700 font-extrabold">
+                        {lastBackupTime ? lastBackupTime : (isAr ? 'لا يوجد نسخ احتياطي مسجل' : 'No manual snapshot recorded')}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={triggerManualBackup}
+                      className="bg-[#FF6B00] hover:bg-[#E05E00] text-white text-[11px] font-black px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
+                    >
+                      <Database className="w-3.5 h-3.5" />
+                      {isAr ? 'لقطة فورية كاملة' : 'SNAPSHOT NOW'}
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Side: Real-time Operations & Logs */}
+              <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs flex flex-col h-[600px] lg:h-[720px]">
+                <div className="pb-3 border-b border-gray-100">
+                  <h4 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                    {isAr ? 'سجل العمليات والصحة الفنية المباشر' : 'Live System Operations Stream'}
+                  </h4>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    {isAr ? 'تحديثات حية ومباشرة للأخطاء وحركات الدفع والمزايدة في المملكة.' : 'Live stream of payment approvals, bid placement fails, or critical errors.'}
+                  </p>
+                </div>
+
+                {/* Filter Selector */}
+                <div className="flex gap-1.5 py-3 overflow-x-auto shrink-0 scrollbar-none border-b border-gray-100">
+                  {(['all', 'error', 'bid_fail', 'payment_fail'] as const).map((filter) => {
+                    const label = isAr 
+                      ? (filter === 'all' ? 'الكل' : filter === 'error' ? 'أخطاء نظام' : filter === 'bid_fail' ? 'فشل المزايدة' : 'فشل مالي')
+                      : (filter === 'all' ? 'All' : filter === 'error' ? 'System' : filter === 'bid_fail' ? 'Bids' : 'Payments');
+                    
+                    const isSelected = healthFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setHealthFilter(filter)}
+                        className={`text-[9px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider font-mono transition-colors ${
+                          isSelected 
+                            ? 'bg-slate-900 text-white' 
+                            : 'bg-gray-105 hover:bg-gray-150 text-gray-500 bg-gray-100'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Scrollable logs area */}
+                <div className="flex-1 overflow-y-auto pt-3.5 space-y-3 pr-1 scrollbar-thin">
+                  {filteredHealthLogs.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                      <CheckCircle className="w-8 h-8 text-emerald-400 mb-2" />
+                      <p className="text-[11px] font-extrabold text-gray-900">
+                        {isAr ? 'قنوات الأنظمة تعمل بسلامة ١٠٠٪' : 'Core Systems running smoothly'}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {isAr ? 'لا توجد أخطاء تشغيلية أو تحذيرات معلقة في سجلات هذا الفلتر.' : 'No warnings or failures captured in this operational channel.'}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredHealthLogs.map((log: any) => {
+                      const isErr = log.type === 'error';
+                      const isBid = log.type === 'bid_fail';
+                      const isPay = log.type === 'payment_fail';
+
+                      let typeBadgeBg = 'bg-rose-50 text-rose-700 border-rose-100';
+                      let typeLabel = 'SYSTEM';
+                      if (isBid) {
+                        typeBadgeBg = 'bg-orange-50 text-orange-700 border-orange-100';
+                        typeLabel = 'BID_FAIL';
+                      } else if (isPay) {
+                        typeBadgeBg = 'bg-amber-50 text-amber-700 border-amber-100';
+                        typeLabel = 'PAY_FAIL';
+                      }
+
+                      return (
+                        <div key={log.id} className="bg-gray-50/50 border border-gray-150 rounded-xl p-3 space-y-2 text-[11px] hover:bg-gray-50 transition-colors animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[8px] font-black tracking-widest font-mono px-2 py-0.5 rounded border ${typeBadgeBg}`}>
+                              {typeLabel}
+                            </span>
+                            <span className="text-[9px] font-mono text-gray-400">
+                              {log.timestamp ? new Date(log.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US') : ''}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <h5 className="font-extrabold text-gray-900 leading-snug">{log.title}</h5>
+                            <p className="text-gray-500 text-[10px] leading-relaxed break-words">{log.details}</p>
+                          </div>
+
+                          <div className="pt-1.5 border-t border-gray-100 flex flex-col gap-0.5 text-[9px] text-gray-400 font-mono">
+                            <p>
+                              <span className="font-semibold text-gray-500">By:</span> {log.userEmail || 'anonymous'}
+                            </p>
+                            {log.browser && (
+                              <p className="truncate" title={log.browser}>
+                                <span className="font-semibold text-gray-500">UA:</span> {log.browser}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
