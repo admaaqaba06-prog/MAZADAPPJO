@@ -194,28 +194,84 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       <div className="hidden lg:flex flex-col h-screen overflow-hidden bg-[#F8F9FA]" id="desktop-premium-layout-root">
         
         {/* TOP OUTER HEADER */}
-        <header className="flex h-20 shrink-0 items-center justify-between px-8 bg-white border-b border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <header className="flex h-16 shrink-0 items-center justify-between px-8 bg-white border-b border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] z-10">
           {/* Brand Box with Logo & Name */}
-          <div 
-            className="flex items-center gap-3.5 cursor-pointer select-none"
-            onClick={() => setActiveView('discovery')}
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#FF6B00] flex items-center justify-center font-black text-white text-lg tracking-wider shadow-[0_4px_12px_rgba(255,107,0,0.25)]">
-              M
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold tracking-tight text-gray-950 font-sans">
-                  {t.appName}
-                </span>
-                <span className="bg-gray-100/90 text-gray-600 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded border border-gray-200/50 select-none">
-                  {isAr ? 'نسخة تجريبية V3' : 'V3 PILOT'}
+          <div className="flex items-center gap-8">
+            <div 
+              className="flex items-center gap-3 cursor-pointer select-none"
+              onClick={() => setActiveView('discovery')}
+            >
+              <div className="w-8.5 h-8.5 rounded-lg bg-[#FF6B00] flex items-center justify-center font-black text-white text-base tracking-wider shadow-[0_3px_8px_rgba(255,107,0,0.25)]">
+                M
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-extrabold tracking-tight text-gray-950 font-sans leading-none">
+                    {t.appName}
+                  </span>
+                  <span className="bg-gray-100/90 text-gray-600 text-[7.5px] font-black tracking-widest px-1 py-0.5 rounded border border-gray-200/50 select-none leading-none">
+                    {isAr ? 'تجريبي V3' : 'V3 PILOT'}
+                  </span>
+                </div>
+                <span className="text-[9px] text-gray-400 font-medium tracking-normal mt-0.5 leading-none">
+                  {language === 'en' ? 'The Premium MENA Live Auction & Escrow Network' : 'الشبكة الأولى للمزادات الحية والضمان الآمن في الأردن'}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-400 font-medium tracking-normal mt-0.5">
-                {language === 'en' ? 'The Premium MENA Live Auction & Escrow Network' : 'الشبكة الأولى للمزادات الحية والضمان الآمن في الأردن'}
-              </span>
             </div>
+
+            {/* Top Navigation Tabs for Professional Desktop Feel */}
+            <nav className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveView('discovery')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeView === 'discovery' 
+                    ? 'bg-[#FF6B00]/10 text-[#FF6B00]' 
+                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950'
+                }`}
+              >
+                <Home className="w-4 h-4" />
+                <span>{isAr ? 'الرئيسية' : 'Explore'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  const firstLive = auctions.find(a => a.status === 'live') || auctions[0];
+                  if (firstLive) {
+                    setActiveAuctionId(firstLive.id);
+                  }
+                  setActiveView('live');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeView === 'live' 
+                    ? 'bg-[#FF6B00]/10 text-[#FF6B00]' 
+                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950'
+                }`}
+              >
+                <Play className="w-4 h-4 animate-pulse text-[#FF6B00]" />
+                <span>{isAr ? 'البث المباشر 🔴' : 'Live Stream 🔴'}</span>
+              </button>
+              <button
+                onClick={() => setActiveView('upload')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeView === 'upload' 
+                    ? 'bg-[#FF6B00]/10 text-[#FF6B00]' 
+                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950'
+                }`}
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>{isAr ? 'بيع' : 'Sell'}</span>
+              </button>
+              <button
+                onClick={() => setActiveView('wallet')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeView === 'wallet' 
+                    ? 'bg-[#FF6B00]/10 text-[#FF6B00]' 
+                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950'
+                }`}
+              >
+                <WalletIcon className="w-4 h-4" />
+                <span>{isAr ? 'المحفظة' : 'Wallet'}</span>
+              </button>
+            </nav>
           </div>
 
           {/* Center: Live Metrics Indicators */}
@@ -300,104 +356,14 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
         {/* THREE COLUMN GRID LAYOUT BODY */}
         {activeView === 'live' ? (
-          <div className="flex flex-1 min-h-0 w-full p-6 gap-6 overflow-hidden bg-[#121318]" id="desktop-premium-reels-layout">
-            
-            {/* COLUMN 1: LEFT SIDEBAR (260px) */}
-            <aside className="w-[260px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none text-zinc-300" id="left-sidebar-reels">
-              {/* Sidebar Menu items */}
-              <nav className="flex flex-col gap-1.5" id="sidebar-nav-reels">
-                <button
-                  onClick={() => setActiveView('discovery')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
-                >
-                  <Home className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'من أجلك' : 'For You'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('live')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]"
-                >
-                  <Play className="w-4 h-4 text-white animate-pulse" />
-                  <span>{isAr ? 'مزادات مباشرة' : 'Live Auctions'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('discovery')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  <TrendingUp className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'الفئات' : 'Categories'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('wallet')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  <Clock className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'مزايداتي' : 'My Bids'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('wallet')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  <WalletIcon className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'المحفظة' : 'Wallet'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('upload')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'بيع معروض' : 'Sell'}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveView('wallet')}
-                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  <User className="w-4 h-4 text-zinc-500" />
-                  <span>{isAr ? 'الحساب' : 'Profile'}</span>
-                </button>
-              </nav>
-
-              {currentUser && (
-                <div className="bg-zinc-900 border border-white/5 p-4 mt-auto rounded-2xl select-text text-white">
-                  <div className="flex items-center gap-2.5">
-                    <img 
-                      src={currentUser.avatar} 
-                      alt={currentUser.name} 
-                      className="w-8 h-8 rounded-xl object-cover border border-white/10"
-                    />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[11px] font-bold text-white truncate">{currentUser.name}</span>
-                      <span className="text-[9px] text-zinc-400 truncate">{currentUser.email}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </aside>
-
-            {/* COLUMN 2: CENTER REEL (TikTok Web style center reel) */}
-            <main className="flex-1 h-full flex flex-col overflow-hidden" id="center-reels-feed-container">
-              <Suspense fallback={
-                <div className="flex-1 h-full flex items-center justify-center bg-zinc-950">
-                  <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
-                </div>
-              }>
-                {children}
-              </Suspense>
-            </main>
-
-            {/* COLUMN 3: RIGHT DETAILS PANEL (360px) */}
-            <aside 
-              className="w-[360px] h-full bg-[#121318] border border-white/10 rounded-3xl p-5 flex flex-col gap-4 overflow-hidden shrink-0 text-white select-none shadow-2xl animate-fade-in"
-              id="right-details-panel-reels"
-            >
-              <ReelsDesktopRightPanel />
-            </aside>
+          <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#070709]" id="desktop-premium-reels-layout">
+            <Suspense fallback={
+              <div className="flex-1 h-full flex items-center justify-center bg-[#070709]">
+                <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
+              </div>
+            }>
+              {children}
+            </Suspense>
           </div>
         ) : (
           <div className="flex flex-1 min-h-0 w-full p-6 gap-6 overflow-hidden">
@@ -405,7 +371,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* ======================================================================
                 COLUMN 1: LEFT SIDEBAR (PROFILE, WALLET ACCRUALS, SIDE NAV)
                 ====================================================================== */}
-            <aside className="w-[290px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none" id="left-sidebar-panel">
+            <aside className="w-[280px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none" id="left-sidebar-panel">
               
               {/* Widget A: User/Admin Profile Details Card */}
               {currentUser && (
