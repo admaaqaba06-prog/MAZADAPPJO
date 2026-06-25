@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
+import { db, auth, dbCustom, functions, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { httpsCallable } from 'firebase/functions';
 import { 
@@ -11,7 +11,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction 
@@ -143,7 +143,6 @@ const INITIAL_AUCTIONS: AuctionItem[] = [];
 const INITIAL_CHATS: ChatMessage[] = [];
 const INITIAL_ESCROWS: EscrowTransaction[] = [];
 const INITIAL_NOTIFICATIONS: Notification[] = [];
-const DEMO_FALLBACK_AUCTIONS: AuctionItem[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Core user states
@@ -584,6 +583,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubHealth();
   }, [currentUser]);
 
+  // One-time administrative migration of custom database data to default database
+  useEffect(() => {
+    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+    if (!isStrictAdmin) return;
+
+    const migrationKey = 'mazad_unification_migrated_v4';
+    if (localStorage.getItem(migrationKey)) return;
+
+    const runMigration = async () => {
+      console.log('🤖 Admin identified: Starting client-side database unification migration to (default)...');
+      const collectionsToMigrate = [
+        'users',
+        'wallets',
+        'auctions',
+        'bids',
+        'chats',
+        'escrows',
+        'subscriptionRequests',
+        'offlineSubscribers',
+        'analytics_events',
+        'featureFlags',
+        'maintenanceMode',
+        'system_health'
+      ];
+
+      for (const col of collectionsToMigrate) {
+        try {
+          const customColRef = collection(dbCustom, col);
+          const snap = await getDocs(customColRef);
+          if (snap.empty) {
+            console.log(`🤖 [Migration] No documents found in custom collection: ${col}`);
+            continue;
+          }
+          console.log(`🤖 [Migration] Found ${snap.size} documents in custom ${col}. Migrating...`);
+          for (const docSnap of snap.docs) {
+            const defaultDocRef = doc(db, col, docSnap.id);
+            await setDoc(defaultDocRef, docSnap.data(), { merge: true });
+          }
+          console.log(`🤖 [Migration] Successfully copied ${col} to (default)`);
+        } catch (err: any) {
+          console.error(`🤖 [Migration Error] Failed to migrate ${col}:`, err);
+        }
+      }
+      localStorage.setItem(migrationKey, 'true');
+      console.log('🤖 Client-side database unification migration complete!');
+    };
+
+    runMigration();
+  }, [currentUser]);
+
   // 2. Real-time synchronizations of logged-in User profile and Wallet with Firestore
   useEffect(() => {
     if (!isAuthenticated || !currentUser?.id || currentUser.id === 'user-current') return;
@@ -664,13 +713,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated, currentUser?.id]);
 
-  // Real-time auctions synchronization with Firestore and demo fallback
+  // Real-time auctions synchronization with Firestore
   useEffect(() => {
     const auctionsRefCol = collection(db, 'auctions');
     const unsub = onSnapshot(auctionsRefCol, (snap) => {
       if (snap.empty) {
-        console.log("Firestore 'auctions' collection is empty. Falling back to demo auctions.");
-        setAuctions(DEMO_FALLBACK_AUCTIONS);
+        setAuctions([]);
       } else {
         const fetchedList: AuctionItem[] = [];
         snap.forEach((docSnap) => {
@@ -758,8 +806,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     }, (err) => {
-      console.warn("Firestore 'auctions' collection sync error, using demo fallbacks:", err);
-      setAuctions(DEMO_FALLBACK_AUCTIONS);
+      console.warn("Firestore 'auctions' collection sync error:", err);
+      setAuctions([]);
     });
     return () => unsub();
   }, []);
@@ -850,6 +898,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time chats synchronization with Firestore
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
     const chatsRefCol = collection(db, 'chats');
     const unsub = onSnapshot(chatsRefCol, (snap) => {
       if (!snap.empty) {
@@ -869,7 +920,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, []);
+  }, [isAuthenticated]);
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
@@ -1303,7 +1354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setShowSubscriptionPrompt(false);
       addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
     } catch (error: any) {
-      console.error("[requestSubscription] Failed. Function: requestSubscription, userId:", currentUser.id, "databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753, error:", error);
+      console.error("[requestSubscription] Failed. Function: requestSubscription, userId:", currentUser.id, "error:", error);
       await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
       addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
     }

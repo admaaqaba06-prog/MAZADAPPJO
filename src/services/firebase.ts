@@ -11,14 +11,15 @@ const firebaseConfig = {
   storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || "mazadjoapp.firebasestorage.app",
   messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || "622832200971",
   appId: (import.meta as any).env.VITE_FIREBASE_APP_ID || "1:622832200971:web:f0dcf4d08a22fdcc29460e",
-  firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || "ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753",
+  firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || "(default)",
   measurementId: (import.meta as any).env.VITE_FIREBASE_MEASUREMENT_ID || ""
 };
 
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app);
+export const dbCustom = getFirestore(app, "ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753");
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 

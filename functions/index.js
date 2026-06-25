@@ -3,7 +3,7 @@ const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 
 admin.initializeApp();
-const db = getFirestore('ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753');
+const db = admin.firestore();
 
 /**
  * 1. scheduledAuctionCloser (BUG #2 & BUG #6 Compliance)
@@ -199,7 +199,7 @@ exports.onBidCreated = functions.firestore
  * and outbid user refunding are guaranteed without race-conditions or browser-side vulnerability bypasses.
  * Balances and calculations are implemented in integer FILS to prevent float decimals loss.
  */
-exports.placeBid = functions.https.onCall(async (data, context) => {
+exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -448,7 +448,7 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
  * 4. releaseEscrow Callable Cloud Function
  * Admin approved release of locked escrow funds. Adds balance to user wallet if it represents cliq fast topup.
  */
-exports.releaseEscrow = functions.https.onCall(async (data, context) => {
+exports.releaseEscrow = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -542,7 +542,7 @@ exports.releaseEscrow = functions.https.onCall(async (data, context) => {
  * 5. refundEscrow Callable Cloud Function
  * Refund locked escrow funds back to bidder’s available balance & subtract from escrow.
  */
-exports.refundEscrow = functions.https.onCall(async (data, context) => {
+exports.refundEscrow = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -631,7 +631,7 @@ exports.refundEscrow = functions.https.onCall(async (data, context) => {
  * 6. requestTopUp Callable Cloud Function
  * Enrolls a manual Top-Up request as a locked CliQ escrow transfer record on the database safely.
  */
-exports.requestTopUp = functions.https.onCall(async (data, context) => {
+exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -683,7 +683,7 @@ exports.requestTopUp = functions.https.onCall(async (data, context) => {
  * Enrolls a premium/pro subscription request safely on the server side 
  * and marks the user's subscriptionStatus as 'pending'.
  */
-exports.requestSubscription = functions.https.onCall(async (data, context) => {
+exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -790,7 +790,7 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
     await batch.commit();
     console.log(`[onUserCreated] Successfully initialized user profile and wallet for uid: ${uid}`);
   } catch (err) {
-    console.error(`[onUserCreated Error] Failed for uid: ${uid}, databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753`, err);
+    console.error(`[onUserCreated Error] Failed for uid: ${uid}`, err);
   }
   return null;
 });
@@ -799,7 +799,7 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
  * 9. initializeUserWallet (Callable)
  * Safely initializes or checks the presence of a user's wallet from server context.
  */
-exports.initializeUserWallet = functions.https.onCall(async (data, context) => {
+exports.initializeUserWallet = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -820,7 +820,7 @@ exports.initializeUserWallet = functions.https.onCall(async (data, context) => {
     }
     return { success: true, message: 'Wallet checked/initialized.' };
   } catch (error) {
-    console.error(`[initializeUserWallet Error] Failed for userId: ${userId}, databaseId: ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753`, error);
+    console.error(`[initializeUserWallet Error] Failed for userId: ${userId}`, error);
     throw new functions.https.HttpsError('internal', error.message || 'Failed to initialize wallet.');
   }
 });

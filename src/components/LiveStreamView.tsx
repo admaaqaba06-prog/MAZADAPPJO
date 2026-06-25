@@ -16,6 +16,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
+import { SwipeToBid } from './SwipeToBid';
 
 // --- MAIN REELS COMPONENT ---
 export const LiveStreamView: React.FC = () => {
@@ -542,21 +543,13 @@ const ReelCard: React.FC<ReelCardProps> = ({
             ))}
           </div>
 
-          {/* Prominent Gavel Bid CTA Button */}
-          <button
-            type="button"
-            onClick={() => executeBid(nextBidAmount)}
-            className="w-full h-11 bg-gradient-to-r from-[#FF6B00] to-[#FF8A00] text-white rounded-xl flex items-center justify-between px-5 active:scale-95 transition-all shadow-[0_8px_20px_rgba(255,107,0,0.3)] hover:brightness-105 cursor-pointer font-black"
+          {/* Prominent Slide to Bid CTA Button */}
+          <SwipeToBid
+            amount={nextBidAmount}
+            onSwipeSuccess={() => executeBid(nextBidAmount)}
             disabled={currentUser.isBlocked || wallet.availableBalance < nextBidAmount}
-          >
-            <div className="flex items-center gap-1.5">
-              <Gavel className="w-4 h-4 text-white stroke-[2.5]" />
-              <span className="text-xs uppercase tracking-wider">{isAr ? 'قدّم مزايدة فوراً' : 'PLACE BID'}</span>
-            </div>
-            <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border border-white/10">
-              {isAr ? 'المزايدة التالية:' : 'Next Bid:'} {nextBidAmount.toLocaleString()} JOD
-            </span>
-          </button>
+            language={language as 'en' | 'ar'}
+          />
         </div>
 
       </div>

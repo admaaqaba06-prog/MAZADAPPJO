@@ -3,7 +3,7 @@
   "appId": "1:622832200971:web:f0dcf4d08a22fdcc29460e",
   "apiKey": "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
   "authDomain": "mazadjoapp.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-d299105f-479b-43e2-b3af-98f64b4b0753",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "mazadjoapp.firebasestorage.app",
   "messagingSenderId": "622832200971",
   "measurementId": ""

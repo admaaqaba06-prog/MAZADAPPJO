@@ -299,210 +299,287 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
         </header>
 
         {/* THREE COLUMN GRID LAYOUT BODY */}
-        <div className="flex flex-1 min-h-0 w-full p-6 gap-6 overflow-hidden">
-          
-          {/* ======================================================================
-              COLUMN 1: LEFT SIDEBAR (PROFILE, WALLET ACCRUALS, SIDE NAV)
-              ====================================================================== */}
-          <aside className="w-[290px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none" id="left-sidebar-panel">
+        {activeView === 'live' ? (
+          <div className="flex flex-1 min-h-0 w-full p-6 gap-6 overflow-hidden bg-[#121318]" id="desktop-premium-reels-layout">
             
-            {/* Widget A: User/Admin Profile Details Card */}
-            {currentUser && (
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
-                <div className="flex items-center gap-3.5">
-                  <img 
-                    src={currentUser.avatar} 
-                    alt={currentUser.name} 
-                    className="w-12 h-12 rounded-xl object-cover border border-gray-200"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-gray-900">{currentUser.name}</span>
-                    <span className="text-[10px] text-gray-400 mt-0.5">{isAr ? 'عمان، الأردن' : 'Amman, Jordan'}</span>
-                    <div className="mt-1.5">
-                      <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[8px] font-black tracking-widest px-2 py-0.5 rounded-full uppercase leading-none">
-                        ✓ {isAr ? 'عضو موثق بضمان كليك' : 'VERIFIED USER'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Widget B: Wallet Accruals Financial Indicator Card */}
-            {wallet && (
-              isStrictAdmin ? (
-                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
-                      {isAr ? 'مستحقات المحفظة' : 'WALLET ACCRUALS'}
-                    </span>
-                  </div>
-
-                  <div className="py-1">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">
-                      {isAr ? 'الرصيد المتاح للمزايدة' : 'AVAILABLE CASH TO BID'}
-                    </span>
-                    <span className="text-2xl font-black text-gray-900 font-mono tracking-tight mt-1 block">
-                      {(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-xs font-extrabold text-gray-400">JOD</span>
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3.5 pt-2 border-t border-gray-50">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-semibold text-gray-400">
-                        {isAr ? 'الضمان المعلق' : 'Locked Escrow Margin'}
-                      </span>
-                      <span className="text-xs font-black text-orange-600 font-mono mt-0.5">
-                        {(wallet.escrowBalance ?? 0).toLocaleString()} JD
-                      </span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-semibold text-gray-400">
-                        {isAr ? 'الرصيد التراكمي' : 'Accrued Ledger'}
-                      </span>
-                      <span className="text-xs font-black text-gray-900 font-mono mt-0.5">
-                        {(wallet.totalBalance ?? 0).toLocaleString()} JD
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 flex gap-2 items-start">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <p className="text-[9px] text-gray-400 font-medium leading-relaxed">
-                      {isAr 
-                        ? 'تتم جميع المعاملات المالية من خلال بروتوكولات نظام كليك التابع للبنك المركزي الأردني.' 
-                        : 'Transactions processed through Central Bank of Jordan CliQ protocols.'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
-                      {isAr ? 'رصيد المحفظة' : 'WALLET BALANCE'}
-                    </span>
-                    <button 
-                      onClick={() => setActiveView('wallet')}
-                      className="text-[10px] font-bold text-[#FF6B00] hover:underline uppercase tracking-wider"
-                    >
-                      {isAr ? 'شحن رصيد' : 'TOP UP'}
-                    </button>
-                  </div>
-
-                  <div className="py-1">
-                    <span className="text-3xl font-black text-[#FF6B00] font-mono tracking-tight mt-1 block">
-                      {(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-sm font-extrabold text-gray-400">JOD</span>
-                    </span>
-                    <span className="text-[9px] font-medium text-gray-400 block mt-1.5 leading-snug">
-                      {isAr ? 'رصيد كليك الموثق المتاح للمزايدة الفورية والشراء الآمن.' : 'Verified CliQ balance available for instant bidding and secure escrow purchases.'}
-                    </span>
-                  </div>
-                </div>
-              )
-            )}
-
-            {/* Widget C: High-Fidelity Custom Navigation Sidebar Menu */}
-            <nav className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-1.5" id="sidebar-nav-container">
-              <button
-                onClick={() => setActiveView('discovery')}
-                className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
-                  activeView === 'discovery' 
-                    ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Tv className="w-4 h-4" />
-                <span>{isAr ? 'تصفح المزادات' : 'Discover'}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveView('wallet')}
-                className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
-                  activeView === 'wallet' 
-                    ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <User className="w-4 h-4" />
-                <span>{isAr ? 'الملف الشخصي والمحفظة' : 'Profile'}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveView('upload')}
-                className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
-                  activeView === 'upload' 
-                    ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>{isAr ? 'إنشاء إدراج بائع' : 'Sell'}</span>
-              </button>
-
-              {isStrictAdmin && (
+            {/* COLUMN 1: LEFT SIDEBAR (260px) */}
+            <aside className="w-[260px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none text-zinc-300" id="left-sidebar-reels">
+              {/* Sidebar Menu items */}
+              <nav className="flex flex-col gap-1.5" id="sidebar-nav-reels">
                 <button
-                  onClick={() => {
-                    setActiveView('admin');
-                    setIsSimulating(true);
-                  }}
-                  className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
-                    activeView === 'admin' 
-                      ? 'bg-zinc-950 text-white shadow-[0_3px_10px_rgba(0,0,0,0.25)]' 
-                      : 'text-orange-600 hover:bg-orange-50'
-                  }`}
+                  onClick={() => setActiveView('discovery')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
                 >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>{isAr ? 'لوحة تحكم المشرف' : 'Admin'}</span>
+                  <Home className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'من أجلك' : 'For You'}</span>
                 </button>
+
+                <button
+                  onClick={() => setActiveView('live')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]"
+                >
+                  <Play className="w-4 h-4 text-white animate-pulse" />
+                  <span>{isAr ? 'مزادات مباشرة' : 'Live Auctions'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('discovery')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
+                >
+                  <TrendingUp className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'الفئات' : 'Categories'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('wallet')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
+                >
+                  <Clock className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'مزايداتي' : 'My Bids'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('wallet')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
+                >
+                  <WalletIcon className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'المحفظة' : 'Wallet'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('upload')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'بيع معروض' : 'Sell'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('wallet')}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-all flex items-center gap-3 cursor-pointer"
+                >
+                  <User className="w-4 h-4 text-zinc-500" />
+                  <span>{isAr ? 'الحساب' : 'Profile'}</span>
+                </button>
+              </nav>
+
+              {currentUser && (
+                <div className="bg-zinc-900 border border-white/5 p-4 mt-auto rounded-2xl select-text text-white">
+                  <div className="flex items-center gap-2.5">
+                    <img 
+                      src={currentUser.avatar} 
+                      alt={currentUser.name} 
+                      className="w-8 h-8 rounded-xl object-cover border border-white/10"
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold text-white truncate">{currentUser.name}</span>
+                      <span className="text-[9px] text-zinc-400 truncate">{currentUser.email}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </aside>
+
+            {/* COLUMN 2: CENTER REEL (TikTok Web style center reel, w: 420px - 520px, h: 75vh - 85vh) */}
+            <main className="flex-1 flex items-center justify-center overflow-hidden" id="center-reels-feed-container">
+              <div 
+                className="w-[460px] max-w-[520px] min-w-[420px] h-[80vh] max-h-[85vh] min-h-[75vh] bg-black rounded-2xl shadow-2xl overflow-hidden relative"
+                id="center-reel-main-wrapper"
+              >
+                <Suspense fallback={
+                  <div className="flex-1 h-full flex items-center justify-center bg-zinc-950">
+                    <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
+                  </div>
+                }>
+                  {children}
+                </Suspense>
+              </div>
+            </main>
+
+            {/* COLUMN 3: RIGHT DETAILS PANEL (360px) */}
+            <aside 
+              className="w-[360px] h-full bg-[#121318] border border-white/10 rounded-3xl p-5 flex flex-col gap-4 overflow-hidden shrink-0 text-white select-none shadow-2xl animate-fade-in"
+              id="right-details-panel-reels"
+            >
+              <ReelsDesktopRightPanel />
+            </aside>
+          </div>
+        ) : (
+          <div className="flex flex-1 min-h-0 w-full p-6 gap-6 overflow-hidden">
+            
+            {/* ======================================================================
+                COLUMN 1: LEFT SIDEBAR (PROFILE, WALLET ACCRUALS, SIDE NAV)
+                ====================================================================== */}
+            <aside className="w-[290px] flex flex-col gap-4 overflow-y-auto shrink-0 pr-1 select-none" id="left-sidebar-panel">
+              
+              {/* Widget A: User/Admin Profile Details Card */}
+              {currentUser && (
+                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
+                  <div className="flex items-center gap-3.5">
+                    <img 
+                      src={currentUser.avatar} 
+                      alt={currentUser.name} 
+                      className="w-12 h-12 rounded-xl object-cover border border-gray-200"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-900">{currentUser.name}</span>
+                      <span className="text-[10px] text-gray-400 mt-0.5">{isAr ? 'عمان، الأردن' : 'Amman, Jordan'}</span>
+                      <div className="mt-1.5">
+                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[8px] font-black tracking-widest px-2 py-0.5 rounded-full uppercase leading-none">
+                          ✓ {isAr ? 'عضو موثق بضمان كليك' : 'VERIFIED USER'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
 
-              <button
-                onClick={() => setIsTermsOpen(true)}
-                className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all flex items-center gap-3 cursor-pointer mt-1"
-              >
-                <HelpCircle className="w-4 h-4" />
-                <span>{isAr ? 'الشروط والأحكام' : 'Terms & Policies'}</span>
-              </button>
-            </nav>
+              {/* Widget B: Wallet Accruals Financial Indicator Card */}
+              {wallet && (
+                isStrictAdmin ? (
+                  <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                        {isAr ? 'مستحقات المحفظة' : 'WALLET ACCRUALS'}
+                      </span>
+                    </div>
 
-          </aside>
+                    <div className="py-1">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">
+                        {isAr ? 'الرصيد المتاح للمزايدة' : 'AVAILABLE CASH TO BID'}
+                      </span>
+                      <span className="text-2xl font-black text-gray-900 font-mono tracking-tight mt-1 block">
+                        {(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-xs font-extrabold text-gray-400">JOD</span>
+                      </span>
+                    </div>
 
-          {/* ======================================================================
-              COLUMN 2: CENTER AREA (THE HANDSET EMULATOR SCREEN FRAME)
-              ====================================================================== */}
-          <main className="flex-1 flex items-center justify-center overflow-hidden" id="center-handset-emulator-panel">
-            
-            {activeView === 'live' ? (
-              // Custom wide container for Reels Feed and right-hand Panel
-              <div className="flex gap-6 items-center justify-center h-full max-h-[790px] w-full" id="reels-desktop-layout-wrapper">
-                {/* The simulated phone body for the Reels feed */}
-                <div 
-                  className="relative w-[380px] h-full rounded-[40px] border-[8px] border-zinc-900 bg-black shadow-[0_25px_60px_-15px_rgba(0,0,0,0.25)] flex flex-col overflow-hidden select-none shrink-0"
-                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
-                  id="reels-simulated-handset"
-                >
-                  <div className="flex-1 w-full h-full relative bg-black flex flex-col" id="reels-simulated-screen">
-                    <Suspense fallback={
-                      <div className="flex-1 flex items-center justify-center bg-zinc-950">
-                        <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
+                    <div className="grid grid-cols-2 gap-3.5 pt-2 border-t border-gray-50">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-semibold text-gray-400">
+                          {isAr ? 'الضمان المعلق' : 'Locked Escrow Margin'}
+                        </span>
+                        <span className="text-xs font-black text-orange-600 font-mono mt-0.5">
+                          {(wallet.escrowBalance ?? 0).toLocaleString()} JD
+                        </span>
                       </div>
-                    }>
-                      {children}
-                    </Suspense>
-                  </div>
-                </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-semibold text-gray-400">
+                          {isAr ? 'الرصيد التراكمي' : 'Accrued Ledger'}
+                        </span>
+                        <span className="text-xs font-black text-gray-900 font-mono mt-0.5">
+                          {(wallet.totalBalance ?? 0).toLocaleString()} JD
+                        </span>
+                      </div>
+                    </div>
 
-                {/* Right side panel for Desktop - Bid History, Seller Info, Auction Details */}
-                <div 
-                  className="w-[340px] h-full bg-[#121318] border border-white/10 rounded-3xl p-5 flex flex-col gap-4 overflow-hidden shrink-0 text-white select-none shadow-2xl"
-                  id="reels-desktop-right-panel"
+                    <div className="mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 flex gap-2 items-start">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <p className="text-[9px] text-gray-400 font-medium leading-relaxed">
+                        {isAr 
+                          ? 'تتم جميع المعاملات المالية من خلال بروتوكولات نظام كليك التابع للبنك المركزي الأردني.' 
+                          : 'Transactions processed through Central Bank of Jordan CliQ protocols.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                        {isAr ? 'رصيد المحفظة' : 'WALLET BALANCE'}
+                      </span>
+                      <button 
+                        onClick={() => setActiveView('wallet')}
+                        className="text-[10px] font-bold text-[#FF6B00] hover:underline uppercase tracking-wider"
+                      >
+                        {isAr ? 'شحن رصيد' : 'TOP UP'}
+                      </button>
+                    </div>
+
+                    <div className="py-1">
+                      <span className="text-3xl font-black text-[#FF6B00] font-mono tracking-tight mt-1 block">
+                        {(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-sm font-extrabold text-gray-400">JOD</span>
+                      </span>
+                      <span className="text-[9px] font-medium text-gray-400 block mt-1.5 leading-snug">
+                        {isAr ? 'رصيد كليك الموثق المتاح للمزايدة الفورية والشراء الآمن.' : 'Verified CliQ balance available for instant bidding and secure escrow purchases.'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Widget C: High-Fidelity Custom Navigation Sidebar Menu */}
+              <nav className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col gap-1.5" id="sidebar-nav-container">
+                <button
+                  onClick={() => setActiveView('discovery')}
+                  className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
+                    activeView === 'discovery' 
+                      ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
                 >
-                  <ReelsDesktopRightPanel />
-                </div>
-              </div>
-            ) : (
-              /* If normal user, render directly without smartphone emulator */
-              !isStrictAdmin ? (
+                  <Tv className="w-4 h-4" />
+                  <span>{isAr ? 'تصفح المزادات' : 'Discover'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('wallet')}
+                  className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
+                    activeView === 'wallet' 
+                      ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  <span>{isAr ? 'الملف الشخصي والمحفظة' : 'Profile'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveView('upload')}
+                  className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
+                    activeView === 'upload' 
+                      ? 'bg-[#FF6B00] text-white shadow-[0_3px_10px_rgba(255,107,0,0.2)]' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>{isAr ? 'إنشاء إدراج بائع' : 'Sell'}</span>
+                </button>
+
+                {isStrictAdmin && (
+                  <button
+                    onClick={() => {
+                      setActiveView('admin');
+                      setIsSimulating(true);
+                    }}
+                    className={`w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
+                      activeView === 'admin' 
+                        ? 'bg-zinc-950 text-white shadow-[0_3px_10px_rgba(0,0,0,0.25)]' 
+                        : 'text-orange-600 hover:bg-orange-50'
+                    }`}
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>{isAr ? 'لوحة تحكم المشرف' : 'Admin'}</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsTermsOpen(true)}
+                  className="w-full text-left rtl:text-right px-4 py-3 rounded-xl text-xs font-extrabold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all flex items-center gap-3 cursor-pointer mt-1"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  <span>{isAr ? 'الشروط والأحكام' : 'Terms & Policies'}</span>
+                </button>
+              </nav>
+
+            </aside>
+
+            {/* ======================================================================
+                COLUMN 2: CENTER AREA (THE HANDSET EMULATOR SCREEN FRAME)
+                ====================================================================== */}
+            <main className="flex-1 flex items-center justify-center overflow-hidden" id="center-handset-emulator-panel">
+              
+              {/* If normal user, render directly without smartphone emulator */}
+              {!isStrictAdmin ? (
                 <div className="w-full h-full bg-white border border-gray-200/80 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden flex flex-col" id="desktop-user-container">
                   <div className="flex-1 w-full h-full overflow-y-auto relative bg-white flex flex-col pt-3" id="desktop-user-viewport">
                     <Suspense fallback={
@@ -538,90 +615,90 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     </Suspense>
                   </div>
                 </div>
-              )
+              )}
+
+            </main>
+
+            {/* ======================================================================
+                COLUMN 3: RIGHT SIDEBAR (SUBSCRIPTIONS & HOT LEDGER TRANSACTION FEED)
+                ====================================================================== */}
+            {isStrictAdmin && activeView !== 'live' && (
+              <aside className="w-[320px] flex flex-col gap-4 overflow-y-auto shrink-0 pl-1 select-none" id="right-sidebar-panel">
+                
+                {/* Widget A: Subscription Status Summary Card */}
+                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
+                  <div className="flex justify-between items-center pb-2.5 border-b border-gray-100 mb-3">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                      {isAr ? 'نظرة عامة على الاشتراكات' : 'SUBSCRIPTIONS & POOLS'}
+                    </span>
+                    <span className="bg-orange-50 text-[#FF6B00] text-[8px] font-black tracking-widest px-2 py-0.5 rounded border border-orange-200">
+                      {isAr ? 'نشط' : 'ACTIVE'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500 font-medium">{isAr ? 'الأعضاء المشتركين' : 'Active Subscribers'}</span>
+                      <span className="font-extrabold text-gray-900 font-mono bg-gray-50 border border-gray-100 px-2 py-0.5 rounded">
+                        {users ? users.filter(u => u.subscriptionStatus === 'active').length : 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500 font-medium">{isAr ? 'نسبة حماية كليك' : 'CliQ Sec Protection'}</span>
+                      <span className="font-extrabold text-emerald-600 font-mono bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
+                        100%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Widget B: Real-Time Audit Ledger Streams Row Logger (WS Active Simulator) */}
+                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-0">
+                  <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                    <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
+                      {isAr ? 'بث العمليات المالي الفوري' : 'HOT LEDGER STREAM'}
+                    </span>
+                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span>
+                      <span>{isAr ? 'مباشر WS' : 'WS ACTIVE'}</span>
+                    </span>
+                  </div>
+
+                  {/* Scrollable list containing events feed rows */}
+                  <div className="overflow-y-auto pr-1 flex-1 space-y-3.5 mt-4 text-[10px] scrollbar-thin" id="ledger-stream-feed">
+                    {allLedgerEvents.map((ev) => (
+                      <div key={ev.id} className="flex gap-2.5 items-start bg-gray-50/50 hover:bg-gray-50 border border-gray-100/70 hover:border-gray-200/80 p-3 rounded-xl transition-all">
+                        <div className="mt-0.5">
+                          {ev.isAdmin ? (
+                            <div className="w-5 h-5 rounded-md bg-zinc-900 flex items-center justify-center text-white font-mono text-[9px] font-bold">
+                              ★
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-700">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-h-0 text-left rtl:text-right">
+                          <p className="text-gray-900 font-medium leading-relaxed">
+                            <span className="font-extrabold text-gray-950 block mb-0.5">{ev.user}</span>
+                            <span className="text-gray-600">{ev.action}</span>{' '}
+                            {ev.extra && <span className="text-gray-400 font-mono font-bold text-[9px] block mt-0.5">{ev.extra}</span>}
+                          </p>
+                          <span className="text-[8px] text-gray-400 font-bold block mt-1 uppercase font-mono tracking-wide">
+                            🕒 {ev.time}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </aside>
             )}
 
-          </main>
-
-          {/* ======================================================================
-              COLUMN 3: RIGHT SIDEBAR (SUBSCRIPTIONS & HOT LEDGER TRANSACTION FEED)
-              ====================================================================== */}
-          {isStrictAdmin && activeView !== 'live' && (
-            <aside className="w-[320px] flex flex-col gap-4 overflow-y-auto shrink-0 pl-1 select-none" id="right-sidebar-panel">
-              
-              {/* Widget A: Subscription Status Summary Card */}
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
-                <div className="flex justify-between items-center pb-2.5 border-b border-gray-100 mb-3">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
-                    {isAr ? 'نظرة عامة على الاشتراكات' : 'SUBSCRIPTIONS & POOLS'}
-                  </span>
-                  <span className="bg-orange-50 text-[#FF6B00] text-[8px] font-black tracking-widest px-2 py-0.5 rounded border border-orange-200">
-                    {isAr ? 'نشط' : 'ACTIVE'}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-500 font-medium">{isAr ? 'الأعضاء المشتركين' : 'Active Subscribers'}</span>
-                    <span className="font-extrabold text-gray-900 font-mono bg-gray-50 border border-gray-100 px-2 py-0.5 rounded">
-                      {users ? users.filter(u => u.subscriptionStatus === 'active').length : 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-500 font-medium">{isAr ? 'نسبة حماية كليك' : 'CliQ Sec Protection'}</span>
-                    <span className="font-extrabold text-emerald-600 font-mono bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
-                      100%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Widget B: Real-Time Audit Ledger Streams Row Logger (WS Active Simulator) */}
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-0">
-                <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-                  <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
-                    {isAr ? 'بث العمليات المالي الفوري' : 'HOT LEDGER STREAM'}
-                  </span>
-                  <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>{isAr ? 'مباشر WS' : 'WS ACTIVE'}</span>
-                  </span>
-                </div>
-
-                {/* Scrollable list containing events feed rows */}
-                <div className="overflow-y-auto pr-1 flex-1 space-y-3.5 mt-4 text-[10px] scrollbar-thin" id="ledger-stream-feed">
-                  {allLedgerEvents.map((ev) => (
-                    <div key={ev.id} className="flex gap-2.5 items-start bg-gray-50/50 hover:bg-gray-50 border border-gray-100/70 hover:border-gray-200/80 p-3 rounded-xl transition-all">
-                      <div className="mt-0.5">
-                        {ev.isAdmin ? (
-                          <div className="w-5 h-5 rounded-md bg-zinc-900 flex items-center justify-center text-white font-mono text-[9px] font-bold">
-                            ★
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-700">
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-h-0 text-left rtl:text-right">
-                        <p className="text-gray-900 font-medium leading-relaxed">
-                          <span className="font-extrabold text-gray-950 block mb-0.5">{ev.user}</span>
-                          <span className="text-gray-600">{ev.action}</span>{' '}
-                          {ev.extra && <span className="text-gray-400 font-mono font-bold text-[9px] block mt-0.5">{ev.extra}</span>}
-                        </p>
-                        <span className="text-[8px] text-gray-400 font-bold block mt-1 uppercase font-mono tracking-wide">
-                          🕒 {ev.time}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </aside>
-          )}
-
-        </div>
+          </div>
+        )}
 
       </div>
 

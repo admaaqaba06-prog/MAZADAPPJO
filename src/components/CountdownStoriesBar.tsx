@@ -20,81 +20,49 @@ export const CountdownStoriesBar: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Dynamic matching function to find matched database auction item
-  const getMatchedProduct = (itemId: string, actionId: string, keywords: string[]) => {
-    let found = auctions.find(a => a.id === itemId || a.id === actionId);
-    if (!found) {
-      found = auctions.find(a => {
-        const titleL = a.title.toLowerCase();
-        const idL = a.id.toLowerCase();
-        const catL = (a.category || '').toLowerCase();
-        return keywords.some(keyword => titleL.includes(keyword) || idL.includes(keyword) || catL.includes(keyword));
-      });
+  // Filter live or upcoming auctions for premium show
+  const activeAuctions = auctions.filter(a => a.status === 'live' || a.status === 'upcoming');
+
+  if (activeAuctions.length === 0) {
+    return null;
+  }
+
+  const getCategoryIcon = (category: string) => {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('elect') || cat.includes('phone') || cat.includes('laptop')) {
+      return <Laptop className="w-8 h-8 text-[#98C2E6] stroke-[1.25]" />;
+    } else if (cat.includes('watch') || cat.includes('rolex') || cat.includes('jewel') || cat.includes('gem')) {
+      return <Gem className="w-8 h-8 text-[#DCA268] stroke-[1.25]" />;
+    } else if (cat.includes('fash') || cat.includes('cloth') || cat.includes('shirt') || cat.includes('jacket')) {
+      return <Shirt className="w-8 h-8 text-[#5C5C59] stroke-[1.25]" />;
+    } else {
+      return <Smartphone className="w-8 h-8 text-[#A8AEC6] stroke-[1.25]" />;
     }
-    return found;
   };
 
-  // Filter live or upcoming auctions for premium show
-  const displayItems = [
-    {
-      id: 'auction-phone-15',
-      title: isAr ? 'آيفون ١٥ برو' : 'Phone 15 Pro',
-      price: 280,
-      time: '55m 50s',
-      bg: 'bg-[#1E1F35]', // Deep indigo/purple
-      icon: <Smartphone className="w-8 h-8 text-[#A8AEC6] stroke-[1.25]" />,
-      actionId: 'auction-iphone-15', // Fallback link
-      keywords: ['phone', 'iphone', 'electronic'],
-      fallbackCover: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=250&q=80',
-    },
-    {
-      id: 'auction-macbook-pro',
-      title: isAr ? 'ماك بوك برو' : 'MacBook Pro',
-      price: 650,
-      time: '1h 25m',
-      bg: 'bg-[#0E1B29]', // Navy/Dark blue
-      icon: <Laptop className="w-8 h-8 text-[#98C2E6] stroke-[1.25]" />,
-      actionId: 'auction-macbook',
-      keywords: ['macbook', 'laptop', 'desktop', 'computer'],
-      fallbackCover: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=250&q=80',
-    },
-    {
-      id: 'auction-rolex-sub',
-      title: isAr ? 'رولكس صبمارينر' : 'Rolex Submari...',
-      price: 3200,
-      time: '1h 55m',
-      bg: 'bg-[#211B14]', // Dark warm brown
-      icon: <Gem className="w-8 h-8 text-[#DCA268] stroke-[1.25]" />,
-      actionId: 'auction-rolex',
-      keywords: ['rolex', 'watch', 'luxury', 'gem'],
-      fallbackCover: 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=250&q=80',
-    },
-    {
-      id: 'auction-air-jordan',
-      title: isAr ? 'إير جوردان' : 'Air Jorda...',
-      price: 95,
-      time: '2h',
-      bg: 'bg-[#F2F2EF]', // Off-white/beige
-      icon: <Shirt className="w-8 h-8 text-[#5C5C59] stroke-[1.25]" />,
-      actionId: 'auction-vintage-jacket',
-      keywords: ['jordan', 'jacket', 'fashion', 'أزياء', 'shirt'],
-      fallbackCover: 'https://images.unsplash.com/photo-1597045566677-8cf032ed6634?auto=format&fit=crop&w=250&q=80',
+  const getCategoryBg = (category: string) => {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('elect') || cat.includes('phone') || cat.includes('laptop')) {
+      return 'bg-[#0E1B29]';
+    } else if (cat.includes('watch') || cat.includes('rolex') || cat.includes('jewel') || cat.includes('gem')) {
+      return 'bg-[#211B14]';
+    } else if (cat.includes('fash') || cat.includes('cloth') || cat.includes('shirt') || cat.includes('jacket')) {
+      return 'bg-[#F2F2EF]';
+    } else {
+      return 'bg-[#1E1F35]';
     }
-  ];
+  };
 
-  // Resolve dynamic stats & imagery with fallback options
-  const resolvedItems = displayItems.map(item => {
-    const matched = getMatchedProduct(item.id, item.actionId, item.keywords);
+  // Resolve dynamic stats & imagery with actual DB data
+  const resolvedItems = activeAuctions.map(matched => {
+    const price = matched.currentPrice || matched.startingPrice || 0;
     
-    const price = matched ? matched.currentPrice : item.price;
-    const matchedId = matched ? matched.id : item.actionId;
-    
-    const displayTitle = matched 
-      ? (isAr ? (matched.title.length > 12 ? matched.title.substring(0, 12) + '...' : matched.title) : (matched.title.length > 12 ? matched.title.substring(0, 12) + '...' : matched.title))
-      : item.title;
+    const displayTitle = matched.title.length > 12 
+      ? matched.title.substring(0, 12) + '...' 
+      : matched.title;
 
-    let timeLeftStr = item.time;
-    if (matched && matched.endTime) {
+    let timeLeftStr = '00:00';
+    if (matched.endTime) {
       const secondsLeft = Math.max(0, Math.floor((matched.endTime - ticks) / 1000));
       if (secondsLeft <= 0) {
         timeLeftStr = '00:00';
@@ -110,39 +78,31 @@ export const CountdownStoriesBar: React.FC = () => {
       }
     }
 
-    let coverUrl = item.fallbackCover;
+    let coverUrl = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&q=80';
     let isVideo = false;
-    if (matched) {
-      if (matched.thumbnailUrl) {
-        coverUrl = matched.thumbnailUrl;
-      } else if (matched.videoUrl) {
-        coverUrl = matched.videoUrl;
-        isVideo = true;
-      }
+    if (matched.thumbnailUrl) {
+      coverUrl = matched.thumbnailUrl;
+    } else if (matched.videoUrl) {
+      coverUrl = matched.videoUrl;
+      isVideo = true;
     }
 
     return {
-      ...item,
+      id: matched.id,
       title: displayTitle,
       price,
       time: timeLeftStr,
+      bg: getCategoryBg(matched.category),
+      icon: getCategoryIcon(matched.category),
       coverUrl,
       isVideo,
-      matchedId
+      matchedId: matched.id
     };
   });
 
-  // Dynamically link to existing items if available in DB
-  const handleItemClick = (fallbackId: string, customId: string, matchedId?: string) => {
-    const found = auctions.find(a => a.id === matchedId || a.id === customId || a.id === fallbackId);
-    if (found) {
-      setActiveAuctionId(found.id);
-      setActiveView('live');
-    } else if (auctions.length > 0) {
-      // Fallback to first live auction
-      setActiveAuctionId(auctions[0].id);
-      setActiveView('live');
-    }
+  const handleItemClick = (matchedId: string) => {
+    setActiveAuctionId(matchedId);
+    setActiveView('live');
   };
 
   return (
@@ -159,17 +119,17 @@ export const CountdownStoriesBar: React.FC = () => {
           </h3>
         </div>
         <span className="text-[11px] font-bold text-gray-400 font-mono">
-          3 live
+          {activeAuctions.length} {isAr ? 'نشط' : 'live'}
         </span>
       </div>
 
-      {/* Horizontal horizontal list */}
+      {/* Horizontal list */}
       <div className="flex gap-3 overflow-x-auto px-4 scrollbar-none pb-1">
         {resolvedItems.map((item) => {
           return (
             <button
               key={item.id}
-              onClick={() => handleItemClick(item.actionId, item.id, item.matchedId)}
+              onClick={() => handleItemClick(item.matchedId)}
               className="flex flex-col items-stretch focus:outline-none shrink-0 group cursor-pointer text-left"
               style={{ width: '82px' }}
               id={`story-item-${item.id}`}
