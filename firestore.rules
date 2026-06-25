@@ -12,12 +12,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'admaaqaba06@gmail.com';
+      return request.auth != null && (request.auth.token.email == 'admaaqaba06@gmail.com' || request.auth.uid == 'wtu2pG6X6Jc0mvhyKBCUsca2X0A2');
     }
 
     // 1. Users block
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'admaaqaba06@gmail.com');
+      allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId && (
         request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && request.auth.token.email == 'admaaqaba06@gmail.com')
       );

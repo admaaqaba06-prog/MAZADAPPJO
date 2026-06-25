@@ -574,128 +574,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </aside>
 
             {/* ======================================================================
-                COLUMN 2: CENTER AREA (THE HANDSET EMULATOR SCREEN FRAME)
+                COLUMN 2: MAIN CONTENT VIEWPORT (FULL DESKTOP LAYOUT)
                 ====================================================================== */}
-            <main className="flex-1 flex items-center justify-center overflow-hidden" id="center-handset-emulator-panel">
-              
-              {/* If normal user, render directly without smartphone emulator */}
-              {!isStrictAdmin ? (
-                <div className="w-full h-full bg-white border border-gray-200/80 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden flex flex-col" id="desktop-user-container">
-                  <div className="flex-1 w-full h-full overflow-y-auto relative bg-white flex flex-col pt-3" id="desktop-user-viewport">
-                    <Suspense fallback={
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
-                      </div>
-                    }>
-                      {children}
-                    </Suspense>
+            <main className="flex-1 h-full bg-white border border-gray-200/80 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden flex flex-col" id="desktop-content-container">
+              <div className="flex-1 w-full h-full overflow-y-auto relative bg-white flex flex-col pt-3" id="desktop-content-viewport">
+                <Suspense fallback={
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin"></div>
                   </div>
-                </div>
-              ) : (
-                /* The simulated visual bezel layout of an iOS / Android Smartphone (for admin only) */
-                <div 
-                  className="relative w-[400px] h-full max-h-[790px] rounded-[48px] border-[12px] border-zinc-200 bg-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden select-none"
-                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
-                  id="simulated-handset-device"
-                >
-                  {/* Device Upper Dynamic Island camera notch bar */}
-                  <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-5.5 bg-black rounded-full z-50 flex items-center justify-center">
-                    {/* Simulated Lens */}
-                    <span className="absolute right-4 w-1.5 h-1.5 bg-[#090c15] rounded-full ring-1 ring-zinc-800"></span>
-                  </div>
-
-                  {/* Handset Screen Display viewport where the actual mobile UI views render exactly */}
-                  <div className="flex-1 w-full h-full overflow-y-auto relative bg-white flex flex-col pt-3" id="simulated-device-screen">
-                    <Suspense fallback={
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-lg bg-[#FF6B00] animate-spin font-mono flex items-center justify-center text-white text-xs">M</div>
-                      </div>
-                    }>
-                      {children}
-                    </Suspense>
-                  </div>
-                </div>
-              )}
-
+                }>
+                  {children}
+                </Suspense>
+              </div>
             </main>
-
-            {/* ======================================================================
-                COLUMN 3: RIGHT SIDEBAR (SUBSCRIPTIONS & HOT LEDGER TRANSACTION FEED)
-                ====================================================================== */}
-            {isStrictAdmin && activeView !== 'live' && (
-              <aside className="w-[320px] flex flex-col gap-4 overflow-y-auto shrink-0 pl-1 select-none" id="right-sidebar-panel">
-                
-                {/* Widget A: Subscription Status Summary Card */}
-                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
-                  <div className="flex justify-between items-center pb-2.5 border-b border-gray-100 mb-3">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
-                      {isAr ? 'نظرة عامة على الاشتراكات' : 'SUBSCRIPTIONS & POOLS'}
-                    </span>
-                    <span className="bg-orange-50 text-[#FF6B00] text-[8px] font-black tracking-widest px-2 py-0.5 rounded border border-orange-200">
-                      {isAr ? 'نشط' : 'ACTIVE'}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-500 font-medium">{isAr ? 'الأعضاء المشتركين' : 'Active Subscribers'}</span>
-                      <span className="font-extrabold text-gray-900 font-mono bg-gray-50 border border-gray-100 px-2 py-0.5 rounded">
-                        {users ? users.filter(u => u.subscriptionStatus === 'active').length : 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-500 font-medium">{isAr ? 'نسبة حماية كليك' : 'CliQ Sec Protection'}</span>
-                      <span className="font-extrabold text-emerald-600 font-mono bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
-                        100%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Widget B: Real-Time Audit Ledger Streams Row Logger (WS Active Simulator) */}
-                <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-0">
-                  <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-                    <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
-                      {isAr ? 'بث العمليات المالي الفوري' : 'HOT LEDGER STREAM'}
-                    </span>
-                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span>
-                      <span>{isAr ? 'مباشر WS' : 'WS ACTIVE'}</span>
-                    </span>
-                  </div>
-
-                  {/* Scrollable list containing events feed rows */}
-                  <div className="overflow-y-auto pr-1 flex-1 space-y-3.5 mt-4 text-[10px] scrollbar-thin" id="ledger-stream-feed">
-                    {allLedgerEvents.map((ev) => (
-                      <div key={ev.id} className="flex gap-2.5 items-start bg-gray-50/50 hover:bg-gray-50 border border-gray-100/70 hover:border-gray-200/80 p-3 rounded-xl transition-all">
-                        <div className="mt-0.5">
-                          {ev.isAdmin ? (
-                            <div className="w-5 h-5 rounded-md bg-zinc-900 flex items-center justify-center text-white font-mono text-[9px] font-bold">
-                              ★
-                            </div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-700">
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-h-0 text-left rtl:text-right">
-                          <p className="text-gray-900 font-medium leading-relaxed">
-                            <span className="font-extrabold text-gray-950 block mb-0.5">{ev.user}</span>
-                            <span className="text-gray-600">{ev.action}</span>{' '}
-                            {ev.extra && <span className="text-gray-400 font-mono font-bold text-[9px] block mt-0.5">{ev.extra}</span>}
-                          </p>
-                          <span className="text-[8px] text-gray-400 font-bold block mt-1 uppercase font-mono tracking-wide">
-                            🕒 {ev.time}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </aside>
-            )}
 
           </div>
         )}

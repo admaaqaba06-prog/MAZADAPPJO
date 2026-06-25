@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Video, RefreshCw, UploadCloud, Film } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Video, RefreshCw, UploadCloud, Film, Link2 } from 'lucide-react';
 
 interface VideoUploadFormProps {
   onVideoSelect?: (file: File | null, videoUrl: string | null) => void;
@@ -7,8 +7,10 @@ interface VideoUploadFormProps {
 }
 
 export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect, language = 'en' }) => {
+  const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [inputUrl, setInputUrl] = useState<string>('');
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,7 +33,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
       }
       
       // Cleanup previous object url to prevent memory leaks
-      if (videoUrl) {
+      if (videoUrl && videoUrl.startsWith('blob:')) {
         URL.revokeObjectURL(videoUrl);
       }
 
@@ -49,16 +51,38 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
     }
   };
 
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputUrl.trim()) return;
+
+    // Direct url from web
+    if (videoUrl && videoUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(videoUrl);
+    }
+
+    setVideoFile(null);
+    setVideoUrl(inputUrl.trim());
+    setFileDetails({
+      name: isAr ? 'رابط فيديو خارجي' : 'External Web Video',
+      size: isAr ? 'غير محدد' : 'Unknown size'
+    });
+
+    if (onVideoSelect) {
+      onVideoSelect(null, inputUrl.trim());
+    }
+  };
+
   const handleReset = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     
-    if (videoUrl) {
+    if (videoUrl && videoUrl.startsWith('blob:')) {
       URL.revokeObjectURL(videoUrl);
     }
     
     setVideoFile(null);
     setVideoUrl(null);
+    setInputUrl('');
     setFileDetails(null);
     
     if (fileInputRef.current) {
@@ -70,14 +94,42 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
     }
   };
 
-  const triggerInputClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
   return (
     <div id="video-upload-container" className="w-full">
+      {/* Tabs */}
+      <div className="flex border-b border-gray-100 mb-4 bg-gray-50 p-1 rounded-xl gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (!videoUrl) setActiveTab('upload');
+          }}
+          disabled={!!videoUrl}
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'upload'
+              ? 'bg-white text-[#FF6B00] shadow-sm'
+              : 'text-gray-500 hover:text-gray-900 disabled:opacity-50'
+          }`}
+        >
+          <UploadCloud className="w-3.5 h-3.5" />
+          <span>{isAr ? 'رفع فيديو محلي' : 'Local Video Upload'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!videoUrl) setActiveTab('url');
+          }}
+          disabled={!!videoUrl}
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'url'
+              ? 'bg-white text-[#FF6B00] shadow-sm'
+              : 'text-gray-500 hover:text-gray-900 disabled:opacity-50'
+          }`}
+        >
+          <Link2 className="w-3.5 h-3.5" />
+          <span>{isAr ? 'رابط فيديو من الويب' : 'Web Video URL'}</span>
+        </button>
+      </div>
+
       <input
         type="file"
         accept="video/mp4,video/*"
@@ -106,7 +158,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
                   {fileDetails.name}
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono font-bold mt-0.5">
-                  Size: {fileDetails.size}
+                  {isAr ? 'المصدر' : 'Source'}: {videoFile ? (isAr ? 'ملف محلي' : 'Local File') : (isAr ? 'رابط ويب' : 'Web Link')}
                 </p>
               </div>
               <button
@@ -115,29 +167,56 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
                 className="text-[11px] font-black text-orange-600 hover:text-orange-700 transition-colors uppercase tracking-wider shrink-0 cursor-pointer"
                 id="change-video-btn"
               >
-                {isAr ? 'تغيير الفيديو ↺' : 'Change Video ↺'}
+                {isAr ? 'حذف / تغيير ↺' : 'Change Video ↺'}
               </button>
             </div>
           )}
         </div>
       ) : (
-        <label 
-          htmlFor="video-upload-input"
-          className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-[#FFF8F3] hover:bg-[#FFF4EB] transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
-          id="video-tap-area"
-        >
-          <div className="flex flex-col items-center text-center space-y-2.5">
-            <span className="text-4xl">📹</span>
-            <div className="space-y-1">
-              <p className="text-sm font-black text-[#FF6B00] tracking-tight">
-                اضغط لرفع فيديو المنتج
-              </p>
-              <p className="text-xs text-gray-400 font-bold">
-                MP4 أو أي صيغة فيديو
-              </p>
-            </div>
-          </div>
-        </label>
+        <>
+          {activeTab === 'upload' ? (
+            <label 
+              htmlFor="video-upload-input"
+              className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-[#FFF8F3] hover:bg-[#FFF4EB] transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
+              id="video-tap-area"
+            >
+              <div className="flex flex-col items-center text-center space-y-2.5">
+                <span className="text-4xl">📹</span>
+                <div className="space-y-1">
+                  <p className="text-sm font-black text-[#FF6B00] tracking-tight">
+                    {isAr ? 'اضغط لرفع فيديو المنتج' : 'Click to upload product video'}
+                  </p>
+                  <p className="text-xs text-gray-400 font-bold">
+                    {isAr ? 'MP4 أو أي صيغة فيديو' : 'MP4, WebM or Quicktime'}
+                  </p>
+                </div>
+              </div>
+            </label>
+          ) : (
+            <form onSubmit={handleUrlSubmit} className="space-y-3 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm">
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                  {isAr ? 'أدخل رابط الفيديو المباشر من الويب' : 'Enter Direct Web Video URL'}
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  placeholder="https://example.com/my-video.mp4"
+                  className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 text-xs font-semibold placeholder-gray-400 focus:border-[#FF6B00] outline-none transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full h-10 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Link2 className="w-4 h-4" />
+                <span>{isAr ? 'استيراد فيديو الويب' : 'Import Web Video'}</span>
+              </button>
+            </form>
+          )}
+        </>
       )}
     </div>
   );
