@@ -1433,11 +1433,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: result.data.message
       };
     } catch (error: any) {
-      console.error("Cloud function placeBid error:", error);
-      await logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${error.message || String(error)}`);
+      const errorMsg = error.message || String(error);
+      const isExpectedError = 
+        errorMsg.includes('ended') || 
+        errorMsg.includes('Minimum') || 
+        errorMsg.includes('Funds') || 
+        errorMsg.includes('subscription') || 
+        errorMsg.includes('restricted') || 
+        errorMsg.includes('not accepting');
+        
+      if (isExpectedError) {
+        console.warn("Cloud function placeBid expected warning:", errorMsg);
+      } else {
+        console.error("Cloud function placeBid error:", error);
+      }
+      await logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${errorMsg}`);
       return {
         success: false,
-        message: error.message || 'Bidding failed.'
+        message: errorMsg || 'Bidding failed.'
       };
     }
   }, [currentUser, language, addNotification, logSystemHealth, featureFlags]);

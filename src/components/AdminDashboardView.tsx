@@ -226,7 +226,7 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   const pendingCliQDrops = escrows.filter(e => e.status === 'locked' && e.auctionId === 'cliq-dep');
-  const pendingListingDrops = auctions.filter(a => a.status === 'processing');
+  const pendingListingDrops = auctions.filter(a => a.status === 'processing' || a.status === 'pending');
   
   const pendingByUsersOnly = users.filter((u: any) => {
     const isPending = u.subscriptionStatus === 'pending';
@@ -781,7 +781,7 @@ export const AdminDashboardView: React.FC = () => {
                     if (item.status === 'live') {
                       statusLabel = isAr ? 'مباشر الآن 🟢' : 'LIVE';
                       statusColor = 'bg-emerald-50 text-emerald-800 border border-emerald-100';
-                    } else if (item.status === 'processing') {
+                    } else if (item.status === 'processing' || item.status === 'pending') {
                       statusLabel = isAr ? 'قيد المراجعة ⏳' : 'PENDING';
                       statusColor = 'bg-amber-50 text-amber-800 border border-amber-100';
                     } else if (item.status === 'completed') {

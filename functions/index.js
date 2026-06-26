@@ -216,25 +216,25 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       const userRef = db.collection('users').doc(userId);
       const userSnap = await transaction.get(userRef);
       if (!userSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'User profile not found.');
+        return { success: false, message: 'User profile not found.' };
       }
       const userData = userSnap.data();
       if (userData.isBlocked) {
-        throw new functions.https.HttpsError('permission-denied', 'Account restricted. Bidding disabled.');
+        return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
       if (userData.subscriptionStatus !== 'active') {
-        throw new functions.https.HttpsError('permission-denied', 'Active subscription pass required to place bids.');
+        return { success: false, message: 'Active subscription pass required to place bids.' };
       }
 
       // 2. Get auction item
       const auctionRef = db.collection('auctions').doc(auctionId);
       const auctionSnap = await transaction.get(auctionRef);
       if (!auctionSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'Auction listing not found.');
+        return { success: false, message: 'Auction listing not found.' };
       }
       const auctionData = auctionSnap.data();
       if (auctionData.status !== 'live' && auctionData.status !== 'active') {
-        throw new functions.https.HttpsError('failed-precondition', 'This auction is not accepting bids.');
+        return { success: false, message: 'This auction is not accepting bids.' };
       }
 
       // Determine end time, prioritizing endsAt Timestamp over old endTime
@@ -245,7 +245,7 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         endTime = Date.parse(endTime);
       }
       if (endTime && endTime <= Date.now()) {
-        throw new functions.https.HttpsError('failed-precondition', 'This auction has already ended.');
+        return { success: false, message: 'This auction has already ended.' };
       }
 
       // 3. Get bidder's wallet
@@ -274,7 +274,7 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
 
       if (amountFils < minRequiredFils) {
-        throw new functions.https.HttpsError('failed-precondition', `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.`);
+        return { success: false, message: `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.` };
       }
 
       // 5. Query if the bidder has an existing locked escrow for this auction
@@ -321,7 +321,7 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       const incrementalDeltaFils = amountFils - previousCommittedAmountFils;
 
       if (walletData.availableBalance < incrementalDeltaFils) {
-        throw new functions.https.HttpsError('failed-precondition', `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.`);
+        return { success: false, message: `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.` };
       }
 
       // 6. Update current bidder's wallet (All reads are now done! Safe to start writing)
