@@ -500,15 +500,15 @@ export const AdminDashboardView: React.FC = () => {
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={dep.videoUrl || 'receipt.png'}>
-                              {dep.videoUrl || 'receipt_proof_slip.png'}
+                            <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={dep.paymentProofUrl || 'receipt.png'}>
+                              {dep.paymentProofUrl || 'receipt_proof_slip.png'}
                             </p>
                             <p className="text-[9px] text-gray-400">{isAr ? 'لقطة شاشة إشعار التحويل البنكي' : 'CliQ receipt attachment'}</p>
                           </div>
                         </div>
                         
                         <button 
-                          onClick={() => alert(isAr ? 'معاينة لقطة الحوالة: تبدو حوالة بنكية أردنية صحيحة بنسبة ١٠٠٪.' : 'Previewing slip: validation completed successfully.')}
+                          onClick={() => setViewReceiptUrl(dep.paymentProofUrl || '')}
                           className="text-[11px] text-[#FF6B00] font-black hover:underline shrink-0 px-2"
                         >
                           {isAr ? 'عرض' : 'VIEW'}

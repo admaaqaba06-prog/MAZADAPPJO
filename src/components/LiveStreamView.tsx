@@ -94,7 +94,7 @@ export const LiveStreamView: React.FC = () => {
         console.warn("Autoplay was blocked, muted instead:", err);
         video.muted = true;
         setIsMuted(true);
-        video.play().catch(e => console.error("Playback failed entirely:", e));
+        video.play().catch(e => console.warn("Playback failed entirely:", e));
       });
     } else {
       video.pause();
@@ -159,12 +159,12 @@ export const LiveStreamView: React.FC = () => {
     // Get the most recent chat message
     const latestChat = lotChats[lotChats.length - 1];
     
-    // Avoid duplicating
-    if (activeComments.some(c => c.id === latestChat.id)) return;
-    
-    // Append and keep only the latest 5 comments
+    // Append and keep only the latest 5 comments using functional state update to prevent duplicates
     const newComment = { ...latestChat, localTimestamp: Date.now() };
-    setActiveComments(prev => [...prev.slice(-4), newComment]);
+    setActiveComments(prev => {
+      if (prev.some(c => c.id === latestChat.id)) return prev;
+      return [...prev.slice(-4), newComment];
+    });
     
     // Set timer to fade it out after 7 seconds
     const timer = setTimeout(() => {
@@ -182,10 +182,12 @@ export const LiveStreamView: React.FC = () => {
     
     // Get the latest event (which is index 0 in our prepended simulation array)
     const latestAct = currentSimulatedActivities[0];
-    if (activeActivities.some(a => a.id === latestAct.id)) return;
     
-    // Append and keep only latest 4 activities
-    setActiveActivities(prev => [...prev.slice(-3), latestAct]);
+    // Append and keep only latest 4 activities using functional state update to prevent duplicates
+    setActiveActivities(prev => {
+      if (prev.some(a => a.id === latestAct.id)) return prev;
+      return [...prev.slice(-3), latestAct];
+    });
     
     // Set timer to fade it out after 6 seconds
     const timer = setTimeout(() => {

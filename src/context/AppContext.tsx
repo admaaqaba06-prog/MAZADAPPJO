@@ -1695,7 +1695,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminActions(prev => [action, ...prev]);
   }, [auctions, currentUser, addNotification, language]);
 
-  const verifySeller = useCallback((userId: string) => {
+  const verifySeller = useCallback(async (userId: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), { isVerified: true });
+      
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, { isVerifiedMerchant: true });
+      }
+    } catch (err: any) {
+      console.error("Failed to persist seller verification:", err.code, err.message);
+      addNotification('❌ Error', 'Failed to verify seller. Please try again.', 'alert');
+      return;
+    }
+
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
         return { ...u, isVerified: true };
@@ -1720,7 +1734,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details: 'Submited company license validated.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [users, currentUser]);
+  }, [users, currentUser, addNotification]);
 
   const banUser = useCallback((userId: string) => {
     setUsers(prev => prev.map(u => {

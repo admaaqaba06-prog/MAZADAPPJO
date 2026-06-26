@@ -424,7 +424,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               {/* Latest active activities or system notifications */}
               {activeActivities.slice(-1).map((act) => (
                 <div 
-                  key={act.id}
+                  key={`act-reel-${auction.id}-${act.id}`}
                   className="bg-orange-600/25 backdrop-blur-xl border border-orange-500/20 px-3 py-1.5 rounded-xl text-white flex items-center gap-1.5 shadow-sm animate-fade-in max-w-[95%]"
                 >
                   <span className="text-[10px] font-black text-amber-300">★</span>
@@ -440,7 +440,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 const isBidMsg = msg.isBid;
                 return (
                   <div 
-                    key={msg.id} 
+                    key={`chat-reel-${auction.id}-${msg.id}`} 
                     className={`${
                       isBidMsg 
                         ? 'bg-[#FF6B00]/15 border border-[#FF6B00]/30' 

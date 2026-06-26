@@ -26,12 +26,12 @@ service cloud.firestore {
         request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && request.auth.token.email == 'admaaqaba06@gmail.com')
       );
       allow update: if request.auth != null && (
-        request.auth.token.email == 'admaaqaba06@gmail.com' || (
+        isAdmin() || (
           request.auth.uid == userId && 
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isAdmin', 'isBlocked', 'subscriptionStatus', 'subscriptionExpiry', 'isVerified', 'wonCount'])
         )
       );
-      allow delete: if request.auth != null && request.auth.token.email == 'admaaqaba06@gmail.com';
+      allow delete: if isAdmin();
     }
 
     // 2. Auctions block
