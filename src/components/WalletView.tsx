@@ -583,130 +583,116 @@ export const WalletView: React.FC = () => {
         {/* -------------------------------------------------------------
             CLIQ RECEIPT PREVIEW MODAL / DIALOG (FOR ADMIN AUDIT SCREEN)
             ------------------------------------------------------------- */}
-        {selectedProofEscrow && (
-          <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col border border-gray-100 max-h-[90vh]">
-              
-              {/* Modal sticky top */}
-              <div className="p-4 border-b border-gray-150 flex items-center justify-between">
-                <h3 className="font-black text-xs text-gray-800 uppercase font-mono tracking-wider flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
-                  <span>{isAr ? 'تدقيق إيصال كليك البنكي' : 'Verify CliQ Deposit Receipt'}</span>
-                </h3>
-                <button 
-                  onClick={() => setSelectedProofEscrow(null)}
-                  className="p-1 px-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        {selectedProofEscrow && (() => {
+          const selectedRequest = selectedProofEscrow;
+          const receiptImageUrl =
+            selectedRequest.paymentProofUrl ||
+            selectedRequest.paymentProofImage ||
+            selectedRequest.receiptUrl ||
+            selectedRequest.proofUrl ||
+            selectedRequest.paymentImageUrl;
 
-              {/* Scrollable Receipt Form Details */}
-              <div className="p-5 space-y-4 overflow-y-auto">
-                <div className="p-3 bg-[#FFF9F5] border border-[#FF6B00]/10 rounded-2xl space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{isAr ? 'اسم مرسل الحوالة' : 'Sender User'}:</span>
-                    <strong className="font-black text-gray-900">{selectedProofEscrow.bidderName}</strong>
+          console.log("Selected subscription request:", selectedRequest);
+          console.log("Receipt image URL:", receiptImageUrl);
+
+          return (
+            <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col border border-gray-100 max-h-[90vh]">
+                
+                {/* Modal sticky top */}
+                <div className="p-4 border-b border-gray-150 flex items-center justify-between">
+                  <h3 className="font-black text-xs text-gray-800 uppercase font-mono tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
+                    <span>{isAr ? 'تدقيق إيصال كليك البنكي' : 'Verify CliQ Deposit Receipt'}</span>
+                  </h3>
+                  <button 
+                    onClick={() => setSelectedProofEscrow(null)}
+                    className="p-1 px-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Scrollable Receipt Form Details */}
+                <div className="p-5 space-y-4 overflow-y-auto">
+                  <div className="p-3 bg-[#FFF9F5] border border-[#FF6B00]/10 rounded-2xl space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{isAr ? 'اسم مرسل الحوالة' : 'Sender User'}:</span>
+                      <strong className="font-black text-gray-900">{selectedProofEscrow.bidderName}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{isAr ? 'معرف حساب كليك' : 'Sender CliQ Alias'}:</span>
+                      <strong className="font-mono font-black text-[#FF6B00]">{selectedProofEscrow.cliqAlias || 'N/A'}</strong>
+                    </div>
+                    <div className="flex justify-between border-t border-orange-100/40 pt-2">
+                      <span className="text-gray-400">{isAr ? 'مبلغ الحوالة المطلوب' : 'Requested Top-Up'}:</span>
+                      <strong className="font-mono font-black text-lg text-[#FF6B00]">{selectedProofEscrow.amount.toLocaleString()} JOD</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{isAr ? 'البنك المستلم' : 'Deposit Bank'}:</span>
+                      <span className="font-mono uppercase font-black text-gray-500">Capital Bank - MAZADJOM</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{isAr ? 'معرف حساب كليك' : 'Sender CliQ Alias'}:</span>
-                    <strong className="font-mono font-black text-[#FF6B00]">{selectedProofEscrow.cliqAlias || 'N/A'}</strong>
-                  </div>
-                  <div className="flex justify-between border-t border-orange-100/40 pt-2">
-                    <span className="text-gray-400">{isAr ? 'مبلغ الحوالة المطلوب' : 'Requested Top-Up'}:</span>
-                    <strong className="font-mono font-black text-lg text-[#FF6B00]">{selectedProofEscrow.amount.toLocaleString()} JOD</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{isAr ? 'البنك المستلم' : 'Deposit Bank'}:</span>
-                    <span className="font-mono uppercase font-black text-gray-500">Capital Bank - MAZADJOM</span>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase font-mono block">
+                      {isAr ? 'لقطة الشاشة لإشعار التحويل البنكي' : 'Attached Bank Receipt Reference'}
+                    </label>
+                    {receiptImageUrl ? (
+                      <img
+                        src={receiptImageUrl}
+                        alt="CliQ transfer receipt"
+                        className="w-full rounded-xl border border-orange-100 object-contain max-h-[520px] bg-white"
+                      />
+                    ) : (
+                      <div className="text-center p-6 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                        No receipt image attached
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase font-mono block">
-                    {isAr ? 'لقطة الشاشة لإشعار التحويل البنكي' : 'Attached Bank Receipt Reference'}
-                  </label>
-                  {selectedProofEscrow.paymentProofUrl ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex flex-col items-center justify-center p-2 group shadow-2xs">
-                      {/* Premium canvas representation of CliQ Receipt with real-time text block inside */}
-                      <div className="w-full h-44 bg-[#E7F3FF] border border-blue-100 rounded-xl p-4 flex flex-col justify-between text-blue-900 font-sans relative">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[8px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded uppercase">CliQ Jordan</span>
-                            <div className="text-[13px] font-black text-blue-900 mt-1">{isAr ? 'حوالة ناجحة' : 'CliQ Transfer Successful'}</div>
-                          </div>
-                          <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-white font-mono text-[9px] font-black">
-                            Q
-                          </div>
-                        </div>
+                {/* Modal footer actions */}
+                <div className="p-4 bg-gray-50 border-t border-gray-150 flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProofEscrow(null)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer text-xs font-bold"
+                  >
+                    {isAr ? 'رجوع' : 'Back'}
+                  </button>
 
-                        <div className="space-y-1">
-                          <div className="text-[8px] text-blue-500 uppercase font-mono font-bold">{isAr ? 'المستقبل' : 'To Recipient'}</div>
-                          <div className="text-[10.5px] font-black text-blue-950">MAZADJOM (Jordan Auctions LLC)</div>
-                          <div className="text-[9px] font-mono text-blue-800">JO83 CAPS 1020 0085 4100 00</div>
-                        </div>
+                  {selectedProofEscrow.status === 'locked' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleAdminRejectDeposit(selectedProofEscrow.id)}
+                        className="px-4 py-2.5 rounded-xl border border-red-200 text-red-650 hover:bg-red-50 text-xs font-bold cursor-pointer"
+                      >
+                        {isAr ? 'رفض الطلب ❌' : 'Reject & Void ❌'}
+                      </button>
 
-                        <div className="flex justify-between items-end pt-2 border-t border-blue-200">
-                          <div>
-                            <div className="text-[8px] text-blue-500 uppercase font-mono font-black">{isAr ? 'تأشيرة الحوالة' : 'Bank Reference'}</div>
-                            <div className="text-[9px] font-mono text-blue-950 font-black">TXN_{selectedProofEscrow.id.substring(0,8).toUpperCase()}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-[10px] text-blue-550 font-mono font-bold">JOD Amount</div>
-                            <div className="text-[20px] font-black font-mono leading-none mt-1">{selectedProofEscrow.amount.toLocaleString()}</div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="absolute inset-0 bg-gray-900/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                        <span className="text-[10px] bg-white text-gray-900 font-black px-3 py-1.5 rounded-xl uppercase">
-                          {isAr ? 'لقطة شاشة موالاة معتمدة' : 'Valid SliQ slip screenshot'}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center p-6 bg-gray-50 rounded-2xl border text-gray-400 text-xs">
-                      {isAr ? 'لم يرفق إثبات صورة' : 'No visual proof attached'}
-                    </div>
+                      <button
+                        type="button"
+                        disabled={!receiptImageUrl}
+                        onClick={() => handleAdminApproveDeposit(selectedProofEscrow.id)}
+                        className={`px-5 py-2.5 rounded-xl text-white font-black text-xs cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5 ${
+                          !receiptImageUrl 
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
+                            : 'bg-emerald-600 hover:bg-emerald-700'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                        <span>{isAr ? 'قبول واعتماد فوري 💳' : 'Approve & Credit 💳'}</span>
+                      </button>
+                    </>
                   )}
                 </div>
+
               </div>
-
-              {/* Modal footer actions */}
-              <div className="p-4 bg-gray-50 border-t border-gray-150 flex items-center gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setSelectedProofEscrow(null)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer text-xs font-bold"
-                >
-                  {isAr ? 'رجوع' : 'Back'}
-                </button>
-
-                {selectedProofEscrow.status === 'locked' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleAdminRejectDeposit(selectedProofEscrow.id)}
-                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-650 hover:bg-red-50 text-xs font-bold cursor-pointer"
-                    >
-                      {isAr ? 'رفض الطلب ❌' : 'Reject & Void ❌'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAdminApproveDeposit(selectedProofEscrow.id)}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                      <span>{isAr ? 'قبول واعتماد فوري 💳' : 'Approve & Credit 💳'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     );
