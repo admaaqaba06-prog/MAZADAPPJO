@@ -13,6 +13,7 @@ export interface User {
   isAdmin?: boolean;
   accountStatus?: 'active' | 'blocked' | string;
   isVerified: boolean;
+  verificationStatus?: 'not_verified' | 'pending' | 'verified' | 'premium_verified';
   isBlocked: boolean;
   phoneNumber?: string;
   phone?: string;
@@ -34,11 +35,22 @@ export interface SellerProfile {
   userId: string;
   storeName: string;
   storeLogo: string;
+  coverImage?: string;
   bio: string;
-  rating: number;
-  totalSales: number;
+  rating: number; // average rating
+  totalSales: number; // completed sales
   isVerifiedMerchant: boolean;
   joinedDate: string;
+  location?: string;
+  followers?: number;
+  following?: number;
+  verificationStatus: 'not_verified' | 'pending' | 'verified' | 'premium_verified';
+  responseTime?: string;
+  cancellationRate?: number;
+  aboutSeller?: string;
+  trustScore?: number;
+  badges?: string[];
+  isSuspended?: boolean;
 }
 
 export interface AuctionItem {
@@ -130,3 +142,99 @@ export interface AdminAction {
   timestamp: number;
   details?: string;
 }
+
+export interface Order {
+  id: string;
+  auctionId: string;
+  auctionTitle: string;
+  auctionImage: string;
+  sellerId: string;
+  sellerName: string;
+  buyerId: string;
+  buyerName: string;
+  winningBidAmount: number;
+  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
+  paymentStatus: "unpaid" | "paid";
+  shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
+  escrowStatus: "pending" | "released" | "refunded";
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Review {
+  id: string;
+  sellerId: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar: string;
+  rating: number;
+  comment: string;
+  timestamp: number;
+  response?: string;
+  responseAt?: number;
+  auctionTitle: string;
+  auctionId: string;
+  photos?: string[];
+}
+
+export interface Withdrawal {
+  id: string;
+  userId: string;
+  amount: number;
+  method: 'bank' | 'cliq';
+  status: 'pending' | 'completed' | 'rejected';
+  timestamp: number;
+  details: {
+    bankName?: string;
+    iban?: string;
+    accountHolderName?: string;
+    cliqAlias?: string;
+    phone?: string;
+  };
+  referenceId: string;
+}
+
+export interface VerificationRequest {
+  id: string;
+  userId: string;
+  sellerName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedStatus: 'verified' | 'premium_verified';
+  submittedAt: number;
+  businessLicenseUrl?: string;
+  nationalIdUrl?: string;
+  notes?: string;
+}
+
+export interface SellerReport {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  sellerId: string;
+  sellerName: string;
+  reason: 'counterfeit' | 'wrong_desc' | 'damaged' | 'fraud' | 'other';
+  description: string;
+  timestamp: number;
+  status: 'pending' | 'resolved';
+}
+
+export interface Dispute {
+  id: string;
+  orderId: string;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  sellerName: string;
+  amount: number;
+  description: string;
+  photos: string[];
+  videos: string[];
+  sellerResponse?: string;
+  sellerRespondedAt?: number;
+  status: 'open' | 'resolved_refunded' | 'resolved_released';
+  timestamp: number;
+  resolvedAt?: number;
+  resolverName?: string;
+}
+
+

@@ -1,4 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { SellerProfileModal } from './SellerProfileModal';
 import { 
   Volume2, 
   VolumeX, 
@@ -11,7 +13,8 @@ import {
   X,
   Heart,
   Play,
-  MessageSquare
+  MessageSquare,
+  ShieldCheck
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 
@@ -81,6 +84,15 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onClose,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { sellerProfiles } = useApp();
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  const activeSellerProfile = sellerProfiles?.find(
+    p => p.userId === activeAuction?.sellerId || p.id === activeAuction?.sellerId
+  );
+
+  const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
+  const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
 
   // Handle scroll snap to detect current active reel
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -237,6 +249,16 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
+  const { sellerProfiles } = useApp();
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  const activeSellerProfile = sellerProfiles?.find(
+    p => p.userId === auction?.sellerId || p.id === auction?.sellerId
+  );
+
+  const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
+  const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
+
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
 
@@ -301,13 +323,31 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between animate-fade-in" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
             <div className="flex items-center gap-1.5">
               {/* Seller pill */}
-              <div className="bg-black/25 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md">
-                <div className="w-5.5 h-5.5 rounded-full bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-[9.5px] shrink-0">
-                  M
-                </div>
+              <div 
+                onClick={() => {
+                  if (activeSellerProfile) {
+                    setSelectedProfileId(activeSellerProfile.userId);
+                  }
+                }}
+                className="bg-black/40 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95 transition-all"
+              >
+                {activeSellerProfile?.storeLogo ? (
+                  <img 
+                    src={activeSellerProfile.storeLogo} 
+                    alt="Logo" 
+                    className="w-5.5 h-5.5 rounded-full object-cover shrink-0" 
+                  />
+                ) : (
+                  <div className="w-5.5 h-5.5 rounded-full bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-[9.5px] shrink-0">
+                    {activeSellerProfile?.storeName?.[0] || 'M'}
+                  </div>
+                )}
                 <div className="flex flex-col text-left rtl:text-right">
-                  <span className="text-[9px] font-black text-white leading-none">
-                    {isAr ? 'مزاد الأردن' : 'MAZAD JO'}
+                  <span className="text-[9px] font-black text-white leading-none flex items-center gap-0.5">
+                    {activeSellerProfile?.storeName || (isAr ? 'مزاد الأردن' : 'MAZAD JO')}
+                    {isVerified && (
+                      <ShieldCheck className={`w-2.5 h-2.5 ${isPremium ? 'text-amber-400' : 'text-emerald-400'}`} />
+                    )}
                   </span>
                   <span className="text-[6.5px] text-orange-400 font-extrabold leading-none mt-0.5 uppercase tracking-wider">
                     🔴 LIVE
@@ -535,10 +575,20 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                   {activePrice.toLocaleString()} <span className="text-[8.5px] font-bold text-white/50">{isAr ? 'د.أ' : 'JOD'}</span>
                 </span>
               </div>
-              <div className="text-right">
+              <div 
+                onClick={() => {
+                  if (activeSellerProfile) {
+                    setSelectedProfileId(activeSellerProfile.userId);
+                  }
+                }}
+                className="text-right cursor-pointer active:scale-95 transition-all"
+              >
                 <span className="text-[7px] text-zinc-400 font-black tracking-wider block leading-none">{isAr ? 'البائع' : 'SELLER'}</span>
-                <span className="text-[9.5px] font-extrabold text-amber-400 block mt-0.5 leading-none uppercase">
-                  ✓ {isAr ? 'مزاد الأردن' : 'MAZAD JO'}
+                <span className="text-[9.5px] font-extrabold text-amber-400 block mt-0.5 leading-none uppercase flex items-center gap-0.5 justify-end">
+                  {isVerified && (
+                    <ShieldCheck className={`w-3 h-3 ${isPremium ? 'text-amber-400' : 'text-emerald-400'}`} />
+                  )}
+                  <span>{activeSellerProfile?.storeName || (isAr ? 'مزاد الأردن' : 'MAZAD JO')}</span>
                 </span>
               </div>
             </div>
@@ -569,6 +619,16 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           </div>
         </>
       )}
+
+      {/* Complete Seller Profile Modal */}
+      {selectedProfileId && (
+        <SellerProfileModal 
+          sellerId={selectedProfileId}
+          isOpen={true}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
+
     </div>
   );
 };

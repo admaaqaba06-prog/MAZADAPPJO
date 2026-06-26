@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
+import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
@@ -39,6 +40,7 @@ export const AdminDashboardView: React.FC = () => {
     users, 
     auctions, 
     escrows, 
+    orders,
     adminActions, 
     adminActionsError,
     approveListing, 
@@ -66,7 +68,15 @@ export const AdminDashboardView: React.FC = () => {
     return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
   };
 
-  const [activeTab, setActiveTab] = useState<'metrics' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
+
+  const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed'>('all');
+  const [adminSelectedOrderId, setAdminSelectedOrderId] = useState<string | null>(null);
+
+  const filteredOrders = (orders || []).filter((o: any) => {
+    if (adminOrderFilter === 'all') return true;
+    return o.status === adminOrderFilter;
+  });
 
   // Local health & maintenance control states
   const [maintEnabled, setMaintEnabled] = useState<boolean>(maintenanceMode?.enabled || false);
@@ -241,6 +251,20 @@ export const AdminDashboardView: React.FC = () => {
     .filter(e => e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
 
+  if (adminSelectedOrderId) {
+    return (
+      <div 
+        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 p-4 md:p-6 overscroll-contain select-none font-sans text-gray-800"
+        style={{ direction: isAr ? 'rtl' : 'ltr' }}
+        id="admin-order-details-pane"
+      >
+        <div className="max-w-4xl mx-auto w-full">
+          <OrderDetailsView orderId={adminSelectedOrderId} onBack={() => setAdminSelectedOrderId(null)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 pb-8 overscroll-contain select-none font-sans text-gray-800 animate-fadeIn"
@@ -251,8 +275,8 @@ export const AdminDashboardView: React.FC = () => {
       {/* Top Header - Streamlined & Elegant */}
       <div className="p-5 flex items-center justify-between border-b border-gray-100 bg-white sticky top-0 z-40 shadow-xs">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-[#FF6B00]" />
+          <div className="w-8 h-8 rounded-xl bg-[#E85D04]/10 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-[#E85D04]" />
           </div>
           <div>
             <h2 className="text-sm font-black text-gray-900 leading-none">
@@ -270,10 +294,10 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['metrics', 'payments', 'listings', 'users', 'subscriptions', 'health'] as const).map((tab) => {
+        {(['metrics', 'orders', 'payments', 'listings', 'users', 'subscriptions', 'health'] as const).map((tab) => {
           const tabLabel = isAr 
-            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : 'الصحة والتشغيل')
-            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : 'HEALTH & OPS');
+            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : 'الصحة والتشغيل')
+            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : 'HEALTH & OPS');
           
           const isActive = activeTab === tab;
           const hasPendingRequests = tab === 'subscriptions' && subscriptionRequests.length > 0;
@@ -299,9 +323,208 @@ export const AdminDashboardView: React.FC = () => {
         })}
       </div>
 
-      {/* Main Content Area */}
+       {/* Main Content Area */}
       <div className="p-5 max-w-5xl mx-auto w-full space-y-5">
         
+        {/* ==========================================
+            TAB: ORDERS MANAGEMENT
+            ========================================== */}
+        {activeTab === 'orders' && (
+          <div className="space-y-4">
+            {/* Header and Stats */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-3xl border border-gray-150">
+              <div className="space-y-1">
+                <h3 className="text-lg font-black text-gray-900">{isAr ? 'نظام تتبع وإدارة الطلبات' : 'Order Fulfillment Ledger'}</h3>
+                <p className="text-xs text-gray-500">{isAr ? 'عرض وتتبع جميع عمليات الفوز والطلبات المنبثقة من المزادات المغلقة.' : 'Audit and track all won listings, escrow transactions, and shipping states.'}</p>
+              </div>
+              <div className="flex gap-2.5">
+                <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl text-center min-w-[100px]">
+                  <span className="text-[10px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'إجمالي الطلبات' : 'TOTAL'}</span>
+                  <span className="text-lg font-black text-gray-900 font-mono">{orders?.length || 0}</span>
+                </div>
+                <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-center min-w-[100px]">
+                  <span className="text-[10px] text-amber-500 font-mono uppercase block font-black">{isAr ? 'بانتظار الدفع' : 'UNPAID'}</span>
+                  <span className="text-lg font-black text-amber-700 font-mono">
+                    {orders?.filter((o: any) => o.status === 'waiting_payment').length || 0}
+                  </span>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl text-center min-w-[100px]">
+                  <span className="text-[10px] text-emerald-500 font-mono uppercase block font-black">{isAr ? 'مكتمل' : 'COMPLETED'}</span>
+                  <span className="text-lg font-black text-emerald-700 font-mono">
+                    {orders?.filter((o: any) => o.status === 'completed').length || 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter buttons bar */}
+            <div className="bg-white p-2 rounded-2xl border border-gray-150 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+              {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'completed', 'disputed'] as const).map((filterOpt) => {
+                const label = isAr 
+                  ? (filterOpt === 'all' ? 'الكل' :
+                     filterOpt === 'waiting_payment' ? 'بانتظار الدفع' :
+                     filterOpt === 'paid' ? 'مدفوع' :
+                     filterOpt === 'preparing_shipment' ? 'تجهيز الشحن' :
+                     filterOpt === 'shipped' ? 'تم الشحن' :
+                     filterOpt === 'delivered' ? 'تم التوصيل' :
+                     filterOpt === 'completed' ? 'مكتمل' : 'نزاع')
+                  : (filterOpt === 'all' ? 'ALL ORDERS' :
+                     filterOpt === 'waiting_payment' ? 'WAITING PAYMENT' :
+                     filterOpt === 'paid' ? 'PAID' :
+                     filterOpt === 'preparing_shipment' ? 'PREPARING SHIPMENT' :
+                     filterOpt === 'shipped' ? 'SHIPPED' :
+                     filterOpt === 'delivered' ? 'DELIVERED' :
+                     filterOpt === 'completed' ? 'COMPLETED' : 'DISPUTED');
+                
+                const isSelected = adminOrderFilter === filterOpt;
+                const count = filterOpt === 'all' ? (orders?.length || 0) : (orders?.filter((o: any) => o.status === filterOpt).length || 0);
+
+                return (
+                  <button
+                    key={filterOpt}
+                    onClick={() => setAdminOrderFilter(filterOpt)}
+                    className={`px-3 py-2 rounded-xl text-[11px] font-black tracking-tight whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#E85D04] text-white shadow-sm shadow-[#E85D04]/15'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full font-black ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Orders list rendering */}
+            {filteredOrders.length > 0 ? (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredOrders.map((order: any) => {
+                  const formattedDate = order.createdAt 
+                    ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-US')
+                    : '';
+
+                  return (
+                    <div 
+                      key={order.id} 
+                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
+                    >
+                      {/* Left vertical neon status tag depending on order state */}
+                      <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                        order.status === 'completed' ? 'bg-emerald-500' :
+                        order.status === 'disputed' ? 'bg-rose-500' : 'bg-[#E85D04]'
+                      }`} />
+
+                      <div className="flex gap-3 items-start pl-2">
+                        <img 
+                          src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'} 
+                          alt={order.auctionTitle} 
+                          className="w-12 h-12 rounded-2xl object-cover border border-gray-100"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <h4 className="font-black text-gray-900 text-xs truncate leading-snug">{order.auctionTitle}</h4>
+                          <p className="text-[10px] text-gray-400 font-mono">
+                            ID: <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
+                          </p>
+                          {formattedDate && (
+                            <p className="text-[9px] text-gray-400 font-mono">{formattedDate}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-100 my-1 pl-2" />
+
+                      <div className="grid grid-cols-2 gap-2 text-[10.5px] pl-2">
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'البائع والمزكّي' : 'SELLER'}</span>
+                          <span className="font-extrabold text-gray-800">{order.sellerName}</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'المشتري الفائز' : 'WINNING BUYER'}</span>
+                          <span className="font-extrabold text-gray-800">{order.buyerName}</span>
+                        </div>
+                        <div className="space-y-0.5 mt-2">
+                          <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'القيمة والمبلغ' : 'BID AMOUNT'}</span>
+                          <span className="font-black text-[#E85D04] font-mono">{order.winningBidAmount.toLocaleString()} JOD</span>
+                        </div>
+                        <div className="space-y-0.5 mt-2">
+                          <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'الضمان المالي' : 'ESCROW STATE'}</span>
+                          <span className={`font-black uppercase ${
+                            order.escrowStatus === 'released' ? 'text-emerald-650' : 'text-blue-650'
+                          }`}>
+                            {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
+                             order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released') :
+                             order.escrowStatus === 'refunded' ? (isAr ? 'تمت الإعادة للمشتري' : 'Refunded') : order.escrowStatus}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-gray-100 flex justify-between items-center text-[10px] pl-2 ml-2">
+                        <div className="space-y-0.5">
+                          <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الدفع' : 'PAYMENT'}</span>
+                          <span className={`font-black ${order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'}`}>
+                            {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع' : 'PAID') : (isAr ? 'غير مدفوع' : 'UNPAID')}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الشحن والتوزيع' : 'SHIPPING'}</span>
+                          <span className="font-black text-gray-700">
+                            {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'NOT STARTED') :
+                             order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'PREPARING') :
+                             order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'SHIPPED') :
+                             order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'DELIVERED') : order.shippingStatus}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الحالة العامة' : 'STATUS'}</span>
+                          <span className="font-black text-[#E85D04] uppercase">
+                            {order.status === 'waiting_payment' ? (isAr ? 'قيد الدفع' : 'PENDING PAY') :
+                             order.status === 'paid' ? (isAr ? 'مدفوع' : 'PAID') :
+                             order.status === 'preparing_shipment' ? (isAr ? 'تجهيز شحن' : 'PREPARING') :
+                             order.status === 'shipped' ? (isAr ? 'مشحون' : 'SHIPPED') :
+                             order.status === 'delivered' ? (isAr ? 'واصل' : 'DELIVERED') :
+                             order.status === 'completed' ? (isAr ? 'مكتمل' : 'COMPLETED') :
+                             order.status === 'disputed' ? (isAr ? 'نزاع' : 'DISPUTED') : order.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* View Details / Manage button for Admin */}
+                      <button
+                        onClick={() => setAdminSelectedOrderId(order.id)}
+                        className="w-[calc(100%-8px)] ml-2 bg-gray-50 hover:bg-[#E85D04] hover:text-white text-gray-700 font-black py-2.5 rounded-2xl text-[10.5px] transition-all tracking-wider border border-gray-200 hover:border-[#E85D04] flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] mt-3"
+                        id={`btn-admin-view-order-${order.id}`}
+                      >
+                        <FileCheck2 className="w-3.5 h-3.5" />
+                        <span>{isAr ? 'عرض التفاصيل والتحكم بالضمان' : 'VIEW DETAILS & MANAGE ESCROW'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white rounded-3xl border border-gray-150 p-6">
+                <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
+                  <Database className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
+                  {isAr ? 'لا يوجد طلبات بهذا الفلتر' : 'No Orders Match Filter'}
+                </p>
+                <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
+                  {isAr 
+                    ? 'لم يتم العثور على أي طلبات تتبع هذا التبويب حالياً.' 
+                    : 'No orders recorded in this state yet.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ==========================================
             TAB: SYSTEM METRICS (Clean Dashboard Cards)
             ========================================== */}

@@ -84,6 +84,9 @@ exports.scheduledAuctionCloser = functions.pubsub
               return;
             }
 
+            const orderRef = db.collection('orders').doc(auctionId);
+            const orderSnap = await transaction.get(orderRef);
+
             if (totalBids > 0 && winnerId) {
               // Mark completed
               transaction.update(auctionDoc.ref, {
@@ -96,6 +99,30 @@ exports.scheduledAuctionCloser = functions.pubsub
               transaction.set(winnerRef, {
                 wonCount: admin.firestore.FieldValue.increment(1)
               }, { merge: true });
+
+              // Create Order System (Phase 1)
+              if (!orderSnap.exists) {
+                transaction.set(orderRef, {
+                  id: auctionId,
+                  auctionId: auctionId,
+                  auctionTitle: auctionData.title || '',
+                  auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
+                  sellerId: auctionData.sellerId || '',
+                  sellerName: auctionData.sellerName || 'Seller',
+                  buyerId: winnerId,
+                  buyerName: winnerName || 'Buyer',
+                  winningBidAmount: finalPrice,
+                  status: "waiting_payment",
+                  paymentStatus: "unpaid",
+                  shippingStatus: "not_started",
+                  escrowStatus: "pending",
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(`[scheduledAuctionCloser] Created order for auction ${auctionId}`);
+              } else {
+                console.log(`[scheduledAuctionCloser] Order for auction ${auctionId} already exists, skipping creation.`);
+              }
 
               console.log(`[scheduledAuctionCloser] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
 

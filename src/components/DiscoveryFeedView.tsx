@@ -16,11 +16,14 @@ import {
   Calendar,
   ArrowDown,
   Bookmark,
-  Bell
+  Bell,
+  ShieldCheck,
+  Play
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
 import { AuctionCardSkeleton, EmptyState } from './FeedbackStates';
+import { SellerProfileModal } from './SellerProfileModal';
 
 export const DiscoveryFeedView: React.FC = () => {
   const { 
@@ -32,7 +35,8 @@ export const DiscoveryFeedView: React.FC = () => {
     approveListing, 
     currentUser,
     notifications,
-    setShowNotifications
+    setShowNotifications,
+    sellerProfiles
   } = useApp();
   
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
@@ -40,6 +44,7 @@ export const DiscoveryFeedView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   React.useEffect(() => {
@@ -128,16 +133,16 @@ export const DiscoveryFeedView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-white pb-4 overscroll-contain select-none font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-4 overscroll-contain select-none font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="discovery-feed-root"
     >
       
-      {/* Top Mobile Bar Header - Exactly like the Screenshot */}
-      <div className="p-4 flex items-center justify-between sticky top-0 bg-white z-40">
+      {/* Top Mobile Bar Header - Exactly like the Screenshot, hidden on desktop */}
+      <div className="p-4 flex items-center justify-between sticky top-0 bg-white z-40 lg:hidden">
         <div className="flex items-center gap-2">
           {/* Orange Brand Square M logo */}
-          <div className="w-9 h-9 rounded-xl bg-[#FF6B00] flex items-center justify-center font-black text-white text-base shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base shadow-sm">
             M
           </div>
           <div>
@@ -165,7 +170,7 @@ export const DiscoveryFeedView: React.FC = () => {
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#FF6B00] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+              <span className="absolute -top-1 -right-1 bg-[#E85D04] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
                 {unreadCount}
               </span>
             )}
@@ -173,7 +178,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
           <button 
             onClick={() => setActiveView('upload')}
-            className="px-3 py-1.5 border border-[#FF6B00] bg-[#FF6B00]/5 hover:bg-[#FF6B00]/10 rounded-xl text-[11px] font-bold text-[#FF6B00] flex items-center gap-1 transition-all shrink-0"
+            className="px-3 py-1.5 border border-[#E85D04] bg-[#E85D04]/5 hover:bg-[#E85D04]/10 rounded-xl text-[11px] font-bold text-[#E85D04] flex items-center gap-1 transition-all shrink-0"
             id="sell-wizard-btn"
           >
             <Plus className="w-3 h-3 stroke-[3]" /> 
@@ -182,15 +187,44 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Welcome Banner Card (Black Slate Vibe with Glow Accent) */}
-      <div className="px-4 pb-2">
+      {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
+      <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+            {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
+          </h1>
+          <p className="text-xs text-gray-500 font-medium">
+            {isAr 
+              ? 'تصفح وشارك في مزادات الفيديو الفورية والمؤمنة بالكامل لحمايتك وضمان أموالك.' 
+              : 'Browse and bid in real-time verified video stream drops with secure Jordan CliQ escrow.'}
+          </p>
+        </div>
+        <div>
+          <button 
+            onClick={() => {
+              const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
+              if (firstLive) {
+                setActiveAuctionId(firstLive.id);
+              }
+              setActiveView('live');
+            }}
+            className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span>{isAr ? 'شاهد البث الآن' : 'Watch Live Drops'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Hero Welcome Banner Card (Black Slate Vibe with Glow Accent) - Mobile only */}
+      <div className="px-4 pb-2 lg:hidden">
         <div className="relative rounded-3xl bg-[#111111] p-5 overflow-hidden shadow-sm">
           {/* Circular subtle glowing background shape */}
           <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-orange-950/40 rounded-full blur-xl"></div>
           
           <div className="relative z-10 flex flex-col justify-between">
             <div>
-              <span className="text-[10px] font-bold text-[#FF6B00] tracking-wider uppercase block">
+              <span className="text-[10px] font-bold text-[#E85D04] tracking-wider uppercase block">
                 {isAr ? 'مزادات مباشرة' : 'LIVE AUCTIONS'}
               </span>
               <h2 className="text-xl font-black text-white leading-tight font-sans tracking-tight mt-1">
@@ -294,11 +328,11 @@ export const DiscoveryFeedView: React.FC = () => {
           className={`flex-1 py-3 text-center text-xs font-bold relative transition-all ${activeTab === 'live' ? 'text-gray-900' : 'text-gray-400'}`}
         >
           <span className="flex items-center justify-center gap-1.5">
-            <Flame className={`w-4 h-4 ${activeTab === 'live' ? 'text-[#FF6B00] fill-[#FF6B00] animate-pulse' : 'text-gray-400'}`} /> 
+            <Flame className={`w-4 h-4 ${activeTab === 'live' ? 'text-[#E85D04] fill-[#E85D04] animate-pulse' : 'text-gray-400'}`} /> 
             {isAr ? 'بث مباشر نشط' : 'Active live feed'}
           </span>
           {activeTab === 'live' && (
-            <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#FF6B00] rounded-full"></span>
+            <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#E85D04] rounded-full"></span>
           )}
         </button>
         <button
@@ -310,7 +344,7 @@ export const DiscoveryFeedView: React.FC = () => {
             {isAr ? 'مواعيد قادمة' : 'Upcoming drops'}
           </span>
           {activeTab === 'upcoming' && (
-            <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#FF6B00] rounded-full"></span>
+            <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#E85D04] rounded-full"></span>
           )}
         </button>
       </div>
@@ -377,7 +411,7 @@ export const DiscoveryFeedView: React.FC = () => {
                       {filteredAuctions[0] ? filteredAuctions[0].title : (isAr ? 'آيفون ١٥ برو ماكس' : 'iPhone 15 Pro Max')}
                     </span>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#FF6B00]">
+                      <span className="text-sm font-black text-[#E85D04]">
                         {filteredAuctions[0] ? `${filteredAuctions[0].currentPrice} JOD` : '280 JOD'}
                       </span>
                       <span className="text-[10px] font-bold text-gray-400">
@@ -427,7 +461,7 @@ export const DiscoveryFeedView: React.FC = () => {
                       {filteredAuctions[1] ? filteredAuctions[1].title : (isAr ? 'جاكيت فنتج' : 'Vintage Jacket')}
                     </span>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#FF6B00]">
+                      <span className="text-sm font-black text-[#E85D04]">
                         {filteredAuctions[1] ? `${filteredAuctions[1].currentPrice} JOD` : '38 JOD'}
                       </span>
                       <span className="text-[10px] font-bold text-gray-400">
@@ -497,7 +531,7 @@ export const DiscoveryFeedView: React.FC = () => {
                           {item.title}
                         </span>
                         <div className="flex items-center justify-between mt-1">
-                          <span className="text-sm font-black text-[#FF6B00]">{item.currentPrice} JOD</span>
+                          <span className="text-sm font-black text-[#E85D04]">{item.currentPrice} JOD</span>
                           <span className="text-[10px] font-bold text-gray-400">
                             {item.totalBids || 0} {isAr ? 'مزايدات' : 'bids'}
                           </span>
@@ -554,16 +588,57 @@ export const DiscoveryFeedView: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg">
-                      <img src={item.sellerLogo} alt="M" className="w-4.5 h-4.5 rounded-full object-cover" />
-                      <span className="text-[9px] text-white font-bold">{item.sellerName}</span>
-                    </div>
+                    {/* Seller Badge and Trust Score Overlay */}
+                    {(() => {
+                      const p = sellerProfiles?.find(profile => profile.userId === item.sellerId || profile.id === item.sellerId);
+                      if (!p) {
+                        return (
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProfileId(item.sellerId);
+                            }}
+                            className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-xs px-2 py-1 rounded-lg z-20 cursor-pointer"
+                          >
+                            <img src={item.sellerLogo} alt="M" className="w-4.5 h-4.5 rounded-full object-cover animate-fade-in" />
+                            <span className="text-[9px] text-white font-bold">{item.sellerName}</span>
+                          </div>
+                        );
+                      }
+
+                      const isPremium = p.verificationStatus === 'premium_verified';
+                      const isVerified = p.verificationStatus === 'verified' || isPremium;
+                      const score = p.trustScore || 85;
+
+                      return (
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProfileId(p.userId);
+                          }}
+                          className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20"
+                        >
+                          <div className="flex items-center gap-1.5 bg-black/70 hover:bg-black/95 backdrop-blur-xs px-2.5 py-1 rounded-lg cursor-pointer max-w-[65%] truncate transition-all">
+                            <img src={p.storeLogo || item.sellerLogo} alt="M" className="w-4.5 h-4.5 rounded-full object-cover" />
+                            <span className="text-[9px] text-white font-extrabold truncate">{p.storeName}</span>
+                            {isVerified && (
+                              <ShieldCheck className={`w-3.5 h-3.5 ${isPremium ? 'text-amber-400' : 'text-emerald-400'} shrink-0`} />
+                            )}
+                          </div>
+                          
+                          <div className="bg-black/70 backdrop-blur-xs px-2 py-1 rounded-lg flex items-center gap-1 text-[8.5px] font-black text-orange-400 shadow-sm border border-white/5">
+                            <span className="text-[7.5px] text-zinc-400 uppercase tracking-wide">TS</span>
+                            <span>{score}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Info Deck */}
                   <div className="p-4 flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-black text-gray-900 group-hover:text-[#FF6B00] transition-all leading-tight">
+                      <h3 className="text-xs font-black text-gray-900 group-hover:text-[#E85D04] transition-all leading-tight">
                         {item.title}
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">
@@ -575,7 +650,7 @@ export const DiscoveryFeedView: React.FC = () => {
                       <div>
                         <span className="text-[9px] text-gray-400 font-mono uppercase block">{isAr ? 'قيمة السعر الحالي' : 'CURRENT CALLING PRICE'}</span>
                         <span className="text-sm font-black font-mono text-gray-950 leading-none">
-                          {item.currentPrice.toLocaleString()} <span className="text-[10px] text-[#FF6B00] font-bold">JOD</span>
+                          {item.currentPrice.toLocaleString()} <span className="text-[10px] text-[#E85D04] font-bold">JOD</span>
                         </span>
                       </div>
 
@@ -584,7 +659,7 @@ export const DiscoveryFeedView: React.FC = () => {
                           e.stopPropagation();
                           handleJoinLive(item.id);
                         }}
-                        className="bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-[11px] px-4 py-2 rounded-xl transition-all shadow-xs uppercase"
+                        className="bg-[#E85D04] hover:bg-orange-600 text-white font-black text-[11px] px-4 py-2 rounded-xl transition-all shadow-xs uppercase cursor-pointer"
                       >
                         {isAr ? 'شاهد التفاصيل' : 'JOIN STREAM'}
                       </button>
@@ -608,6 +683,15 @@ export const DiscoveryFeedView: React.FC = () => {
         <AuctionDetailsModal 
           auctionId={selectedLotId} 
           onClose={() => setSelectedLotId(null)} 
+        />
+      )}
+
+      {/* Render Seller complete profile modal */}
+      {selectedProfileId && (
+        <SellerProfileModal 
+          sellerId={selectedProfileId}
+          isOpen={true}
+          onClose={() => setSelectedProfileId(null)}
         />
       )}
 

@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
+import { db } from '../services/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { OrderDetailsView } from './OrderDetailsView';
 import { 
   User as UserIcon, 
   HelpCircle, 
@@ -32,7 +35,11 @@ import {
   Eye,
   ArrowRight,
   UserCheck,
-  CheckCircle2
+  CheckCircle2,
+  ShoppingBag,
+  Package,
+  Truck,
+  AlertTriangle
 } from 'lucide-react';
 import { EscrowTransaction } from '../types';
 
@@ -40,6 +47,7 @@ export const WalletView: React.FC = () => {
   const { 
     wallet, 
     escrows, 
+    orders,
     setEscrows,
     triggerCliQTopUp, 
     addNotification, 
@@ -50,11 +58,39 @@ export const WalletView: React.FC = () => {
     users,
     releaseEscrow,
     refundEscrow,
-    setWallet
+    setWallet,
+    setActiveView,
+    setCurrentUser
   } = useApp();
   
   const t = translations[language];
   const isAr = language === 'ar';
+
+  const [activeTab, setActiveTab] = useState<'wallet' | 'my_orders' | 'sold_orders'>('wallet');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isActivatingSeller, setIsActivatingSeller] = useState(false);
+
+  const handleActivateSeller = async () => {
+    if (!currentUser) return;
+    setIsActivatingSeller(true);
+    try {
+      const userRef = doc(db, 'users', currentUser.id);
+      await updateDoc(userRef, { role: 'seller' });
+      setCurrentUser(prev => ({ ...prev, role: 'seller' }));
+      addNotification(
+        isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated',
+        isAr 
+          ? 'تهانينا! تم تفعيل حساب البائع الخاص بك بنجاح. يمكنك الآن الانتقال إلى مركز البائع وإدراج المزادات.' 
+          : 'Congratulations! Your seller account is active. You can now visit the Seller Center to manage your business.',
+        'info'
+      );
+    } catch (err) {
+      console.error(err);
+      alert(isAr ? 'فشل تفعيل حساب البائع.' : 'Failed to activate seller account.');
+    } finally {
+      setIsActivatingSeller(false);
+    }
+  };
 
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
@@ -65,6 +101,9 @@ export const WalletView: React.FC = () => {
 
   const myPendingDeposits = myEscrows.filter(e => e.auctionId === 'cliq-dep' && e.status === 'locked');
   const myWonAuctionsPayments = myEscrows.filter(e => e.auctionId !== 'cliq-dep' && e.auctionId !== 'cliq-sub');
+  
+  const myBuyerOrders = currentUser ? orders.filter(o => o.buyerId === currentUser.id) : [];
+  const mySellerOrders = currentUser ? orders.filter(o => o.sellerId === currentUser.id) : [];
   
   // Normal Bidder Wallet States
   const [amount, setAmount] = useState<string>('500');
@@ -704,6 +743,20 @@ export const WalletView: React.FC = () => {
   }
 
   // 2. NORMAL BIDDER WALLET REPRESENTATION
+  if (selectedOrderId) {
+    return (
+      <div 
+        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] p-4 md:p-6 overscroll-contain select-none font-sans"
+        style={{ direction: isAr ? 'rtl' : 'ltr' }}
+        id="order-details-pane"
+      >
+        <div className="max-w-4xl mx-auto w-full">
+          <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] pb-4 overscroll-contain select-none font-sans"
@@ -714,8 +767,8 @@ export const WalletView: React.FC = () => {
       {/* Premium Fintech Top Sticky Header */}
       <div className="p-4 px-5 flex items-center justify-between border-b border-gray-100 sticky top-0 bg-[#F9FBFC]/90 backdrop-blur-md z-40">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B00]"></div>
-          <h2 className="text-[12px] font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#E85D04]"></div>
+          <h2 className="text-[12px] font-black tracking-widest text-[#E85D04] leading-none font-mono uppercase">
             {isAr ? 'محفظتي ورصيدي' : 'MY WALLET & BALANCE'}
           </h2>
         </div>
@@ -738,12 +791,12 @@ export const WalletView: React.FC = () => {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#FF6B00]/20 to-[#FF6B00]/5 text-[#FF6B00] flex items-center justify-center font-black text-xl border-2 border-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] ring-2 ring-orange-200">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#E85D04]/20 to-[#E85D04]/5 text-[#E85D04] flex items-center justify-center font-black text-xl border-2 border-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] ring-2 ring-orange-200">
                     {currentUser.name.charAt(0).toUpperCase()}
                   </div>
                 )}
                 {/* Micro Verified Overlay badge */}
-                <div className="absolute -bottom-1 -right-1 bg-[#FF6B00] text-white p-0.5 rounded-full border-2 border-white shadow-xs">
+                <div className="absolute -bottom-1 -right-1 bg-[#E85D04] text-white p-0.5 rounded-full border-2 border-white shadow-xs">
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </div>
               </div>
@@ -779,10 +832,45 @@ export const WalletView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowSubscriptionPrompt(true)}
-                        className="px-2.5 py-1 rounded-md bg-[#FF6B00] hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-[#E85D04] hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
                       >
                         <CreditCard className="w-2.5 h-2.5 text-white stroke-[3]" />
                         <span>{isAr ? 'تجديد الآن 💳' : 'RENEW NOW 💳'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Seller Account Status Tag */}
+                <div className="pt-1 select-none flex items-center gap-2 flex-wrap">
+                  {currentUser.role === 'seller' || currentUser.role === 'admin' ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-150 uppercase">
+                        <UserCheck className="w-3 h-3 text-indigo-500" />
+                        {isAr ? 'حساب بائع نشط' : 'ACTIVE SELLER ACCOUNT'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('seller-center')}
+                        className="px-2.5 py-1 rounded-md bg-zinc-950 hover:bg-zinc-850 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                      >
+                        <Building2 className="w-2.5 h-2.5 text-white stroke-[3]" />
+                        <span>{isAr ? 'دخول مركز البائع 🏪' : 'SELLER CENTER 🏪'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-gray-50 text-gray-500 border border-gray-200 uppercase">
+                        {isAr ? 'حساب بائع غير نشط' : 'SELLER INACTIVE'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleActivateSeller}
+                        disabled={isActivatingSeller}
+                        className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                      >
+                        <UserCheck className="w-2.5 h-2.5 text-white stroke-[3]" />
+                        <span>{isActivatingSeller ? '...' : (isAr ? 'تفعيل حساب بائع مجاناً' : 'ACTIVATE SELLER FREE')}</span>
                       </button>
                     </div>
                   )}
@@ -803,16 +891,57 @@ export const WalletView: React.FC = () => {
           </div>
         )}
  
-        {/* 2. THE OBSIDIAN-STEEL FINTECH WALLET CARD */}
+        {/* TABS SELECTOR */}
+        <div className="flex bg-white p-1 rounded-2xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)] gap-1">
+          <button
+            onClick={() => setActiveTab('wallet')}
+            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'wallet'
+                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
+                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>{isAr ? 'محفظتي وإيداعاتي' : 'My Wallet'}</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('my_orders')}
+            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'my_orders'
+                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
+                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('sold_orders')}
+            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'sold_orders'
+                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
+                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>{isAr ? 'مبيعاتي' : 'Sold Orders'}</span>
+          </button>
+        </div>
+
+        {activeTab === 'wallet' && (
+          <>
+            {/* 2. THE OBSIDIAN-STEEL FINTECH WALLET CARD */}
         <div className="bg-[#121318] text-white rounded-3xl p-6 shadow-xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-[#121318] to-[#1c1d24]">
           {/* Neon laser design ornaments */}
-          <div className="absolute top-0 right-0 w-36 h-36 bg-[#FF6B00]/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-36 h-36 bg-[#E85D04]/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute -bottom-5 -left-5 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
           
           <div className="space-y-5 relative z-10">
             <div className="flex justify-between items-center">
               <div className="space-y-0.5">
-                <span className="text-[9px] text-[#FF6B00] font-mono tracking-widest block uppercase font-black">
+                <span className="text-[9px] text-[#E85D04] font-mono tracking-widest block uppercase font-black">
                   {isAr ? 'رصيد المحفظة' : 'WALLET BALANCE'}
                 </span>
                 <div className="flex items-baseline gap-1.5 mt-1">
@@ -1176,7 +1305,291 @@ export const WalletView: React.FC = () => {
             )}
           </div>
         </div>
- 
+        </>
+        )}
+
+        {/* MY BUYER ORDERS TABS */}
+        {activeTab === 'my_orders' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5 uppercase font-mono">
+                <span>{isAr ? 'طلبات الشراء الخاصة بي' : 'MY BUYING ORDERS'}</span>
+              </h3>
+              <span className="text-[10px] bg-orange-100 text-[#FF6B00] font-mono font-black px-2 py-0.5 rounded-full">
+                {myBuyerOrders.length} {isAr ? 'طلبات' : 'Orders'}
+              </span>
+            </div>
+
+            {myBuyerOrders.length > 0 ? (
+              <div className="space-y-4">
+                {myBuyerOrders.map((order) => {
+                  const formattedDate = order.createdAt 
+                    ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : '';
+
+                  return (
+                    <div 
+                      key={order.id} 
+                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.015)] space-y-4 relative overflow-hidden"
+                    >
+                      {/* Header info */}
+                      <div className="flex gap-4 items-start">
+                        <img 
+                          src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'} 
+                          alt={order.auctionTitle} 
+                          className="w-16 h-16 rounded-2xl object-cover border border-gray-100"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <h4 className="font-black text-gray-950 text-sm truncate leading-snug">
+                            {order.auctionTitle}
+                          </h4>
+                          <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
+                            <span>ID:</span>
+                            <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
+                            {formattedDate && (
+                              <>
+                                <span className="text-gray-250">•</span>
+                                <span>{formattedDate}</span>
+                              </>
+                            )}
+                          </p>
+                          <div className="text-base font-black text-[#FF6B00] font-mono mt-1">
+                            {order.winningBidAmount.toLocaleString()} <span className="text-[10px] font-sans font-bold text-gray-400">JOD</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-100/80 my-1" />
+
+                      {/* Grid stats */}
+                      <div className="grid grid-cols-2 gap-3.5 text-xs">
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب' : 'ORDER STATUS'}</span>
+                          <span className={`font-black text-[10.5px] uppercase ${
+                            order.status === 'completed' ? 'text-emerald-650' : 'text-[#FF6B00]'
+                          }`}>
+                            {order.status === 'waiting_payment' ? (isAr ? 'بانتظار الدفع' : 'Waiting Payment') :
+                             order.status === 'paid' ? (isAr ? 'تم الدفع' : 'Paid') :
+                             order.status === 'preparing_shipment' ? (isAr ? 'جاري التجهيز' : 'Preparing Shipment') :
+                             order.status === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
+                             order.status === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') :
+                             order.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') :
+                             order.status === 'disputed' ? (isAr ? 'متنازع عليه' : 'Disputed') : order.status}
+                          </span>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT'}</span>
+                          <span className={`font-black text-[10.5px] uppercase ${
+                            order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'
+                          }`}>
+                            {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع' : 'Paid') : (isAr ? 'غير مدفوع' : 'Unpaid')}
+                          </span>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-[#FF6B00] font-mono uppercase block font-black">{isAr ? 'الشحن والتوصيل' : 'SHIPPING'}</span>
+                          <span className="font-black text-gray-700 text-[10.5px] uppercase">
+                            {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'Not Started') :
+                             order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'Preparing') :
+                             order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
+                             order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') : order.shippingStatus}
+                          </span>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'الضمان المالي' : 'ESCROW STATUS'}</span>
+                          <span className={`font-black text-[10.5px] uppercase ${
+                            order.escrowStatus === 'released' ? 'text-emerald-650' : 'text-blue-600'
+                          }`}>
+                            {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
+                             order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released to Seller') :
+                             order.escrowStatus === 'refunded' ? (isAr ? 'تمت الإعادة للمشتري' : 'Refunded to Buyer') : order.escrowStatus}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* View Details button */}
+                      <button
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className={`w-full font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] ${
+                          order.status === 'waiting_payment'
+                            ? 'bg-[#FF6B00] hover:bg-[#FF8000] text-white shadow-md shadow-orange-500/10'
+                            : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-[#FF6B00]'
+                        }`}
+                        id={`btn-view-buyer-order-${order.id}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-10 bg-white rounded-3xl border border-gray-150 p-6">
+                <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
+                  <ShoppingBag className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
+                  {isAr ? 'لا يوجد طلبات شراء حالية' : 'No Orders Yet'}
+                </p>
+                <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
+                  {isAr 
+                    ? 'عند فوزك بمزاد وإنهائه بنجاح، ستظهر تفاصيل الدفع والاستلام الفوري هنا مباشرة.' 
+                    : 'When you win an auction and it concludes successfully, your payment and tracking cards appear here.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MY SELLER ORDERS TABS */}
+        {activeTab === 'sold_orders' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5 uppercase font-mono">
+                <span>{isAr ? 'المنتجات المباعة والطلبات' : 'SOLD ORDERS'}</span>
+              </h3>
+              <span className="text-[10px] bg-orange-100 text-[#FF6B00] font-mono font-black px-2 py-0.5 rounded-full">
+                {mySellerOrders.length} {isAr ? 'مبيعات' : 'Sales'}
+              </span>
+            </div>
+
+            {mySellerOrders.length > 0 ? (
+              <div className="space-y-4">
+                {mySellerOrders.map((order) => {
+                  const formattedDate = order.createdAt 
+                    ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : '';
+
+                  return (
+                    <div 
+                      key={order.id} 
+                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.015)] space-y-4 relative overflow-hidden"
+                    >
+                      {/* Header info */}
+                      <div className="flex gap-4 items-start">
+                        <img 
+                          src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'} 
+                          alt={order.auctionTitle} 
+                          className="w-16 h-16 rounded-2xl object-cover border border-gray-100"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <h4 className="font-black text-gray-950 text-sm truncate leading-snug">
+                            {order.auctionTitle}
+                          </h4>
+                          <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
+                            <span>ID:</span>
+                            <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
+                            {formattedDate && (
+                              <>
+                                <span className="text-gray-250">•</span>
+                                <span>{formattedDate}</span>
+                              </>
+                            )}
+                          </p>
+                          <div className="text-xs text-gray-550 font-bold mt-1">
+                            {isAr ? 'المشتري:' : 'Buyer:'} <span className="text-gray-900 font-black">{order.buyerName}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-100/80 my-1" />
+
+                      {/* Grid stats */}
+                      <div className="grid grid-cols-2 gap-3.5 text-xs">
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5 col-span-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'مبلغ المزايدة الرابحة' : 'WINNING BID AMOUNT'}</span>
+                            <span className="text-sm font-black text-gray-900 font-mono">
+                              {order.winningBidAmount.toLocaleString()} JOD
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT STATUS'}</span>
+                          <span className={`font-black text-[10.5px] uppercase ${
+                            order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'
+                          }`}>
+                            {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع (مضمون)' : 'Paid (Held)') : (isAr ? 'غير مدفوع' : 'Unpaid')}
+                          </span>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
+                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'الشحن والتسليم' : 'SHIPPING STATUS'}</span>
+                          <span className="font-black text-gray-700 text-[10.5px] uppercase">
+                            {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'Not Started') :
+                             order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'Preparing') :
+                             order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
+                             order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') : order.shippingStatus}
+                          </span>
+                        </div>
+
+                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5 col-span-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب الإجمالية' : 'OVERALL STATUS'}</span>
+                            <span className={`font-black text-[10.5px] uppercase ${
+                              order.status === 'completed' ? 'text-emerald-650' : 'text-[#FF6B00]'
+                            }`}>
+                              {order.status === 'waiting_payment' ? (isAr ? 'بانتظار الدفع' : 'Waiting Payment') :
+                               order.status === 'paid' ? (isAr ? 'تم الدفع' : 'Paid') :
+                               order.status === 'preparing_shipment' ? (isAr ? 'جاري تجهيز الشحن' : 'Preparing Shipment') :
+                               order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
+                               order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') :
+                               order.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') :
+                               order.status === 'disputed' ? (isAr ? 'نزاع قائم' : 'Disputed') : order.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* View Details button */}
+                      <button
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className={`w-full font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] ${
+                          order.paymentStatus === 'paid' && order.shippingStatus === 'not_started'
+                            ? 'bg-[#FF6B00] hover:bg-[#FF8000] text-white shadow-md shadow-orange-500/10'
+                            : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-[#FF6B00]'
+                        }`}
+                        id={`btn-view-seller-order-${order.id}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-10 bg-white rounded-3xl border border-gray-150 p-6">
+                <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
+                  <Package className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
+                  {isAr ? 'لا يوجد مبيعات بعد' : 'No Sold Orders Yet'}
+                </p>
+                <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
+                  {isAr 
+                    ? 'عند رسو مزاداتك على فائز حقيقي، ستظهر تفاصيل وحالة الدفع والشحن في هذا التبويب فوراً.' 
+                    : 'When your created auctions are won, their post-auction fulfillment processes will be tracked here.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
  
     </div>

@@ -11,6 +11,7 @@ const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').
 const ListingWizardView = lazy(() => import('./components/ListingWizardView').then(m => ({ default: m.ListingWizardView })));
 const LoginView = lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
+const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -22,6 +23,8 @@ function ActiveViewRenderer() {
       return <LiveStreamView />;
     case 'wallet':
       return <WalletView />;
+    case 'seller-center':
+      return <SellerCenterView />;
     case 'admin':
       const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
       if (!isStrictAdmin) {

@@ -14,7 +14,8 @@ import {
 import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
-  EscrowTransaction, ChatMessage, Notification, AdminAction 
+  EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
+  Review, VerificationRequest, SellerReport, Dispute
 } from '../types';
 
 interface AppContextProps {
@@ -36,6 +37,8 @@ interface AppContextProps {
   setWallet: React.Dispatch<React.SetStateAction<Wallet>>;
   escrows: EscrowTransaction[];
   setEscrows: React.Dispatch<React.SetStateAction<EscrowTransaction[]>>;
+  orders: Order[];
+  setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   chatMessages: ChatMessage[];
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   notifications: Notification[];
@@ -44,11 +47,17 @@ interface AppContextProps {
   setAdminActions: React.Dispatch<React.SetStateAction<AdminAction[]>>;
   adminActionsError?: string;
 
+  // Trust System Lists
+  reviews: Review[];
+  verificationRequests: VerificationRequest[];
+  sellerReports: SellerReport[];
+  disputes: Dispute[];
+
   // Active View State
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about') => void;
+  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center';
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
 
@@ -68,6 +77,20 @@ interface AppContextProps {
   releaseEscrow: (escrowId: string) => void;
   refundEscrow: (escrowId: string) => void;
   deleteAuction: (id: string) => void;
+
+  // Trust System Operations
+  submitVerificationRequest: (requestedStatus: 'verified' | 'premium_verified', notes?: string) => Promise<{ success: boolean; message: string }>;
+  submitSellerReview: (sellerId: string, auctionId: string, auctionTitle: string, rating: number, comment: string, photos?: string[]) => Promise<{ success: boolean; message: string }>;
+  submitSellerReport: (sellerId: string, sellerName: string, reason: SellerReport['reason'], description: string) => Promise<{ success: boolean; message: string }>;
+  submitDispute: (orderId: string, description: string, photos: string[], videos: string[]) => Promise<{ success: boolean; message: string }>;
+  respondToDispute: (disputeId: string, response: string) => Promise<{ success: boolean; message: string }>;
+  respondToReview: (reviewId: string, response: string) => Promise<{ success: boolean; message: string }>;
+  resolveDispute: (disputeId: string, resolution: 'refund' | 'release') => Promise<{ success: boolean; message: string }>;
+  approveVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
+  rejectVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
+  suspendSeller: (userId: string, suspend: boolean) => Promise<{ success: boolean; message: string }>;
+  removeSellerBadge: (userId: string, badgeName: string) => Promise<{ success: boolean; message: string }>;
+  resetSellerTrustScore: (userId: string) => Promise<{ success: boolean; message: string }>;
   
   // Seller Listing Creation
   createListing: (
@@ -195,6 +218,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('mazad_escrows');
     return saved ? JSON.parse(saved) : INITIAL_ESCROWS;
   });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
+  const [sellerReports, setSellerReports] = useState<SellerReport[]>([]);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('mazad_chat_messages');
     return saved ? JSON.parse(saved) : INITIAL_CHATS;
@@ -292,7 +320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about'>('discovery');
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center'>('discovery');
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
@@ -404,7 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             const fbData = userSnap.data();
-            let loadedRole: 'admin' | 'user' = isAdminEmail ? 'admin' : 'user';
+            let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : (fbData.role === 'seller' ? 'seller' : 'user');
             
             if (isAdminEmail && fbData.role !== 'admin') {
               loadedRole = 'admin';
@@ -909,6 +937,198 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     return () => unsub();
   }, [isAuthenticated, currentUser?.role]);
+
+  // Real-time orders synchronization with Firestore
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      setOrders([]);
+      return;
+    }
+
+    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+    if (isStrictAdmin) {
+      const ordersRefCol = collection(db, 'orders');
+      const unsub = onSnapshot(ordersRefCol, (snap) => {
+        const fetchedOrders: Order[] = [];
+        snap.forEach((docSnap) => {
+          fetchedOrders.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as Order);
+        });
+        fetchedOrders.sort((a, b) => {
+          const aTime = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const bTime = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return bTime - aTime;
+        });
+        setOrders(fetchedOrders);
+      }, (err) => {
+        console.warn("Firestore 'orders' collection sync error:", err);
+      });
+      return () => unsub();
+    } else {
+      // Standard user: listen to orders where buyerId == userId or sellerId == userId
+      const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id));
+      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id));
+
+      let buyerOrders: Order[] = [];
+      let sellerOrders: Order[] = [];
+
+      const updateMergedOrders = () => {
+        const mergedMap = new Map<string, Order>();
+        buyerOrders.forEach(o => mergedMap.set(o.id, o));
+        sellerOrders.forEach(o => mergedMap.set(o.id, o));
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => {
+          const aTime = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const bTime = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return bTime - aTime;
+        });
+        setOrders(mergedList);
+      };
+
+      const unsubBuyer = onSnapshot(buyerQuery, (snap) => {
+        const list: Order[] = [];
+        snap.forEach((docSnap) => {
+          list.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as Order);
+        });
+        buyerOrders = list;
+        updateMergedOrders();
+      }, (err) => {
+        console.warn("Firestore 'orders' (buyer) sync error:", err);
+      });
+
+      const unsubSeller = onSnapshot(sellerQuery, (snap) => {
+        const list: Order[] = [];
+        snap.forEach((docSnap) => {
+          list.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as Order);
+        });
+        sellerOrders = list;
+        updateMergedOrders();
+      }, (err) => {
+        console.warn("Firestore 'orders' (seller) sync error:", err);
+      });
+
+      return () => {
+        unsubBuyer();
+        unsubSeller();
+      };
+    }
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role]);
+
+  // Real-time synchronization for trust system collections
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      setReviews([]);
+      setVerificationRequests([]);
+      setSellerReports([]);
+      setDisputes([]);
+      return;
+    }
+
+    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+
+    // 1. Reviews (Anyone can read, we load all to update trust scores and averages dynamically)
+    const reviewsRef = collection(db, 'reviews');
+    const unsubReviews = onSnapshot(reviewsRef, (snap) => {
+      const list: Review[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as Review);
+      });
+      setReviews(list.sort((a, b) => b.timestamp - a.timestamp));
+    }, (err) => console.warn("Reviews sync error:", err));
+
+    // 2. Verification Requests
+    let unsubVerifications = () => {};
+    if (isStrictAdmin) {
+      unsubVerifications = onSnapshot(collection(db, 'sellerVerificationRequests'), (snap) => {
+        const list: VerificationRequest[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as VerificationRequest);
+        });
+        setVerificationRequests(list.sort((a, b) => b.submittedAt - a.submittedAt));
+      }, (err) => console.warn("Verification requests sync error:", err));
+    } else {
+      const qVer = query(collection(db, 'sellerVerificationRequests'), where('userId', '==', currentUser.id));
+      unsubVerifications = onSnapshot(qVer, (snap) => {
+        const list: VerificationRequest[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as VerificationRequest);
+        });
+        setVerificationRequests(list.sort((a, b) => b.submittedAt - a.submittedAt));
+      }, (err) => console.warn("Verification requests sync error:", err));
+    }
+
+    // 3. Reports
+    let unsubReports = () => {};
+    if (isStrictAdmin) {
+      unsubReports = onSnapshot(collection(db, 'sellerReports'), (snap) => {
+        const list: SellerReport[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as SellerReport);
+        });
+        setSellerReports(list.sort((a, b) => b.timestamp - a.timestamp));
+      }, (err) => console.warn("Seller reports sync error:", err));
+    }
+
+    // 4. Disputes
+    let unsubDisputes = () => {};
+    if (isStrictAdmin) {
+      unsubDisputes = onSnapshot(collection(db, 'disputes'), (snap) => {
+        const list: Dispute[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as Dispute);
+        });
+        setDisputes(list.sort((a, b) => b.timestamp - a.timestamp));
+      }, (err) => console.warn("Disputes sync error:", err));
+    } else {
+      // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id
+      const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id));
+      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id));
+      
+      let bDisps: Dispute[] = [];
+      let sDisps: Dispute[] = [];
+      
+      const updateDisputes = () => {
+        const merged = new Map<string, Dispute>();
+        bDisps.forEach(d => merged.set(d.id, d));
+        sDisps.forEach(d => merged.set(d.id, d));
+        setDisputes(Array.from(merged.values()).sort((a, b) => b.timestamp - a.timestamp));
+      };
+
+      const unsubBuyerDisp = onSnapshot(qBuyerDisp, (snap) => {
+        const list: Dispute[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
+        bDisps = list;
+        updateDisputes();
+      }, (err) => console.warn("Buyer disputes sync error:", err));
+
+      const unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
+        const list: Dispute[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
+        sDisps = list;
+        updateDisputes();
+      }, (err) => console.warn("Seller disputes sync error:", err));
+
+      unsubDisputes = () => {
+        unsubBuyerDisp();
+        unsubSellerDisp();
+      };
+    }
+
+    return () => {
+      unsubReviews();
+      unsubVerifications();
+      unsubReports();
+      unsubDisputes();
+    };
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role]);
 
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
@@ -2197,6 +2417,378 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, addNotification, logSystemHealth]);
 
+  // Trust System Operations Implementation
+  const submitVerificationRequest = useCallback(async (requestedStatus: 'verified' | 'premium_verified', notes?: string) => {
+    try {
+      const id = `ver-req-${Date.now()}`;
+      const reqData: VerificationRequest = {
+        id,
+        userId: currentUser.id,
+        sellerName: currentUser.name,
+        status: 'pending',
+        requestedStatus,
+        submittedAt: Date.now(),
+        notes: notes || '',
+        businessLicenseUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+        nationalIdUrl: 'https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=500'
+      };
+      
+      await setDoc(doc(db, 'sellerVerificationRequests', id), reqData);
+
+      // Update the user document to pending in firestore
+      await updateDoc(doc(db, 'users', currentUser.id), {
+        verificationStatus: 'pending'
+      });
+
+      // Update seller profile status to pending
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', currentUser.id), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          verificationStatus: 'pending'
+        });
+      }
+      
+      addNotification(
+        language === 'ar' ? '📨 تم تقديم طلب التوثيق' : '📨 Verification Request Submitted',
+        language === 'ar' ? 'طلبك قيد المراجعة الآن من قبل إدارة المنصة.' : 'Your request is now pending review by platform moderators.',
+        'success'
+      );
+      return { success: true, message: 'Submitted successfully' };
+    } catch (err: any) {
+      console.error("Verification submit error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [currentUser, language, addNotification]);
+
+  const submitSellerReview = useCallback(async (sellerId: string, auctionId: string, auctionTitle: string, rating: number, comment: string, photos?: string[]) => {
+    try {
+      const id = `rev-${Date.now()}`;
+      const revData: Review = {
+        id,
+        sellerId,
+        buyerId: currentUser.id,
+        buyerName: currentUser.name,
+        buyerAvatar: currentUser.avatar,
+        rating,
+        comment,
+        timestamp: Date.now(),
+        auctionTitle,
+        auctionId,
+        photos: photos || []
+      };
+
+      await setDoc(doc(db, 'reviews', id), revData);
+
+      // Recalculate average rating for seller
+      const allReviewsSnap = await getDocs(query(collection(db, 'reviews'), where('sellerId', '==', sellerId)));
+      const reviewsList: Review[] = [];
+      allReviewsSnap.forEach(d => reviewsList.push(d.data() as Review));
+      if (!reviewsList.find(r => r.id === id)) {
+        reviewsList.push(revData);
+      }
+      const averageRating = reviewsList.reduce((sum, r) => sum + r.rating, 0) / reviewsList.length;
+
+      // Update the seller profile in Firestore
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', sellerId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          rating: parseFloat(averageRating.toFixed(1))
+        });
+      }
+
+      addNotification(
+        language === 'ar' ? '⭐ شكراً لتقييمك!' : '⭐ Thanks for your review!',
+        language === 'ar' ? 'تمت إضافة تقييمك بنجاح إلى ملف البائع.' : 'Your rating was successfully added to the seller profile.',
+        'success'
+      );
+      return { success: true, message: 'Review added successfully' };
+    } catch (err: any) {
+      console.error("Review submit error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [currentUser, language, addNotification]);
+
+  const submitSellerReport = useCallback(async (sellerId: string, sellerName: string, reason: SellerReport['reason'], description: string) => {
+    try {
+      const id = `rep-${Date.now()}`;
+      const repData: SellerReport = {
+        id,
+        reporterId: currentUser.id,
+        reporterName: currentUser.name,
+        sellerId,
+        sellerName,
+        reason,
+        description,
+        timestamp: Date.now(),
+        status: 'pending'
+      };
+
+      await setDoc(doc(db, 'sellerReports', id), repData);
+
+      addNotification(
+        language === 'ar' ? '🚨 تم تقديم البلاغ' : '🚨 Report Submitted',
+        language === 'ar' ? 'شكرًا لمساعدتنا في الحفاظ على أمان المنصة. ستقوم الإدارة بمراجعته.' : 'Thank you for helping keep our platform safe. Admins will review this report.',
+        'info'
+      );
+      return { success: true, message: 'Report submitted' };
+    } catch (err: any) {
+      console.error("Report submit error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [currentUser, language, addNotification]);
+
+  const submitDispute = useCallback(async (orderId: string, description: string, photos: string[], videos: string[]) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) throw new Error("Order not found");
+
+      const id = `disp-${Date.now()}`;
+      const disputeData: Dispute = {
+        id,
+        orderId,
+        buyerId: currentUser.id,
+        buyerName: currentUser.name,
+        sellerId: order.sellerId,
+        sellerName: order.sellerName,
+        amount: order.winningBidAmount,
+        description,
+        photos,
+        videos,
+        status: 'open',
+        timestamp: Date.now()
+      };
+
+      await setDoc(doc(db, 'disputes', id), disputeData);
+      
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: 'disputed'
+      });
+
+      addNotification(
+        language === 'ar' ? '⚠️ تم فتح نزاع' : '⚠️ Dispute Opened',
+        language === 'ar' ? 'تم تسجيل النزاع بنجاح. سيقوم المشرف بمراجعته والبت فيه.' : 'The dispute has been registered. An admin will review and resolve it.',
+        'alert'
+      );
+      return { success: true, message: 'Dispute opened' };
+    } catch (err: any) {
+      console.error("Dispute submit error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [currentUser, orders, language, addNotification]);
+
+  const respondToDispute = useCallback(async (disputeId: string, response: string) => {
+    try {
+      await updateDoc(doc(db, 'disputes', disputeId), {
+        sellerResponse: response,
+        sellerRespondedAt: Date.now()
+      });
+
+      addNotification(
+        language === 'ar' ? '💬 تم تقديم الرد' : '💬 Response Submitted',
+        language === 'ar' ? 'تم إرسال ردك على النزاع بنجاح إلى الإدارة.' : 'Your dispute response has been sent to the admins.',
+        'success'
+      );
+      return { success: true, message: 'Responded successfully' };
+    } catch (err: any) {
+      console.error("Dispute respond error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [language, addNotification]);
+
+  const respondToReview = useCallback(async (reviewId: string, response: string) => {
+    try {
+      await updateDoc(doc(db, 'reviews', reviewId), {
+        response,
+        responseAt: Date.now()
+      });
+
+      addNotification(
+        language === 'ar' ? '💬 تم الرد على التقييم' : '💬 Review Replied',
+        language === 'ar' ? 'تم نشر ردك على التقييم.' : 'Your response to the review has been posted.',
+        'success'
+      );
+      return { success: true, message: 'Review response submitted' };
+    } catch (err: any) {
+      console.error("Review respond error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [language, addNotification]);
+
+  const resolveDispute = useCallback(async (disputeId: string, resolution: 'refund' | 'release') => {
+    try {
+      const dispute = disputes.find(d => d.id === disputeId);
+      if (!dispute) throw new Error("Dispute not found");
+
+      const resolvedStatus = resolution === 'refund' ? 'resolved_refunded' : 'resolved_released';
+      
+      await updateDoc(doc(db, 'disputes', disputeId), {
+        status: resolvedStatus,
+        resolvedAt: Date.now(),
+        resolverName: currentUser?.name || 'Admin'
+      });
+
+      await updateDoc(doc(db, 'orders', dispute.orderId), {
+        status: resolution === 'refund' ? 'refunded' : 'completed',
+        escrowStatus: resolution === 'refund' ? 'refunded' : 'released'
+      });
+
+      addNotification(
+        '⚖️ Dispute Resolved',
+        `Dispute resolved with resolution: ${resolution === 'refund' ? 'REFUND BUYER' : 'RELEASE TO SELLER'}.`,
+        'success'
+      );
+      return { success: true, message: 'Dispute resolved successfully' };
+    } catch (err: any) {
+      console.error("Resolve dispute error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [currentUser, disputes, addNotification]);
+
+  const approveVerificationRequest = useCallback(async (requestId: string) => {
+    try {
+      const req = verificationRequests.find(r => r.id === requestId);
+      if (!req) throw new Error("Verification request not found");
+
+      await updateDoc(doc(db, 'sellerVerificationRequests', requestId), {
+        status: 'approved'
+      });
+
+      await updateDoc(doc(db, 'users', req.userId), {
+        isVerified: true,
+        verificationStatus: req.requestedStatus
+      });
+
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', req.userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          isVerifiedMerchant: true,
+          verificationStatus: req.requestedStatus,
+          badges: ['Verified', req.requestedStatus === 'premium_verified' ? 'Premium Seller' : 'Verified']
+        });
+      }
+
+      addNotification(
+        '✅ Seller Verification Approved',
+        `Approved seller ${req.sellerName} as ${req.requestedStatus.toUpperCase()}.`,
+        'success'
+      );
+      return { success: true, message: 'Approved successfully' };
+    } catch (err: any) {
+      console.error("Approve verification request error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [verificationRequests, addNotification]);
+
+  const rejectVerificationRequest = useCallback(async (requestId: string) => {
+    try {
+      const req = verificationRequests.find(r => r.id === requestId);
+      if (!req) throw new Error("Verification request not found");
+
+      await updateDoc(doc(db, 'sellerVerificationRequests', requestId), {
+        status: 'rejected'
+      });
+
+      await updateDoc(doc(db, 'users', req.userId), {
+        verificationStatus: 'not_verified'
+      });
+
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', req.userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          verificationStatus: 'not_verified'
+        });
+      }
+
+      addNotification(
+        '❌ Seller Verification Rejected',
+        `Rejected verification request for seller ${req.sellerName}.`,
+        'info'
+      );
+      return { success: true, message: 'Rejected successfully' };
+    } catch (err: any) {
+      console.error("Reject verification request error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [verificationRequests, addNotification]);
+
+  const suspendSeller = useCallback(async (userId: string, suspend: boolean) => {
+    try {
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          isSuspended: suspend
+        });
+      }
+
+      await updateDoc(doc(db, 'users', userId), {
+        isBlocked: suspend,
+        accountStatus: suspend ? 'blocked' : 'active'
+      });
+
+      addNotification(
+        '🚫 Seller Status Updated',
+        `Seller ${suspend ? 'SUSPENDED' : 'ACTIVATED'} successfully.`,
+        'success'
+      );
+      return { success: true, message: 'Seller status updated successfully' };
+    } catch (err: any) {
+      console.error("Suspend seller error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [addNotification]);
+
+  const removeSellerBadge = useCallback(async (userId: string, badgeName: string) => {
+    try {
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        const profileData = profileSnap.docs[0].data() as SellerProfile;
+        const currentBadges = profileData.badges || [];
+        const updatedBadges = currentBadges.filter(b => b !== badgeName);
+        await updateDoc(profileSnap.docs[0].ref, {
+          badges: updatedBadges
+        });
+      }
+
+      addNotification(
+        '🏅 Badge Removed',
+        `Badge "${badgeName}" removed from seller profile.`,
+        'info'
+      );
+      return { success: true, message: 'Badge removed' };
+    } catch (err: any) {
+      console.error("Remove badge error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [addNotification]);
+
+  const resetSellerTrustScore = useCallback(async (userId: string) => {
+    try {
+      const profileQuery = query(collection(db, 'sellerProfiles'), where('userId', '==', userId), limit(1));
+      const profileSnap = await getDocs(profileQuery);
+      if (!profileSnap.empty) {
+        await updateDoc(profileSnap.docs[0].ref, {
+          trustScore: 50
+        });
+      }
+
+      addNotification(
+        '♻️ Trust Score Reset',
+        `Reset seller trust score to 50 (baseline).`,
+        'success'
+      );
+      return { success: true, message: 'Trust score reset' };
+    } catch (err: any) {
+      console.error("Reset trust score error:", err);
+      return { success: false, message: err.message };
+    }
+  }, [addNotification]);
+
   const visibleAuctions = auctions.filter(a => !deletedAuctionIds.includes(a.id));
 
   return (
@@ -2209,10 +2801,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,
+      orders, setOrders,
       chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,
       adminActionsError,
+      reviews,
+      verificationRequests,
+      sellerReports,
+      disputes,
       activeAuctionId, setActiveAuctionId,
       activeView, setActiveView,
       placeBid,
@@ -2254,7 +2851,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateMaintenanceMode,
       updateFeatureFlag,
       systemHealthLogs,
-      logSystemHealth
+      logSystemHealth,
+      submitVerificationRequest,
+      submitSellerReview,
+      submitSellerReport,
+      submitDispute,
+      respondToDispute,
+      respondToReview,
+      resolveDispute,
+      approveVerificationRequest,
+      rejectVerificationRequest,
+      suspendSeller,
+      removeSellerBadge,
+      resetSellerTrustScore
     }}>
       {children}
     </AppContext.Provider>

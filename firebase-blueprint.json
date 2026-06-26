@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "sellerProfiles": {
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "storeName": { "type": "string" },
+        "storeLogo": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "bio": { "type": "string" },
+        "rating": { "type": "number" },
+        "totalSales": { "type": "number" },
+        "isVerifiedMerchant": { "type": "boolean" },
+        "joinedDate": { "type": "string" },
+        "location": { "type": "string" },
+        "followers": { "type": "number" },
+        "following": { "type": "number" },
+        "verificationStatus": { "type": "string" },
+        "responseTime": { "type": "string" },
+        "cancellationRate": { "type": "number" },
+        "aboutSeller": { "type": "string" },
+        "trustScore": { "type": "number" },
+        "badges": { "type": "array" },
+        "isSuspended": { "type": "boolean" }
+      },
+      "rules": {
+        "read": "true",
+        "write": "isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin())"
+      }
+    },
+    "reviews": {
+      "fields": {
+        "id": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "buyerAvatar": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "response": { "type": "string" },
+        "responseAt": { "type": "number" },
+        "auctionTitle": { "type": "string" },
+        "auctionId": { "type": "string" },
+        "photos": { "type": "array" }
+      },
+      "rules": {
+        "read": "true",
+        "create": "isSignedIn() && request.resource.data.buyerId == request.auth.uid",
+        "update": "isSignedIn() && (request.auth.uid == resource.data.sellerId || isAdmin())",
+        "delete": "isAdmin()"
+      }
+    },
+    "sellerVerificationRequests": {
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "status": { "type": "string" },
+        "requestedStatus": { "type": "string" },
+        "submittedAt": { "type": "number" },
+        "businessLicenseUrl": { "type": "string" },
+        "nationalIdUrl": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "rules": {
+        "read": "isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin())",
+        "create": "isSignedIn() && request.resource.data.userId == request.auth.uid",
+        "update": "isAdmin()",
+        "delete": "isAdmin()"
+      }
+    },
+    "sellerReports": {
+      "fields": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "reason": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "rules": {
+        "read": "isAdmin()",
+        "create": "isSignedIn() && request.resource.data.reporterId == request.auth.uid",
+        "update": "isAdmin()",
+        "delete": "isAdmin()"
+      }
+    },
+    "disputes": {
+      "fields": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "photos": { "type": "array" },
+        "videos": { "type": "array" },
+        "sellerResponse": { "type": "string" },
+        "sellerRespondedAt": { "type": "number" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "resolvedAt": { "type": "number" },
+        "resolverName": { "type": "string" }
+      },
+      "rules": {
+        "read": "isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId || isAdmin())",
+        "create": "isSignedIn() && request.resource.data.buyerId == request.auth.uid",
+        "update": "isSignedIn() && (request.auth.uid == resource.data.sellerId || isAdmin())",
+        "delete": "isAdmin()"
+      }
+    }
+  }
+}

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { SellerProfileModal } from './SellerProfileModal';
 import { 
   Volume2, 
   VolumeX, 
@@ -83,6 +85,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
+  const { sellerProfiles, setActiveView } = useApp();
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  const activeSellerProfile = sellerProfiles?.find(
+    p => p.userId === activeAuction?.sellerId || p.id === activeAuction?.sellerId
+  );
+
+  const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
+  const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
+  const trustScore = activeSellerProfile?.trustScore || 85;
+
   return (
     <div className="w-full h-full flex flex-row overflow-hidden bg-[#070709] relative select-none" id="mazad-jo-desktop-live-platform">
       
@@ -175,6 +188,47 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           ====================================================================== */}
       <main className="flex-grow lg:flex-1 min-w-[800px] h-full flex flex-col overflow-y-auto p-6" id="desktop-live-main-content">
         
+        {/* Navigation improvements bar (Back button & Breadcrumbs) */}
+        <div className="flex items-center justify-between mb-4 text-xs font-medium select-none text-zinc-400 shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          
+          {/* Back button */}
+          <button 
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                setActiveView('discovery');
+              }
+            }}
+            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer font-bold tracking-wide"
+          >
+            <span className="text-sm font-sans">{isAr ? '←' : '←'}</span>
+            <span>{isAr ? 'العودة للمزادات المباشرة' : 'Back to Live Auctions'}</span>
+          </button>
+
+          {/* Breadcrumbs */}
+          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-semibold" id="live-breadcrumbs">
+            <span 
+              onClick={() => setActiveView('discovery')}
+              className="hover:text-zinc-200 cursor-pointer transition-colors"
+            >
+              {isAr ? 'الرئيسية' : 'Home'}
+            </span>
+            <span className="text-zinc-600 font-mono">/</span>
+            <span 
+              onClick={() => setActiveView('discovery')}
+              className="hover:text-zinc-200 cursor-pointer transition-colors"
+            >
+              {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
+            </span>
+            <span className="text-zinc-600 font-mono">/</span>
+            <span className="text-[#E85D04] font-bold truncate max-w-[200px]" title={activeAuction.title}>
+              {activeAuction.title}
+            </span>
+          </div>
+
+        </div>
+
         {/* THE IMMERSIVE CLEAN PLAYER CONTAINER */}
         <div 
           ref={videoContainerRef}
@@ -564,19 +618,47 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Card 4: Verified Seller & Escrow Protection */}
-        <div className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-4">
+        <div 
+          onClick={() => {
+            if (activeSellerProfile) {
+              setSelectedProfileId(activeSellerProfile.userId);
+            }
+          }}
+          className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-4 hover:border-orange-500/20 transition-all cursor-pointer"
+        >
           <div className="flex items-center gap-3 pb-3 border-b border-white/5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-lg font-mono shrink-0 shadow-md">
-              M
-            </div>
+            {activeSellerProfile?.storeLogo ? (
+              <img 
+                src={activeSellerProfile.storeLogo} 
+                alt="Logo" 
+                className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-md border border-white/10" 
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-lg font-mono shrink-0 shadow-md">
+                {activeSellerProfile?.storeName?.[0] || 'M'}
+              </div>
+            )}
             <div className="text-left rtl:text-right min-w-0 flex-grow">
               <span className="text-[12.5px] font-black text-white block leading-none truncate">
-                {isAr ? 'شركة مزاد الأردن الرسمية' : 'MAZAD JO Merchant'}
+                {activeSellerProfile?.storeName || (isAr ? 'شركة مزاد الأردن الرسمية' : 'MAZAD JO Merchant')}
               </span>
-              <span className="text-[9.5px] text-orange-400 font-extrabold mt-1.5 block leading-none">
-                ✓ {isAr ? 'بائع معتمد مرخص' : 'VERIFIED MERCHANT SELLER'}
+              <span className="text-[9.5px] text-orange-400 font-extrabold mt-1.5 block leading-none flex items-center gap-1 flex-wrap">
+                {isVerified ? (
+                  <>
+                    <ShieldCheck className={`w-3.5 h-3.5 ${isPremium ? 'text-amber-400' : 'text-emerald-400'}`} />
+                    <span>{isPremium ? (isAr ? 'بائع متميز موثق' : 'PREMIUM VERIFIED SELLER') : (isAr ? 'بائع معتمد موثق' : 'VERIFIED MERCHANT SELLER')}</span>
+                  </>
+                ) : (
+                  <span>✓ {isAr ? 'بائع معتمد مرخص' : 'VERIFIED MERCHANT SELLER'}</span>
+                )}
               </span>
             </div>
+            {activeSellerProfile && (
+              <div className="bg-orange-600/10 px-2 py-1 rounded-lg text-orange-400 text-[10px] font-black flex flex-col items-center shrink-0">
+                <span className="text-[7.5px] text-zinc-500 uppercase">TRUST</span>
+                <span>{trustScore}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 bg-[#121216]/50 p-2.5 rounded-xl border border-white/5">
@@ -620,6 +702,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
       </aside>
+
+      {/* Complete Seller Profile Modal */}
+      {selectedProfileId && (
+        <SellerProfileModal 
+          sellerId={selectedProfileId}
+          isOpen={true}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
 
     </div>
   );
