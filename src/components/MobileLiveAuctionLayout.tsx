@@ -436,27 +436,34 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               ))}
 
               {/* Latest 2 floating bubbles chat feed */}
-              {activeComments.slice(-2).map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className="bg-black/25 backdrop-blur-xl border border-white/10 rounded-xl p-2 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
-                >
-                  <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                    alt="User" 
-                    className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="min-w-0">
-                    <span className="text-[9px] font-black text-orange-400 leading-none block">
-                      {msg.userName}
-                    </span>
-                    <p className="text-[10px] text-zinc-100 font-medium leading-tight mt-0.5">
-                      {msg.text}
-                    </p>
+              {activeComments.slice(-2).map((msg) => {
+                const isBidMsg = msg.isBid;
+                return (
+                  <div 
+                    key={msg.id} 
+                    className={`${
+                      isBidMsg 
+                        ? 'bg-[#FF6B00]/15 border border-[#FF6B00]/30' 
+                        : 'bg-black/25 border border-white/10'
+                    } backdrop-blur-xl rounded-xl p-2 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm`}
+                  >
+                    <img 
+                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
+                      alt="User" 
+                      className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-orange-400 leading-none block">
+                        {msg.userName}
+                      </span>
+                      <p className="text-[10px] text-zinc-100 font-medium leading-tight mt-0.5">
+                        {msg.text}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -537,15 +544,15 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
             </div>
 
             {/* Quick multi bid buttons float over the video like TikTok LIVE gifts */}
-            <div className="flex items-center gap-1 w-full justify-center">
+            <div className="grid grid-cols-4 gap-2">
               {[10, 25, 50, 100].map((val) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => onBidExecute(activePrice + val)}
-                  className="flex-1 py-1 rounded-md bg-white/10 hover:bg-white/15 border border-white/10 hover:border-orange-500/40 text-white font-black text-[10px] transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5"
+                  className="py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5"
                 >
-                  +{val} <span className="text-[7px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                  +{val} <span className="text-[9px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
                 </button>
               ))}
             </div>

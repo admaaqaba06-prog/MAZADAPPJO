@@ -504,6 +504,8 @@ export const LiveStreamView: React.FC = () => {
           videoContainerRef={videoContainerRef}
           showToast={showToast}
           toggleFullscreen={toggleFullscreen}
+          recentBids={simulatedBids[activeAuction.id] || []}
+          allActivities={simulatedActivities[activeAuction.id] || []}
         />
       )}
 
