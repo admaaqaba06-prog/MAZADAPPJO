@@ -636,7 +636,7 @@ exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (dat
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
   const userId = context.auth.uid;
-  const { amount, alias, receiptName } = data; // amount is in JOD (double)
+  const { amount, alias, paymentProofUrl } = data; // amount is in JOD (double)
 
   if (typeof amount !== 'number' || amount <= 0) {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid top-up amount.');
@@ -665,7 +665,7 @@ exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (dat
       amountFils: amountFils,
       status: 'locked',
       timestamp: Date.now(),
-      paymentProofUrl: receiptName || '',
+      paymentProofUrl: paymentProofUrl || '',
       cliqAlias: alias || ''
     };
 

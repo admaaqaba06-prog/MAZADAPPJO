@@ -152,6 +152,9 @@ export const WalletView: React.FC = () => {
       setFileUploaded(false);
       setFileName('');
       setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error: any) {
       console.error("Firebase Storage write failure during CliQ receipt upload:", error);
       addNotification(

@@ -54,7 +54,7 @@ interface AppContextProps {
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
-  triggerCliQTopUp: (amount: number, alias: string, receiptName: string) => void;
+  triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
   addNotification: (title: string, description: string, type: Notification['type']) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -1443,7 +1443,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser, language, addNotification, logSystemHealth, featureFlags]);
 
   // CliQ Jordanian instant receipt topup simulation
-  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, receiptName: string) => {
+  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
     if (!featureFlags.enableWallets) {
       addNotification(
         language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled',
@@ -1454,8 +1454,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const topUpCallable = httpsCallable<{ amount: number; alias: string; receiptName: string }, { success: boolean; message: string }>(functions, 'requestTopUp');
-      const result = await topUpCallable({ amount, alias, receiptName });
+      const topUpCallable = httpsCallable<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>(functions, 'requestTopUp');
+      const result = await topUpCallable({ amount, alias, paymentProofUrl });
       if (result.data.success) {
         addNotification(
           '💸 CliQ Transfer Received',
@@ -1463,11 +1463,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'verify'
         );
       } else {
-        await logSystemHealth('payment_fail', 'CliQ Payment Failed', `Amount: ${amount} JOD, Alias: ${alias}, Receipt: ${receiptName}, Message: ${result.data.message}`);
+        await logSystemHealth('payment_fail', 'CliQ Payment Failed', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Message: ${result.data.message}`);
       }
     } catch (error: any) {
       console.error("Cloud function requestTopUp error:", error);
-      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Receipt: ${receiptName}, Error: ${error.message || String(error)}`);
+      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Error: ${error.message || String(error)}`);
       addNotification('❌ Top-up Error', error.message || 'Failed to request top-up.', 'alert');
     }
   }, [addNotification, logSystemHealth, featureFlags, language]);
