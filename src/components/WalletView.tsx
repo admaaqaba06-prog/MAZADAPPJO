@@ -585,12 +585,17 @@ export const WalletView: React.FC = () => {
             ------------------------------------------------------------- */}
         {selectedProofEscrow && (() => {
           const selectedRequest = selectedProofEscrow;
-          const receiptImageUrl =
+          const isRealUrl = (url?: string) => {
+            if (!url) return false;
+            return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+          };
+          const rawUrl =
             selectedRequest.paymentProofUrl ||
             selectedRequest.paymentProofImage ||
             selectedRequest.receiptUrl ||
             selectedRequest.proofUrl ||
             selectedRequest.paymentImageUrl;
+          const receiptImageUrl = isRealUrl(rawUrl) ? rawUrl : null;
 
           console.log("Selected subscription request:", selectedRequest);
           console.log("Receipt image URL:", receiptImageUrl);

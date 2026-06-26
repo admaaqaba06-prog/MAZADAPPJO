@@ -61,6 +61,11 @@ export const AdminDashboardView: React.FC = () => {
   const t = translations[language];
   const isAr = language === 'ar';
 
+  const isRealUrl = (url?: string) => {
+    if (!url) return false;
+    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+  };
+
   const [activeTab, setActiveTab] = useState<'metrics' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
 
   // Local health & maintenance control states
@@ -500,16 +505,32 @@ export const AdminDashboardView: React.FC = () => {
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={dep.paymentProofUrl || 'receipt.png'}>
-                              {dep.paymentProofUrl || 'receipt_proof_slip.png'}
+                            <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={
+                              (() => {
+                                const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
+                                return isRealUrl(rawUrl) ? rawUrl : 'No receipt attached';
+                              })()
+                            }>
+                              {(() => {
+                                const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
+                                return isRealUrl(rawUrl) ? rawUrl : (isAr ? 'لا يوجد لقطة إيصال مرفقة' : 'No receipt attached');
+                              })()}
                             </p>
                             <p className="text-[9px] text-gray-400">{isAr ? 'لقطة شاشة إشعار التحويل البنكي' : 'CliQ receipt attachment'}</p>
                           </div>
                         </div>
                         
                         <button 
-                          onClick={() => setViewReceiptUrl(dep.paymentProofUrl || '')}
-                          className="text-[11px] text-[#FF6B00] font-black hover:underline shrink-0 px-2"
+                          onClick={() => {
+                            const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
+                            setViewReceiptUrl(isRealUrl(rawUrl) ? rawUrl : null);
+                          }}
+                          disabled={!isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)}
+                          className={`text-[11px] font-black shrink-0 px-2 ${
+                            isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)
+                              ? 'text-[#FF6B00] hover:underline cursor-pointer'
+                              : 'text-gray-400 cursor-not-allowed'
+                          }`}
                         >
                           {isAr ? 'عرض' : 'VIEW'}
                         </button>
@@ -527,8 +548,13 @@ export const AdminDashboardView: React.FC = () => {
                       {/* Action buttons */}
                       <div className="flex md:flex-col gap-2 w-full md:w-auto">
                         <button 
+                          disabled={!isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)}
                           onClick={() => releaseEscrow(dep.id)}
-                          className="flex-1 md:w-44 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 px-3 rounded-xl transition-all shadow-xs"
+                          className={`flex-1 md:w-44 font-extrabold text-xs py-2 px-3 rounded-xl transition-all shadow-xs ${
+                            isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
                         >
                           {isAr ? 'قبول وشحن الرصيد' : 'APPROVE & ADD JOD'}
                         </button>
@@ -967,7 +993,7 @@ export const AdminDashboardView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3.5 shrink-0">
-                      {(req.paymentProofImage || req.paymentProofUrl) && (
+                      {isRealUrl(req.paymentProofImage || req.paymentProofUrl) ? (
                         <div className="relative cursor-pointer max-w-[70px]">
                           <img 
                             src={req.paymentProofImage || req.paymentProofUrl} 
@@ -976,18 +1002,27 @@ export const AdminDashboardView: React.FC = () => {
                             onClick={() => setViewReceiptUrl(req.paymentProofImage || req.paymentProofUrl)}
                           />
                         </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl p-3 max-w-[100px] text-center shrink-0">
+                          {isAr ? 'لا يوجد إثبات' : 'No Proof'}
+                        </div>
                       )}
 
                       <div className="flex flex-col gap-2">
                         <button
+                          disabled={!isRealUrl(req.paymentProofImage || req.paymentProofUrl)}
                           onClick={() => approveSubscription(req)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px]"
+                          className={`font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px] transition-all ${
+                            isRealUrl(req.paymentProofImage || req.paymentProofUrl)
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
                         >
                           {isAr ? 'قبول وتفعيل' : 'APPROVE'}
                         </button>
                         <button
                           onClick={() => rejectSubscription(req)}
-                          className="bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-xs px-4 py-1.5 rounded-xl min-w-[120px]"
+                          className="bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-xs px-4 py-1.5 rounded-xl min-w-[120px] cursor-pointer"
                         >
                           {isAr ? 'رفض الطلب' : 'REJECT'}
                         </button>
