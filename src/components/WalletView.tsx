@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
@@ -77,6 +77,8 @@ export const WalletView: React.FC = () => {
   const [alias, setAlias] = useState<string>('');
   const [fileUploaded, setFileUploaded] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedProof, setSubmittedProof] = useState<boolean>(false);
   const [copiedIBAN, setCopiedIBAN] = useState<boolean>(false);
@@ -87,14 +89,22 @@ export const WalletView: React.FC = () => {
 
   const presets = [100, 250, 500, 1000, 2500];
 
-  const handleSimulatedFileUpload = () => {
-    setFileName(`cliq_receipt_${Math.floor(Math.random() * 90000 + 10000)}_ref_${Math.floor(Date.now() / 1000)}.png`);
-    setFileUploaded(true);
-    addNotification(
-      isAr ? '📎 تم إرفاق الوصل البنكي' : '📎 Receipt Attached', 
-      isAr ? 'تم تحميل لقطة شاشة الحوالة بنجاح.' : 'CliQ transaction bank slip reference attached successfully.', 
-      'info'
-    );
+  const handleTriggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRealFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setFileName(file.name);
+      setFileUploaded(true);
+      addNotification(
+        isAr ? '📎 تم إرفاق الوصل البنكي' : '📎 Receipt Attached', 
+        isAr ? `تم إرفاق الملف "${file.name}" بنجاح.` : `File "${file.name}" attached successfully.`, 
+        'info'
+      );
+    }
   };
 
   const handleCopyIBAN = () => {
@@ -108,7 +118,7 @@ export const WalletView: React.FC = () => {
     setTimeout(() => setCopiedIBAN(false), 2500);
   };
 
-  const handleTopUpSubmit = (e: React.FormEvent) => {
+  const handleTopUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       alert(isAr ? 'الرجاء إدخال قيمة مالية صحيحة بالدينار.' : 'Please enter a valid amount in JOD.');
@@ -118,21 +128,39 @@ export const WalletView: React.FC = () => {
       alert(isAr ? 'اسم مستعار كليك مطلوب لتأشير الحوالة.' : 'Your bank CliQ alias is required.');
       return;
     }
-    if (!fileUploaded) {
+    if (!fileUploaded || !selectedFile) {
       alert(isAr ? 'الرجاء إرفاق لقطة شاشة لوصل حوالة كليك للتحقق.' : 'Please upload your CliQ receipt screenshot to proceed.');
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      triggerCliQTopUp(Number(amount), alias, fileName);
+    try {
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const { storage } = await import('../services/firebase');
+      
+      const storagePath = `payment-proofs/${currentUser?.id || 'anonymous'}/${Date.now()}_${selectedFile.name}`;
+      const fileRef = ref(storage, storagePath);
+      await uploadBytes(fileRef, selectedFile);
+      const downloadURL = await getDownloadURL(fileRef);
+
+      await triggerCliQTopUp(Number(amount), alias, downloadURL);
+      
       setIsSubmitting(false);
       setSubmittedProof(true);
       // Reset
       setAmount('500');
       setFileUploaded(false);
       setFileName('');
-    }, 1500);
+      setSelectedFile(null);
+    } catch (error: any) {
+      console.error("Firebase Storage write failure during CliQ receipt upload:", error);
+      addNotification(
+        isAr ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed',
+        isAr ? `تعذر رفع صورة إيصال التحويل. الرجاء المحاولة مرة أخرى.` : `Failed to upload payment receipt. Please try again.`,
+        'alert'
+      );
+      setIsSubmitting(false);
+    }
   };
 
   const handleAdminApproveDeposit = (escrowId: string) => {
@@ -959,12 +987,21 @@ export const WalletView: React.FC = () => {
                     {isAr ? '3. لقطة شاشة لإثبات التحويل (إلزامي)' : '3. CLIQ RECEIPT SCREENSHOT ATTACHMENT'} <span className="text-red-500">*</span>
                   </label>
                   
+                  {/* Real hidden file input */}
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleRealFileUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  
                   <div 
-                    onClick={handleSimulatedFileUpload}
+                    onClick={handleTriggerFileInput}
                     className="border-2 border-dashed border-gray-200 hover:border-[#FF6B00] rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 bg-[#FAF9F6] shadow-2xs group"
                     id="screenshot-uploader-box"
                   >
-                    {fileUploaded ? (
+                    {fileUploaded && selectedFile ? (
                       <div className="flex flex-col items-center justify-center gap-1.5 text-emerald-650">
                         <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-150">
                           <CheckCircle className="w-5 h-5 shrink-0 stroke-[3]" />
@@ -984,7 +1021,7 @@ export const WalletView: React.FC = () => {
                             {isAr ? 'اضغط هنا لرفع الوصل المالي للتحويل' : 'UPLOAD TRANSFER RECEIPT SCREENSHOT'}
                           </p>
                           <p className="text-[9.5px] text-gray-400 uppercase tracking-tight mt-0.5">
-                            {isAr ? 'دعم صيغ الصور PNG، JPEG محاكاة' : 'SUPPORTED FORMATS: PNG, JPG'}
+                            {isAr ? 'دعم صيغ الصور PNG، JPEG' : 'SUPPORTED FORMATS: PNG, JPG'}
                           </p>
                         </div>
                       </div>
@@ -995,8 +1032,12 @@ export const WalletView: React.FC = () => {
                 {/* Step 4: Submit Buttons */}
                 <button 
                   type="submit" 
-                  disabled={isSubmitting}
-                  className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] disabled:opacity-40 uppercase text-xs cursor-pointer select-none"
+                  disabled={isSubmitting || !fileUploaded || !selectedFile}
+                  className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
+                    isSubmitting || !fileUploaded || !selectedFile
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none border border-gray-200' 
+                      : 'bg-[#FF6B00] hover:bg-[#FF8000] text-white hover:shadow-lg active:scale-[0.99]'
+                  }`}
                   id="submit-deposit-proof-btn"
                 >
                   {isSubmitting ? (
