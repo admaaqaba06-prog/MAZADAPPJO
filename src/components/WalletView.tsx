@@ -626,15 +626,28 @@ export const WalletView: React.FC = () => {
           const selectedRequest = selectedProofEscrow;
           const isRealUrl = (url?: string) => {
             if (!url) return false;
-            return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+            const clean = url.trim();
+            return clean.startsWith('http://') || 
+                   clean.startsWith('https://') || 
+                   clean.startsWith('data:') || 
+                   (clean.length > 30 && /^[A-Za-z0-9+/=]+$/.test(clean.substring(0, 30)));
+          };
+          const getReceiptImageSrc = (url?: string): string => {
+            if (!url) return '';
+            const clean = url.trim();
+            if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:')) {
+              return clean;
+            }
+            return `data:image/png;base64,${clean}`;
           };
           const rawUrl =
-            selectedRequest.paymentProofUrl ||
-            selectedRequest.paymentProofImage ||
-            selectedRequest.receiptUrl ||
-            selectedRequest.proofUrl ||
-            selectedRequest.paymentImageUrl;
-          const receiptImageUrl = isRealUrl(rawUrl) ? rawUrl : null;
+            selectedRequest.receiptUrl ??
+            selectedRequest.paymentProofUrl ??
+            selectedRequest.paymentProofImage ??
+            selectedRequest.proofUrl ??
+            selectedRequest.paymentImageUrl ??
+            null;
+          const receiptImageUrl = isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : null;
 
           console.log("Selected subscription request:", selectedRequest);
           console.log("Receipt image URL:", receiptImageUrl);

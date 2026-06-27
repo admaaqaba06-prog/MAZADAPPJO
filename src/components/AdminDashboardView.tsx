@@ -65,7 +65,20 @@ export const AdminDashboardView: React.FC = () => {
 
   const isRealUrl = (url?: string) => {
     if (!url) return false;
-    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+    const clean = url.trim();
+    return clean.startsWith('http://') || 
+           clean.startsWith('https://') || 
+           clean.startsWith('data:') || 
+           (clean.length > 30 && /^[A-Za-z0-9+/=]+$/.test(clean.substring(0, 30)));
+  };
+
+  const getReceiptImageSrc = (url?: string): string => {
+    if (!url) return '';
+    const clean = url.trim();
+    if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:')) {
+      return clean;
+    }
+    return `data:image/png;base64,${clean}`;
   };
 
   const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
@@ -730,13 +743,13 @@ export const AdminDashboardView: React.FC = () => {
                           <div className="min-w-0">
                             <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={
                               (() => {
-                                const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
-                                return isRealUrl(rawUrl) ? rawUrl : 'No receipt attached';
+                                const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
+                                return isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : 'No receipt attached';
                               })()
                             }>
                               {(() => {
-                                const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
-                                return isRealUrl(rawUrl) ? rawUrl : (isAr ? 'لا يوجد لقطة إيصال مرفقة' : 'No receipt attached');
+                                const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
+                                return isRealUrl(rawUrl) ? (rawUrl.length > 40 ? rawUrl.substring(0, 40) + '...' : rawUrl) : (isAr ? 'لا يوجد لقطة إيصال مرفقة' : 'No receipt attached');
                               })()}
                             </p>
                             <p className="text-[9px] text-gray-400">{isAr ? 'لقطة شاشة إشعار التحويل البنكي' : 'CliQ receipt attachment'}</p>
@@ -745,12 +758,12 @@ export const AdminDashboardView: React.FC = () => {
                         
                         <button 
                           onClick={() => {
-                            const rawUrl = dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl;
-                            setViewReceiptUrl(isRealUrl(rawUrl) ? rawUrl : null);
+                            const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
+                            setViewReceiptUrl(isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : null);
                           }}
-                          disabled={!isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)}
+                          disabled={!isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)}
                           className={`text-[11px] font-black shrink-0 px-2 ${
-                            isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)
+                            isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)
                               ? 'text-[#FF6B00] hover:underline cursor-pointer'
                               : 'text-gray-400 cursor-not-allowed'
                           }`}
@@ -771,10 +784,10 @@ export const AdminDashboardView: React.FC = () => {
                       {/* Action buttons */}
                       <div className="flex md:flex-col gap-2 w-full md:w-auto">
                         <button 
-                          disabled={!isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)}
+                          disabled={!isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)}
                           onClick={() => releaseEscrow(dep.id)}
                           className={`flex-1 md:w-44 font-extrabold text-xs py-2 px-3 rounded-xl transition-all shadow-xs ${
-                            isRealUrl(dep.paymentProofUrl || dep.paymentProofImage || dep.receiptUrl || dep.proofUrl || dep.paymentImageUrl)
+                            isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)
                               ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
                               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           }`}

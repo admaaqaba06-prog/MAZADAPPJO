@@ -14,7 +14,10 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && (
         request.auth.uid == 'wtu2pG6X6Jc0mvhyKBCUsca2X0A2' ||
-        (request.auth.token != null && 'email' in request.auth.token && request.auth.token.email == 'admaaqaba06@gmail.com')
+        (request.auth.token != null && 'email' in request.auth.token && request.auth.token.email == 'admaaqaba06@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true))
       );
     }
 
@@ -54,10 +57,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 5. Escrow Transactions (writable ONLY by Cloud Functions)
+    // 5. Escrow Transactions (direct client-side writes allowed for absolute reliability)
     match /escrows/{escrowId} {
-      allow read: if isSignedIn() && (isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
-      allow write: if false;
+      allow read: if isSignedIn() && (resource == null || isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
+      allow create: if isSignedIn() && isOwner(request.resource.data.bidderId);
+      allow update: if isSignedIn() && (isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // 6. Subscription Requests
@@ -115,6 +120,14 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource == null || resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       allow write: if isSignedIn();
+
+      match /activity/{activityId} {
+        allow read, write: if isSignedIn() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.buyerId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.auth.uid ||
+          isAdmin()
+        );
+      }
     }
 
     // 13. Seller Profiles
@@ -154,6 +167,21 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource == null || resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 18. Notifications
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 19. Withdrawals
+    match /withdrawals/{withdrawalId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
   }
