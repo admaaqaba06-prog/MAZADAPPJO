@@ -210,13 +210,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       <div className="hidden lg:flex flex-col h-screen overflow-hidden bg-[#F7F6F3]" id="desktop-premium-layout-root">
         
         {/* ======================================================================
-            GLOBAL DESKTOP HEADER (Standard height in other views, compact in live)
+            GLOBAL DESKTOP HEADER (Standard height, clean white, like the reference)
             ====================================================================== */}
-        <header className={`w-full border-b flex items-center justify-between px-6 shrink-0 z-40 transition-all duration-300 ${
-          activeView === 'live' 
-            ? 'h-14 bg-[#0a0a0d] border-white/5 text-white shadow-lg' 
-            : 'h-20 bg-white border-gray-200/85 text-gray-900 shadow-xs'
-        }`} id="global-desktop-header">
+        <header className="w-full h-16 border-b border-gray-200/80 flex items-center justify-between px-6 shrink-0 z-40 bg-white text-gray-900 shadow-sm" id="global-desktop-header">
           
           {/* 1. Logo & App Name (Left) */}
           <div 
@@ -227,7 +223,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               M
             </div>
             <div className="flex flex-col text-left rtl:text-right">
-              <span className={`text-xs font-black font-sans leading-none tracking-tight uppercase ${activeView === 'live' ? 'text-white' : 'text-gray-950'}`}>
+              <span className="text-xs font-black font-sans leading-none tracking-tight uppercase text-gray-950">
                 {t.appName}
               </span>
               <span className="text-[8.5px] text-gray-400 font-bold tracking-widest mt-1 leading-none font-mono">
@@ -242,12 +238,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               onClick={() => setActiveView('discovery')}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'discovery'
-                  ? activeView === 'live'
-                    ? 'bg-white/10 text-[#E85D04]'
-                    : 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : activeView === 'live'
-                    ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
               }`}
             >
               <Home className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -262,13 +254,11 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               }}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'live'
-                  ? 'bg-white/10 text-white shadow-xs border border-white/5'
-                  : activeView === 'live'
-                    ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
               }`}
             >
-              <Play className="w-4 h-4 shrink-0 stroke-[2] animate-pulse text-[#E85D04]" />
+              <Play className="w-4 h-4 shrink-0 stroke-[2] text-[#E85D04]" />
               <span>{isAr ? 'البث المباشر' : 'Live Stream'}</span>
             </button>
 
@@ -276,12 +266,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               onClick={() => setActiveView('upload')}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
-                  ? activeView === 'live'
-                    ? 'bg-white/10 text-[#E85D04]'
-                    : 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : activeView === 'live'
-                    ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
               }`}
             >
               <PlusCircle className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -292,12 +278,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               onClick={() => setActiveView('wallet')}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'wallet'
-                  ? activeView === 'live'
-                    ? 'bg-white/10 text-[#E85D04]'
-                    : 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : activeView === 'live'
-                    ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
               }`}
             >
               <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -309,12 +291,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 onClick={() => setActiveView('seller-center')}
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'seller-center'
-                    ? activeView === 'live'
-                      ? 'bg-white/10 text-[#E85D04]'
-                      : 'bg-[#E85D04]/10 text-[#E85D04]'
-                    : activeView === 'live'
-                      ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                    ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
                 }`}
               >
                 <Store className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -330,10 +308,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 }}
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'admin'
-                    ? 'bg-zinc-950 text-white'
-                    : activeView === 'live'
-                      ? 'text-[#E85D04] hover:bg-white/5'
-                      : 'text-[#E85D04] hover:bg-orange-50/65'
+                    ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-[#E85D04]'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -349,11 +325,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {wallet && (
               <div 
                 onClick={() => setActiveView('wallet')}
-                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors ${
-                  activeView === 'live'
-                    ? 'bg-white/5 border-white/10 text-zinc-100 hover:bg-white/10'
-                    : 'bg-[#FAF9F6] border-gray-200/80 text-gray-800 hover:border-gray-300'
-                }`}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-[#FAF9F6] border-gray-200/80 text-gray-800 hover:border-gray-300"
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
                 <span>{(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-[10px] text-gray-400">JOD</span></span>
@@ -363,11 +335,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Language switch */}
             <button 
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className={`p-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-                activeView === 'live'
-                  ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+              className="p-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-100"
               title={language === 'en' ? 'العربية' : 'English'}
             >
               <Globe className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -377,11 +345,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Notifications */}
             <button 
               onClick={() => setShowNotifications(true)}
-              className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
-                activeView === 'live'
-                  ? 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+              className="p-2 rounded-xl transition-colors cursor-pointer relative text-gray-500 hover:text-gray-900 hover:bg-gray-100"
               title={isAr ? 'الإشعارات' : 'Notifications'}
             >
               <Bell className="w-4 h-4" />
@@ -401,7 +365,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   alt={currentUser.name} 
                   className="w-8 h-8 rounded-full object-cover border border-gray-200/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
                 />
-                <span className={`hidden xl:inline text-xs font-bold ${activeView === 'live' ? 'text-zinc-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                <span className="hidden xl:inline text-xs font-bold text-gray-700 group-hover:text-gray-900">
                   {currentUser.name.split(' ')[0]}
                 </span>
               </div>
@@ -414,9 +378,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
         {/* WORKSPACE UNDERNEATH HEADER */}
         <div className="flex flex-1 min-h-0 w-full overflow-hidden" id="global-desktop-body">
           {activeView === 'live' ? (
-            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#070709] transition-all duration-300" id="desktop-premium-reels-layout">
+            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#F7F6F3] transition-all duration-300" id="desktop-premium-reels-layout">
               <Suspense fallback={
-                <div className="flex-1 h-full flex items-center justify-center bg-[#070709]">
+                <div className="flex-1 h-full flex items-center justify-center bg-[#F7F6F3]">
                   <div className="w-8 h-8 rounded-lg bg-[#E85D04] animate-spin"></div>
                 </div>
               }>

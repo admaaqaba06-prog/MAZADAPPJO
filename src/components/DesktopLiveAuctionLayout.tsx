@@ -9,12 +9,21 @@ import {
   Sparkles, 
   Eye, 
   Send, 
-  Award,
-  Maximize2,
   ShieldCheck,
   Trophy,
   Play,
-  Heart
+  Heart,
+  Grid,
+  Gavel,
+  Users,
+  Settings,
+  HelpCircle,
+  MapPin,
+  Truck,
+  Copy,
+  Smile,
+  Star,
+  Maximize2
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 
@@ -94,55 +103,69 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
-  const trustScore = activeSellerProfile?.trustScore || 85;
+  const trustScore = activeSellerProfile?.trustScore || 98;
+
+  // Navigation Links for left sidebar
+  const navLinks = [
+    { id: 'live', labelEn: 'Live Auctions', labelAr: 'المزادات المباشرة', icon: Play, active: true },
+    { id: 'categories', labelEn: 'Categories', labelAr: 'الفئات', icon: Grid },
+    { id: 'saved', labelEn: 'Saved Items', labelAr: 'العناصر المحفوظة', icon: Bookmark },
+    { id: 'my-bids', labelEn: 'My Bids', labelAr: 'مزايداتي', icon: Gavel },
+    { id: 'following', labelEn: 'Following', labelAr: 'المتابعة', icon: Users },
+    { id: 'settings', labelEn: 'Settings', labelAr: 'الإعدادات', icon: Settings },
+    { id: 'help', labelEn: 'Help Center', labelAr: 'مركز المساعدة', icon: HelpCircle },
+  ];
 
   return (
-    <div className="w-full h-full flex flex-row overflow-hidden bg-[#070709] relative select-none" id="mazad-jo-desktop-live-platform">
+    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#F7F6F3] relative select-none" id="mazad-jo-desktop-live-platform">
       
       {/* Toast Overlay */}
       {showToast && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-[#FF6B00] text-white px-5 py-2.5 rounded-xl text-xs font-black tracking-wide shadow-[0_8px_32px_rgba(255,107,0,0.45)] animate-fade-in text-center border border-orange-400/20">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-[#E85D04] text-white px-5 py-2.5 rounded-xl text-xs font-black tracking-wide shadow-lg animate-fade-in text-center border border-white/10">
           {showToast}
         </div>
       )}
 
       {/* ======================================================================
-          COLUMN 1: AUCTIONS LIST (320px)
+          COLUMN 1: DARK LEFT SIDEBAR (280px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[320px] bg-[#0c0c0f] border-r border-white/5 shrink-0 overflow-y-auto no-scrollbar" 
+        className="hidden lg:flex flex-col w-[280px] bg-[#121217] shrink-0 h-full border-r border-zinc-800" 
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-auctions-sidebar"
       >
-        <div className="p-4 border-b border-white/5 bg-black/20 shrink-0 flex items-center justify-between">
+        {/* Header section with count badge */}
+        <div className="p-4 border-b border-zinc-800/80 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-            <span className="text-xs font-black tracking-widest text-zinc-300 uppercase font-mono">
-              {isAr ? 'البث المباشر النشط' : 'LIVE AUCTIONS'}
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-xs font-black tracking-wider text-zinc-100 uppercase font-sans">
+              {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
             </span>
           </div>
-          <span className="bg-[#FF6B00]/10 text-[#FF6B00] text-[10px] font-black px-2 py-0.5 rounded border border-[#FF6B00]/20 font-mono font-sans">
+          <span className="bg-[#E85D04]/20 text-[#E85D04] text-[10px] font-black px-2.5 py-0.5 rounded border border-[#E85D04]/30 font-sans">
             {liveAuctions.length}
           </span>
         </div>
 
-        <div className="flex-1 p-3 space-y-2 overflow-y-auto no-scrollbar">
+        {/* Scrollable Auction cards list */}
+        <div className="flex-1 p-3 space-y-2.5 overflow-y-auto no-scrollbar">
           {liveAuctions.map((item) => {
             const isActive = item.id === activeAuction.id;
             const itemPrice = item.currentPrice;
+            const itemViewerCount = item.viewerCount || 2349;
             return (
               <button
                 key={item.id}
                 onClick={() => onSelectAuction(item.id)}
                 className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all border text-left cursor-pointer group select-none relative overflow-hidden ${
                   isActive 
-                    ? 'bg-zinc-900/90 border-[#FF6B00]/40 text-white font-black shadow-[0_4px_12px_rgba(255,107,0,0.15)]' 
-                    : 'bg-[#121216]/40 border-transparent hover:bg-zinc-900/30 text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-zinc-900 border-[#E85D04] text-white font-black shadow-[0_0_12px_rgba(232,93,4,0.15)]' 
+                    : 'bg-[#1a1a22]/40 border-transparent hover:bg-zinc-900/30 text-zinc-400 hover:text-zinc-200'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
-                {/* Image */}
-                <div className="w-12 h-16 rounded-lg bg-zinc-800 overflow-hidden shrink-0 border border-white/15 relative">
+                {/* Thumbnail */}
+                <div className="w-12 h-16 rounded-lg bg-zinc-800 overflow-hidden shrink-0 border border-white/10 relative">
                   <img 
                     src={item.thumbnailUrl} 
                     alt={item.title} 
@@ -151,7 +174,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   />
                   {isActive ? (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B00] animate-ping" />
+                      <span className="w-2 h-2 rounded-full bg-[#E85D04] animate-ping" />
                     </div>
                   ) : (
                     <div className="absolute top-1 left-1 bg-red-600/90 text-white text-[7px] font-black px-1 py-0.2 rounded uppercase tracking-wider">
@@ -160,20 +183,21 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   )}
                 </div>
 
-                {/* Info block */}
+                {/* Info Block */}
                 <div className="min-w-0 flex-grow text-left rtl:text-right">
-                  <h4 className="text-[12px] font-bold text-zinc-100 truncate group-hover:text-white transition-colors">
+                  <h4 className="text-[11px] font-bold text-zinc-100 truncate group-hover:text-white transition-colors">
                     {item.title}
                   </h4>
-                  <p className="text-[11px] text-[#FF6B00] font-black mt-1 leading-none font-mono">
-                    {itemPrice.toLocaleString()} JD
+                  <p className="text-[11px] text-[#E85D04] font-black mt-1 leading-none font-sans">
+                    {itemPrice.toLocaleString()} JOD
                   </p>
                   <div className="flex items-center justify-between mt-2">
                     <span className="inline-block text-[8px] font-black uppercase bg-white/5 border border-white/10 text-zinc-400 px-1.5 py-0.5 rounded-md leading-none">
-                      {item.category || (isAr ? 'مزاد' : 'Auction')}
+                      {item.category || (isAr ? 'إلكترونيات' : 'ELECTRONICS')}
                     </span>
-                    <span className="text-[8px] text-zinc-500 font-mono">
-                      {isAr ? 'نشط' : 'Active'}
+                    <span className="text-[8px] text-zinc-500 font-mono flex items-center gap-1">
+                      <Eye className="w-2.5 h-2.5" />
+                      {(itemViewerCount >= 1000 ? `${(itemViewerCount / 1000).toFixed(1)}K` : itemViewerCount)}
                     </span>
                   </div>
                 </div>
@@ -181,15 +205,75 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             );
           })}
         </div>
+
+        {/* Middle section Navigation Links */}
+        <div className="p-3 border-t border-zinc-800/80 space-y-1">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            return (
+              <button
+                key={link.id}
+                onClick={() => {
+                  if (link.id === 'live') {
+                    setActiveView('live');
+                  } else {
+                    setActiveView('discovery');
+                  }
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  link.active 
+                    ? 'bg-[#E85D04]/10 text-[#E85D04]' 
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'
+                }`}
+                style={{ direction: isAr ? 'rtl' : 'ltr' }}
+              >
+                <Icon className="w-4 h-4 shrink-0 stroke-[2]" />
+                <span>{isAr ? link.labelAr : link.labelEn}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Bottom Seller Card */}
+        {activeSellerProfile && (
+          <div 
+            onClick={() => setSelectedProfileId(activeSellerProfile.userId)}
+            className="mt-auto p-3 m-3 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              {activeSellerProfile.storeLogo ? (
+                <img
+                  src={activeSellerProfile.storeLogo}
+                  alt=""
+                  className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#E85D04] text-white flex items-center justify-center font-black text-xs shrink-0">
+                  {activeSellerProfile.storeName?.[0] || 'M'}
+                </div>
+              )}
+              <div className="min-w-0 text-left rtl:text-right">
+                <span className="text-[11px] font-bold text-zinc-100 truncate block leading-tight">
+                  {activeSellerProfile.storeName || 'MAZAD JO Store'}
+                </span>
+                <span className="text-[9px] text-[#E85D04] font-semibold block leading-none mt-1">
+                  {isAr ? 'حساب بائع موثق' : 'Verified Merchant'}
+                </span>
+              </div>
+            </div>
+            <span className="text-zinc-500 font-sans text-xs">›</span>
+          </div>
+        )}
       </aside>
 
       {/* ======================================================================
-          COLUMN 2: IMMERSIVE VIDEO (Flex Largest Area)
+          COLUMN 2: MAIN HERO VIDEO AND INFO (Flex-1)
           ====================================================================== */}
-      <main className="flex-grow lg:flex-1 min-w-[800px] h-full flex flex-col overflow-y-auto p-6" id="desktop-live-main-content">
+      <main className="flex-1 h-full flex flex-col p-4 overflow-y-auto no-scrollbar" id="desktop-live-main-content">
         
-        {/* Navigation improvements bar (Back button & Breadcrumbs) */}
-        <div className="flex items-center justify-between mb-4 text-xs font-medium select-none text-zinc-400 shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+        {/* Top Header Row (Back to Live Auctions & Breadcrumbs) */}
+        <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 select-none shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
           
           {/* Back button */}
           <button 
@@ -200,28 +284,28 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 setActiveView('discovery');
               }
             }}
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer font-bold tracking-wide"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors cursor-pointer font-bold tracking-wide"
           >
             <span className="text-sm font-sans">{isAr ? '←' : '←'}</span>
             <span>{isAr ? 'العودة للمزادات المباشرة' : 'Back to Live Auctions'}</span>
           </button>
 
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-semibold" id="live-breadcrumbs">
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-semibold" id="live-breadcrumbs">
             <span 
               onClick={() => setActiveView('discovery')}
-              className="hover:text-zinc-200 cursor-pointer transition-colors"
+              className="hover:text-gray-600 cursor-pointer transition-colors"
             >
               {isAr ? 'الرئيسية' : 'Home'}
             </span>
-            <span className="text-zinc-600 font-mono">/</span>
+            <span className="text-gray-300 font-mono">/</span>
             <span 
               onClick={() => setActiveView('discovery')}
-              className="hover:text-zinc-200 cursor-pointer transition-colors"
+              className="hover:text-gray-600 cursor-pointer transition-colors"
             >
               {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
             </span>
-            <span className="text-zinc-600 font-mono">/</span>
+            <span className="text-gray-300 font-mono">/</span>
             <span className="text-[#E85D04] font-bold truncate max-w-[200px]" title={activeAuction.title}>
               {activeAuction.title}
             </span>
@@ -229,13 +313,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         </div>
 
-        {/* THE IMMERSIVE CLEAN PLAYER CONTAINER */}
+        {/* Video Card Player Canvas with overlays */}
         <div 
           ref={videoContainerRef}
-          className="w-full h-[620px] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0" 
+          className="w-full aspect-[16/10] max-h-[460px] bg-black rounded-2xl border border-gray-200/40 relative overflow-hidden group shadow-lg shrink-0" 
           id="professional-video-player-canvas"
         >
-          {/* Real HTML5 Live Video Element */}
+          {/* Live Video Tag */}
           <video 
             ref={videoRef}
             src={activeAuction.videoUrl} 
@@ -247,458 +331,352 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             onClick={onPlayPauseToggle}
           />
 
-          {/* 1. TOP LEFT: LIVE STATUS OVERLAYS */}
-          <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-            <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg border border-red-500/20">
-              <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
-              {isAr ? 'مباشر' : 'LIVE'}
-            </span>
-
-            <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg border border-white/10">
-              <Eye className="w-3.5 h-3.5 text-zinc-400" />
-              <span>{viewerCount.toLocaleString()} {isAr ? 'مشاهدة' : 'Watching'}</span>
-            </span>
-          </div>
-
-          {/* 2. TOP RIGHT: TRANSFUSED PLAY/MUTE CONTROLS */}
-          <div className="absolute top-4 right-4 z-20 flex gap-2">
-            <button 
-              onClick={onPlayPauseToggle}
-              className="p-2.5 rounded-xl bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-[#FF6B00] hover:border-transparent hover:scale-105 transition-all cursor-pointer shadow-lg"
-              title={isPlaying ? (isAr ? 'إيقاف مؤقت' : 'Pause') : (isAr ? 'تشغيل' : 'Play')}
-            >
-              <Play className={`w-4.5 h-4.5 ${isPlaying ? 'fill-white text-white' : 'text-zinc-300'}`} />
-            </button>
-            <button 
-              onClick={onMuteToggle}
-              className="p-2.5 rounded-xl bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-[#FF6B00] hover:border-transparent hover:scale-105 transition-all cursor-pointer shadow-lg"
-              title={isAr ? 'كتم/تشغيل الصوت' : 'Mute/Unmute'}
-            >
-              {isMuted ? <VolumeX className="w-4.5 h-4.5 text-red-400" /> : <Volume2 className="w-4.5 h-4.5 text-emerald-400" />}
-            </button>
-          </div>
-        </div>
-
-        {/* GRID BELOW VIDEO: 3 columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6" id="below-video-details-grid">
-          
-          {/* Column 1: Live Chat */}
-          <div className="bg-[#0c0c0f] border border-white/5 p-4 rounded-2xl flex flex-col h-[320px]">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-                <span className="text-xs font-black text-zinc-300 uppercase tracking-widest font-mono">
-                  {isAr ? 'الدردشة الحية' : 'LIVE CHAT'}
-                </span>
-              </div>
-              <span className="bg-red-500/10 text-red-500 text-[9px] font-black px-2 py-0.5 rounded border border-red-500/20 font-mono tracking-wider">
+          {/* 1. TOP LEFT OVERLAYS */}
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
                 {isAr ? 'مباشر' : 'LIVE'}
               </span>
+
+              <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
+                <Eye className="w-3 h-3 text-white/80" />
+                <span>{viewerCount.toLocaleString()} Watching</span>
+              </span>
             </div>
 
-            {/* Scrollable messages area */}
-            <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pr-1 flex flex-col justify-end">
-              {activeComments.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className="bg-white/5 border border-white/5 rounded-xl p-2 flex items-start gap-2 shadow-sm shrink-0"
-                >
-                  <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                    alt="User" 
-                    className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="min-w-0 flex-grow text-left rtl:text-right">
-                    <span className="text-[9px] font-black text-orange-400 truncate block leading-none">
-                      {msg.userName}
-                    </span>
-                    <p className="text-[10.5px] text-zinc-200 font-medium leading-normal mt-1">
-                      {msg.text}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            {/* Auction and seller overlay */}
+            <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
+              <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
+              <p className="text-[10px] text-white/80 font-bold mt-1 flex items-center gap-1">
+                by {activeSellerProfile?.storeName || 'MAZAD JO Store'}
+                <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
+              </p>
             </div>
+          </div>
 
-            {/* COMMENT INPUT FORM */}
-            <form 
-              onSubmit={onCommentSubmit} 
-              className="mt-2 flex gap-1.5 bg-[#121216]/50 border border-white/5 p-1 rounded-xl shrink-0"
+          {/* 2. TOP RIGHT CONTROLS */}
+          <div className="absolute top-4 right-4 z-20 flex gap-2">
+            <button 
+              onClick={onShareClick}
+              className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
+              title="Share"
             >
-              <input 
-                type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder={isAr ? 'اكتب تعليقاً...' : 'Send live message...'}
-                className="flex-grow h-8 px-2.5 bg-white/5 border border-white/5 rounded-lg text-zinc-100 text-[10.5px] placeholder-zinc-500 outline-none focus:border-[#FF6B00]/40 transition-colors"
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={toggleFullscreen}
+              className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
+              title="Fullscreen"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 3. BOTTOM GLASSMORPHISM BID PANEL */}
+          <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
+            
+            <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
+              {/* Current Bid */}
+              <div className="flex flex-col text-left rtl:text-right">
+                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                  {isAr ? 'العطاء الحالي' : 'Current Bid'}
+                </span>
+                <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
+                  {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
+                </span>
+                <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
+                  +{(activeAuction.bidIncrement || 25)} JOD
+                </span>
+              </div>
+
+              {/* Time Remaining */}
+              <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
+                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
+                  {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                </span>
+                <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
+                  {timeLeftStr}
+                </span>
+                <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
+                  HRS : MIN : SEC
+                </span>
+              </div>
+
+              {/* Top Bidder */}
+              <div className="flex flex-col text-right rtl:text-left">
+                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                  {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
+                </span>
+                <span className="text-xs font-bold text-white truncate mt-1 leading-none">
+                  {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
+                </span>
+                <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                  ★ {trustScore}% <span className="opacity-60">(124)</span>
+                </span>
+              </div>
+            </div>
+
+            {/* SWIPE TO BID Button */}
+            <div className="w-full">
+              <SwipeToBid
+                amount={nextBidAmount}
+                onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                language={isAr ? 'ar' : 'en'}
               />
-              <button 
-                type="submit"
-                className="h-8 w-8 bg-[#FF6B00] hover:bg-orange-600 text-white rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-md"
-              >
-                <Send className="w-3 h-3" />
-              </button>
-            </form>
-          </div>
-
-          {/* Column 2: Recent Bids */}
-          <div className="bg-[#0c0c0f] border border-white/5 p-4 rounded-2xl flex flex-col h-[320px]">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2 shrink-0">
-              <span className="text-xs font-black text-zinc-300 uppercase tracking-widest font-mono">
-                {isAr ? 'المزايدات الأخيرة' : 'RECENT BIDS'}
-              </span>
-              <span className="bg-[#FF6B00]/10 text-[#FF6B00] text-[9px] font-black px-2 py-0.5 rounded border border-[#FF6B00]/20 font-mono tracking-wider">
-                {isAr ? 'خلاصة المزايدات' : 'BID FEED'}
-              </span>
             </div>
 
-            <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pr-1">
-              {recentBids && recentBids.length > 0 ? (
-                recentBids.map((bid) => (
-                  <div 
-                    key={bid.id} 
-                    className="bg-white/5 border border-white/5 rounded-xl p-2.5 flex items-center justify-between shadow-sm"
-                  >
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black text-zinc-200 block truncate leading-none">
-                        {bid.name}
-                      </span>
-                      <span className="text-[8px] text-zinc-500 mt-1 block">
-                        {bid.time}
-                      </span>
-                    </div>
-                    <span className="text-[11.5px] font-black text-emerald-400 font-mono">
-                      {bid.amount.toLocaleString()} <span className="text-[8.5px] font-normal text-zinc-400">{isAr ? 'د.أ' : 'JD'}</span>
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="h-full flex items-center justify-center text-zinc-500 text-[10.5px]">
-                  {isAr ? 'لا يوجد مزايدات بعد' : 'No bids yet'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Column 3: Activity Feed */}
-          <div className="bg-[#0c0c0f] border border-white/5 p-4 rounded-2xl flex flex-col h-[320px]">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2 shrink-0">
-              <span className="text-xs font-black text-zinc-300 uppercase tracking-widest font-mono">
-                {isAr ? 'خلاصة الأنشطة الحية' : 'ACTIVITY FEED'}
-              </span>
-              <span className="bg-sky-500/10 text-sky-400 text-[9px] font-black px-2 py-0.5 rounded border border-sky-500/20 font-mono tracking-wider">
-                {isAr ? 'خلاصة تقنية' : 'TELEMETRY'}
-              </span>
-            </div>
-
-            <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pr-1">
-              {allActivities && allActivities.length > 0 ? (
-                allActivities.map((act) => {
-                  let badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/20";
-                  if (act.type === 'like') {
-                    badgeColor = "bg-red-500/10 text-red-400 border-red-500/20";
-                  } else if (act.type === 'join') {
-                    badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-                  } else if (act.type === 'follow') {
-                    badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-                  }
-
-                  return (
-                    <div 
-                      key={act.id} 
-                      className="bg-white/5 border border-white/5 rounded-xl p-2 flex items-center justify-between shadow-sm gap-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-black text-zinc-200 block truncate leading-none">
-                          {act.name}
-                        </span>
-                        <span className="text-[9px] text-zinc-400 mt-1 block">
-                          {isAr ? act.textAr : act.textEn}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end shrink-0">
-                        <span className={`text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded border ${badgeColor}`}>
-                          {act.type}
-                        </span>
-                        <span className="text-[7.5px] text-zinc-500 mt-1">
-                          {act.time}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="h-full flex items-center justify-center text-zinc-500 text-[10.5px]">
-                  {isAr ? 'لا يوجد تفاعل بعد' : 'No activities yet'}
-                </div>
-              )}
-            </div>
           </div>
 
         </div>
 
-        {/* DESCRIPTION & RELATED AUCTIONS BELOW THE 3 COLUMNS */}
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4" id="description-and-related-row">
-          {/* Description (Spans 2 cols) */}
-          <div className="xl:col-span-2 bg-[#0c0c0f] border border-white/5 p-6 rounded-2xl shadow-lg">
-            <div className="flex items-center gap-2 border-b border-white/5 pb-3.5 mb-4">
-              <Sparkles className="w-4.5 h-4.5 text-amber-400" />
-              <h3 className="text-[13px] font-black tracking-wider text-zinc-200 uppercase">
-                {isAr ? 'تفاصيل ومواصفات المعروض' : 'LOT SPECIFICATIONS & DESCRIPTION'}
-              </h3>
+        {/* Product information row underneath video card */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          
+          {/* Product Condition */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+              <ShieldCheck className="w-4.5 h-4.5" />
             </div>
-            <p className="text-zinc-300 text-[13px] leading-relaxed font-sans font-medium whitespace-pre-wrap text-left rtl:text-right">
-              {activeAuction.description}
-            </p>
-
-            {/* Specs parameters grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex flex-col">
-                <span className="text-[8px] text-zinc-500 font-black uppercase tracking-wider text-left rtl:text-right">{isAr ? 'حالة المنتج' : 'LOT CONDITION'}</span>
-                <span className="text-[11.5px] font-black text-emerald-400 mt-1 leading-none text-left rtl:text-right">{isAr ? 'ممتاز (غير مستخدم)' : 'Pristine (New)'}</span>
-              </div>
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex flex-col">
-                <span className="text-[8px] text-zinc-500 font-black uppercase tracking-wider text-left rtl:text-right">{isAr ? 'أمان الضمان المالي' : 'ESCROW ASSURED'}</span>
-                <span className="text-[11.5px] font-black text-[#FF6B00] mt-1 leading-none text-left rtl:text-right">{isAr ? 'مشمول بالكامل' : '100% Secured'}</span>
-              </div>
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex flex-col">
-                <span className="text-[8px] text-zinc-500 font-black uppercase tracking-wider text-left rtl:text-right">{isAr ? 'الضمان والنوع' : 'WARRANTY'}</span>
-                <span className="text-[11.5px] font-black text-zinc-300 mt-1 leading-none text-left rtl:text-right">{isAr ? 'ضمان رسمي 12 شهر' : '12 Month Covered'}</span>
-              </div>
+            <div className="text-left rtl:text-right">
+              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'حالة المنتج' : 'Product Condition'}</span>
+              <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {isAr ? 'جديد ممتاز' : 'NEW'}
+              </span>
             </div>
           </div>
 
-          {/* Related Auctions (Spans 1 col) */}
-          <div className="bg-[#0c0c0f] border border-white/5 p-5 rounded-2xl shadow-lg flex flex-col h-full min-h-[220px]">
-            <div className="flex items-center gap-2 border-b border-white/5 pb-2.5 mb-4 shrink-0">
-              <Trophy className="w-4 h-4 text-orange-400" />
-              <h3 className="text-xs font-black tracking-wider text-zinc-200 uppercase">
-                {isAr ? 'مزادات أخرى قد تهمك' : 'RELATED LIVE & UPCOMING'}
-              </h3>
+          {/* Shipping */}
+          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
+            <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-[#E85D04]">
+              <Truck className="w-4.5 h-4.5" />
             </div>
-            
-            <div className="flex-grow overflow-y-auto no-scrollbar pr-1 space-y-2.5 max-h-[180px]">
-              {liveAuctions.filter(a => a.id !== activeAuction.id).slice(0, 6).map((item) => {
-                const itemPrice = item.currentPrice;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectAuction(item.id)}
-                    className="w-full bg-[#141419] hover:bg-[#1a1a23] border border-white/5 hover:border-[#FF6B00]/40 p-2.5 rounded-xl text-left cursor-pointer transition-all duration-300 group flex items-center gap-3"
-                    style={{ direction: isAr ? 'rtl' : 'ltr' }}
-                  >
-                    <div className="w-16 h-12 rounded-lg overflow-hidden border border-white/10 relative shrink-0 bg-zinc-900">
-                      <img 
-                        src={item.thumbnailUrl} 
-                        alt={item.title} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        referrerPolicy="no-referrer" 
-                      />
-                      <span className="absolute top-1 left-1 bg-red-600/90 text-[6.5px] text-white font-black px-1 py-0.2 rounded uppercase tracking-wider">
-                        {item.status === 'live' ? 'LIVE' : 'UPCOMING'}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-grow text-left rtl:text-right">
-                      <h4 className="text-[11.5px] font-bold text-zinc-200 truncate group-hover:text-white">
-                        {item.title}
-                      </h4>
-                      <p className="text-[11px] text-[#FF6B00] font-black mt-1 font-mono">
-                        {itemPrice.toLocaleString()} JD
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="text-left rtl:text-right">
+              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الشحن' : 'Shipping'}</span>
+              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
+                {isAr ? 'توصيل مجاني' : 'Free Delivery'}
+              </span>
             </div>
           </div>
+
+          {/* Location */}
+          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
+            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+              <MapPin className="w-4.5 h-4.5" />
+            </div>
+            <div className="text-left rtl:text-right">
+              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الموقع' : 'Location'}</span>
+              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
+                {isAr ? 'عمان، الأردن' : 'Amman, Jordan'}
+              </span>
+            </div>
+          </div>
+
+          {/* Auction ID */}
+          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
+            <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+              <Trophy className="w-4.5 h-4.5" />
+            </div>
+            <div className="text-left rtl:text-right">
+              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'رقم المزاد' : 'Auction ID'}</span>
+              <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                <span>#{activeAuction.id?.slice(0, 8).toUpperCase() || 'AUC-78291'}</span>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeAuction.id || 'AUC-78291');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                  title="Copy"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            </div>
+          </div>
+
         </div>
 
       </main>
 
       {/* ======================================================================
-          COLUMN 3: PREMIUM INTERACTION SIDEBAR (420px)
+          COLUMN 3: RIGHT PANEL (360px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[420px] bg-[#0c0c0f] border-l border-white/5 shrink-0 overflow-y-auto p-4 gap-4"
+        className="hidden lg:flex flex-col w-[360px] bg-[#F7F6F3] border-l border-gray-200/80 shrink-0 h-full p-4 gap-4 overflow-y-auto no-scrollbar"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-new-aside-panel"
       >
         
-        {/* Card 1: Current Bid & Time Left */}
-        <div className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-[#FF6B00] tracking-wider uppercase">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isAr ? 'المعروض الحالي' : 'ACTIVE LOT'}</span>
+        {/* Card 1: Seller Store Summary */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              {activeSellerProfile?.storeLogo ? (
+                <img 
+                  src={activeSellerProfile.storeLogo} 
+                  alt="" 
+                  className="w-11 h-11 rounded-full object-cover border border-gray-100 shrink-0 animate-fade-in" 
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#E85D04] to-orange-400 flex items-center justify-center font-black text-white text-base font-sans shrink-0">
+                  {activeSellerProfile?.storeName?.[0] || 'M'}
+                </div>
+              )}
+              <div className="text-left rtl:text-right min-w-0 flex-1">
+                <h4 className="text-xs font-black text-gray-900 leading-none flex items-center gap-1">
+                  <span className="truncate">{activeSellerProfile?.storeName || 'MAZAD JO Store'}</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />
+                </h4>
+                <span className="text-[10px] text-emerald-500 font-bold block mt-1 leading-none">
+                  Verified Merchant Seller
+                </span>
+              </div>
             </div>
-            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px] font-mono font-black tracking-wider">
+            <button className="px-3.5 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50 text-[11px] font-bold text-gray-700 transition-all cursor-pointer">
+              {isAr ? 'متابعة' : 'Follow'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+            <div className="flex flex-col items-center">
+              <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
+                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                4.9 <span className="text-[9px] text-gray-400 font-normal">(124)</span>
+              </span>
+              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
+            </div>
+            <div className="flex flex-col items-center border-x border-gray-100">
+              <span className="text-[11px] font-black text-gray-800">512</span>
+              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Sales</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[11px] font-black text-gray-800">98%</span>
+              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Protection</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Current Bid & Time Left Card */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm grid grid-cols-2 gap-4 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div className="text-left rtl:text-right">
+            <span className="text-[9px] text-gray-400 font-extrabold block uppercase tracking-wider leading-none">
+              {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
+            </span>
+            <span className="text-xl font-black text-[#E85D04] font-mono mt-2 block leading-none">
+              {activePrice.toLocaleString()} <span className="text-[11px] font-normal text-gray-500">JOD</span>
+            </span>
+          </div>
+          <div className="text-right rtl:text-left border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
+            <span className="text-[9px] text-gray-400 font-extrabold block uppercase tracking-wider leading-none">
+              {isAr ? 'الوقت المتبقي' : 'TIME REMAINING'}
+            </span>
+            <span className="text-lg font-black text-emerald-500 font-mono mt-2 block leading-none">
               {timeLeftStr}
             </span>
           </div>
-
-          <h3 className="text-xs font-black text-white truncate leading-tight">
-            {activeAuction.title}
-          </h3>
-
-          <div className="grid grid-cols-2 gap-2 bg-white/5 p-2.5 rounded-xl border border-white/5">
-            <div>
-              <span className="text-[9px] text-zinc-400 block uppercase font-extrabold tracking-wider leading-none">{isAr ? 'العطاء الحالي' : 'CURRENT BID'}</span>
-              <span className="text-2xl font-black text-[#FF6B00] font-mono leading-none block mt-1.5">
-                {activePrice.toLocaleString()} <span className="text-[11px] font-normal text-white/50">{isAr ? 'د.أ' : 'JOD'}</span>
-              </span>
-            </div>
-            <div className="text-right border-l rtl:border-r rtl:border-l-0 border-white/5 pl-2.5 pr-2.5 flex flex-col justify-center">
-              <span className="text-[9px] text-zinc-400 block uppercase font-extrabold tracking-wider leading-none">{isAr ? 'متبقي من الوقت' : 'TIME REMAINING'}</span>
-              <span className="text-xs font-bold text-emerald-400 mt-1.5 font-mono">
-                {timeLeftStr}
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Card 2: Quick Bid Multipliers & Swipe to Bid */}
-        <div className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-3">
-          <span className="text-[9px] text-zinc-400 block uppercase font-extrabold tracking-wider leading-none">
-            {isAr ? 'مضاعفات العطاء السريع' : 'QUICK BID MULTIPLIERS'}
-          </span>
-          <div className="flex items-center gap-2 w-full justify-center">
-            {[25, 50, 100, 250].map((val) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => onBidExecute(activePrice + val)}
-                className="flex-1 py-2.5 rounded-xl bg-zinc-900 border border-white/10 hover:border-[#FF6B00]/40 text-white font-black text-[11px] transition-all cursor-pointer hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-0.5"
-              >
-                +{val} <span className="text-[8px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-              </button>
-            ))}
+        {/* Card 3: Bid History Card */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col min-h-[180px] max-h-[220px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
+            <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
+              {isAr ? 'سجل المزايدات' : 'Bid History'}
+            </span>
+            <button className="text-[10px] font-bold text-gray-400 hover:text-gray-600">
+              {isAr ? 'عرض الكل' : 'See all'}
+            </button>
           </div>
-
-          <div className="w-full mt-1">
-            <SwipeToBid
-              amount={nextBidAmount}
-              onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-              disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-              language={isAr ? 'ar' : 'en'}
-            />
-          </div>
-        </div>
-
-        {/* Card 3: Horizontal Actions Row */}
-        <div className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex items-center justify-around gap-3">
-          {/* Like Appreciation */}
-          <button 
-            onClick={onLikeToggle}
-            className="flex-1 py-2 rounded-xl bg-zinc-900 border border-white/5 text-white flex items-center justify-center gap-2 hover:bg-red-500/10 hover:border-red-500/20 active:scale-95 transition-all cursor-pointer"
-          >
-            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-            <span className="text-[11px] font-black">{isAr ? 'أعجبني' : 'Like'}</span>
-          </button>
-
-          {/* Save Lot */}
-          <button 
-            onClick={onSaveToggle}
-            className={`flex-1 py-2 rounded-xl bg-zinc-900 border text-white flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer ${
-              isSaved ? 'border-[#FF6B00] text-[#FF6B00] bg-[#FF6B00]/5' : 'border-white/5 hover:bg-zinc-800'
-            }`}
-          >
-            <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-[#FF6B00]' : ''}`} />
-            <span className="text-[11px] font-black">{isAr ? 'حفظ' : 'Save'}</span>
-          </button>
-
-          {/* Share Link */}
-          <button 
-            onClick={onShareClick}
-            className="flex-1 py-2 rounded-xl bg-zinc-900 border border-white/5 text-white flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-95 transition-all cursor-pointer"
-          >
-            <Share2 className="w-4 h-4 text-sky-400" />
-            <span className="text-[11px] font-black">{isAr ? 'مشاركة' : 'Share'}</span>
-          </button>
-        </div>
-
-        {/* Card 4: Verified Seller & Escrow Protection */}
-        <div 
-          onClick={() => {
-            if (activeSellerProfile) {
-              setSelectedProfileId(activeSellerProfile.userId);
-            }
-          }}
-          className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-4 hover:border-orange-500/20 transition-all cursor-pointer"
-        >
-          <div className="flex items-center gap-3 pb-3 border-b border-white/5">
-            {activeSellerProfile?.storeLogo ? (
-              <img 
-                src={activeSellerProfile.storeLogo} 
-                alt="Logo" 
-                className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-md border border-white/10" 
-              />
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
+            {recentBids && recentBids.length > 0 ? (
+              recentBids.map((bid, index) => {
+                const isHighest = index === 0;
+                return (
+                  <div 
+                    key={bid.id || index}
+                    className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
+                      isHighest 
+                        ? 'bg-orange-50/50 border-orange-200/60' 
+                        : 'bg-white border-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200/60 flex items-center justify-center font-bold text-[10px] text-gray-500 shrink-0 uppercase">
+                        {bid.name?.[0] || 'U'}
+                      </div>
+                      <div className="min-w-0 text-left rtl:text-right">
+                        <span className="text-[11px] font-bold text-gray-800 block truncate leading-none">{bid.name}</span>
+                        <span className="text-[9px] text-gray-400 mt-1 block leading-none">{bid.time || 'Just now'}</span>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-black font-mono ${isHighest ? 'text-[#E85D04]' : 'text-gray-700'}`}>
+                      {bid.amount.toLocaleString()} <span className="text-[8.5px] font-normal text-gray-400">JOD</span>
+                    </span>
+                  </div>
+                );
+              })
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-lg font-mono shrink-0 shadow-md">
-                {activeSellerProfile?.storeName?.[0] || 'M'}
+              <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                {isAr ? 'لا يوجد عطاءات بعد' : 'No bids yet'}
               </div>
             )}
-            <div className="text-left rtl:text-right min-w-0 flex-grow">
-              <span className="text-[12.5px] font-black text-white block leading-none truncate">
-                {activeSellerProfile?.storeName || (isAr ? 'شركة مزاد الأردن الرسمية' : 'MAZAD JO Merchant')}
-              </span>
-              <span className="text-[9.5px] text-orange-400 font-extrabold mt-1.5 block leading-none flex items-center gap-1 flex-wrap">
-                {isVerified ? (
-                  <>
-                    <ShieldCheck className={`w-3.5 h-3.5 ${isPremium ? 'text-amber-400' : 'text-emerald-400'}`} />
-                    <span>{isPremium ? (isAr ? 'بائع متميز موثق' : 'PREMIUM VERIFIED SELLER') : (isAr ? 'بائع معتمد موثق' : 'VERIFIED MERCHANT SELLER')}</span>
-                  </>
-                ) : (
-                  <span>✓ {isAr ? 'بائع معتمد مرخص' : 'VERIFIED MERCHANT SELLER'}</span>
-                )}
-              </span>
-            </div>
-            {activeSellerProfile && (
-              <div className="bg-orange-600/10 px-2 py-1 rounded-lg text-orange-400 text-[10px] font-black flex flex-col items-center shrink-0">
-                <span className="text-[7.5px] text-zinc-500 uppercase">TRUST</span>
-                <span>{trustScore}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 bg-[#121216]/50 p-2.5 rounded-xl border border-white/5">
-            <div className="flex items-center gap-2 text-emerald-400">
-              <ShieldCheck className="w-4.5 h-4.5 shrink-0" />
-              <span className="text-[10px] font-black tracking-wider uppercase">
-                {isAr ? 'نظام الضمان كليك (Escrow)' : 'CliQ Escrow Assurance'}
-              </span>
-            </div>
-            <p className="text-[10.5px] text-zinc-400 leading-relaxed font-sans font-medium text-left rtl:text-right">
-              {isAr 
-                ? 'رصيدك مؤمن بالكامل في حساب ضمان رسمي لدى البنك المركزي. لا يتم الإفراج عن المبلغ للبائع إلا بعد تأكيد استلامك للمنتج.' 
-                : 'Funds are secured in central bank escrow and only released to the seller after delivery and confirmation.'}
-            </p>
           </div>
         </div>
 
-        {/* Card 5: Specifications & Description */}
-        <div className="bg-[#141419] rounded-2xl p-4 border border-white/5 flex flex-col gap-3.5">
-          <div className="flex items-center gap-2 border-b border-white/5 pb-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <h3 className="text-[11px] font-black tracking-wider text-zinc-300 uppercase">
-              {isAr ? 'تفاصيل ومواصفات المعروض' : 'LOT SPECIFICATIONS'}
-            </h3>
+        {/* Card 4: Modern Live Chat */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col h-[280px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
+                {isAr ? 'الدردشة الحية' : 'Live Chat'}
+              </span>
+            </div>
+            <span className="text-[9px] text-gray-400 font-bold">● 2.1K</span>
           </div>
 
-          <p className="text-zinc-300 text-[11.5px] leading-relaxed font-sans font-medium whitespace-pre-wrap text-left rtl:text-right">
-            {activeAuction.description}
-          </p>
-
-          <div className="grid grid-cols-2 gap-2.5 mt-2">
-            <div className="bg-white/5 p-2 rounded-xl border border-white/5 flex flex-col">
-              <span className="text-[7.5px] text-zinc-500 font-black uppercase tracking-wider text-left rtl:text-right">{isAr ? 'حالة المنتج' : 'LOT CONDITION'}</span>
-              <span className="text-[10px] font-black text-emerald-400 mt-1 leading-none text-left rtl:text-right">{isAr ? 'ممتاز (غير مستخدم)' : 'Pristine (New)'}</span>
-            </div>
-            <div className="bg-white/5 p-2 rounded-xl border border-white/5 flex flex-col">
-              <span className="text-[7.5px] text-zinc-500 font-black uppercase tracking-wider text-left rtl:text-right">{isAr ? 'الضمان والنوع' : 'WARRANTY'}</span>
-              <span className="text-[10px] font-black text-zinc-300 mt-1 leading-none text-left rtl:text-right">{isAr ? 'ضمان رسمي 12 شهر' : '12 Month Covered'}</span>
-            </div>
+          {/* Messages list */}
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 mb-2 flex flex-col justify-end">
+            {activeComments && activeComments.length > 0 ? (
+              activeComments.map((msg) => (
+                <div key={msg.id} className="flex items-start gap-2.5">
+                  <img 
+                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
+                    alt="" 
+                    className="w-6 h-6 rounded-full object-cover shrink-0 border border-gray-100"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="flex-1 min-w-0 text-left rtl:text-right">
+                    <span className="text-[10px] font-bold text-gray-400 block leading-none mb-1">{msg.userName}</span>
+                    <div className={`inline-block px-3 py-1.5 text-xs text-gray-800 bg-gray-50 rounded-2xl border border-gray-100 leading-snug max-w-[90%] break-words ${isAr ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                {isAr ? 'أرسل رسالة للبث المباشر...' : 'Send a message to start chatting...'}
+              </div>
+            )}
           </div>
+
+          {/* Chat Comment Form */}
+          <form onSubmit={onCommentSubmit} className="flex items-center gap-2 border border-gray-200 rounded-xl px-2.5 py-1.5 bg-gray-50 shrink-0">
+            <Smile className="w-4 h-4 text-gray-400 shrink-0 cursor-pointer hover:text-gray-600" />
+            <input 
+              type="text"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder={isAr ? 'اكتب تعليقاً...' : 'Type a message...'}
+              className="flex-1 text-xs text-gray-800 placeholder-gray-400 outline-none bg-transparent"
+            />
+            <button type="submit" className="text-[#E85D04] hover:text-orange-600 shrink-0 transition-colors cursor-pointer">
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
         </div>
 
       </aside>

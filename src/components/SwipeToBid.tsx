@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Gavel, Check, ArrowRight } from 'lucide-react';
+import { Check, ChevronsRight } from 'lucide-react';
 
 interface SwipeToBidProps {
   amount: number;
@@ -31,7 +31,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
       const handleWidth = handleRef.current.offsetWidth;
       setMaxDrag(containerWidth - handleWidth - 8); // 8px for margins
     }
-  }, [containerRef.current, handleRef.current]);
+  }, [containerRef.current, handleRef.current, amount]);
 
   const startDrag = (e: React.PointerEvent) => {
     if (disabled || isSwiped) return;
@@ -64,8 +64,8 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
       handleRef.current.releasePointerCapture(e.pointerId);
     }
 
-    // If dragged past 85% of track width, trigger success!
-    if (dragX >= maxDrag * 0.85) {
+    // If dragged past 80% of track width, trigger success!
+    if (dragX >= maxDrag * 0.80) {
       setDragX(maxDrag);
       setIsSwiped(true);
       // satisfying trigger callback
@@ -86,15 +86,15 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`w-full h-[52px] bg-zinc-900 border border-zinc-800 rounded-2xl relative flex items-center p-1 overflow-hidden select-none touch-none ${
+      className={`w-full h-12 bg-gradient-to-r from-[#E85D04] to-[#F37021] rounded-full relative flex items-center p-1 overflow-hidden select-none touch-none shadow-md ${
         disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
       }`}
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="swipe-to-bid-container"
     >
-      {/* Background slide track color */}
+      {/* Background slide track color (darker orange behind handle) */}
       <div
-        className="absolute top-0 bottom-0 bg-gradient-to-r from-orange-600/25 to-orange-500/50 transition-all duration-75"
+        className="absolute top-0 bottom-0 bg-black/15 transition-all duration-75"
         style={{
           width: `${progressPercent}%`,
           left: isAr ? 'auto' : 0,
@@ -104,7 +104,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
 
       {/* Slide Text Indicator prompt */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center px-12 z-10">
-        <span className="text-[11px] font-black tracking-wider text-gray-300 uppercase filter drop-shadow flex items-center gap-1.5">
+        <span className="text-[11px] font-extrabold tracking-wider text-white uppercase filter drop-shadow flex items-center gap-1.5">
           {isSwiped ? (
             <>
               <Check className="w-3.5 h-3.5 text-white stroke-[3] animate-bounce" />
@@ -112,11 +112,15 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
             </>
           ) : (
             <>
-              {isAr ? 'اسحب للتأكيد' : 'SWIPE TO BID'}
-              <span className="text-[#FF6B00] font-bold">
-                ({amount.toLocaleString()} JOD)
+              <span>{isAr ? 'اسحب للتأكيد' : 'SWIPE TO BID'}</span>
+              <span className="font-black text-white/95">
+                {amount.toLocaleString()} JOD
               </span>
-              <ArrowRight className={`w-3.5 h-3.5 animate-pulse ${isAr ? 'rotate-180' : ''}`} />
+              <span className="opacity-70 text-[9px] flex items-center gap-0.5">
+                <span className="animate-pulse">›</span>
+                <span className="animate-pulse delay-75">›</span>
+                <span className="animate-pulse delay-150">›</span>
+              </span>
             </>
           )}
         </span>
@@ -128,7 +132,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
         onPointerDown={startDrag}
         onPointerMove={onDrag}
         onPointerUp={endDrag}
-        className={`w-11 h-11 rounded-xl bg-gradient-to-tr from-[#FF6B00] to-[#FF8A00] flex items-center justify-center shadow-lg active:scale-95 transition-transform relative z-20 cursor-grab ${
+        className={`w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-md active:scale-95 transition-transform relative z-20 cursor-grab ${
           isDragging ? 'cursor-grabbing' : ''
         }`}
         style={{
@@ -137,7 +141,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
         }}
         id="swipe-bid-handle"
       >
-        <Gavel className="w-5 h-5 text-white" />
+        <ChevronsRight className="w-5 h-5 text-[#E85D04] stroke-[2.5]" />
       </div>
     </div>
   );
