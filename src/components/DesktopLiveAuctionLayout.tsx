@@ -117,7 +117,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   ];
 
   return (
-    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#F7F6F3] relative select-none" id="mazad-jo-desktop-live-platform">
+    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
       
       {/* Toast Overlay */}
       {showToast && (
@@ -130,19 +130,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           COLUMN 1: DARK LEFT SIDEBAR (280px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[280px] bg-[#121217] shrink-0 h-full border-r border-zinc-800" 
+        className="hidden lg:flex flex-col w-[280px] bg-white shrink-0 h-full border-r border-gray-200/80" 
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-auctions-sidebar"
       >
         {/* Header section with count badge */}
-        <div className="p-4 border-b border-zinc-800/80 shrink-0 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-            <span className="text-xs font-black tracking-wider text-zinc-100 uppercase font-sans">
+            <span className="text-xs font-black tracking-wider text-gray-900 uppercase font-sans">
               {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
             </span>
           </div>
-          <span className="bg-[#E85D04]/20 text-[#E85D04] text-[10px] font-black px-2.5 py-0.5 rounded border border-[#E85D04]/30 font-sans">
+          <span className="bg-[#E85D04]/15 text-[#E85D04] text-[10px] font-black px-2.5 py-0.5 rounded border border-[#E85D04]/25 font-sans">
             {liveAuctions.length}
           </span>
         </div>
@@ -159,13 +159,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 onClick={() => onSelectAuction(item.id)}
                 className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all border text-left cursor-pointer group select-none relative overflow-hidden ${
                   isActive 
-                    ? 'bg-zinc-900 border-[#E85D04] text-white font-black shadow-[0_0_12px_rgba(232,93,4,0.15)]' 
-                    : 'bg-[#1a1a22]/40 border-transparent hover:bg-zinc-900/30 text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-orange-50/70 border-[#E85D04] text-gray-900 font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
+                    : 'bg-gray-50/50 border-transparent hover:bg-gray-100/80 text-gray-500 hover:text-gray-900'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
                 {/* Thumbnail */}
-                <div className="w-12 h-16 rounded-lg bg-zinc-800 overflow-hidden shrink-0 border border-white/10 relative">
+                <div className="w-12 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200/60 relative">
                   <img 
                     src={item.thumbnailUrl} 
                     alt={item.title} 
@@ -185,17 +185,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
                 {/* Info Block */}
                 <div className="min-w-0 flex-grow text-left rtl:text-right">
-                  <h4 className="text-[11px] font-bold text-zinc-100 truncate group-hover:text-white transition-colors">
+                  <h4 className="text-[11px] font-bold text-gray-800 truncate group-hover:text-gray-900 transition-colors">
                     {item.title}
                   </h4>
                   <p className="text-[11px] text-[#E85D04] font-black mt-1 leading-none font-sans">
                     {itemPrice.toLocaleString()} JOD
                   </p>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="inline-block text-[8px] font-black uppercase bg-white/5 border border-white/10 text-zinc-400 px-1.5 py-0.5 rounded-md leading-none">
+                    <span className="inline-block text-[8px] font-black uppercase bg-gray-100 border border-gray-200/60 text-gray-500 px-1.5 py-0.5 rounded-md leading-none">
                       {item.category || (isAr ? 'إلكترونيات' : 'ELECTRONICS')}
                     </span>
-                    <span className="text-[8px] text-zinc-500 font-mono flex items-center gap-1">
+                    <span className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
                       <Eye className="w-2.5 h-2.5" />
                       {(itemViewerCount >= 1000 ? `${(itemViewerCount / 1000).toFixed(1)}K` : itemViewerCount)}
                     </span>
@@ -207,7 +207,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Middle section Navigation Links */}
-        <div className="p-3 border-t border-zinc-800/80 space-y-1">
+        <div className="p-3 border-t border-gray-100 space-y-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
             return (
@@ -223,7 +223,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   link.active 
                     ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
@@ -238,7 +238,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         {activeSellerProfile && (
           <div 
             onClick={() => setSelectedProfileId(activeSellerProfile.userId)}
-            className="mt-auto p-3 m-3 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+            className="mt-auto p-3 m-3 bg-gray-50/80 hover:bg-gray-100 border border-gray-100 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
@@ -246,7 +246,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 <img
                   src={activeSellerProfile.storeLogo}
                   alt=""
-                  className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                  className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-[#E85D04] text-white flex items-center justify-center font-black text-xs shrink-0">
@@ -254,7 +254,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </div>
               )}
               <div className="min-w-0 text-left rtl:text-right">
-                <span className="text-[11px] font-bold text-zinc-100 truncate block leading-tight">
+                <span className="text-[11px] font-bold text-gray-800 truncate block leading-tight">
                   {activeSellerProfile.storeName || 'MAZAD JO Store'}
                 </span>
                 <span className="text-[9px] text-[#E85D04] font-semibold block leading-none mt-1">
@@ -262,7 +262,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </span>
               </div>
             </div>
-            <span className="text-zinc-500 font-sans text-xs">›</span>
+            <span className="text-gray-400 font-sans text-xs">›</span>
           </div>
         )}
       </aside>
@@ -313,126 +313,146 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         </div>
 
-        {/* Video Card Player Canvas with overlays */}
+        {/* Video Card Player Wrapper with empty space background - Sticky top */}
         <div 
-          ref={videoContainerRef}
-          className="w-full aspect-[16/10] max-h-[460px] bg-black rounded-2xl border border-gray-200/40 relative overflow-hidden group shadow-lg shrink-0" 
-          id="professional-video-player-canvas"
+          className="sticky top-0 z-30 w-full bg-gradient-to-b from-[#ffffff] via-[#fafafa] to-[#ffffff] border border-gray-200/80 rounded-2xl flex items-center justify-center py-0 shadow-sm shrink-0 overflow-hidden" 
+          id="professional-video-wrapper-outer"
         >
-          {/* Live Video Tag */}
-          <video 
-            ref={videoRef}
-            src={activeAuction.videoUrl} 
-            loop 
-            muted={isMuted} 
-            playsInline 
-            autoPlay
-            className="w-full h-full object-cover bg-[#010101] cursor-pointer"
-            onClick={onPlayPauseToggle}
-          />
+          {/* Video Card Player Canvas with overlays */}
+          <div 
+            ref={videoContainerRef}
+            className="h-[calc(100vh-64px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto" 
+            id="professional-video-player-canvas"
+          >
+            {/* Live Video Tag */}
+            <video 
+              ref={videoRef}
+              src={activeAuction.videoUrl} 
+              loop 
+              muted={isMuted} 
+              playsInline 
+              autoPlay
+              className="w-full h-full object-cover bg-[#010101] cursor-pointer"
+              onClick={onPlayPauseToggle}
+            />
 
-          {/* 1. TOP LEFT OVERLAYS */}
-          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
-                {isAr ? 'مباشر' : 'LIVE'}
-              </span>
-
-              <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
-                <Eye className="w-3 h-3 text-white/80" />
-                <span>{viewerCount.toLocaleString()} Watching</span>
-              </span>
-            </div>
-
-            {/* Auction and seller overlay */}
-            <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
-              <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
-              <p className="text-[10px] text-white/80 font-bold mt-1 flex items-center gap-1">
-                by {activeSellerProfile?.storeName || 'MAZAD JO Store'}
-                <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
-              </p>
-            </div>
-          </div>
-
-          {/* 2. TOP RIGHT CONTROLS */}
-          <div className="absolute top-4 right-4 z-20 flex gap-2">
-            <button 
-              onClick={onShareClick}
-              className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
-              title="Share"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={toggleFullscreen}
-              className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
-              title="Fullscreen"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* 3. BOTTOM GLASSMORPHISM BID PANEL */}
-          <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
-            
-            <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
-              {/* Current Bid */}
-              <div className="flex flex-col text-left rtl:text-right">
-                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                  {isAr ? 'العطاء الحالي' : 'Current Bid'}
+            {/* 1. TOP LEFT OVERLAYS */}
+            <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md">
+                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
+                  {isAr ? 'مباشر' : 'LIVE'}
                 </span>
-                <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
-                  {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
-                </span>
-                <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
-                  +{(activeAuction.bidIncrement || 25)} JOD
+
+                <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
+                  <Eye className="w-3 h-3 text-white/80" />
+                  <span>{viewerCount.toLocaleString()} Watching</span>
                 </span>
               </div>
 
-              {/* Time Remaining */}
-              <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
-                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
-                  {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
-                </span>
-                <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
-                  {timeLeftStr}
-                </span>
-                <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
-                  HRS : MIN : SEC
-                </span>
-              </div>
-
-              {/* Top Bidder */}
-              <div className="flex flex-col text-right rtl:text-left">
-                <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                  {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
-                </span>
-                <span className="text-xs font-bold text-white truncate mt-1 leading-none">
-                  {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
-                </span>
-                <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
-                  ★ {trustScore}% <span className="opacity-60">(124)</span>
-                </span>
+              {/* Auction and seller overlay */}
+              <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
+                <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
+                <p className="text-[10px] text-white/80 font-bold mt-1 flex items-center gap-1">
+                  by {activeSellerProfile?.storeName || 'MAZAD JO Store'}
+                  <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
+                </p>
               </div>
             </div>
 
-            {/* SWIPE TO BID Button */}
-            <div className="w-full">
-              <SwipeToBid
-                amount={nextBidAmount}
-                onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                language={isAr ? 'ar' : 'en'}
-              />
+            {/* 2. TOP RIGHT CONTROLS */}
+            <div className="absolute top-4 right-4 z-20 flex gap-2">
+              <button 
+                onClick={onShareClick}
+                className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
+                title="Share"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={toggleFullscreen}
+                className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
+                title="Fullscreen"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 3. BOTTOM GLASSMORPHISM BID PANEL */}
+            <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
+              
+              {/* Quick Bid Multipliers */}
+              <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                {[10, 25, 50].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => onBidExecute(activePrice + val)}
+                    className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                  >
+                    +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
+                {/* Current Bid */}
+                <div className="flex flex-col text-left rtl:text-right">
+                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                    {isAr ? 'العطاء الحالي' : 'Current Bid'}
+                  </span>
+                  <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
+                    {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
+                  </span>
+                  <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
+                    +{(activeAuction.bidIncrement || 25)} JOD
+                  </span>
+                </div>
+
+                {/* Time Remaining */}
+                <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
+                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
+                    {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                  </span>
+                  <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
+                    {timeLeftStr}
+                  </span>
+                  <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
+                    HRS : MIN : SEC
+                  </span>
+                </div>
+
+                {/* Top Bidder */}
+                <div className="flex flex-col text-right rtl:text-left">
+                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                    {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
+                  </span>
+                  <span className="text-xs font-bold text-white truncate mt-1 leading-none">
+                    {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
+                  </span>
+                  <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                    ★ {trustScore}% <span className="opacity-60">(124)</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* SWIPE TO BID Button */}
+              <div className="w-full">
+                <SwipeToBid
+                  amount={nextBidAmount}
+                  onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                  disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                  language={isAr ? 'ar' : 'en'}
+                />
+              </div>
+
             </div>
 
           </div>
-
         </div>
 
         {/* Product information row underneath video card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-64px)*9/16)] max-w-full mx-auto" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
           
           {/* Product Condition */}
           <div className="flex items-center gap-2.5">
@@ -504,7 +524,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           COLUMN 3: RIGHT PANEL (360px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[360px] bg-[#F7F6F3] border-l border-gray-200/80 shrink-0 h-full p-4 gap-4 overflow-y-auto no-scrollbar"
+        className="hidden lg:flex flex-col w-[360px] bg-white border-l border-gray-200 shrink-0 h-full p-4 gap-4 overflow-y-auto no-scrollbar"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-new-aside-panel"
       >

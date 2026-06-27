@@ -79,7 +79,13 @@ interface AppContextProps {
   deleteAuction: (id: string) => void;
 
   // Trust System Operations
-  submitVerificationRequest: (requestedStatus: 'verified' | 'premium_verified', notes?: string) => Promise<{ success: boolean; message: string }>;
+  submitVerificationRequest: (
+    requestedStatus: 'verified' | 'premium_verified', 
+    notes?: string,
+    idFrontUrl?: string,
+    idBackUrl?: string,
+    passportUrl?: string
+  ) => Promise<{ success: boolean; message: string }>;
   submitSellerReview: (sellerId: string, auctionId: string, auctionTitle: string, rating: number, comment: string, photos?: string[]) => Promise<{ success: boolean; message: string }>;
   submitSellerReport: (sellerId: string, sellerName: string, reason: SellerReport['reason'], description: string) => Promise<{ success: boolean; message: string }>;
   submitDispute: (orderId: string, description: string, photos: string[], videos: string[]) => Promise<{ success: boolean; message: string }>;
@@ -2418,7 +2424,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser, addNotification, logSystemHealth]);
 
   // Trust System Operations Implementation
-  const submitVerificationRequest = useCallback(async (requestedStatus: 'verified' | 'premium_verified', notes?: string) => {
+  const submitVerificationRequest = useCallback(async (
+    requestedStatus: 'verified' | 'premium_verified', 
+    notes?: string,
+    idFrontUrl?: string,
+    idBackUrl?: string,
+    passportUrl?: string
+  ) => {
     try {
       const id = `ver-req-${Date.now()}`;
       const reqData: VerificationRequest = {
@@ -2429,6 +2441,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         requestedStatus,
         submittedAt: Date.now(),
         notes: notes || '',
+        idFrontUrl: idFrontUrl || '',
+        idBackUrl: idBackUrl || '',
+        passportUrl: passportUrl || '',
         businessLicenseUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
         nationalIdUrl: 'https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=500'
       };

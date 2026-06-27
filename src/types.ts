@@ -203,6 +203,9 @@ export interface VerificationRequest {
   submittedAt: number;
   businessLicenseUrl?: string;
   nationalIdUrl?: string;
+  idFrontUrl?: string;
+  idBackUrl?: string;
+  passportUrl?: string;
   notes?: string;
 }
 

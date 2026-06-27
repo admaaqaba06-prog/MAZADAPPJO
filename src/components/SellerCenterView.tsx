@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { db } from '../services/firebase';
+import { db, storage } from '../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { translations } from '../utils/translations';
 import { OrderDetailsView } from './OrderDetailsView';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
@@ -225,6 +226,9 @@ export const SellerCenterView: React.FC = () => {
   const [requestedStatus, setRequestedStatus] = useState<'verified' | 'premium_verified'>('verified');
   const [verNotes, setVerNotes] = useState('');
   const [isVerSubmitting, setIsVerSubmitting] = useState(false);
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
 
   // States for sub-collections / seeding
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -761,12 +765,12 @@ export const SellerCenterView: React.FC = () => {
   const [activeAuctionTab, setActiveAuctionTab] = useState<'upcoming' | 'live' | 'pending' | 'completed' | 'rejected'>('live');
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full" id="seller-center-root">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-[#fafafa] min-h-screen text-gray-900" id="seller-center-root">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-150 pb-5" id="seller-header">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-5" id="seller-header">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-[#E85D04]/10 rounded-2xl text-[#E85D04]">
+          <div className="p-2.5 bg-orange-50 text-[#FF6B00] rounded-2xl">
             <Store className="w-7 h-7" />
           </div>
           <div className="text-left rtl:text-right">
@@ -811,7 +815,7 @@ export const SellerCenterView: React.FC = () => {
               return (
                 <button 
                   onClick={() => setIsVerRequestOpen(true)}
-                  className="mt-2 text-[10px] text-white bg-[#E85D04] hover:bg-orange-600 px-3 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#E85D04]/10"
+                  className="mt-2 text-[10px] text-white bg-[#FF6B00] hover:bg-orange-600 px-3 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#FF6B00]/10"
                 >
                   <Sparkles className="w-3 h-3" />
                   {isAr ? 'تقديم طلب توثيق الحساب الآن' : 'Apply for Official Verification'}
@@ -822,104 +826,145 @@ export const SellerCenterView: React.FC = () => {
         </div>
 
         {/* RE-USE ACTIVE STATE AND WALLET INDICATOR */}
-        <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
-          <Wallet className="w-4 h-4 text-emerald-600" />
+        <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-gray-200 shadow-sm">
+          <Wallet className="w-4 h-4 text-[#FF6B00]" />
           <div className="text-right">
             <p className="text-[10px] text-gray-400 font-black tracking-wide uppercase leading-none">
               {st.wallet_balance}
             </p>
-            <p className="text-base font-black text-emerald-600 leading-tight">
+            <p className="text-base font-black text-gray-900 leading-tight">
               {kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JOD
             </p>
           </div>
         </div>
       </div>
 
-      {/* TOP SCROLLABLE NAVIGATION TABS */}
-      <div className="flex overflow-x-auto bg-white p-1.5 rounded-2xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.015)] scrollbar-none gap-1" id="seller-center-tabs">
-        {[
-          { id: 'dashboard', label: st.dashboard, icon: Activity },
-          { id: 'auctions', label: st.my_auctions, icon: Store },
-          { id: 'orders', label: st.orders, icon: ShoppingBag },
-          { id: 'payouts', label: st.payouts, icon: Wallet },
-          { id: 'analytics', label: st.analytics, icon: BarChart3 },
-          { id: 'reviews', label: st.reviews, icon: Star },
-          { id: 'notifications', label: st.notifications, icon: Bell, badge: sellerNotifications.filter(n => !n.read).length }
-        ].map((tab) => {
-          const IconComponent = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as any);
-                setSelectedOrderId(null);
-              }}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-black tracking-wide shrink-0 transition-all cursor-pointer ${
-                isActive 
-                  ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20' 
-                  : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
-              }`}
-            >
-              <IconComponent className="w-4 h-4 shrink-0" />
-              <span>{tab.label}</span>
-              {!!tab.badge && (
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-white text-[#E85D04]' : 'bg-red-500 text-white'}`}>
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* TWO-COLUMN WORKSPACE FOR DESKTOP (LG+), VERTICAL FOR MOBILE (< LG) */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        
+        {/* SIDEBAR FOR LG+ */}
+        <aside className="hidden lg:flex flex-col gap-1 w-[240px] shrink-0 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm h-fit sticky top-20">
+          {[
+            { id: 'dashboard', label: st.dashboard, icon: Activity },
+            { id: 'auctions', label: st.my_auctions, icon: Store },
+            { id: 'orders', label: st.orders, icon: ShoppingBag },
+            { id: 'payouts', label: st.payouts, icon: Wallet },
+            { id: 'analytics', label: st.analytics, icon: BarChart3 },
+            { id: 'reviews', label: st.reviews, icon: Star },
+            { id: 'notifications', label: st.notifications, icon: Bell, badge: sellerNotifications.filter(n => !n.read).length }
+          ].map((tab) => {
+            const IconComponent = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setSelectedOrderId(null);
+                }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black tracking-wide transition-all cursor-pointer w-full text-left rtl:text-right ${
+                  isActive 
+                    ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
+                    : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+                }`}
+              >
+                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-gray-400'}`} />
+                <span className="flex-1">{tab.label}</span>
+                {!!tab.badge && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-red-500 text-white`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </aside>
 
-      {/* RENDER ACTIVE TAB */}
-      <div className="min-h-[400px]">
-        {/* ======================= TAB 1: DASHBOARD ======================= */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6" id="tab-dashboard">
-            {/* KPI CARDS */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid">
-              {[
-                { title: st.active_auctions, value: kpis.liveCount, color: 'border-orange-500', text: 'text-orange-600', bg: 'bg-orange-50', icon: Store },
-                { title: st.completed_sales, value: kpis.completedSalesCount, color: 'border-emerald-500', text: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle },
-                { title: st.pending_orders, value: kpis.pendingOrdersCount, color: 'border-blue-500', text: 'text-blue-600', bg: 'bg-blue-50', icon: Clock },
-                { title: st.total_revenue, value: `${kpis.totalRev.toLocaleString()} JOD`, color: 'border-indigo-500', text: 'text-indigo-600', bg: 'bg-indigo-50', icon: DollarSign },
-                { title: st.wallet_balance, value: `${kpis.availableBalance.toLocaleString()} JOD`, color: 'border-teal-500', text: 'text-teal-600', bg: 'bg-teal-50', icon: Wallet },
-                { title: st.escrow_locked, value: `${kpis.escrowLocked.toLocaleString()} JOD`, color: 'border-amber-500', text: 'text-amber-600', bg: 'bg-amber-50', icon: AlertTriangle },
-                { title: st.monthly_sales, value: `${kpis.currentMonthSales.toLocaleString()} JOD`, color: 'border-pink-500', text: 'text-pink-600', bg: 'bg-pink-50', icon: TrendingUp },
-                { title: st.avg_rating, value: `${kpis.avgRating} / 5.0`, color: 'border-yellow-500', text: 'text-yellow-600', bg: 'bg-yellow-50', icon: Star }
-              ].map((kpi, idx) => {
-                const KpiIcon = kpi.icon;
-                return (
-                  <div key={idx} className={`bg-white rounded-2xl p-4 border-l-4 ${kpi.color} border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)] flex items-center justify-between gap-2`}>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">
-                        {kpi.title}
-                      </p>
-                      <p className="text-lg md:text-xl font-black text-gray-900 leading-tight">
-                        {kpi.value}
-                      </p>
+        {/* TOP SCROLLABLE NAVIGATION TABS FOR MOBILE/TABLET */}
+        <div className="flex lg:hidden overflow-x-auto bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm scrollbar-none gap-1 w-full" id="seller-center-tabs">
+          {[
+            { id: 'dashboard', label: st.dashboard, icon: Activity },
+            { id: 'auctions', label: st.my_auctions, icon: Store },
+            { id: 'orders', label: st.orders, icon: ShoppingBag },
+            { id: 'payouts', label: st.payouts, icon: Wallet },
+            { id: 'analytics', label: st.analytics, icon: BarChart3 },
+            { id: 'reviews', label: st.reviews, icon: Star },
+            { id: 'notifications', label: st.notifications, icon: Bell, badge: sellerNotifications.filter(n => !n.read).length }
+          ].map((tab) => {
+            const IconComponent = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setSelectedOrderId(null);
+                }}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-black tracking-wide shrink-0 transition-all cursor-pointer ${
+                  isActive 
+                    ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
+                    : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+                }`}
+              >
+                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-gray-400'}`} />
+                <span>{tab.label}</span>
+                {!!tab.badge && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-red-500 text-white`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* RENDER ACTIVE TAB MAIN PANE */}
+        <div className="flex-1 min-w-0 min-h-[400px]">
+          {/* ======================= TAB 1: DASHBOARD ======================= */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6" id="tab-dashboard">
+              {/* KPI CARDS */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid">
+                {[
+                  { title: st.active_auctions, value: kpis.liveCount, icon: Store },
+                  { title: st.completed_sales, value: kpis.completedSalesCount, icon: CheckCircle },
+                  { title: st.pending_orders, value: kpis.pendingOrdersCount, icon: Clock },
+                  { title: st.total_revenue, value: `${kpis.totalRev.toLocaleString()} JOD`, icon: DollarSign },
+                  { title: st.wallet_balance, value: `${kpis.availableBalance.toLocaleString()} JOD`, icon: Wallet },
+                  { title: st.escrow_locked, value: `${kpis.escrowLocked.toLocaleString()} JOD`, icon: AlertTriangle },
+                  { title: st.monthly_sales, value: `${kpis.currentMonthSales.toLocaleString()} JOD`, icon: TrendingUp },
+                  { title: st.avg_rating, value: `${kpis.avgRating} / 5.0`, icon: Star }
+                ].map((kpi, idx) => {
+                  const KpiIcon = kpi.icon;
+                  return (
+                    <div key={idx} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between gap-2">
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase leading-none">
+                          {kpi.title}
+                        </p>
+                        <p className="text-lg md:text-xl font-black text-gray-900 leading-tight">
+                          {kpi.value}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-xl bg-orange-50 text-[#FF6B00] shrink-0">
+                        <KpiIcon className="w-5 h-5 text-[#FF6B00]" />
+                      </div>
                     </div>
-                    <div className={`p-2 rounded-xl ${kpi.bg} ${kpi.text} shrink-0`}>
-                      <KpiIcon className="w-5 h-5" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
             {/* DASHBOARD GRID: RECENT ACTIONS, NOTIFICATIONS, RECENT REVIEWS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Recent Orders Overview */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-[#E85D04]" />
+                    <Package className="w-4 h-4 text-[#FF6B00]" />
                     <span>{isAr ? 'الطلبات والمبيعات الحديثة' : 'Recent Orders & Sales'}</span>
                   </h3>
-                  <button onClick={() => setActiveTab('orders')} className="text-xs text-[#E85D04] font-bold hover:underline flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => setActiveTab('orders')} className="text-xs text-[#FF6B00] font-bold hover:underline flex items-center gap-1 cursor-pointer">
                     <span>{isAr ? 'عرض الكل' : 'View All'}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -958,13 +1003,13 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Quick Seller Notifications */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#E85D04]" />
+                    <Bell className="w-4 h-4 text-[#FF6B00]" />
                     <span>{isAr ? 'آخر إشعارات المبيعات' : 'Latest Sales Notifications'}</span>
                   </h3>
-                  <button onClick={() => setActiveTab('notifications')} className="text-xs text-[#E85D04] font-bold hover:underline flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => setActiveTab('notifications')} className="text-xs text-[#FF6B00] font-bold hover:underline flex items-center gap-1 cursor-pointer">
                     <span>{isAr ? 'عرض الكل' : 'View All'}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -998,7 +1043,7 @@ export const SellerCenterView: React.FC = () => {
         {activeTab === 'auctions' && (
           <div className="space-y-6" id="tab-auctions">
             {/* SUB-TABS CATEGORY FILTER */}
-            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-150 gap-1 overflow-x-auto">
+            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto">
               {[
                 { id: 'upcoming', label: st.upcoming, count: categorizedAuctions.upcoming.length },
                 { id: 'live', label: st.live, count: categorizedAuctions.live.length },
@@ -1011,7 +1056,7 @@ export const SellerCenterView: React.FC = () => {
                   onClick={() => setActiveAuctionTab(sub.id as any)}
                   className={`flex-1 py-2 text-center rounded-lg text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     activeAuctionTab === sub.id 
-                      ? 'bg-white text-gray-950 shadow-xs border border-gray-150' 
+                      ? 'bg-white text-gray-950 shadow-xs border border-gray-200' 
                       : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
@@ -1025,13 +1070,13 @@ export const SellerCenterView: React.FC = () => {
 
             {/* AUCTION LISTINGS */}
             {categorizedAuctions[activeAuctionTab].length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-gray-150 text-gray-400 text-sm">
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-400 text-sm">
                 {st.no_auctions}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {categorizedAuctions[activeAuctionTab].map((auction) => (
-                  <div key={auction.id} className="bg-white rounded-2xl border border-gray-150 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col justify-between">
+                  <div key={auction.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col justify-between">
                     <div>
                       {/* Image Preview & Status Badge */}
                       <div className="relative h-40 bg-zinc-100 overflow-hidden">
@@ -1083,7 +1128,7 @@ export const SellerCenterView: React.FC = () => {
 
                       <button
                         onClick={() => handleEditClick(auction)}
-                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-150 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
                         title={st.edit}
                       >
                         <Edit className="w-4 h-4" />
@@ -1091,7 +1136,7 @@ export const SellerCenterView: React.FC = () => {
 
                       <button
                         onClick={() => handleDuplicate(auction)}
-                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-150 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
                         title={st.duplicate}
                       >
                         <Copy className="w-4 h-4" />
@@ -1121,7 +1166,7 @@ export const SellerCenterView: React.FC = () => {
         {activeTab === 'orders' && (
           <div className="space-y-6" id="tab-orders">
             {selectedOrderId ? (
-              <div className="bg-white rounded-3xl p-5 border border-gray-150 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
+              <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
                 <button 
                   onClick={() => setSelectedOrderId(null)}
                   className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-150 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
@@ -1133,7 +1178,7 @@ export const SellerCenterView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-3xl border border-gray-150 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
+              <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
                 {myOrders.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
                     {st.no_orders}
@@ -1142,7 +1187,7 @@ export const SellerCenterView: React.FC = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left rtl:text-right border-collapse text-xs">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-150 text-gray-400 font-black tracking-wider uppercase">
+                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
                           <th className="p-4">{isAr ? 'المنتج والمزاد' : 'Auction / Item'}</th>
                           <th className="p-4">{st.buyer}</th>
                           <th className="p-4">{st.price}</th>
@@ -1159,7 +1204,7 @@ export const SellerCenterView: React.FC = () => {
                             {/* Auction Name */}
                             <td className="p-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-150 bg-gray-50">
+                                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
                                   <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
                                 </div>
                                 <div className="max-w-[150px] lg:max-w-[200px]">
@@ -1249,7 +1294,7 @@ export const SellerCenterView: React.FC = () => {
             {/* PAYOUT CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Available balance card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
+              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 text-emerald-50/40 transform translate-x-2 -translate-y-2">
                   <Wallet className="w-24 h-24 stroke-[1]" />
                 </div>
@@ -1283,7 +1328,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Escrow pending balance card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <span className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl inline-block">
                   <Clock className="w-6 h-6" />
                 </span>
@@ -1297,7 +1342,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Released funds card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl inline-block">
                   <CheckCircle className="w-6 h-6" />
                 </span>
@@ -1314,7 +1359,7 @@ export const SellerCenterView: React.FC = () => {
             </div>
 
             {/* WITHDRAWAL HISTORY TABLE */}
-            <div className="bg-white rounded-3xl border border-gray-150 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
+            <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
               <div className="flex items-center justify-between border-b border-gray-100 pb-4">
                 <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-[#FF6B00]" />
@@ -1330,7 +1375,7 @@ export const SellerCenterView: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left rtl:text-right border-collapse text-xs">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-150 text-gray-400 font-black uppercase tracking-wider">
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black uppercase tracking-wider">
                         <th className="p-4">{isAr ? 'رقم المعاملة' : 'Reference ID'}</th>
                         <th className="p-4">{isAr ? 'التاريخ والوقت' : 'Date & Time'}</th>
                         <th className="p-4">{isAr ? 'المبلغ' : 'Amount'}</th>
@@ -1382,7 +1427,7 @@ export const SellerCenterView: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Daily Sales Chart */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.daily_sales}</h4>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1398,7 +1443,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Monthly Revenue Chart */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.monthly_rev}</h4>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1420,7 +1465,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Views vs Bids */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.views_vs_bids}</h4>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1438,7 +1483,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* Top Categories Pie Chart */}
-              <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                 <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.top_categories}</h4>
                 <div className="h-64 w-full flex items-center justify-center">
                   {chartData.categoryData.length === 0 ? (
@@ -1485,7 +1530,7 @@ export const SellerCenterView: React.FC = () => {
         {/* ======================= TAB 6: REVIEWS ======================= */}
         {activeTab === 'reviews' && (
           <div className="space-y-6" id="tab-reviews">
-            <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
               <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
                 <Star className="w-4 h-4 text-[#FF6B00]" />
                 <span>{st.buyer_feedback}</span>
@@ -1552,7 +1597,7 @@ export const SellerCenterView: React.FC = () => {
         {/* ======================= TAB 7: NOTIFICATIONS ======================= */}
         {activeTab === 'notifications' && (
           <div className="space-y-6" id="tab-notifications">
-            <div className="bg-white rounded-3xl border border-gray-150 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
               <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
                 <Bell className="w-4 h-4 text-[#FF6B00]" />
                 <span>{st.all_notifs}</span>
@@ -1588,6 +1633,7 @@ export const SellerCenterView: React.FC = () => {
           </div>
         )}
       </div>
+    </div>
 
       {/* RENDER DYNAMIC REUSABLE VIEW MODALS */}
       {viewAuctionId && (
@@ -1597,7 +1643,7 @@ export const SellerCenterView: React.FC = () => {
       {/* WITHDRAWAL FORM MODAL */}
       {isWithdrawModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="withdrawal-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-150 shadow-2xl relative space-y-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4">
             <button 
               onClick={() => setIsWithdrawModalOpen(null)}
               className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-xl cursor-pointer"
@@ -1698,7 +1744,7 @@ export const SellerCenterView: React.FC = () => {
       {/* EDIT LISTING MODAL */}
       {isEditModalOpen && editingAuction && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-listing-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-150 shadow-2xl relative space-y-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4">
             <button 
               onClick={() => {
                 setIsEditModalOpen(false);
@@ -1787,7 +1833,7 @@ export const SellerCenterView: React.FC = () => {
       {/* VERIFICATION APPLY MODAL */}
       {isVerRequestOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="ver-apply-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-150 shadow-2xl relative space-y-4 text-left rtl:text-right">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4 text-left rtl:text-right">
             <button 
               onClick={() => setIsVerRequestOpen(false)}
               className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-xl cursor-pointer"
@@ -1804,12 +1850,50 @@ export const SellerCenterView: React.FC = () => {
 
             <form onSubmit={async (e) => {
               e.preventDefault();
+              if (!idFrontFile || !idBackFile) return;
               setIsVerSubmitting(true);
-              const res = await submitVerificationRequest(requestedStatus, verNotes);
-              setIsVerSubmitting(false);
-              if (res.success) {
-                setIsVerRequestOpen(false);
-                setVerNotes('');
+              try {
+                const userId = currentUser?.id || 'unknown';
+                const timestamp = Date.now();
+                
+                // 1. Upload ID Front file
+                const frontRef = ref(storage, `verification-documents/${userId}/${timestamp}_front_${idFrontFile.name}`);
+                const frontSnap = await uploadBytes(frontRef, idFrontFile);
+                const idFrontUrl = await getDownloadURL(frontSnap.ref);
+                
+                // 2. Upload ID Back file
+                const backRef = ref(storage, `verification-documents/${userId}/${timestamp}_back_${idBackFile.name}`);
+                const backSnap = await uploadBytes(backRef, idBackFile);
+                const idBackUrl = await getDownloadURL(backSnap.ref);
+                
+                // 3. Upload Passport file if selected
+                let passportUrl = '';
+                if (passportFile) {
+                  const passRef = ref(storage, `verification-documents/${userId}/${timestamp}_passport_${passportFile.name}`);
+                  const passSnap = await uploadBytes(passRef, passportFile);
+                  passportUrl = await getDownloadURL(passSnap.ref);
+                }
+                
+                const res = await submitVerificationRequest(
+                  requestedStatus, 
+                  verNotes, 
+                  idFrontUrl, 
+                  idBackUrl, 
+                  passportUrl
+                );
+                
+                setIsVerSubmitting(false);
+                if (res.success) {
+                  setIsVerRequestOpen(false);
+                  setVerNotes('');
+                  setIdFrontFile(null);
+                  setIdBackFile(null);
+                  setPassportFile(null);
+                }
+              } catch (err: any) {
+                console.error("Error submitting verification documents:", err);
+                setIsVerSubmitting(false);
+                alert(isAr ? `حدث خطأ أثناء رفع المستندات: ${err.message}` : `An error occurred while uploading documents: ${err.message}`);
               }
             }} className="space-y-4">
               
@@ -1848,13 +1932,114 @@ export const SellerCenterView: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-gray-600 text-xs font-black mb-1.5">
-                  {isAr ? 'مستندات التوثيق الرسمية' : 'Verification Documents'}
+              <div className="space-y-3">
+                <label className="block text-gray-700 text-xs font-black uppercase tracking-wider">
+                  {isAr ? 'مستندات التحقق من الهوية الوطنية' : 'Identity Verification Documents'}
                 </label>
-                <div className="border border-dashed border-gray-300 rounded-xl p-4 text-center bg-gray-50">
-                  <p className="text-xs text-gray-500 font-semibold">{isAr ? '✓ سيتم إرفاق الهوية الوطنية ورخصة المهن تلقائياً' : '✓ National ID & Business Licenses will be attached'}</p>
-                  <p className="text-[10px] text-gray-400 font-bold mt-1">{isAr ? 'تحقق إلكتروني فوري' : 'Automated platform processing'}</p>
+                
+                {/* ID FRONT */}
+                <div className="space-y-1">
+                  <span className="block text-[11px] text-gray-500 font-bold">
+                    {isAr ? 'صورة الوجه الأمامي للهوية الوطنية (مطلوب)' : 'National ID - Front Image (Required)'}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    id="id-front-upload" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setIdFrontFile(e.target.files[0]);
+                      }
+                    }} 
+                  />
+                  <label 
+                    htmlFor="id-front-upload"
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                  >
+                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                      {idFrontFile ? idFrontFile.name : (isAr ? 'اختر صورة الوجه الأمامي...' : 'Select front side image...')}
+                    </span>
+                    {idFrontFile ? (
+                      <span className="text-emerald-500 font-bold flex items-center gap-1">
+                        ✅ {isAr ? 'جاهز' : 'Ready'}
+                      </span>
+                    ) : (
+                      <span className="text-[#FF6B00] font-bold">
+                        {isAr ? 'رفع ملف' : 'Upload File'}
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                {/* ID BACK */}
+                <div className="space-y-1">
+                  <span className="block text-[11px] text-gray-500 font-bold">
+                    {isAr ? 'صورة الوجه الخلفي للهوية الوطنية (مطلوب)' : 'National ID - Back Image (Required)'}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    id="id-back-upload" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setIdBackFile(e.target.files[0]);
+                      }
+                    }} 
+                  />
+                  <label 
+                    htmlFor="id-back-upload"
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                  >
+                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                      {idBackFile ? idBackFile.name : (isAr ? 'اختر صورة الوجه الخلفي...' : 'Select back side image...')}
+                    </span>
+                    {idBackFile ? (
+                      <span className="text-emerald-500 font-bold flex items-center gap-1">
+                        ✅ {isAr ? 'جاهز' : 'Ready'}
+                      </span>
+                    ) : (
+                      <span className="text-[#FF6B00] font-bold">
+                        {isAr ? 'رفع ملف' : 'Upload File'}
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                {/* PASSPORT (OPTIONAL) */}
+                <div className="space-y-1">
+                  <span className="block text-[11px] text-gray-500 font-bold">
+                    {isAr ? 'صورة جواز السفر (اختياري كبديل)' : 'Passport Image (Optional)'}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    id="passport-upload" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setPassportFile(e.target.files[0]);
+                      }
+                    }} 
+                  />
+                  <label 
+                    htmlFor="passport-upload"
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                  >
+                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                      {passportFile ? passportFile.name : (isAr ? 'اختر صورة جواز السفر...' : 'Select passport image...')}
+                    </span>
+                    {passportFile ? (
+                      <span className="text-emerald-500 font-bold flex items-center gap-1">
+                        ✅ {isAr ? 'جاهز' : 'Ready'}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 font-bold">
+                        {isAr ? 'رفع ملف' : 'Upload File'}
+                      </span>
+                    )}
+                  </label>
                 </div>
               </div>
 
@@ -1873,11 +2058,11 @@ export const SellerCenterView: React.FC = () => {
 
               <button 
                 type="submit"
-                disabled={isVerSubmitting}
-                className="w-full py-3.5 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-600 text-white font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-500/15 text-center flex items-center justify-center gap-1.5"
+                disabled={isVerSubmitting || !idFrontFile || !idBackFile}
+                className="w-full py-3.5 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-600 text-white font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-500/15 text-center flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 disabled:from-gray-300 disabled:to-gray-400"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>{isVerSubmitting ? '...' : (isAr ? 'إرسال طلب التوثيق الرسمي' : 'Submit Official Request')}</span>
+                <span>{isVerSubmitting ? (isAr ? 'جاري الرفع والإرسال...' : 'Uploading & Submitting...') : (isAr ? 'إرسال طلب التوثيق الرسمي' : 'Submit Official Request')}</span>
               </button>
 
             </form>
