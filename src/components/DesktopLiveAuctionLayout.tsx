@@ -104,6 +104,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
   const trustScore = activeSellerProfile?.trustScore || 98;
+  const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
 
   // Navigation Links for left sidebar
   const navLinks = [
@@ -381,70 +382,88 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             {/* 3. BOTTOM GLASSMORPHISM BID PANEL */}
             <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
               
-              {/* Quick Bid Multipliers */}
-              <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                {[10, 25, 50].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => onBidExecute(activePrice + val)}
-                    className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
-                  >
-                    +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
-                {/* Current Bid */}
-                <div className="flex flex-col text-left rtl:text-right">
-                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                    {isAr ? 'العطاء الحالي' : 'Current Bid'}
+              {isEnded ? (
+                <div className="w-full bg-black/60 border border-emerald-500/30 rounded-xl p-4 text-center backdrop-blur-sm flex flex-col items-center justify-center gap-1.5 shadow-xl">
+                  <span className="text-xs uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
+                    🏁 {isAr ? 'انتهى المزاد' : 'Auction Ended'}
                   </span>
-                  <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
-                    {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
+                  <span className="text-white text-sm font-bold">
+                    {isAr ? 'الفائز' : 'Winner'}: <span className="text-amber-400 font-black">{activeAuction?.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}</span>
                   </span>
-                  <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
-                    +{(activeAuction.bidIncrement || 25)} JOD
-                  </span>
+                  {activeAuction?.currentBidderName && (
+                    <span className="text-xs font-semibold text-zinc-300">
+                      {isAr ? 'سعر البيع' : 'Winning Price'}: <span className="text-emerald-400 font-black">{activePrice} JOD</span>
+                    </span>
+                  )}
                 </div>
+              ) : (
+                <>
+                  {/* Quick Bid Multipliers */}
+                  <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                    {[10, 25, 50].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => onBidExecute(activePrice + val)}
+                        className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                      >
+                        +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                      </button>
+                    ))}
+                  </div>
 
-                {/* Time Remaining */}
-                <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
-                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
-                    {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
-                  </span>
-                  <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
-                    {timeLeftStr}
-                  </span>
-                  <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
-                    HRS : MIN : SEC
-                  </span>
-                </div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
+                    {/* Current Bid */}
+                    <div className="flex flex-col text-left rtl:text-right">
+                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                        {isAr ? 'العطاء الحالي' : 'Current Bid'}
+                      </span>
+                      <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
+                        {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
+                      </span>
+                      <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
+                        +{(activeAuction.bidIncrement || 25)} JOD
+                      </span>
+                    </div>
 
-                {/* Top Bidder */}
-                <div className="flex flex-col text-right rtl:text-left">
-                  <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                    {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
-                  </span>
-                  <span className="text-xs font-bold text-white truncate mt-1 leading-none">
-                    {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
-                  </span>
-                  <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
-                    ★ {trustScore}% <span className="opacity-60">(124)</span>
-                  </span>
-                </div>
-              </div>
+                    {/* Time Remaining */}
+                    <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
+                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
+                        {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                      </span>
+                      <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
+                        {timeLeftStr}
+                      </span>
+                      <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
+                        HRS : MIN : SEC
+                      </span>
+                    </div>
 
-              {/* SWIPE TO BID Button */}
-              <div className="w-full">
-                <SwipeToBid
-                  amount={nextBidAmount}
-                  onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                  disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                  language={isAr ? 'ar' : 'en'}
-                />
-              </div>
+                    {/* Top Bidder */}
+                    <div className="flex flex-col text-right rtl:text-left">
+                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
+                        {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
+                      </span>
+                      <span className="text-xs font-bold text-white truncate mt-1 leading-none">
+                        {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
+                      </span>
+                      <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                        ★ {trustScore}% <span className="opacity-60">(124)</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* SWIPE TO BID Button */}
+                  <div className="w-full">
+                    <SwipeToBid
+                      amount={nextBidAmount}
+                      onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                      disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                      language={isAr ? 'ar' : 'en'}
+                    />
+                  </div>
+                </>
+              )}
 
             </div>
 

@@ -57,19 +57,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 5. Escrow Transactions (direct client-side writes allowed for absolute reliability)
+    // 5. Escrow Transactions (direct client-side writes restricted to prevent unauthorized balance changes)
     match /escrows/{escrowId} {
       allow read: if isSignedIn() && (resource == null || isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
-      allow create: if isSignedIn() && isOwner(request.resource.data.bidderId);
-      allow update: if isSignedIn() && (isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
+      allow create: if isSignedIn() && 
+                    request.resource.data.bidderId == request.auth.uid &&
+                    request.resource.data.auctionId == 'cliq-dep' &&
+                    request.resource.data.status == 'locked' &&
+                    request.resource.data.amount > 0;
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // 6. Subscription Requests
     match /subscriptionRequests/{reqId} {
       allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    request.resource.data.status == 'pending';
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 

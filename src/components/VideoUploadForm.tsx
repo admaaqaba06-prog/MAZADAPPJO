@@ -31,6 +31,12 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
         alert(isAr ? 'الرجاء اختيار ملف فيديو فقط.' : 'Please select a video file only.');
         return;
       }
+
+      if (file.size > 25 * 1024 * 1024) {
+        alert(isAr 
+          ? 'تنبيه: حجم الفيديو كبير (أكثر من ٢٥ ميجابايت). قد يستغرق رفعه وقتاً طويلاً أو يفشل تبعاً لسرعة اتصالك بالإنترنت. ننصحك بضغط الفيديو قليلاً أو استخدام خيار "رابط فيديو من الويب" لضمان نشر فوري بلا تأخير!' 
+          : 'Warning: This video is quite large (over 25MB). Uploading it may take a long time or fail on slower connections. We highly recommend compressing the video or pasting a "Web Video URL" instead for a fast, hassle-free publish!');
+      }
       
       // Cleanup previous object url to prevent memory leaks
       if (videoUrl && videoUrl.startsWith('blob:')) {

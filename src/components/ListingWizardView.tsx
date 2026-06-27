@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
-import { Sparkles, CheckCircle } from 'lucide-react';
+import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 export const ListingWizardView: React.FC = () => {
   const { createListing, setActiveView, language } = useApp();
@@ -21,8 +21,10 @@ export const ListingWizardView: React.FC = () => {
   const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
   const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
 
-  // Success flow trigger
+  // Success flow trigger & progress indicators
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<'video' | 'thumbnail' | 'saving' | 'done' | null>(null);
 
   // Categories map to Arabic names and backend values
   const categoriesOpt = [
@@ -35,6 +37,7 @@ export const ListingWizardView: React.FC = () => {
 
   // Duration Options in seconds
   const durationPresets = [
+    { label: isAr ? '١٠ دقائق' : '10 min', value: '600' },
     { label: isAr ? '١ ساعة' : '1 Hour', value: '3600' },
     { label: isAr ? '٣ ساعات' : '3 Hours', value: '10800' },
     { label: isAr ? '٦ ساعات' : '6 Hours', value: '21600' },
@@ -58,6 +61,8 @@ export const ListingWizardView: React.FC = () => {
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
+    setUploadStage('video');
 
     try {
       // Save under 'processing' state so Admin can click and instantly release
@@ -72,15 +77,21 @@ export const ListingWizardView: React.FC = () => {
         endTime: Date.now() + Number(duration) * 1000,
         duration: Number(duration),
         isFeatured: false
-      }, rawVideoFile, rawThumbnailFile);
+      }, rawVideoFile, rawThumbnailFile, (progress, stage) => {
+        setUploadProgress(Math.round(progress));
+        setUploadStage(stage);
+      });
       
-      // Only redirect on success
-      setActiveView('discovery');
+      setUploadStage('done');
+      setTimeout(() => {
+        setActiveView('discovery');
+      }, 1800);
     } catch (err: any) {
       console.error("Failed to upload listing:", err);
       alert(isAr ? `فشل رفع المزاد: ${err.message || err}` : `Failed to upload listing: ${err.message || err}`);
     } finally {
       setIsUploading(false);
+      setUploadStage(null);
     }
   };
 
@@ -90,20 +101,70 @@ export const ListingWizardView: React.FC = () => {
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="listing-wizard-root"
     >
-      {/* Dynamic Success View with Animation */}
+      {/* Dynamic Success & Upload Progress View with Real Info */}
       {isUploading ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-5 text-center min-h-[400px]" id="upload-success-screen">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 scale-110 animate-bounce shadow-sm">
-            <CheckCircle className="w-10 h-10" />
-          </div>
-          <div className="space-y-1.5">
-            <h3 className="text-base font-black text-emerald-600">
-              {isAr ? 'تم إطلاق المزاد مباشرة بنجاح! 🚀' : 'Live Auction Released Instantly! 🚀'}
-            </h3>
-            <p className="text-xs text-gray-400">
-              {isAr ? 'سيتم توجيهك إلى المزاد تلقائياً خلال ٣ ثوانٍ...' : 'Auto-redirecting you home within 3 seconds...'}
-            </p>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-6 text-center min-h-[400px]" id="upload-success-screen">
+          {uploadStage === 'done' ? (
+            <>
+              <div className="w-20 h-20 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 scale-110 animate-bounce shadow-sm">
+                <CheckCircle className="w-10 h-10" />
+              </div>
+              <div className="space-y-2 max-w-sm">
+                <h3 className="text-lg font-black text-emerald-600">
+                  {isAr ? 'تم إطلاق المزاد بنجاح! 🚀' : 'Auction Created Successfully! 🚀'}
+                </h3>
+                <p className="text-xs text-gray-400 font-medium">
+                  {isAr ? 'تم نشر معروضك، سيتم توجيهك إلى صفحة الاستكشاف تلقائياً...' : 'Your listing is live, redirecting to discovery feed now...'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="w-full max-w-sm bg-zinc-50 border border-zinc-100 rounded-3xl p-8 shadow-sm flex flex-col items-center space-y-6">
+              <div className="relative flex items-center justify-center">
+                <Loader2 className="w-16 h-16 text-[#FF6B00] animate-spin stroke-[1.5]" />
+                <div className="absolute text-xs font-bold text-gray-700">
+                  {uploadProgress}%
+                </div>
+              </div>
+
+              <div className="space-y-2 w-full text-center">
+                <h3 className="text-base font-black text-gray-900 flex items-center justify-center gap-2">
+                  {uploadStage === 'video' && (
+                    <>
+                      <Video className="w-5 h-5 text-[#FF6B00] animate-pulse" />
+                      <span>{isAr ? 'جاري رفع فيديو المنتج...' : 'Uploading product video...'}</span>
+                    </>
+                  )}
+                  {uploadStage === 'thumbnail' && (
+                    <>
+                      <ImageIcon className="w-5 h-5 text-[#FF6B00] animate-pulse" />
+                      <span>{isAr ? 'جاري رفع صورة الغلاف...' : 'Uploading cover photo...'}</span>
+                    </>
+                  )}
+                  {uploadStage === 'saving' && (
+                    <>
+                      <Save className="w-5 h-5 text-[#FF6B00] animate-pulse" />
+                      <span>{isAr ? 'جاري حفظ بيانات المزاد...' : 'Finalizing auction details...'}</span>
+                    </>
+                  )}
+                </h3>
+
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-1">
+                  <div 
+                    className="bg-gradient-to-r from-[#FF6B00] to-orange-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+
+                <p className="text-xs text-gray-400 pt-1 font-medium leading-relaxed">
+                  {isAr 
+                    ? 'يرجى إبقاء هذه الصفحة مفتوحة. قد يستغرق رفع الفيديو عالي الدقة بعض الوقت تبعاً لسرعة الإنترنت لديك.' 
+                    : 'Please keep this window open. High-quality video uploads may take a minute depending on your internet connection speed.'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="max-w-md lg:max-w-5xl mx-auto w-full p-4 lg:p-8 space-y-6">
@@ -254,7 +315,7 @@ export const ListingWizardView: React.FC = () => {
                     {isAr ? 'مدة صلاحية المزاد' : 'Auction Duration'}
                   </label>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-1 md:gap-2">
                     {durationPresets.map((opt) => {
                       const isSelected = duration === opt.value;
                       return (
@@ -262,7 +323,7 @@ export const ListingWizardView: React.FC = () => {
                           key={opt.value}
                           type="button"
                           onClick={() => setDuration(opt.value)}
-                          className={`py-3.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center border cursor-pointer ${
+                          className={`py-3.5 px-1 md:px-2 rounded-xl text-[10px] md:text-[11px] font-bold transition-all text-center border cursor-pointer ${
                             isSelected 
                               ? 'bg-[#FF6B00] border-transparent text-white shadow-sm' 
                               : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'

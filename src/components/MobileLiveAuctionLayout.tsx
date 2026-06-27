@@ -93,6 +93,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
+  const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
 
   // Handle scroll snap to detect current active reel
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -258,6 +259,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
+  const isEnded = auction?.status === 'completed' || (auction?.endTime ? auction.endTime <= Date.now() : false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
@@ -593,29 +595,47 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               </div>
             </div>
 
-            {/* Quick multi bid buttons float over the video like TikTok LIVE gifts */}
-            <div className="grid grid-cols-4 gap-2">
-              {[10, 25, 50, 100].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => onBidExecute(activePrice + val)}
-                  className="py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5"
-                >
-                  +{val} <span className="text-[9px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                </button>
-              ))}
-            </div>
+            {isEnded ? (
+              <div className="w-full bg-black/60 border border-emerald-500/30 rounded-2xl p-4 text-center backdrop-blur-md flex flex-col items-center justify-center gap-1.5 shadow-xl">
+                <span className="text-xs uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
+                  🏁 {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                </span>
+                <span className="text-white text-sm font-bold">
+                  {isAr ? 'الفائز' : 'Winner'}: <span className="text-amber-400 font-black">{auction?.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}</span>
+                </span>
+                {auction?.currentBidderName && (
+                  <span className="text-xs font-semibold text-zinc-300">
+                    {isAr ? 'سعر البيع' : 'Winning Price'}: <span className="text-emerald-400 font-black">{activePrice} JOD</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Quick multi bid buttons float over the video like TikTok LIVE gifts */}
+                <div className="grid grid-cols-4 gap-2">
+                  {[10, 25, 50, 100].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => onBidExecute(activePrice + val)}
+                      className="py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5"
+                    >
+                      +{val} <span className="text-[9px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                    </button>
+                  ))}
+                </div>
 
-            {/* Swipe to bid handle */}
-            <div className="w-full">
-              <SwipeToBid
-                amount={nextBidAmount}
-                onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                language={language as 'en' | 'ar'}
-              />
-            </div>
+                {/* Swipe to bid handle */}
+                <div className="w-full">
+                  <SwipeToBid
+                    amount={nextBidAmount}
+                    onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                    disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                    language={language as 'en' | 'ar'}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

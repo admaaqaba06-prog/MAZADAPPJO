@@ -1,11 +1,71 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { db } from '../services/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
-  FolderLock
+  FolderLock,
+  Trophy,
+  X
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
+
+// Countdown tick sound
+const playTick = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime); // Crisp high tick
+    
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+  } catch (err) {
+    console.warn("Audio Context tick failed:", err);
+  }
+};
+
+// Countdown finish chime
+const playFinish = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Play dual-tone pleasant triumphant finish sound
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
+    
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+    
+    osc1.start();
+    osc2.start();
+    
+    osc1.stop(audioCtx.currentTime + 1.2);
+    osc2.stop(audioCtx.currentTime + 1.2);
+  } catch (err) {
+    console.warn("Audio Context finish failed:", err);
+  }
+};
 
 // Names & logs for realistic simulation
 const JORDANIAN_NAMES = [
@@ -53,6 +113,12 @@ export const LiveStreamView: React.FC = () => {
   // Stream viewer count simulation
   const [viewerCount, setViewerCount] = useState<number>(2354);
 
+  // Premium Final Countdown States
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  const [isOverlayDismissed, setIsOverlayDismissed] = useState<boolean>(false);
+  const [hasFinishedInSession, setHasFinishedInSession] = useState<boolean>(false);
+  const prevSecondsRemaining = useRef<number | null>(null);
+
   // Get live and upcoming auctions
   const liveAuctions = useMemo(() => {
     const filtered = auctions.filter(a => a.status === 'live' || a.status === 'upcoming');
@@ -75,6 +141,13 @@ export const LiveStreamView: React.FC = () => {
   const activeAuction = useMemo(() => {
     return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
   }, [liveAuctions, activeAuctionId]);
+
+  // Reset overlay & session end states on auction change
+  useEffect(() => {
+    setIsOverlayDismissed(false);
+    setHasFinishedInSession(false);
+    prevSecondsRemaining.current = null;
+  }, [activeAuctionId]);
 
   const activePrice = activeAuction 
     ? (localCurrentPrices[activeAuction.id] || activeAuction.currentPrice) 
@@ -123,9 +196,20 @@ export const LiveStreamView: React.FC = () => {
   // Handle countdown timers per card
   const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
   useEffect(() => {
-    if (!activeAuction) return;
-    const interval = setInterval(() => {
+    if (!activeAuction) {
+      setSecondsRemaining(null);
+      return;
+    }
+    
+    const updateTimer = () => {
       const remainingSecs = Math.max(0, Math.floor((activeAuction.endTime - Date.now()) / 1000));
+      
+      if (activeAuction.status === 'live') {
+        setSecondsRemaining(remainingSecs);
+      } else {
+        setSecondsRemaining(null);
+      }
+
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);
@@ -142,10 +226,43 @@ export const LiveStreamView: React.FC = () => {
           `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
         );
       }
-    }, 1000);
+    };
+
+    updateTimer(); // Run once immediately
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
   }, [activeAuction]);
+
+  // Handle countdown tick/finish sound effects and database status transition
+  useEffect(() => {
+    if (secondsRemaining === null || !activeAuction || activeAuction.status !== 'live') {
+      prevSecondsRemaining.current = null;
+      return;
+    }
+
+    if (prevSecondsRemaining.current !== secondsRemaining) {
+      if (secondsRemaining > 0 && secondsRemaining <= 10) {
+        playTick();
+      } else if (secondsRemaining === 0 && prevSecondsRemaining.current !== 0 && prevSecondsRemaining.current !== null) {
+        playFinish();
+        setHasFinishedInSession(true);
+
+        // Auto-end the auction in Firestore if the current user is an admin
+        if (currentUser?.isAdmin || currentUser?.role === 'admin') {
+          const docRef = doc(db, 'auctions', activeAuction.id);
+          updateDoc(docRef, { status: 'completed' })
+            .then(() => {
+              console.log("[Admin auto-end] Successfully updated auction status to completed.");
+            })
+            .catch(err => {
+              console.error("[Admin auto-end] Failed to update auction status in Firestore:", err);
+            });
+        }
+      }
+      prevSecondsRemaining.current = secondsRemaining;
+    }
+  }, [secondsRemaining, activeAuction, currentUser]);
 
   // Active auction watchlist checks
   const isSaved = activeAuction ? watchlist.includes(activeAuction.id) : false;
@@ -336,6 +453,13 @@ export const LiveStreamView: React.FC = () => {
       triggerToast(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
       return;
     }
+    
+    const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
+    if (isEnded) {
+      triggerToast(isAr ? '❌ انتهى المزاد بالفعل!' : '❌ The auction has already ended!');
+      return;
+    }
+
     const res = await placeBid(activeAuction.id, amount);
     if (!res.success) {
       triggerToast(res.message);
@@ -518,6 +642,89 @@ export const LiveStreamView: React.FC = () => {
           onClose={() => setSelectedLotDetailsId(null)} 
         />
       )}
+
+      {/* Premium Final Countdown Overlay */}
+      <AnimatePresence>
+        {activeAuction && !isOverlayDismissed && ((activeAuction.status === 'live' && secondsRemaining !== null && secondsRemaining <= 10) || hasFinishedInSession) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex flex-col items-center justify-center select-none"
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsOverlayDismissed(true)}
+              className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {secondsRemaining !== null && secondsRemaining > 0 ? (
+              <div className="flex flex-col items-center gap-4 text-center">
+                {/* Big Scale Countdown Number */}
+                <AnimatePresence mode="popLayout">
+                  <motion.div
+                    key={secondsRemaining}
+                    initial={{ scale: 0.3, opacity: 0 }}
+                    animate={{ scale: 1.1, opacity: 1 }}
+                    exit={{ scale: 1.5, opacity: 0 }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className="text-[120px] md:text-[200px] font-black text-white select-none filter drop-shadow-[0_0_35px_rgba(255,255,255,0.45)]"
+                  >
+                    {secondsRemaining}
+                  </motion.div>
+                </AnimatePresence>
+                <p className="text-white/80 font-semibold text-lg md:text-xl uppercase tracking-widest animate-pulse">
+                  {isAr ? 'المزايدة النهائية!' : 'Final Countdown!'}
+                </p>
+              </div>
+            ) : (
+              /* Winner Card */
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+                className="bg-black/85 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
+              >
+                <div className="bg-amber-500/15 text-amber-400 p-4 rounded-full mb-2 animate-bounce">
+                  <Trophy className="w-12 h-12" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-black text-white">
+                  {isAr ? '🏁 انتهى المزاد' : '🏁 Auction Ended'}
+                </h2>
+                
+                <div className="w-full bg-white/5 rounded-2xl py-4 px-6 border border-white/5 my-2">
+                  <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
+                    {isAr ? 'المزايد الأعلى' : 'Winner'}
+                  </p>
+                  <p className="text-lg md:text-xl font-bold text-white truncate">
+                    {activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}
+                  </p>
+                </div>
+
+                {activeAuction.currentBidderName && (
+                  <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20">
+                    <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
+                      {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                    </p>
+                    <p className="text-xl font-black text-emerald-400">
+                      {activePrice} JOD
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setIsOverlayDismissed(true)}
+                  className="mt-4 w-full bg-[#FF6B00] hover:bg-[#e05e00] text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                >
+                  {isAr ? 'إغلاق' : 'Close'}
+                </button>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
