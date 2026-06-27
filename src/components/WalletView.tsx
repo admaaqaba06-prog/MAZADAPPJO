@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
 import { db } from '../services/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { OrderDetailsView } from './OrderDetailsView';
 import { 
   User as UserIcon, 
@@ -74,9 +74,77 @@ export const WalletView: React.FC = () => {
     if (!currentUser) return;
     setIsActivatingSeller(true);
     try {
+      const storeName = currentUser.name ? (isAr ? `متجر ${currentUser.name}` : `${currentUser.name}'s Store`) : (isAr ? 'متجري الخاص' : 'My Store');
+      const location = isAr ? 'عمان، الأردن' : 'Amman, Jordan';
+      const about = isAr ? 'أهلاً بكم في متجري الخاص على مزاد الأردن.' : 'Welcome to my official store on MAZAD JO.';
+
+      const sellerPayload = {
+        isSeller: true,
+        sellerStatus: 'active',
+        sellerActivatedAt: serverTimestamp(),
+        sellerProfile: {
+          storeName,
+          location,
+          about,
+          rating: 0,
+          completedSales: 0
+        }
+      };
+
+      console.log("Activating seller with payload:", sellerPayload);
+
+      // 1. Update user document with the non-admin seller activation fields
       const userRef = doc(db, 'users', currentUser.id);
-      await updateDoc(userRef, { role: 'seller' });
-      setCurrentUser(prev => ({ ...prev, role: 'seller' }));
+      await updateDoc(userRef, {
+        isSeller: sellerPayload.isSeller,
+        sellerStatus: sellerPayload.sellerStatus,
+        sellerActivatedAt: sellerPayload.sellerActivatedAt,
+        sellerProfile: sellerPayload.sellerProfile
+      });
+
+      // 2. Setup/create default seller profile document in Firestore 'sellerProfiles' collection
+      const profileId = currentUser.id;
+      const profileRef = doc(db, 'sellerProfiles', profileId);
+      const profileSnap = await getDoc(profileRef);
+      if (!profileSnap.exists()) {
+        await setDoc(profileRef, {
+          id: profileId,
+          userId: currentUser.id,
+          storeName,
+          storeLogo: currentUser.avatar || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
+          coverImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
+          bio: about,
+          rating: 5.0,
+          totalSales: 0,
+          isVerifiedMerchant: false,
+          joinedDate: new Date().toLocaleDateString(language === 'ar' ? 'ar-JO' : 'en-US', { month: 'long', year: 'numeric' }),
+          location,
+          followers: 0,
+          following: 0,
+          verificationStatus: 'not_verified',
+          responseTime: isAr ? 'ساعة واحدة' : '1 hour',
+          cancellationRate: 0,
+          trustScore: 50,
+          badges: []
+        });
+      }
+
+      // 3. Update local React state
+      setCurrentUser(prev => prev ? ({ 
+        ...prev, 
+        role: 'seller', 
+        isSeller: true, 
+        sellerStatus: 'active',
+        sellerActivatedAt: Date.now(),
+        sellerProfile: {
+          storeName,
+          location,
+          about,
+          rating: 0,
+          completedSales: 0
+        }
+      }) : null);
+
       addNotification(
         isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated',
         isAr 
@@ -84,9 +152,12 @@ export const WalletView: React.FC = () => {
           : 'Congratulations! Your seller account is active. You can now visit the Seller Center to manage your business.',
         'info'
       );
-    } catch (err) {
-      console.error(err);
-      alert(isAr ? 'فشل تفعيل حساب البائع.' : 'Failed to activate seller account.');
+    } catch (err: any) {
+      console.error("Failed to activate seller:", err);
+      alert(isAr 
+        ? `فشل تفعيل حساب البائع. التفاصيل: ${err.message || err}` 
+        : `Failed to activate seller account. Details: ${err.message || err}`
+      );
     } finally {
       setIsActivatingSeller(false);
     }

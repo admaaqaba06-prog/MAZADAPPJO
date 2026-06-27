@@ -31,7 +31,9 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         isAdmin() || (
           request.auth.uid == userId && 
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isAdmin', 'isBlocked', 'subscriptionStatus', 'subscriptionExpiry', 'isVerified', 'wonCount'])
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount'
+          ])
         )
       );
       allow delete: if isAdmin();

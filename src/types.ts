@@ -28,6 +28,16 @@ export interface User {
   transferFullName?: string;
   transferPhone?: string;
   createdAt?: string;
+  isSeller?: boolean;
+  sellerStatus?: 'active' | 'inactive' | string;
+  sellerActivatedAt?: any;
+  sellerProfile?: {
+    storeName: string;
+    location: string;
+    about: string;
+    rating: number;
+    completedSales: number;
+  };
 }
 
 export interface SellerProfile {

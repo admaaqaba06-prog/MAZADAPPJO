@@ -77,6 +77,7 @@ interface AppContextProps {
   releaseEscrow: (escrowId: string) => void;
   refundEscrow: (escrowId: string) => void;
   deleteAuction: (id: string) => void;
+  repairEndedAuctionOrder: (auctionId: string) => Promise<{ success: boolean; message: string }>;
 
   // Trust System Operations
   submitVerificationRequest: (
@@ -439,7 +440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             const fbData = userSnap.data();
-            let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : (fbData.role === 'seller' ? 'seller' : 'user');
+            let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
             
             if (isAdminEmail && fbData.role !== 'admin') {
               loadedRole = 'admin';
@@ -473,7 +474,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               phoneNumber: fbData.phoneNumber || '',
               phone: fbData.phone || fbData.phoneNumber || '',
               city: fbData.city || '',
-              createdAt: fbData.createdAt || new Date().toISOString()
+              createdAt: fbData.createdAt || new Date().toISOString(),
+              isSeller: fbData.isSeller || false,
+              sellerStatus: fbData.sellerStatus || '',
+              sellerActivatedAt: fbData.sellerActivatedAt || null,
+              sellerProfile: fbData.sellerProfile || null
             };
           }
           
@@ -635,13 +640,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name: fbData.name || currentUser.name,
           email: fbData.email || currentUser.email,
           avatar: fbData.avatar || currentUser.avatar,
-          role: currentUser.role, // Strictly retain the claims-derived role
+          role: (fbData.isSeller === true || fbData.role === 'seller') ? 'seller' : (fbData.role || currentUser.role),
           isVerified: fbData.isVerified !== undefined ? fbData.isVerified : currentUser.isVerified,
           isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : currentUser.isBlocked,
           subscriptionStatus: fbData.subscriptionStatus || currentUser.subscriptionStatus || 'none',
           subscriptionExpiry: fbData.subscriptionExpiry || currentUser.subscriptionExpiry || null,
           phoneNumber: fbData.phoneNumber || currentUser.phoneNumber || '',
           city: fbData.city || currentUser.city || '',
+          isSeller: fbData.isSeller !== undefined ? fbData.isSeller : currentUser.isSeller,
+          sellerStatus: fbData.sellerStatus || currentUser.sellerStatus || '',
+          sellerActivatedAt: fbData.sellerActivatedAt || currentUser.sellerActivatedAt || null,
+          sellerProfile: fbData.sellerProfile || currentUser.sellerProfile || null,
         };
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(mergedUser);
@@ -944,6 +953,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     return () => unsub();
   }, [isAuthenticated, currentUser?.role]);
+
+  // Real-time sellerProfiles synchronization with Firestore
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const profilesRefCol = collection(db, 'sellerProfiles');
+    const unsub = onSnapshot(profilesRefCol, (snap) => {
+      if (!snap.empty) {
+        const fetchedProfiles: SellerProfile[] = [];
+        snap.forEach((docSnap) => {
+          fetchedProfiles.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as SellerProfile);
+        });
+        setSellerProfiles(prev => {
+          const merged = [...prev];
+          fetchedProfiles.forEach(fp => {
+            const idx = merged.findIndex(p => p.id === fp.id || p.userId === fp.userId);
+            if (idx > -1) {
+              merged[idx] = { ...merged[idx], ...fp };
+            } else {
+              merged.push(fp);
+            }
+          });
+          return merged;
+        });
+      }
+    }, (err) => {
+      console.warn("Firestore 'sellerProfiles' collection sync error:", err);
+    });
+    return () => unsub();
+  }, [isAuthenticated]);
+
+  // Sync singular current user's sellerProfile whenever sellerProfiles list or current user changes
+  useEffect(() => {
+    if (currentUser?.id && sellerProfiles.length > 0) {
+      const profile = sellerProfiles.find(p => p.userId === currentUser.id);
+      if (profile) {
+        setSellerProfile(profile);
+      }
+    } else {
+      setSellerProfile(null);
+    }
+  }, [currentUser?.id, sellerProfiles]);
 
   // Real-time orders synchronization with Firestore
   useEffect(() => {
@@ -2154,6 +2207,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [addNotification]);
 
+  const repairEndedAuctionOrder = useCallback(async (auctionId: string) => {
+    try {
+      const repairCallable = httpsCallable<{ auctionId: string }, { success: boolean; message: string }>(functions, 'repairEndedAuctionOrder');
+      const result = await repairCallable({ auctionId });
+      if (result.data.success) {
+        addNotification(
+          '🔧 Order Repaired Successfully',
+          result.data.message || `Order created for auction ${auctionId}.`,
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to repair order.' };
+    } catch (error: any) {
+      console.error("Cloud function repairEndedAuctionOrder failed:", error);
+      addNotification('❌ Repair Error', error.message || 'Failed to repair ended auction order.', 'alert');
+      return { success: false, message: error.message || 'Failed to repair order.' };
+    }
+  }, [addNotification]);
+
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);
     
@@ -2947,6 +3020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       releaseEscrow,
       refundEscrow,
       deleteAuction,
+      repairEndedAuctionOrder,
       createListing,
       isSimulating,
       setIsSimulating,

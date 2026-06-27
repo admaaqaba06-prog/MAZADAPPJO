@@ -51,6 +51,7 @@ export const AdminDashboardView: React.FC = () => {
     releaseEscrow, 
     refundEscrow,
     deleteAuction,
+    repairEndedAuctionOrder,
     language,
     maintenanceMode,
     featureFlags,
@@ -980,14 +981,31 @@ export const AdminDashboardView: React.FC = () => {
                           )}
 
                           {item.currentBidderId && (
-                            <div className="flex items-center justify-between pt-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                               <span className="text-[10px] text-gray-405 font-mono uppercase font-bold tracking-wider">Escrow Locked 🔒</span>
-                              <button 
-                                onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
-                                className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-850 text-white font-extrabold text-[11px] rounded-xl transition-all"
-                              >
-                                {isAr ? 'نسخ بيانات الشحن والتنسيق ✈️' : 'DISPATCH LOT ✈️'}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {!orders.some(o => o.auctionId === item.id) && (
+                                  <button 
+                                    onClick={async () => {
+                                      const res = await repairEndedAuctionOrder(item.id);
+                                      if (res.success) {
+                                        alert(res.message);
+                                      } else {
+                                        alert("Error: " + res.message);
+                                      }
+                                    }}
+                                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[11px] rounded-xl transition-all"
+                                  >
+                                    {isAr ? 'إصلاح وإنشاء طلب 🔧' : 'REPAIR ORDER 🔧'}
+                                  </button>
+                                )}
+                                <button 
+                                  onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
+                                  className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-850 text-white font-extrabold text-[11px] rounded-xl transition-all"
+                                >
+                                  {isAr ? 'نسخ بيانات الشحن والتنسيق ✈️' : 'DISPATCH LOT ✈️'}
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

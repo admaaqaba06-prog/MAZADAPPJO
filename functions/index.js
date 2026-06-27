@@ -71,10 +71,32 @@ exports.scheduledAuctionCloser = functions.pubsub
 
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
-          const winnerId = auctionData.currentBidderId;
-          const winnerName = auctionData.currentBidderName;
+          const winnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
+          const winnerName = auctionData.currentBidderName || auctionData.highestBidderName || auctionData.winnerName || 'Buyer';
           const finalPrice = auctionData.currentPrice || auctionData.startingPrice;
           const totalBids = auctionData.totalBids || 0;
+
+          console.log("Checking ended auction:", auctionId);
+          console.log("Winner:", winnerId);
+          console.log("Final price:", finalPrice);
+
+          let escrowId = null;
+          if (winnerId) {
+            console.log("Creating order:", auctionId);
+            try {
+              const escrowSnap = await db.collection('escrows')
+                .where('auctionId', '==', auctionId)
+                .where('bidderId', '==', winnerId)
+                .where('status', '==', 'locked')
+                .limit(1)
+                .get();
+              if (!escrowSnap.empty) {
+                escrowId = escrowSnap.docs[0].id;
+              }
+            } catch (escErr) {
+              console.warn(`[scheduledAuctionCloser] Escrow fetch failed for ${auctionId}:`, escErr);
+            }
+          }
 
           return db.runTransaction(async (transaction) => {
             const freshDoc = await transaction.get(auctionDoc.ref);
@@ -102,7 +124,7 @@ exports.scheduledAuctionCloser = functions.pubsub
 
               // Create Order System (Phase 1)
               if (!orderSnap.exists) {
-                transaction.set(orderRef, {
+                const orderPayload = {
                   id: auctionId,
                   auctionId: auctionId,
                   auctionTitle: auctionData.title || '',
@@ -110,15 +132,21 @@ exports.scheduledAuctionCloser = functions.pubsub
                   sellerId: auctionData.sellerId || '',
                   sellerName: auctionData.sellerName || 'Seller',
                   buyerId: winnerId,
-                  buyerName: winnerName || 'Buyer',
+                  buyerName: winnerName,
                   winningBidAmount: finalPrice,
                   status: "waiting_payment",
                   paymentStatus: "unpaid",
                   shippingStatus: "not_started",
-                  escrowStatus: "pending",
+                  escrowStatus: "locked",
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
+                };
+
+                if (escrowId) {
+                  orderPayload.escrowId = escrowId;
+                }
+
+                transaction.set(orderRef, orderPayload);
                 console.log(`[scheduledAuctionCloser] Created order for auction ${auctionId}`);
               } else {
                 console.log(`[scheduledAuctionCloser] Order for auction ${auctionId} already exists, skipping creation.`);
@@ -900,5 +928,106 @@ exports.checkDuplicateAccount = functions.runWith({ cors: true }).https.onCall(a
     throw new functions.https.HttpsError('internal', error.message || 'Failed to check duplicates.');
   }
 });
+
+/**
+ * 11. repairEndedAuctionOrder (Callable)
+ * Admin-only utility to repair any ended auction by creating its corresponding Order document
+ * if the cron check didn't trigger or failed.
+ */
+exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const handlerUserId = context.auth.uid;
+  const { auctionId } = data;
+
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid auctionId.');
+  }
+
+  try {
+    const handlerUserRef = db.collection('users').doc(handlerUserId);
+    const handlerSnap = await handlerUserRef.get();
+    if (!handlerSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
+    }
+    const handlerData = handlerSnap.data();
+    if (handlerData.role !== 'admin' && !context.auth.token.admin && handlerData.email !== 'admaaqaba06@gmail.com') {
+      throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
+    }
+
+    const auctionRef = db.collection('auctions').doc(auctionId);
+    const auctionSnap = await auctionRef.get();
+    if (!auctionSnap.exists) {
+      return { success: false, message: 'Auction not found.' };
+    }
+    const auctionData = auctionSnap.data();
+
+    // Check if there is a winner/highest bidder
+    const winnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
+    if (!winnerId) {
+      return { success: false, message: 'No winner or highest bidder found for this auction.' };
+    }
+
+    const winnerName = auctionData.currentBidderName || auctionData.highestBidderName || auctionData.winnerName || 'Buyer';
+    const finalPrice = auctionData.currentPrice || auctionData.startingPrice || 0;
+
+    // Check if Order already exists
+    const orderRef = db.collection('orders').doc(auctionId);
+    const orderSnap = await orderRef.get();
+    if (orderSnap.exists) {
+      return { success: false, message: `Order for auction ${auctionId} already exists.` };
+    }
+
+    // Query escrow if any exists
+    let escrowId = null;
+    const escrowQuery = await db.collection('escrows')
+      .where('auctionId', '==', auctionId)
+      .where('bidderId', '==', winnerId)
+      .where('status', '==', 'locked')
+      .limit(1)
+      .get();
+    if (!escrowQuery.empty) {
+      escrowId = escrowQuery.docs[0].id;
+    }
+
+    console.log("Checking ended auction:", auctionId);
+    console.log("Winner:", winnerId);
+    console.log("Final price:", finalPrice);
+    console.log("Creating order:", auctionId);
+
+    const orderPayload = {
+      id: auctionId,
+      auctionId: auctionId,
+      auctionTitle: auctionData.title || '',
+      auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
+      sellerId: auctionData.sellerId || '',
+      sellerName: auctionData.sellerName || 'Seller',
+      buyerId: winnerId,
+      buyerName: winnerName,
+      winningBidAmount: finalPrice,
+      status: "waiting_payment",
+      paymentStatus: "unpaid",
+      shippingStatus: "not_started",
+      escrowStatus: "locked",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (escrowId) {
+      orderPayload.escrowId = escrowId;
+    }
+
+    await orderRef.set(orderPayload);
+    console.log(`[repairEndedAuctionOrder] Created repaired order for auction ${auctionId}`);
+
+    return { success: true, message: `Successfully created repaired order for auction ${auctionId}.`, orderId: auctionId };
+
+  } catch (error) {
+    console.error('Error in repairEndedAuctionOrder:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
 
 
