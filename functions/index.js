@@ -691,7 +691,7 @@ exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (dat
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
   const userId = context.auth.uid;
-  const { amount, alias, paymentProofUrl } = data; // amount is in JOD (double)
+  const { amount, alias, paymentProofUrl, escrowId: passedEscrowId } = data; // amount is in JOD (double)
 
   if (typeof amount !== 'number' || amount <= 0) {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid top-up amount.');
@@ -704,7 +704,7 @@ exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (dat
     }
     const userData = userSnap.data();
 
-    const escrowId = `cliq-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const escrowId = passedEscrowId || `cliq-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const amountFils = Math.round(amount * 1000);
 
     const newCliQTransaction = {
@@ -721,6 +721,8 @@ exports.requestTopUp = functions.runWith({ cors: true }).https.onCall(async (dat
       status: 'locked',
       timestamp: Date.now(),
       paymentProofUrl: paymentProofUrl || '',
+      receiptUrl: paymentProofUrl || '',
+      paymentProofImage: paymentProofUrl || '',
       cliqAlias: alias || ''
     };
 
