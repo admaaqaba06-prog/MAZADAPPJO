@@ -3,8 +3,11 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
 import { db } from '../services/firebase';
-import { doc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { OrderDetailsView } from './OrderDetailsView';
+import { AdminWalletConsole } from './AdminWalletConsole';
+import { MyOrdersList } from './MyOrdersList';
+import { SoldOrdersList } from './SoldOrdersList';
 import { 
   User as UserIcon, 
   HelpCircle, 
@@ -39,7 +42,11 @@ import {
   ShoppingBag,
   Package,
   Truck,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  ChevronLeft
 } from 'lucide-react';
 import { EscrowTransaction } from '../types';
 
@@ -66,7 +73,64 @@ export const WalletView: React.FC = () => {
   const t = translations[language];
   const isAr = language === 'ar';
 
-  const [activeTab, setActiveTab] = useState<'wallet' | 'my_orders' | 'sold_orders'>('wallet');
+  const localT = {
+    totalBalance: isAr ? 'إجمالي رصيد المحفظة' : 'Total Wallet Balance',
+    availableBalance: isAr ? 'الرصيد المتاح للمزايدة' : 'Available to Bid',
+    availableToWithdraw: isAr ? 'المتاح للسحب' : 'Available to Withdraw',
+    pendingBalance: isAr ? 'إيداعات قيد التدقيق' : 'Pending Verification',
+    escrowBalance: isAr ? 'ضمانات المزادات النشطة' : 'Bidding Escrow',
+    addFunds: isAr ? 'شحن رصيد المحفظة' : 'Add Funds',
+    withdraw: isAr ? 'سحب الرصيد البنكي' : 'Withdraw Funds',
+    transactions: isAr ? 'سجل الحركات المالية' : 'Transactions Ledger',
+    orders: isAr ? 'المشتريات والمبيعات' : 'My Orders & Sales',
+    myWallet: isAr ? 'رصيدي ومحفظتي' : 'My Wallet',
+    recentActivity: isAr ? 'النشاطات المالية الأخيرة' : 'Recent Wallet Activity',
+    back: isAr ? 'رجوع للمحفظة' : 'Back to Wallet',
+    customAmount: isAr ? 'قيمة إيداع مخصصة' : 'Custom Amount Input',
+    submit: isAr ? 'إرسال طلب الإيداع للتدقيق' : 'Submit Deposit Proof',
+    cliqAlias: isAr ? 'اسم مستعار كليك (المرسل)' : 'Sender CliQ Alias',
+    chooseAmount: isAr ? 'حدد أو اكتب قيمة الشحن (JOD)' : 'Choose JOD Deposit Amount',
+    receiptAttachment: isAr ? 'لقطة شاشة لوصل التحويل (إلزامي)' : 'CliQ Receipt Screenshot',
+    aliasPlaceholder: isAr ? 'مثال: name@cliq' : 'e.g. name@cliq',
+    bankDetails: isAr ? 'بيانات الإيداع الفوري عبر كليك' : 'CliQ Deposit Banking Details',
+    recipientBank: isAr ? 'البنك المستقبل' : 'Recipient Bank',
+    accountName: isAr ? 'اسم المستفيد' : 'Account Name',
+    copied: isAr ? 'تم نسخ الحساب!' : 'Copied!',
+    uploadReceipt: isAr ? 'اضغط لرفع لقطة شاشة لوصل كليك المالي' : 'Click to Upload CliQ Receipt Screenshot',
+    supportedFormats: isAr ? 'صيغ المدعومة: PNG، JPEG' : 'Supports PNG, JPG',
+    all: isAr ? 'الكل' : 'All',
+    moneyIn: isAr ? 'المبالغ الواردة' : 'Money In',
+    moneyOut: isAr ? 'المبالغ الصادرة' : 'Money Out',
+    buying: isAr ? 'مشترياتي وعقودي' : 'My Purchases',
+    selling: isAr ? 'مبيعاتي المعلقة' : 'My Sales',
+    recentDesc: isAr ? 'العمليات المعلقة ودفعات المزادات الأخيرة' : 'Your pending cliq deposits & active auction payments.',
+    emptyActivity: isAr ? 'لا يوجد حركات مسجلة حالياً' : 'No recorded operations yet.',
+    emptyActivityDesc: isAr ? 'ستظهر هنا حركات شحن رصيدك أو تجميد ضمانات بيدك مباشرة.' : 'Deposits and escrow updates will appear here instantly.',
+    howMuchYouHave: isAr ? 'كم تملك من المال' : 'How much money you have',
+    whereToAdd: isAr ? 'كيفية شحن رصيدك' : 'Where to add funds',
+    secureSummary: isAr ? 'حماية وأمان المعاملات' : 'Secure Trust Assurance',
+    pendingDeposits: isAr ? 'الإيداعات قيد التحقق' : 'Pending Verification Desk',
+    helpSupport: isAr ? 'الدعم المالي المباشر' : 'Finance Support Desk',
+    helpDesc: isAr ? 'فريق العمليات المالية المباشر في عمان متاح طوال اليوم لمساعدتك وتدقيق حوالتك وتأكيد الشحن.' : 'Our 24/7 Amman Finance Desk is ready to assist you. Contact us for instant top-up approvals.',
+    bankName: isAr ? 'اسم البنك المستقبل' : 'Bank Name',
+    accountHolder: isAr ? 'اسم صاحب الحساب' : 'Account Holder Name',
+    withdrawMethod: isAr ? 'طريقة السحب المفضلة' : 'Withdrawal Method',
+    cliqInstant: isAr ? 'كليك (فوري)' : 'CliQ (Instant)',
+    bankTransfer: isAr ? 'تحويل بنكي تقليدي' : 'Classic Bank Transfer',
+    withdrawSuccess: isAr ? 'تم تقديم طلب السحب بنجاح!' : 'Withdrawal Requested Successfully!',
+    withdrawSuccessDesc: isAr ? 'تم تقديم مستند طلب السحب المالي للأقسام المعنية للتأكيد والمراجعة خلال 24 ساعة.' : 'Your request is submitted to the audit desk. Settlements occur within 24 hours.',
+    withdrawBtn: isAr ? 'تأكيد تقديم طلب السحب' : 'Submit Withdrawal',
+    amountLabel: isAr ? 'المبلغ المطلوب سحبه (JOD)' : 'Withdraw Amount (JOD)',
+    bankInputLabel: isAr ? 'اسم البنك المستهدف' : 'Target Bank Name',
+    ibanInputLabel: isAr ? 'رقم الحساب أو الآيبان (IBAN)' : 'IBAN / Account Number',
+    holderInputLabel: isAr ? 'اسم صاحب الحساب المستفيد' : 'Beneficiary Holder Name',
+    phoneLabel: isAr ? 'رقم الهاتف المرتبط بالتحويل' : 'Phone Number',
+    withdrawDetailsTitle: isAr ? 'حدد بيانات الحساب البنكي للسحب' : 'Enter Withdrawal Bank Account Details',
+    allTx: isAr ? 'كل العمليات' : 'All Transactions',
+    moneyInTx: isAr ? 'الوارد والتمويل' : 'Deposits & In',
+    moneyOutTx: isAr ? 'الصادر والضمان' : 'Withdrawals & Escrow',
+  };
+
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isActivatingSeller, setIsActivatingSeller] = useState(false);
 
@@ -91,9 +155,6 @@ export const WalletView: React.FC = () => {
         }
       };
 
-      console.log("Activating seller with payload:", sellerPayload);
-
-      // 1. Update user document with the non-admin seller activation fields
       const userRef = doc(db, 'users', currentUser.id);
       await updateDoc(userRef, {
         isSeller: sellerPayload.isSeller,
@@ -102,7 +163,6 @@ export const WalletView: React.FC = () => {
         sellerProfile: sellerPayload.sellerProfile
       });
 
-      // 2. Setup/create default seller profile document in Firestore 'sellerProfiles' collection
       const profileId = currentUser.id;
       const profileRef = doc(db, 'sellerProfiles', profileId);
       const profileSnap = await getDoc(profileRef);
@@ -129,7 +189,6 @@ export const WalletView: React.FC = () => {
         });
       }
 
-      // 3. Update local React state
       setCurrentUser(prev => prev ? ({ 
         ...prev, 
         role: 'seller', 
@@ -165,7 +224,6 @@ export const WalletView: React.FC = () => {
 
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  // Filter escrows strictly for the current user if they are not admin
   const myEscrows = isStrictAdmin 
     ? escrows 
     : (currentUser ? escrows.filter(e => e.bidderId === currentUser.id || e.sellerId === currentUser.id) : []);
@@ -176,14 +234,14 @@ export const WalletView: React.FC = () => {
   const myBuyerOrders = currentUser ? orders.filter(o => o.buyerId === currentUser.id) : [];
   const mySellerOrders = currentUser ? orders.filter(o => o.sellerId === currentUser.id) : [];
   
-  // Normal Bidder Wallet States
   const [amount, setAmount] = useState<string>('500');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
+    const timer = setTimeout(() => setIsLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
+
   const [alias, setAlias] = useState<string>('');
   const [fileUploaded, setFileUploaded] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
@@ -192,6 +250,36 @@ export const WalletView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedProof, setSubmittedProof] = useState<boolean>(false);
   const [copiedIBAN, setCopiedIBAN] = useState<boolean>(false);
+
+  // Rebuilt Whatnot Screens State: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'
+  const [walletSubView, setWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  const [txFilter, setTxFilter] = useState<'all' | 'in' | 'out'>('all');
+  const [ordersTab, setOrdersTab] = useState<'buying' | 'selling'>('buying');
+
+  // New withdrawal states matching the Whatnot simple form style
+  const [withdrawType, setWithdrawType] = useState<'bank' | 'cliq'>('cliq');
+  const [wAmount, setWAmount] = useState<string>('');
+  const [wBankName, setWBankName] = useState<string>('');
+  const [wIban, setWIban] = useState<string>('');
+  const [wHolderName, setWHolderName] = useState<string>('');
+  const [wCliqAlias, setWCliqAlias] = useState<string>('');
+  const [wPhone, setWPhone] = useState<string>('');
+  const [isWithdrawing, setIsWithdrawing] = useState<boolean>(false);
+  const [withdrawSuccess, setWithdrawSuccess] = useState<boolean>(false);
+
+  // Fetch real-time withdrawals ledger
+  const [myWithdrawals, setMyWithdrawals] = useState<any[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    const q = query(collection(db, 'withdrawals'), where('userId', '==', currentUser.id));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMyWithdrawals(list);
+    }, (err) => {
+      console.warn("Withdrawal collection read permissions warning: ", err);
+    });
+    return () => unsub();
+  }, [currentUser?.id]);
 
   // Admin Ledger States
   const [adminFilter, setAdminFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -225,7 +313,7 @@ export const WalletView: React.FC = () => {
       isAr ? 'تم نسخ رمز الآيبان (IBAN) إلى الحافظة.' : 'IBAN code copied to clipboard.',
       'info'
     );
-    setTimeout(() => setCopiedIBAN(false), 2500);
+    setTimeout(() => setCopiedIBAN(false), 2000);
   };
 
   const handleTopUpSubmit = async (e: React.FormEvent) => {
@@ -257,7 +345,6 @@ export const WalletView: React.FC = () => {
       
       setIsSubmitting(false);
       setSubmittedProof(true);
-      // Reset
       setAmount('500');
       setFileUploaded(false);
       setFileName('');
@@ -276,14 +363,92 @@ export const WalletView: React.FC = () => {
     }
   };
 
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const amountNum = Number(wAmount);
+    if (!wAmount || isNaN(amountNum) || amountNum <= 0) {
+      alert(isAr ? 'الرجاء إدخال مبلغ صحيح للسحب.' : 'Please enter a valid amount.');
+      return;
+    }
+    if (amountNum > wallet.availableBalance) {
+      alert(isAr ? 'المبلغ المطلوب يتجاوز الرصيد المتاح للسحب.' : 'Amount exceeds available balance.');
+      return;
+    }
+
+    if (withdrawType === 'bank') {
+      if (!wBankName.trim() || !wIban.trim() || !wHolderName.trim()) {
+        alert(isAr ? 'الرجاء تعبئة كافة حقول الحساب البنكي.' : 'Please enter all bank account credentials.');
+        return;
+      }
+    } else {
+      if (!wCliqAlias.trim()) {
+        alert(isAr ? 'الرجاء إدخال الاسم المستعار في كليك.' : 'Please enter your CliQ alias.');
+        return;
+      }
+    }
+
+    setIsWithdrawing(true);
+    try {
+      const wId = `with-${Date.now()}`;
+      const refId = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      const newWithdrawal = {
+        id: wId,
+        userId: currentUser.id,
+        amount: amountNum,
+        type: withdrawType,
+        status: 'pending',
+        timestamp: Date.now(),
+        details: withdrawType === 'bank' ? {
+          bankName: wBankName,
+          iban: wIban,
+          accountHolderName: wHolderName
+        } : {
+          cliqAlias: wCliqAlias,
+          phone: wPhone || currentUser.phone || '0791234567'
+        },
+        referenceId: refId
+      };
+
+      await setDoc(doc(db, 'withdrawals', wId), newWithdrawal);
+
+      const walletRef = doc(db, 'wallets', currentUser.id);
+      const newAvailFils = Math.round((wallet.availableBalance - amountNum) * 1000);
+      const newEscrowFils = Math.round((wallet.escrowBalance + amountNum) * 1000);
+
+      await updateDoc(walletRef, {
+        availableBalance: newAvailFils,
+        escrowBalance: newEscrowFils
+      });
+
+      addNotification(
+        isAr ? '💸 تم تقديم طلب السحب' : '💸 Withdrawal Request Logged',
+        isAr 
+          ? `تم تسجيل طلب سحب بقيمة ${amountNum} د.أ بنجاح وهو قيد التدقيق.` 
+          : `Withdrawal request for ${amountNum} JOD logged successfully. Pending review.`,
+        'info'
+      );
+
+      setWithdrawSuccess(true);
+      setWAmount('');
+      setWBankName('');
+      setWIban('');
+      setWHolderName('');
+      setWCliqAlias('');
+      setWPhone('');
+    } catch (err: any) {
+      console.error("Failed to submit withdrawal request:", err);
+      alert(isAr ? 'عذراً، فشل تسجيل العملية البنكية في هذا الخادم.' : 'Failed to register the withdrawal transaction.');
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   const handleAdminApproveDeposit = (escrowId: string) => {
-    // Approve
     releaseEscrow(escrowId);
-    
-    // Find the item to see details
     const item = escrows.find(e => e.id === escrowId);
     if (item) {
-      // Find beneficiary user and physically credit their wallet locally if it mimics active user
       addNotification(
         isAr ? '✅ تم الموافقة والاعتماد' : '✅ CliQ Deposit Credited',
         isAr 
@@ -298,9 +463,7 @@ export const WalletView: React.FC = () => {
   };
 
   const handleAdminRejectDeposit = (escrowId: string) => {
-    // Reject
     refundEscrow(escrowId);
-    
     const item = escrows.find(e => e.id === escrowId);
     if (item) {
       addNotification(
@@ -317,39 +480,33 @@ export const WalletView: React.FC = () => {
   };
 
   // -------------------------------------------------------------
-  // CALCULATE BALANCES FOR ADMIN PLATFORM TREASURY (MAZADJOM CLIQ)
+  // CALCULATE BALANCES FOR ADMIN PLATFORM TREASURY
   // -------------------------------------------------------------
   const userCliqDeposits = escrows.filter(e => e.auctionId === 'cliq-dep');
   const subscriptionTransfers = escrows.filter(e => e.auctionId === 'cliq-sub');
 
-  // Sum of all approved deposits across all users
   const approvedDepositsSum = userCliqDeposits
     .filter(e => e.status === 'released')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  // Sum of all pending deposits waiting on admin manual audit
   const pendingDepositsSum = userCliqDeposits
     .filter(e => e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
   const pendingDepositsCount = userCliqDeposits.filter(e => e.status === 'locked').length;
 
-  // Sum of subscription passthrough fees
   const subscriptionRevenueSum = subscriptionTransfers
     .filter(e => e.status === 'released')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  // Active user bidding locks (how much user bidding power is secured currently inside live items)
   const activeBiddingLocksSum = escrows
     .filter(e => e.auctionId !== 'cliq-dep' && e.auctionId !== 'cliq-sub' && e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  // Grand total received in MAZADJOM bank account (approved + pending + subscriptions)
   const totalMazadJomCapital = approvedDepositsSum + pendingDepositsSum + subscriptionRevenueSum;
 
   const currentLockedEscrows = escrows.filter(e => e.status === 'locked');
   const historicEscrows = escrows.filter(e => e.status !== 'locked');
 
-  // Filter cliq deposit list for the admin view
   const filteredAdminDeposits = userCliqDeposits.filter(e => {
     if (adminFilter === 'all') return true;
     if (adminFilter === 'pending') return e.status === 'locked';
@@ -360,1341 +517,1152 @@ export const WalletView: React.FC = () => {
 
   const activeSubscribers = users.filter(u => u.subscriptionStatus === 'active');
 
-  // 1. ADMIN USER CONSOLE DESIGN (THE CORE CASH FLOW & AUDIT LEDGER)
+  // Sum of local pending cliq deposits
+  const myPendingDepositsSum = myPendingDeposits.reduce((sum, e) => sum + e.amount, 0);
+
+  // Consolidated Recent Activity logs
+  const combinedRecentActivity = [
+    ...myPendingDeposits.map(d => ({
+      id: d.id,
+      type: 'deposit' as const,
+      title: isAr ? 'تمويل معلق عبر كليك' : 'Pending CliQ Top-Up',
+      subtitle: `${isAr ? 'الاسم المستعار:' : 'Alias:'} ${d.cliqAlias}`,
+      amount: d.amount,
+      status: 'pending' as const,
+      timestamp: d.timestamp,
+    })),
+    ...myWonAuctionsPayments.map(p => ({
+      id: p.id,
+      type: 'payment' as const,
+      title: p.auctionTitle,
+      subtitle: `REF_ID: ${p.id.substring(0, 8).toUpperCase()}`,
+      amount: -p.amount,
+      status: p.status, // 'locked' | 'released'
+      timestamp: p.timestamp,
+    }))
+  ].sort((a, b) => b.timestamp - a.timestamp);
+
+  // Consolidated Full Ledger
+  const combinedTransactions = [
+    ...userCliqDeposits.filter(e => isStrictAdmin ? true : e.bidderId === currentUser?.id).map(d => ({
+      id: d.id,
+      type: 'deposit' as const,
+      title: isAr ? 'تمويل محفظة كليك' : 'CliQ Wallet Top-Up',
+      subtitle: `${isAr ? 'الاسم المستعار:' : 'Alias:'} ${d.cliqAlias}`,
+      amount: d.amount,
+      status: d.status, // 'locked' | 'released' | 'refunded'
+      timestamp: d.timestamp,
+    })),
+    ...myWonAuctionsPayments.map(p => ({
+      id: p.id,
+      type: 'payment' as const,
+      title: p.auctionTitle,
+      subtitle: `REF_ID: ${p.id.substring(0, 8).toUpperCase()}`,
+      amount: -p.amount,
+      status: p.status, // 'locked' | 'released'
+      timestamp: p.timestamp,
+    })),
+    ...myWithdrawals.map(w => ({
+      id: w.id,
+      type: 'withdrawal' as const,
+      title: w.type === 'cliq' ? (isAr ? 'سحب فوري كليك' : 'CliQ Cash Withdrawal') : (isAr ? 'سحب حوالة بنكية' : 'Bank Cash Withdrawal'),
+      subtitle: w.type === 'cliq' ? `CliQ Alias: ${w.details?.cliqAlias}` : `${w.details?.bankName} - IBAN: ...${w.details?.iban?.substring(Math.max(0, w.details.iban.length - 6))}`,
+      amount: -w.amount,
+      status: w.status, // 'pending' | 'approved' | 'rejected'
+      timestamp: w.timestamp,
+    }))
+  ].sort((a, b) => b.timestamp - a.timestamp);
+
+  const filteredTransactions = combinedTransactions.filter(tx => {
+    if (txFilter === 'all') return true;
+    if (txFilter === 'in') return tx.amount > 0;
+    if (txFilter === 'out') return tx.amount < 0;
+    return true;
+  });
+
+  // Admin bypass
   if (isStrictAdmin) {
     return (
-      <div 
-        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F3F6F8] pb-4 overscroll-contain select-none font-sans"
-        style={{ direction: isAr ? 'rtl' : 'ltr' }}
-        id="admin-treasury-root"
-      >
-        {/* Admin Fintech Header Banner */}
-        <div className="p-4 px-5 flex items-center justify-between border-b border-gray-200/80 sticky top-0 bg-[#F3F6F8]/90 backdrop-blur-md z-40">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#FF6B00]"></div>
-            <h2 className="text-[12px] font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
-              {isAr ? 'لوحة التدقيق المالي ومراقبة كليك 🏦' : 'MAZADJOM CLIQ gateway financial board 🏦'}
-            </h2>
-          </div>
-        </div>
-
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto w-full">
-          
-          {/* Welcome Admin Row */}
-          <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-150 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-lg border border-orange-100">
-                A
-              </div>
-              <div>
-                <h3 className="font-black text-gray-950 text-base flex items-center gap-1.5">
-                  <span>{currentUser.name}</span>
-                  <span className="text-[8px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.5 rounded leading-none">
-                    {isAr ? 'المسؤول المالي' : 'TREASURY AUDITOR'}
-                  </span>
-                </h3>
-                <p className="text-[11px] text-gray-400 font-mono mt-0.5">
-                  {isAr ? 'مستودع المراقبة النقدية لـ مازادكوم' : 'Corporate CliQ balance tracker & escrow reconciler'}
-                </p>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => logout()}
-              type="button"
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 text-gray-400 hover:text-rose-600 hover:bg-rose-50/50 transition-all text-xs font-bold cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>{isAr ? 'خروج' : 'Exit'}</span>
-            </button>
-          </div>
-
-          {/* 2. CORPORATE TREASURY DASHBOARD GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Card 1: Grand balance */}
-            <div className="bg-[#121318] text-white rounded-3xl p-5 border border-white/5 bg-gradient-to-br from-[#121318] to-[#1e2029] shadow-md relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#FF6B00]/10 rounded-full blur-2xl pointer-events-none"></div>
-              <div className="space-y-2 relative z-10">
-                <span className="text-[9px] text-[#FF6B00] font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'إجمالي المقبوضات كليك' : 'TOTAL TRANSFERRED FLOW'}
-                </span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-3xl font-black font-mono tracking-tight text-white">
-                    {totalMazadJomCapital.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-black text-[#FF6B00] font-mono">JOD</span>
-                </div>
-                <p className="text-[10px] text-gray-400 leading-normal pt-1 border-t border-white/5">
-                  {isAr ? 'مجموع أرصدة المستخدمين والاشتراكات' : 'Cumulative users assets & passes'}
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2: Approved deposits */}
-            <div className="bg-white rounded-3xl p-5 border border-gray-255 shadow-xs">
-              <div className="space-y-1.5">
-                <span className="text-[9px] text-emerald-600 font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'الإيداعات المعتمدة للعملاء' : 'APPROVED CREDITED JOD'}
-                </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black font-mono tracking-tight text-gray-900">
-                    {approvedDepositsSum.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-bold text-gray-400 font-mono">JOD</span>
-                </div>
-                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md mt-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  {isAr ? 'مشحونة ومكتملة' : 'Reconciled & active'}
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Subscription Passes Revenue */}
-            <div className="bg-white rounded-3xl p-5 border border-gray-255 shadow-xs">
-              <div className="space-y-1.5">
-                <span className="text-[9px] text-violet-600 font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'إيرادات اشتراكات كليك' : 'CLIQ REGISTRATION FEES'}
-                </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black font-mono tracking-tight text-gray-900">
-                    {subscriptionRevenueSum.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-bold text-gray-400 font-mono">JOD</span>
-                </div>
-                <span className="inline-flex items-center gap-1 text-[9px] text-violet-600 font-bold bg-violet-50 px-2 py-0.5 rounded-md mt-2">
-                  <Sparkles className="w-2.5 h-2.5 text-violet-500" />
-                  {isAr ? `${activeSubscribers.length} مشترك نشط` : `${activeSubscribers.length} subscribers list`}
-                </span>
-              </div>
-            </div>
-
-            {/* Card 4: Pending Audits */}
-            <div className="bg-white rounded-3xl p-5 border border-gray-255 shadow-xs relative">
-              {pendingDepositsCount > 0 && (
-                <span className="absolute top-4 right-4 bg-amber-500 text-white w-4 h-4 rounded-full text-[8.5px] font-mono font-bold flex items-center justify-center animate-bounce">
-                  {pendingDepositsCount}
-                </span>
-              )}
-              <div className="space-y-1.5">
-                <span className="text-[9px] text-amber-600 font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'حوالات معلّقة تحت التدقيق' : 'PENDING DESK AUDITS'}
-                </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black font-mono tracking-tight text-gray-900">
-                    {pendingDepositsSum.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-bold text-gray-400 font-mono">JOD</span>
-                </div>
-                <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md mt-2 ${pendingDepositsCount > 0 ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-gray-100 text-gray-400'}`}>
-                  <Clock className="w-2.5 h-2.5" />
-                  {isAr ? 'بانتظار مراجعة الوصل' : 'Awaiting receipt match'}
-                </span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* 3. USER CLIQ DEPOSITS LEDGER MANAGER */}
-          <div className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-1">
-              <div>
-                <h3 className="text-sm font-black text-gray-950 uppercase font-mono tracking-tight flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-[#FF6B00]" />
-                  <span>{isAr ? 'سجل المراقبة ومضاهاة حوالات كليك' : 'CliQ Deposits Verification Queue'}</span>
-                </h3>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {isAr ? 'اضغط على تفاصيل الحوالة لعرض الإيصال والموافقة على التعبئة فورياً لعضو المزاد' : 'Approve user receipts instantly to credit their bidding wallets'}
-                </p>
-              </div>
-
-              {/* Status Tab Filters */}
-              <div className="flex bg-gray-200/50 p-1 rounded-xl gap-1 text-[10px] font-bold font-mono">
-                {(['all', 'pending', 'approved', 'rejected'] as const).map((tab) => {
-                  const isActive = adminFilter === tab;
-                  const labelAr = tab === 'all' ? 'الكل' : tab === 'pending' ? 'المعلقة' : tab === 'approved' ? 'المعتمدة' : 'المرفوضة';
-                  const labelEn = tab.toUpperCase();
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setAdminFilter(tab)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        isActive 
-                          ? 'bg-white text-gray-950 font-black shadow-xs' 
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      {isAr ? labelAr : labelEn}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Deposits list */}
-            <div className="space-y-3">
-              {filteredAdminDeposits.length > 0 ? (
-                filteredAdminDeposits.map((escrow) => (
-                  <div 
-                    key={escrow.id} 
-                    className="bg-white border border-gray-150 rounded-3xl p-5 hover:border-gray-200 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                    id={`admin-escrow-row-${escrow.id}`}
-                  >
-                    
-                    {/* User and amount summary */}
-                    <div className="flex items-center gap-4 min-w-0">
-                      {/* Circle styled like bank receipt */}
-                      <div className="relative shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 text-gray-500 flex items-center justify-center font-black text-sm">
-                          {escrow.bidderName.charAt(0).toUpperCase()}
-                        </div>
-                        {/* Status micro icon */}
-                        <div className={`absolute -bottom-1 -right-1 p-0.5 rounded-full border-2 border-white text-white ${
-                          escrow.status === 'locked' ? 'bg-amber-500' : escrow.status === 'released' ? 'bg-emerald-500' : 'bg-gray-400'
-                        }`}>
-                          {escrow.status === 'locked' ? <Clock className="w-2.5 h-2.5" /> : escrow.status === 'released' ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <X className="w-2.5 h-2.5" />}
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className="font-extrabold text-xs text-gray-950 truncate">{escrow.bidderName}</h4>
-                          <span className="text-[8px] font-mono font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                            {escrow.cliqAlias || 'no_alias'}
-                          </span>
-                        </div>
-                        
-                        <div className="text-[10px] text-gray-450 font-mono space-x-1.5 flex flex-wrap items-center">
-                          <span>REF: {escrow.id.substring(0, 8).toUpperCase()}</span>
-                          <span>•</span>
-                          <span>{new Date(escrow.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US', {hour: '2-digit', minute: '2-digit'})}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Amount & action row */}
-                    <div className="flex flex-col md:flex-row md:items-center gap-4 shrink-0 justify-between">
-                      {/* Large JOD tag */}
-                      <div className="text-right">
-                        <div className="text-base font-black font-mono text-gray-950">
-                          {escrow.amount.toLocaleString()} <span className="text-[9px] font-bold text-[#FF6B00]">JOD</span>
-                        </div>
-                        <span className={`text-[8px] font-mono font-black uppercase mt-0.5 inline-block ${
-                          escrow.status === 'locked' ? 'text-amber-650' : escrow.status === 'released' ? 'text-emerald-600' : 'text-gray-400'
-                        }`}>
-                          {escrow.status === 'locked' ? (isAr ? 'معلّق قيد التحقق' : 'PENDING AUDIT') : escrow.status === 'released' ? (isAr ? 'تم الشحن والاعتماد' : 'CREDITED') : (isAr ? 'مرفوض ومسترجع' : 'REFUSED/CANCELLED')}
-                        </span>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2">
-                        {/* View receipt screenshot always */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProofEscrow(escrow)}
-                          className="px-3.5 py-2.5 text-[10.5px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1 shadow-2xs cursor-pointer bg-white"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-gray-500" />
-                          <span>{isAr ? 'عرض الإيصال' : 'View Slip'}</span>
-                        </button>
-
-                        {/* If pending, permit approving and rejecting */}
-                        {escrow.status === 'locked' && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleAdminApproveDeposit(escrow.id)}
-                              className="px-3.5 py-2.5 text-[10.5px] font-black rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
-                              <span>{isAr ? 'شحن المحفظة' : 'Credit Wallet'}</span>
-                            </button>
-                            
-                            <button
-                              type="button"
-                              onClick={() => handleAdminRejectDeposit(escrow.id)}
-                              className="p-2.5 text-[10.5px] font-bold rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 active:scale-95 cursor-pointer"
-                              title={isAr ? 'رفض الحوالة' : 'Reject Slip'}
-                            >
-                              <X className="w-3.5 h-3.5 text-red-600" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-
-                    </div>
-
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 bg-white rounded-3xl border border-gray-200 text-xs text-gray-400 font-bold uppercase font-mono">
-                  {isAr ? 'لا يوجد حوالات تطابق الفلتر المختار.' : 'Empty Ledger matching criteria.'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 4. ACTIVE MEMBERS WITH SILVER PASS (REGISTRATION FEES) */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-xs space-y-4">
-            <div>
-              <h3 className="text-xs font-black text-gray-900 tracking-wider uppercase font-mono flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-[#FF6B00]" />
-                <span>{isAr ? 'سجل اشتراكات مزادكوم الفضية النشطة' : 'MAZADJOM Registered Member Subs'}</span>
-              </h3>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                {isAr ? 'قائمة المستخدمين الذين حوّلوا قيمة الاشتراك لتنشيط وتعبئة حسابات المزايدات' : 'Users who cleared registration requirements via corporate CliQ'}
-              </p>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {activeSubscribers.map((user) => (
-                <div key={user.id} className="py-3.5 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-3">
-                    {user.avatar ? (
-                      <img src={user.avatar} className="w-8 h-8 rounded-full object-cover border border-gray-100" alt="" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-orange-100 text-[#FF6B00] flex items-center justify-center font-bold text-xs">{user.name.charAt(0)}</div>
-                    )}
-                    <div>
-                      <h4 className="text-xs font-extrabold text-gray-900 leading-none">{user.name}</h4>
-                      <p className="text-[9px] text-gray-450 mt-1 font-mono">{user.email} • {user.phoneNumber || '+962 7 9XXX XXXX'}</p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[9px] font-mono font-bold text-gray-500 block">
-                      {isAr ? 'رسوم التسجيل' : 'Register Fee'}
-                    </span>
-                    <span className="text-xs font-black text-[#FF6B00] font-mono block mt-0.5">
-                      100 JOD
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bidding escrows stats overview */}
-          <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-3xl flex items-center justify-between gap-4 flex-wrap text-xs text-gray-700 leading-normal">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-[#FF6B00]" />
-              <div>
-                <strong className="font-extrabold block text-[#FF6B00]">{isAr ? 'الضمانات النشطة للمزايدات المعلقة' : 'Active Secured Mutual Bid Margins'}</strong>
-                <span className="text-[10px] text-gray-400">{isAr ? 'تم تجميدها من حسابات العملاء لصالح المزادات النشطة' : 'Currently locked from bidders to guarantee physical items'}</span>
-              </div>
-            </div>
-            <div className="font-mono font-black text-gray-900">
-              {activeBiddingLocksSum.toLocaleString()} JOD
-            </div>
-          </div>
-
-        </div>
-
-        {/* -------------------------------------------------------------
-            CLIQ RECEIPT PREVIEW MODAL / DIALOG (FOR ADMIN AUDIT SCREEN)
-            ------------------------------------------------------------- */}
-        {selectedProofEscrow && (() => {
-          const selectedRequest = selectedProofEscrow;
-          const isRealUrl = (url?: string) => {
-            if (!url) return false;
-            const clean = url.trim();
-            return clean.startsWith('http://') || 
-                   clean.startsWith('https://') || 
-                   clean.startsWith('data:') || 
-                   (clean.length > 30 && /^[A-Za-z0-9+/=]+$/.test(clean.substring(0, 30)));
-          };
-          const getReceiptImageSrc = (url?: string): string => {
-            if (!url) return '';
-            const clean = url.trim();
-            if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:')) {
-              return clean;
-            }
-            return `data:image/png;base64,${clean}`;
-          };
-          const rawUrl =
-            selectedRequest.receiptUrl ??
-            selectedRequest.paymentProofUrl ??
-            selectedRequest.paymentProofImage ??
-            selectedRequest.proofUrl ??
-            selectedRequest.paymentImageUrl ??
-            null;
-          const receiptImageUrl = isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : null;
-
-          console.log("Selected subscription request:", selectedRequest);
-          console.log("Receipt image URL:", receiptImageUrl);
-
-          return (
-            <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-              <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col border border-gray-100 max-h-[90vh]">
-                
-                {/* Modal sticky top */}
-                <div className="p-4 border-b border-gray-150 flex items-center justify-between">
-                  <h3 className="font-black text-xs text-gray-800 uppercase font-mono tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
-                    <span>{isAr ? 'تدقيق إيصال كليك البنكي' : 'Verify CliQ Deposit Receipt'}</span>
-                  </h3>
-                  <button 
-                    onClick={() => setSelectedProofEscrow(null)}
-                    className="p-1 px-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Scrollable Receipt Form Details */}
-                <div className="p-5 space-y-4 overflow-y-auto">
-                  <div className="p-3 bg-[#FFF9F5] border border-[#FF6B00]/10 rounded-2xl space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">{isAr ? 'اسم مرسل الحوالة' : 'Sender User'}:</span>
-                      <strong className="font-black text-gray-900">{selectedProofEscrow.bidderName}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">{isAr ? 'معرف حساب كليك' : 'Sender CliQ Alias'}:</span>
-                      <strong className="font-mono font-black text-[#FF6B00]">{selectedProofEscrow.cliqAlias || 'N/A'}</strong>
-                    </div>
-                    <div className="flex justify-between border-t border-orange-100/40 pt-2">
-                      <span className="text-gray-400">{isAr ? 'مبلغ الحوالة المطلوب' : 'Requested Top-Up'}:</span>
-                      <strong className="font-mono font-black text-lg text-[#FF6B00]">{selectedProofEscrow.amount.toLocaleString()} JOD</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">{isAr ? 'البنك المستلم' : 'Deposit Bank'}:</span>
-                      <span className="font-mono uppercase font-black text-gray-500">Capital Bank - MAZADJOM</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase font-mono block">
-                      {isAr ? 'لقطة الشاشة لإشعار التحويل البنكي' : 'Attached Bank Receipt Reference'}
-                    </label>
-                    {receiptImageUrl ? (
-                      <img
-                        src={receiptImageUrl}
-                        alt="CliQ transfer receipt"
-                        className="w-full rounded-xl border border-orange-100 object-contain max-h-[520px] bg-white"
-                      />
-                    ) : (
-                      <div className="text-center p-6 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                        No receipt image attached
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Modal footer actions */}
-                <div className="p-4 bg-gray-50 border-t border-gray-150 flex items-center gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProofEscrow(null)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer text-xs font-bold"
-                  >
-                    {isAr ? 'رجوع' : 'Back'}
-                  </button>
-
-                  {selectedProofEscrow.status === 'locked' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleAdminRejectDeposit(selectedProofEscrow.id)}
-                        className="px-4 py-2.5 rounded-xl border border-red-200 text-red-650 hover:bg-red-50 text-xs font-bold cursor-pointer"
-                      >
-                        {isAr ? 'رفض الطلب ❌' : 'Reject & Void ❌'}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={!receiptImageUrl}
-                        onClick={() => handleAdminApproveDeposit(selectedProofEscrow.id)}
-                        className={`px-5 py-2.5 rounded-xl text-white font-black text-xs cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5 ${
-                          !receiptImageUrl 
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
-                            : 'bg-emerald-600 hover:bg-emerald-700'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-white" />
-                        <span>{isAr ? 'قبول واعتماد فوري 💳' : 'Approve & Credit 💳'}</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-
-              </div>
-            </div>
-          );
-        })()}
-
-      </div>
+      <AdminWalletConsole
+        isAr={isAr}
+        currentUser={currentUser}
+        logout={logout}
+        totalMazadJomCapital={totalMazadJomCapital}
+        approvedDepositsSum={approvedDepositsSum}
+        subscriptionRevenueSum={subscriptionRevenueSum}
+        activeSubscribers={activeSubscribers}
+        pendingDepositsSum={pendingDepositsSum}
+        pendingDepositsCount={pendingDepositsCount}
+        activeBiddingLocksSum={activeBiddingLocksSum}
+        adminFilter={adminFilter}
+        setAdminFilter={setAdminFilter}
+        filteredAdminDeposits={filteredAdminDeposits}
+        selectedProofEscrow={selectedProofEscrow}
+        setSelectedProofEscrow={setSelectedProofEscrow}
+        handleAdminRejectDeposit={handleAdminRejectDeposit}
+        handleAdminApproveDeposit={handleAdminApproveDeposit}
+        currentLockedEscrows={currentLockedEscrows}
+        historicEscrows={historicEscrows}
+        users={users}
+        language={language}
+      />
     );
   }
 
-  // 2. NORMAL BIDDER WALLET REPRESENTATION
+  // If a single order is being inspected, overlay order details screen (keeps dark background unified)
   if (selectedOrderId) {
     return (
       <div 
-        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] p-4 md:p-6 overscroll-contain select-none font-sans"
+        className="flex-1 min-h-screen bg-[#0E0E0E] text-white p-4 md:p-8 overflow-y-auto"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
-        id="order-details-pane"
+        id="order-details-pane-rebuilt"
       >
-        <div className="max-w-4xl mx-auto w-full">
+        <div className="max-w-4xl mx-auto">
           <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
         </div>
       </div>
     );
   }
 
-  return (
-    <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F9FBFC] pb-4 overscroll-contain select-none font-sans"
-      style={{ direction: isAr ? 'rtl' : 'ltr' }}
-      id="wallet-ledger-root"
-    >
-      
-      {/* Premium Fintech Top Sticky Header */}
-      <div className="p-4 px-5 flex items-center justify-between border-b border-gray-100 sticky top-0 bg-[#F9FBFC]/90 backdrop-blur-md z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#E85D04]"></div>
-          <h2 className="text-[12px] font-black tracking-widest text-[#E85D04] leading-none font-mono uppercase">
-            {isAr ? 'محفظتي ورصيدي' : 'MY WALLET & BALANCE'}
-          </h2>
-        </div>
-      </div>
- 
-      <div className="p-4 md:p-6 space-y-5 max-w-2xl mx-auto w-full">
-        
-        {/* 1. ULTRA-POLISHED USER CARD */}
-        {currentUser && (
-          <div className="bg-white rounded-3xl p-6 shadow-[0_5px_15px_rgba(0,0,0,0.02)] border border-gray-100/80 relative flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300">
-            
-            <div className="flex items-center gap-4">
-              {/* Picture with premium active ring */}
-              <div className="relative">
-                {currentUser.avatar ? (
-                  <img 
-                    src={currentUser.avatar} 
-                    alt={currentUser.name} 
-                    className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] ring-2 ring-gray-150"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#E85D04]/20 to-[#E85D04]/5 text-[#E85D04] flex items-center justify-center font-black text-xl border-2 border-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] ring-2 ring-orange-200">
-                    {currentUser.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {/* Micro Verified Overlay badge */}
-                <div className="absolute -bottom-1 -right-1 bg-[#E85D04] text-white p-0.5 rounded-full border-2 border-white shadow-xs">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-lg font-black text-gray-900 leading-tight">
-                    {currentUser.name}
-                  </h3>
-                  {isStrictAdmin && (
-                    <span className="text-[8px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
-                      {isAr ? 'مسؤول' : 'ADMIN'}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 font-mono font-medium lowercase">
-                  {currentUser.email}
-                </p>
-                
-                {/* Subscription Status Tag */}
-                <div className="pt-0.5 select-none flex items-center gap-2 flex-wrap">
-                  {currentUser.subscriptionStatus === 'active' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-150 uppercase">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      {isAr ? 'عضو نشط في المزاد' : 'ACTIVE BIDDING PASS'}
-                    </span>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-rose-50 text-rose-700 border border-rose-150 uppercase animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                        {isAr ? 'الاشتراك منتهي' : 'PASS EXPIRED'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowSubscriptionPrompt(true)}
-                        className="px-2.5 py-1 rounded-md bg-[#E85D04] hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
-                      >
-                        <CreditCard className="w-2.5 h-2.5 text-white stroke-[3]" />
-                        <span>{isAr ? 'تجديد الآن 💳' : 'RENEW NOW 💳'}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Seller Account Status Tag */}
-                <div className="pt-1 select-none flex items-center gap-2 flex-wrap">
-                  {currentUser.role === 'seller' || currentUser.role === 'admin' ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-150 uppercase">
-                        <UserCheck className="w-3 h-3 text-indigo-500" />
-                        {isAr ? 'حساب بائع نشط' : 'ACTIVE SELLER ACCOUNT'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setActiveView('seller-center')}
-                        className="px-2.5 py-1 rounded-md bg-zinc-950 hover:bg-zinc-850 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
-                      >
-                        <Building2 className="w-2.5 h-2.5 text-white stroke-[3]" />
-                        <span>{isAr ? 'دخول مركز البائع 🏪' : 'SELLER CENTER 🏪'}</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-gray-50 text-gray-500 border border-gray-200 uppercase">
-                        {isAr ? 'حساب بائع غير نشط' : 'SELLER INACTIVE'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleActivateSeller}
-                        disabled={isActivatingSeller}
-                        className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 active:scale-95 text-white font-extrabold text-[9.5px] leading-tight transition-all cursor-pointer shadow-sm flex items-center gap-1"
-                      >
-                        <UserCheck className="w-2.5 h-2.5 text-white stroke-[3]" />
-                        <span>{isActivatingSeller ? '...' : (isAr ? 'تفعيل حساب بائع مجاناً' : 'ACTIVATE SELLER FREE')}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+  // Helper render method for center column or mobile screen switcher
+  const renderActiveScreen = () => {
+    switch (walletSubView) {
+      case 'wallet-home':
+        return (
+          <div className="space-y-6">
+            {/* Desktop Only header */}
+            <div className="hidden lg:block space-y-1">
+              <h1 className="text-2xl font-black tracking-tight">{localT.myWallet}</h1>
+              <p className="text-zinc-400 text-sm">{localT.howMuchYouHave}</p>
             </div>
- 
-            {/* Logout Option */}
-            <button
-              onClick={() => logout()}
-              type="button"
-              className="md:self-start flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border border-gray-150 text-gray-400 hover:text-rose-600 hover:border-rose-100 hover:bg-rose-50/50 transition-all cursor-pointer text-xs font-bold active:scale-95"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>{isAr ? 'تسجيل الخروج' : 'LOG OUT'}</span>
-            </button>
- 
-          </div>
-        )}
- 
-        {/* TABS SELECTOR */}
-        <div className="flex bg-white p-1 rounded-2xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)] gap-1">
-          <button
-            onClick={() => setActiveTab('wallet')}
-            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'wallet'
-                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
-                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
-            }`}
-          >
-            <Wallet className="w-4 h-4" />
-            <span>{isAr ? 'محفظتي وإيداعاتي' : 'My Wallet'}</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('my_orders')}
-            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'my_orders'
-                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
-                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
-          </button>
 
-          <button
-            onClick={() => setActiveTab('sold_orders')}
-            className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'sold_orders'
-                ? 'bg-[#E85D04] text-white shadow-md shadow-[#E85D04]/20'
-                : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>{isAr ? 'مبيعاتي' : 'Sold Orders'}</span>
-          </button>
-        </div>
-
-        {activeTab === 'wallet' && (
-          <>
-            {/* 2. THE OBSIDIAN-STEEL FINTECH WALLET CARD */}
-        <div className="bg-[#121318] text-white rounded-3xl p-6 shadow-xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-[#121318] to-[#1c1d24]">
-          {/* Neon laser design ornaments */}
-          <div className="absolute top-0 right-0 w-36 h-36 bg-[#E85D04]/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute -bottom-5 -left-5 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
-          
-          <div className="space-y-5 relative z-10">
-            <div className="flex justify-between items-center">
-              <div className="space-y-0.5">
-                <span className="text-[9px] text-[#E85D04] font-mono tracking-widest block uppercase font-black">
-                  {isAr ? 'رصيد المحفظة' : 'WALLET BALANCE'}
+            {/* Premium Balance display */}
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-44 h-44 bg-[#FF6B00]/5 rounded-full blur-3xl pointer-events-none"></div>
+              
+              <div className="space-y-2">
+                <span className="text-xs uppercase tracking-widest text-[#FF6B00] font-mono font-black block">
+                  {localT.totalBalance}
                 </span>
-                <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-[44px] font-black font-mono tracking-tight leading-none text-white">
-                    {wallet.totalBalance.toLocaleString()}
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl md:text-5xl font-black font-mono tracking-tight text-white">
+                    {wallet.totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className="text-xs font-black text-[#FF6B00] font-mono uppercase tracking-widest">JOD</span>
+                  <span className="text-sm font-black text-zinc-400 font-mono">JOD</span>
                 </div>
               </div>
-              
-              {/* Premium chip-like logo */}
-              <div className="w-10 h-8 rounded-md bg-white/5 border border-white/10 flex flex-col justify-between p-1.5">
-                <div className="flex gap-0.5">
-                  <span className="w-2.5 h-1.5 rounded-xs bg-[#FF6B00]"></span>
-                  <span className="w-1.5 h-1.5 rounded-xs bg-white/30"></span>
-                </div>
-                <div className="w-full h-1 bg-white/10 rounded-xs"></div>
-              </div>
-            </div>
- 
-            {/* Dash border separating */}
-            <div className="border-t border-white/10 border-dashed" />
- 
-            {/* Split layout: AVAILABLE only */}
-            <div className="grid grid-cols-1 gap-4">
-              {/* AVAILABLE Column stretched */}
-              <div>
-                <div className="flex items-center gap-1.5 text-emerald-400">
-                  <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[9.5px] font-black tracking-wider uppercase font-mono">
-                    {isAr ? 'الرصيد المتاح للمزايدة' : 'AVAILABLE BALANCE'}
-                  </span>
-                </div>
-                <p className="text-2xl font-black text-white font-mono tracking-tight mt-1">
-                  {wallet.availableBalance.toLocaleString()} <span className="text-xs text-emerald-400 font-mono font-medium">JOD</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
- 
-        {/* 3. CLIQ PARAMS REFERENCE BOARD */}
-        <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-orange-50 rounded-lg text-[#FF6B00]">
-                <Building2 className="w-4 h-4" />
-              </div>
-              <span className="text-[11px] font-black text-gray-800 uppercase tracking-tight font-mono">
-                {isAr ? 'بيانات الإيداع الفوري عبر كليك' : 'CLIQ DEPOSIT BANKING DETAILS'}
-              </span>
-            </div>
-            <span className="text-[8px] font-black bg-orange-100 text-[#FF6B00] px-1.5 py-0.5 rounded font-mono uppercase">
-              {isAr ? 'فوري' : 'INSTANT'}
-            </span>
-          </div>
- 
-          <div className="p-3.5 bg-[#FFF9F5] border border-[#FF6B00]/15 rounded-2xl space-y-2.5 font-sans text-xs">
-            <div className="flex justify-between items-center border-b border-orange-100 pb-2">
-              <span className="text-gray-500 font-bold">{isAr ? 'البنك المستقبل' : 'Recipient Bank'}:</span>
-              <span className="font-extrabold text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
-            </div>
-            
-            <div className="flex justify-between items-center pb-1">
-              <span className="text-gray-500 font-bold">{isAr ? 'اسم الحساب المستلم' : 'Account Name'}:</span>
-              <span className="font-black text-gray-900">{isAr ? 'مؤسسة مزاد الأردن' : 'MAZAD JO M'}</span>
-            </div>
-          </div>
-        </div>
- 
-        {/* 4. DEPOSIT AND COMPLIANCE UPLOAD SECTION */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-black text-gray-900 tracking-tight px-1 flex items-center gap-1.5 uppercase font-mono">
-            <span>{isAr ? 'طلب شحن الرصيد' : 'DEPOSIT REQUEST FORM'}</span>
-          </h3>
-          
-          <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-[0_5px_15px_rgba(0,0,0,0.015)] space-y-4">
-            {submittedProof ? (
-              <div className="bg-emerald-50/50 border border-emerald-150 rounded-2xl p-6 text-center space-y-4" id="submitted-slip-alert">
-                <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-sm">
-                  <Check className="w-6 h-6 stroke-[3]" />
+
+              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-400 font-mono font-extrabold uppercase block leading-none">{localT.availableBalance}</span>
+                  <p className="text-lg font-mono font-black text-[#10B981]">{wallet.availableBalance.toLocaleString()} <span className="text-[10px]">JOD</span></p>
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-sm font-black text-emerald-800 uppercase font-mono">{isAr ? 'تم رفع طلب الشحن بنجاح!' : 'PROOF UPLOAD COMPLETED'}</h4>
-                  <p className="text-xs text-gray-650 leading-relaxed max-w-sm mx-auto">
-                    {isAr 
-                      ? 'تم رفع إشعار الحوالة والبيانات للقسم المالي. لاعتماده فورا والبدء بالمزايدة، تفضل بزيارة لوحة تحكم المدير ومراجعة الحوالات الواردة لاعتماده في ثوانٍ معدودة!' 
-                      : 'The financial operations desk has received your payload. To credit it instantly in this simulated sandbox, head over to the Admin Panel top segment (CliQ list) and approve it!'}
-                  </p>
+                  <span className="text-[10px] text-zinc-400 font-mono font-extrabold uppercase block leading-none">{localT.pendingBalance}</span>
+                  <p className="text-lg font-mono font-black text-amber-500">{myPendingDepositsSum.toLocaleString()} <span className="text-[10px]">JOD</span></p>
                 </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-400 font-mono font-extrabold uppercase block leading-none">{localT.escrowBalance}</span>
+                  <p className="text-lg font-mono font-black text-rose-500">{wallet.escrowBalance.toLocaleString()} <span className="text-[10px]">JOD</span></p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Only Quick Actions Stack */}
+            <div className="block lg:hidden grid grid-cols-2 gap-3.5">
+              <button 
+                onClick={() => setWalletSubView('add-funds')}
+                className="w-full bg-[#FF6B00] hover:bg-orange-600 active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all"
+                id="mob-btn-add-funds"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>{localT.addFunds}</span>
+              </button>
+              <button 
+                onClick={() => setWalletSubView('withdraw')}
+                className="w-full bg-[#202024] border border-white/10 hover:bg-[#2c2c32] active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer text-white transition-all"
+                id="mob-btn-withdraw"
+              >
+                <ArrowDownLeft className="w-4 h-4 text-zinc-400 stroke-[3]" />
+                <span>{localT.withdraw}</span>
+              </button>
+            </div>
+
+            {/* Quick Navigation grid */}
+            <div className="space-y-3">
+              <h3 className="text-xs uppercase font-mono font-black tracking-widest text-zinc-400">{isAr ? 'الوصول السريع للمهام' : 'Quick Actions'}</h3>
+              <div className="grid grid-cols-2 gap-4">
                 <button 
-                  onClick={() => setSubmittedProof(false)}
-                  className="px-4 py-2 bg-emerald-600 text-white font-black text-[10.5px] rounded-lg tracking-wider hover:bg-emerald-700 transition-all cursor-pointer shadow-xs uppercase font-mono"
+                  onClick={() => setWalletSubView('add-funds')}
+                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  id="action-add-funds-home"
                 >
-                  {isAr ? 'إرسال حوالة أخرى 💳' : 'TRIGGER ANOTHER CLIQ DEPOSIT'}
+                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-[#FF6B00] group-hover:scale-105 transition-transform">
+                    <Plus className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-white">{localT.addFunds}</h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'شحن فوري بالآيبان وكليك' : 'Deposit instantly via CliQ'}</p>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setWalletSubView('withdraw')}
+                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  id="action-withdraw-home"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-[#10B981] group-hover:scale-105 transition-transform">
+                    <ArrowDownLeft className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-white">{localT.withdraw}</h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'سحب رصيدك لحسابك البنكي الأردني' : 'Transfer JOD to bank account'}</p>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setWalletSubView('transactions')}
+                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  id="action-transactions-home"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-zinc-400 group-hover:scale-105 transition-transform">
+                    <History className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-white">{localT.transactions}</h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'عرض الإيداعات والمكاسب بالتفصيل' : 'View financial entries log'}</p>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setWalletSubView('orders')}
+                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  id="action-orders-home"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-white">{localT.orders}</h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'متابعة بضائعك المباعة والمشتراة' : 'Track won listings & sales'}</p>
+                  </div>
                 </button>
               </div>
-            ) : (
-              <form onSubmit={handleTopUpSubmit} className="space-y-4" id="topup-compliance-form">
-                
-                {/* Step 1: Input amount with quick presets */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[11px] text-gray-500 uppercase font-mono block font-black">
-                      {isAr ? '1. حدد أو اكتب مبلغ الإيداع (دينار أردني)' : '1. CHOOSE & WRITE DEPOSIT JOD AMOUNT'} <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[10px] font-mono text-gray-400">JOD CURRENCY</span>
+            </div>
+
+            {/* Recent Activity lists */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-zinc-400">{localT.recentActivity}</h3>
+                <button 
+                  onClick={() => setWalletSubView('transactions')}
+                  className="text-xs text-[#FF6B00] font-black hover:underline cursor-pointer"
+                >
+                  {isAr ? 'مشاهدة الكل ←' : 'View All ←'}
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                {isLoading ? (
+                  <>
+                    <WalletRowSkeleton />
+                    <WalletRowSkeleton />
+                  </>
+                ) : combinedRecentActivity.length > 0 ? (
+                  combinedRecentActivity.slice(0, 5).map((act) => {
+                    const isPositive = act.amount > 0;
+                    return (
+                      <div 
+                        key={act.id} 
+                        className="bg-[#18181B] border border-white/5 p-4 rounded-3xl flex items-center justify-between"
+                      >
+                        <div className="min-w-0 flex-1 flex items-center gap-3.5">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            isPositive ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-rose-500/10 text-rose-500'
+                          }`}>
+                            {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-extrabold text-sm text-white truncate">{act.title}</h5>
+                            <p className="text-xs text-zinc-400 mt-0.5 truncate font-mono">{act.subtitle}</p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 font-mono">
+                          <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-zinc-200'}`}>
+                            {isPositive ? '+' : ''}{act.amount.toLocaleString()} JOD
+                          </span>
+                          <span className="text-[10px] text-zinc-500 uppercase font-black block mt-1">
+                            {new Date(act.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {month: 'short', day: 'numeric'})}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 bg-[#18181B] border border-white/5 rounded-3xl p-6">
+                    <HelpCircle className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                    <p className="font-extrabold text-sm text-zinc-400 uppercase tracking-wider">{localT.emptyActivity}</p>
+                    <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">{localT.emptyActivityDesc}</p>
                   </div>
-                  
-                  {/* Amount Large Input */}
-                  <div className="relative flex items-center shadow-2xs">
-                    <input 
-                      type="number" 
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="500"
-                      className="w-full bg-[#FAF9F6] border border-gray-200/80 rounded-2xl py-4 px-6 font-black font-mono text-3xl text-center text-gray-900 focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] transition-all"
-                    />
-                    <span className={`absolute ${isAr ? 'left-5' : 'right-5'} text-sm font-black text-[#FF6B00] tracking-widest pointer-events-none select-none font-sans`}>JOD</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'add-funds':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setWalletSubView('wallet-home')}
+                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+              </button>
+              <div>
+                <h1 className="text-xl font-black">{localT.addFunds}</h1>
+                <p className="text-xs text-zinc-400">{isAr ? 'تمويل فوري وآمن لرصيدك' : 'Top up your bidding wallet'}</p>
+              </div>
+            </div>
+
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6">
+              {submittedProof ? (
+                <div className="text-center space-y-6 py-6" id="submitted-slip-alert-rebuilt">
+                  <div className="w-16 h-16 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center mx-auto border border-[#10B981]/20 shadow-md">
+                    <Check className="w-8 h-8 stroke-[3]" />
                   </div>
- 
-                  {/* Jordanian Presets Grid */}
-                  <div className="grid grid-cols-5 gap-1.5 pt-1">
-                    {presets.map((val) => {
-                      const isActive = parseInt(amount, 10) === val;
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setAmount(val.toString())}
-                          className={`py-2 px-1 rounded-xl text-[10.5px] font-black tracking-tight transition-all active:scale-95 text-center cursor-pointer font-mono border ${
-                            isActive
-                              ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-sm'
-                              : 'bg-white border-gray-200 text-gray-650 hover:bg-gray-50'
-                          }`}
-                        >
-                          +{val.toLocaleString()}
-                        </button>
-                      );
-                    })}
+                  <div className="space-y-2">
+                    <h4 className="text-lg font-black text-white">{isAr ? 'تم رفع طلب الشحن بنجاح!' : 'DEPOSIT REQUEST SUBMITTED'}</h4>
+                    <p className="text-sm text-zinc-400 leading-relaxed max-w-md mx-auto">
+                      {isAr 
+                        ? 'تم رفع إشعار الحوالة والبيانات للقسم المالي. لاعتماده فورا والبدء بالمزايدة، تفضل بزيارة لوحة تحكم المدير ومراجعة الحوالات الواردة لاعتماده في ثوانٍ معدودة!' 
+                        : 'Your receipt document was loaded successfully. In this sandbox environment, please navigate to the Admin Dashboard (top segment) to approve it instantly!'}
+                    </p>
                   </div>
+                  <button 
+                    onClick={() => setSubmittedProof(false)}
+                    className="px-6 py-3 bg-[#FF6B00] text-white font-black text-xs rounded-2xl tracking-wider hover:bg-orange-600 transition-all cursor-pointer shadow-md uppercase font-mono"
+                  >
+                    {isAr ? 'إرسال حوالة أخرى 💳' : 'TRIGGER ANOTHER CLIQ DEPOSIT'}
+                  </button>
                 </div>
- 
-                {/* Step 2: CliQ Alias */}
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-[11px] text-gray-500 uppercase font-mono block font-black">
-                    {isAr ? '2. اسم مستعار كليك الخاص بحسابك (المرسل)' : '2. SENDER BANK CLIQ ALIAS'} <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      value={alias}
-                      onChange={(e) => setAlias(e.target.value)}
-                      placeholder={isAr ? "مثال: name@cliq" : "e.g. name@cliq"}
-                      className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-gray-900 text-xs font-black focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
-                    />
-                    <div className={`absolute top-3 ${isAr ? 'left-3' : 'right-3'} text-gray-300`}>
-                      <UserIcon className="w-4 h-4" />
+              ) : (
+                <form onSubmit={handleTopUpSubmit} className="space-y-6" id="topup-compliance-form-rebuilt">
+                  
+                  {/* Step 1: Input amount with quick presets */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
+                      {localT.chooseAmount} <span className="text-[#FF6B00]">*</span>
+                    </label>
+                    
+                    {/* Amount Large Input */}
+                    <div className="relative flex items-center">
+                      <input 
+                        type="number" 
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder="500"
+                        className="w-full bg-[#202024] border border-white/5 rounded-3xl py-5 px-6 font-black font-mono text-4xl text-center text-white focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] transition-all"
+                      />
+                      <span className={`absolute ${isAr ? 'left-6' : 'right-6'} text-sm font-black text-[#FF6B00] tracking-widest font-mono`}>JOD</span>
+                    </div>
+
+                    {/* Presets Grid */}
+                    <div className="grid grid-cols-5 gap-2">
+                      {presets.map((val) => {
+                        const isActive = parseInt(amount, 10) === val;
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setAmount(val.toString())}
+                            className={`py-2 px-1 rounded-2xl text-xs font-black tracking-tight transition-all active:scale-95 text-center cursor-pointer font-mono border ${
+                              isActive
+                                ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-sm'
+                                : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32] hover:text-white'
+                            }`}
+                          >
+                            +{val.toLocaleString()}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
- 
-                {/* Step 3: Screenshot Box */}
-                <div className="space-y-2 pt-1">
-                  <label className="text-[11px] text-gray-500 uppercase font-mono block font-black">
-                    {isAr ? '3. لقطة شاشة لإثبات التحويل (إلزامي)' : '3. CLIQ RECEIPT SCREENSHOT ATTACHMENT'} <span className="text-red-500">*</span>
-                  </label>
-                  
-                  {/* Real hidden file input */}
-                  <input 
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleRealFileUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  
-                  <div 
-                    onClick={handleTriggerFileInput}
-                    className="border-2 border-dashed border-gray-200 hover:border-[#FF6B00] rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 bg-[#FAF9F6] shadow-2xs group"
-                    id="screenshot-uploader-box"
-                  >
-                    {fileUploaded && selectedFile ? (
-                      <div className="flex flex-col items-center justify-center gap-1.5 text-emerald-650">
-                        <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-150">
-                          <CheckCircle className="w-5 h-5 shrink-0 stroke-[3]" />
-                        </div>
-                        <span className="font-mono text-[10.5px] text-gray-700 font-extrabold max-w-full truncate px-3 bg-white border border-gray-150 py-1 rounded-md">
-                          {fileName}
-                        </span>
-                        <span className="text-[9px] text-[#FF6B00] font-black uppercase mt-1">
-                          {isAr ? 'انقر لتغيير الإرفاق' : 'Click to replace document'}
+
+                  {/* Step 2: CliQ Alias */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
+                      {localT.cliqAlias} <span className="text-[#FF6B00]">*</span>
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={alias}
+                        onChange={(e) => setAlias(e.target.value)}
+                        placeholder={localT.aliasPlaceholder}
+                        className="w-full bg-[#202024] border border-white/5 rounded-2xl py-4 px-5 text-white text-sm font-bold focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
+                      />
+                      <div className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} text-zinc-500`}>
+                        <UserIcon className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CliQ Bank details card */}
+                  <div className="bg-[#202024] border border-white/5 rounded-3xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-[#FF6B00]" />
+                        <span className="text-xs font-black text-white uppercase tracking-wider font-mono">
+                          {localT.bankDetails}
                         </span>
                       </div>
+                      <span className="text-[10px] font-black bg-[#FF6B00]/10 text-[#FF6B00] px-2 py-0.5 rounded-full font-mono uppercase">
+                        {isAr ? 'فوري' : 'INSTANT'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3 font-sans text-xs">
+                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-zinc-400">{localT.recipientBank}:</span>
+                        <span className="font-extrabold text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-zinc-400">{localT.accountName}:</span>
+                        <span className="font-black text-white">{isAr ? 'مؤسسة مزاد الأردن م' : 'MAZAD JO M'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-400">IBAN:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-white select-all">JO83 CAPS 1020 0085 4100 00</span>
+                          <button 
+                            type="button" 
+                            onClick={handleCopyIBAN}
+                            className="p-1 bg-[#18181B] rounded-lg hover:text-[#FF6B00] text-zinc-400 transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Screenshot Box */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
+                      {localT.receiptAttachment} <span className="text-[#FF6B00]">*</span>
+                    </label>
+                    
+                    <input 
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleRealFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    
+                    <div 
+                      onClick={handleTriggerFileInput}
+                      className="border-2 border-dashed border-white/10 hover:border-[#FF6B00] rounded-3xl p-6 text-center cursor-pointer transition-all space-y-3 bg-[#202024] group"
+                      id="screenshot-uploader-box-rebuilt"
+                    >
+                      {fileUploaded && selectedFile ? (
+                        <div className="flex flex-col items-center justify-center gap-2 text-[#10B981]">
+                          <div className="w-10 h-10 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center border border-[#10B981]/20">
+                            <CheckCircle className="w-6 h-6 stroke-[3]" />
+                          </div>
+                          <span className="font-mono text-xs text-white font-extrabold max-w-full truncate px-3 bg-[#18181B] py-1.5 rounded-xl border border-white/5">
+                            {fileName}
+                          </span>
+                          <span className="text-[10px] text-[#FF6B00] font-black uppercase">
+                            {isAr ? 'انقر لاستبدال الإيصال المرفق' : 'Click to replace document'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-zinc-400 space-y-3">
+                          <Camera className="w-10 h-10 mx-auto text-zinc-500 group-hover:text-[#FF6B00] transition-colors" />
+                          <div>
+                            <p className="font-extrabold text-xs text-[#FF6B00] uppercase tracking-wider">
+                              {localT.uploadReceipt}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 uppercase tracking-tight mt-1">
+                              {localT.supportedFormats}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting || !fileUploaded || !selectedFile}
+                    className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
+                      isSubmitting || !fileUploaded || !selectedFile
+                        ? 'bg-[#202024] text-zinc-600 border border-white/5 cursor-not-allowed shadow-none' 
+                        : 'bg-[#FF6B00] hover:bg-orange-600 text-white hover:shadow-lg active:scale-[0.99]'
+                    }`}
+                    id="submit-deposit-proof-btn-rebuilt"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>{isAr ? 'جاري التحقق وتسجيل المستند...' : 'TRANSMITTING RECEIPT FOR AUDIT...'}</span>
+                      </>
                     ) : (
-                      <div className="text-gray-400 space-y-2">
-                        <Camera className="w-8 h-8 mx-auto text-gray-400 group-hover:text-[#FF6B00] transition-colors" />
-                        <div>
-                          <p className="font-extrabold text-[11px] text-[#FF6B00] uppercase tracking-wider">
-                            {isAr ? 'اضغط هنا لرفع الوصل المالي للتحويل' : 'UPLOAD TRANSFER RECEIPT SCREENSHOT'}
-                          </p>
-                          <p className="text-[9.5px] text-gray-400 uppercase tracking-tight mt-0.5">
-                            {isAr ? 'دعم صيغ الصور PNG، JPEG' : 'SUPPORTED FORMATS: PNG, JPG'}
-                          </p>
+                      <span>{localT.submit}</span>
+                    )}
+                  </button>
+
+                </form>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'withdraw':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setWalletSubView('wallet-home')}
+                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+              </button>
+              <div>
+                <h1 className="text-xl font-black">{localT.withdraw}</h1>
+                <p className="text-xs text-zinc-400">{isAr ? 'سحب المبالغ المتاحة لحسابك البنكي' : 'Cash out your available JOD'}</p>
+              </div>
+            </div>
+
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6">
+              {withdrawSuccess ? (
+                <div className="text-center space-y-6 py-6" id="withdraw-success-card">
+                  <div className="w-16 h-16 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center mx-auto border border-[#10B981]/20 shadow-md">
+                    <CheckCircle2 className="w-8 h-8 stroke-[3]" />
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-lg font-black text-white">{localT.withdrawSuccess}</h4>
+                    <p className="text-sm text-zinc-400 leading-relaxed max-w-md mx-auto">
+                      {localT.withdrawSuccessDesc}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setWithdrawSuccess(false);
+                      setWalletSubView('wallet-home');
+                    }}
+                    className="px-6 py-3 bg-[#FF6B00] text-white font-black text-xs rounded-2xl tracking-wider hover:bg-orange-600 transition-all cursor-pointer shadow-md uppercase font-mono"
+                  >
+                    {isAr ? 'العودة للمحفظة الرئيسة' : 'RETURN TO WALLET'}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleWithdrawSubmit} className="space-y-6">
+                  
+                  {/* Show available balance */}
+                  <div className="bg-[#202024] border border-white/5 p-5 rounded-3xl flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] uppercase font-mono font-black text-zinc-400 block">{localT.availableToWithdraw}</span>
+                      <p className="text-2xl font-black font-mono text-[#10B981] mt-1">
+                        {wallet.availableBalance.toLocaleString()} <span className="text-xs">JOD</span>
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-2xl bg-[#18181B] flex items-center justify-center text-zinc-400">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  {/* Choose withdraw method */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
+                      {localT.withdrawMethod}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        type="button" 
+                        onClick={() => setWithdrawType('cliq')}
+                        className={`py-3.5 px-4 rounded-2xl text-xs font-black transition-all border cursor-pointer uppercase ${
+                          withdrawType === 'cliq'
+                            ? 'bg-[#FF6B00] border-[#FF6B00] text-white'
+                            : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32]'
+                        }`}
+                      >
+                        {localT.cliqInstant}
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setWithdrawType('bank')}
+                        className={`py-3.5 px-4 rounded-2xl text-xs font-black transition-all border cursor-pointer uppercase ${
+                          withdrawType === 'bank'
+                            ? 'bg-[#FF6B00] border-[#FF6B00] text-white'
+                            : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32]'
+                        }`}
+                      >
+                        {localT.bankTransfer}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input amount */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
+                      {localT.amountLabel} <span className="text-[#FF6B00]">*</span>
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        value={wAmount}
+                        onChange={(e) => setWAmount(e.target.value)}
+                        placeholder="150"
+                        className="w-full bg-[#202024] border border-white/5 rounded-2xl py-4 px-5 text-white font-black font-mono text-lg focus:outline-none focus:border-[#FF6B00]"
+                      />
+                      <span className="absolute right-5 top-4 text-xs font-black text-[#FF6B00] font-mono">JOD</span>
+                    </div>
+                  </div>
+
+                  {/* Conditional inputs */}
+                  <div className="space-y-4">
+                    <h3 className="text-xs uppercase font-mono font-black text-zinc-400 tracking-wider">
+                      {localT.withdrawDetailsTitle}
+                    </h3>
+                    
+                    {withdrawType === 'bank' ? (
+                      <div className="space-y-3.5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.bankInputLabel}</label>
+                          <input 
+                            type="text" 
+                            value={wBankName}
+                            onChange={(e) => setWBankName(e.target.value)}
+                            placeholder={isAr ? "مثال: البنك العربي" : "e.g. Arab Bank"}
+                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.ibanInputLabel}</label>
+                          <input 
+                            type="text" 
+                            value={wIban}
+                            onChange={(e) => setWIban(e.target.value)}
+                            placeholder="JO..."
+                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.holderInputLabel}</label>
+                          <input 
+                            type="text" 
+                            value={wHolderName}
+                            onChange={(e) => setWHolderName(e.target.value)}
+                            placeholder={currentUser?.name}
+                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono text-zinc-400">{isAr ? 'اسم مستعار كليك (المرسل إليه)' : 'Target CliQ Alias'}</label>
+                          <input 
+                            type="text" 
+                            value={wCliqAlias}
+                            onChange={(e) => setWCliqAlias(e.target.value)}
+                            placeholder="alias@cliq"
+                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.phoneLabel}</label>
+                          <input 
+                            type="text" 
+                            value={wPhone}
+                            onChange={(e) => setWPhone(e.target.value)}
+                            placeholder={currentUser?.phoneNumber || "079..."}
+                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
+                          />
                         </div>
                       </div>
                     )}
                   </div>
-                </div>
- 
-                {/* Step 4: Submit Buttons */}
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting || !fileUploaded || !selectedFile}
-                  className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
-                    isSubmitting || !fileUploaded || !selectedFile
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none border border-gray-200' 
-                      : 'bg-[#FF6B00] hover:bg-[#FF8000] text-white hover:shadow-lg active:scale-[0.99]'
-                  }`}
-                  id="submit-deposit-proof-btn"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                      <span>{isAr ? 'جاري تدوير وتسجيل طلب الإيداع...' : 'TRANSMITTING RECEIPT FOR SYSTEM AUDIT...'}</span>
-                    </>
-                  ) : (
-                    <span>{isAr ? 'تأكيد التسجيل وإرسال إشعار الدفع' : 'Submit Deposit Notification for Audit'}</span>
-                  )}
-                </button>
- 
-              </form>
-            )}
-          </div>
-        </div>
- 
-        {/* 5. MY PENDING DEPOSITS */}
-        <div className="space-y-3 pt-1">
-          <div className="flex items-center gap-1.5 px-1">
-            <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
-            <span className="text-[10px] font-black font-mono tracking-widest text-gray-500 uppercase">
-              {isAr ? 'طلبات الإيداع المعلقة الخاصة بي' : 'MY PENDING DEPOSITS'}
-            </span>
-          </div>
-          
-          <div className="space-y-3">
-            {isLoading ? (
-              <>
-                <WalletRowSkeleton />
-                <WalletRowSkeleton />
-              </>
-            ) : myPendingDeposits.length > 0 ? (
-              myPendingDeposits.map((escrow) => (
-                <div 
-                  key={escrow.id} 
-                  className="bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:border-gray-200 transition-all"
-                  id={`my-pending-deposit-row-${escrow.id}`}
-                >
-                  <div className="min-w-0 flex-1 pr-3 pl-3">
-                    <span className="text-[8.5px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-black uppercase block w-max leading-none">
-                      {isAr ? 'قيد التدقيق والتحقق' : 'UNDER SYSTEM AUDIT'}
-                    </span>
-                    <h5 className="font-extrabold text-[12.5px] text-gray-950 truncate mt-2">
-                      {isAr ? 'شحن رصيد المحفظة عبر كليك' : 'Wallet Top-Up via CliQ'}
-                    </h5>
-                    <p className="text-[9.5px] text-gray-400 mt-0.5 flex items-center gap-1">
-                      <span>{isAr ? 'الاسم المستعار:' : 'CliQ Alias:'}</span>
-                      <span className="font-mono text-gray-600 font-black">{escrow.cliqAlias}</span>
-                    </p>
-                  </div>
- 
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-black font-mono text-amber-600">
-                      +{escrow.amount.toLocaleString()} JOD
-                    </div>
-                    <span className="text-[9px] text-gray-450 font-mono uppercase font-black block mt-1.5 flex items-center justify-end gap-1">
-                      <Clock className="w-3 h-3 animate-pulse text-amber-500" /> 
-                      <span>{isAr ? 'بانتظار التأكيد' : 'PENDING'}</span>
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-7 bg-white rounded-2xl border border-gray-100 text-xs text-gray-400">
-                <div className="flex flex-col items-center justify-center space-y-2 p-1">
-                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mb-1">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                  </div>
-                  <p className="font-bold text-gray-500 text-[11px] uppercase tracking-wide">
-                    {isAr ? 'لا يوجد طلبات إيداع معلقة' : 'No Pending Deposits'}
-                  </p>
-                  <p className="text-[9.5px] text-gray-450 leading-normal max-w-[250px] mx-auto">
-                    {isAr 
-                      ? 'تظهر طلبات التعبئة هنا فور رفع إشعار التحويل البنكي بانتظار موافقة الإدارة.'
-                      : 'Pending cliq top-ups will be listed here after submitting the bank slip receipt.'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
- 
-        {/* 6. MY WON AUCTIONS PAYMENTS */}
-        <div className="space-y-3 pt-1">
-          <div className="flex items-center gap-1.5 px-1">
-            <CheckCircle className="w-3.5 h-3.5 text-[#FF6B00]" />
-            <span className="text-[10px] font-black font-mono tracking-widest text-gray-500 uppercase">
-              {isAr ? 'دفعات وضمانات مزاداتي' : 'MY WON AUCTIONS PAYMENTS'}
-            </span>
-          </div>
- 
-          <div className="space-y-2.5">
-            {isLoading ? (
-              <>
-                <WalletRowSkeleton />
-                <WalletRowSkeleton />
-                <WalletRowSkeleton />
-              </>
-            ) : myWonAuctionsPayments.length > 0 ? (
-              myWonAuctionsPayments.map((escrow) => {
-                const isReleased = escrow.status === 'released';
-                return (
-                  <div 
-                    key={escrow.id} 
-                    className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center hover:border-gray-150 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
-                    id={`my-won-auction-row-${escrow.id}`}
+
+                  {/* Submit Button */}
+                  <button 
+                    type="submit" 
+                    disabled={isWithdrawing || !wAmount}
+                    className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
+                      isWithdrawing || !wAmount
+                        ? 'bg-[#202024] text-zinc-600 border border-white/5 cursor-not-allowed shadow-none' 
+                        : 'bg-[#FF6B00] hover:bg-orange-600 text-white hover:shadow-lg active:scale-[0.99]'
+                    }`}
                   >
-                    <div className="space-y-1">
-                      <span className={`text-[8px] font-mono inline-block px-1.5 py-0.5 rounded-md font-black uppercase mt-1 ${
-                        isReleased 
-                          ? 'bg-emerald-50 text-emerald-650 border border-emerald-100' 
-                          : 'bg-amber-50 text-amber-600 border border-amber-100'
-                      }`}>
-                        {isReleased ? (isAr ? 'تم تحرير الدفع' : 'RELEASED / WON') : (isAr ? 'ضمان معلّق' : 'LOCKED IN ESCROW')}
-                      </span>
-                      <h5 className="font-black text-gray-900 text-xs mt-1">
-                        {escrow.auctionTitle}
-                      </h5>
-                      <p className="text-[9px] text-gray-400 font-mono">
-                        REF_ID: {escrow.id.substring(0, 12).toUpperCase()}
-                      </p>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className={`font-mono font-black text-xs ${isReleased ? 'text-[#FF6B00]' : 'text-amber-600'}`}>
-                        -{escrow.amount.toLocaleString()} JOD
-                      </div>
-                      <span className="text-[9px] text-gray-450 font-mono mt-1 block">
-                        {new Date(escrow.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')}
-                      </span>
-                    </div>
-                  </div>
+                    {isWithdrawing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>{isAr ? 'جاري تسجيل طلب السحب البنكي...' : 'TRANSMITTING REQUEST...'}</span>
+                      </>
+                    ) : (
+                      <span>{localT.withdrawBtn}</span>
+                    )}
+                  </button>
+
+                </form>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'transactions':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setWalletSubView('wallet-home')}
+                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+              </button>
+              <div>
+                <h1 className="text-xl font-black">{localT.transactions}</h1>
+                <p className="text-xs text-zinc-400">{isAr ? 'مستندات العمليات والتدفقات النقدية' : 'Financial transactions ledger'}</p>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex bg-[#18181B] border border-white/5 p-1 rounded-2xl gap-1">
+              {(['all', 'in', 'out'] as const).map((filter) => {
+                const label = filter === 'all' ? localT.allTx : filter === 'in' ? localT.moneyInTx : localT.moneyOutTx;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setTxFilter(filter)}
+                    className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase ${
+                      txFilter === filter
+                        ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {label}
+                  </button>
                 );
-              })
-            ) : (
-              <EmptyState 
-                title={isAr ? 'لا توجد دفعات مزادات بعد' : 'No won auctions payments'}
-                description={isAr ? 'تظهر دفعات وضمانات المزادات التي شاركت بها أو فزت بها هنا.' : 'Secure deposits and released payments for your bids will be recorded here.'}
-                language={isAr ? 'ar' : 'en'}
-              />
-            )}
+              })}
+            </div>
+
+            {/* List */}
+            <div className="space-y-3">
+              {filteredTransactions.length > 0 ? (
+                filteredTransactions.map((tx) => {
+                  const isPositive = tx.amount > 0;
+                  return (
+                    <div 
+                      key={tx.id} 
+                      className="bg-[#18181B] border border-white/5 p-4.5 rounded-3xl flex items-center justify-between"
+                    >
+                      <div className="min-w-0 flex-1 flex items-center gap-4">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                          isPositive ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-rose-500/10 text-rose-500'
+                        }`}>
+                          {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <h5 className="font-extrabold text-sm text-white truncate">{tx.title}</h5>
+                          <p className="text-xs text-zinc-400 mt-0.5 truncate font-mono">{tx.subtitle}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 font-mono">
+                        <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-zinc-200'}`}>
+                          {isPositive ? '+' : ''}{tx.amount.toLocaleString()} JOD
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5 justify-end mt-1">
+                          {tx.status === 'locked' || tx.status === 'pending' ? (
+                            <span className="text-[9px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-md uppercase font-mono animate-pulse">{isAr ? 'قيد المراجعة' : 'PENDING'}</span>
+                          ) : tx.status === 'released' || tx.status === 'approved' ? (
+                            <span className="text-[9px] font-black text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded-md uppercase font-mono">{isAr ? 'مكتمل' : 'APPROVED'}</span>
+                          ) : (
+                            <span className="text-[9px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-md uppercase font-mono">{isAr ? 'ملغي' : 'REJECTED'}</span>
+                          )}
+                          <span className="text-[10px] text-zinc-500 font-bold block">
+                            {new Date(tx.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12 bg-[#18181B] border border-white/5 rounded-3xl p-6">
+                  <History className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
+                  <p className="font-extrabold text-sm text-zinc-400 uppercase tracking-wider">{isAr ? 'لا يوجد عمليات ضمن هذا الفلتر' : 'No transactions found'}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{isAr ? 'جرب تغيير خيار التصفية أو قم بتمويل محفظتك الآن.' : 'Try changing your filter settings or top up your wallet.'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'orders':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setWalletSubView('wallet-home')}
+                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+              </button>
+              <div>
+                <h1 className="text-xl font-black">{localT.orders}</h1>
+                <p className="text-xs text-zinc-400">{isAr ? 'إدارة العقود والمبيعات والمشتريات' : 'Fulfillment operations & shipping tracking'}</p>
+              </div>
+            </div>
+
+            {/* Buying/Selling tabs */}
+            <div className="flex bg-[#18181B] border border-white/5 p-1 rounded-2xl gap-1">
+              <button
+                onClick={() => setOrdersTab('buying')}
+                className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
+                  ordersTab === 'buying'
+                    ? 'bg-[#FF6B00] text-white'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{localT.buying}</span>
+              </button>
+              <button
+                onClick={() => setOrdersTab('selling')}
+                className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
+                  ordersTab === 'selling'
+                    ? 'bg-[#FF6B00] text-white'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                <span>{localT.selling}</span>
+              </button>
+            </div>
+
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 md:p-6 space-y-4 text-white">
+              {ordersTab === 'buying' ? (
+                <MyOrdersList
+                  isAr={isAr}
+                  myBuyerOrders={myBuyerOrders}
+                  setSelectedOrderId={setSelectedOrderId}
+                />
+              ) : (
+                <SoldOrdersList
+                  isAr={isAr}
+                  mySellerOrders={mySellerOrders}
+                  setSelectedOrderId={setSelectedOrderId}
+                />
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div 
+      className="flex-1 min-h-screen bg-[#0E0E0E] text-white overflow-y-auto pb-16"
+      style={{ direction: isAr ? 'rtl' : 'ltr' }}
+      id="wallet-rebuild-root-container"
+    >
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+        
+        {/* DESKTOP 3-COLUMN LAYOUT (lg:grid) */}
+        <div className="hidden lg:grid grid-cols-12 gap-8 items-start">
+          
+          {/* Left Column: Navigation Sidebar */}
+          <div className="col-span-3 space-y-4 sticky top-6">
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 space-y-4">
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                <div className="w-10 h-10 rounded-2xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-mono font-black text-xs tracking-widest text-[#FF6B00]">{isAr ? 'محفظة المزاد' : 'WHATNOT WALLET'}</h2>
+                  <p className="text-[10px] text-zinc-400 uppercase font-bold">{isAr ? 'تحكم مالي شامل' : 'Instant Secure FinTech'}</p>
+                </div>
+              </div>
+
+              <nav className="flex flex-col gap-1.5 font-sans">
+                <button
+                  onClick={() => setWalletSubView('wallet-home')}
+                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
+                    walletSubView === 'wallet-home'
+                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  id="side-nav-home"
+                >
+                  <Wallet className="w-4 h-4 shrink-0" />
+                  <span>{isAr ? 'الرئيسية والمحفظة' : 'My Wallet Home'}</span>
+                </button>
+
+                <button
+                  onClick={() => setWalletSubView('add-funds')}
+                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
+                    walletSubView === 'add-funds'
+                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  id="side-nav-add"
+                >
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>{localT.addFunds}</span>
+                </button>
+
+                <button
+                  onClick={() => setWalletSubView('withdraw')}
+                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
+                    walletSubView === 'withdraw'
+                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  id="side-nav-withdraw"
+                >
+                  <ArrowDownLeft className="w-4 h-4 shrink-0" />
+                  <span>{localT.withdraw}</span>
+                </button>
+
+                <button
+                  onClick={() => setWalletSubView('transactions')}
+                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
+                    walletSubView === 'transactions'
+                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  id="side-nav-transactions"
+                >
+                  <History className="w-4 h-4 shrink-0" />
+                  <span>{localT.transactions}</span>
+                </button>
+
+                <button
+                  onClick={() => setWalletSubView('orders')}
+                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
+                    walletSubView === 'orders'
+                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  id="side-nav-orders"
+                >
+                  <ShoppingBag className="w-4 h-4 shrink-0" />
+                  <span>{localT.orders}</span>
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          {/* Center Column: Main Wallet Content */}
+          <div className="col-span-6 space-y-6">
+            {renderActiveScreen()}
+          </div>
+
+          {/* Right Column: Secure Wallet Summary */}
+          <div className="col-span-3 space-y-6 sticky top-6">
+            
+            {/* Security Trust card */}
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 space-y-3.5">
+              <div className="flex items-center gap-2 text-[#FF6B00]">
+                <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
+                <h4 className="font-extrabold text-sm text-white">{localT.secureSummary}</h4>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {isAr 
+                  ? 'جميع إيداعاتها وسحوباتها محمية بالكامل بواسطة محفظة كليك والبنك المركزي الأردني.'
+                  : 'All transactions are strictly authorized under our secure Escrow Shield via the Central Bank of Jordan.'}
+              </p>
+            </div>
+
+            {/* Support / Help card */}
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 space-y-3.5">
+              <div className="flex items-center gap-2 text-amber-500">
+                <HelpCircle className="w-5 h-5" />
+                <h4 className="font-extrabold text-sm text-white">{localT.helpSupport}</h4>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {localT.helpDesc}
+              </p>
+            </div>
           </div>
         </div>
-        </>
-        )}
 
-        {/* MY BUYER ORDERS TABS */}
-        {activeTab === 'my_orders' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5 uppercase font-mono">
-                <span>{isAr ? 'طلبات الشراء الخاصة بي' : 'MY BUYING ORDERS'}</span>
-              </h3>
-              <span className="text-[10px] bg-orange-100 text-[#FF6B00] font-mono font-black px-2 py-0.5 rounded-full">
-                {myBuyerOrders.length} {isAr ? 'طلبات' : 'Orders'}
-              </span>
-            </div>
-
-            {myBuyerOrders.length > 0 ? (
-              <div className="space-y-4">
-                {myBuyerOrders.map((order) => {
-                  const formattedDate = order.createdAt 
-                    ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })
-                    : '';
-
-                  return (
-                    <div 
-                      key={order.id} 
-                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.015)] space-y-4 relative overflow-hidden"
-                    >
-                      {/* Header info */}
-                      <div className="flex gap-4 items-start">
-                        <img 
-                          src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'} 
-                          alt={order.auctionTitle} 
-                          className="w-16 h-16 rounded-2xl object-cover border border-gray-100"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <h4 className="font-black text-gray-950 text-sm truncate leading-snug">
-                            {order.auctionTitle}
-                          </h4>
-                          <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
-                            <span>ID:</span>
-                            <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
-                            {formattedDate && (
-                              <>
-                                <span className="text-gray-250">•</span>
-                                <span>{formattedDate}</span>
-                              </>
-                            )}
-                          </p>
-                          <div className="text-base font-black text-[#FF6B00] font-mono mt-1">
-                            {order.winningBidAmount.toLocaleString()} <span className="text-[10px] font-sans font-bold text-gray-400">JOD</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-gray-100/80 my-1" />
-
-                      {/* Grid stats */}
-                      <div className="grid grid-cols-2 gap-3.5 text-xs">
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب' : 'ORDER STATUS'}</span>
-                          <span className={`font-black text-[10.5px] uppercase ${
-                            order.status === 'completed' ? 'text-emerald-650' : 'text-[#FF6B00]'
-                          }`}>
-                            {order.status === 'waiting_payment' ? (isAr ? 'بانتظار الدفع' : 'Waiting Payment') :
-                             order.status === 'paid' ? (isAr ? 'تم الدفع' : 'Paid') :
-                             order.status === 'preparing_shipment' ? (isAr ? 'جاري التجهيز' : 'Preparing Shipment') :
-                             order.status === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
-                             order.status === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') :
-                             order.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') :
-                             order.status === 'disputed' ? (isAr ? 'متنازع عليه' : 'Disputed') : order.status}
-                          </span>
-                        </div>
-
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT'}</span>
-                          <span className={`font-black text-[10.5px] uppercase ${
-                            order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'
-                          }`}>
-                            {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع' : 'Paid') : (isAr ? 'غير مدفوع' : 'Unpaid')}
-                          </span>
-                        </div>
-
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-[#FF6B00] font-mono uppercase block font-black">{isAr ? 'الشحن والتوصيل' : 'SHIPPING'}</span>
-                          <span className="font-black text-gray-700 text-[10.5px] uppercase">
-                            {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'Not Started') :
-                             order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'Preparing') :
-                             order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
-                             order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') : order.shippingStatus}
-                          </span>
-                        </div>
-
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'الضمان المالي' : 'ESCROW STATUS'}</span>
-                          <span className={`font-black text-[10.5px] uppercase ${
-                            order.escrowStatus === 'released' ? 'text-emerald-650' : 'text-blue-600'
-                          }`}>
-                            {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
-                             order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released to Seller') :
-                             order.escrowStatus === 'refunded' ? (isAr ? 'تمت الإعادة للمشتري' : 'Refunded to Buyer') : order.escrowStatus}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* View Details button */}
-                      <button
-                        onClick={() => setSelectedOrderId(order.id)}
-                        className={`w-full font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] ${
-                          order.status === 'waiting_payment'
-                            ? 'bg-[#FF6B00] hover:bg-[#FF8000] text-white shadow-md shadow-orange-500/10'
-                            : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-[#FF6B00]'
-                        }`}
-                        id={`btn-view-buyer-order-${order.id}`}
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-10 bg-white rounded-3xl border border-gray-150 p-6">
-                <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
-                  <ShoppingBag className="w-5 h-5 text-gray-400" />
+        {/* MOBILE SINGLE-COLUMN LAYOUT (lg:hidden) */}
+        <div className="block lg:hidden">
+          {walletSubView === 'wallet-home' ? (
+            <div className="space-y-6">
+              
+              {/* Mobile Title */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-black">{isAr ? 'رصيدي ومحفظتي' : 'My Wallet'}</h1>
+                  <p className="text-xs text-zinc-400 mt-0.5">{currentUser?.name}</p>
                 </div>
-                <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
-                  {isAr ? 'لا يوجد طلبات شراء حالية' : 'No Orders Yet'}
-                </p>
-                <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
-                  {isAr 
-                    ? 'عند فوزك بمزاد وإنهائه بنجاح، ستظهر تفاصيل الدفع والاستلام الفوري هنا مباشرة.' 
-                    : 'When you win an auction and it concludes successfully, your payment and tracking cards appear here.'}
-                </p>
+                <div className="w-9 h-9 rounded-2xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
+                  <Wallet className="w-5 h-5" />
+                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* MY SELLER ORDERS TABS */}
-        {activeTab === 'sold_orders' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5 uppercase font-mono">
-                <span>{isAr ? 'المنتجات المباعة والطلبات' : 'SOLD ORDERS'}</span>
-              </h3>
-              <span className="text-[10px] bg-orange-100 text-[#FF6B00] font-mono font-black px-2 py-0.5 rounded-full">
-                {mySellerOrders.length} {isAr ? 'مبيعات' : 'Sales'}
-              </span>
-            </div>
+              {/* Balance Card */}
+              <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF6B00]/5 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[#FF6B00] font-mono font-black block">
+                    {localT.totalBalance}
+                  </span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black font-mono tracking-tight text-white">
+                      {wallet.totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-xs font-black text-zinc-400 font-mono">JOD</span>
+                  </div>
+                </div>
 
-            {mySellerOrders.length > 0 ? (
-              <div className="space-y-4">
-                {mySellerOrders.map((order) => {
-                  const formattedDate = order.createdAt 
-                    ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })
-                    : '';
+                <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 font-mono font-bold uppercase block leading-none">{localT.availableBalance}</span>
+                    <p className="text-sm font-mono font-black text-[#10B981]">{wallet.availableBalance.toLocaleString()} <span className="text-[8px]">JOD</span></p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 font-mono font-bold uppercase block leading-none">{localT.pendingBalance}</span>
+                    <p className="text-sm font-mono font-black text-amber-500">{myPendingDepositsSum.toLocaleString()} <span className="text-[8px]">JOD</span></p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 font-mono font-bold uppercase block leading-none">{localT.escrowBalance}</span>
+                    <p className="text-sm font-mono font-black text-rose-500">{wallet.escrowBalance.toLocaleString()} <span className="text-[8px]">JOD</span></p>
+                  </div>
+                </div>
+              </div>
 
-                  return (
-                    <div 
-                      key={order.id} 
-                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.015)] space-y-4 relative overflow-hidden"
-                    >
-                      {/* Header info */}
-                      <div className="flex gap-4 items-start">
-                        <img 
-                          src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'} 
-                          alt={order.auctionTitle} 
-                          className="w-16 h-16 rounded-2xl object-cover border border-gray-100"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <h4 className="font-black text-gray-950 text-sm truncate leading-snug">
-                            {order.auctionTitle}
-                          </h4>
-                          <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
-                            <span>ID:</span>
-                            <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
-                            {formattedDate && (
-                              <>
-                                <span className="text-gray-250">•</span>
-                                <span>{formattedDate}</span>
-                              </>
-                            )}
-                          </p>
-                          <div className="text-xs text-gray-550 font-bold mt-1">
-                            {isAr ? 'المشتري:' : 'Buyer:'} <span className="text-gray-900 font-black">{order.buyerName}</span>
-                          </div>
-                        </div>
-                      </div>
+              {/* Add & Withdraw Buttons */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <button 
+                  onClick={() => setWalletSubView('add-funds')}
+                  className="w-full bg-[#FF6B00] hover:bg-orange-600 active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  id="mob-btn-add-funds-alt"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>{localT.addFunds}</span>
+                </button>
+                <button 
+                  onClick={() => setWalletSubView('withdraw')}
+                  className="w-full bg-[#202024] border border-white/10 hover:bg-[#2c2c32] active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer text-white transition-all"
+                  id="mob-btn-withdraw-alt"
+                >
+                  <ArrowDownLeft className="w-4 h-4 text-zinc-400 stroke-[3]" />
+                  <span>{localT.withdraw}</span>
+                </button>
+              </div>
 
-                      <div className="border-t border-gray-100/80 my-1" />
+              {/* Quick Actions List (Compact) */}
+              <div className="space-y-2.5">
+                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-zinc-400">{isAr ? 'الوصول السريع' : 'Quick Actions'}</h3>
+                
+                <button 
+                  onClick={() => setWalletSubView('transactions')}
+                  className="w-full bg-[#18181B] border border-white/5 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#202024] flex items-center justify-center text-zinc-400">
+                      <History className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">{localT.transactions}</h4>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">{isAr ? 'مستندات وكشوفات الحساب' : 'Review your transaction entries'}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-500" />
+                </button>
 
-                      {/* Grid stats */}
-                      <div className="grid grid-cols-2 gap-3.5 text-xs">
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5 col-span-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'مبلغ المزايدة الرابحة' : 'WINNING BID AMOUNT'}</span>
-                            <span className="text-sm font-black text-gray-900 font-mono">
-                              {order.winningBidAmount.toLocaleString()} JOD
-                            </span>
-                          </div>
-                        </div>
+                <button 
+                  onClick={() => setWalletSubView('orders')}
+                  className="w-full bg-[#18181B] border border-white/5 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#202024] flex items-center justify-center text-zinc-400">
+                      <ShoppingBag className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">{localT.orders}</h4>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">{isAr ? 'تتبع فوز ومبيعات مزاداتك' : 'Manage buyer & seller orders'}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-500" />
+                </button>
+              </div>
 
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT STATUS'}</span>
-                          <span className={`font-black text-[10.5px] uppercase ${
-                            order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'
-                          }`}>
-                            {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع (مضمون)' : 'Paid (Held)') : (isAr ? 'غير مدفوع' : 'Unpaid')}
-                          </span>
-                        </div>
+              {/* Recent Activity */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs uppercase font-mono font-black tracking-widest text-zinc-400">{localT.recentActivity}</h3>
+                  <button 
+                    onClick={() => setWalletSubView('transactions')}
+                    className="text-xs text-[#FF6B00] font-black hover:underline cursor-pointer"
+                  >
+                    {isAr ? 'عرض الكل' : 'View All'}
+                  </button>
+                </div>
 
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'الشحن والتسليم' : 'SHIPPING STATUS'}</span>
-                          <span className="font-black text-gray-700 text-[10.5px] uppercase">
-                            {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'Not Started') :
-                             order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'Preparing') :
-                             order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
-                             order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') : order.shippingStatus}
-                          </span>
-                        </div>
-
-                        <div className="bg-[#FAF9F6] p-2.5 rounded-2xl border border-gray-100/80 space-y-0.5 col-span-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب الإجمالية' : 'OVERALL STATUS'}</span>
-                            <span className={`font-black text-[10.5px] uppercase ${
-                              order.status === 'completed' ? 'text-emerald-650' : 'text-[#FF6B00]'
+                <div className="space-y-3">
+                  {combinedRecentActivity.length > 0 ? (
+                    combinedRecentActivity.slice(0, 3).map((act) => {
+                      const isPositive = act.amount > 0;
+                      return (
+                        <div 
+                          key={act.id} 
+                          className="bg-[#18181B] border border-white/5 p-4 rounded-2xl flex items-center justify-between"
+                        >
+                          <div className="min-w-0 flex-1 flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              isPositive ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-rose-500/10 text-rose-500'
                             }`}>
-                              {order.status === 'waiting_payment' ? (isAr ? 'بانتظار الدفع' : 'Waiting Payment') :
-                               order.status === 'paid' ? (isAr ? 'تم الدفع' : 'Paid') :
-                               order.status === 'preparing_shipment' ? (isAr ? 'جاري تجهيز الشحن' : 'Preparing Shipment') :
-                               order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
-                               order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') :
-                               order.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') :
-                               order.status === 'disputed' ? (isAr ? 'نزاع قائم' : 'Disputed') : order.status}
+                              {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="font-extrabold text-xs text-white truncate">{act.title}</h5>
+                              <p className="text-[10px] text-zinc-400 mt-0.5 truncate font-mono">{act.subtitle}</p>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0 font-mono">
+                            <span className={`font-black text-xs block ${isPositive ? 'text-[#10B981]' : 'text-zinc-200'}`}>
+                              {isPositive ? '+' : ''}{act.amount.toLocaleString()} JOD
                             </span>
                           </div>
                         </div>
-                      </div>
-
-                      {/* View Details button */}
-                      <button
-                        onClick={() => setSelectedOrderId(order.id)}
-                        className={`w-full font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] ${
-                          order.paymentStatus === 'paid' && order.shippingStatus === 'not_started'
-                            ? 'bg-[#FF6B00] hover:bg-[#FF8000] text-white shadow-md shadow-orange-500/10'
-                            : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-[#FF6B00]'
-                        }`}
-                        id={`btn-view-seller-order-${order.id}`}
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
-                      </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-7 bg-[#18181B] border border-white/5 rounded-2xl p-5">
+                      <p className="font-bold text-xs text-zinc-500 uppercase tracking-wide">{localT.emptyActivity}</p>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-10 bg-white rounded-3xl border border-gray-150 p-6">
-                <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
-                  <Package className="w-5 h-5 text-gray-400" />
+                  )}
                 </div>
-                <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
-                  {isAr ? 'لا يوجد مبيعات بعد' : 'No Sold Orders Yet'}
-                </p>
-                <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
-                  {isAr 
-                    ? 'عند رسو مزاداتك على فائز حقيقي، ستظهر تفاصيل وحالة الدفع والشحن في هذا التبويب فوراً.' 
-                    : 'When your created auctions are won, their post-auction fulfillment processes will be tracked here.'}
-                </p>
               </div>
-            )}
-          </div>
-        )}
+
+            </div>
+          ) : (
+            <div>
+              {renderActiveScreen()}
+            </div>
+          )}
+        </div>
 
       </div>
- 
-    </div>
-  );
-};
- 
-// Help empty state graphics
-const BoxNoneIcon: React.FC<{ isAr: boolean }> = ({ isAr }) => {
-  return (
-    <div className="flex flex-col items-center justify-center space-y-2 p-1">
-      <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mb-1">
-        <Lock className="w-4 h-4 text-gray-400" />
-      </div>
-      <p className="font-bold text-gray-500 text-[11px] uppercase tracking-wide">
-        {isAr ? 'لا يوجد مبالغ ضمان معلّقة' : 'No Active Locked Margins'}
-      </p>
-      <p className="text-[9.5px] text-gray-450 leading-normal max-w-[250px] mx-auto">
-        {isAr 
-          ? 'عربون المزايدة يتم تجميده فقط عندما تكون المزايد الأعلى في مزاد مباشر لحين رسوّ الصفقة.'
-          : 'Bidding assurance is locked only when you are the premium bidder on an active live listing.'}
-      </p>
     </div>
   );
 };
