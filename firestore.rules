@@ -140,7 +140,16 @@ service cloud.firestore {
     // 12. Orders
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
-      allow write: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.buyerId == request.auth.uid || 
+        resource.data.sellerId == request.auth.uid || 
+        isAdmin()
+      ) && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||
+        (request.resource.data.status != 'completed' && request.resource.data.escrowStatus != 'released')
+      );
+      allow delete: if isAdmin();
 
       match /activity/{activityId} {
         allow read, write: if isSignedIn() && (
@@ -198,12 +207,16 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // 19. Withdrawals
+    // 19. Withdrawals (client cannot write directly, must use Cloud Functions)
     match /withdrawals/{withdrawalId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow write: if false;
+    }
+
+    // 20. Financial Ledger (writable ONLY by Cloud Functions)
+    match /ledger/{ledgerId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
     }
   }
 }

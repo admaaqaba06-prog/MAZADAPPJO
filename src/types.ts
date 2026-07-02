@@ -38,6 +38,8 @@ export interface User {
     rating: number;
     completedSales: number;
   };
+  onboardingCompleted?: boolean;
+  shownHints?: { [key: string]: boolean };
 }
 
 export interface SellerProfile {
@@ -102,6 +104,7 @@ export interface Wallet {
   totalBalance: number;
   availableBalance: number;
   escrowBalance: number;
+  pendingWithdrawalBalance?: number;
 }
 
 export interface EscrowTransaction {

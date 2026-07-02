@@ -106,13 +106,13 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     shipping: 'الشحن',
     escrow: 'الضمان',
     open_details: 'فتح التفاصيل',
-    withdraw_bank: 'سحب مالي للبنك',
-    withdraw_cliq: 'سحب مالي عبر كليك',
+    withdraw_bank: 'طلب سحب مالي للبنك',
+    withdraw_cliq: 'طلب سحب عبر كليك',
     available_balance: 'الرصيد المتاح',
     escrow_pending: 'الضمان المعلق',
     funds_released: 'الأموال المحررة',
-    withdrawal_history: 'سجل عمليات السحب',
-    withdraw_placeholder: 'هذا نموذج محاكاة لعمليات السحب؛ سيتم حفظ السحب في سجل السحوبات المعلقة للمراجعة والتحقق.',
+    withdrawal_history: 'سجل طلبات السحب المالي',
+    withdraw_placeholder: 'سيتم تقديم طلب السحب للمراجعة والتدقيق المالي من قبل الإدارة، وسيتم التواصل معك بعد مراجعة الطلب.',
     amount_jod: 'المبلغ بالدينار الأردني (JOD)',
     bank_name: 'اسم البنك',
     iban: 'رقم الآيبان الدولي (IBAN)',
@@ -169,13 +169,13 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     shipping: 'Shipping',
     escrow: 'Escrow',
     open_details: 'Open Details',
-    withdraw_bank: 'Withdraw to Bank',
-    withdraw_cliq: 'Withdraw via CliQ',
+    withdraw_bank: 'Request Bank Withdrawal',
+    withdraw_cliq: 'Request CliQ Withdrawal',
     available_balance: 'Available Balance',
     escrow_pending: 'Pending Escrow',
     funds_released: 'Released Funds',
-    withdrawal_history: 'Withdrawal History',
-    withdraw_placeholder: 'This is a simulator for withdrawals. The transaction will be saved as "Pending" in the history log below for review.',
+    withdrawal_history: 'Withdrawal Request History',
+    withdraw_placeholder: 'Your withdrawal request will be submitted to our finance desk for review. We will contact you after reviewing the request.',
     amount_jod: 'Amount in JOD',
     bank_name: 'Bank Name',
     iban: 'IBAN Code',
@@ -210,7 +210,8 @@ export const SellerCenterView: React.FC = () => {
     addNotification, 
     setAuctions,
     sellerProfiles,
-    submitVerificationRequest
+    submitVerificationRequest,
+    requestWithdrawal
   } = useApp();
 
   const isAr = language === 'ar';
@@ -694,55 +695,31 @@ export const SellerCenterView: React.FC = () => {
     }
 
     try {
-      const refId = 'TXN-' + Math.floor(100000 + Math.random() * 900000);
-      const wId = `with-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      
-      const newWithdrawal: Withdrawal = {
-        id: wId,
-        userId: currentUser.id,
-        amount: amountNum,
-        method: isWithdrawModalOpen!,
-        status: 'pending',
-        timestamp: Date.now(),
-        details: isWithdrawModalOpen === 'bank' ? {
-          bankName: wBankName,
-          iban: wIban,
-          accountHolderName: wHolderName
-        } : {
-          cliqAlias: wCliqAlias,
-          phone: currentUser.phone || '0791234567'
-        },
-        referenceId: refId
+      const details = isWithdrawModalOpen === 'bank' ? {
+        bankName: wBankName,
+        iban: wIban,
+        accountHolderName: wHolderName
+      } : {
+        cliqAlias: wCliqAlias,
+        phone: currentUser.phone || '0791234567'
       };
 
-      // 1. Save to withdrawals collection
-      await setDoc(doc(db, 'withdrawals', wId), newWithdrawal);
+      const result = await requestWithdrawal(amountNum, isWithdrawModalOpen!, details);
 
-      // 2. Debit the user's wallet available balance in Firestore
-      const walletRef = doc(db, 'wallets', currentUser.id);
-      await updateDoc(walletRef, {
-        availableBalance: kpis.availableBalance - amountNum,
-        frozenEscrow: (wallet?.frozenEscrow || 0) + amountNum // Treat as pending/locked till approved
-      });
-
-      addNotification(
-        isAr ? '💸 تم تقديم طلب السحب' : '💸 Withdrawal Request Logged',
-        isAr 
-          ? `تم تسجيل طلب سحب بقيمة ${amountNum} د.أ بنجاح وهو قيد التدقيق.` 
-          : `Withdrawal request for ${amountNum} JOD logged successfully. Pending review.`,
-        'info'
-      );
-
-      // Reset
-      setWAmount('');
-      setWBankName('');
-      setWIban('');
-      setWHolderName('');
-      setWCliqAlias('');
-      setIsWithdrawModalOpen(null);
-    } catch (err) {
+      if (result.success) {
+        // Reset
+        setWAmount('');
+        setWBankName('');
+        setWIban('');
+        setWHolderName('');
+        setWCliqAlias('');
+        setIsWithdrawModalOpen(null);
+      } else {
+        alert(result.message);
+      }
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to log withdrawal.');
+      alert(isAr ? 'فشل تسجيل طلب السحب.' : 'Failed to log withdrawal.');
     }
   };
 

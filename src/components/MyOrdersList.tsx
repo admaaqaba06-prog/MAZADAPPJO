@@ -1,5 +1,6 @@
 import React from 'react';
 import { Eye, ShoppingBag } from 'lucide-react';
+import { ContextualHint } from './ContextualHint';
 
 interface MyOrdersListProps {
   isAr: boolean;
@@ -22,6 +23,17 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
           {myBuyerOrders.length} {isAr ? 'طلبات' : 'Orders'}
         </span>
       </div>
+
+      {myBuyerOrders.length > 0 && (
+        <ContextualHint
+          hintKey="first_winning"
+          titleAr="مبروك الفوز بمزادك الأول! 🏆"
+          titleEn="Congratulations on Your First Win! 🏆"
+          descAr="تهانينا بالفوز بمزادك الأول! رصيدك المحجوز كضمان مؤقت تم تحويله الآن لدفع ثمن السلعة للبائع بأمان كامل تحت حماية منصة مزاد جو."
+          descEn="Congratulations on your first win! Your escrowed guarantee deposit is now safely applied as your direct payment to the seller under the protection of MAZAD JO."
+          className="bg-zinc-900 border-zinc-800 text-zinc-300"
+        />
+      )}
 
       {myBuyerOrders.length > 0 ? (
         <div className="space-y-4">
@@ -106,13 +118,13 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                   </div>
 
                   <div className="bg-[#1F1F1F] p-2.5 rounded-2xl border border-[#2A2A2A] space-y-0.5">
-                    <span className="text-[9px] text-zinc-500 font-mono uppercase block font-black">{isAr ? 'الضمان المالي' : 'ESCROW STATUS'}</span>
+                    <span className="text-[9px] text-zinc-500 font-mono uppercase block font-black">{isAr ? 'المبلغ المحجوز' : 'ESCROW STATUS'}</span>
                     <span className={`font-black text-[10.5px] uppercase ${
                       order.escrowStatus === 'released' ? 'text-emerald-400' : 'text-blue-400'
                     }`}>
-                      {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
-                       order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released to Seller') :
-                       order.escrowStatus === 'refunded' ? (isAr ? 'تمت الإعادة للمشتري' : 'Refunded to Buyer') : order.escrowStatus}
+                      {order.escrowStatus === 'pending' ? (isAr ? 'مبلغ محجوز' : 'Held in Escrow') :
+                       order.escrowStatus === 'released' ? (isAr ? 'تم إرساله للبائع' : 'Released to Seller') :
+                       order.escrowStatus === 'refunded' ? (isAr ? 'تمت الإعادة لك' : 'Refunded to Buyer') : order.escrowStatus}
                     </span>
                   </div>
                 </div>
@@ -128,7 +140,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                   id={`btn-view-buyer-order-${order.id}`}
                 >
                   <Eye className="w-4 h-4" />
-                  <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
+                  <span>{isAr ? 'عرض التفاصيل والدفع' : 'View Order Details'}</span>
                 </button>
               </div>
             );

@@ -1,4 +1,4 @@
-import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, handleFirestoreError, OperationType, getCallableFunction } from '../services/firebase';
 import { collection, doc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Order } from '../types';
 
@@ -71,7 +71,7 @@ export async function executeOrderTransition(
   action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
   extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume' }
-): Promise<void> {
+): Promise<any> {
   // Determine role
   let role: 'buyer' | 'seller' | 'admin' = 'buyer';
   if (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin') {
@@ -87,6 +87,46 @@ export async function executeOrderTransition(
     throw new Error(`Role "${role}" does not have permission to execute action "${action}".`);
   }
 
+  // CRITICAL FIX PHASE 1 — Secure Escrow Release Cloud Function delegation
+  if (
+    action === 'release_escrow' || 
+    action === 'force_close' || 
+    (action === 'resolve_dispute' && extraFields?.resolutionType === 'release') ||
+    action === 'confirm_delivery'
+  ) {
+    const releaseCallable = await getCallableFunction<
+      { orderId: string; action: 'buyer_confirm_delivery' | 'admin_release' | 'admin_force_close' }, 
+      { success: boolean; message: string; alreadyReleased?: boolean }
+    >('releaseOrderEscrow');
+
+    let cfAction: 'buyer_confirm_delivery' | 'admin_release' | 'admin_force_close' = 'buyer_confirm_delivery';
+    if (action === 'release_escrow' || (action === 'resolve_dispute' && extraFields?.resolutionType === 'release')) {
+      cfAction = 'admin_release';
+    } else if (action === 'force_close') {
+      cfAction = 'admin_force_close';
+    } else if (action === 'confirm_delivery') {
+      cfAction = 'buyer_confirm_delivery';
+    }
+
+    try {
+      const result = await releaseCallable({
+        orderId: order.id,
+        action: cfAction
+      });
+      if (!result.data || !result.data.success) {
+        throw new Error(result.data?.message || 'Escrow release Cloud Function execution failed.');
+      }
+      return {
+        success: true,
+        alreadyReleased: !!result.data.alreadyReleased,
+        message: result.data.message
+      };
+    } catch (err: any) {
+      console.error('Error executing escrow release:', err);
+      throw new Error(err.message || 'تعذر تحرير المبلغ، حاول مرة أخرى');
+    }
+  }
+
   const fromStatus = order.status as OrderStatus;
   let toStatus: OrderStatus = fromStatus;
   let updateFields: Partial<Order> & Record<string, any> = {};
@@ -96,7 +136,7 @@ export async function executeOrderTransition(
   let activityMessageEn = '';
 
   // Determine transition target and fields
-  switch (action) {
+  switch (action as any) {
     case 'pay':
       toStatus = 'paid';
       updateFields = {

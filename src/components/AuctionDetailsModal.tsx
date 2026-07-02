@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { ContextualHint } from './ContextualHint';
 import { 
   X, 
   ShieldCheck, 
@@ -179,10 +180,29 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
             </div>
           </div>
 
+          <ContextualHint
+            hintKey="current_price"
+            titleAr="مفهوم السعر الحالي 🔨"
+            titleEn="Understanding Current Price 🔨"
+            descAr="هذا هو السعر الحالي للسلعة في المزاد. لتقديم مزايدة قيادية جديدة، يجب أن تزيد عن هذا الرقم بقيمة الحد الأدنى للزيادة على الأقل."
+            descEn="This is the current price of the item. To place a new leading bid, your offer must exceed this price by at least the minimum increment."
+          />
+
           {/* Feedback alerts */}
           {feedback && (
-            <div className={`p-3 rounded-xl text-xs font-bold leading-normal text-left ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-              {feedback.msg}
+            <div className="space-y-3">
+              <div className={`p-3 rounded-xl text-xs font-bold leading-normal text-left ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                {feedback.msg}
+              </div>
+              {feedback.type === 'success' && (
+                <ContextualHint
+                  hintKey="first_bid"
+                  titleAr="ماذا يحدث بعد المزايدة؟ 🔒"
+                  titleEn="What Happens After Bidding? 🔒"
+                  descAr="رائع! تم حجز قيمة العطاء مؤقتاً في كليك لحماية البائع والمشتري. إذا خسرت، يعود رصيدك فوراً ومحفظتك آمنة. وإذا فزت، يُستخدم للدفع."
+                  descEn="Awesome! Your bid amount is temporarily reserved in CliQ escrow to protect both parties. If you lose, it returns instantly and your wallet is secure. If you win, it goes towards payment."
+                />
+              )}
             </div>
           )}
 

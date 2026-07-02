@@ -36,7 +36,8 @@ export const DiscoveryFeedView: React.FC = () => {
     currentUser,
     notifications,
     setShowNotifications,
-    sellerProfiles
+    sellerProfiles,
+    bids
   } = useApp();
   
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
@@ -103,7 +104,7 @@ export const DiscoveryFeedView: React.FC = () => {
     return `${mm}:${ss < 10 ? '0' : ''}${ss}`;
   };
 
-  const renderCardCover = (item?: AuctionItem, fallbackIcon?: React.ReactNode) => {
+  const renderCardCover = (item?: AuctionItem, fallbackIcon?: React.ReactNode, isPriority?: boolean) => {
     if (item && item.thumbnailUrl) {
       return (
         <>
@@ -112,7 +113,8 @@ export const DiscoveryFeedView: React.FC = () => {
             alt={item.title} 
             className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-500 group-hover:scale-105"
             referrerPolicy="no-referrer"
-            loading="lazy"
+            loading={isPriority ? "eager" : "lazy"}
+            {...(isPriority ? { fetchPriority: "high" } : {})}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
         </>
@@ -404,7 +406,7 @@ export const DiscoveryFeedView: React.FC = () => {
                     </div>
 
                     {/* Dynamic Cover or Fallback Smartphone Icon */}
-                    {renderCardCover(filteredAuctions[0], <Smartphone className="w-12 h-12 text-[#A8AEC6] stroke-[1.25]" />)}
+                    {renderCardCover(filteredAuctions[0], <Smartphone className="w-12 h-12 text-[#A8AEC6] stroke-[1.25]" />, true)}
 
                     {/* Bottom overlay: Timer */}
                     <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
@@ -428,6 +430,24 @@ export const DiscoveryFeedView: React.FC = () => {
                         {filteredAuctions[0] ? `${filteredAuctions[0].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '١٤ مزايدة' : '14 bids')}
                       </span>
                     </div>
+                    {(() => {
+                      const auction = filteredAuctions[0];
+                      if (!auction || !bids) return null;
+                      const hasUserBid = bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id);
+                      if (!hasUserBid) return null;
+                      const isWinning = auction.currentBidderId === currentUser?.id;
+                      return isWinning ? (
+                        <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Bid Now Action Button as in Screenshot */}
@@ -454,7 +474,7 @@ export const DiscoveryFeedView: React.FC = () => {
                     </div>
 
                     {/* Dynamic Cover or Fallback Shirt Icon */}
-                    {renderCardCover(filteredAuctions[1], <Shirt className="w-12 h-12 text-[#2D6A4F] stroke-[1.25]" />)}
+                    {renderCardCover(filteredAuctions[1], <Shirt className="w-12 h-12 text-[#2D6A4F] stroke-[1.25]" />, true)}
 
                     {/* Bottom overlay: Timer */}
                     <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
@@ -478,6 +498,24 @@ export const DiscoveryFeedView: React.FC = () => {
                         {filteredAuctions[1] ? `${filteredAuctions[1].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '٧ مزايدات' : '7 bids')}
                       </span>
                     </div>
+                    {(() => {
+                      const auction = filteredAuctions[1];
+                      if (!auction || !bids) return null;
+                      const hasUserBid = bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id);
+                      if (!hasUserBid) return null;
+                      const isWinning = auction.currentBidderId === currentUser?.id;
+                      return isWinning ? (
+                        <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Bid Now Action Button as in Screenshot */}
@@ -546,6 +584,23 @@ export const DiscoveryFeedView: React.FC = () => {
                             {item.totalBids || 0} {isAr ? 'مزايدات' : 'bids'}
                           </span>
                         </div>
+                        {(() => {
+                          if (!bids) return null;
+                          const hasUserBid = bids.some(b => b.auctionId === item.id && b.bidderId === currentUser?.id);
+                          if (!hasUserBid) return null;
+                          const isWinning = item.currentBidderId === currentUser?.id;
+                          return isWinning ? (
+                            <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
+                            </div>
+                          ) : (
+                            <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                              <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Bid Now Action Button as in Screenshot */}

@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
+import { OnboardingModal } from './components/OnboardingModal';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -145,6 +146,9 @@ function MainAppShell() {
           <SubscriptionPromptModal onClose={() => setShowSubscriptionPrompt(false)} />
         )}
       </DesktopFrame>
+
+      {/* Onboarding Flow Overlay */}
+      <OnboardingModal />
     </div>
   );
 }

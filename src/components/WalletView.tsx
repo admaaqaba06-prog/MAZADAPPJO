@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
+import { ContextualHint } from './ContextualHint';
 import { db } from '../services/firebase';
 import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { OrderDetailsView } from './OrderDetailsView';
@@ -57,6 +58,7 @@ export const WalletView: React.FC = () => {
     orders,
     setEscrows,
     triggerCliQTopUp, 
+    requestWithdrawal,
     addNotification, 
     language, 
     logout, 
@@ -77,11 +79,11 @@ export const WalletView: React.FC = () => {
     totalBalance: isAr ? 'إجمالي رصيد المحفظة' : 'Total Wallet Balance',
     availableBalance: isAr ? 'الرصيد المتاح للمزايدة' : 'Available to Bid',
     availableToWithdraw: isAr ? 'المتاح للسحب' : 'Available to Withdraw',
-    pendingBalance: isAr ? 'إيداعات قيد التدقيق' : 'Pending Verification',
-    escrowBalance: isAr ? 'ضمانات المزادات النشطة' : 'Bidding Escrow',
+    pendingBalance: isAr ? 'قيد المراجعة' : 'Pending Verification',
+    escrowBalance: isAr ? 'المبلغ المحجوز' : 'Locked Amount',
     addFunds: isAr ? 'شحن رصيد المحفظة' : 'Add Funds',
     withdraw: isAr ? 'سحب الرصيد البنكي' : 'Withdraw Funds',
-    transactions: isAr ? 'سجل الحركات المالية' : 'Transactions Ledger',
+    transactions: isAr ? 'سجل العمليات' : 'Transactions Ledger',
     orders: isAr ? 'المشتريات والمبيعات' : 'My Orders & Sales',
     myWallet: isAr ? 'رصيدي ومحفظتي' : 'My Wallet',
     recentActivity: isAr ? 'النشاطات المالية الأخيرة' : 'Recent Wallet Activity',
@@ -115,10 +117,10 @@ export const WalletView: React.FC = () => {
     bankName: isAr ? 'اسم البنك المستقبل' : 'Bank Name',
     accountHolder: isAr ? 'اسم صاحب الحساب' : 'Account Holder Name',
     withdrawMethod: isAr ? 'طريقة السحب المفضلة' : 'Withdrawal Method',
-    cliqInstant: isAr ? 'كليك (فوري)' : 'CliQ (Instant)',
-    bankTransfer: isAr ? 'تحويل بنكي تقليدي' : 'Classic Bank Transfer',
-    withdrawSuccess: isAr ? 'تم تقديم طلب السحب بنجاح!' : 'Withdrawal Requested Successfully!',
-    withdrawSuccessDesc: isAr ? 'تم تقديم مستند طلب السحب المالي للأقسام المعنية للتأكيد والمراجعة خلال 24 ساعة.' : 'Your request is submitted to the audit desk. Settlements occur within 24 hours.',
+    cliqInstant: isAr ? 'طلب سحب عبر كليك' : 'CliQ Withdrawal Request',
+    bankTransfer: isAr ? 'طلب سحب عبر التحويل البنكي' : 'Bank Transfer Request',
+    withdrawSuccess: isAr ? 'طلب السحب قيد المراجعة' : 'Withdrawal Request Under Review',
+    withdrawSuccessDesc: isAr ? 'سيتم التواصل معك بعد مراجعة الطلب.' : 'We will contact you after reviewing the request.',
     withdrawBtn: isAr ? 'تأكيد تقديم طلب السحب' : 'Submit Withdrawal',
     amountLabel: isAr ? 'المبلغ المطلوب سحبه (JOD)' : 'Withdraw Amount (JOD)',
     bankInputLabel: isAr ? 'اسم البنك المستهدف' : 'Target Bank Name',
@@ -391,53 +393,28 @@ export const WalletView: React.FC = () => {
 
     setIsWithdrawing(true);
     try {
-      const wId = `with-${Date.now()}`;
-      const refId = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      const newWithdrawal = {
-        id: wId,
-        userId: currentUser.id,
-        amount: amountNum,
-        type: withdrawType,
-        status: 'pending',
-        timestamp: Date.now(),
-        details: withdrawType === 'bank' ? {
-          bankName: wBankName,
-          iban: wIban,
-          accountHolderName: wHolderName
-        } : {
-          cliqAlias: wCliqAlias,
-          phone: wPhone || currentUser.phone || '0791234567'
-        },
-        referenceId: refId
+      const details = withdrawType === 'bank' ? {
+        bankName: wBankName,
+        iban: wIban,
+        accountHolderName: wHolderName
+      } : {
+        cliqAlias: wCliqAlias,
+        phone: wPhone || currentUser.phone || '0791234567'
       };
 
-      await setDoc(doc(db, 'withdrawals', wId), newWithdrawal);
+      const result = await requestWithdrawal(amountNum, withdrawType, details);
 
-      const walletRef = doc(db, 'wallets', currentUser.id);
-      const newAvailFils = Math.round((wallet.availableBalance - amountNum) * 1000);
-      const newEscrowFils = Math.round((wallet.escrowBalance + amountNum) * 1000);
-
-      await updateDoc(walletRef, {
-        availableBalance: newAvailFils,
-        escrowBalance: newEscrowFils
-      });
-
-      addNotification(
-        isAr ? '💸 تم تقديم طلب السحب' : '💸 Withdrawal Request Logged',
-        isAr 
-          ? `تم تسجيل طلب سحب بقيمة ${amountNum} د.أ بنجاح وهو قيد التدقيق.` 
-          : `Withdrawal request for ${amountNum} JOD logged successfully. Pending review.`,
-        'info'
-      );
-
-      setWithdrawSuccess(true);
-      setWAmount('');
-      setWBankName('');
-      setWIban('');
-      setWHolderName('');
-      setWCliqAlias('');
-      setWPhone('');
+      if (result.success) {
+        setWithdrawSuccess(true);
+        setWAmount('');
+        setWBankName('');
+        setWIban('');
+        setWHolderName('');
+        setWCliqAlias('');
+        setWPhone('');
+      } else {
+        alert(result.message);
+      }
     } catch (err: any) {
       console.error("Failed to submit withdrawal request:", err);
       alert(isAr ? 'عذراً، فشل تسجيل العملية البنكية في هذا الخادم.' : 'Failed to register the withdrawal transaction.');
@@ -566,7 +543,7 @@ export const WalletView: React.FC = () => {
     ...myWithdrawals.map(w => ({
       id: w.id,
       type: 'withdrawal' as const,
-      title: w.type === 'cliq' ? (isAr ? 'سحب فوري كليك' : 'CliQ Cash Withdrawal') : (isAr ? 'سحب حوالة بنكية' : 'Bank Cash Withdrawal'),
+      title: w.type === 'cliq' ? (isAr ? 'طلب سحب كليك' : 'CliQ Withdrawal Request') : (isAr ? 'طلب سحب حوالة بنكية' : 'Bank Withdrawal Request'),
       subtitle: w.type === 'cliq' ? `CliQ Alias: ${w.details?.cliqAlias}` : `${w.details?.bankName} - IBAN: ...${w.details?.iban?.substring(Math.max(0, w.details.iban.length - 6))}`,
       amount: -w.amount,
       status: w.status, // 'pending' | 'approved' | 'rejected'
@@ -667,6 +644,116 @@ export const WalletView: React.FC = () => {
                   <p className="text-lg font-mono font-black text-rose-500">{wallet.escrowBalance.toLocaleString()} <span className="text-[10px]">JOD</span></p>
                 </div>
               </div>
+            </div>
+
+            <ContextualHint
+              hintKey="wallet_balance"
+              titleAr="رصيد محفظتك المتاح 💳"
+              titleEn="Your Available Wallet Balance 💳"
+              descAr="رصيدك المتاح هو المبلغ الفعلي الذي يمكنك استخدامه لتقديم العطاءات والمزايدة على المنتجات في الوقت الفعلي."
+              descEn="Your available balance is the actual amount you can use to place bids and participate in real-time auctions."
+              className="mt-4"
+            />
+
+            <ContextualHint
+              hintKey="first_loss"
+              titleAr="ضمان استرجاع رصيدك تلقائياً 🔄"
+              titleEn="Instant Automated Refunds 🔄"
+              descAr="إذا زايد شخص آخر عليك وخسرت المزاد، يتم تحرير رصيدك المحجوز تلقائياً وفوراً ليعود إلى رصيدك المتاح دون أي خصومات أو رسوم."
+              descEn="If another user outbids you, your temporarily reserved bid deposit is instantly and automatically released back to your available balance without any deductions or fees."
+              className="mt-4 bg-amber-50/50 border-amber-100"
+            />
+
+            {/* Empty Balance State Alert Card */}
+            {wallet.totalBalance === 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in" id="empty-balance-state-alert">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                    <Info className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5 text-center md:text-left rtl:text-right">
+                    <h4 className="font-black text-sm text-amber-500">
+                      {isAr ? 'محفظتك فارغة حالياً!' : 'Your Wallet is Empty!'}
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      {isAr ? 'اشحن محفظتك الآن للبدء بالمزايدة فوراً والمشاركة بالمزادات الحية.' : 'Top up your wallet now to place bids and join live auctions.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setWalletSubView('add-funds')}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-black text-xs py-2.5 px-5 rounded-2xl tracking-wider uppercase shrink-0 transition-all active:scale-95 cursor-pointer"
+                >
+                  {isAr ? 'اشحن رصيدك الآن 💳' : 'Deposit Now 💳'}
+                </button>
+              </div>
+            )}
+
+            {/* Detailed Locked Amount Explanation Card (المبلغ المحجوز بالتفصيل) */}
+            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 md:p-6 space-y-4" id="locked-amount-details-card">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div className="text-left rtl:text-right">
+                  <h3 className="font-extrabold text-sm text-white">
+                    {isAr ? 'تفاصيل المبالغ المحجوزة' : 'Locked Amounts Details'}
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    {isAr ? 'لماذا وبأي وقت يسترجع مبلغي المحجوز' : 'Understand where and when locked funds return'}
+                  </p>
+                </div>
+              </div>
+
+              {wallet.escrowBalance > 0 ? (
+                <div className="space-y-4 text-left rtl:text-right">
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {isAr 
+                      ? 'يتم حجز هذا المبلغ مؤقتاً لضمان جديّتك كأعلى مزايد في المزادات المفتوحة المذكورة أدناه. هذه العملية تحمي البائعين وتضمن سلامة المزايدات للجميع.'
+                      : 'This amount is temporarily held to guarantee you are the highest bidder. This protects sellers and ensures auction integrity.'}
+                  </p>
+
+                  <div className="space-y-2.5">
+                    {currentLockedEscrows.map((escrow) => (
+                      <div key={escrow.id} className="bg-[#202024] border border-white/5 p-4 rounded-2xl space-y-2">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-extrabold text-xs text-white truncate max-w-[70%]">
+                            {escrow.auctionTitle}
+                          </span>
+                          <span className="font-mono font-black text-xs text-rose-400 shrink-0">
+                            {escrow.amount.toLocaleString()} JOD
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-zinc-400 space-y-1.5 pt-2 border-t border-white/5 text-left rtl:text-right">
+                          <div>
+                            <span className="text-[#FF6B00] font-bold">● {isAr ? 'سبب الحجز:' : 'Why Locked:'}</span>{' '}
+                            {isAr 
+                              ? `مشاركتك كأعلى مزايد حالي بقيمة ${escrow.amount} د.أ في مزاد "${escrow.auctionTitle}".` 
+                              : `You are currently the highest bidder with ${escrow.amount} JOD on lot "${escrow.auctionTitle}".`}
+                          </div>
+                          <div>
+                            <span className="text-[#10B981] font-bold">● {isAr ? 'متى يسترجع؟' : 'When it returns?'}</span>{' '}
+                            {isAr 
+                              ? 'يسترجع فوراً وتلقائياً لمحفظتك إذا قام شخص آخر بالمزايدة بسعر أعلى منك. أما إذا فزت بالمزاد، فيُسلّم للبائع بعد استلامك ومعاينة المنتج وتأكيد رضاك.' 
+                              : 'Refunded instantly to your wallet if you are outbid. If you win, it goes to the seller only after your delivery confirmation.'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-5 bg-[#202024] rounded-2xl border border-dashed border-white/5 p-4">
+                  <p className="text-xs text-zinc-300 font-extrabold">
+                    {isAr ? 'لا يوجد أي مبالغ محجوزة حالياً' : 'No locked amounts currently'}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 mt-1 px-4 leading-relaxed max-w-sm mx-auto">
+                    {isAr 
+                      ? 'رصيدك المتاح بالكامل جاهز للبدء بالمزايدة فوراً. عند المزايدة على أي معروض، سيتم حجز قيمة عرضك مؤقتاً لضمان جدية المزايدة.' 
+                      : 'Your available balance is fully ready for bidding. Placing a bid will temporarily lock the bid amount to secure your bid slot.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Mobile Only Quick Actions Stack */}

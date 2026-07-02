@@ -84,7 +84,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onClose,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { sellerProfiles } = useApp();
+  const { sellerProfiles, bids } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -250,7 +250,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
-  const { sellerProfiles } = useApp();
+  const { sellerProfiles, bids } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -696,6 +696,24 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     </button>
                   ))}
                 </div>
+
+                {/* Winning/Losing indicator */}
+                {(() => {
+                  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
+                  const isUserWinning = hasUserBid && auction?.currentBidderId === currentUser?.id;
+                  if (!hasUserBid) return null;
+                  return isUserWinning ? (
+                    <div className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently winning! 🎉'}</span>
+                    </div>
+                  ) : (
+                    <div className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 leading-none text-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
+                      <span>{isAr ? 'عطاؤك متأخر! زايد الآن لتتفوق ⚠️' : 'Outbid! Raise your bid now ⚠️'}</span>
+                    </div>
+                  );
+                })()}
 
                 {/* Swipe To Bid CTA */}
                 <div className="w-full">

@@ -128,7 +128,7 @@ export const SoldOrdersList: React.FC<SoldOrdersListProps> = ({
                   id={`btn-view-seller-order-${order.id}`}
                 >
                   <Eye className="w-4 h-4" />
-                  <span>{isAr ? 'عرض تفاصيل الطلب والضمان' : 'View Order & Escrow Details'}</span>
+                  <span>{isAr ? 'عرض تفاصيل الطلب والدفع' : 'View Order Details'}</span>
                 </button>
               </div>
             );

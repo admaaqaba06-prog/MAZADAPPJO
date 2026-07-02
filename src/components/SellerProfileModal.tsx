@@ -1,6 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { calculateTrustScore, getSellerBadges } from '../utils/trust';
+import { db } from '../services/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { Review } from '../types';
 import { 
   X, ShieldCheck, MapPin, Calendar, Award, Star, 
   Users, Percent, Clock, AlertTriangle, MessageSquare, 
@@ -16,7 +19,6 @@ interface SellerProfileModalProps {
 export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId, isOpen, onClose }) => {
   const { 
     sellerProfiles, 
-    reviews, 
     orders, 
     submitSellerReport, 
     currentUser, 
@@ -28,17 +30,45 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
   const [reportDesc, setReportDesc] = useState<string>('');
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const [isSubmitSuccess, setIsSubmitSuccess] = useState<boolean>(false);
+  const [sellerReviews, setSellerReviews] = useState<Review[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState<boolean>(false);
 
   // Find seller profile
   const profile = useMemo(() => {
     return sellerProfiles.find(p => p.userId === sellerId) || sellerProfiles.find(p => p.id === sellerId);
   }, [sellerProfiles, sellerId]);
 
-  // Compute stats based on real reviews & orders
-  const sellerReviews = useMemo(() => {
-    if (!profile) return [];
-    return reviews.filter(r => r.sellerId === profile.userId);
-  }, [reviews, profile]);
+  // Load reviews on-demand
+  useEffect(() => {
+    if (!isOpen || !sellerId) {
+      setSellerReviews([]);
+      return;
+    }
+    
+    setIsLoadingReviews(true);
+    const targetUserId = profile?.userId || sellerId;
+    
+    const reviewsQuery = query(
+      collection(db, 'reviews'), 
+      where('sellerId', '==', targetUserId)
+    );
+    
+    getDocs(reviewsQuery)
+      .then((snap) => {
+        const list: Review[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as Review);
+        });
+        list.sort((a, b) => b.timestamp - a.timestamp);
+        setSellerReviews(list.slice(0, 50));
+      })
+      .catch((err) => {
+        console.warn("Failed to load seller reviews on-demand:", err);
+      })
+      .finally(() => {
+        setIsLoadingReviews(false);
+      });
+  }, [isOpen, sellerId, profile?.userId]);
 
   const sellerOrders = useMemo(() => {
     if (!profile) return [];
@@ -46,14 +76,21 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
   }, [orders, profile]);
 
   const completedCount = useMemo(() => {
+    if (sellerOrders.length === 0) return profile?.totalSales || 0;
     return sellerOrders.filter(o => o.status === 'completed').length;
-  }, [sellerOrders]);
+  }, [sellerOrders, profile?.totalSales]);
 
   const deliveredCount = useMemo(() => {
+    if (sellerOrders.length === 0) return (profile?.totalSales || 0);
     return sellerOrders.filter(o => o.status === 'completed' || o.status === 'shipped' || o.status === 'delivered').length;
-  }, [sellerOrders]);
+  }, [sellerOrders, profile?.totalSales]);
 
   const cancelledCount = useMemo(() => {
+    if (sellerOrders.length === 0) {
+      const rate = profile?.cancellationRate || 0;
+      const total = profile?.totalSales || 0;
+      return Math.round((rate / 100) * total);
+    }
     return sellerOrders.filter(o => o.status === 'cancelled').length;
   }, [sellerOrders]);
 

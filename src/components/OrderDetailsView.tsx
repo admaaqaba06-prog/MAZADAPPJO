@@ -210,15 +210,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     if (confirm(isAr ? 'هل تؤكد استلام الشحنة ومعاينتها بنجاح؟' : 'Do you confirm you have received and inspected the parcel?')) {
       setIsUpdating(true);
       try {
-        await executeOrderTransition(order, 'confirm_delivery', currentUser);
+        const result = await executeOrderTransition(order, 'confirm_delivery', currentUser);
+        if (result && result.alreadyReleased) {
+          alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+        } else {
+          alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
+        }
         addNotification(
           isAr ? 'تم تأكيد الاستلام' : 'Delivery Confirmed',
-          isAr ? 'شكراً لك! تم تسجيل تأكيد الاستلام بنجاح.' : 'Thank you! Delivery confirmed successfully.',
+          isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
           'info'
         );
       } catch (err: any) {
         console.error(err);
-        alert(isAr ? `فشل تأكيد الاستلام: ${err.message}` : `Confirmation failed: ${err.message}`);
+        alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
       } finally {
         setIsUpdating(false);
       }
@@ -229,15 +234,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     if (confirm(isAr ? 'تأكيد تحرير الضمان المالي للبائع؟ سيتم قفل الطلب.' : 'Confirm release of Escrow funds directly to the seller? This closes the order.')) {
       setIsUpdating(true);
       try {
-        await executeOrderTransition(order, 'release_escrow', currentUser);
+        const result = await executeOrderTransition(order, 'release_escrow', currentUser);
+        if (result && result.alreadyReleased) {
+          alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+        } else {
+          alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
+        }
         addNotification(
           isAr ? 'تم تحرير الضمان' : 'Escrow Released',
-          isAr ? 'تم فك الحجز المالي وتحويل المبلغ لمحفظة البائع بنجاح.' : 'Escrow funds released and securely deposited into seller’s wallet.',
+          isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
           'info'
         );
       } catch (err: any) {
         console.error(err);
-        alert(isAr ? `فشل تحرير الضمان: ${err.message}` : `Release failed: ${err.message}`);
+        alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
       } finally {
         setIsUpdating(false);
       }
@@ -298,7 +308,16 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
     setIsUpdating(true);
     try {
-      await executeOrderTransition(order, 'resolve_dispute', currentUser, { resolutionType: lowerRes as any });
+      const result = await executeOrderTransition(order, 'resolve_dispute', currentUser, { resolutionType: lowerRes as any });
+      if (lowerRes === 'release') {
+        if (result && result.alreadyReleased) {
+          alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+        } else {
+          alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
+        }
+      } else {
+        alert(isAr ? 'تمت تسوية النزاع بنجاح.' : 'Dispute resolved successfully.');
+      }
       addNotification(
         isAr ? 'تم حل النزاع' : 'Dispute Resolved',
         isAr ? 'تم إنهاء وحل النزاع بنجاح وتحديث قيود الضمان.' : 'Dispute resolved successfully and escrow accounts adjusted.',
@@ -306,7 +325,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       );
     } catch (err: any) {
       console.error(err);
-      alert(isAr ? `فشل حل النزاع: ${err.message}` : `Resolution failed: ${err.message}`);
+      if (lowerRes === 'release') {
+        alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
+      } else {
+        alert(isAr ? `فشل حل النزاع: ${err.message}` : `Resolution failed: ${err.message}`);
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -316,15 +339,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     if (confirm(isAr ? 'هل أنت متأكد من فرض إغلاق الطلب وتحرير الضمان للبائع؟' : 'Are you sure you want to force close this order and release escrow to the seller?')) {
       setIsUpdating(true);
       try {
-        await executeOrderTransition(order, 'force_close', currentUser);
+        const result = await executeOrderTransition(order, 'force_close', currentUser);
+        if (result && result.alreadyReleased) {
+          alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+        } else {
+          alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
+        }
         addNotification(
           isAr ? 'تم فرض الإغلاق' : 'Order Force Closed',
-          isAr ? 'قام المشرف بإغلاق الطلب قسرياً وتحرير الضمان للبائع.' : 'Admin forced close order and released secure Escrow funds to seller.',
+          isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
           'info'
         );
       } catch (err: any) {
         console.error(err);
-        alert(isAr ? `فشل فرض الإغلاق: ${err.message}` : `Force close failed: ${err.message}`);
+        alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
       } finally {
         setIsUpdating(false);
       }

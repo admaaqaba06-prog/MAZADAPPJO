@@ -80,6 +80,7 @@ interface AppContextProps {
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
   triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
+  requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type']) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -94,6 +95,7 @@ interface AppContextProps {
   refundEscrow: (escrowId: string) => void;
   deleteAuction: (id: string) => void;
   repairEndedAuctionOrder: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  repairStuckEscrowsForEndedAuction: (auctionId: string) => Promise<{ success: boolean; message: string; refundedCount?: number; totalRefundedAmount?: number; keptWinnerEscrow?: boolean }>;
 
   // Trust System Operations
   submitVerificationRequest: (
@@ -136,6 +138,11 @@ interface AppContextProps {
   logout: () => Promise<void>;
   registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
+  
+  // Onboarding Additions
+  completeOnboarding: () => Promise<void>;
+  resetOnboarding: (userId?: string) => Promise<void>;
+  markHintAsShown: (hintKey: string) => Promise<void>;
 
   // Watch list & Auto-bid attributes
   watchlist: string[];
@@ -194,7 +201,19 @@ const INITIAL_NOTIFICATIONS: Notification[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Core user states
-  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_UNAUTHENTICATED_USER);
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const localCompleted = localStorage.getItem('mazad_local_onboarding_completed') === 'true';
+    let localHints = {};
+    try {
+      const stored = localStorage.getItem('mazad_local_shown_hints');
+      if (stored) localHints = JSON.parse(stored);
+    } catch (_) {}
+    return {
+      ...DEFAULT_UNAUTHENTICATED_USER,
+      onboardingCompleted: localCompleted,
+      shownHints: localHints
+    };
+  });
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
 
   // Maintenance & Operations States
@@ -235,7 +254,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userId: 'user-current',
       totalBalance: 0,
       availableBalance: 0,
-      escrowBalance: 0
+      escrowBalance: 0,
+      pendingWithdrawalBalance: 0
     };
   });
   const [escrows, setEscrows] = useState<EscrowTransaction[]>(() => {
@@ -422,7 +442,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!userSnap.exists()) {
             const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
             const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-            
             loadedUser = {
               id: uid,
               uid: uid,
@@ -439,7 +458,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               phoneNumber: firebaseUser.phoneNumber || '',
               phone: firebaseUser.phoneNumber || '',
               city: '',
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              onboardingCompleted: false,
+              shownHints: {}
             };
             try {
               await setDoc(userRef, {
@@ -458,7 +479,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 phoneNumber: firebaseUser.phoneNumber || '',
                 phone: firebaseUser.phoneNumber || '',
                 city: '',
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                onboardingCompleted: false,
+                shownHints: {}
               });
             } catch (error) {
               handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
@@ -503,7 +526,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               isSeller: fbData.isSeller || false,
               sellerStatus: fbData.sellerStatus || '',
               sellerActivatedAt: fbData.sellerActivatedAt || null,
-              sellerProfile: fbData.sellerProfile || null
+              sellerProfile: fbData.sellerProfile || null,
+              onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : false,
+              shownHints: fbData.shownHints || {}
             };
           }
           
@@ -714,14 +739,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const data = snap.data();
         const rawAvail = data.availableBalance ?? 0;
         const rawEscrow = data.escrowBalance ?? 0;
+        const rawPending = data.pendingWithdrawalBalance ?? 0;
         // Divide by 1000 dynamically to convert fils (integers) to JOD (decimals) representation for the UI.
         const availableBalance = rawAvail / 1000;
         const escrowBalance = rawEscrow / 1000;
+        const pendingWithdrawalBalance = rawPending / 1000;
         setWallet({
           userId: data.userId || currentUser.id,
           availableBalance,
           escrowBalance,
-          totalBalance: availableBalance + escrowBalance
+          pendingWithdrawalBalance,
+          totalBalance: availableBalance + escrowBalance + pendingWithdrawalBalance
         });
       }
     }, (err) => {
@@ -900,7 +928,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' && (currentUser.role === 'admin' || currentUser.isAdmin === true);
     if (isStrictAdmin) {
       const escrowsRefCol = collection(db, 'escrows');
-      const unsub = onSnapshot(escrowsRefCol, (snap) => {
+      const q = query(escrowsRefCol, orderBy('timestamp', 'desc'), limit(100));
+      const unsub = onSnapshot(q, (snap) => {
         const fetchedEscrows: EscrowTransaction[] = [];
         snap.forEach((docSnap) => {
           const rawData = docSnap.data();
@@ -918,9 +947,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return () => unsub();
     } else {
-      // Standard user: listen to escrows where bidderId == userId or sellerId == userId
-      const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id));
-      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id));
+      // Standard user: listen to escrows where bidderId == userId or sellerId == userId (limit 100)
+      const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id), limit(100));
+      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
 
       let bidderEscrows: EscrowTransaction[] = [];
       let sellerEscrows: EscrowTransaction[] = [];
@@ -980,8 +1009,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!isAuthenticated || !isDeferredReady) {
       return;
     }
+    const targetAuctionId = activeAuctionId || 'auction-rolex';
     const chatsRefCol = collection(db, 'chats');
-    const q = query(chatsRefCol, orderBy('timestamp', 'desc'), limit(50));
+    // Query chats filtered by the active auction ID, limiting to 100
+    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId), limit(100));
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
@@ -991,16 +1022,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...docSnap.data()
           } as ChatMessage);
         });
+        // Sort in-memory to prevent requiring compound indexes
         fetchedChats.sort((a, b) => a.timestamp - b.timestamp);
         setChatMessages(fetchedChats);
       } else {
-        setChatMessages(INITIAL_CHATS);
+        setChatMessages([]);
       }
     }, (err) => {
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated, isDeferredReady]);
+  }, [isAuthenticated, isDeferredReady, activeAuctionId]);
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
@@ -1039,35 +1071,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time sellerProfiles synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated || !isDeferredReady) return;
-    const profilesRefCol = collection(db, 'sellerProfiles');
-    const unsub = onSnapshot(profilesRefCol, (snap) => {
-      if (!snap.empty) {
-        const fetchedProfiles: SellerProfile[] = [];
-        snap.forEach((docSnap) => {
-          fetchedProfiles.push({
-            id: docSnap.id,
-            ...docSnap.data()
-          } as SellerProfile);
-        });
+    if (!isAuthenticated || !isDeferredReady || !currentUser?.id) return;
+
+    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+
+    if (isStrictAdmin) {
+      // Admins get up to 100 profiles
+      const q = query(collection(db, 'sellerProfiles'), limit(100));
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          const fetchedProfiles: SellerProfile[] = [];
+          snap.forEach((docSnap) => {
+            fetchedProfiles.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as SellerProfile);
+          });
+          setSellerProfiles(prev => {
+            const merged = [...prev];
+            fetchedProfiles.forEach(fp => {
+              const idx = merged.findIndex(p => p.id === fp.id || p.userId === fp.userId);
+              if (idx > -1) {
+                merged[idx] = { ...merged[idx], ...fp };
+              } else {
+                merged.push(fp);
+              }
+            });
+            return merged;
+          });
+        }
+      }, (err) => {
+        console.warn("Firestore 'sellerProfiles' collection sync error:", err);
+      });
+      return () => unsub();
+    } else {
+      // Normal user: ONLY subscribe to their own seller profile
+      const q = query(collection(db, 'sellerProfiles'), where('userId', '==', currentUser.id), limit(1));
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          const fetchedProfiles: SellerProfile[] = [];
+          snap.forEach((docSnap) => {
+            fetchedProfiles.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as SellerProfile);
+          });
+          setSellerProfiles(prev => {
+            const merged = [...prev];
+            fetchedProfiles.forEach(fp => {
+              const idx = merged.findIndex(p => p.id === fp.id || p.userId === fp.userId);
+              if (idx > -1) {
+                merged[idx] = { ...merged[idx], ...fp };
+              } else {
+                merged.push(fp);
+              }
+            });
+            return merged;
+          });
+        }
+      }, (err) => {
+        console.warn("Firestore 'sellerProfiles' (own) sync error:", err);
+      });
+      return () => unsub();
+    }
+  }, [isAuthenticated, isDeferredReady, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.email]);
+
+  // Automated pre-fetching of seller profiles of all active/upcoming auctions
+  useEffect(() => {
+    if (auctions.length === 0) return;
+    
+    // Get unique seller IDs from current auctions
+    const sellerIds = Array.from(new Set(auctions.map(a => a.sellerId).filter(Boolean)));
+    
+    // Find which ones we don't have yet
+    const missingIds = sellerIds.filter(id => !sellerProfiles.some(p => p.userId === id || p.id === id));
+    
+    if (missingIds.length === 0) return;
+    
+    const fetchMissing = async () => {
+      const fetched: SellerProfile[] = [];
+      for (const id of missingIds) {
+        try {
+          const q = query(collection(db, 'sellerProfiles'), where('userId', '==', id), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            fetched.push({ id: snap.docs[0].id, ...snap.docs[0].data() } as SellerProfile);
+          } else {
+            const docSnap = await getDoc(doc(db, 'sellerProfiles', id as string));
+            if (docSnap.exists()) {
+              fetched.push({ id: docSnap.id, ...docSnap.data() } as SellerProfile);
+            }
+          }
+        } catch (e) {
+          console.warn(`Error pre-fetching profile for seller ${id}:`, e);
+        }
+      }
+      if (fetched.length > 0) {
         setSellerProfiles(prev => {
           const merged = [...prev];
-          fetchedProfiles.forEach(fp => {
-            const idx = merged.findIndex(p => p.id === fp.id || p.userId === fp.userId);
-            if (idx > -1) {
-              merged[idx] = { ...merged[idx], ...fp };
-            } else {
+          fetched.forEach(fp => {
+            if (!merged.some(p => p.id === fp.id || p.userId === fp.userId)) {
               merged.push(fp);
             }
           });
           return merged;
         });
       }
-    }, (err) => {
-      console.warn("Firestore 'sellerProfiles' collection sync error:", err);
-    });
-    return () => unsub();
-  }, [isAuthenticated, isDeferredReady]);
+    };
+    
+    fetchMissing();
+  }, [auctions]);
 
   // Sync singular current user's sellerProfile whenever sellerProfiles list or current user changes
   useEffect(() => {
@@ -1091,7 +1204,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
     if (isStrictAdmin) {
       const ordersRefCol = collection(db, 'orders');
-      const unsub = onSnapshot(ordersRefCol, (snap) => {
+      const q = query(ordersRefCol, orderBy('createdAt', 'desc'), limit(100));
+      const unsub = onSnapshot(q, (snap) => {
         const fetchedOrders: Order[] = [];
         snap.forEach((docSnap) => {
           fetchedOrders.push({
@@ -1110,9 +1224,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return () => unsub();
     } else {
-      // Standard user: listen to orders where buyerId == userId or sellerId == userId
-      const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id));
-      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id));
+      // Standard user: listen to orders where buyerId == userId or sellerId == userId (limit 100)
+      const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id), limit(100));
+      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
 
       let buyerOrders: Order[] = [];
       let sellerOrders: Order[] = [];
@@ -1177,20 +1291,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
 
-    // 1. Reviews (Anyone can read, we load all to update trust scores and averages dynamically)
-    const reviewsRef = collection(db, 'reviews');
-    const unsubReviews = onSnapshot(reviewsRef, (snap) => {
-      const list: Review[] = [];
-      snap.forEach((d) => {
-        list.push({ id: d.id, ...d.data() } as Review);
-      });
-      setReviews(list.sort((a, b) => b.timestamp - a.timestamp));
-    }, (err) => console.warn("Reviews sync error:", err));
+    // 1. Reviews (Removed global real-time listener to optimize read cost. Loaded on-demand instead)
+    const unsubReviews = () => {};
 
     // 2. Verification Requests
     let unsubVerifications = () => {};
     if (isStrictAdmin) {
-      unsubVerifications = onSnapshot(collection(db, 'sellerVerificationRequests'), (snap) => {
+      const q = query(collection(db, 'sellerVerificationRequests'), orderBy('submittedAt', 'desc'), limit(100));
+      unsubVerifications = onSnapshot(q, (snap) => {
         const list: VerificationRequest[] = [];
         snap.forEach((d) => {
           list.push({ id: d.id, ...d.data() } as VerificationRequest);
@@ -1198,7 +1306,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setVerificationRequests(list.sort((a, b) => b.submittedAt - a.submittedAt));
       }, (err) => console.warn("Verification requests sync error:", err));
     } else {
-      const qVer = query(collection(db, 'sellerVerificationRequests'), where('userId', '==', currentUser.id));
+      const qVer = query(collection(db, 'sellerVerificationRequests'), where('userId', '==', currentUser.id), limit(10));
       unsubVerifications = onSnapshot(qVer, (snap) => {
         const list: VerificationRequest[] = [];
         snap.forEach((d) => {
@@ -1211,7 +1319,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 3. Reports
     let unsubReports = () => {};
     if (isStrictAdmin) {
-      unsubReports = onSnapshot(collection(db, 'sellerReports'), (snap) => {
+      const q = query(collection(db, 'sellerReports'), orderBy('timestamp', 'desc'), limit(100));
+      unsubReports = onSnapshot(q, (snap) => {
         const list: SellerReport[] = [];
         snap.forEach((d) => {
           list.push({ id: d.id, ...d.data() } as SellerReport);
@@ -1223,7 +1332,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 4. Disputes
     let unsubDisputes = () => {};
     if (isStrictAdmin) {
-      unsubDisputes = onSnapshot(collection(db, 'disputes'), (snap) => {
+      const q = query(collection(db, 'disputes'), orderBy('timestamp', 'desc'), limit(100));
+      unsubDisputes = onSnapshot(q, (snap) => {
         const list: Dispute[] = [];
         snap.forEach((d) => {
           list.push({ id: d.id, ...d.data() } as Dispute);
@@ -1231,9 +1341,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDisputes(list.sort((a, b) => b.timestamp - a.timestamp));
       }, (err) => console.warn("Disputes sync error:", err));
     } else {
-      // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id
-      const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id));
-      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id));
+      // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id (limit 50)
+      const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id), limit(50));
+      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
       
       let bDisps: Dispute[] = [];
       let sDisps: Dispute[] = [];
@@ -1480,7 +1590,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         phone: cleanPhone || '',
         normalizedPhone: cleanPhone.replace(/\D/g, ''),
         city: '',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        onboardingCompleted: false,
+        shownHints: {}
       };
       await setDoc(userRef, freshUserDoc);
 
@@ -1852,6 +1964,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
   }, [currentUser, addNotification, logSystemHealth, featureFlags, language]);
+
+  const requestWithdrawal = useCallback(async (amount: number, method: string, accountDetails: any) => {
+    try {
+      const withdrawalCallable = await getCallableFunction<
+        { amount: number; method: string; accountDetails: any },
+        { success: boolean; message: string }
+      >('requestWithdrawal');
+      const result = await withdrawalCallable({ amount, method, accountDetails });
+      if (result.data.success) {
+        addNotification(
+          language === 'ar' ? '💸 تم تقديم طلب السحب' : '💸 Withdrawal Request Logged',
+          result.data.message || (language === 'ar' ? 'تم تسجيل طلب السحب بنجاح وهو قيد المراجعة.' : 'Withdrawal request registered successfully. Pending review.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to request withdrawal.' };
+    } catch (error: any) {
+      console.error("Cloud function requestWithdrawal failed:", error);
+      addNotification(
+        language === 'ar' ? '❌ خطأ في تقديم طلب السحب' : '❌ Withdrawal Error',
+        error.message || (language === 'ar' ? 'فشل تقديم طلب السحب.' : 'Failed to request withdrawal.'),
+        'alert'
+      );
+      return { success: false, message: error.message || 'Failed to request withdrawal.' };
+    }
+  }, [currentUser, addNotification, language]);
 
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
@@ -2291,6 +2430,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [addNotification]);
 
+  const repairStuckEscrowsForEndedAuction = useCallback(async (auctionId: string) => {
+    try {
+      const repairCallable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string; refundedCount?: number; totalRefundedAmount?: number; keptWinnerEscrow?: boolean }>('repairStuckEscrowsForEndedAuction');
+      const result = await repairCallable({ auctionId });
+      if (result.data.success) {
+        addNotification(
+          '🔒 Escrows Repaired Successfully',
+          result.data.message || `Stuck escrows processed for auction ${auctionId}.`,
+          'info'
+        );
+        return { 
+          success: true, 
+          message: result.data.message,
+          refundedCount: result.data.refundedCount,
+          totalRefundedAmount: result.data.totalRefundedAmount,
+          keptWinnerEscrow: result.data.keptWinnerEscrow
+        };
+      }
+      return { success: false, message: result.data.message || 'Failed to repair stuck escrows.' };
+    } catch (error: any) {
+      console.error("Cloud function repairStuckEscrowsForEndedAuction failed:", error);
+      addNotification('❌ Escrow Repair Error', error.message || 'Failed to repair stuck escrows.', 'alert');
+      return { success: false, message: error.message || 'Failed to repair stuck escrows.' };
+    }
+  }, [addNotification]);
+
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);
     
@@ -2667,6 +2832,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, addNotification, logSystemHealth]);
 
+  const completeOnboarding = useCallback(async () => {
+    if (currentUser && currentUser.id !== 'unauthenticated') {
+      const userRef = doc(db, 'users', currentUser.id);
+      try {
+        await updateDoc(userRef, { onboardingCompleted: true });
+        setCurrentUser(prev => ({ ...prev, onboardingCompleted: true }));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}`);
+      }
+    } else {
+      localStorage.setItem('mazad_local_onboarding_completed', 'true');
+      setCurrentUser(prev => ({ ...prev, onboardingCompleted: true }));
+    }
+  }, [currentUser]);
+
+  const resetOnboarding = useCallback(async (userId?: string) => {
+    const targetUserId = userId || (currentUser && currentUser.id !== 'unauthenticated' ? currentUser.id : null);
+    if (targetUserId) {
+      const userRef = doc(db, 'users', targetUserId);
+      try {
+        await updateDoc(userRef, { onboardingCompleted: false });
+        if (currentUser && currentUser.id === targetUserId) {
+          setCurrentUser(prev => ({ ...prev, onboardingCompleted: false }));
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${targetUserId}`);
+      }
+    } else {
+      localStorage.removeItem('mazad_local_onboarding_completed');
+      setCurrentUser(prev => ({ ...prev, onboardingCompleted: false }));
+    }
+  }, [currentUser]);
+
+  const markHintAsShown = useCallback(async (hintKey: string) => {
+    const updatedHints = {
+      ...(currentUser?.shownHints || {}),
+      [hintKey]: true
+    };
+
+    if (currentUser && currentUser.id !== 'unauthenticated') {
+      const userRef = doc(db, 'users', currentUser.id);
+      try {
+        await updateDoc(userRef, { shownHints: updatedHints });
+        setCurrentUser(prev => ({ ...prev, shownHints: updatedHints }));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}`);
+      }
+    } else {
+      localStorage.setItem('mazad_local_shown_hints', JSON.stringify(updatedHints));
+      setCurrentUser(prev => ({ ...prev, shownHints: updatedHints }));
+    }
+  }, [currentUser]);
+
   // Trust System Operations Implementation
   const submitVerificationRequest = useCallback(async (
     requestedStatus: 'verified' | 'premium_verified', 
@@ -2753,7 +2971,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const profileSnap = await getDocs(profileQuery);
       if (!profileSnap.empty) {
         await updateDoc(profileSnap.docs[0].ref, {
-          rating: parseFloat(averageRating.toFixed(1))
+          rating: parseFloat(averageRating.toFixed(1)),
+          reviewCount: reviewsList.length
         });
       }
 
@@ -3073,6 +3292,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activeView, setActiveView,
       placeBid,
       triggerCliQTopUp,
+      requestWithdrawal,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -3085,6 +3305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refundEscrow,
       deleteAuction,
       repairEndedAuctionOrder,
+      repairStuckEscrowsForEndedAuction,
       createListing,
       isSimulating,
       setIsSimulating,
@@ -3096,6 +3317,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logout,
       registerUser,
       subscribeUser,
+      completeOnboarding,
+      resetOnboarding,
+      markHintAsShown,
       watchlist,
       toggleWatchlist,
       autoBids,

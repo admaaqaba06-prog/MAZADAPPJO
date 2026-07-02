@@ -53,6 +53,7 @@ export const AdminDashboardView: React.FC = () => {
     refundEscrow,
     deleteAuction,
     repairEndedAuctionOrder,
+    repairStuckEscrowsForEndedAuction,
     language,
     maintenanceMode,
     featureFlags,
@@ -60,7 +61,8 @@ export const AdminDashboardView: React.FC = () => {
     updateFeatureFlag,
     systemHealthLogs,
     logSystemHealth,
-    setBids
+    setBids,
+    resetOnboarding
   } = useApp();
 
   const t = translations[language];
@@ -1205,6 +1207,21 @@ export const AdminDashboardView: React.FC = () => {
                                   </button>
                                 )}
                                 <button 
+                                  onClick={async () => {
+                                    if (confirm(isAr ? 'هل أنت متأكد من تسوية الضمانات العالقة للمزايدين الخاسرين في هذا المزاد؟' : 'Are you sure you want to repair stuck escrows for losing bidders in this auction?')) {
+                                      const res = await repairStuckEscrowsForEndedAuction(item.id);
+                                      if (res.success) {
+                                        alert(res.message);
+                                      } else {
+                                        alert("Error: " + res.message);
+                                      }
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[11px] rounded-xl transition-all"
+                                >
+                                  {isAr ? 'إرجاع الضمانات العالقة 🔒' : 'REPAIR ESCROWS 🔒'}
+                                </button>
+                                <button 
                                   onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
                                   className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-850 text-white font-extrabold text-[11px] rounded-xl transition-all"
                                 >
@@ -1823,6 +1840,41 @@ export const AdminDashboardView: React.FC = () => {
                     >
                       <Database className="w-3.5 h-3.5" />
                       {isAr ? 'لقطة فورية كاملة' : 'SNAPSHOT NOW'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Onboarding & Welcome Flow Testing Controls */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                    <RotateCcw className="w-4 h-4 text-[#FF6B00]" />
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+                      {isAr ? 'بيئة تجربة المستخدم والتعليمات' : 'User Onboarding & Guides Testing'}
+                    </h4>
+                  </div>
+
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    {isAr 
+                      ? 'أداة اختبار لإعادة تهيئة دليل المستخدم الجديد وتنبيهات التعليمات السياقية لغايات الفحص الفني.' 
+                      : 'Developer testing utility to reset the new-user onboarding walkthrough and all contextual guides.'}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 text-[10px] block uppercase font-bold">
+                      {isAr ? 'حالة دليل المستخدم' : 'GUIDES ENGINE STATE'}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        await resetOnboarding();
+                        alert(isAr 
+                          ? '🔄 تم إعادة تعيين دليل المستخدم والتعليمات بنجاح!' 
+                          : '🔄 Walkthrough and hints reset successfully!'
+                        );
+                      }}
+                      className="bg-gray-950 hover:bg-black text-white text-[11px] font-black px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      {isAr ? 'إعادة تعيين الدليل' : 'RESET ONBOARDING'}
                     </button>
                   </div>
                 </div>

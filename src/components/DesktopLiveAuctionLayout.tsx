@@ -94,7 +94,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
-  const { sellerProfiles, setActiveView } = useApp();
+  const { sellerProfiles, setActiveView, bids } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -452,6 +452,24 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       </span>
                     </div>
                   </div>
+
+                  {/* Winning/Losing indicator */}
+                  {(() => {
+                    const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                    const isUserWinning = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+                    if (!hasUserBid) return null;
+                    return isUserWinning ? (
+                      <div className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 mb-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently the highest bidder! 🎉'}</span>
+                      </div>
+                    ) : (
+                      <div className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 mb-2 text-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
+                        <span>{isAr ? 'عطاؤك متأخر! شخص آخر زايد أعلى منك ⚠️' : 'Outbid! Place a higher bid now ⚠️'}</span>
+                      </div>
+                    );
+                  })()}
 
                   {/* SWIPE TO BID Button */}
                   <div className="w-full">
