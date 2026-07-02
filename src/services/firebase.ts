@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
@@ -18,8 +16,23 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const functions = getFunctions(app);
+
+// Lazy loaders to prevent firebase/storage and firebase/functions from being bundled on initial page load
+export async function getFirebaseStorage() {
+  const { getStorage } = await import("firebase/storage");
+  return getStorage(app);
+}
+
+export async function getFirebaseFunctions() {
+  const { getFunctions } = await import("firebase/functions");
+  return getFunctions(app);
+}
+
+export async function getCallableFunction<TRequest = any, TResponse = any>(name: string) {
+  const { getFunctions, httpsCallable } = await import("firebase/functions");
+  const functionsInstance = getFunctions(app);
+  return httpsCallable<TRequest, TResponse>(functionsInstance, name);
+}
 
 export enum OperationType {
   CREATE = 'create',

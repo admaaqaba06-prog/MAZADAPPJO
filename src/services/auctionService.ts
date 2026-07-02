@@ -1,5 +1,4 @@
-import { db, auth, functions } from './firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db, auth, getCallableFunction } from './firebase';
 import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, runTransaction } from 'firebase/firestore';
 
 export interface FirebaseAuction {
@@ -69,7 +68,7 @@ export async function placeAuctionBid(
 ): Promise<void> {
   console.log(`[Firebase placeAuctionBid] Redirecting call to Callable Cloud Function... Auction: ${auctionId}, Amt: ${amount}`);
   try {
-    const placeBidCallable = httpsCallable<{ auctionId: string; amount: number }, { success: boolean; message: string }>(functions, 'placeBid');
+    const placeBidCallable = await getCallableFunction<{ auctionId: string; amount: number }, { success: boolean; message: string }>('placeBid');
     const result = await placeBidCallable({ auctionId, amount });
     if (!result.data.success) {
       throw new Error(result.data.message || 'Bidding failed.');

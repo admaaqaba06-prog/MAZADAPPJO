@@ -402,6 +402,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
         loop
         muted={isMuted}
         playsInline
+        preload={isActive ? "auto" : "none"}
         className="absolute inset-0 w-full h-full object-cover z-0"
         onClick={onPlayPauseToggle}
       />

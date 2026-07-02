@@ -334,10 +334,11 @@ export const WalletView: React.FC = () => {
     setIsSubmitting(true);
     try {
       const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { storage } = await import('../services/firebase');
+      const { getFirebaseStorage } = await import('../services/firebase');
+      const storageInstance = await getFirebaseStorage();
       
       const storagePath = `payment-proofs/${currentUser?.id || 'anonymous'}/${Date.now()}_${selectedFile.name}`;
-      const fileRef = ref(storage, storagePath);
+      const fileRef = ref(storageInstance, storagePath);
       await uploadBytes(fileRef, selectedFile);
       const downloadURL = await getDownloadURL(fileRef);
 

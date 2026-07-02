@@ -56,32 +56,42 @@ export const DiscoveryFeedView: React.FC = () => {
   const t = translations[language];
   const isAr = language === 'ar';
 
-  const categoriesList = [
+  const categoriesList = React.useMemo(() => [
     { name: 'All', icon: <LayoutGrid className="w-3.5 h-3.5" />, arName: 'الكل' },
     { name: 'Luxury', icon: <Gem className="w-3.5 h-3.5" />, arName: 'فاخر' },
     { name: 'Vehicles', icon: <Car className="w-3.5 h-3.5" />, arName: 'مركبات' },
     { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات' },
     { name: 'Fashion', icon: <Shirt className="w-3.5 h-3.5" />, arName: 'أزياء' }
-  ];
+  ], []);
 
-  const filteredAuctions = auctions.filter(item => {
-    if (activeTab === 'live') {
-      if (item.status !== 'live') return false;
-      if (item.endTime && item.endTime <= Date.now()) return false;
-    }
-    if (activeTab === 'upcoming' && item.status !== 'upcoming') return false;
+  const filteredAuctions = React.useMemo(() => {
+    return auctions.filter(item => {
+      if (activeTab === 'live') {
+        if (item.status !== 'live') return false;
+        if (item.endTime && item.endTime <= Date.now()) return false;
+      }
+      if (activeTab === 'upcoming' && item.status !== 'upcoming') return false;
 
-    if (searchTerm) {
-      const matchText = (item.title + item.description).toLowerCase();
-      if (!matchText.includes(searchTerm.toLowerCase())) return false;
-    }
+      if (searchTerm) {
+        const matchText = (item.title + item.description).toLowerCase();
+        if (!matchText.includes(searchTerm.toLowerCase())) return false;
+      }
 
-    if (selectedCategory !== 'All' && item.category !== selectedCategory) {
-      return false;
-    }
+      if (selectedCategory !== 'All' && item.category !== selectedCategory) {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [auctions, activeTab, searchTerm, selectedCategory]);
+
+  const pendingListingsToDisplay = React.useMemo(() => {
+    return auctions.filter(a => {
+      if (a.status !== 'processing') return false;
+      if (currentUser?.role === 'admin') return false;
+      return a.sellerId === currentUser?.id;
+    });
+  }, [auctions, currentUser]);
 
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
@@ -102,6 +112,7 @@ export const DiscoveryFeedView: React.FC = () => {
             alt={item.title} 
             className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-500 group-hover:scale-105"
             referrerPolicy="no-referrer"
+            loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
         </>
@@ -114,7 +125,13 @@ export const DiscoveryFeedView: React.FC = () => {
             muted 
             playsInline 
             loop 
-            autoPlay 
+            preload="none"
+            onMouseEnter={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.pause();
+            }}
             className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
@@ -277,52 +294,42 @@ export const DiscoveryFeedView: React.FC = () => {
       </div>
 
       {/* Pending Listings Banner (For Admins) */}
-      {(() => {
-        const pendingListingsToDisplay = auctions.filter(a => {
-          if (a.status !== 'processing') return false;
-          if (currentUser?.role === 'admin') return false;
-          return a.sellerId === currentUser?.id;
-        });
-
-        if (pendingListingsToDisplay.length === 0) return null;
-
-        return (
-          <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
-            <div className="flex gap-2 items-start">
-              <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
-              <div>
-                <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
-                  {isAr ? 'مزادك قيد المراجعة والتحقق' : 'YOUR UNDER REVIEW AUCTION'}
-                </h4>
-                <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
-                  {isAr
-                    ? 'لقد تم رفع معروضك بنجاح وهو الآن تحت مراجعة الإدارة بهدف حمايتك:'
-                    : 'Your video stream asset successfully verified. It will appear live once approved:'}
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-2 pt-1 border-t border-orange-100">
-              {pendingListingsToDisplay.map(item => (
-                <div key={item.id} className="flex items-center justify-between bg-white border border-gray-150 p-2 rounded-xl">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
-                      <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
-                        {item.startingPrice.toLocaleString()} JOD
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
-                    {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
-                  </span>
-                </div>
-              ))}
+      {pendingListingsToDisplay.length > 0 && (
+        <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
+          <div className="flex gap-2 items-start">
+            <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
+            <div>
+              <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
+                {isAr ? 'مزادك قيد المراجعة والتحقق' : 'YOUR UNDER REVIEW AUCTION'}
+              </h4>
+              <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                {isAr
+                  ? 'لقد تم رفع معروضك بنجاح وهو الآن تحت مراجعة الإدارة بهدف حمايتك:'
+                  : 'Your video stream asset successfully verified. It will appear live once approved:'}
+              </p>
             </div>
           </div>
-        );
-      })()}
+          
+          <div className="space-y-2 pt-1 border-t border-orange-100">
+            {pendingListingsToDisplay.map(item => (
+              <div key={item.id} className="flex items-center justify-between bg-white border border-gray-150 p-2 rounded-xl">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" loading="lazy" width="32" height="32" />
+                  <div className="min-w-0">
+                    <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
+                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
+                      {item.startingPrice.toLocaleString()} JOD
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
+                  {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs active live feed & upcoming drops with Fire & Calendar icon */}
       <div className="px-4 flex border-b border-gray-100 mb-3">
@@ -577,6 +584,7 @@ export const DiscoveryFeedView: React.FC = () => {
                       src={item.thumbnailUrl} 
                       alt={item.title} 
                       className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                      loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { db, storage } from '../services/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
 import { OrderDetailsView } from './OrderDetailsView';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
@@ -1862,20 +1861,24 @@ export const SellerCenterView: React.FC = () => {
                 const userId = currentUser?.id || 'unknown';
                 const timestamp = Date.now();
                 
+                // Dynamic import of firebase/storage
+                const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                const storageInstance = await getFirebaseStorage();
+                
                 // 1. Upload ID Front file
-                const frontRef = ref(storage, `verification-documents/${userId}/${timestamp}_front_${idFrontFile.name}`);
+                const frontRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_front_${idFrontFile.name}`);
                 const frontSnap = await uploadBytes(frontRef, idFrontFile);
                 const idFrontUrl = await getDownloadURL(frontSnap.ref);
                 
                 // 2. Upload ID Back file
-                const backRef = ref(storage, `verification-documents/${userId}/${timestamp}_back_${idBackFile.name}`);
+                const backRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_back_${idBackFile.name}`);
                 const backSnap = await uploadBytes(backRef, idBackFile);
                 const idBackUrl = await getDownloadURL(backSnap.ref);
                 
                 // 3. Upload Passport file if selected
                 let passportUrl = '';
                 if (passportFile) {
-                  const passRef = ref(storage, `verification-documents/${userId}/${timestamp}_passport_${passportFile.name}`);
+                  const passRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_passport_${passportFile.name}`);
                   const passSnap = await uploadBytes(passRef, passportFile);
                   passportUrl = await getDownloadURL(passSnap.ref);
                 }

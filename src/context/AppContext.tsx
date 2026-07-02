@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
+import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
-import { httpsCallable } from 'firebase/functions';
 import { resolveVideoUrl } from '../utils/videoDb';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
@@ -267,6 +266,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [];
     }
   });
+
+  const [isDeferredReady, setIsDeferredReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsDeferredReady(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('mazad_deleted_auctions', JSON.stringify(deletedAuctionIds));
@@ -690,8 +698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }, 1500);
           } else {
             // If still doesn't exist after retries, trigger the cloud function
-            const { httpsCallable } = await import('firebase/functions');
-            const initWalletCallable = httpsCallable(functions, 'initializeUserWallet');
+            const initWalletCallable = await getCallableFunction('initializeUserWallet');
             await initWalletCallable();
             console.log("Wallet successfully initialized via Cloud Function on fallback.");
           }
@@ -729,8 +736,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time auctions synchronization with Firestore
   useEffect(() => {
+    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center'];
+    if (!viewsRequiringAuctions.includes(activeView)) {
+      setAuctions([]);
+      return;
+    }
+
     const auctionsRefCol = collection(db, 'auctions');
-    const unsub = onSnapshot(auctionsRefCol, (snap) => {
+    let q;
+    if (activeView === 'seller-center') {
+      // In Seller Center, fetch auctions including ended but capped at 100
+      q = query(auctionsRefCol, limit(100));
+    } else {
+      // On Discovery / Live views, subscribe ONLY to active/non-ended auctions
+      q = query(
+        auctionsRefCol,
+        where('status', 'in', ['live', 'upcoming', 'processing']),
+        limit(80)
+      );
+    }
+    const unsub = onSnapshot(q, (snap) => {
       if (snap.empty) {
         setAuctions([]);
       } else {
@@ -771,15 +796,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const cat = (data.category || '').toLowerCase();
             const tit = (data.title || '').toLowerCase();
             if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
+              finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=400&q=80';
             } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80';
+              finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80';
             } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80';
+              finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80';
             } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80';
+              finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=400&q=80';
             } else {
-              finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&q=80';
+              finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=400&q=80';
             }
           }
 
@@ -864,11 +889,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAuctions([]);
     });
     return () => unsub();
-  }, []);
+  }, [activeView]);
 
   // Real-time escrows synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.id) {
+    if (!isAuthenticated || !currentUser?.id || !isDeferredReady) {
       return;
     }
 
@@ -948,15 +973,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.role]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.role, isDeferredReady]);
 
   // Real-time chats synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isDeferredReady) {
       return;
     }
     const chatsRefCol = collection(db, 'chats');
-    const unsub = onSnapshot(chatsRefCol, (snap) => {
+    const q = query(chatsRefCol, orderBy('timestamp', 'desc'), limit(50));
+    const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
         snap.forEach((docSnap) => {
@@ -974,7 +1000,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isDeferredReady]);
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
@@ -1013,7 +1039,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time sellerProfiles synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !isDeferredReady) return;
     const profilesRefCol = collection(db, 'sellerProfiles');
     const unsub = onSnapshot(profilesRefCol, (snap) => {
       if (!snap.empty) {
@@ -1041,7 +1067,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'sellerProfiles' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isDeferredReady]);
 
   // Sync singular current user's sellerProfile whenever sellerProfiles list or current user changes
   useEffect(() => {
@@ -1057,7 +1083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time orders synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.id) {
+    if (!isAuthenticated || !currentUser?.id || !isDeferredReady) {
       setOrders([]);
       return;
     }
@@ -1137,11 +1163,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role, isDeferredReady]);
 
   // Real-time synchronization for trust system collections
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.id) {
+    if (!isAuthenticated || !currentUser?.id || !isDeferredReady) {
       setReviews([]);
       setVerificationRequests([]);
       setSellerReports([]);
@@ -1245,7 +1271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReports();
       unsubDisputes();
     };
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role, isDeferredReady]);
 
   // Keep latest states in refs to completely avoid interval reset
   const auctionsRef = useRef(auctions);
@@ -1407,8 +1433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
-      const checkDuplicate = httpsCallable<{ phone: string; name: string }, { phoneExists: boolean; nameExists: boolean; duplicate: boolean }>(
-        functions,
+      const checkDuplicate = await getCallableFunction<{ phone: string; name: string }, { phoneExists: boolean; nameExists: boolean; duplicate: boolean }>(
         'checkDuplicateAccount'
       );
       const dupResult = await checkDuplicate({ phone: cleanPhone, name: cleanName });
@@ -1624,15 +1649,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Call the cloud function as a background update; catch errors safely so it is non-blocking
       try {
-        const { httpsCallable } = await import('firebase/functions');
-        const requestSubCallable = httpsCallable<{
+        const requestSubCallable = await getCallableFunction<{
           price: number;
           plan: string;
           paymentProofUrl: string;
           paymentProofImage: string;
           transferFullName: string;
           transferPhone: string;
-         }, { success: boolean; message: string }>(functions, 'requestSubscription');
+         }, { success: boolean; message: string }>('requestSubscription');
 
         await requestSubCallable({
           price,
@@ -1679,7 +1703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
       addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
     }
-  }, [currentUser, addNotification, functions, logSystemHealth, featureFlags, language]);
+  }, [currentUser, addNotification, logSystemHealth, featureFlags, language]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
   const placeBid = useCallback(async (auctionId: string, amount: number): Promise<{ success: boolean; message: string }> => {
@@ -1744,7 +1768,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const placeBidCallable = httpsCallable<{ auctionId: string; amount: number }, { success: boolean; message: string }>(functions, 'placeBid');
+      const placeBidCallable = await getCallableFunction<{ auctionId: string; amount: number }, { success: boolean; message: string }>('placeBid');
       const result = await placeBidCallable({ auctionId, amount });
       if (result.data.success) {
         // Update security refs
@@ -1804,8 +1828,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const { httpsCallable } = await import('firebase/functions');
-      const topUpCallable = httpsCallable<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>(functions, 'requestTopUp');
+      const topUpCallable = await getCallableFunction<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>('requestTopUp');
       const result = await topUpCallable({ amount, alias, paymentProofUrl });
 
       if (result.data.success) {
@@ -2216,7 +2239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ESCROW RELEASES (CRITICAL MONEY FLOW SYSTEM)
   const releaseEscrow = useCallback(async (escrowId: string) => {
     try {
-      const releaseCallable = httpsCallable<{ escrowId: string }, { success: boolean; message: string }>(functions, 'releaseEscrow');
+      const releaseCallable = await getCallableFunction<{ escrowId: string }, { success: boolean; message: string }>('releaseEscrow');
       const result = await releaseCallable({ escrowId });
       if (result.data.success) {
         addNotification(
@@ -2233,7 +2256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refundEscrow = useCallback(async (escrowId: string) => {
     try {
-      const refundCallable = httpsCallable<{ escrowId: string }, { success: boolean; message: string }>(functions, 'refundEscrow');
+      const refundCallable = await getCallableFunction<{ escrowId: string }, { success: boolean; message: string }>('refundEscrow');
       const result = await refundCallable({ escrowId });
       if (result.data.success) {
         addNotification(
@@ -2250,7 +2273,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const repairEndedAuctionOrder = useCallback(async (auctionId: string) => {
     try {
-      const repairCallable = httpsCallable<{ auctionId: string }, { success: boolean; message: string }>(functions, 'repairEndedAuctionOrder');
+      const repairCallable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string }>('repairEndedAuctionOrder');
       const result = await repairCallable({ auctionId });
       if (result.data.success) {
         addNotification(

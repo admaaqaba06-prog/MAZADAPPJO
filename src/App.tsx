@@ -129,7 +129,16 @@ function MainAppShell() {
       )}
 
       <DesktopFrame>
-        <ActiveViewRenderer />
+        <Suspense fallback={
+          <div className="flex-1 flex flex-col items-center justify-center bg-white p-12 min-h-[400px] font-sans">
+            <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
+              M
+            </div>
+            <span className="text-[10px] text-gray-400 font-mono tracking-widest uppercase mt-3">Loading view...</span>
+          </div>
+        }>
+          <ActiveViewRenderer />
+        </Suspense>
 
         {/* Global Subscription Prompt Modal */}
         {showSubscriptionPrompt && (

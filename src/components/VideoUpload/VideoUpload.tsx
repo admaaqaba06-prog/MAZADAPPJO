@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { storage, auth } from '../../services/firebase';
-import { ref, uploadBytesResumable, getDownloadURL, UploadTask } from 'firebase/storage';
+import { auth, getFirebaseStorage } from '../../services/firebase';
+import type { UploadTask } from 'firebase/storage';
 import { Film, UploadCloud, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 
 export interface UploadResult {
@@ -86,7 +86,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
     setErrorMessage('');
   };
 
-  const startUpload = () => {
+  const startUpload = async () => {
     if (!selectedFile) return;
 
     // Strict Auth Check
@@ -102,13 +102,17 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
     setCurrentState('uploading');
     setUploadProgress(0);
 
+    // Dynamic import firebase/storage
+    const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+    const storageInstance = await getFirebaseStorage();
+
     // Extract file extension
     const parts = selectedFile.name.split('.');
     const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : 'mp4';
     
     // Path structure: auctions/{auctionId}/{uid}/{Date.now()}.{extension}
     const storagePath = `auctions/${auctionId}/${currentUser.uid}/${Date.now()}.${ext}`;
-    const storageRef = ref(storage, storagePath);
+    const storageRef = ref(storageInstance, storagePath);
     
     const metadata = {
       contentType: selectedFile.type,
