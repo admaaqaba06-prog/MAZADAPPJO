@@ -60,7 +60,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  const liveAuctions = auctions.filter(a => a.status === 'live');
+  const liveAuctions = auctions.filter(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
 
   const handleAuctionClick = (id: string) => {
     setActiveAuctionId(id);
@@ -195,12 +195,29 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           <button 
             onClick={() => setActiveView('wallet')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+              activeView === 'wallet' && !isStrictAdmin
+                ? 'text-[#FF6B00]' 
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
             }`}
           >
             <User className="w-5 h-5" />
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'حسابي' : 'Profile'}</span>
           </button>
+
+          {isStrictAdmin && (
+            <button 
+              onClick={() => setActiveView('admin')}
+              className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+                activeView === 'admin' 
+                  ? 'text-[#FF6B00]' 
+                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+              }`}
+              id="mobile-admin-tab-btn"
+            >
+              <ShieldAlert className="w-5 h-5 text-amber-500 animate-pulse" />
+              <span className="text-[9px] font-extrabold tracking-normal text-amber-600">{isAr ? 'المشرف' : 'Admin'}</span>
+            </button>
+          )}
         </nav>
       </div>
 

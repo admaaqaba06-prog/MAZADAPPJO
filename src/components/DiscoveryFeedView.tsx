@@ -65,7 +65,10 @@ export const DiscoveryFeedView: React.FC = () => {
   ];
 
   const filteredAuctions = auctions.filter(item => {
-    if (activeTab === 'live' && item.status !== 'live') return false;
+    if (activeTab === 'live') {
+      if (item.status !== 'live') return false;
+      if (item.endTime && item.endTime <= Date.now()) return false;
+    }
     if (activeTab === 'upcoming' && item.status !== 'upcoming') return false;
 
     if (searchTerm) {

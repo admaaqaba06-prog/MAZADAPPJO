@@ -1,16 +1,107 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { db } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Film, User, ShieldAlert, Check, X, AlertCircle } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDocs, writeBatch, deleteDoc, Timestamp } from 'firebase/firestore';
+import { Film, User, ShieldAlert, Check, X, AlertCircle, RotateCcw } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
-  const { users, currentUser, setUsers, addNotification, language } = useApp();
+  const { users, currentUser, setUsers, addNotification, language, escrows, setBids } = useApp();
   const isAr = language === 'ar';
   
   const [activeTab, setActiveTab] = useState<'subscriptions' | 'auctions'>('auctions');
   const [pendingAuctions, setPendingAuctions] = useState<any[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetAllAuctions = async () => {
+    const confirmMsg = isAr 
+      ? "هل أنت متأكد من إعادة تعيين جميع المزادات؟ سيؤدي هذا إلى إعادة تشغيل كافة المزادات وتصفير المزايدات الحالية." 
+      : "Are you sure you want to reset all auctions? This will restart all auctions from the beginning.";
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const auctionsCol = collection(db, 'auctions');
+      const snapshot = await getDocs(auctionsCol);
+      if (snapshot.empty) {
+        showToast(isAr ? 'لم يتم العثور على أي مزادات بقاعدة البيانات.' : 'No auctions found in the database.', 'warning');
+        setIsResetting(false);
+        return;
+      }
+
+      const docs = snapshot.docs;
+      const resetAuctionIds = docs.map(d => d.id);
+
+      // 1. Reset each auction back to live, and reset timer and pricing
+      const chunkSize = 400;
+      for (let i = 0; i < docs.length; i += chunkSize) {
+        const chunk = docs.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((docSnap) => {
+          const data = docSnap.data();
+          const durationSec = Number(data.duration) || 86400; // fallback to 24 hours if zero, NaN, or missing
+          const futureTime = Date.now() + durationSec * 1000;
+          const endsAtTimestamp = Timestamp.fromMillis(futureTime);
+          const startPrice = data.startingPrice ?? 0;
+
+          batch.update(docSnap.ref, {
+            status: 'live',
+            endsAt: endsAtTimestamp,
+            endTime: futureTime,
+            currentPrice: startPrice,
+            currentBidderId: null,
+            currentBidderName: null,
+            totalBids: 0,
+            viewersCount: Math.floor(2 + Math.random() * 8),
+            // Clear highest bidder / winner data
+            winnerId: null,
+            winnerName: null,
+            winnerEmail: null,
+            winnerPhone: null,
+            winnerCity: null,
+          });
+        });
+        await batch.commit();
+      }
+
+      // 2. Clear locked escrows related only to ended test auctions
+      const escrowsToClear = (escrows || []).filter(e => 
+        e.status === 'locked' && resetAuctionIds.includes(e.auctionId)
+      );
+
+      if (escrowsToClear.length > 0) {
+        for (const esc of escrowsToClear) {
+          try {
+            await deleteDoc(doc(db, 'escrows', esc.id));
+          } catch (escErr) {
+            console.warn(`Failed to delete escrow transaction ${esc.id}:`, escErr);
+          }
+        }
+      }
+
+      // 3. Clear bid history for each auction
+      if (setBids) {
+        setBids([]);
+      }
+      localStorage.setItem('mazad_bids', '[]');
+      localStorage.setItem('mazad_autobids', '[]');
+
+      // 4. Alert success
+      showToast(isAr 
+        ? "All auctions have been restarted successfully."
+        : "All auctions have been restarted successfully.",
+        'success'
+      );
+    } catch (err: any) {
+      console.error("Reset auctions error in AdminPanel:", err);
+      showToast(isAr ? 'فشل إعادة تهيئة المزادات' : 'Failed to reset auctions', 'warning');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // Filter users who have uploaded payment proof and are waiting for admin review
   const pendingRequests = users.filter(u => u.paymentProofImage);
@@ -45,10 +136,17 @@ export const AdminPanel: React.FC = () => {
 
   const handleApproveAuction = async (auctionId: string) => {
     try {
+      const targetA = pendingAuctions.find(a => a.id === auctionId);
+      const durationSec = targetA?.duration ? Number(targetA.duration) : 86400; // fallback to 24 hours (86400s)
+      const freshEndTime = Date.now() + durationSec * 1000;
+      const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
+
       await updateDoc(doc(db, 'auctions', auctionId), {
         status: 'live',
         approvedAt: serverTimestamp(),
-        approvedBy: currentUser?.id || 'admin-system'
+        approvedBy: currentUser?.id || 'admin-system',
+        endTime: freshEndTime,
+        endsAt: endsAtTimestamp
       });
       showToast(isAr ? 'تم الموافقة على المزاد وهو الآن مباشر!' : 'Auction approved and now live!', 'success');
       
@@ -276,6 +374,18 @@ export const AdminPanel: React.FC = () => {
             ))
           )
         )}
+      </div>
+
+      {/* Reset All Auctions Engine Section */}
+      <div className="mt-4 pt-4 border-t border-zinc-200">
+        <button
+          onClick={handleResetAllAuctions}
+          disabled={isResetting}
+          className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>{isAr ? 'إعادة تعيين كافة المزادات' : 'RESET ALL AUCTIONS'}</span>
+        </button>
       </div>
     </div>
   );

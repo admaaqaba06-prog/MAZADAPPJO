@@ -2,6 +2,23 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { db, auth, functions, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { httpsCallable } from 'firebase/functions';
+import { resolveVideoUrl } from '../utils/videoDb';
+
+// Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
+const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
+
+const getFallbackVideoUrl = (category?: string): string => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
+    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+  } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
+    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
+    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
+  }
+  return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
+};
+
 import { 
   GoogleAuthProvider, 
   signInWithPopup, 
@@ -718,22 +735,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuctions([]);
       } else {
         const fetchedList: AuctionItem[] = [];
+        const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
+
         snap.forEach((docSnap) => {
           const data = docSnap.data();
+          const parseTimestamp = (val: any): number => {
+            if (!val) return Date.now() + 3600000;
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') {
+              const parsed = Date.parse(val);
+              return isNaN(parsed) ? Date.now() + 3600000 : parsed;
+            }
+            if (typeof val.toDate === 'function') {
+              return val.toDate().getTime();
+            }
+            if (val.seconds !== undefined) {
+              return val.seconds * 1000;
+            }
+            return Date.now() + 3600000;
+          };
+
           let endTimeNum = Date.now() + 3600000;
           if (data.endsAt) {
-            endTimeNum = typeof data.endsAt === 'number' ? data.endsAt : (data.endsAt.seconds ? data.endsAt.seconds * 1000 : Date.parse(data.endsAt));
+            endTimeNum = parseTimestamp(data.endsAt);
           } else if (data.endTime) {
-            endTimeNum = typeof data.endTime === 'number' ? data.endTime : (data.endTime.seconds ? data.endTime.seconds * 1000 : Date.parse(data.endTime));
-            // Automatically migrate documents with old format in background to preserve sync integrity
-            const docRef = doc(db, 'auctions', docSnap.id);
-            updateDoc(docRef, {
-              endsAt: Timestamp.fromMillis(endTimeNum)
-            }).then(() => {
-              console.log(`[Migration] Successfully set endsAt for old auction doc: ${docSnap.id}`);
-            }).catch(e => {
-              console.warn(`[Migration] Failed to migrate endsAt on ${docSnap.id}:`, e);
-            });
+            endTimeNum = parseTimestamp(data.endTime);
+          }
+          if (isNaN(endTimeNum)) {
+            endTimeNum = Date.now() + 3600000;
           }
           const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
           let finalThumbnail = rawThumbnail;
@@ -758,8 +787,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const currentPrice = (data.currentPriceFils !== undefined ? data.currentPriceFils / 1000 : (data.currentPrice ?? startingPrice));
           const minIncrement = (data.minIncrementFils !== undefined ? data.minIncrementFils / 1000 : (data.minIncrement ?? 10));
 
+          const rawVideoUrl = data.videoUrl || '';
+          const itemId = docSnap.id;
+          let finalVideoUrl = rawVideoUrl;
+
+          const cached = videoUrlCache.get(itemId);
+          if (cached && cached.rawUrl === rawVideoUrl) {
+            finalVideoUrl = cached.resolvedUrl;
+          } else if (rawVideoUrl && !rawVideoUrl.startsWith('blob:')) {
+            // It's a direct network URL, resolve synchronously
+            finalVideoUrl = rawVideoUrl;
+            videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
+          } else {
+            // Use instant synchronous fallback while loading
+            finalVideoUrl = getFallbackVideoUrl(data.category || 'Luxury');
+            itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
+          }
+
           const itemWithFallback = {
-            id: docSnap.id,
+            id: itemId,
             title: data.title || '',
             description: data.description || '',
             category: data.category || 'Luxury',
@@ -768,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             minIncrement,
             currentBidderId: data.currentBidderId || null,
             currentBidderName: data.currentBidderName || null,
-            videoUrl: data.videoUrl || '',
+            videoUrl: finalVideoUrl,
             endTime: endTimeNum,
             duration: data.duration ?? 3600,
             sellerId: data.sellerId || 'seller-system',
@@ -786,21 +832,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchedList.push(itemWithFallback as AuctionItem);
         });
 
-        // Resolve video URLs asynchronously to avoid black screen and preserve IndexedDB custom videos
-        import('../utils/videoDb').then(({ resolveVideoUrl }) => {
-          Promise.all(fetchedList.map(async (item) => {
-            const resolvedUrl = await resolveVideoUrl(item.id, item.videoUrl, item.category);
-            return {
-              ...item,
-              videoUrl: resolvedUrl
-            };
-          })).then((resolvedList) => {
-            setAuctions(resolvedList);
+        // Set the auctions synchronously so viewer counts, bids and clock ticks feel butter-smooth!
+        setAuctions(fetchedList);
+
+        // Resolve unresolved or new custom blob videos in the background
+        if (itemsToResolve.length > 0) {
+          Promise.all(
+            itemsToResolve.map(async ({ id, rawUrl, category }) => {
+              const resolvedUrl = await resolveVideoUrl(id, rawUrl, category);
+              videoUrlCache.set(id, { rawUrl, resolvedUrl });
+              return { id, resolvedUrl };
+            })
+          ).then((results) => {
+            // Smoothly swap fallback video URLs with the resolved custom blob URLs
+            setAuctions((prev) =>
+              prev.map((item) => {
+                const matched = results.find((r) => r.id === item.id);
+                if (matched) {
+                  return { ...item, videoUrl: matched.resolvedUrl };
+                }
+                return item;
+              })
+            );
+          }).catch((err) => {
+            console.error("Async video resolution background task failed:", err);
           });
-        }).catch((err) => {
-          console.error("Failed to import resolveVideoUrl in onSnapshot, setting raw list:", err);
-          setAuctions(fetchedList);
-        });
+        }
       }
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error:", err);
@@ -1997,8 +2054,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- ADMIN ACTIONS ---
   const approveListing = useCallback((id: string) => {
-    // Write approval properties directly to Firestore database
-    const freshEndTime = Date.now() + 600 * 1000;
+    // Find the target auction to respect its duration (e.g. 6 hours / 10 minutes etc.)
+    const targetA = auctions.find(a => a.id === id);
+    const durationSec = targetA?.duration ? Number(targetA.duration) : 600; // fallback to 10 minutes (600s)
+    const freshEndTime = Date.now() + durationSec * 1000;
     const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
 
     const docRef = doc(db, 'auctions', id);
@@ -2008,7 +2067,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isApproved: true,
       approvedAt: serverTimestamp(),
       approvedBy: currentUser?.id || 'admin-system',
-      endTime: freshEndTime, // Fresh 10 Mins live timer
+      endTime: freshEndTime, // Respect the real duration (e.g. 6 hours)
       endsAt: endsAtTimestamp
     }).catch(err => {
       console.error("Firestore approve write failed. Code:", err.code, "Message:", err.message, err);
@@ -2021,12 +2080,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp }; // Give it a fresh 10 Min live clock
+        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp };
       }
       return a;
     }));
     
-    const targetA = auctions.find(a => a.id === id);
     const action: AdminAction = {
       id: `admin-act-${Date.now()}-${Math.random()}`,
       actionType: 'approve_listing',

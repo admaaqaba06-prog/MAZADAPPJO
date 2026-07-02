@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
 import { 
@@ -264,6 +264,86 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
 
+  // States for micro-animations and unified top toast notifications
+  const [priceAnimate, setPriceAnimate] = useState(false);
+  const [toastQueue, setToastQueue] = useState<{ id: string; text: string; icon: string }[]>([]);
+  const [activeToast, setActiveToast] = useState<{ id: string; text: string; icon: string } | null>(null);
+
+  // Trigger price micro-animation
+  useEffect(() => {
+    if (activePrice > 0) {
+      setPriceAnimate(true);
+      const timer = setTimeout(() => setPriceAnimate(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [activePrice]);
+
+  // Queue joined, liked, saved notifications
+  useEffect(() => {
+    if (activeActivities.length === 0) return;
+    const latestAct = activeActivities[activeActivities.length - 1];
+    if (!latestAct) return;
+
+    let icon = '⭐';
+    let text = '';
+    if (latestAct.type === 'join') {
+      icon = '⭐';
+      text = isAr ? `${latestAct.name} انضم للبث` : `${latestAct.name} joined`;
+    } else if (latestAct.type === 'like') {
+      icon = '❤️';
+      text = isAr ? `${latestAct.name} أعجب بالبث` : `${latestAct.name} liked the stream`;
+    } else if (latestAct.type === 'save') {
+      icon = '🔖';
+      text = isAr ? `${latestAct.name} حفظ المعروض` : `${latestAct.name} bookmarked the lot`;
+    } else {
+      icon = '✨';
+      text = isAr ? `${latestAct.name} ${latestAct.textAr}` : `${latestAct.name} ${latestAct.textEn}`;
+    }
+
+    setToastQueue((prev) => {
+      if (prev.some((t) => t.id === latestAct.id)) return prev;
+      return [...prev, { id: latestAct.id, text, icon }];
+    });
+  }, [activeActivities, isAr]);
+
+  // Queue bid notifications from comments list
+  useEffect(() => {
+    if (activeComments.length === 0) return;
+    const latestComment = activeComments[activeComments.length - 1];
+    if (!latestComment) return;
+
+    if (latestComment.isBid || latestComment.text.toLowerCase().includes('bid') || latestComment.text.toLowerCase().includes('عطاء') || latestComment.text.toLowerCase().includes('عطائه')) {
+      const icon = '🔥';
+      const text = latestComment.text;
+      setToastQueue((prev) => {
+        if (prev.some((t) => t.id === latestComment.id)) return prev;
+        return [...prev, { id: latestComment.id, text, icon }];
+      });
+    }
+  }, [activeComments]);
+
+  // Handle single Toast execution loop (automatically disappears after 2-3 seconds)
+  useEffect(() => {
+    if (activeToast || toastQueue.length === 0) return;
+
+    const [nextToast, ...remaining] = toastQueue;
+    setActiveToast(nextToast);
+    setToastQueue(remaining);
+
+    const timer = setTimeout(() => {
+      setActiveToast(null);
+    }, 2500); // 2.5s display duration
+
+    return () => clearTimeout(timer);
+  }, [toastQueue, activeToast]);
+
+  // Filter normal comments to keep the chat feed extremely minimal and transparent
+  const normalComments = useMemo(() => {
+    return activeComments.filter(
+      (msg) => !msg.isBid && !msg.text.toLowerCase().includes('bid') && !msg.text.toLowerCase().includes('عطاء')
+    );
+  }, [activeComments]);
+
   // Sync html5 video playback based on active reel and global isPlaying state
   useEffect(() => {
     const video = localVideoRef.current;
@@ -290,6 +370,31 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
       className="w-full h-full snap-start snap-always shrink-0 relative flex flex-col overflow-hidden bg-black"
       style={{ height: '100%' }}
     >
+      {/* CSS keyframes injected locally for robust, failproof animations */}
+      <style>{`
+        @keyframes slideDownFade {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -15px);
+          }
+          15% {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+          85% {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -10px);
+          }
+        }
+        .animate-slide-down-fade {
+          animation: slideDownFade 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
       {/* HTML5 Live Video Element */}
       <video
         ref={localVideoRef}
@@ -302,7 +407,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
       />
 
       {/* Subtle glassmorphic and gradient overlays for contrast without solid black masks */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none z-10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none z-10" />
 
       {/* Play/Pause Standby overlay button */}
       {!isPlaying && isActive && (
@@ -320,9 +425,15 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
       {isActive && (
         <>
           {/* ======================================================================
-              1. COMPACT TOP BAR (Seller & Stream Information)
+              1. COMPACT TOP BAR (Seller & Stream Information) - Safe Area Guarded
               ====================================================================== */}
-          <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between animate-fade-in" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div 
+            className="absolute left-4 right-4 z-30 flex items-center justify-between animate-fade-in" 
+            style={{ 
+              top: 'calc(env(safe-area-inset-top, 16px) + 12px)',
+              direction: isAr ? 'rtl' : 'ltr' 
+            }}
+          >
             <div className="flex items-center gap-1.5">
               {/* Seller pill */}
               <div 
@@ -331,16 +442,16 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     setSelectedProfileId(activeSellerProfile.userId);
                   }
                 }}
-                className="bg-black/40 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95 transition-all"
+                className="bg-black/35 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95 transition-all"
               >
                 {activeSellerProfile?.storeLogo ? (
                   <img 
                     src={activeSellerProfile.storeLogo} 
                     alt="Logo" 
-                    className="w-5.5 h-5.5 rounded-full object-cover shrink-0" 
+                    className="w-5 h-5 rounded-full object-cover shrink-0" 
                   />
                 ) : (
-                  <div className="w-5.5 h-5.5 rounded-full bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-[9.5px] shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-[9px] shrink-0">
                     {activeSellerProfile?.storeName?.[0] || 'M'}
                   </div>
                 )}
@@ -358,7 +469,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               </div>
 
               {/* Viewer Pill */}
-              <div className="bg-black/25 backdrop-blur-xl border border-white/10 px-2 py-1.5 rounded-full flex items-center gap-1 shadow-md text-[9px] text-white font-bold leading-none h-7.5">
+              <div className="bg-black/20 backdrop-blur-xl border border-white/10 px-2 py-1 rounded-full flex items-center gap-1 shadow-md text-[9px] text-white font-bold leading-none h-7">
                 <Eye className="w-3 h-3 text-zinc-300" />
                 <span>{viewerCount.toLocaleString()}</span>
               </div>
@@ -368,158 +479,130 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
             <div className="flex items-center gap-1.5">
               <button
                 onClick={onMuteToggle}
-                className="w-8 h-8 rounded-full bg-black/25 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 shadow-md active:scale-95 transition-transform cursor-pointer"
+                className="w-8 h-8 rounded-full bg-black/20 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 shadow-md active:scale-95 transition-transform cursor-pointer"
               >
-                {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
               </button>
               
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-black/25 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 shadow-md active:scale-95 transition-transform cursor-pointer"
+                className="w-8 h-8 rounded-full bg-black/20 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 shadow-md active:scale-95 transition-transform cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
           {/* ======================================================================
-              2. GLASSY RIGHT ACTION PANEL
+              2. SINGLE FLOATING TOAST NOTIFICATION - Floating near the top
+              ====================================================================== */}
+          {activeToast && (
+            <div 
+              style={{ top: 'calc(env(safe-area-inset-top, 16px) + 64px)' }}
+              className="absolute left-1/2 -translate-x-1/2 z-40 bg-black/35 backdrop-blur-xl border border-white/10 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-lg text-white pointer-events-none text-center max-w-[85%] animate-slide-down-fade"
+            >
+              <span className="text-xs shrink-0">{activeToast.icon}</span>
+              <span className="text-[10px] font-extrabold tracking-wide text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                {activeToast.text}
+              </span>
+            </div>
+          )}
+
+          {/* ======================================================================
+              3. GLASSY RIGHT ACTION PANEL (TikTok & Instagram style, compact 44px)
               ====================================================================== */}
           <div 
-            className="absolute right-4 bottom-[230px] z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)', direction: isAr ? 'rtl' : 'ltr' }}
+            className="absolute right-4 z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
           >
             {/* Like appreciation button */}
             <button
               onClick={onLikeToggle}
-              className="flex flex-col items-center gap-0.5 group cursor-pointer"
+              className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white opacity-75 active:scale-90 transition-all hover:opacity-100 cursor-pointer shadow-md"
             >
-              <div className="w-9 h-9 rounded-full bg-black/25 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-md active:scale-90 transition-all hover:bg-red-500/10">
-                <Heart className="w-4.5 h-4.5 text-white fill-none group-hover:scale-110 group-hover:text-red-500 transition-all" />
-              </div>
-              <span className="text-[8px] font-black text-zinc-200 uppercase tracking-wide drop-shadow-sm">
-                {isAr ? 'تفاعل' : 'Like'}
-              </span>
+              <Heart className="w-4.5 h-4.5" />
             </button>
 
             {/* Save Bookmark button */}
             <button
               onClick={onSaveToggle}
-              className="flex flex-col items-center gap-0.5 group cursor-pointer"
+              className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-xl border border-white/10 flex items-center justify-center opacity-75 active:scale-90 transition-all hover:opacity-100 cursor-pointer shadow-md"
             >
-              <div className="w-9 h-9 rounded-full bg-black/25 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-md active:scale-90 transition-all">
-                <Bookmark className={`w-4.5 h-4.5 transition-all group-hover:scale-110 ${isSaved ? 'text-[#FF6B00] fill-[#FF6B00]' : 'text-white'}`} />
-              </div>
-              <span className="text-[8px] font-black text-zinc-200 uppercase tracking-wide drop-shadow-sm">
-                {isAr ? 'حفظ' : 'Save'}
-              </span>
+              <Bookmark className={`w-4.5 h-4.5 ${isSaved ? 'text-[#FF6B00] fill-[#FF6B00]' : 'text-white'}`} />
             </button>
 
             {/* Share link button */}
             <button
               onClick={onShareClick}
-              className="flex flex-col items-center gap-0.5 group cursor-pointer"
+              className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white opacity-75 active:scale-90 transition-all hover:opacity-100 cursor-pointer shadow-md"
             >
-              <div className="w-9 h-9 rounded-full bg-black/25 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-md active:scale-90 transition-all">
-                <Share2 className="w-4.5 h-4.5 text-white group-hover:scale-110 transition-all" />
-              </div>
-              <span className="text-[8px] font-black text-zinc-200 uppercase tracking-wide drop-shadow-sm">
-                {isAr ? 'نشر' : 'Share'}
-              </span>
+              <Share2 className="w-4.5 h-4.5" />
             </button>
 
-            {/* Specifications specifications sheet trigger */}
+            {/* Specifications trigger */}
             <button
               onClick={() => onOpenDetails(auction.id)}
-              className="flex flex-col items-center gap-0.5 group cursor-pointer"
+              className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-xl border border-white/10 flex items-center justify-center text-amber-400 opacity-75 active:scale-90 transition-all hover:opacity-100 cursor-pointer shadow-md"
             >
-              <div className="w-9 h-9 rounded-full bg-black/25 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-md active:scale-90 transition-all">
-                <Award className="w-4.5 h-4.5 text-amber-400 group-hover:scale-110 transition-all" />
-              </div>
-              <span className="text-[8px] font-black text-zinc-200 uppercase tracking-wide drop-shadow-sm">
-                {isAr ? 'الوصف' : 'Specs'}
-              </span>
+              <Award className="w-4.5 h-4.5" />
             </button>
 
-            {/* Chat button (triggers inline input collapse toggle) */}
+            {/* Chat button */}
             <button
               onClick={() => setShowChatInput(!showChatInput)}
-              className="flex flex-col items-center gap-0.5 group cursor-pointer"
+              className={`w-11 h-11 rounded-full backdrop-blur-xl border flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer ${showChatInput ? 'bg-[#FF6B00] border-orange-400 text-white opacity-100' : 'bg-black/30 border-white/10 text-white opacity-75 hover:opacity-100'}`}
             >
-              <div className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center shadow-md active:scale-90 transition-all ${showChatInput ? 'bg-[#FF6B00] border-orange-400 text-white' : 'bg-black/25 border-white/10 text-white'}`}>
-                <MessageSquare className="w-4.5 h-4.5" />
-              </div>
-              <span className="text-[8px] font-black text-zinc-200 uppercase tracking-wide drop-shadow-sm">
-                {isAr ? 'دردشة' : 'Chat'}
-              </span>
+              <MessageSquare className="w-4.5 h-4.5" />
             </button>
           </div>
 
           {/* ======================================================================
-              3. GLASSY CHAT FEED (Latest 2 Messages as Floating Bubbles)
+              4. ULTRA COMPACT FLOATING CHAT FEED (Tucked safely at bottom-left)
               ====================================================================== */}
           <div 
-            className="absolute left-4 bottom-[230px] right-20 h-[105px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)', direction: isAr ? 'rtl' : 'ltr' }}
+            className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
           >
-            <div className="space-y-1.5 p-1 flex flex-col justify-end">
-              {/* Latest active activities or system notifications */}
-              {activeActivities.slice(-1).map((act) => (
+            <div className="space-y-1 p-1 flex flex-col justify-end">
+              {/* Display latest 2 normal comments cleanly */}
+              {normalComments.slice(-2).map((msg) => (
                 <div 
-                  key={`act-reel-${auction.id}-${act.id}`}
-                  className="bg-orange-600/25 backdrop-blur-xl border border-orange-500/20 px-3 py-1.5 rounded-xl text-white flex items-center gap-1.5 shadow-sm animate-fade-in max-w-[95%]"
+                  key={`chat-reel-${auction.id}-${msg.id}`} 
+                  className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
                 >
-                  <span className="text-[10px] font-black text-amber-300">★</span>
-                  <p className="text-[10px] font-black truncate leading-tight">
-                    <span className="text-orange-200 font-extrabold mr-1">{act.name}</span>
-                    {isAr ? act.textAr : act.textEn}
-                  </p>
+                  <img 
+                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
+                    alt="User" 
+                    className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-[8.5px] font-black text-orange-400 leading-none block">
+                      {msg.userName}
+                    </span>
+                    <p className="text-[9.5px] text-zinc-100 font-medium leading-tight mt-0.5">
+                      {msg.text}
+                    </p>
+                  </div>
                 </div>
               ))}
-
-              {/* Latest 2 floating bubbles chat feed */}
-              {activeComments.slice(-2).map((msg) => {
-                const isBidMsg = msg.isBid;
-                return (
-                  <div 
-                    key={`chat-reel-${auction.id}-${msg.id}`} 
-                    className={`${
-                      isBidMsg 
-                        ? 'bg-[#FF6B00]/15 border border-[#FF6B00]/30' 
-                        : 'bg-black/25 border border-white/10'
-                    } backdrop-blur-xl rounded-xl p-2 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm`}
-                  >
-                    <img 
-                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                      alt="User" 
-                      className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="min-w-0">
-                      <span className="text-[9px] font-black text-orange-400 leading-none block">
-                        {msg.userName}
-                      </span>
-                      <p className="text-[10px] text-zinc-100 font-medium leading-tight mt-0.5">
-                        {msg.text}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
           {/* ======================================================================
-              4. DYNAMIC CHAT INPUT (Only shows when chat button is toggled)
+              5. DYNAMIC CHAT INPUT
               ====================================================================== */}
           {showChatInput && (
-            <div className="absolute bottom-[230px] left-4 right-4 z-30 animate-fade-in">
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)' }}
+              className="absolute left-4 right-4 z-30 animate-fade-in"
+            >
               <form 
                 onSubmit={(e) => {
                   onCommentSubmit(e);
-                  setShowChatInput(false); // Collapse immediately on send
+                  setShowChatInput(false);
                 }}
-                className="flex gap-2 bg-black/35 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl shadow-lg w-full"
+                className="flex gap-2 bg-black/45 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl shadow-lg w-full"
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
                 <input 
@@ -541,91 +624,79 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* ======================================================================
-              5. COMPACT GLASSMORTPHISM BOTTOM BIDDING CARD (Max-height < 28vh)
+              6. PREMIUM GLASSMORPHISM BOTTOM BIDDING CARD (Height reduced by 35%)
               ====================================================================== */}
           <div 
-            className="absolute bottom-4 left-4 right-4 z-20 bg-black/35 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-xl flex flex-col gap-2.5 max-h-[28vh] overflow-hidden select-none animate-fade-in"
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            style={{ 
+              bottom: 'calc(env(safe-area-inset-bottom, 16px) + 8px)',
+              direction: isAr ? 'rtl' : 'ltr'
+            }}
+            className="absolute left-4 right-4 z-20 bg-black/35 backdrop-blur-xl border border-white/10 p-2.5 rounded-2xl shadow-xl flex flex-col gap-2 overflow-hidden select-none animate-fade-in"
             id={`bidding-card-${auction.id}`}
           >
-            {/* Active Lot Header info */}
-            <div className="flex justify-between items-center gap-2">
+            {/* Top row: Active Lot Info (Left) and Current Bid/Timer (Right) */}
+            <div className="flex justify-between items-start gap-2 border-b border-white/5 pb-2">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 text-[8px] font-black text-[#FF6B00] tracking-wider uppercase leading-none mb-0.5">
+                <div className="flex items-center gap-1 text-[8px] font-black text-[#FF6B00] tracking-wider uppercase leading-none mb-1">
                   <Sparkles className="w-2.5 h-2.5 text-amber-400" />
                   <span>{isAr ? 'المعروض الحالي' : 'ACTIVE LOT'}</span>
                 </div>
-                <h3 className="text-[11px] font-black text-white truncate leading-tight">
+                <h3 className="text-xs font-black text-white truncate leading-tight">
                   {auction.title}
                 </h3>
+                <span className="text-[9px] text-zinc-400 font-medium leading-none block mt-0.5">
+                  by {activeSellerProfile?.storeName || (isAr ? 'مزاد الأردن' : 'MAZAD JO')}
+                </span>
               </div>
               
-              {/* Floating count down pill */}
-              <div className="bg-black/40 px-2 py-0.5 rounded-md border border-white/5 text-right flex flex-col shrink-0 leading-none">
-                <span className="text-[7px] text-zinc-400 font-extrabold uppercase leading-none">{isAr ? 'متبقي' : 'TIME'}</span>
-                <span className="text-[9.5px] font-black text-emerald-400 font-mono mt-0.5 leading-none">
-                  {timeLeftStr}
+              <div className="text-right shrink-0">
+                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-wider block leading-none">
+                  {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
                 </span>
-              </div>
-            </div>
-
-            {/* Prices details row */}
-            <div className="flex justify-between items-center bg-white/5 px-2 py-1.5 rounded-lg border border-white/5">
-              <div>
-                <span className="text-[7px] text-zinc-400 font-black tracking-wider block leading-none">{isAr ? 'أعلى عطاء حالي' : 'CURRENT BID'}</span>
-                <span className="text-xs font-black text-[#FF6B00] font-mono block mt-0.5 leading-none">
-                  {activePrice.toLocaleString()} <span className="text-[8.5px] font-bold text-white/50">{isAr ? 'د.أ' : 'JOD'}</span>
-                </span>
-              </div>
-              <div 
-                onClick={() => {
-                  if (activeSellerProfile) {
-                    setSelectedProfileId(activeSellerProfile.userId);
-                  }
-                }}
-                className="text-right cursor-pointer active:scale-95 transition-all"
-              >
-                <span className="text-[7px] text-zinc-400 font-black tracking-wider block leading-none">{isAr ? 'البائع' : 'SELLER'}</span>
-                <span className="text-[9.5px] font-extrabold text-amber-400 block mt-0.5 leading-none uppercase flex items-center gap-0.5 justify-end">
-                  {isVerified && (
-                    <ShieldCheck className={`w-3 h-3 ${isPremium ? 'text-amber-400' : 'text-emerald-400'}`} />
-                  )}
-                  <span>{activeSellerProfile?.storeName || (isAr ? 'مزاد الأردن' : 'MAZAD JO')}</span>
-                </span>
+                <div className="flex items-baseline justify-end gap-0.5 mt-0.5">
+                  <span className={`text-sm font-black text-[#FF6B00] font-mono leading-none transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
+                    {activePrice.toLocaleString()}
+                  </span>
+                  <span className="text-[9px] font-black text-white/70">JOD</span>
+                </div>
+                {/* Compact countdown badge */}
+                <div className="inline-flex items-center gap-1 bg-black/45 px-1.5 py-0.5 rounded border border-white/5 mt-1.5">
+                  <span className="text-[8px] font-black text-emerald-400 font-mono leading-none">{timeLeftStr}</span>
+                </div>
               </div>
             </div>
 
             {isEnded ? (
-              <div className="w-full bg-black/60 border border-emerald-500/30 rounded-2xl p-4 text-center backdrop-blur-md flex flex-col items-center justify-center gap-1.5 shadow-xl">
-                <span className="text-xs uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
+              <div className="w-full bg-black/50 border border-emerald-500/20 rounded-xl p-2.5 text-center backdrop-blur-md flex flex-col items-center justify-center gap-1 shadow-md">
+                <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
                   🏁 {isAr ? 'انتهى المزاد' : 'Auction Ended'}
                 </span>
-                <span className="text-white text-sm font-bold">
+                <span className="text-white text-xs font-bold">
                   {isAr ? 'الفائز' : 'Winner'}: <span className="text-amber-400 font-black">{auction?.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}</span>
                 </span>
                 {auction?.currentBidderName && (
-                  <span className="text-xs font-semibold text-zinc-300">
+                  <span className="text-[10px] font-semibold text-zinc-300">
                     {isAr ? 'سعر البيع' : 'Winning Price'}: <span className="text-emerald-400 font-black">{activePrice} JOD</span>
                   </span>
                 )}
               </div>
             ) : (
               <>
-                {/* Quick multi bid buttons float over the video like TikTok LIVE gifts */}
-                <div className="grid grid-cols-4 gap-2">
+                {/* Tighter bid increments */}
+                <div className="grid grid-cols-4 gap-1.5">
                   {[10, 25, 50, 100].map((val) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => onBidExecute(activePrice + val)}
-                      className="py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5"
+                      className="py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 hover:bg-white/10"
                     >
-                      +{val} <span className="text-[9px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                      +{val} <span className="text-[8px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
                     </button>
                   ))}
                 </div>
 
-                {/* Swipe to bid handle */}
+                {/* Swipe To Bid CTA */}
                 <div className="w-full">
                   <SwipeToBid
                     amount={nextBidAmount}

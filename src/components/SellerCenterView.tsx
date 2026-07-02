@@ -331,6 +331,8 @@ export const SellerCenterView: React.FC = () => {
         fetched.sort((a, b) => b.timestamp - a.timestamp);
         setReviews(fetched);
       }
+    }, (err) => {
+      console.warn("SellerCenter reviews subscription failed:", err);
     });
 
     return () => unsub();
@@ -385,6 +387,8 @@ export const SellerCenterView: React.FC = () => {
         fetched.sort((a, b) => b.timestamp - a.timestamp);
         setWithdrawals(fetched);
       }
+    }, (err) => {
+      console.warn("SellerCenter withdrawals subscription failed:", err);
     });
 
     return () => unsub();
@@ -404,6 +408,8 @@ export const SellerCenterView: React.FC = () => {
       // Sort newest first
       fetched.sort((a, b) => b.timestamp - a.timestamp);
       setSellerNotifications(fetched);
+    }, (err) => {
+      console.warn("SellerCenter notifications subscription failed:", err);
     });
 
     return () => unsub();

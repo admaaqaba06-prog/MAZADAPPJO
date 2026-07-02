@@ -121,7 +121,10 @@ export const LiveStreamView: React.FC = () => {
 
   // Get live and upcoming auctions
   const liveAuctions = useMemo(() => {
-    const filtered = auctions.filter(a => a.status === 'live' || a.status === 'upcoming');
+    const filtered = auctions.filter(a => 
+      (a.status === 'live' || a.status === 'upcoming') && 
+      (!a.endTime || a.endTime > Date.now())
+    );
     const displayList = filtered.length > 0 ? filtered : auctions;
     return [...displayList].sort((a, b) => {
       const tA = a.approvedAt ? (a.approvedAt.seconds ? a.approvedAt.seconds * 1000 : Number(a.approvedAt)) : (a.createdAt || 0);
@@ -250,14 +253,19 @@ export const LiveStreamView: React.FC = () => {
 
         // Auto-end the auction in Firestore if the current user is an admin
         if (currentUser?.isAdmin || currentUser?.role === 'admin') {
-          const docRef = doc(db, 'auctions', activeAuction.id);
-          updateDoc(docRef, { status: 'completed' })
-            .then(() => {
-              console.log("[Admin auto-end] Successfully updated auction status to completed.");
-            })
-            .catch(err => {
-              console.error("[Admin auto-end] Failed to update auction status in Firestore:", err);
-            });
+          // Double check that activeAuction has a valid non-NaN endTime and it is truly in the past
+          if (activeAuction?.endTime && !isNaN(activeAuction.endTime) && activeAuction.endTime <= Date.now()) {
+            const docRef = doc(db, 'auctions', activeAuction.id);
+            updateDoc(docRef, { status: 'completed' })
+              .then(() => {
+                console.log("[Admin auto-end] Successfully updated auction status to completed.");
+              })
+              .catch(err => {
+                console.error("[Admin auto-end] Failed to update auction status in Firestore:", err);
+              });
+          } else {
+            console.log("[Admin auto-end] Skipped completion check because endTime is in the future or invalid:", activeAuction?.endTime);
+          }
         }
       }
       prevSecondsRemaining.current = secondsRemaining;

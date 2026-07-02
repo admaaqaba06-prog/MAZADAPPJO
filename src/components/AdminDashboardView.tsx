@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
@@ -31,7 +31,8 @@ import {
   Activity,
   ShieldAlert,
   Server,
-  HardDrive
+  HardDrive,
+  RotateCcw
 } from 'lucide-react';
 
 export const AdminDashboardView: React.FC = () => {
@@ -58,7 +59,8 @@ export const AdminDashboardView: React.FC = () => {
     updateMaintenanceMode,
     updateFeatureFlag,
     systemHealthLogs,
-    logSystemHealth
+    logSystemHealth,
+    setBids
   } = useApp();
 
   const t = translations[language];
@@ -134,6 +136,155 @@ export const AdminDashboardView: React.FC = () => {
     );
   };
 
+  const handleReactivateAllAuctions = async () => {
+    if (!window.confirm(isAr 
+      ? 'هل أنت متأكد من إعادة تفعيل وتنشيط جميع المزادات وتمديدها لمدة 24 ساعة؟' 
+      : 'Are you sure you want to reactivate and extend all auctions for 24 hours?')) {
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const auctionsCol = collection(db, 'auctions');
+      const snapshot = await getDocs(auctionsCol);
+      if (snapshot.empty) {
+        alert(isAr ? 'لم يتم العثور على أي مزادات بقاعدة البيانات.' : 'No auctions found in the database.');
+        return;
+      }
+
+      const docs = snapshot.docs;
+      const futureTime = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
+      const endsAtTimestamp = Timestamp.fromMillis(futureTime);
+
+      // Process in chunks of 400 documents to avoid Firestore's 500-write batch limit
+      const chunkSize = 400;
+      for (let i = 0; i < docs.length; i += chunkSize) {
+        const chunk = docs.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((docSnap) => {
+          batch.update(docSnap.ref, {
+            status: 'live',
+            endsAt: endsAtTimestamp,
+            endTime: futureTime
+          });
+        });
+        await batch.commit();
+      }
+
+      // Log activity to health logs
+      logSystemHealth('error', 'All Auctions Reactivated', `An administrator reactivated all ${snapshot.size} auctions, setting their status to "live" and extending duration by 24 hours.`);
+
+      alert(isAr 
+        ? `🎉 تم بنجاح إعادة تفعيل وتنشيط جميع المزادات (${snapshot.size}) وتمديدها لمدة 24 ساعة!` 
+        : `🎉 Successfully reactivated and extended all (${snapshot.size}) auctions for 24 hours!`
+      );
+    } catch (err: any) {
+      console.error("Reactivation error:", err);
+      alert(isAr 
+        ? `❌ فشل إعادة تفعيل المزادات: ${err.message || String(err)}` 
+        : `❌ Failed to reactivate auctions: ${err.message || String(err)}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetAllAuctions = async () => {
+    const confirmMsg = isAr 
+      ? "هل أنت متأكد من إعادة تعيين جميع المزادات؟ سيؤدي هذا إلى إعادة تشغيل كافة المزادات وتصفير المزايدات الحالية." 
+      : "Are you sure you want to reset all auctions? This will restart all auctions from the beginning.";
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const auctionsCol = collection(db, 'auctions');
+      const snapshot = await getDocs(auctionsCol);
+      if (snapshot.empty) {
+        alert(isAr ? 'لم يتم العثور على أي مزادات بقاعدة البيانات.' : 'No auctions found in the database.');
+        setIsLoading(false);
+        return;
+      }
+
+      const docs = snapshot.docs;
+      const resetAuctionIds = docs.map(d => d.id);
+
+      // 1. Reset each auction back to live, and reset timer and pricing
+      const chunkSize = 400;
+      for (let i = 0; i < docs.length; i += chunkSize) {
+        const chunk = docs.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((docSnap) => {
+          const data = docSnap.data();
+          const durationSec = Number(data.duration) || 86400; // fallback to 24 hours if zero, NaN, or missing
+          const futureTime = Date.now() + durationSec * 1000;
+          const endsAtTimestamp = Timestamp.fromMillis(futureTime);
+          const startPrice = data.startingPrice ?? 0;
+
+          batch.update(docSnap.ref, {
+            status: 'live',
+            endsAt: endsAtTimestamp,
+            endTime: futureTime,
+            currentPrice: startPrice,
+            currentBidderId: null,
+            currentBidderName: null,
+            totalBids: 0,
+            viewersCount: Math.floor(2 + Math.random() * 8),
+            // Clear highest bidder / winner data
+            winnerId: null,
+            winnerName: null,
+            winnerEmail: null,
+            winnerPhone: null,
+            winnerCity: null,
+          });
+        });
+        await batch.commit();
+      }
+
+      // 2. Clear locked escrows related only to ended test auctions
+      // Find locked escrows matching the reset auction IDs
+      const escrowsToClear = (escrows || []).filter(e => 
+        e.status === 'locked' && resetAuctionIds.includes(e.auctionId)
+      );
+
+      if (escrowsToClear.length > 0) {
+        for (const esc of escrowsToClear) {
+          try {
+            await deleteDoc(doc(db, 'escrows', esc.id));
+          } catch (escErr) {
+            console.warn(`Failed to delete escrow transaction ${esc.id}:`, escErr);
+          }
+        }
+      }
+
+      // 3. Clear bid history for each auction
+      if (setBids) {
+        setBids([]);
+      }
+      localStorage.setItem('mazad_bids', '[]');
+      localStorage.setItem('mazad_autobids', '[]');
+
+      // 4. Log to health log
+      logSystemHealth('error', 'All Auctions Fully Reset', `An administrator fully reset all ${snapshot.size} auctions back to initial states, clearing all bids, winners, and active escrows.`);
+
+      // 5. Alert success
+      alert(isAr 
+        ? "All auctions have been restarted successfully." // standard isAr or English as requested
+        : "All auctions have been restarted successfully."
+      );
+    } catch (err: any) {
+      console.error("Reset auctions error:", err);
+      alert(isAr 
+        ? `❌ فشل إعادة تهيئة المزادات: ${err.message || String(err)}` 
+        : `❌ Failed to reset auctions: ${err.message || String(err)}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredHealthLogs = (systemHealthLogs || []).filter((log: any) => {
     if (healthFilter === 'all') return true;
     return log.type === healthFilter;
@@ -158,6 +309,8 @@ export const AdminDashboardView: React.FC = () => {
     const unsub = onSnapshot(collection(db, 'subscriptionRequests'), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setSubscriptionRequests(list.filter((r: any) => r.subscriptionStatus === 'pending' || r.status === 'pending'));
+    }, (err) => {
+      console.warn("Firestore subscriptionRequests query failed with permission or other error:", err);
     });
     return () => unsub();
   }, [currentUser]);
@@ -176,77 +329,129 @@ export const AdminDashboardView: React.FC = () => {
   }, [auctions, subscriptionRequests, currentUser]);
 
   const approveSubscription = async (request: any) => {
-    const plan = request.plan || 'monthly';
-    let durationDays = 30;
-    if (plan === 'quarterly') {
-      durationDays = 90;
-    } else if (plan === 'annual' || plan === 'yearly') {
-      durationDays = 365;
+    try {
+      const plan = request.plan || 'monthly';
+      let durationDays = 30;
+      if (plan === 'quarterly') {
+        durationDays = 90;
+      } else if (plan === 'annual' || plan === 'yearly') {
+        durationDays = 365;
+      }
+
+      const now = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(now.getDate() + durationDays);
+
+      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
+        subscriptionStatus: 'approved',
+        status: 'approved'
+      });
+
+      await updateDoc(doc(db, 'users', request.userId), {
+        subscriptionStatus: 'active',
+        subscriptionPlan: plan,
+        subscriptionTier: plan,
+        subscriptionExpiry: expiryDate.getTime(),
+        subscriptionApprovedAt: serverTimestamp(),
+        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
+      });
+
+      // Log subscription conversion to Analytics
+      await logAnalyticsEvent('subscription_conversion', request.userId, request.userEmail || null, {
+        plan,
+        durationDays,
+        price: request.price || 0
+      });
+
+      alert(isAr 
+        ? `🎉 تم تفعيل اشتراك المستخدم (${request.userName || request.userEmail || 'المشترك'}) بنجاح!` 
+        : `🎉 User subscription (${request.userName || request.userEmail || 'Subscriber'}) has been activated successfully!`
+      );
+    } catch (err: any) {
+      console.error("Error approving subscription:", err);
+      alert(isAr 
+        ? `❌ فشل تفعيل الاشتراك: ${err.message || String(err)}` 
+        : `❌ Failed to activate subscription: ${err.message || String(err)}`
+      );
     }
-
-    const now = new Date();
-    const expiryDate = new Date();
-    expiryDate.setDate(now.getDate() + durationDays);
-
-    await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-      subscriptionStatus: 'approved',
-      status: 'approved'
-    });
-
-    await updateDoc(doc(db, 'users', request.userId), {
-      subscriptionStatus: 'active',
-      subscriptionPlan: plan,
-      subscriptionTier: plan,
-      subscriptionExpiry: expiryDate.getTime(),
-      subscriptionApprovedAt: serverTimestamp(),
-      subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-    });
-
-    // Log subscription conversion to Analytics
-    await logAnalyticsEvent('subscription_conversion', request.userId, request.userEmail || null, {
-      plan,
-      durationDays,
-      price: request.price || 0
-    });
   };
 
   const approveUserDirect = async (user: any) => {
-    const now = new Date();
-    const expiryDate = new Date();
-    expiryDate.setDate(now.getDate() + 30); // Default to 30 days
+    try {
+      const now = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(now.getDate() + 30); // Default to 30 days
 
-    await updateDoc(doc(db, 'users', user.id), {
-      subscriptionStatus: 'active',
-      subscriptionPlan: 'monthly',
-      subscriptionTier: 'monthly',
-      subscriptionExpiry: expiryDate.getTime(),
-      subscriptionApprovedAt: serverTimestamp(),
-      subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-    });
+      await updateDoc(doc(db, 'users', user.id), {
+        subscriptionStatus: 'active',
+        subscriptionPlan: 'monthly',
+        subscriptionTier: 'monthly',
+        subscriptionExpiry: expiryDate.getTime(),
+        subscriptionApprovedAt: serverTimestamp(),
+        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
+      });
+
+      alert(isAr 
+        ? `🎉 تم التفعيل الفوري لحساب العضو (${user.name || user.email}) بنجاح!` 
+        : `🎉 Direct VIP status has been granted to user (${user.name || user.email}) successfully!`
+      );
+    } catch (err: any) {
+      console.error("Error direct approving user:", err);
+      alert(isAr 
+        ? `❌ فشل التفعيل المباشر: ${err.message || String(err)}` 
+        : `❌ Failed to directly approve user: ${err.message || String(err)}`
+      );
+    }
   };
 
   const rejectUserDirect = async (user: any) => {
-    await updateDoc(doc(db, 'users', user.id), {
-      subscriptionStatus: 'rejected',
-      subscriptionExpiry: null,
-      subscriptionPlan: null,
-      subscriptionApprovedAt: null,
-      subscriptionExpiresAt: null
-    });
+    try {
+      await updateDoc(doc(db, 'users', user.id), {
+        subscriptionStatus: 'rejected',
+        subscriptionExpiry: null,
+        subscriptionPlan: null,
+        subscriptionApprovedAt: null,
+        subscriptionExpiresAt: null
+      });
+
+      alert(isAr 
+        ? `⚠️ تم رفض تفعيل العضو (${user.name || user.email}).` 
+        : `⚠️ User (${user.name || user.email}) activation has been rejected.`
+      );
+    } catch (err: any) {
+      console.error("Error rejecting user:", err);
+      alert(isAr 
+        ? `❌ فشل رفض التفعيل: ${err.message || String(err)}` 
+        : `❌ Failed to reject user activation: ${err.message || String(err)}`
+      );
+    }
   };
 
   const rejectSubscription = async (request: any) => {
-    await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-      subscriptionStatus: 'rejected',
-      status: 'rejected'
-    });
-    await updateDoc(doc(db, 'users', request.userId), {
-      subscriptionStatus: 'rejected',
-      subscriptionExpiry: null,
-      subscriptionPlan: null,
-      subscriptionApprovedAt: null,
-      subscriptionExpiresAt: null
-    });
+    try {
+      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
+        subscriptionStatus: 'rejected',
+        status: 'rejected'
+      });
+      await updateDoc(doc(db, 'users', request.userId), {
+        subscriptionStatus: 'rejected',
+        subscriptionExpiry: null,
+        subscriptionPlan: null,
+        subscriptionApprovedAt: null,
+        subscriptionExpiresAt: null
+      });
+
+      alert(isAr 
+        ? `⚠️ تم رفض طلب الاشتراك للعضو (${request.userName || request.userEmail}) بنجاح.` 
+        : `⚠️ Subscription request for (${request.userName || request.userEmail}) has been rejected.`
+      );
+    } catch (err: any) {
+      console.error("Error rejecting subscription:", err);
+      alert(isAr 
+        ? `❌ فشل رفض الطلب: ${err.message || String(err)}` 
+        : `❌ Failed to reject subscription: ${err.message || String(err)}`
+      );
+    }
   };
 
   const pendingCliQDrops = escrows.filter(e => e.status === 'locked' && e.auctionId === 'cliq-dep');
@@ -1595,7 +1800,7 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 3. Database State Backups & Recovery */}
+                {/* 3. Database State Back backups & Recovery */}
                 <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
                     <HardDrive className="w-4 h-4 text-gray-400" />
@@ -1618,6 +1823,60 @@ export const AdminDashboardView: React.FC = () => {
                     >
                       <Database className="w-3.5 h-3.5" />
                       {isAr ? 'لقطة فورية كاملة' : 'SNAPSHOT NOW'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Live Auction Force Reactivation */}
+                <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-orange-100">
+                    <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" style={{ animationDuration: '6s' }} />
+                    <h4 className="text-xs font-extrabold text-orange-950 uppercase">
+                      {isAr ? 'إعادة تفعيل وتنشيط جميع المزادات' : 'Live Auctions Reactivation Engine'}
+                    </h4>
+                  </div>
+
+                  <p className="text-[11px] text-orange-800 leading-relaxed">
+                    {isAr 
+                      ? 'زر الطوارئ الإداري لتنشيط جميع معروضات المزاد المنتهية فوراً، وإعادتها لحالة النشاط "live" وتمديد تاريخ الانتهاء لـ 24 ساعة إضافية من اللحظة الحالية.' 
+                      : 'Emergency action to immediately reactivate and force all ended or past auctions to "live" status, resetting their remaining duration to a fresh 24 hours.'}
+                  </p>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleReactivateAllAuctions}
+                      disabled={isLoading}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {isAr ? 'تنشيط وإعادة تفعيل جميع المزادات (24 ساعة)' : 'REACTIVATE ALL AUCTIONS (24H)'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 5. Reset & Restart All Auctions Engine */}
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-rose-100">
+                    <RotateCcw className="w-4 h-4 text-rose-600 animate-pulse" />
+                    <h4 className="text-xs font-extrabold text-rose-950 uppercase">
+                      {isAr ? 'إعادة تعيين كافة المزادات' : 'Reset All Auctions Engine'}
+                    </h4>
+                  </div>
+
+                  <p className="text-[11px] text-rose-800 leading-relaxed">
+                    {isAr 
+                      ? 'زر إداري لإعادة تهيئة جميع المزادات وتصفير قيم العروض وتعيين المزادات كنشطة وإعادة مؤقتاتها للبداية.' 
+                      : 'Administrative action to reset all auctions to live status, clear bid history, reset highest bidders/winners, release/refund escrow transactions, and restart all countdown timers from the beginning.'}
+                  </p>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleResetAllAuctions}
+                      disabled={isLoading}
+                      className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      {isAr ? 'تصفير وإعادة تشغيل جميع المزادات' : 'RESET ALL AUCTIONS'}
                     </button>
                   </div>
                 </div>

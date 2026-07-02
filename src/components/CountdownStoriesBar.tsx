@@ -20,8 +20,11 @@ export const CountdownStoriesBar: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Filter live or upcoming auctions for premium show
-  const activeAuctions = auctions.filter(a => a.status === 'live' || a.status === 'upcoming');
+  // Filter live or upcoming auctions for premium show (ensure they haven't expired)
+  const activeAuctions = auctions.filter(a => 
+    (a.status === 'live' || a.status === 'upcoming') && 
+    (!a.endTime || a.endTime > ticks)
+  );
 
   if (activeAuctions.length === 0) {
     return null;
