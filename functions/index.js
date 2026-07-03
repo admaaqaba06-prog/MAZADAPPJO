@@ -1728,6 +1728,85 @@ exports.requestWithdrawal = functions.runWith({ cors: true }).https.onCall(async
   }
 });
 
+/**
+ * 15. resetTestAuctionData Callable Cloud Function
+ * Secure admin function to delete active/locked escrows of reset test auctions.
+ * Directly prevents client-side write access to the escrows collection.
+ */
+exports.resetTestAuctionData = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً');
+  }
+
+  const callerUserId = context.auth.uid;
+
+  try {
+    // 1. Fetch caller's profile to verify admin privileges
+    const callerSnap = await db.collection('users').doc(callerUserId).get();
+    if (!callerSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'الملف الشخصي للمشرف غير موجود');
+    }
+
+    const callerData = callerSnap.data();
+    const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+
+    if (!isCallerAdmin) {
+      throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً');
+    }
+
+    const { auctionIds } = data;
+    if (!auctionIds || !Array.isArray(auctionIds) || auctionIds.length === 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'مصفوفة معرّفات المزادات مطلوبة وغير صالحة');
+    }
+
+    // 2. Query locked escrows
+    const escrowsSnap = await db.collection('escrows').where('status', '==', 'locked').get();
+    const refsToDelete = [];
+
+    escrowsSnap.forEach(docSnap => {
+      const eData = docSnap.data();
+      if (auctionIds.includes(eData.auctionId)) {
+        refsToDelete.push(docSnap.ref);
+      }
+    });
+
+    // 3. Delete in batches
+    if (refsToDelete.length > 0) {
+      const chunkSize = 400;
+      for (let i = 0; i < refsToDelete.length; i += chunkSize) {
+        const chunk = refsToDelete.slice(i, i + chunkSize);
+        const batch = db.batch();
+        chunk.forEach(ref => {
+          batch.delete(ref);
+        });
+        await batch.commit();
+      }
+    }
+
+    // 4. Log admin action
+    const adminActionRef = db.collection('adminActions').doc();
+    await adminActionRef.set({
+      id: adminActionRef.id,
+      action: 'reset_test_auctions_escrows',
+      adminId: callerUserId,
+      adminName: callerData.name || 'Admin',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      details: `Reset test auction escrows. Deleted ${refsToDelete.length} locked escrows associated with auctions: ${auctionIds.join(', ')}.`
+    });
+
+    return {
+      success: true,
+      deletedCount: refsToDelete.length,
+      message: `تم مسح ${refsToDelete.length} من سجلات الضمان المالي للمزادات التجريبية بنجاح.`
+    };
+  } catch (error) {
+    console.error('Error in resetTestAuctionData:', error);
+    const arabicMsg = error.message || 'تعذر إعادة تعيين بيانات الإسكرو للمزادات التجريبية، حاول مرة أخرى لاحقاً';
+    throw new functions.https.HttpsError('internal', arabicMsg);
+  }
+});
+
+
 
 
 

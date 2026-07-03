@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { db } from '../services/firebase';
+import { db, getCallableFunction } from '../services/firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDocs, writeBatch, deleteDoc, Timestamp } from 'firebase/firestore';
 import { Film, User, ShieldAlert, Check, X, AlertCircle, RotateCcw } from 'lucide-react';
 
@@ -67,19 +67,12 @@ export const AdminPanel: React.FC = () => {
         await batch.commit();
       }
 
-      // 2. Clear locked escrows related only to ended test auctions
-      const escrowsToClear = (escrows || []).filter(e => 
-        e.status === 'locked' && resetAuctionIds.includes(e.auctionId)
-      );
-
-      if (escrowsToClear.length > 0) {
-        for (const esc of escrowsToClear) {
-          try {
-            await deleteDoc(doc(db, 'escrows', esc.id));
-          } catch (escErr) {
-            console.warn(`Failed to delete escrow transaction ${esc.id}:`, escErr);
-          }
-        }
+      // 2. Clear locked escrows related only to ended test auctions via secure Cloud Function
+      try {
+        const resetTestAuctionDataCallable = await getCallableFunction<{ auctionIds: string[] }, { success: boolean; message: string }>('resetTestAuctionData');
+        await resetTestAuctionDataCallable({ auctionIds: resetAuctionIds });
+      } catch (escErr) {
+        console.warn(`Failed to delete escrow transactions via Cloud Function:`, escErr);
       }
 
       // 3. Clear bid history for each auction

@@ -4,7 +4,7 @@ import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, getCallableFunction } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
   ShieldCheck, 
@@ -336,20 +336,12 @@ export const AdminDashboardView: React.FC = () => {
         await batch.commit();
       }
 
-      // 2. Clear locked escrows related only to ended test auctions
-      // Find locked escrows matching the reset auction IDs
-      const escrowsToClear = (escrows || []).filter(e => 
-        e.status === 'locked' && resetAuctionIds.includes(e.auctionId)
-      );
-
-      if (escrowsToClear.length > 0) {
-        for (const esc of escrowsToClear) {
-          try {
-            await deleteDoc(doc(db, 'escrows', esc.id));
-          } catch (escErr) {
-            console.warn(`Failed to delete escrow transaction ${esc.id}:`, escErr);
-          }
-        }
+      // 2. Clear locked escrows related only to ended test auctions via secure Cloud Function
+      try {
+        const resetTestAuctionDataCallable = await getCallableFunction<{ auctionIds: string[] }, { success: boolean; message: string }>('resetTestAuctionData');
+        await resetTestAuctionDataCallable({ auctionIds: resetAuctionIds });
+      } catch (escErr) {
+        console.warn(`Failed to delete escrow transactions via Cloud Function:`, escErr);
       }
 
       // 3. Clear bid history for each auction
