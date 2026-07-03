@@ -1389,8 +1389,24 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         throw new functions.https.HttpsError('failed-precondition', 'المزاد لم ينتهِ بعد أو ليس في حالة مكتملة');
       }
 
-      // 4. Determine winner ID
-      const winnerId = auctionData.winningBidderId || auctionData.highestBidderId || null;
+      // 4. Determine winner ID with prioritization
+      let winnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId || auctionData.winningBidderId || null;
+
+      // Try reading buyerId from orders/{auctionId} inside the transaction
+      const orderRef = db.collection('orders').doc(auctionId);
+      const orderSnap = await transaction.get(orderRef);
+      let orderBuyerId = null;
+      let orderStatus = null;
+      if (orderSnap.exists) {
+        const orderData = orderSnap.data();
+        if (orderData) {
+          orderBuyerId = orderData.buyerId || null;
+          orderStatus = orderData.status || null;
+          if (orderBuyerId) {
+            winnerId = orderBuyerId;
+          }
+        }
+      }
 
       // 5. Query all locked escrows for this auction inside the transaction
       const escrowsQuery = await transaction.get(
@@ -1417,7 +1433,18 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
 
       for (const escDoc of escrowDocs) {
         const escData = escDoc.data();
-        if (winnerId && escData.bidderId === winnerId) {
+        const bidderId = escData.bidderId;
+
+        // Is this bidder the winner?
+        const isWinner = !!(winnerId && bidderId === winnerId);
+
+        // Security check: check if this bidder is the buyer in an active (not cancelled or rejected) order
+        const isActiveBuyerInOrder = !!(orderSnap.exists && 
+                                        orderBuyerId === bidderId && 
+                                        orderStatus !== 'cancelled' && 
+                                        orderStatus !== 'rejected');
+
+        if (isWinner || isActiveBuyerInOrder) {
           keptWinnerEscrow = true;
         } else {
           losingEscrowDocs.push(escDoc);
@@ -1439,13 +1466,26 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
       // 6. Fetch unique bidder wallet references we need to read first
       const uniqueBidderIds = [...new Set(losingEscrowDocs.map(d => d.data().bidderId))];
       const walletRefs = {};
-      const walletSnaps = {};
+      const walletStates = {};
 
       for (const bidderId of uniqueBidderIds) {
         const walletRef = db.collection('wallets').doc(bidderId);
         const walletSnap = await transaction.get(walletRef);
         walletRefs[bidderId] = walletRef;
-        walletSnaps[bidderId] = walletSnap;
+        if (walletSnap.exists) {
+          const wData = walletSnap.data();
+          walletStates[bidderId] = {
+            availableBalance: wData.availableBalance || 0,
+            escrowBalance: wData.escrowBalance || 0,
+            exists: true
+          };
+        } else {
+          walletStates[bidderId] = {
+            availableBalance: 0,
+            escrowBalance: 0,
+            exists: false
+          };
+        }
       }
 
       let refundedCount = 0;
@@ -1467,36 +1507,27 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
           refundReason: 'auction_lost_repair'
         });
 
-        // Update bidder's wallet
-        const walletSnap = walletSnaps[bidderId];
+        // Update memory balance state & write to transaction
+        const wState = walletStates[bidderId];
+        const oldAvail = wState.availableBalance;
+        const oldEscrow = wState.escrowBalance;
+
+        const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
+        const newAvail = oldAvail + refundAmtFils;
+        const newTotal = newAvail + newEscrow;
+
+        wState.availableBalance = newAvail;
+        wState.escrowBalance = newEscrow;
+        wState.exists = true;
+
         const walletRef = walletRefs[bidderId];
-
-        if (walletSnap && walletSnap.exists) {
-          const wData = walletSnap.data();
-          const oldAvail = wData.availableBalance || 0;
-          const oldEscrow = wData.escrowBalance || 0;
-
-          const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
-          const newAvail = oldAvail + refundAmtFils;
-          const newTotal = newAvail + newEscrow;
-
-          transaction.set(walletRef, {
-            userId: bidderId,
-            availableBalance: newAvail,
-            escrowBalance: newEscrow,
-            totalBalance: newTotal,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-        } else {
-          // If wallet doesn't exist (unlikely), initialize it
-          transaction.set(walletRef, {
-            userId: bidderId,
-            availableBalance: refundAmtFils,
-            escrowBalance: 0,
-            totalBalance: refundAmtFils,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-        }
+        transaction.set(walletRef, {
+          userId: bidderId,
+          availableBalance: newAvail,
+          escrowBalance: newEscrow,
+          totalBalance: newTotal,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
 
         // Create ledger entry
         const ledgerRef = db.collection('ledger').doc();
