@@ -66,22 +66,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 4. Wallets (writable by Cloud Functions or Admin)
+    // 4. Wallets (writable ONLY by Cloud Functions)
     match /wallets/{walletId} {
       allow read: if isSignedIn() && (isOwner(walletId) || isAdmin());
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
-    // 5. Escrow Transactions (direct client-side writes restricted to prevent unauthorized balance changes)
+    // 5. Escrow Transactions (writable ONLY by Cloud Functions)
     match /escrows/{escrowId} {
       allow read: if isSignedIn() && (isOwner(resource.data.bidderId) || isOwner(resource.data.sellerId) || isAdmin());
-      allow create: if isSignedIn() && 
-                    request.resource.data.bidderId == request.auth.uid &&
-                    request.resource.data.auctionId == 'cliq-dep' &&
-                    request.resource.data.status == 'locked' &&
-                    request.resource.data.amount > 0;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if false;
     }
 
     // 6. Subscription Requests
@@ -216,6 +210,12 @@ service cloud.firestore {
     // 20. Financial Ledger (writable ONLY by Cloud Functions)
     match /ledger/{ledgerId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // 21. Financial Audit Logs (writable ONLY by Cloud Functions)
+    match /financialAuditLogs/{logId} {
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
   }

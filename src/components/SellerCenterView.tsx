@@ -343,56 +343,19 @@ export const SellerCenterView: React.FC = () => {
     if (!currentUser) return;
 
     const q = query(collection(db, 'withdrawals'), where('userId', '==', currentUser.id));
-    const unsub = onSnapshot(q, async (snap) => {
-      if (snap.empty) {
-        // Seed default withdrawal history
-        const defaultW: Withdrawal[] = [
-          {
-            id: `w-seed-1-${currentUser.id}`,
-            userId: currentUser.id,
-            amount: 250,
-            method: 'bank',
-            status: 'completed',
-            timestamp: Date.now() - 5 * 24 * 3600 * 1000,
-            details: {
-              bankName: isAr ? 'البنك العربي' : 'Arab Bank',
-              iban: 'JO83 ARAB 1020 0000 1234 56',
-              accountHolderName: currentUser.name
-            },
-            referenceId: 'TXN-902148'
-          },
-          {
-            id: `w-seed-2-${currentUser.id}`,
-            userId: currentUser.id,
-            amount: 120,
-            method: 'cliq',
-            status: 'completed',
-            timestamp: Date.now() - 10 * 24 * 3600 * 1000,
-            details: {
-              cliqAlias: 'cliq-jordan-shop',
-              phone: currentUser.phone || '0791234567'
-            },
-            referenceId: 'TXN-401932'
-          }
-        ];
-
-        for (const w of defaultW) {
-          await setDoc(doc(db, 'withdrawals', w.id), w);
-        }
-      } else {
-        const fetched: Withdrawal[] = [];
-        snap.forEach((d) => {
-          fetched.push({ id: d.id, ...d.data() } as Withdrawal);
-        });
-        fetched.sort((a, b) => b.timestamp - a.timestamp);
-        setWithdrawals(fetched);
-      }
+    const unsub = onSnapshot(q, (snap) => {
+      const fetched: Withdrawal[] = [];
+      snap.forEach((d) => {
+        fetched.push({ id: d.id, ...d.data() } as Withdrawal);
+      });
+      fetched.sort((a, b) => b.timestamp - a.timestamp);
+      setWithdrawals(fetched);
     }, (err) => {
       console.warn("SellerCenter withdrawals subscription failed:", err);
     });
 
     return () => unsub();
-  }, [currentUser, isAr]);
+  }, [currentUser]);
 
   // 3. Load / Filter real-time Seller Notifications only
   useEffect(() => {
