@@ -141,9 +141,11 @@ export interface Notification {
   userId: string;
   title: string;
   description: string;
-  type: 'info' | 'outbid' | 'win' | 'refund' | 'verify' | 'alert';
+  type: 'info' | 'outbid' | 'win' | 'refund' | 'verify' | 'alert' | 'bid' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
+  priority?: 'high' | 'medium' | 'low';
   timestamp: number;
   read: boolean;
+  auctionId?: string;
 }
 
 export interface AdminAction {

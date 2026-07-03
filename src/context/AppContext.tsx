@@ -81,7 +81,7 @@ interface AppContextProps {
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
   triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
-  addNotification: (title: string, description: string, type: Notification['type']) => void;
+  addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   
@@ -1858,17 +1858,169 @@ const fetchIP = async () => {
   }, [language]);
 
   // General Notification Handler
-  const addNotification = useCallback((title: string, description: string, type: Notification['type']) => {
+  const addNotification = useCallback((
+    title: string,
+    description: string,
+    type: Notification['type'],
+    priority?: 'high' | 'medium' | 'low',
+    auctionId?: string
+  ) => {
+    // 1. Determine group/type mapping
+    let inferredType: Notification['type'] = type;
+    
+    // Explicit map standard legacy types to the 7 clean groups
+    if (type === 'outbid') inferredType = 'bid';
+    if (type === 'refund') inferredType = 'loss';
+    if (type === 'verify') inferredType = 'subscription';
+    if (type === 'alert') inferredType = 'admin';
+
+    const lowerTitle = title.toLowerCase();
+    const lowerDesc = description.toLowerCase();
+
+    // Contextual type mapping
+    if (
+      lowerTitle.includes('outbid') || 
+      lowerTitle.includes('مزايدة مضادة') || 
+      lowerTitle.includes('خسارة مزايدة') ||
+      lowerTitle.includes('winning') ||
+      lowerTitle.includes('متقدم') ||
+      lowerTitle.includes('bid') ||
+      lowerTitle.includes('مزايدة')
+    ) {
+      inferredType = 'bid';
+    } else if (
+      lowerTitle.includes('won') || 
+      lowerTitle.includes('فوز') || 
+      lowerTitle.includes('ربحت')
+    ) {
+      inferredType = 'win';
+    } else if (
+      lowerTitle.includes('lost') || 
+      lowerTitle.includes('خسارة') || 
+      lowerTitle.includes('لم تفز') ||
+      lowerTitle.includes('refund') ||
+      lowerTitle.includes('استرداد')
+    ) {
+      inferredType = 'loss';
+    } else if (
+      lowerTitle.includes('wallet') || 
+      lowerTitle.includes('محفظة') || 
+      lowerTitle.includes('top-up') || 
+      lowerTitle.includes('شحن') ||
+      lowerTitle.includes('cliq') || 
+      lowerTitle.includes('كليك') ||
+      lowerTitle.includes('deposit') || 
+      lowerTitle.includes('إيداع') ||
+      lowerTitle.includes('withdrawal') || 
+      lowerTitle.includes('سحب')
+    ) {
+      inferredType = 'wallet';
+    } else if (
+      lowerTitle.includes('order') || 
+      lowerTitle.includes('طلب') || 
+      lowerTitle.includes('shipment') || 
+      lowerTitle.includes('شحن') ||
+      lowerTitle.includes('waybill') || 
+      lowerTitle.includes('بوليصة') ||
+      lowerTitle.includes('delivery') || 
+      lowerTitle.includes('توصيل')
+    ) {
+      inferredType = 'order';
+    } else if (
+      lowerTitle.includes('subscription') || 
+      lowerTitle.includes('اشتراك') || 
+      lowerTitle.includes('pass') || 
+      lowerTitle.includes('بطاقة')
+    ) {
+      inferredType = 'subscription';
+    } else if (
+      lowerTitle.includes('admin') || 
+      lowerTitle.includes('إدارة') || 
+      lowerTitle.includes('system') || 
+      lowerTitle.includes('نظام') ||
+      lowerTitle.includes('maintenance') || 
+      lowerTitle.includes('صيانة')
+    ) {
+      inferredType = 'admin';
+    }
+
+    // 2. Set default priority levels based on requirement
+    let inferredPriority: 'high' | 'medium' | 'low' = priority || 'low';
+    
+    // Someone outbid you -> High
+    if (lowerTitle.includes('outbid') || lowerTitle.includes('تجاوز عرضك')) {
+      inferredPriority = 'high';
+    }
+    // You are winning -> Medium
+    else if (lowerTitle.includes('winning') || lowerTitle.includes('متقدم')) {
+      inferredPriority = 'medium';
+    }
+    // Auction ended -> Medium
+    else if (lowerTitle.includes('ended') || lowerTitle.includes('انتهى المزاد') || lowerTitle.includes('انتهاء')) {
+      inferredPriority = 'medium';
+    }
+    // You won -> High
+    else if (lowerTitle.includes('won') || lowerTitle.includes('فوز') || lowerTitle.includes('مبروك')) {
+      inferredPriority = 'high';
+    }
+    // You lost and money returned -> High
+    else if (lowerTitle.includes('lost') || (lowerTitle.includes('outbid') && (lowerTitle.includes('returned') || lowerTitle.includes('إرجاع')))) {
+      inferredPriority = 'high';
+    }
+    // Wallet top-up approved -> High
+    else if (lowerTitle.includes('top-up approved') || lowerTitle.includes('تمت الموافقة على الشحن') || (lowerTitle.includes('deposit') && lowerTitle.includes('approved'))) {
+      inferredPriority = 'high';
+    }
+    // Withdrawal request under review -> Medium
+    else if (lowerTitle.includes('withdrawal') || lowerTitle.includes('سحب')) {
+      inferredPriority = 'medium';
+    }
+    // Subscription approved / expired -> High
+    else if (lowerTitle.includes('subscription') || lowerTitle.includes('اشتراك')) {
+      if (lowerTitle.includes('approved') || lowerTitle.includes('مقبول') || lowerTitle.includes('expired') || lowerTitle.includes('منتهي') || lowerTitle.includes('تفعيل')) {
+        inferredPriority = 'high';
+      } else {
+        inferredPriority = 'medium';
+      }
+    }
+    // Default fallback based on type
+    else if (inferredType === 'win' || inferredType === 'loss') {
+      inferredPriority = 'high';
+    } else if (inferredType === 'bid' || inferredType === 'order' || inferredType === 'wallet') {
+      inferredPriority = 'medium';
+    }
+
     const newNotif: Notification = {
       id: `notif-${Date.now()}-${Math.random()}`,
       userId: 'user-current',
       title,
       description,
-      type,
+      type: inferredType,
+      priority: inferredPriority,
       timestamp: Date.now(),
-      read: false
+      read: false,
+      auctionId
     };
-    setNotifications(prev => [newNotif, ...prev]);
+
+    // Duplicate Prevention: Keep only the latest outbid alert for the same auction title
+    let auctionTitle: string | null = null;
+    const match = description.match(/"([^"]+)"/);
+    if (match) {
+      auctionTitle = match[1];
+    }
+
+    setNotifications(prev => {
+      let filtered = prev;
+      if (inferredType === 'bid' && auctionTitle) {
+        filtered = prev.filter(n => {
+          if (n.type !== 'bid') return true;
+          const prevMatch = n.description.match(/"([^"]+)"/);
+          const prevTitle = prevMatch ? prevMatch[1] : null;
+          return prevTitle !== auctionTitle;
+        });
+      }
+      return [newNotif, ...filtered];
+    });
 
     // Native HTML5 Web Push Notification Fallback
     if (featureFlags.enablePushNotifications && 'Notification' in window && window.Notification.permission === 'granted') {

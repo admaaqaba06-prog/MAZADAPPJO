@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import type { Notification as AppNotification } from '../types';
 import { 
   X, 
   Bell, 
@@ -10,15 +11,24 @@ import {
   Gavel, 
   Coins, 
   Info, 
-  Trash2 
+  Trash2,
+  Crown,
+  Shield,
+  Wallet,
+  Package,
+  XCircle,
+  Clock,
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { EmptyState } from './FeedbackStates';
 
 interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+type NotificationFilterType = 'all' | 'bid' | 'win' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
   const { 
@@ -29,54 +39,120 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
     language 
   } = useApp();
 
+  const [selectedFilter, setSelectedFilter] = useState<NotificationFilterType>('all');
   const isAr = language === 'ar';
 
   const handleClearAll = () => {
-    setNotifications([]);
+    if (window.confirm(isAr ? 'هل أنت متأكد من رغبتك في مسح جميع الإشعارات؟' : 'Are you sure you want to clear all notifications?')) {
+      setNotifications([]);
+    }
   };
 
-  const getNotificationIcon = (type: string) => {
+  const handleRemoveOne = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const getNotificationIcon = (type: AppNotification['type']) => {
     switch (type) {
       case 'win':
         return (
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-            <Trophy className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+            <Trophy className="w-5 h-5 stroke-[2]" />
           </div>
         );
+      case 'loss':
       case 'refund':
         return (
-          <div className="w-8 h-8 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
-            <Coins className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 stroke-[2]" />
           </div>
         );
+      case 'subscription':
       case 'verify':
         return (
-          <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0">
+            <Crown className="w-5 h-5 stroke-[2]" />
           </div>
         );
+      case 'admin':
       case 'alert':
         return (
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0">
+            <Shield className="w-5 h-5 stroke-[2]" />
           </div>
         );
       case 'bid':
+      case 'outbid':
         return (
-          <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 text-[#FF6B00] flex items-center justify-center shrink-0">
-            <Gavel className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-[#FF6B00]/10 text-[#FF6B00] flex items-center justify-center shrink-0 animate-pulse">
+            <Gavel className="w-5 h-5 stroke-[2]" />
+          </div>
+        );
+      case 'wallet':
+        return (
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 flex items-center justify-center shrink-0">
+            <Wallet className="w-5 h-5 stroke-[2]" />
+          </div>
+        );
+      case 'order':
+        return (
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5 stroke-[2]" />
           </div>
         );
       default:
         return (
-          <div className="w-8 h-8 rounded-xl bg-zinc-500/10 text-zinc-500 flex items-center justify-center shrink-0">
-            <Info className="w-4 h-4 stroke-[2]" />
+          <div className="w-10 h-10 rounded-xl bg-zinc-500/10 text-zinc-500 flex items-center justify-center shrink-0">
+            <Info className="w-5 h-5 stroke-[2]" />
           </div>
         );
     }
   };
 
+  const getPriorityBadge = (priority?: 'high' | 'medium' | 'low') => {
+    const p = priority || 'low';
+    if (p === 'high') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-rose-50 text-rose-600 border border-rose-100 uppercase animate-bounce-slow">
+          {isAr ? 'عاجل جداً' : 'Urgent'}
+        </span>
+      );
+    } else if (p === 'medium') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-amber-50 text-amber-600 border border-amber-100 uppercase">
+          {isAr ? 'متوسط الأهمية' : 'Important'}
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-slate-50 text-slate-500 border border-slate-100 uppercase">
+          {isAr ? 'إشعار عادي' : 'Standard'}
+        </span>
+      );
+    }
+  };
+
+  const getCategoryLabel = (type: NotificationFilterType) => {
+    switch (type) {
+      case 'all': return isAr ? 'الكل' : 'All';
+      case 'bid': return isAr ? 'مزايدة' : 'Bidding';
+      case 'win': return isAr ? 'فوز' : 'Win';
+      case 'loss': return isAr ? 'خسارة' : 'Loss';
+      case 'wallet': return isAr ? 'محفظة' : 'Wallet';
+      case 'order': return isAr ? 'طلبات' : 'Orders';
+      case 'subscription': return isAr ? 'اشتراك' : 'Pass';
+      case 'admin': return isAr ? 'إدارة' : 'Admin';
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Filter notifications
+  const filteredNotifications = notifications.filter(n => {
+    if (selectedFilter === 'all') return true;
+    return n.type === selectedFilter;
+  });
 
   return (
     <AnimatePresence>
@@ -101,71 +177,105 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
               className="w-screen max-w-md bg-white shadow-2xl flex flex-col h-full"
             >
               {/* Header */}
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-zinc-50 shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Bell className="w-5 h-5 text-gray-700 stroke-[2.2]" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-[#FF6B00] text-white text-[8.5px] font-black h-4 w-4 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-                        {unreadCount}
-                      </span>
-                    )}
+              <div className="p-5 border-b border-gray-100 flex flex-col bg-zinc-50 shrink-0 gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-xl bg-[#FF6B00]/10 text-[#FF6B00] flex items-center justify-center">
+                        <Bell className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-extrabold text-gray-900 tracking-tight uppercase">
+                        {isAr ? 'مركز الإشعارات الذكي' : 'Smart Alerts Center'}
+                      </h2>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                        {isAr ? `${unreadCount} تنبيهات معلقة` : `${unreadCount} pending notifications`}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-sm font-black text-gray-900 tracking-tight uppercase">
-                      {isAr ? 'مركز الإشعارات' : 'Notification Center'}
-                    </h2>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
-                      {isAr ? `${unreadCount} غير مقروءة` : `${unreadCount} unread entries`}
-                    </p>
+
+                  <div className="flex items-center gap-1.5">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors flex items-center gap-1 text-[10px] font-extrabold uppercase cursor-pointer"
+                        title={isAr ? 'تحديد الكل كمقروء' : 'Mark all as read'}
+                      >
+                        <CheckCheck className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{isAr ? 'قراءة الكل' : 'All Read'}</span>
+                      </button>
+                    )}
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={handleClearAll}
+                        className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 transition-colors flex items-center gap-1 text-[10px] font-extrabold uppercase cursor-pointer"
+                        title={isAr ? 'مسح الكل' : 'Clear all'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{isAr ? 'حذف الكل' : 'Clear'}</span>
+                      </button>
+                    )}
+                    <button 
+                      onClick={onClose}
+                      className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-gray-500 flex items-center justify-center transition-all cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={markAllAsRead}
-                      className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors flex items-center gap-1 text-[10px] font-black uppercase cursor-pointer"
-                      title={isAr ? 'تحديد الكل كمقروء' : 'Mark all as read'}
-                    >
-                      <CheckCheck className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">{isAr ? 'تحديد كـ مقروء' : 'All Read'}</span>
-                    </button>
-                  )}
-                  {notifications.length > 0 && (
-                    <button
-                      onClick={handleClearAll}
-                      className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 transition-colors flex items-center gap-1 text-[10px] font-black uppercase cursor-pointer"
-                      title={isAr ? 'مسح الكل' : 'Clear all'}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">{isAr ? 'حذف الكل' : 'Clear'}</span>
-                    </button>
-                  )}
-                  <button 
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-gray-500 flex items-center justify-center transition-all cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                {/* Filter Tabs Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1.5 shrink-0 select-none">
+                  {(['all', 'bid', 'win', 'loss', 'wallet', 'order', 'subscription', 'admin'] as const).map((filter) => {
+                    const count = filter === 'all' 
+                      ? notifications.length 
+                      : notifications.filter(n => n.type === filter).length;
+                    
+                    const isSelected = selectedFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setSelectedFilter(filter)}
+                        className={`px-3 py-1.5 rounded-full text-[10.5px] font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                          isSelected
+                            ? 'bg-gray-950 text-white shadow-xs scale-102'
+                            : 'bg-white border border-gray-150 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <span>{getCategoryLabel(filter)}</span>
+                        {count > 0 && (
+                          <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* List body */}
-              <div className="flex-grow overflow-y-auto p-4 space-y-3">
+              <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/50">
                 {/* Native Push Notification Request Banner */}
                 {('Notification' in window) && Notification.permission !== 'granted' && (
-                  <div className="p-3.5 rounded-2xl border border-orange-500/20 bg-orange-50/40 text-orange-950 flex flex-col gap-2 shrink-0">
+                  <div className="p-3.5 rounded-2xl border border-[#FF6B00]/20 bg-[#FF6B00]/5 text-gray-900 flex flex-col gap-2 shrink-0">
                     <div className="flex items-start gap-2.5">
                       <Bell className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5 animate-bounce" />
                       <div>
-                        <h4 className="text-[11px] font-black tracking-tight uppercase text-orange-900">
-                          {isAr ? 'تمكين إشعارات النظام الفورية' : 'Enable Native Push Notifications'}
+                        <h4 className="text-[11px] font-black tracking-tight uppercase text-gray-900 flex items-center gap-1.5">
+                          {isAr ? 'تفعيل تنبيهات المتصفح الفورية' : 'Enable Native Notifications'}
+                          <Sparkles className="w-3 h-3 text-[#FF6B00]" />
                         </h4>
-                        <p className="text-[9.5px] text-orange-700 font-medium leading-normal mt-0.5">
+                        <p className="text-[10px] text-gray-500 font-medium leading-normal mt-0.5">
                           {isAr 
-                            ? 'احصل على تنبيهات فورية للمزايدات، المزايدة المضادة، وتأكيدات الشحن ومكاسب المزادات مباشرة على جهازك.' 
-                            : 'Get real-time system alerts on outbids, subscription approvals, and won auctions directly on your desktop or device.'}
+                            ? 'احصل على تحديثات فورية حول المزادات التي تزايد عليها، والمكاسب، وتنبيهات المحفظة مباشرة على جهازك.' 
+                            : 'Get real-time system alerts on outbids, won auctions, and wallet updates directly on your device.'}
                         </p>
                       </div>
                     </div>
@@ -173,66 +283,92 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                       onClick={() => {
                         Notification.requestPermission().then((permission) => {
                           if (permission === 'granted') {
-                            new Notification(isAr ? 'تم تفعيل الإشعارات بنجاح!' : 'Notifications Enabled!', {
+                            new Notification(isAr ? 'تم تفعيل التنبيهات بنجاح!' : 'Notifications Enabled!', {
                               body: isAr ? 'ستصلك تنبيهات المزايدات الفورية هنا.' : 'You will receive real-time auction outbids and escrow alerts here.',
                               icon: '/icon.svg'
                             });
                           }
-                          // Force re-render to hide banner
                           onClose();
                         });
                       }}
-                      className="mt-1 w-full py-1.5 px-3 bg-[#FF6B00] text-white hover:bg-orange-600 transition-all rounded-xl text-[10px] font-black tracking-wider uppercase shadow-[0_4px_12px_rgba(255,107,0,0.2)] cursor-pointer text-center"
+                      className="w-full py-1.5 bg-[#FF6B00] text-white hover:bg-orange-600 transition-all rounded-xl text-[10px] font-extrabold tracking-wider uppercase cursor-pointer text-center"
                     >
-                      {isAr ? 'تفعيل الإشعارات الآن' : 'Enable System Alerts'}
+                      {isAr ? 'تفعيل التنبيهات الآن' : 'Enable Alerts'}
                     </button>
                   </div>
                 )}
 
-                {notifications.length > 0 ? (
-                  notifications.map((item) => (
-                    <div 
-                      key={item.id}
-                      onClick={() => markAsRead(item.id)}
-                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex gap-3 relative ${
-                        item.read 
-                          ? 'bg-white border-gray-100/80 text-gray-700 hover:bg-gray-50/50' 
-                          : 'bg-[#FF6B00]/5 border-[#FF6B00]/15 hover:bg-[#FF6B00]/10'
-                      }`}
-                      id={`notification-card-${item.id}`}
-                    >
-                      {/* Unread circle marker */}
-                      {!item.read && (
-                        <span className="absolute top-3.5 right-3.5 w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-                      )}
+                <AnimatePresence initial={false}>
+                  {filteredNotifications.length > 0 ? (
+                    filteredNotifications.map((item) => (
+                      <motion.div 
+                        key={item.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={() => markAsRead(item.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
+                          item.read 
+                            ? 'bg-white border-gray-150 text-gray-700 hover:bg-gray-50/50' 
+                            : 'bg-white border-l-4 border-l-[#FF6B00] border-y-gray-150 border-r-gray-150 text-gray-950 shadow-xs hover:bg-orange-50/5'
+                        }`}
+                        id={`notification-card-${item.id}`}
+                      >
+                        {/* Unread circle marker */}
+                        {!item.read && (
+                          <span className="absolute top-4 right-4 w-2 h-2 bg-[#FF6B00] rounded-full animate-ping" />
+                        )}
 
-                      {/* Icon */}
-                      {getNotificationIcon(item.type)}
+                        {/* Icon */}
+                        {getNotificationIcon(item.type)}
 
-                      {/* Text */}
-                      <div className="space-y-1 pr-3 min-w-0 flex-1">
-                        <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-gray-900' : 'font-black text-gray-950'}`}>
-                          {item.title}
-                        </h4>
-                        <p className="text-[10.5px] text-gray-500 leading-normal font-medium">
-                          {item.description}
-                        </p>
-                        <span className="text-[8px] font-mono text-gray-400 block mt-1">
-                          {new Date(item.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        {/* Text */}
+                        <div className="space-y-1.5 pr-4 min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                            <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-gray-900' : 'font-extrabold text-gray-950'}`}>
+                              {item.title}
+                            </h4>
+                            <div className="flex items-center gap-1.5">
+                              {getPriorityBadge(item.priority)}
+                              <button
+                                onClick={(e) => handleRemoveOne(item.id, e)}
+                                className="w-5 h-5 rounded-md bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                title={isAr ? 'حذف الإشعار' : 'Delete notification'}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <p className="text-[11px] text-gray-500 leading-normal font-semibold">
+                            {item.description}
+                          </p>
+
+                          <div className="flex items-center gap-1 text-[9px] font-mono text-gray-400 mt-1">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {new Date(item.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')} - {new Date(item.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="py-20 flex flex-col items-center justify-center text-center px-4" id="empty-notifications-state-clean">
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-4 animate-pulse">
+                        <Bell className="w-7 h-7 stroke-[1.5]" />
                       </div>
+                      <h4 className="text-xs font-black text-gray-800 tracking-tight uppercase">
+                        {isAr ? 'لا توجد إشعارات حالياً' : 'No notifications at the moment'}
+                      </h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-1.5 max-w-xs leading-relaxed">
+                        {isAr 
+                          ? 'أنت على اطلاع بكل شيء! لا توجد تنبيهات مزايدات أو حركات مالية في هذا القسم.' 
+                          : 'You are all caught up! No financial records, bidding activity, or administrative notifications found here.'}
+                      </p>
                     </div>
-                  ))
-                ) : (
-                  <div className="h-full flex items-center justify-center px-4">
-                    <EmptyState 
-                      title={isAr ? 'لا توجد إشعارات بعد' : 'No notifications yet'}
-                      description={isAr ? 'لا يوجد لديك أي إشعارات أو تحديثات مالية أو تنبيهات مزايدات حالية.' : 'You are all caught up! No financial trades, auction outbids, or policy logs found.'}
-                      icon={<Bell className="w-6 h-6 stroke-[1.5]" />}
-                      language={isAr ? 'ar' : 'en'}
-                    />
-                  </div>
-                )}
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           </div>
