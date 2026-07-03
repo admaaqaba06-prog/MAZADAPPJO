@@ -141,7 +141,12 @@ service cloud.firestore {
         isAdmin()
       ) && (
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||
-        (request.resource.data.status != 'completed' && request.resource.data.escrowStatus != 'released')
+        (
+          request.resource.data.status != 'completed' && 
+          request.resource.data.escrowStatus != 'released' &&
+          request.resource.data.status != 'refunded' &&
+          request.resource.data.escrowStatus != 'refunded'
+        )
       );
       allow delete: if isAdmin();
 

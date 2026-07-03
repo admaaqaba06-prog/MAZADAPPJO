@@ -127,6 +127,35 @@ export async function executeOrderTransition(
     }
   }
 
+  // CRITICAL FIX PHASE 2 — Secure Escrow Refund Cloud Function delegation
+  if (
+    action === 'refund' ||
+    (action === 'resolve_dispute' && extraFields?.resolutionType === 'refund')
+  ) {
+    const refundCallable = await getCallableFunction<
+      { orderId: string; action: 'admin_refund' }, 
+      { success: boolean; message: string; alreadyRefunded?: boolean }
+    >('refundOrderEscrow');
+
+    try {
+      const result = await refundCallable({
+        orderId: order.id,
+        action: 'admin_refund'
+      });
+      if (!result.data || !result.data.success) {
+        throw new Error(result.data?.message || 'Escrow refund Cloud Function execution failed.');
+      }
+      return {
+        success: true,
+        alreadyRefunded: !!result.data.alreadyRefunded,
+        message: result.data.message
+      };
+    } catch (err: any) {
+      console.error('Error executing escrow refund:', err);
+      throw new Error(err.message || 'تعذر استرداد المبلغ، حاول مرة أخرى');
+    }
+  }
+
   const fromStatus = order.status as OrderStatus;
   let toStatus: OrderStatus = fromStatus;
   let updateFields: Partial<Order> & Record<string, any> = {};
@@ -218,18 +247,6 @@ export async function executeOrderTransition(
       activityMessageEn = 'Escrow funds released and securely deposited into seller’s wallet.';
       break;
 
-    case 'refund':
-      toStatus = 'refunded';
-      updateFields = {
-        status: 'refunded',
-        escrowStatus: 'refunded',
-        paymentStatus: 'unpaid'
-      };
-      activityType = 'Refund Issued';
-      activityMessageAr = 'تمت إعادة الأموال بالكامل لمحفظة المشتري وإلغاء استحقاق البائع.';
-      activityMessageEn = 'Escrow funds fully refunded and returned back to buyer’s balance.';
-      break;
-
     case 'resolve_dispute':
       const resType = extraFields?.resolutionType || 'release';
       if (resType === 'release') {
@@ -242,16 +259,6 @@ export async function executeOrderTransition(
         activityType = 'Escrow Released (Dispute Resolved)';
         activityMessageAr = 'تم حل النزاع بتحرير الأموال للبائع وإغلاق المعاملة.';
         activityMessageEn = 'Dispute resolved: Escrow released to seller and transaction completed.';
-      } else if (resType === 'refund') {
-        toStatus = 'refunded';
-        updateFields = {
-          status: 'refunded',
-          escrowStatus: 'refunded',
-          paymentStatus: 'unpaid'
-        };
-        activityType = 'Refund Issued (Dispute Resolved)';
-        activityMessageAr = 'تم حل النزاع بإعادة الأموال بالكامل للمشتري وإغلاق الملف.';
-        activityMessageEn = 'Dispute resolved: Escrow refunded back to buyer and ledger closed.';
       } else {
         toStatus = 'paid';
         updateFields = {
@@ -359,7 +366,7 @@ export async function executeOrderTransition(
         description: currentUser.email === 'admaaqaba06@gmail.com' ? notif.descEn : notif.descAr,
         descriptionAr: notif.descAr,
         descriptionEn: notif.descEn,
-        type: action === 'refund' ? 'refund' : (toStatus === 'completed' ? 'win' : 'info'),
+        type: toStatus === 'completed' ? 'win' : 'info',
         timestamp,
         read: false,
         orderId: order.id

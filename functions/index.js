@@ -1345,6 +1345,302 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
 });
 
 /**
+ * 12.5. refundOrderEscrow Callable Cloud Function (CRITICAL FIX REFUND)
+ * Moves the financial logic of escrow refund to a secure transactional server-side environment.
+ * Ensures order refunding, escrow refunding, wallet updates, and double-entry ledger logs are performed atomically.
+ * Admin only.
+ */
+exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'لا تملك صلاحية تنفيذ هذه العملية');
+  }
+  const callerUserId = context.auth.uid;
+  const { orderId, action } = data;
+
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'الطلب غير موجود');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // 1. Read the order document from orders/{orderId}
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود');
+      }
+      const orderData = orderSnap.data();
+
+      // 2. Validate basic properties of the order
+      const buyerId = orderData.buyerId;
+      const sellerId = orderData.sellerId;
+      const auctionId = orderData.auctionId;
+
+      if (!buyerId || !sellerId || !auctionId) {
+        throw new functions.https.HttpsError('failed-precondition', 'بيانات الطلب غير مكتملة');
+      }
+
+      // Check authorization: Caller must be admin ONLY
+      const callerRef = db.collection('users').doc(callerUserId);
+      const callerSnap = await transaction.get(callerRef);
+      if (!callerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'ملف المستخدم غير موجود');
+      }
+      const callerData = callerSnap.data();
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+
+      if (!isCallerAdmin) {
+        throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
+      }
+
+      // Idempotency check: If order is already refunded
+      if (orderData.escrowStatus === 'refunded' || orderData.status === 'refunded') {
+        return { 
+          success: true, 
+          alreadyRefunded: true, 
+          message: "تم استرداد هذا المبلغ سابقاً" 
+        };
+      }
+
+      // 3. Find the locked escrow document:
+      let escrowRef = null;
+      let escrowData = null;
+      
+      if (orderData.escrowId) {
+        const directEscrowRef = db.collection('escrows').doc(orderData.escrowId);
+        const directEscrowSnap = await transaction.get(directEscrowRef);
+        if (directEscrowSnap.exists) {
+          const status = directEscrowSnap.data().status;
+          if (status === 'refunded') {
+            return {
+              success: true,
+              alreadyRefunded: true,
+              message: "تم استرداد هذا المبلغ سابقاً"
+            };
+          }
+          if (status === 'locked') {
+            escrowRef = directEscrowRef;
+            escrowData = directEscrowSnap.data();
+          }
+        }
+      }
+
+      if (!escrowData) {
+        const escrowQuery = await db.collection('escrows')
+          .where('auctionId', '==', auctionId)
+          .where('bidderId', '==', buyerId)
+          .limit(1)
+          .get();
+
+        if (!escrowQuery.empty) {
+          const docSnap = escrowQuery.docs[0];
+          const status = docSnap.data().status;
+          if (status === 'refunded') {
+            return {
+              success: true,
+              alreadyRefunded: true,
+              message: "تم استرداد هذا المبلغ سابقاً"
+            };
+          }
+          if (status === 'locked') {
+            escrowRef = docSnap.ref;
+            escrowData = docSnap.data();
+          }
+        }
+      }
+
+      if (!escrowRef || !escrowData) {
+        throw new functions.https.HttpsError('not-found', 'المبلغ غير محجوز أو تم تحريره/استرداده سابقاً');
+      }
+
+      // 4. Read wallets (only buyer is credited)
+      const buyerWalletRef = db.collection('wallets').doc(buyerId);
+      const buyerWalletSnap = await transaction.get(buyerWalletRef);
+
+      // 5. Determine amount: Use the escrow amount as the source of truth
+      let amountFils = escrowData.amountFils;
+      if (!amountFils && escrowData.amount) {
+        amountFils = Math.round(escrowData.amount * 1000);
+      }
+      if (!amountFils && orderData.winningBidAmount) {
+        amountFils = Math.round(orderData.winningBidAmount * 1000);
+      }
+
+      if (!amountFils || amountFils <= 0) {
+        throw new functions.https.HttpsError('failed-precondition', 'قيمة العملية غير صالحة');
+      }
+
+      const winningAmountJOD = amountFils / 1000;
+
+      // 6. Validate balances
+      const oldBuyerEscrow = buyerWalletSnap.exists ? (buyerWalletSnap.data().escrowBalance || 0) : 0;
+      const oldBuyerAvail = buyerWalletSnap.exists ? (buyerWalletSnap.data().availableBalance || 0) : 0;
+
+      if (oldBuyerEscrow < amountFils) {
+        throw new functions.https.HttpsError('failed-precondition', 'رصيد المشتري المحجوز غير كافٍ');
+      }
+
+      // 7. Apply wallet movement (from escrow to available for buyer)
+      const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
+      const newBuyerAvail = oldBuyerAvail + amountFils;
+      const newBuyerTotal = newBuyerAvail + newBuyerEscrow;
+
+      // Execute Writes in Transaction
+      transaction.set(buyerWalletRef, {
+        userId: buyerId,
+        availableBalance: newBuyerAvail,
+        escrowBalance: newBuyerEscrow,
+        totalBalance: newBuyerTotal,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // 8. Update escrow status
+      transaction.update(escrowRef, {
+        status: 'refunded',
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        refundedBy: callerUserId,
+        refundReason: action || 'admin_refund_dispute',
+        orderId: orderId
+      });
+
+      // 9. Update order status
+      transaction.update(orderRef, {
+        status: 'refunded',
+        escrowStatus: 'refunded',
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        escrowRefundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        escrowRefundedBy: callerUserId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 10. Create double-entry ledger records
+      const buyerLedgerRef = db.collection('ledger').doc();
+      const sellerLedgerRef = db.collection('ledger').doc();
+
+      // Buyer Ledger: credit
+      transaction.set(buyerLedgerRef, {
+        id: buyerLedgerRef.id,
+        userId: buyerId,
+        orderId: orderId,
+        auctionId: auctionId,
+        amount: winningAmountJOD,
+        amountFils: amountFils,
+        type: 'escrow_refund',
+        direction: 'credit',
+        titleAr: 'استرداد الضمان المالي للطلب',
+        titleEn: 'Escrow Refunded for Order',
+        descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${winningAmountJOD} د.أ وإعادته لمحافظتك بنجاح بعد إلغاء الطلب.`,
+        descriptionEn: `Escrow funds of ${winningAmountJOD} JOD returned to your available balance.`,
+        timestamp: Date.now()
+      });
+
+      // Seller Ledger: neutral / cancellation reference
+      transaction.set(sellerLedgerRef, {
+        id: sellerLedgerRef.id,
+        userId: sellerId,
+        orderId: orderId,
+        auctionId: auctionId,
+        amount: 0,
+        amountFils: 0,
+        type: 'order_refunded_neutral',
+        direction: 'neutral',
+        titleAr: 'إلغاء الطلب واسترداد الضمان للمشتري',
+        titleEn: 'Order Cancelled and Escrow Refunded',
+        descriptionAr: `تم إلغاء الطلب واسترجاع الضمان بقيمة ${winningAmountJOD} د.أ للمشتري بقرار من الإدارة.`,
+        descriptionEn: `Order cancelled and escrow of ${winningAmountJOD} JOD refunded to the buyer.`,
+        timestamp: Date.now()
+      });
+
+      // 11. Create audit log
+      const auditLogRef = db.collection('financialAuditLogs').doc();
+      transaction.set(auditLogRef, {
+        id: auditLogRef.id,
+        action: 'refund_order_escrow',
+        orderId: orderId,
+        auctionId: auctionId,
+        buyerId: buyerId,
+        sellerId: sellerId,
+        amount: winningAmountJOD,
+        amountFils: amountFils,
+        triggeredBy: callerUserId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Admin Action Log
+      const adminActionsRef = db.collection('adminActions').doc();
+      transaction.set(adminActionsRef, {
+        id: adminActionsRef.id,
+        orderId: orderId,
+        action: action || 'refund_order_escrow',
+        adminId: callerUserId,
+        adminName: callerData.name || 'Admin',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: `Force refunded escrow of ${winningAmountJOD} JOD to buyer for order ${orderId}`
+      });
+
+      // Write Order Activity record
+      const activityRef = orderRef.collection('activity').doc();
+      const messageAr = `قام المشرف بفرض إلغاء الطلب واسترداد الضمان المالي بقيمة ${winningAmountJOD} د.أ للمشتري.`;
+      const messageEn = `Admin forced refund. Escrow funds of ${winningAmountJOD} JOD returned to buyer's available wallet.`;
+
+      transaction.set(activityRef, {
+        id: activityRef.id,
+        type: 'Escrow Refunded',
+        messageAr: messageAr,
+        messageEn: messageEn,
+        message: messageEn,
+        performedBy: callerUserId,
+        performedByName: callerData.name || 'Admin',
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Notifications for Buyer and Seller
+      const buyerNotifRef = db.collection('notifications').doc();
+      const sellerNotifRef = db.collection('notifications').doc();
+
+      transaction.set(buyerNotifRef, {
+        id: buyerNotifRef.id,
+        userId: buyerId,
+        title: 'استرداد الضمان المالي للطلب 💸',
+        titleAr: 'استرداد الضمان المالي للطلب 💸',
+        titleEn: 'Order Escrow Refunded 💸',
+        description: `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`,
+        descriptionAr: `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`,
+        descriptionEn: `A pending escrow of ${winningAmountJOD} JOD has been returned to your wallet available balance.`,
+        type: 'info',
+        timestamp: Date.now(),
+        read: false,
+        orderId: orderId
+      });
+
+      transaction.set(sellerNotifRef, {
+        id: sellerNotifRef.id,
+        userId: sellerId,
+        title: 'تم إلغاء واسترداد الطلب',
+        titleAr: 'تم إلغاء واسترداد الطلب',
+        titleEn: 'Order Cancelled & Refunded',
+        description: `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`,
+        descriptionAr: `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`,
+        descriptionEn: `Order #${orderId.substring(0, 8)} has been cancelled and funds refunded to the buyer.`,
+        type: 'alert',
+        timestamp: Date.now(),
+        read: false,
+        orderId: orderId
+      });
+
+      return { 
+        success: true, 
+        message: `تم استرداد مبلغ ${winningAmountJOD} د.أ بنجاح للمشتري.` 
+      };
+    });
+  } catch (error) {
+    console.error('Error in refundOrderEscrow:', error);
+    const arabicMsg = error.message || "تعذر استرداد المبلغ، حاول مرة أخرى";
+    throw new functions.https.HttpsError('internal', arabicMsg);
+  }
+});
+
+/**
  * 13. repairStuckEscrowsForEndedAuction Callable Cloud Function (PHASE 1.5)
  * Safely refunds stuck bid escrows for losing bidders of ended auctions.
  * Admin only. Fully transactional, safe, and idempotent.
