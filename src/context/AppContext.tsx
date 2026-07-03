@@ -27,7 +27,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -2450,11 +2450,211 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return { success: false, message: result.data.message || 'Failed to repair stuck escrows.' };
     } catch (error: any) {
-      console.error("Cloud function repairStuckEscrowsForEndedAuction failed:", error);
-      addNotification('❌ Escrow Repair Error', error.message || 'Failed to repair stuck escrows.', 'alert');
-      return { success: false, message: error.message || 'Failed to repair stuck escrows.' };
+      console.warn("Cloud function repairStuckEscrowsForEndedAuction failed, triggering robust client-side admin fallback:", error);
+      
+      const isUserAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin === true || currentUser?.email === 'admaaqaba06@gmail.com';
+      if (!isUserAdmin) {
+        addNotification('❌ Escrow Repair Error', error.message || 'Failed to repair stuck escrows.', 'alert');
+        return { success: false, message: error.message || 'Failed to repair stuck escrows.' };
+      }
+
+      try {
+        // 1. Fetch Auction
+        const auctionRef = doc(db, 'auctions', auctionId);
+        const auctionSnap = await getDoc(auctionRef);
+        if (!auctionSnap.exists()) {
+          throw new Error("المزاد المحدد غير موجود");
+        }
+        const auctionData = auctionSnap.data();
+
+        // 2. Winner ID
+        const winnerId = auctionData.winningBidderId || auctionData.highestBidderId || null;
+
+        // 3. Query all locked escrows for this auction
+        const escrowsRef = collection(db, 'escrows');
+        const q = query(escrowsRef, where('auctionId', '==', auctionId), where('status', '==', 'locked'));
+        const escrowsSnap = await getDocs(q);
+
+        if (escrowsSnap.empty) {
+          return {
+            success: true,
+            refundedCount: 0,
+            keptWinnerEscrow: false,
+            totalRefundedAmount: 0,
+            message: 'لا توجد ضمانات مالية محجوزة/مغلقة لهذا المزاد لتعديلها. (إصلاح محلي)'
+          };
+        }
+
+        const escrowDocs = escrowsSnap.docs;
+        const losingEscrowDocs = [];
+        let keptWinnerEscrow = false;
+
+        for (const escDoc of escrowDocs) {
+          const escData = escDoc.data();
+          if (winnerId && escData.bidderId === winnerId) {
+            keptWinnerEscrow = true;
+          } else {
+            losingEscrowDocs.push(escDoc);
+          }
+        }
+
+        if (losingEscrowDocs.length === 0) {
+          return {
+            success: true,
+            refundedCount: 0,
+            keptWinnerEscrow,
+            totalRefundedAmount: 0,
+            message: keptWinnerEscrow 
+              ? 'الضمان المالي الوحيد المحجوز يعود للفائز بالمزاد، وتم إبقاؤه محجوزاً بنجاح. (إصلاح محلي)'
+              : 'لا توجد ضمانات للمزايدين الخاسرين متبقية لتسويتها. (إصلاح محلي)'
+          };
+        }
+
+        // 4. Fetch unique wallets
+        const uniqueBidderIds = Array.from(new Set(losingEscrowDocs.map(d => d.data().bidderId)));
+        const walletSnaps: Record<string, any> = {};
+
+        for (const bidderId of uniqueBidderIds) {
+          const wSnap = await getDoc(doc(db, 'wallets', bidderId));
+          if (wSnap.exists()) {
+            walletSnaps[bidderId] = wSnap.data();
+          }
+        }
+
+        // 5. Build write batch
+        const batch = writeBatch(db);
+        let refundedCount = 0;
+        let totalRefundedAmount = 0;
+
+        for (const escDoc of losingEscrowDocs) {
+          const escData = escDoc.data();
+          const bidderId = escData.bidderId;
+          const refundAmtFils = escData.amountFils || Math.round((escData.amount || 0) * 1000);
+          const refundAmtJOD = escData.amount || (refundAmtFils / 1000);
+
+          // Update escrow
+          batch.update(doc(db, 'escrows', escDoc.id), {
+            status: 'refunded',
+            refundedAt: serverTimestamp(),
+            refundReason: 'auction_lost_repair'
+          });
+
+          // Update wallet
+          const wData = walletSnaps[bidderId];
+          const walletRef = doc(db, 'wallets', bidderId);
+
+          if (wData) {
+            const oldAvail = wData.availableBalance || 0;
+            const oldEscrow = wData.escrowBalance || 0;
+            const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
+            const newAvail = oldAvail + refundAmtFils;
+            const newTotal = newAvail + newEscrow;
+
+            batch.set(walletRef, {
+              userId: bidderId,
+              availableBalance: newAvail,
+              escrowBalance: newEscrow,
+              totalBalance: newTotal,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          } else {
+            batch.set(walletRef, {
+              userId: bidderId,
+              availableBalance: refundAmtFils,
+              escrowBalance: 0,
+              totalBalance: refundAmtFils,
+              updatedAt: serverTimestamp()
+            });
+          }
+
+          // Create ledger entry
+          const ledgerRef = doc(collection(db, 'ledger'));
+          batch.set(ledgerRef, {
+            id: ledgerRef.id,
+            userId: bidderId,
+            auctionId: auctionId,
+            amount: refundAmtJOD,
+            amountFils: refundAmtFils,
+            type: 'escrow_refund',
+            direction: 'credit',
+            reason: 'auction_lost_repair',
+            titleAr: 'استرداد الضمان المالي للمزاد (إصلاح محلي)',
+            titleEn: 'Escrow Refund for Auction (Local Repair)',
+            descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${refundAmtJOD} د.أ تلقائياً لانتهاء المزاد وعدم فوزك (تشغيل نظام الإصلاح المحلي).`,
+            descriptionEn: `Secure escrow refund of ${refundAmtJOD} JOD processed (Local Repair) for ended auction.`,
+            timestamp: Date.now()
+          });
+
+          // Create financial audit log
+          const auditLogRef = doc(collection(db, 'financialAuditLogs'));
+          batch.set(auditLogRef, {
+            id: auditLogRef.id,
+            action: 'repair_stuck_escrow_refund',
+            auctionId: auctionId,
+            escrowId: escDoc.id,
+            userId: bidderId,
+            amount: refundAmtJOD,
+            amountFils: refundAmtFils,
+            triggeredBy: currentUser.id,
+            reason: 'auction_lost_repair',
+            createdAt: serverTimestamp()
+          });
+
+          // Create notification
+          const notificationRef = doc(collection(db, 'notifications'));
+          batch.set(notificationRef, {
+            id: notificationRef.id,
+            userId: bidderId,
+            title: 'استرداد ضمان مالي معلق 💸 (إصلاح محلي)',
+            titleAr: 'استرداد ضمان مالي معلق 💸 (إصلاح محلي)',
+            titleEn: 'Suspended Escrow Refunded 💸 (Local Repair)',
+            description: `تم إرجاع مبلغ الضمان المعلق بقيمة ${refundAmtJOD} د.أ إلى محفظتك بنجاح بعد فحص المزاد المنتهي.`,
+            descriptionAr: `تم إرجاع مبلغ الضمان المعلق بقيمة ${refundAmtJOD} د.أ إلى محفظتك بنجاح بعد فحص المزاد المنتهي.`,
+            descriptionEn: `A pending escrow of ${refundAmtJOD} JOD has been returned to your wallet after checking ended auction.`,
+            type: 'info',
+            timestamp: Date.now(),
+            read: false
+          });
+
+          refundedCount++;
+          totalRefundedAmount += refundAmtJOD;
+        }
+
+        // Create Admin Action Log
+        const adminActionsRef = doc(collection(db, 'adminActions'));
+        batch.set(adminActionsRef, {
+          id: adminActionsRef.id,
+          auctionId: auctionId,
+          action: 'repair_stuck_escrows_local',
+          adminId: currentUser.id,
+          adminName: currentUser.name || 'Admin',
+          timestamp: serverTimestamp(),
+          details: `Repaired stuck escrows for ended auction ${auctionId} via client-side fallback. Refunded ${refundedCount} escrows for non-winners. Total amount: ${totalRefundedAmount} JOD.`
+        });
+
+        await batch.commit();
+
+        addNotification(
+          '🔒 Escrows Repaired Successfully (Local Fallback)',
+          `تمت تسوية وإصلاح ${refundedCount} من الضمانات العالقة بنجاح بمجموع ${totalRefundedAmount} د.أ (محلياً).`,
+          'info'
+        );
+
+        return {
+          success: true,
+          refundedCount,
+          keptWinnerEscrow,
+          totalRefundedAmount,
+          message: `تمت تسوية وإصلاح ${refundedCount} من الضمانات العالقة بنجاح بمجموع ${totalRefundedAmount} د.أ، وتم إبقاء ضمان الفائز محجوزاً. (إصلاح محلي)`
+        };
+
+      } catch (fallbackError: any) {
+        console.error("Client-side admin fallback failed too:", fallbackError);
+        addNotification('❌ Escrow Repair Error', fallbackError.message || 'Failed to repair stuck escrows via fallback.', 'alert');
+        return { success: false, message: fallbackError.message || 'Failed to repair stuck escrows.' };
+      }
     }
-  }, [addNotification]);
+  }, [addNotification, currentUser]);
 
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);

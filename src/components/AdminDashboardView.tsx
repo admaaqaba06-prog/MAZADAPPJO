@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
@@ -34,6 +34,96 @@ import {
   HardDrive,
   RotateCcw
 } from 'lucide-react';
+
+const AuctionEscrowDiagnosticPanel: React.FC<{
+  auctionId: string;
+  winnerId: string | null;
+  repairResult: string | null;
+}> = ({ auctionId, winnerId, repairResult }) => {
+  const [escrows, setEscrows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const escrowsRef = collection(db, 'escrows');
+    const q = query(escrowsRef, where('auctionId', '==', auctionId));
+    
+    const unsub = onSnapshot(q, (snap) => {
+      const list: any[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      setEscrows(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error subscribing to escrows for diagnostics:", err);
+      setLoading(false);
+    });
+    
+    return unsub;
+  }, [auctionId]);
+
+  const lockedEscrows = escrows.filter(e => e.status === 'locked');
+  const losingLockedEscrows = lockedEscrows.filter(e => winnerId ? e.bidderId !== winnerId : true);
+
+  return (
+    <div className="bg-zinc-50 border border-dashed border-zinc-200 rounded-xl p-4 mt-3 text-xs space-y-3">
+      <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+        <span className="font-extrabold text-zinc-700 tracking-wide font-mono text-[10px] uppercase">
+          🛡️ Admin Diagnostic Panel
+        </span>
+        <span className="bg-zinc-200/60 text-zinc-600 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">
+          LIVE TELEMETRY
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <p className="text-zinc-500 font-medium font-sans">Locked Escrows Count:</p>
+          <p className="font-mono text-sm font-black text-zinc-900">
+            {lockedEscrows.length} {lockedEscrows.length > 0 ? '🔒' : '✅'}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-zinc-500 font-medium font-sans">Winner ID (Kept Locked):</p>
+          <p className="font-mono text-[10px] font-semibold text-zinc-800 break-all">
+            {winnerId ? `🏆 ${winnerId}` : 'None / No Bids'}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 pt-1">
+        <p className="text-zinc-500 font-medium font-sans">Losing Locked Escrows ({losingLockedEscrows.length}):</p>
+        {loading ? (
+          <p className="text-zinc-400 font-mono text-[10px] animate-pulse">Loading escrows...</p>
+        ) : losingLockedEscrows.length === 0 ? (
+          <p className="text-emerald-600 font-bold text-[11px] font-sans">✅ All losing escrows refunded/released</p>
+        ) : (
+          <div className="bg-white border border-zinc-150 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
+            {losingLockedEscrows.map((e) => (
+              <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 last:border-0 pb-1.5 last:pb-0">
+                <div className="min-w-0">
+                  <span className="font-bold text-zinc-800">{e.bidderName || 'Bidder'}</span>
+                  <span className="text-zinc-400 text-[9px] block truncate max-w-[200px]">{e.bidderId}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-rose-500 font-black">{(e.amount || 0).toLocaleString()} JOD</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {repairResult && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 font-medium text-[11px] leading-relaxed font-sans">
+          <strong className="block mb-1 text-amber-950">🔧 Repair Action Result:</strong>
+          {repairResult}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AdminDashboardView: React.FC = () => {
   const { 
@@ -87,6 +177,7 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
+  const [repairResults, setRepairResults] = useState<Record<string, string>>({});
 
   const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed'>('all');
   const [adminSelectedOrderId, setAdminSelectedOrderId] = useState<string | null>(null);
@@ -1211,8 +1302,10 @@ export const AdminDashboardView: React.FC = () => {
                                     if (confirm(isAr ? 'هل أنت متأكد من تسوية الضمانات العالقة للمزايدين الخاسرين في هذا المزاد؟' : 'Are you sure you want to repair stuck escrows for losing bidders in this auction?')) {
                                       const res = await repairStuckEscrowsForEndedAuction(item.id);
                                       if (res.success) {
+                                        setRepairResults(prev => ({ ...prev, [item.id]: res.message || "Successfully repaired!" }));
                                         alert(res.message);
                                       } else {
+                                        setRepairResults(prev => ({ ...prev, [item.id]: "Error: " + res.message }));
                                         alert("Error: " + res.message);
                                       }
                                     }
@@ -1230,6 +1323,13 @@ export const AdminDashboardView: React.FC = () => {
                               </div>
                             </div>
                           )}
+
+                          {/* Temporary admin-only diagnostic panel */}
+                          <AuctionEscrowDiagnosticPanel 
+                            auctionId={item.id} 
+                            winnerId={item.currentBidderId || null} 
+                            repairResult={repairResults[item.id] || null} 
+                          />
                         </div>
                       );
                     })}
