@@ -182,8 +182,7 @@ export async function executeOrderTransition(
       toStatus = 'cancelled';
       updateFields = {
         status: 'cancelled',
-        paymentStatus: 'unpaid',
-        escrowStatus: 'refunded'
+        paymentStatus: 'unpaid'
       };
       activityType = 'Order Cancelled';
       activityMessageAr = 'تم إلغاء الطلب وتحرير الضمان المالي بالكامل.';
@@ -214,17 +213,6 @@ export async function executeOrderTransition(
       activityMessageEn = `Parcel in transit with courier. Tracking ID: ${tracking}`;
       break;
 
-    case 'confirm_delivery':
-      toStatus = 'delivered';
-      updateFields = {
-        status: 'delivered',
-        shippingStatus: 'delivered'
-      };
-      activityType = 'Buyer Confirmed Delivery';
-      activityMessageAr = 'أكد المشتري استلام الشحنة بنجاح وحالتها ممتازة.';
-      activityMessageEn = 'Buyer confirmed successful receipt and physical inspection of the parcel.';
-      break;
-
     case 'open_dispute':
       toStatus = 'disputed';
       updateFields = {
@@ -235,31 +223,9 @@ export async function executeOrderTransition(
       activityMessageEn = 'Formal dispute logged. Escrow assets frozen pending admin mediation.';
       break;
 
-    case 'release_escrow':
-      toStatus = 'completed';
-      updateFields = {
-        status: 'completed',
-        escrowStatus: 'released',
-        shippingStatus: 'delivered'
-      };
-      activityType = 'Escrow Released';
-      activityMessageAr = 'تم فك الحجز المالي وتحويل المبلغ بالكامل لمحفظة البائع بنجاح.';
-      activityMessageEn = 'Escrow funds released and securely deposited into seller’s wallet.';
-      break;
-
     case 'resolve_dispute':
       const resType = extraFields?.resolutionType || 'release';
-      if (resType === 'release') {
-        toStatus = 'completed';
-        updateFields = {
-          status: 'completed',
-          escrowStatus: 'released',
-          shippingStatus: 'delivered'
-        };
-        activityType = 'Escrow Released (Dispute Resolved)';
-        activityMessageAr = 'تم حل النزاع بتحرير الأموال للبائع وإغلاق المعاملة.';
-        activityMessageEn = 'Dispute resolved: Escrow released to seller and transaction completed.';
-      } else {
+      if (resType === 'resume') {
         toStatus = 'paid';
         updateFields = {
           status: 'paid'
@@ -267,22 +233,13 @@ export async function executeOrderTransition(
         activityType = 'Dispute Closed (Resumed)';
         activityMessageAr = 'تم إغلاق النزاع وإعادة الطلب للحالة النشطة المدفوعة.';
         activityMessageEn = 'Dispute closed and order set back to active Paid status.';
+      } else {
+        throw new Error(`Financial transitions (resolution: ${resType}) are server-only and cannot be executed client-side.`);
       }
       break;
 
-    case 'force_close':
-      toStatus = 'completed';
-      updateFields = {
-        status: 'completed',
-        escrowStatus: 'released'
-      };
-      activityType = 'Escrow Released';
-      activityMessageAr = 'قام المشرف بإغلاق الطلب قسرياً وتحرير الضمان للبائع.';
-      activityMessageEn = 'Admin forced close order and released secure Escrow funds to seller.';
-      break;
-
     default:
-      throw new Error(`Unknown action type: ${action}`);
+      throw new Error(`Unknown action type or action requires server-side processing: ${action}`);
   }
 
   // Validate the status transition
@@ -291,6 +248,32 @@ export async function executeOrderTransition(
   const orderPath = `orders/${order.id}`;
 
   try {
+    // Financial transitions are server-only. Do not update escrow/payment settlement fields from the client.
+    const forbiddenFields = [
+      'escrowStatus',
+      'financialStatus',
+      'settlementStatus',
+      'payoutStatus',
+      'escrowReleasedAt',
+      'escrowRefundedAt',
+      'escrowReleasedBy',
+      'escrowRefundedBy'
+    ];
+    const forbiddenStatuses = ['completed', 'refunded'];
+    const forbiddenEscrows = ['released', 'refunded'];
+
+    for (const key of Object.keys(updateFields)) {
+      if (forbiddenFields.includes(key)) {
+        throw new Error(`Financial transitions are server-only. Do not update escrow/payment settlement fields from the client. Forbidden field: "${key}"`);
+      }
+    }
+    if (updateFields.status && forbiddenStatuses.includes(updateFields.status)) {
+      throw new Error(`Financial transitions are server-only. Do not update escrow/payment settlement fields from the client. Forbidden status: "${updateFields.status}"`);
+    }
+    if (updateFields.escrowStatus && forbiddenEscrows.includes(updateFields.escrowStatus)) {
+      throw new Error(`Financial transitions are server-only. Do not update escrow/payment settlement fields from the client. Forbidden escrowStatus: "${updateFields.escrowStatus}"`);
+    }
+
     // 1. Update Order in Firestore
     const orderRef = doc(db, 'orders', order.id);
     await updateDoc(orderRef, {
@@ -366,7 +349,7 @@ export async function executeOrderTransition(
         description: currentUser.email === 'admaaqaba06@gmail.com' ? notif.descEn : notif.descAr,
         descriptionAr: notif.descAr,
         descriptionEn: notif.descEn,
-        type: toStatus === 'completed' ? 'win' : 'info',
+        type: (toStatus as string) === 'completed' ? 'win' : 'info',
         timestamp,
         read: false,
         orderId: order.id

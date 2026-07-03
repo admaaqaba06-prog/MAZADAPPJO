@@ -176,7 +176,7 @@ export const AdminDashboardView: React.FC = () => {
     return `data:image/png;base64,${clean}`;
   };
 
-  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'health'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'sessions' | 'health'>('metrics');
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
 
   const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed'>('all');
@@ -598,10 +598,10 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['metrics', 'orders', 'payments', 'listings', 'users', 'subscriptions', 'health'] as const).map((tab) => {
+        {(['metrics', 'orders', 'payments', 'listings', 'users', 'subscriptions', 'sessions', 'health'] as const).map((tab) => {
           const tabLabel = isAr 
-            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : 'الصحة والتشغيل')
-            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : 'HEALTH & OPS');
+            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : 'الصحة والتشغيل')
+            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : 'HEALTH & OPS');
           
           const isActive = activeTab === tab;
           const hasPendingRequests = tab === 'subscriptions' && subscriptionRequests.length > 0;
@@ -1644,6 +1644,78 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ==========================================
+            TAB: ACTIVE SESSIONS
+            ========================================== */}
+        {activeTab === 'sessions' && (
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+              <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> 
+                {isAr ? 'جلسات النشاط النشطة' : 'ACTIVE USER SESSIONS'}
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {isAr ? 'عرض تفاصيل الأجهزة، الجلسات النشطة، وتاريخ آخر ظهور للمستخدمين لمنع إساءة استخدام الحسابات.' : 'View real-time session indicators, platforms, and devices logged onto the platform.'}
+              </p>
+            </div>
+
+            <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-150 text-gray-500 font-bold">
+                      <th className="p-4 text-start">{isAr ? 'المستخدم' : 'USER'}</th>
+                      <th className="p-4 text-start">{isAr ? 'الجهاز المتصل' : 'DEVICE'}</th>
+                      <th className="p-4 text-start">{isAr ? 'نظام التشغيل' : 'PLATFORM'}</th>
+                      <th className="p-4 text-start">{isAr ? 'آخر ظهور' : 'LAST SEEN'}</th>
+                      <th className="p-4 text-start">{isAr ? 'وقت تسجيل الدخول' : 'LOGIN TIME'}</th>
+                      <th className="p-4 text-start">{isAr ? 'عنوان IP' : 'IP ADDRESS'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {users.filter((u: any) => u.sessionId).length > 0 ? (
+                      users.filter((u: any) => u.sessionId).map((u: any) => (
+                        <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="p-4 text-start">
+                            <div className="flex items-center gap-2.5">
+                              <img src={u.avatar} className="w-8 h-8 rounded-lg object-cover" />
+                              <div className="min-w-0">
+                                <p className="font-extrabold text-gray-950 leading-none truncate">{u.name}</p>
+                                <p className="text-[10px] text-gray-400 mt-1 font-mono truncate">{u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 font-medium text-gray-700 text-start">{u.deviceInfo || 'Unknown Device'}</td>
+                          <td className="p-4 text-start">
+                            <span className="bg-gray-100 text-gray-800 font-mono text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                              {u.platform || 'Web'}
+                            </span>
+                          </td>
+                          <td className="p-4 font-mono text-gray-500 text-start">
+                            {u.lastSeen ? new Date(u.lastSeen).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A'}
+                          </td>
+                          <td className="p-4 font-mono text-gray-500 text-start">
+                            {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A'}
+                          </td>
+                          <td className="p-4 font-mono text-gray-600 text-start">
+                            {u.lastLoginIP || 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-gray-400">
+                          {isAr ? 'لا توجد جلسات نشطة مسجلة حالياً.' : 'No active sessions logged at the moment.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

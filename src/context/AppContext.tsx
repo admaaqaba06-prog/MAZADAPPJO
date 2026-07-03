@@ -412,6 +412,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'en';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+ 
+  // Session Heartbeat - updates lastSeen, deviceInfo, and appVersion every 5 minutes
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser || currentUser.id === 'user-current') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const userRef = doc(db, 'users', currentUser.id);
+        const dev = getDeviceInfo();
+        await updateDoc(userRef, {
+          lastSeen: new Date().toISOString(),
+          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+          appVersion: dev.appVersion
+        });
+        console.log("Session heartbeat updated for user:", currentUser.id);
+      } catch (error) {
+        console.error("Heartbeat error:", error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, currentUser?.id]);
 
   // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
@@ -442,6 +464,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!userSnap.exists()) {
             const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
             const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+            
+            const newSessionId = generateSessionId();
+            localStorage.setItem('mazad_session_id', newSessionId);
+            const dev = getDeviceInfo();
+            const ip = await fetchIP();
+
             loadedUser = {
               id: uid,
               uid: uid,
@@ -481,13 +509,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 city: '',
                 createdAt: new Date().toISOString(),
                 onboardingCompleted: false,
-                shownHints: {}
+                shownHints: {},
+                sessionId: newSessionId,
+                lastLoginAt: new Date().toISOString(),
+                deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+                platform: dev.platform,
+                browser: dev.browser,
+                deviceType: dev.deviceType,
+                appVersion: dev.appVersion,
+                lastLoginIP: ip,
+                lastSeen: new Date().toISOString()
               });
             } catch (error) {
               handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
             }
           } else {
             const fbData = userSnap.data();
+
+            // SECURITY CHECK: Duplicate Session Protection
+            const localSessionId = localStorage.getItem('mazad_session_id');
+            const firestoreSessionId = fbData.sessionId;
+
+            if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
+              console.warn("Session conflict: local session ID", localSessionId, "does not match Firestore session ID", firestoreSessionId);
+              localStorage.removeItem('mazad_session_id');
+              await signOut(auth);
+              setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
+              setIsAuthenticated(false);
+              alert("تم تسجيل الدخول من جهاز آخر.");
+              return;
+            }
+
+            // If local session ID is empty, generate a new one and bootstrap
+            if (!localSessionId) {
+              const newSessionId = generateSessionId();
+              localStorage.setItem('mazad_session_id', newSessionId);
+              const dev = getDeviceInfo();
+              const ip = await fetchIP();
+              try {
+                await updateDoc(userRef, {
+                  sessionId: newSessionId,
+                  lastLoginAt: new Date().toISOString(),
+                  deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+                  platform: dev.platform,
+                  browser: dev.browser,
+                  deviceType: dev.deviceType,
+                  appVersion: dev.appVersion,
+                  lastLoginIP: ip,
+                  lastSeen: new Date().toISOString()
+                });
+              } catch (err) {
+                console.warn("Failed to bootstrap session in firestore:", err);
+              }
+              fbData.sessionId = newSessionId;
+            }
+
             let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
             
             if (isAdminEmail && fbData.role !== 'admin') {
@@ -1405,6 +1481,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     activeAuctionIdRef.current = activeAuctionId;
   }, [activeAuctionId]);
 
+const generateSessionId = () => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+const getDeviceInfo = () => {
+  if (typeof navigator === 'undefined') {
+    return { browser: 'Unknown', platform: 'Unknown', deviceType: 'Unknown', userAgent: '', appVersion: '1.13.0' };
+  }
+  const ua = navigator.userAgent;
+  let browser = "Unknown";
+  if (ua.indexOf("Firefox") > -1) browser = "Firefox";
+  else if (ua.indexOf("SamsungBrowser") > -1) browser = "Samsung Browser";
+  else if (ua.indexOf("Opera") > -1 || ua.indexOf("OPR") > -1) browser = "Opera";
+  else if (ua.indexOf("Trident") > -1) browser = "Internet Explorer";
+  else if (ua.indexOf("Edge") > -1) browser = "Edge";
+  else if (ua.indexOf("Chrome") > -1) browser = "Chrome";
+  else if (ua.indexOf("Safari") > -1) browser = "Safari";
+
+  let platform = "Web";
+  if (ua.indexOf("Windows") > -1) platform = "Windows";
+  else if (ua.indexOf("Macintosh") > -1) platform = "macOS";
+  else if (ua.indexOf("Linux") > -1) platform = "Linux";
+  else if (ua.indexOf("Android") > -1) platform = "Android";
+  else if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) platform = "iOS";
+
+  const isMobile = /Mobi|Android/i.test(ua);
+
+  return {
+    browser,
+    platform,
+    deviceType: isMobile ? "Mobile" : "Desktop",
+    userAgent: ua,
+    appVersion: "1.13.0"
+  };
+};
+
+const fetchIP = async () => {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+    clearTimeout(id);
+    const data = await res.json();
+    return data.ip || 'not_available';
+  } catch (err) {
+    return 'not_available';
+  }
+};
+
   const setLanguage = useCallback((lang: 'en' | 'ar') => {
     setLanguageState(lang);
     localStorage.setItem('mazad_language', lang);
@@ -1413,7 +1541,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = useCallback(async (email: string, pass: string) => {
     const cleanEmail = email.toLowerCase().trim();
     try {
-      await signInWithEmailAndPassword(auth, cleanEmail, pass);
+      const newSessionId = generateSessionId();
+      localStorage.setItem('mazad_session_id', newSessionId);
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+      const user = userCredential.user;
+
+      const userRef = doc(db, 'users', user.uid);
+      const dev = getDeviceInfo();
+      const ip = await fetchIP();
+      await updateDoc(userRef, {
+        sessionId: newSessionId,
+        lastLoginAt: new Date().toISOString(),
+        deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+        platform: dev.platform,
+        browser: dev.browser,
+        deviceType: dev.deviceType,
+        appVersion: dev.appVersion,
+        lastLoginIP: ip,
+        lastSeen: new Date().toISOString()
+      });
+
       return { 
         success: true, 
         message: language === 'ar' ? 'تم تسجيل الدخول بنجاح!' : 'Logged in successfully!' 
@@ -1425,6 +1572,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
         try {
           console.log("[Auto-register] Email not found or invalid credential in clear environment; attempting fallback auto-registration...", cleanEmail);
+          const newSessionId = generateSessionId();
+          localStorage.setItem('mazad_session_id', newSessionId);
           const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
           const user = userCredential.user;
           
@@ -1434,6 +1583,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           const userRef = doc(db, 'users', user.uid);
           const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
+          const dev = getDeviceInfo();
+          const ip = await fetchIP();
           const freshUserDoc = {
             id: user.uid,
             uid: user.uid,
@@ -1448,7 +1599,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             phoneNumber: '',
             phone: '',
             city: '',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            sessionId: newSessionId,
+            lastLoginAt: new Date().toISOString(),
+            deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+            platform: dev.platform,
+            browser: dev.browser,
+            deviceType: dev.deviceType,
+            appVersion: dev.appVersion,
+            lastLoginIP: ip,
+            lastSeen: new Date().toISOString()
           };
           await setDoc(userRef, freshUserDoc);
           
@@ -1492,6 +1652,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
+      const newSessionId = generateSessionId();
+      localStorage.setItem('mazad_session_id', newSessionId);
+      const dev = getDeviceInfo();
+      const ip = await fetchIP();
+
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) {
@@ -1510,9 +1675,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           phoneNumber: user.phoneNumber || '',
           phone: user.phoneNumber || '',
           city: '',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          sessionId: newSessionId,
+          lastLoginAt: new Date().toISOString(),
+          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+          platform: dev.platform,
+          browser: dev.browser,
+          deviceType: dev.deviceType,
+          appVersion: dev.appVersion,
+          lastLoginIP: ip,
+          lastSeen: new Date().toISOString()
         };
         await setDoc(userRef, freshUserDoc);
+      } else {
+        await updateDoc(userRef, {
+          sessionId: newSessionId,
+          lastLoginAt: new Date().toISOString(),
+          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+          platform: dev.platform,
+          browser: dev.browser,
+          deviceType: dev.deviceType,
+          appVersion: dev.appVersion,
+          lastLoginIP: ip,
+          lastSeen: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.warn("Google Auth popup failed: ", error);
@@ -1541,6 +1727,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanName = name.trim();
     const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
 
+    // 1. Direct duplicate email registration check
+    const emailQuery = await getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail)));
+    if (!emailQuery.empty) {
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'يوجد حساب مسجل بهذا البريد الإلكتروني.'
+          : 'An account with this email already exists.'
+      };
+    }
+
+    // 2. Direct duplicate phone registration check
+    if (cleanPhone) {
+      const q1 = query(collection(db, 'users'), where('phone', '==', cleanPhone));
+      const q2 = query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      if (!snap1.empty || !snap2.empty) {
+        return {
+          success: false,
+          message: language === 'ar'
+            ? 'عذراً، رقم الهاتف هذا مسجل بالفعل بحساب آخر.'
+            : 'Sorry, this phone number is already registered with another account.'
+        };
+      }
+    }
+
     // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
       const checkDuplicate = await getCallableFunction<{ phone: string; name: string }, { phoneExists: boolean; nameExists: boolean; duplicate: boolean }>(
@@ -1566,6 +1778,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
+      const newSessionId = generateSessionId();
+      localStorage.setItem('mazad_session_id', newSessionId);
+      const dev = getDeviceInfo();
+      const ip = await fetchIP();
+
       const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const user = userCredential.user;
       
@@ -1592,7 +1809,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         city: '',
         createdAt: new Date().toISOString(),
         onboardingCompleted: false,
-        shownHints: {}
+        shownHints: {},
+        sessionId: newSessionId,
+        lastLoginAt: new Date().toISOString(),
+        deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+        platform: dev.platform,
+        browser: dev.browser,
+        deviceType: dev.deviceType,
+        appVersion: dev.appVersion,
+        lastLoginIP: ip,
+        lastSeen: new Date().toISOString()
       };
       await setDoc(userRef, freshUserDoc);
 
