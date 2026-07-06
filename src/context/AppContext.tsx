@@ -1733,32 +1733,6 @@ const fetchIP = async () => {
     const cleanName = name.trim();
     const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
 
-    // 1. Direct duplicate email registration check
-    const emailQuery = await getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail)));
-    if (!emailQuery.empty) {
-      return {
-        success: false,
-        message: language === 'ar'
-          ? 'يوجد حساب مسجل بهذا البريد الإلكتروني.'
-          : 'An account with this email already exists.'
-      };
-    }
-
-    // 2. Direct duplicate phone registration check
-    if (cleanPhone) {
-      const q1 = query(collection(db, 'users'), where('phone', '==', cleanPhone));
-      const q2 = query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone));
-      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-      if (!snap1.empty || !snap2.empty) {
-        return {
-          success: false,
-          message: language === 'ar'
-            ? 'عذراً، رقم الهاتف هذا مسجل بالفعل بحساب آخر.'
-            : 'Sorry, this phone number is already registered with another account.'
-        };
-      }
-    }
-
     // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
       const checkDuplicate = await getCallableFunction<{ phone: string; name: string }, { phoneExists: boolean; nameExists: boolean; duplicate: boolean }>(
@@ -1780,7 +1754,13 @@ const fetchIP = async () => {
         };
       }
     } catch (dupErr) {
-      console.warn("Skip pre-registration security Cloud Function query fallback: ", dupErr);
+      console.error("Duplicate verification check failed: ", dupErr);
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'تعذر التحقق من صحة الحساب حالياً، يرجى المحاولة مرة أخرى بعد قليل'
+          : 'Could not validate account security at this time, please try again shortly.'
+      };
     }
 
     try {
