@@ -94,7 +94,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
-  const { sellerProfiles, setActiveView, bids } = useApp();
+  const { sellerProfiles, setActiveView, bids, orders, setGlobalWalletSubView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -383,18 +383,95 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
               
               {isEnded ? (
-                <div className="w-full bg-black/60 border border-emerald-500/30 rounded-xl p-4 text-center backdrop-blur-sm flex flex-col items-center justify-center gap-1.5 shadow-xl">
-                  <span className="text-xs uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
-                    🏁 {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                  </span>
-                  <span className="text-white text-sm font-bold">
-                    {isAr ? 'الفائز' : 'Winner'}: <span className="text-amber-400 font-black">{activeAuction?.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}</span>
-                  </span>
-                  {activeAuction?.currentBidderName && (
-                    <span className="text-xs font-semibold text-zinc-300">
-                      {isAr ? 'سعر البيع' : 'Winning Price'}: <span className="text-emerald-400 font-black">{activePrice} JOD</span>
-                    </span>
-                  )}
+                <div className="w-full bg-black/75 border border-amber-500/30 rounded-2xl p-4 text-center backdrop-blur-md flex flex-col items-center justify-center gap-3.5 shadow-xl animate-in fade-in duration-300">
+                  {(() => {
+                    const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                    const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+                    
+                    if (isUserWinner) {
+                      return (
+                        <>
+                          <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-2xl animate-bounce">
+                            🎉
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-emerald-400 font-black text-sm block">
+                              {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won the auction'}
+                            </span>
+                            <span className="text-zinc-300 text-[11px] font-semibold block">
+                              {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const matchingOrder = orders?.find(o => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
+                              if (matchingOrder) {
+                                setGlobalSelectedOrderId(matchingOrder.id);
+                              }
+                              setGlobalWalletSubView('orders');
+                              setActiveView('wallet');
+                            }}
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
+                          >
+                            {isAr ? 'عرض الطلب' : 'View Order'}
+                          </button>
+                        </>
+                      );
+                    } else if (hasUserBid) {
+                      return (
+                        <>
+                          <div className="w-12 h-12 rounded-full bg-zinc-500/20 flex items-center justify-center text-2xl">
+                            🏁
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-white font-black text-sm block">
+                              {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                            </span>
+                            <span className="text-zinc-300 text-[11px] block font-bold">
+                              {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
+                            </span>
+                            <span className="text-emerald-400 text-[10.5px] font-bold block bg-emerald-500/10 border border-emerald-500/20 py-1 px-2.5 rounded-lg mt-1">
+                              {isAr ? 'تم إرجاع المبلغ المحجوز إلى محفظتك' : 'The reserved amount has been returned to your wallet'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setActiveView('discovery');
+                            }}
+                            className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                          >
+                            {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                          </button>
+                        </>
+                      );
+                    } else {
+                      return (
+                        <>
+                          <div className="w-12 h-12 rounded-full bg-zinc-500/20 flex items-center justify-center text-xl">
+                            🏁
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-white font-black text-sm block">
+                              {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                            </span>
+                            {activeAuction?.currentBidderName && (
+                              <span className="text-zinc-400 text-[10px] block">
+                                {isAr ? `الفائز: ${activeAuction.currentBidderName} بقيمة ${activePrice} د.أ` : `Winner: ${activeAuction.currentBidderName} at ${activePrice} JOD`}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setActiveView('discovery');
+                            }}
+                            className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                          >
+                            {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                          </button>
+                        </>
+                      );
+                    }
+                  })()}
                 </div>
               ) : (
                 <>

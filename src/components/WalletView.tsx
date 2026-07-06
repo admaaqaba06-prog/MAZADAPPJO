@@ -69,8 +69,28 @@ export const WalletView: React.FC = () => {
     refundEscrow,
     setWallet,
     setActiveView,
-    setCurrentUser
+    setCurrentUser,
+    globalWalletSubView,
+    setGlobalWalletSubView,
+    globalSelectedOrderId,
+    setGlobalSelectedOrderId
   } = useApp();
+
+  useEffect(() => {
+    if (globalWalletSubView) {
+      setWalletSubView(globalWalletSubView);
+      // Reset after consuming
+      setGlobalWalletSubView('wallet-home');
+    }
+  }, [globalWalletSubView]);
+
+  useEffect(() => {
+    if (globalSelectedOrderId) {
+      setSelectedOrderId(globalSelectedOrderId);
+      // Reset after consuming
+      setGlobalSelectedOrderId(null);
+    }
+  }, [globalSelectedOrderId]);
   
   const t = translations[language];
   const isAr = language === 'ar';

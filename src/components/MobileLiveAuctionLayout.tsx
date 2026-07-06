@@ -16,7 +16,6 @@ import {
   MessageSquare,
   ShieldCheck
 } from 'lucide-react';
-import { SwipeToBid } from './SwipeToBid';
 
 interface MobileLiveAuctionLayoutProps {
   liveAuctions: any[];
@@ -84,16 +83,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onClose,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { sellerProfiles, bids } = useApp();
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-
-  const activeSellerProfile = sellerProfiles?.find(
-    p => p.userId === activeAuction?.sellerId || p.id === activeAuction?.sellerId
-  );
-
-  const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
-  const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
-  const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
+  const { sellerProfiles } = useApp();
 
   // Handle scroll snap to detect current active reel
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -150,18 +140,24 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
         className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar"
         id="mobile-reels-snap-container"
       >
-        {liveAuctions.map((auction) => {
+        {liveAuctions.map((auction, index) => {
           const isActive = auction.id === activeAuctionId;
+          const activeIndex = liveAuctions.findIndex(a => a.id === activeAuctionId);
+          
+          // Performance protection: load only current and next auction to preserve memory & networking
+          const shouldLoad = index === activeIndex || index === activeIndex + 1;
+          const currentReelPrice = isActive ? activePrice : (auction.currentPrice || 0);
           
           return (
             <MobileAuctionReel
               key={auction.id}
               auction={auction}
               isActive={isActive}
+              shouldLoad={shouldLoad}
               isMuted={isMuted}
               isPlaying={isPlaying}
               onPlayPauseToggle={onPlayPauseToggle}
-              activePrice={activePrice}
+              activePrice={currentReelPrice}
               timeLeftStr={timeLeftStr}
               isSaved={isSaved}
               viewerCount={viewerCount}
@@ -170,7 +166,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               commentText={commentText}
               setCommentText={setCommentText}
               onCommentSubmit={onCommentSubmit}
-              nextBidAmount={nextBidAmount}
+              nextBidAmount={isActive ? nextBidAmount : currentReelPrice + 10}
               onBidExecute={onBidExecute}
               wallet={wallet}
               currentUser={currentUser}
@@ -196,6 +192,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
 interface MobileAuctionReelProps {
   auction: any;
   isActive: boolean;
+  shouldLoad: boolean;
   isMuted: boolean;
   isPlaying: boolean;
   onPlayPauseToggle: () => void;
@@ -225,6 +222,7 @@ interface MobileAuctionReelProps {
 const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   auction,
   isActive,
+  shouldLoad,
   isMuted,
   isPlaying,
   onPlayPauseToggle,
@@ -250,7 +248,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
-  const { sellerProfiles, bids } = useApp();
+  const { sellerProfiles, bids, orders, setActiveView, setGlobalWalletSubView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -263,9 +261,11 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
+  const [isChatHidden, setIsChatHidden] = useState(false);
 
-  // States for micro-animations and unified top toast notifications
+  // States for micro-animations and feedback
   const [priceAnimate, setPriceAnimate] = useState(false);
+  const [justBidded, setJustBidded] = useState(false);
   const [toastQueue, setToastQueue] = useState<{ id: string; text: string; icon: string }[]>([]);
   const [activeToast, setActiveToast] = useState<{ id: string; text: string; icon: string } | null>(null);
 
@@ -322,7 +322,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     }
   }, [activeComments]);
 
-  // Handle single Toast execution loop (automatically disappears after 2-3 seconds)
+  // Handle single Toast execution loop
   useEffect(() => {
     if (activeToast || toastQueue.length === 0) return;
 
@@ -332,31 +332,31 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
     const timer = setTimeout(() => {
       setActiveToast(null);
-    }, 2500); // 2.5s display duration
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, [toastQueue, activeToast]);
 
-  // Filter normal comments to keep the chat feed extremely minimal and transparent
+  // Filter normal comments to keep the chat feed extremely minimal
   const normalComments = useMemo(() => {
     return activeComments.filter(
       (msg) => !msg.isBid && !msg.text.toLowerCase().includes('bid') && !msg.text.toLowerCase().includes('عطاء')
     );
   }, [activeComments]);
 
-  // Sync html5 video playback based on active reel and global isPlaying state
+  // Sync html5 video playback based on active reel, performance limits, and global isPlaying state
   useEffect(() => {
     const video = localVideoRef.current;
     if (!video) return;
 
-    if (isActive && isPlaying) {
+    if (isActive && isPlaying && shouldLoad) {
       video.play().catch((err) => {
         console.warn("Playback prevented or interrupted:", err);
       });
     } else {
       video.pause();
     }
-  }, [isActive, isPlaying, auction.videoUrl]);
+  }, [isActive, isPlaying, shouldLoad, auction.videoUrl]);
 
   // Sync muted property directly on element
   useEffect(() => {
@@ -365,12 +365,59 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     }
   }, [isMuted]);
 
+  // Bid logic status selectors
+  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
+  const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
+
+  const handleLocalBid = async () => {
+    setJustBidded(true);
+    await onBidExecute(nextBidAmount);
+    setTimeout(() => {
+      setJustBidded(false);
+    }, 2500);
+  };
+
+  const getBidButtonText = () => {
+    if (isUserWinner) {
+      return isAr ? "أنت الأعلى حالياً" : "You are highest";
+    }
+    if (hasUserBid && !isUserWinner) {
+      return isAr ? "زايد مرة أخرى" : "Bid Again";
+    }
+    return isAr ? "زايد الآن" : "Bid Now";
+  };
+
+  const getStatusMessage = () => {
+    if (justBidded) {
+      return isAr ? "تمت المزايدة 🎉" : "Bid placed successfully! 🎉";
+    }
+    if (hasUserBid) {
+      if (isUserWinner) {
+        return isAr ? "أنت الأعلى حالياً 🎉" : "You are currently the highest bidder 🎉";
+      } else {
+        return isAr ? "شخص آخر زايد أعلى منك ⚠️" : "Someone else bid higher than you ⚠️";
+      }
+    }
+    return isAr ? "ابدأ المزايدة الآن لتفوز بالقطعة!" : "Place your first bid to win this lot!";
+  };
+
+  // If this reel is not selected to be loaded, return lightweight skeleton to save performance
+  if (!shouldLoad) {
+    return (
+      <div 
+        className="w-full h-full snap-start snap-always shrink-0 relative flex flex-col items-center justify-center bg-zinc-950"
+        style={{ height: '100%' }}
+      >
+        <div className="w-10 h-10 border-4 border-t-orange-500 border-zinc-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="w-full h-full snap-start snap-always shrink-0 relative flex flex-col overflow-hidden bg-black"
       style={{ height: '100%' }}
     >
-      {/* CSS keyframes injected locally for robust, failproof animations */}
       <style>{`
         @keyframes slideDownFade {
           0% {
@@ -402,19 +449,19 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
         loop
         muted={isMuted}
         playsInline
-        preload={isActive ? "auto" : "none"}
+        preload="metadata"
         className="absolute inset-0 w-full h-full object-cover z-0"
         onClick={onPlayPauseToggle}
       />
 
-      {/* Subtle glassmorphic and gradient overlays for contrast without solid black masks */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none z-10" />
+      {/* Gradient overlays for contrast */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none z-10" />
 
-      {/* Play/Pause Standby overlay button */}
+      {/* Play/Pause standby overlay */}
       {!isPlaying && isActive && (
         <div 
           onClick={onPlayPauseToggle}
-          className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer z-10 backdrop-blur-[2px]"
+          className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer z-10 backdrop-blur-[1px]"
         >
           <div className="w-12 h-12 rounded-full bg-[#FF6B00] text-white flex items-center justify-center shadow-lg transition-transform active:scale-90">
             <Play className="w-5 h-5 ml-0.5 fill-white text-white" />
@@ -422,11 +469,10 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
         </div>
       )}
 
-      {/* Only display overlays, chat and bidding tools if this reel is the active one */}
       {isActive && (
         <>
           {/* ======================================================================
-              1. COMPACT TOP BAR (Seller & Stream Information) - Safe Area Guarded
+              1. COMPACT TOP BAR (Seller & Stream Info)
               ====================================================================== */}
           <div 
             className="absolute left-4 right-4 z-30 flex items-center justify-between animate-fade-in" 
@@ -495,7 +541,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           </div>
 
           {/* ======================================================================
-              2. SINGLE FLOATING TOAST NOTIFICATION - Floating near the top
+              2. SINGLE FLOATING TOAST NOTIFICATION
               ====================================================================== */}
           {activeToast && (
             <div 
@@ -510,10 +556,10 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* ======================================================================
-              3. GLASSY RIGHT ACTION PANEL (TikTok & Instagram style, compact 44px)
+              3. FLOATING ACTION PANEL (TikTok Side Actions)
               ====================================================================== */}
           <div 
-            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)', direction: isAr ? 'rtl' : 'ltr' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
             className="absolute right-4 z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
           >
             {/* Like appreciation button */}
@@ -548,54 +594,67 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               <Award className="w-4.5 h-4.5" />
             </button>
 
-            {/* Chat button */}
+            {/* Hide/Show Chat button */}
             <button
-              onClick={() => setShowChatInput(!showChatInput)}
-              className={`w-11 h-11 rounded-full backdrop-blur-xl border flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer ${showChatInput ? 'bg-[#FF6B00] border-orange-400 text-white opacity-100' : 'bg-black/30 border-white/10 text-white opacity-75 hover:opacity-100'}`}
+              onClick={() => setIsChatHidden(!isChatHidden)}
+              className={`w-11 h-11 rounded-full backdrop-blur-xl border flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer ${!isChatHidden ? 'bg-[#FF6B00] border-orange-400 text-white opacity-100' : 'bg-black/30 border-white/10 text-white opacity-75 hover:opacity-100'}`}
+              title={isAr ? "إظهار/إخفاء المحادثة" : "Show/Hide Chat"}
             >
               <MessageSquare className="w-4.5 h-4.5" />
             </button>
           </div>
 
           {/* ======================================================================
-              4. ULTRA COMPACT FLOATING CHAT FEED (Tucked safely at bottom-left)
+              4. COMPACT CHAT FEED (Tucked at bottom-left, avoids covering product)
               ====================================================================== */}
-          <div 
-            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)', direction: isAr ? 'rtl' : 'ltr' }}
-            className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
-          >
-            <div className="space-y-1 p-1 flex flex-col justify-end">
-              {/* Display latest 2 normal comments cleanly */}
-              {normalComments.slice(-2).map((msg) => (
-                <div 
-                  key={`chat-reel-${auction.id}-${msg.id}`} 
-                  className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
-                >
-                  <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                    alt="User" 
-                    className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="min-w-0">
-                    <span className="text-[8.5px] font-black text-orange-400 leading-none block">
-                      {msg.userName}
-                    </span>
-                    <p className="text-[9.5px] text-zinc-100 font-medium leading-tight mt-0.5">
-                      {msg.text}
-                    </p>
+          {!isChatHidden && (
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
+              className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
+            >
+              <div className="space-y-1 p-1 flex flex-col justify-end">
+                {normalComments.slice(-2).map((msg) => (
+                  <div 
+                    key={`chat-reel-${auction.id}-${msg.id}`} 
+                    className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
+                  >
+                    <img 
+                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
+                      alt="User" 
+                      className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[8.5px] font-black text-orange-400 leading-none block">
+                        {msg.userName}
+                      </span>
+                      <p className="text-[9.5px] text-zinc-100 font-medium leading-tight mt-0.5">
+                        {msg.text}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Chat text box trigger */}
+          <div 
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
+            className="absolute left-4 z-20"
+          >
+            <button
+              onClick={() => setShowChatInput(!showChatInput)}
+              className="bg-black/30 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-[10px] font-black text-white hover:bg-black/50 transition-colors"
+            >
+              {isAr ? '💬 اكتب تعليقاً...' : '💬 Send a message...'}
+            </button>
           </div>
 
-          {/* ======================================================================
-              5. DYNAMIC CHAT INPUT
-              ====================================================================== */}
+          {/* Floating Chat Input form */}
           {showChatInput && (
             <div 
-              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 190px)' }}
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
               className="absolute left-4 right-4 z-30 animate-fade-in"
             >
               <form 
@@ -603,7 +662,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                   onCommentSubmit(e);
                   setShowChatInput(false);
                 }}
-                className="flex gap-2 bg-black/45 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl shadow-lg w-full"
+                className="flex gap-2 bg-black/75 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl shadow-lg w-full"
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
                 <input 
@@ -625,105 +684,109 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* ======================================================================
-              6. PREMIUM GLASSMORPHISM BOTTOM BIDDING CARD (Height reduced by 35%)
+              5. THE WHATNOT LIVE-BIDDING CARD (Strictly 5 Required Elements)
               ====================================================================== */}
           <div 
             style={{ 
               bottom: 'calc(env(safe-area-inset-bottom, 16px) + 8px)',
               direction: isAr ? 'rtl' : 'ltr'
             }}
-            className="absolute left-4 right-4 z-20 bg-black/35 backdrop-blur-xl border border-white/10 p-2.5 rounded-2xl shadow-xl flex flex-col gap-2 overflow-hidden select-none animate-fade-in"
+            className="absolute left-4 right-4 z-20 bg-black/45 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col gap-3.5 overflow-hidden select-none animate-fade-in"
             id={`bidding-card-${auction.id}`}
           >
-            {/* Top row: Active Lot Info (Left) and Current Bid/Timer (Right) */}
-            <div className="flex justify-between items-start gap-2 border-b border-white/5 pb-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 text-[8px] font-black text-[#FF6B00] tracking-wider uppercase leading-none mb-1">
-                  <Sparkles className="w-2.5 h-2.5 text-amber-400" />
-                  <span>{isAr ? 'المعروض الحالي' : 'ACTIVE LOT'}</span>
-                </div>
-                <h3 className="text-xs font-black text-white truncate leading-tight">
-                  {auction.title}
-                </h3>
-                <span className="text-[9px] text-zinc-400 font-medium leading-none block mt-0.5">
-                  by {activeSellerProfile?.storeName || (isAr ? 'مزاد الأردن' : 'MAZAD JO')}
-                </span>
-              </div>
+            {/* Row 1: Product Title & Time Left (aligned nicely) */}
+            <div className="flex justify-between items-center gap-3">
+              <h3 className="text-sm font-black text-white truncate max-w-[70%]">
+                {auction.title}
+              </h3>
               
-              <div className="text-right shrink-0">
-                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-wider block leading-none">
-                  {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
+              <div className="inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-400 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <span>{timeLeftStr}</span>
+              </div>
+            </div>
+
+            {/* Row 2: Current Bid */}
+            <div className="flex items-center justify-between border-t border-b border-white/5 py-2">
+              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
+              </span>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
+                  {activePrice.toLocaleString()}
                 </span>
-                <div className="flex items-baseline justify-end gap-0.5 mt-0.5">
-                  <span className={`text-sm font-black text-[#FF6B00] font-mono leading-none transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                    {activePrice.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-black text-white/70">JOD</span>
-                </div>
-                {/* Compact countdown badge */}
-                <div className="inline-flex items-center gap-1 bg-black/45 px-1.5 py-0.5 rounded border border-white/5 mt-1.5">
-                  <span className="text-[8px] font-black text-emerald-400 font-mono leading-none">{timeLeftStr}</span>
-                </div>
+                <span className="text-[11px] font-bold text-white/70">JOD</span>
               </div>
             </div>
 
             {isEnded ? (
-              <div className="w-full bg-black/50 border border-emerald-500/20 rounded-xl p-2.5 text-center backdrop-blur-md flex flex-col items-center justify-center gap-1 shadow-md">
-                <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-1">
-                  🏁 {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                </span>
-                <span className="text-white text-xs font-bold">
-                  {isAr ? 'الفائز' : 'Winner'}: <span className="text-amber-400 font-black">{auction?.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}</span>
-                </span>
-                {auction?.currentBidderName && (
-                  <span className="text-[10px] font-semibold text-zinc-300">
-                    {isAr ? 'سعر البيع' : 'Winning Price'}: <span className="text-emerald-400 font-black">{activePrice} JOD</span>
-                  </span>
-                )}
+              <div className="w-full bg-black/75 border border-amber-500/30 rounded-xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
+                {(() => {
+                  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
+                  const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
+                  
+                  if (isUserWinner) {
+                    return (
+                      <>
+                        <span className="text-emerald-400 font-black text-xs block">
+                          {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const matchingOrder = orders?.find(o => o.auctionId === auction?.id && o.buyerId === currentUser?.id);
+                            if (matchingOrder) {
+                              setGlobalSelectedOrderId(matchingOrder.id);
+                            }
+                            setGlobalWalletSubView('orders');
+                            setActiveView('wallet');
+                          }}
+                          className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-black shadow-md cursor-pointer"
+                        >
+                          {isAr ? 'عرض الطلب' : 'View Order'}
+                        </button>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <span className="text-zinc-300 text-xs font-bold block">
+                        {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                      </span>
+                    );
+                  }
+                })()}
               </div>
             ) : (
               <>
-                {/* Tighter bid increments */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[10, 25, 50, 100].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => onBidExecute(activePrice + val)}
-                      className="py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 hover:bg-white/10"
-                    >
-                      +{val} <span className="text-[8px] opacity-60 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                    </button>
-                  ))}
+                {/* Row 3: Winning / Outbid status feed with instant feedback */}
+                <div 
+                  className={`py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black tracking-wide border transition-all duration-300 ${
+                    justBidded
+                      ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-400 animate-pulse"
+                      : isUserWinner
+                      ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
+                      : hasUserBid && !isUserWinner
+                      ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
+                      : "bg-white/5 border-white/5 text-zinc-400"
+                  }`}
+                >
+                  {justBidded && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+                  <span>{getStatusMessage()}</span>
                 </div>
 
-                {/* Winning/Losing indicator */}
-                {(() => {
-                  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
-                  const isUserWinning = hasUserBid && auction?.currentBidderId === currentUser?.id;
-                  if (!hasUserBid) return null;
-                  return isUserWinning ? (
-                    <div className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently winning! 🎉'}</span>
-                    </div>
-                  ) : (
-                    <div className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 leading-none text-center">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
-                      <span>{isAr ? 'عطاؤك متأخر! زايد الآن لتتفوق ⚠️' : 'Outbid! Raise your bid now ⚠️'}</span>
-                    </div>
-                  );
-                })()}
-
-                {/* Swipe To Bid CTA */}
-                <div className="w-full">
-                  <SwipeToBid
-                    amount={nextBidAmount}
-                    onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                    disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                    language={language as 'en' | 'ar'}
-                  />
-                </div>
+                {/* Row 4: Single HUGE Thumb-Tappable Bid Button */}
+                <button
+                  type="button"
+                  disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                  onClick={handleLocalBid}
+                  className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-all shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
+                >
+                  <span className="text-sm tracking-wide font-black">
+                    {getBidButtonText()}
+                  </span>
+                  <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
+                    {isAr ? `تقديم عطاء بقيمة ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JOD`}
+                  </span>
+                </button>
               </>
             )}
           </div>
@@ -738,7 +801,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           onClose={() => setSelectedProfileId(null)}
         />
       )}
-
     </div>
   );
 };

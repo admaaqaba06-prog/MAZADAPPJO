@@ -87,7 +87,11 @@ export const LiveStreamView: React.FC = () => {
     watchlist,
     toggleWatchlist,
     chatMessages,
-    sendChatMessage
+    sendChatMessage,
+    bids,
+    orders,
+    setGlobalWalletSubView,
+    setGlobalSelectedOrderId
   } = useApp();
 
   const isAr = language === 'ar';
@@ -544,16 +548,29 @@ export const LiveStreamView: React.FC = () => {
     setCommentText('');
   };
 
-  if (!activeAuction) {
+  const hasLiveAuctions = useMemo(() => {
+    return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
+  }, [auctions]);
+
+  if (!hasLiveAuctions || !activeAuction) {
     return (
-      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#070709] p-6 text-gray-400 h-full" id="no-live-stream-fallback">
-        <FolderLock className="w-12 h-12 text-[#FF6B00] mb-3 animate-bounce" />
-        <h3 className="font-extrabold text-sm uppercase text-white">{isAr ? 'لا يوجد بثوث نشطة حالياً' : 'No channels active'}</h3>
+      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#070709] p-6 text-gray-400 h-full min-h-[500px]" id="no-live-stream-fallback">
+        <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center text-3xl mb-4 animate-pulse">
+          📺
+        </div>
+        <h3 className="font-extrabold text-sm uppercase text-white mb-2">
+          {isAr ? 'لا توجد مزادات مباشرة حالياً' : 'No live auctions currently'}
+        </h3>
+        <p className="text-zinc-500 text-xs mb-6 max-w-xs leading-relaxed">
+          {isAr ? 'تابع بائعينا المميزين لتصلك إشعارات فور بدء بثوثهم المباشرة!' : 'Follow our premium sellers to get notified as soon as they go live!'}
+        </p>
         <button 
-          onClick={() => setActiveView('discovery')}
-          className="mt-6 px-5 py-2.5 bg-[#FF6B00] text-white rounded-xl text-xs font-black shadow-md uppercase hover:bg-orange-500 transition-colors cursor-pointer"
+          onClick={() => {
+            setActiveView('discovery');
+          }}
+          className="px-6 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white rounded-xl text-xs font-black shadow-lg transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
         >
-          {isAr ? 'العودة للرئيسية' : 'Back to Home'}
+          {isAr ? 'تصفح المزادات القادمة' : 'Browse Upcoming Auctions'}
         </button>
       </div>
     );
@@ -693,41 +710,121 @@ export const LiveStreamView: React.FC = () => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-                className="bg-black/85 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
+                className="bg-zinc-950/95 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
               >
-                <div className="bg-amber-500/15 text-amber-400 p-4 rounded-full mb-2 animate-bounce">
-                  <Trophy className="w-12 h-12" />
-                </div>
-                <h2 className="text-2xl md:text-3xl font-black text-white">
-                  {isAr ? '🏁 انتهى المزاد' : '🏁 Auction Ended'}
-                </h2>
-                
-                <div className="w-full bg-white/5 rounded-2xl py-4 px-6 border border-white/5 my-2">
-                  <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
-                    {isAr ? 'المزايد الأعلى' : 'Winner'}
-                  </p>
-                  <p className="text-lg md:text-xl font-bold text-white truncate">
-                    {activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}
-                  </p>
-                </div>
+                {(() => {
+                  const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                  const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
 
-                {activeAuction.currentBidderName && (
-                  <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20">
-                    <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
-                      {isAr ? 'السعر النهائي' : 'Winning Bid'}
-                    </p>
-                    <p className="text-xl font-black text-emerald-400">
-                      {activePrice} JOD
-                    </p>
-                  </div>
-                )}
+                  if (isUserWinner) {
+                    return (
+                      <>
+                        <div className="bg-emerald-500/15 text-emerald-400 p-4 rounded-full mb-1 animate-bounce">
+                          <Trophy className="w-12 h-12" />
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-black text-white">
+                          {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
+                        </h2>
+                        <p className="text-zinc-300 text-sm font-semibold">
+                          {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment or confirmation'}
+                        </p>
+                        
+                        <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20 mt-2">
+                          <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
+                            {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                          </p>
+                          <p className="text-2xl font-black text-emerald-400">
+                            {activePrice} JOD
+                          </p>
+                        </div>
 
-                <button
-                  onClick={() => setIsOverlayDismissed(true)}
-                  className="mt-4 w-full bg-[#FF6B00] hover:bg-[#e05e00] text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
-                >
-                  {isAr ? 'إغلاق' : 'Close'}
-                </button>
+                        <button
+                          onClick={() => {
+                            setIsOverlayDismissed(true);
+                            const matchingOrder = orders?.find(o => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
+                            if (matchingOrder) {
+                              setGlobalSelectedOrderId(matchingOrder.id);
+                            }
+                            setGlobalWalletSubView('orders');
+                            setActiveView('wallet');
+                          }}
+                          className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        >
+                          {isAr ? 'عرض الطلب' : 'View Order'}
+                        </button>
+                      </>
+                    );
+                  } else if (hasUserBid) {
+                    return (
+                      <>
+                        <div className="bg-zinc-500/15 text-zinc-400 p-4 rounded-full mb-1">
+                          <X className="w-12 h-12" />
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-black text-white">
+                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                        </h2>
+                        <p className="text-zinc-300 text-sm font-semibold">
+                          {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
+                        </p>
+
+                        <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-4 border border-emerald-500/20 text-center text-xs text-emerald-400 font-bold leading-relaxed my-1">
+                          {isAr ? 'تم إرجاع المبلغ المحجوز إلى محفظتك' : 'The reserved amount has been returned to your wallet'}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setIsOverlayDismissed(true);
+                            setActiveView('discovery');
+                          }}
+                          className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        >
+                          {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                        </button>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <div className="bg-amber-500/15 text-amber-400 p-4 rounded-full mb-1">
+                          <Trophy className="w-12 h-12" />
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-black text-white">
+                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                        </h2>
+
+                        <div className="w-full bg-white/5 rounded-2xl py-3 px-6 border border-white/5 my-2">
+                          <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
+                            {isAr ? 'المزايد الأعلى' : 'Winner'}
+                          </p>
+                          <p className="text-lg font-bold text-white truncate">
+                            {activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}
+                          </p>
+                        </div>
+
+                        {activeAuction.currentBidderName && (
+                          <div className="w-full bg-emerald-500/10 rounded-2xl py-2.5 px-6 border border-emerald-500/20">
+                            <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
+                              {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                            </p>
+                            <p className="text-xl font-black text-emerald-400">
+                              {activePrice} JOD
+                            </p>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setIsOverlayDismissed(true);
+                            setActiveView('discovery');
+                          }}
+                          className="mt-4 w-full bg-white/15 hover:bg-white/25 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        >
+                          {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                        </button>
+                      </>
+                    );
+                  }
+                })()}
               </motion.div>
             )}
           </motion.div>

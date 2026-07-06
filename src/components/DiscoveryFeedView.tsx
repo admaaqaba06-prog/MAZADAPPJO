@@ -25,6 +25,260 @@ import { CountdownStoriesBar } from './CountdownStoriesBar';
 import { AuctionCardSkeleton, EmptyState } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
 
+interface PremiumAuctionCardProps {
+  item: AuctionItem;
+  currentUser: any;
+  bids: any[] | null;
+  orders: any[] | null;
+  sellerProfiles: any[] | null;
+  isAr: boolean;
+  onJoinLive: (id: string) => void;
+  onSelectLot: (id: string) => void;
+  setGlobalSelectedOrderId: (id: string) => void;
+  setGlobalWalletSubView: (view: 'wallet' | 'transactions' | 'orders' | 'escrow') => void;
+  setActiveView: (view: string) => void;
+}
+
+export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
+  item,
+  currentUser,
+  bids,
+  orders,
+  sellerProfiles,
+  isAr,
+  onJoinLive,
+  onSelectLot,
+  setGlobalSelectedOrderId,
+  setGlobalWalletSubView,
+  setActiveView,
+}) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
+    if (!item.endTime) return 120;
+    return Math.max(0, Math.floor((item.endTime - Date.now()) / 1000));
+  });
+
+  React.useEffect(() => {
+    if (!item.endTime || secondsLeft <= 0) return;
+    const interval = setInterval(() => {
+      const left = Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [item.endTime, secondsLeft]);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const p = sellerProfiles?.find(profile => profile.userId === item.sellerId || profile.id === item.sellerId);
+  const isPremium = p?.verificationStatus === 'premium_verified';
+  const isVerified = p?.verificationStatus === 'verified' || isPremium;
+
+  const hasUserBid = bids ? bids.some(b => b.auctionId === item.id && b.bidderId === currentUser?.id) : false;
+  const isUserWinner = hasUserBid && item.currentBidderId === currentUser?.id;
+  const isCritical = secondsLeft < 60;
+
+  const itemIsEnded = item.status === 'completed' || (item.endTime && item.endTime <= Date.now());
+
+  const handleCardClick = () => {
+    if (item.status === 'live') {
+      onJoinLive(item.id);
+    } else {
+      onSelectLot(item.id);
+    }
+  };
+
+  return (
+    <div 
+      onClick={handleCardClick}
+      className="group relative bg-white border border-gray-100/80 rounded-2xl p-4 shadow-xs hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col justify-between h-full hover:-translate-y-1"
+      style={{ minHeight: '380px' }}
+    >
+      {/* 1. Top: Seller Bar */}
+      <div className="flex items-center justify-between mb-3 w-full">
+        <div className="flex items-center gap-2 max-w-[75%]">
+          <img 
+            src={p?.storeLogo || item.sellerLogo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80'} 
+            alt="seller avatar" 
+            className="w-8 h-8 rounded-full object-cover border border-zinc-100 shadow-xs shrink-0"
+            onError={(e) => {
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80';
+            }}
+          />
+          <div className="flex flex-col min-w-0">
+            <span className="font-sans font-extrabold text-xs text-zinc-800 truncate leading-none flex items-center gap-1">
+              {p?.storeName || item.sellerName}
+              {isVerified && (
+                <ShieldCheck className={`w-3.5 h-3.5 ${isPremium ? 'text-amber-500' : 'text-emerald-500'} shrink-0`} />
+              )}
+            </span>
+          </div>
+        </div>
+        
+        {/* Viewers count / Live state */}
+        {item.status === 'live' && (
+          <span className="bg-zinc-100 text-zinc-600 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs shrink-0">
+            👁️ {item.viewersCount || 12}
+          </span>
+        )}
+      </div>
+
+      {/* 2. Center: Large Product Image & Elegant Overlays */}
+      <div className="aspect-[4/3] w-full relative overflow-hidden bg-zinc-50 rounded-xl flex items-center justify-center border border-zinc-100/50">
+        {/* Image Shimmer Skeleton */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100 animate-pulse rounded-xl z-10" />
+        )}
+
+        <img 
+          src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80'} 
+          alt={item.title} 
+          className={`absolute inset-0 w-full h-full object-cover z-0 transition-all duration-500 group-hover:scale-105 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          onLoad={() => setImageLoaded(true)}
+          onError={(e) => {
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
+            setImageLoaded(true);
+          }}
+        />
+        
+        {/* Soft elegant shadow overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/5 z-5" />
+
+        {/* Top-Right: Live Badge */}
+        {item.status === 'live' && (
+          <div className="absolute top-2.5 right-2.5 z-10 bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+            <span>{isAr ? '🔴 مباشر' : '🔴 LIVE'}</span>
+          </div>
+        )}
+
+        {/* Bottom-Right: Time remaining pill */}
+        {!itemIsEnded && (
+          <div className={`absolute bottom-2.5 right-2.5 z-10 px-2.5 py-1 rounded-full text-[10px] font-mono font-black flex items-center gap-1 shadow-md border ${
+            isCritical 
+              ? 'bg-red-600 text-white border-red-500 animate-pulse' 
+              : 'bg-black/75 text-white border-white/10 backdrop-blur-xs'
+          }`}>
+            <span>⏱️ {formatTime(secondsLeft)}</span>
+          </div>
+        )}
+
+        {/* Bottom-Left: Winner / Outbid status overlay */}
+        {!itemIsEnded && hasUserBid && (
+          <div className={`absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1 rounded-full text-[9px] font-black shadow-md border backdrop-blur-xs ${
+            isUserWinner 
+              ? 'bg-emerald-600/90 text-white border-emerald-500' 
+              : 'bg-rose-600/90 text-white border-rose-500'
+          }`}>
+            <span>{isUserWinner ? (isAr ? '💚 أنت المزايد الأعلى' : '💚 Winning') : (isAr ? '❤️ شخص آخر زايد عليك' : '❤️ Outbid')}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Bottom: Metadata, Current Bid, & Unified Premium Button */}
+      <div className="flex flex-col flex-grow mt-3 text-left rtl:text-right">
+        {/* Title & Bidders count */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-extrabold text-sm text-zinc-900 group-hover:text-[#E85D04] transition-all leading-snug line-clamp-1">
+            {item.title}
+          </h3>
+          <span className="text-[10px] text-zinc-400 font-bold shrink-0 mt-0.5">
+            👥 {item.totalBids || 0} {isAr ? 'مزايدات' : 'bids'}
+          </span>
+        </div>
+
+        {/* Description line to fill space and look elegant */}
+        {item.description && (
+          <p className="text-[10.5px] text-zinc-400 mt-1 line-clamp-1">
+            {item.description}
+          </p>
+        )}
+
+        {/* Current Bid Card (largest visual footprint) */}
+        <div className="mt-3 bg-zinc-50 p-3 rounded-xl border border-zinc-100 flex flex-col justify-center">
+          <span className="text-[9px] uppercase tracking-wider text-zinc-400 font-extrabold block">
+            {isAr ? 'المزايدة الحالية' : 'CURRENT BID'}
+          </span>
+          <span className="text-xl font-black text-zinc-950 mt-1 font-sans leading-none flex items-baseline gap-1">
+            {item.currentPrice.toLocaleString()} 
+            <span className="text-xs text-[#E85D04] font-black">{isAr ? 'د.أ' : 'JOD'}</span>
+          </span>
+        </div>
+
+        {/* ONE and only primary action button */}
+        {(() => {
+          if (itemIsEnded) {
+            const itemBids = bids?.filter(b => b.auctionId === item.id) || [];
+            const userIsWinner = currentUser?.id && item.currentBidderId === currentUser.id && itemBids.some(b => b.bidderId === currentUser.id);
+
+            if (userIsWinner) {
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const matchingOrder = orders?.find(o => o.auctionId === item.id && o.buyerId === currentUser?.id);
+                    if (matchingOrder) {
+                      setGlobalSelectedOrderId(matchingOrder.id);
+                    }
+                    setGlobalWalletSubView('orders');
+                    setActiveView('wallet');
+                  }}
+                  className="w-full h-12 mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  🎉 {isAr ? 'عرض الطلب' : 'VIEW ORDER'}
+                </button>
+              );
+            }
+
+            return (
+              <button
+                disabled
+                className="w-full h-12 mt-3 bg-zinc-100 text-zinc-400 rounded-xl text-xs font-black transition-all cursor-not-allowed flex items-center justify-center gap-1"
+              >
+                🏁 {isAr ? 'انتهى المزاد' : 'AUCTION ENDED'}
+              </button>
+            );
+          }
+
+          if (item.status === 'live') {
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onJoinLive(item.id);
+                }}
+                className="w-full h-12 mt-3 bg-[#E85D04] hover:bg-orange-600 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                🔴 {isAr ? 'دخول البث المباشر' : 'JOIN LIVE'}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectLot(item.id);
+              }}
+              className="w-full h-12 mt-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              ⏱️ {isAr ? 'زايد الآن' : 'BID NOW'}
+            </button>
+          );
+        })()}
+      </div>
+    </div>
+  );
+};
+
 export const DiscoveryFeedView: React.FC = () => {
   const { 
     auctions, 
@@ -37,7 +291,10 @@ export const DiscoveryFeedView: React.FC = () => {
     notifications,
     setShowNotifications,
     sellerProfiles,
-    bids
+    bids,
+    orders,
+    setGlobalWalletSubView,
+    setGlobalSelectedOrderId
   } = useApp();
   
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
@@ -295,6 +552,40 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
+      {/* Won Orders Shortcut Banner / Widget */}
+      {(() => {
+        const wonOrdersAwaiting = orders?.filter(o => o.buyerId === currentUser?.id && o.status === 'waiting_payment') || [];
+        if (wonOrdersAwaiting.length === 0) return null;
+
+        return (
+          <div className="mx-4 mb-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-md flex items-center justify-between gap-4 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0 animate-bounce">🎉</div>
+              <div className="text-right rtl:text-right">
+                <h4 className="font-black text-xs text-white uppercase tracking-wide">
+                  {isAr ? 'مبروك 🎉 ربحت المزاد!' : 'CONGRATULATIONS! YOU WON THE AUCTION!'}
+                </h4>
+                <p className="text-[11px] text-emerald-100 mt-0.5 leading-snug">
+                  {isAr ? 'الطلب صار بانتظار الدفع أو التأكيد' : 'The order is pending payment/confirmation.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setGlobalWalletSubView('orders');
+                if (wonOrdersAwaiting[0]) {
+                  setGlobalSelectedOrderId(wonOrdersAwaiting[0].id);
+                }
+                setActiveView('wallet');
+              }}
+              className="bg-white text-emerald-800 hover:bg-emerald-50 px-4 py-2 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all shrink-0"
+            >
+              {isAr ? 'عرض الطلب' : 'View Order'}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Pending Listings Banner (For Admins) */}
       {pendingListingsToDisplay.length > 0 && (
         <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
@@ -390,351 +681,24 @@ export const DiscoveryFeedView: React.FC = () => {
             ))}
           </div>
         ) : filteredAuctions.length > 0 ? (
-          activeTab === 'live' ? (
-            <div className="relative">
-              {/* Dual-column grid styled EXACTLY like the user's high-fidelity mockup */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                {/* Simulated Grid Item 1: Phone card */}
-                <div 
-                  onClick={() => handleJoinLive(filteredAuctions[0]?.id || '')}
-                  className="group flex flex-col cursor-pointer"
-                >
-                  <div className="aspect-[3/4] w-full relative overflow-hidden bg-[#1E1F35] rounded-3xl border border-gray-100 flex flex-col items-center justify-center p-4">
-                    {/* Top right "LIVE" overlay */}
-                    <div className="absolute top-2.5 right-2.5 bg-red-600 px-2.5 py-0.5 rounded-full z-20">
-                      <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
-                    </div>
-
-                    {/* Dynamic Cover or Fallback Smartphone Icon */}
-                    {renderCardCover(filteredAuctions[0], <Smartphone className="w-12 h-12 text-[#A8AEC6] stroke-[1.25]" />, true)}
-
-                    {/* Bottom overlay: Timer */}
-                    <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5 text-white/90" />
-                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
-                        {formatItemTimeLeft(filteredAuctions[0])}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Metadata below the card */}
-                  <div className="mt-2 text-left">
-                    <span className="text-xs font-bold text-gray-950 block truncate leading-tight">
-                      {filteredAuctions[0] ? filteredAuctions[0].title : (isAr ? 'آيفون ١٥ برو ماكس' : 'iPhone 15 Pro Max')}
-                    </span>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#E85D04]">
-                        {filteredAuctions[0] ? `${filteredAuctions[0].currentPrice} JOD` : '280 JOD'}
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-400">
-                        {filteredAuctions[0] ? `${filteredAuctions[0].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '١٤ مزايدة' : '14 bids')}
-                      </span>
-                    </div>
-                    {(() => {
-                      const auction = filteredAuctions[0];
-                      if (!auction || !bids) return null;
-                      const hasUserBid = bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id);
-                      if (!hasUserBid) return null;
-                      const isWinning = auction.currentBidderId === currentUser?.id;
-                      return isWinning ? (
-                        <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
-                        </div>
-                      ) : (
-                        <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                          <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Bid Now Action Button as in Screenshot */}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleJoinLive(filteredAuctions[0]?.id || '');
-                    }}
-                    className="w-full py-2.5 mt-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-900 rounded-xl text-xs font-bold text-center transition-all cursor-pointer"
-                  >
-                    {isAr ? 'زايد الآن' : 'Bid now'}
-                  </button>
-                </div>
-
-                {/* Simulated Grid Item 2: Vintage Jacket shirt card */}
-                <div 
-                  onClick={() => handleJoinLive(filteredAuctions[1]?.id || filteredAuctions[0]?.id || '')}
-                  className="group flex flex-col cursor-pointer"
-                >
-                  <div className="aspect-[3/4] w-full relative overflow-hidden bg-[#0F2213] rounded-3xl border border-gray-100 flex flex-col items-center justify-center p-4">
-                    {/* Top right "LIVE" overlay */}
-                    <div className="absolute top-2.5 right-2.5 bg-red-600 px-2.5 py-0.5 rounded-full z-20">
-                      <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
-                    </div>
-
-                    {/* Dynamic Cover or Fallback Shirt Icon */}
-                    {renderCardCover(filteredAuctions[1], <Shirt className="w-12 h-12 text-[#2D6A4F] stroke-[1.25]" />, true)}
-
-                    {/* Bottom overlay: Timer */}
-                    <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5 text-white/90" />
-                      <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
-                        {filteredAuctions[1] ? formatItemTimeLeft(filteredAuctions[1]) : '44:10'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Metadata below the card */}
-                  <div className="mt-2 text-left">
-                    <span className="text-xs font-bold text-gray-950 block truncate leading-tight">
-                      {filteredAuctions[1] ? filteredAuctions[1].title : (isAr ? 'جاكيت فنتج' : 'Vintage Jacket')}
-                    </span>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-black text-[#E85D04]">
-                        {filteredAuctions[1] ? `${filteredAuctions[1].currentPrice} JOD` : '38 JOD'}
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-400">
-                        {filteredAuctions[1] ? `${filteredAuctions[1].totalBids || 0} ${isAr ? 'مزايدات' : 'bids'}` : (isAr ? '٧ مزايدات' : '7 bids')}
-                      </span>
-                    </div>
-                    {(() => {
-                      const auction = filteredAuctions[1];
-                      if (!auction || !bids) return null;
-                      const hasUserBid = bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id);
-                      if (!hasUserBid) return null;
-                      const isWinning = auction.currentBidderId === currentUser?.id;
-                      return isWinning ? (
-                        <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
-                        </div>
-                      ) : (
-                        <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                          <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Bid Now Action Button as in Screenshot */}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleJoinLive(filteredAuctions[1]?.id || filteredAuctions[0]?.id || '');
-                    }}
-                    className="w-full py-2.5 mt-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-900 rounded-xl text-xs font-bold text-center transition-all cursor-pointer"
-                  >
-                    {isAr ? 'زايد الآن' : 'Bid now'}
-                  </button>
-                </div>
-
-                {/* Recursively support any other items cleanly with distinct stylized background colors depending on category */}
-                {filteredAuctions.slice(2).map((item) => {
-                  let bgCardColor = 'bg-[#1D1D1D]';
-                  let itemDefaultIcon = <Gem className="w-12 h-12 text-[#DCA268] stroke-[1.25]" />;
-                  
-                  if (item.category === 'Luxury') {
-                    bgCardColor = 'bg-[#211B14]';
-                    itemDefaultIcon = <Gem className="w-12 h-12 text-[#DCA268] stroke-[1.25]" />;
-                  } else if (item.category === 'Electronics') {
-                    bgCardColor = 'bg-[#0E1B29]';
-                    itemDefaultIcon = <Laptop className="w-12 h-12 text-[#9BCAE6] stroke-[1.25]" />;
-                  } else if (item.category === 'Vehicles') {
-                    bgCardColor = 'bg-[#1C2023]';
-                    itemDefaultIcon = <Car className="w-12 h-12 text-gray-400 stroke-[1.25]" />;
-                  } else if (item.category === 'Fashion' || item.category === 'أزياء') {
-                    bgCardColor = 'bg-[#1E1122]';
-                    itemDefaultIcon = <Shirt className="w-12 h-12 text-[#E29578] stroke-[1.25]" />;
-                  }
-
-                  return (
-                    <div 
-                      key={item.id}
-                      onClick={() => handleJoinLive(item.id)}
-                      className="group flex flex-col cursor-pointer"
-                    >
-                      <div className={`aspect-[3/4] w-full relative overflow-hidden ${bgCardColor} rounded-3xl border border-gray-100 flex flex-col items-center justify-center p-4`}>
-                        {/* Top right "LIVE" overlay */}
-                        <div className="absolute top-2.5 right-2.5 bg-red-600 px-2.5 py-0.5 rounded-full z-20">
-                          <span className="text-[8px] font-black text-white tracking-widest leading-none">LIVE</span>
-                        </div>
-
-                        {/* Custom Dynamic Cover or default Category Icon */}
-                        {renderCardCover(item, itemDefaultIcon)}
-
-                        {/* Bottom overlay: Timer */}
-                        <div className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-lg z-20 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5 text-white/90" />
-                          <span className="text-[9px] font-bold text-white font-mono leading-none mt-[1px]">
-                            {formatItemTimeLeft(item)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Metadata below the card */}
-                      <div className="mt-2 text-left">
-                        <span className="text-xs font-bold text-gray-950 block truncate leading-tight">
-                          {item.title}
-                        </span>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-sm font-black text-[#E85D04]">{item.currentPrice} JOD</span>
-                          <span className="text-[10px] font-bold text-gray-400">
-                            {item.totalBids || 0} {isAr ? 'مزايدات' : 'bids'}
-                          </span>
-                        </div>
-                        {(() => {
-                          if (!bids) return null;
-                          const hasUserBid = bids.some(b => b.auctionId === item.id && b.bidderId === currentUser?.id);
-                          if (!hasUserBid) return null;
-                          const isWinning = item.currentBidderId === currentUser?.id;
-                          return isWinning ? (
-                            <div className="mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              <span>{isAr ? 'أنت المزايد الأعلى 🎉' : 'Winning 🎉'}</span>
-                            </div>
-                          ) : (
-                            <div className="mt-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black py-1 px-2.5 rounded-lg flex items-center gap-1.5 justify-center leading-none">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                              <span>{isAr ? 'شخص آخر زايد عليك ⚠️' : 'Outbid ⚠️'}</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Bid Now Action Button as in Screenshot */}
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleJoinLive(item.id);
-                        }}
-                        className="w-full py-2.5 mt-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-900 rounded-xl text-xs font-bold text-center transition-all cursor-pointer"
-                      >
-                        {isAr ? 'زايد الآن' : 'Bid now'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Floating scroll down arrow indicator as in screenshot */}
-              <div className="absolute left-1/2 -translate-x-1/2 -bottom-10 z-30">
-                <div className="w-10 h-10 rounded-full bg-white border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-gray-900 animate-bounce cursor-pointer">
-                  <ArrowDown className="w-5 h-5 stroke-[2.5]" />
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Upcoming / Default Responsive Grid with exact style overlays */
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-              {filteredAuctions.map(item => (
-                <div 
-                  key={item.id} 
-                  onClick={() => setSelectedLotId(item.id)}
-                  className="group relative bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col"
-                >
-                  <div className="aspect-[16/9] w-full relative overflow-hidden bg-[#1A1A1A]">
-                    <img 
-                      src={item.thumbnailUrl} 
-                      alt={item.title} 
-                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-
-                    {/* Top Overlays parameters */}
-                    <div className="absolute top-3 left-3 right-3 flex justify-between items-center">
-                      <span className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-md text-[8.5px] tracking-wide flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-white rounded-full"></span> {item.status.toUpperCase()}
-                      </span>
-
-                      <span className="bg-black/65 text-white font-mono text-[8.5px] px-2 py-0.5 rounded-md font-bold">
-                        👁️ {item.viewersCount} {isAr ? 'متابع' : 'viewers'}
-                      </span>
-                    </div>
-
-                    {/* Seller Badge and Trust Score Overlay */}
-                    {(() => {
-                      const p = sellerProfiles?.find(profile => profile.userId === item.sellerId || profile.id === item.sellerId);
-                      if (!p) {
-                        return (
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedProfileId(item.sellerId);
-                            }}
-                            className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-xs px-2 py-1 rounded-lg z-20 cursor-pointer"
-                          >
-                            <img src={item.sellerLogo} alt="M" className="w-4.5 h-4.5 rounded-full object-cover animate-fade-in" />
-                            <span className="text-[9px] text-white font-bold">{item.sellerName}</span>
-                          </div>
-                        );
-                      }
-
-                      const isPremium = p.verificationStatus === 'premium_verified';
-                      const isVerified = p.verificationStatus === 'verified' || isPremium;
-                      const score = p.trustScore || 85;
-
-                      return (
-                        <div 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProfileId(p.userId);
-                          }}
-                          className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20"
-                        >
-                          <div className="flex items-center gap-1.5 bg-black/70 hover:bg-black/95 backdrop-blur-xs px-2.5 py-1 rounded-lg cursor-pointer max-w-[65%] truncate transition-all">
-                            <img src={p.storeLogo || item.sellerLogo} alt="M" className="w-4.5 h-4.5 rounded-full object-cover" />
-                            <span className="text-[9px] text-white font-extrabold truncate">{p.storeName}</span>
-                            {isVerified && (
-                              <ShieldCheck className={`w-3.5 h-3.5 ${isPremium ? 'text-amber-400' : 'text-emerald-400'} shrink-0`} />
-                            )}
-                          </div>
-                          
-                          <div className="bg-black/70 backdrop-blur-xs px-2 py-1 rounded-lg flex items-center gap-1 text-[8.5px] font-black text-orange-400 shadow-sm border border-white/5">
-                            <span className="text-[7.5px] text-zinc-400 uppercase tracking-wide">TS</span>
-                            <span>{score}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Info Deck */}
-                  <div className="p-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-xs font-black text-gray-900 group-hover:text-[#E85D04] transition-all leading-tight">
-                        {item.title}
-                      </h3>
-                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl mt-3 border border-gray-100">
-                      <div>
-                        <span className="text-[9px] text-gray-400 font-mono uppercase block">{isAr ? 'قيمة السعر الحالي' : 'CURRENT CALLING PRICE'}</span>
-                        <span className="text-sm font-black font-mono text-gray-950 leading-none">
-                          {item.currentPrice.toLocaleString()} <span className="text-[10px] text-[#E85D04] font-bold">JOD</span>
-                        </span>
-                      </div>
-
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleJoinLive(item.id);
-                        }}
-                        className="bg-[#E85D04] hover:bg-orange-600 text-white font-black text-[11px] px-4 py-2 rounded-xl transition-all shadow-xs uppercase cursor-pointer"
-                      >
-                        {isAr ? 'شاهد التفاصيل' : 'JOIN STREAM'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {filteredAuctions.map(item => (
+              <PremiumAuctionCard
+                key={item.id}
+                item={item}
+                currentUser={currentUser}
+                bids={bids}
+                orders={orders}
+                sellerProfiles={sellerProfiles}
+                isAr={isAr}
+                onJoinLive={handleJoinLive}
+                onSelectLot={setSelectedLotId}
+                setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                setGlobalWalletSubView={setGlobalWalletSubView}
+                setActiveView={setActiveView}
+              />
+            ))}
+          </div>
         ) : (
           <EmptyState 
             title={auctions.length === 0 ? (isAr ? 'لا توجد مزادات بعد' : 'No auctions yet') : (isAr ? 'لم يتم العثور على أي مزادات مطابقة' : 'No auctions found')}

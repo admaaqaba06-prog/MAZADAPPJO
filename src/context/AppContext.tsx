@@ -76,6 +76,10 @@ interface AppContextProps {
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
+  globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
+  setGlobalWalletSubView: (subView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders') => void;
+  globalSelectedOrderId: string | null;
+  setGlobalSelectedOrderId: (id: string | null) => void;
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
@@ -376,6 +380,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center'>('discovery');
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
 
   // Watchlist & Auto-bid state hooks
   const [watchlist, setWatchlist] = useState<string[]>(() => {
@@ -3668,6 +3674,8 @@ const fetchIP = async () => {
       disputes,
       activeAuctionId, setActiveAuctionId,
       activeView, setActiveView,
+      globalWalletSubView, setGlobalWalletSubView,
+      globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
       triggerCliQTopUp,
       requestWithdrawal,
