@@ -136,8 +136,8 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
     const parts = selectedFile.name.split('.');
     const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : 'mp4';
     
-    // Path structure: auctions/{auctionId}/{uid}/{Date.now()}.{extension}
-    const storagePath = `auctions/${auctionId}/${currentUser.uid}/${Date.now()}.${ext}`;
+    // Path structure: auction-videos/{Date.now()}_{uid}.{extension} (Matches security rules)
+    const storagePath = `auction-videos/${Date.now()}_${currentUser.uid}.${ext}`;
     const storageRef = ref(storageInstance, storagePath);
     
     const metadata = {
