@@ -245,6 +245,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const lastBidTimestampRef = useRef<number>(0);
   const bidTimestampsRef = useRef<number[]>([]);
   
+  // Single Session check tracking refs
+  const sessionCheckInProgressRef = useRef<boolean>(false);
+  const lastSessionCheckTimeRef = useRef<number>(0);
+  
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
@@ -615,36 +619,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (isGracePeriod) {
               console.log("[Single Session Check] Skipping verification check during login grace period.");
             } else if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
-              console.warn("Potential session conflict detected (cache read). Verifying with server...");
-              let freshSessionId: string | null = null;
-              try {
-                const freshSnap = await getDocFromServer(userRef);
-                if (freshSnap.exists()) {
-                  freshSessionId = freshSnap.data()?.sessionId || null;
+              if (sessionCheckInProgressRef.current) {
+                console.log("[Single Session Check] Session verification check already in progress. Skipping.");
+              } else {
+                const lastCheckTime = lastSessionCheckTimeRef.current;
+                const timeSinceLastCheck = now - lastCheckTime;
+                if (timeSinceLastCheck < 30000) {
+                  console.log(`[Single Session Check] Verification check rate-limited. Skipping (last check was ${Math.round(timeSinceLastCheck / 1000)}s ago).`);
                 } else {
-                  // Fail-open if server document doesn't exist
-                  freshSessionId = localSessionId;
-                }
-              } catch (serverErr) {
-                console.warn("Failed to read user document from server for session verification (Fail-Open):", serverErr);
-                // Fail-Open: Ignore check for this cycle and let user proceed
-                freshSessionId = localSessionId; // simulate match to bypass logout
-              }
+                  console.warn("Potential session conflict detected (cache read). Verifying with server...");
+                  sessionCheckInProgressRef.current = true;
+                  lastSessionCheckTimeRef.current = now;
 
-              if (freshSessionId && freshSessionId !== localSessionId) {
-                console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
-                localStorage.removeItem('mazad_session_id');
-                await signOut(auth);
-                setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
-                setIsAuthenticated(false);
-                if (addNotificationRef.current) {
-                  addNotificationRef.current(
-                    language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
-                    language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
-                    'admin'
-                  );
+                  (async () => {
+                    let freshSessionId: string | null = null;
+                    try {
+                      const freshSnap = await getDocFromServer(userRef);
+                      if (freshSnap.exists()) {
+                        freshSessionId = freshSnap.data()?.sessionId || null;
+                      } else {
+                        // Fail-open if server document doesn't exist
+                        freshSessionId = localSessionId;
+                      }
+                    } catch (serverErr) {
+                      console.warn("Failed to read user document from server for session verification (Fail-Open):", serverErr);
+                      // Fail-Open: Ignore check for this cycle and let user proceed
+                      freshSessionId = localSessionId; // simulate match to bypass logout
+                    } finally {
+                      sessionCheckInProgressRef.current = false;
+                    }
+
+                    if (freshSessionId && freshSessionId !== localSessionId) {
+                      console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
+                      localStorage.removeItem('mazad_session_id');
+                      await signOut(auth);
+                      setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
+                      setIsAuthenticated(false);
+                      if (addNotificationRef.current) {
+                        addNotificationRef.current(
+                          language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
+                          language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
+                          'admin'
+                        );
+                      }
+                    }
+                  })();
                 }
-                return;
               }
             }
 
