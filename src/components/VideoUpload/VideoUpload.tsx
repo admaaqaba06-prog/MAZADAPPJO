@@ -51,39 +51,65 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    try {
+      const file = e.target.files?.[0];
+      // Reset value immediately so selecting the same file again triggers onChange
+      e.target.value = '';
 
-    // Validate type: mp4 or quicktime (.MOV)
-    const isValidType = file.type === 'video/mp4' || file.type === 'video/quicktime';
-    if (!isValidType) {
-      const msg = 'الملف غير مدعوم (يسمح فقط بصيغة MP4 أو MOV)';
+      if (!file) return;
+
+      console.log("File selected:", {
+        name: file?.name,
+        type: file?.type,
+        size: file?.size
+      });
+
+      // Validate type: accept startsWith('video/') OR (empty or application/octet-stream and having extensions .mp4, .mov, .m4v, .webm)
+      const fileType = file.type || '';
+      const fileName = file.name || '';
+      const lastDotIndex = fileName.lastIndexOf('.');
+      const fileExtension = lastDotIndex !== -1 ? fileName.substring(lastDotIndex).toLowerCase() : '';
+      const acceptedExtensions = ['.mp4', '.mov', '.m4v', '.webm'];
+
+      const isValidType = 
+        fileType.startsWith('video/') ||
+        ((fileType === '' || fileType === 'application/octet-stream') && acceptedExtensions.includes(fileExtension));
+
+      if (!isValidType) {
+        const msg = 'الملف غير مدعوم (يسمح فقط بفيديوهات MP4, MOV, M4V, WEBM)';
+        setErrorMessage(msg);
+        setCurrentState('error');
+        if (onUploadError) onUploadError(msg);
+        return;
+      }
+
+      // Validate size: Max 100MB
+      const maxSize = 100 * 1024 * 1024; // 100MB
+      if (file.size > maxSize) {
+        const msg = 'حجم الفيديو كبير جداً (الحد الأقصى المسموح به هو 100 ميجابايت)';
+        setErrorMessage(msg);
+        setCurrentState('error');
+        if (onUploadError) onUploadError(msg);
+        return;
+      }
+
+      // Clear previous draft URL
+      if (localVideoUrl) {
+        URL.revokeObjectURL(localVideoUrl);
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      setSelectedFile(file);
+      setLocalVideoUrl(objectUrl);
+      setCurrentState('selected');
+      setErrorMessage('');
+    } catch (err) {
+      console.error("Error in handleFileChange:", err);
+      const msg = `حدث خطأ أثناء فحص الملف: ${String(err)}`;
       setErrorMessage(msg);
       setCurrentState('error');
       if (onUploadError) onUploadError(msg);
-      return;
     }
-
-    // Validate size: Max 50MB
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    if (file.size > maxSize) {
-      const msg = 'حجم الفيديو كبير جداً (الحد الأقصى المسموح به هو 50 ميجابايت)';
-      setErrorMessage(msg);
-      setCurrentState('error');
-      if (onUploadError) onUploadError(msg);
-      return;
-    }
-
-    // Clear previous draft URL
-    if (localVideoUrl) {
-      URL.revokeObjectURL(localVideoUrl);
-    }
-
-    const objectUrl = URL.createObjectURL(file);
-    setSelectedFile(file);
-    setLocalVideoUrl(objectUrl);
-    setCurrentState('selected');
-    setErrorMessage('');
   };
 
   const startUpload = async () => {
@@ -115,7 +141,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
     const storageRef = ref(storageInstance, storagePath);
     
     const metadata = {
-      contentType: selectedFile.type,
+      contentType: (selectedFile.type && selectedFile.type.trim() !== '') ? selectedFile.type : 'video/mp4',
     };
 
     const uploadTask = uploadBytesResumable(storageRef, selectedFile, metadata);
@@ -274,7 +300,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
       <input
         type="file"
         ref={fileInputRef}
-        accept="video/mp4,video/quicktime"
+        accept="video/*,.mp4,.mov,.m4v,.webm"
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
@@ -290,7 +316,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
             اختر فيديو من معرض الصور
           </h3>
           <p style={{ fontSize: '11px', color: '#6B7280', margin: 0 }}>
-            يجب أن يكون الملف بصيغة MP4 أو MOV بحجم أقصى 50 ميجابايت
+            يجب أن يكون الملف بصيغة مدعومة (MP4, MOV, WEBM) بحجم أقصى 100 ميجابايت
           </p>
         </div>
       )}

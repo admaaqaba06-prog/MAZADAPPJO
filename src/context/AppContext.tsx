@@ -27,7 +27,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -441,6 +441,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [isAuthenticated, currentUser?.id]);
 
+  const addNotificationRef = useRef<any>(null);
+  useEffect(() => {
+    addNotificationRef.current = addNotification;
+  });
+
   // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -537,13 +542,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const firestoreSessionId = fbData.sessionId;
 
             if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
-              console.warn("Session conflict: local session ID", localSessionId, "does not match Firestore session ID", firestoreSessionId);
-              localStorage.removeItem('mazad_session_id');
-              await signOut(auth);
-              setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
-              setIsAuthenticated(false);
-              alert("تم تسجيل الدخول من جهاز آخر.");
-              return;
+              console.warn("Potential session conflict detected (cache read). Verifying with server...");
+              let freshSessionId: string | null = null;
+              try {
+                const freshSnap = await getDocFromServer(userRef);
+                if (freshSnap.exists()) {
+                  freshSessionId = freshSnap.data()?.sessionId || null;
+                }
+              } catch (serverErr) {
+                console.warn("Failed to read user document from server for session verification (Fail-Open):", serverErr);
+                // Fail-Open: Ignore check for this cycle and let user proceed
+                freshSessionId = localSessionId; // simulate match to bypass logout
+              }
+
+              if (freshSessionId && freshSessionId !== localSessionId) {
+                console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
+                localStorage.removeItem('mazad_session_id');
+                await signOut(auth);
+                setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
+                setIsAuthenticated(false);
+                if (addNotificationRef.current) {
+                  addNotificationRef.current(
+                    language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
+                    language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
+                    'admin'
+                  );
+                }
+                return;
+              }
             }
 
             // If local session ID is empty, generate a new one and bootstrap
