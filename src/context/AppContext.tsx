@@ -2410,14 +2410,20 @@ const fetchIP = async () => {
 
     if (videoFile) {
       try {
-        const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage();
+        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+        const { getFirebaseStorage } = await import('../services/firebase');
+        const storage = await getFirebaseStorage();
         const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
         const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
         
         if (onProgress) onProgress(0, 'video');
 
-        const uploadTask = uploadBytesResumable(videoRef, videoFile);
+        const metadata = {
+          contentType: (videoFile as any).type && (videoFile as any).type.trim() !== '' 
+            ? (videoFile as any).type 
+            : 'video/mp4'
+        };
+        const uploadTask = uploadBytesResumable(videoRef, videoFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -2436,47 +2442,37 @@ const fetchIP = async () => {
 
         finalVideoUrl = await getDownloadURL(uploadTask.snapshot.ref);
       } catch (videoErr: any) {
-        console.warn("Firebase Storage write failure during video upload, applying local cache fallback. Code:", videoErr.code, "Message:", videoErr.message);
-        
-        // Save to IndexedDB so it plays perfectly on current user's browser
-        try {
-          const { saveVideoBlob } = await import('../utils/videoDb');
-          await saveVideoBlob(newListingId, videoFile);
-          finalVideoUrl = `blob:${newListingId}`;
-        } catch (dbErr) {
-          console.error("Failed to write to IndexedDB fallback:", dbErr);
-          const cat = (listingData.category || '').toLowerCase();
-          if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
-          } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-          } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
-          } else {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
-          }
-        }
+        console.error("Firebase Storage write failure during video upload. Code:", videoErr.code, "Message:", videoErr.message);
+        const code = videoErr.code || 'storage/unknown';
+        const errorMsg = language === 'ar'
+          ? `فشل رفع الفيديو (${code}). لم يُنشر المزاد — حاول مجدداً.`
+          : `Video upload failed (${code}). Auction not published — please try again.`;
 
         addNotification(
-          language === 'ar' ? '⚠️ تم الحفظ والرفع بنجاح' : '⚠️ Saved and Posted Successfully',
-          language === 'ar'
-            ? 'تم نشر المزاد بنجاح! تعذر رفع الفيديو للملقم السحابي بشكل كامل (ربما تحتاج لتفعيل Storage في Firebase Console)، ولكن تم حفظه في ذاكرة متصفحك وسيعمل لديك بشكل رائع.'
-            : 'Auction published successfully! The video could not be uploaded to Firebase Cloud Storage, but it has been saved locally in your browser memory and will play perfectly on your device.',
+          language === 'ar' ? '❌ فشل الرفع' : '❌ Upload Failed',
+          errorMsg,
           'alert'
         );
+        throw new Error(errorMsg);
       }
     }
 
     if (thumbnailFile) {
       try {
-        const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage();
+        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+        const { getFirebaseStorage } = await import('../services/firebase');
+        const storage = await getFirebaseStorage();
         const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
         const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
         
         if (onProgress) onProgress(0, 'thumbnail');
 
-        const uploadTask = uploadBytesResumable(thumbRef, thumbnailFile);
+        const metadata = {
+          contentType: (thumbnailFile as any).type && (thumbnailFile as any).type.trim() !== ''
+            ? (thumbnailFile as any).type
+            : 'image/jpeg'
+        };
+        const uploadTask = uploadBytesResumable(thumbRef, thumbnailFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -2495,19 +2491,18 @@ const fetchIP = async () => {
 
         finalThumbnailUrl = await getDownloadURL(uploadTask.snapshot.ref);
       } catch (thumbErr: any) {
-        console.warn("Firebase Storage write failure during thumbnail upload, applying fallback default. Code:", thumbErr.code, "Message:", thumbErr.message);
-        
-        // Fallback thumbnail URL
-        const cat = (listingData.category || '').toLowerCase();
-        if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=500&auto=format&fit=crop&q=60';
-        } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
-        } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500&auto=format&fit=crop&q=60';
-        } else {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60';
-        }
+        console.error("Firebase Storage write failure during thumbnail upload. Code:", thumbErr.code, "Message:", thumbErr.message);
+        const code = thumbErr.code || 'storage/unknown';
+        const errorMsg = language === 'ar'
+          ? `فشل رفع الصورة المصغرة (${code}). لم يُنشر المزاد — حاول مجدداً.`
+          : `Thumbnail upload failed (${code}). Auction not published — please try again.`;
+
+        addNotification(
+          language === 'ar' ? '❌ فشل الرفع' : '❌ Upload Failed',
+          errorMsg,
+          'alert'
+        );
+        throw new Error(errorMsg);
       }
     }
 
