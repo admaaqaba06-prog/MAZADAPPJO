@@ -100,6 +100,8 @@ interface AppContextProps {
   deleteAuction: (id: string) => void;
   repairEndedAuctionOrder: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   repairStuckEscrowsForEndedAuction: (auctionId: string) => Promise<{ success: boolean; message: string; refundedCount?: number; totalRefundedAmount?: number; keptWinnerEscrow?: boolean }>;
+  approveWithdrawal: (withdrawalId: string) => Promise<{ success: boolean; message: string }>;
+  rejectWithdrawal: (withdrawalId: string, reason?: string) => Promise<{ success: boolean; message: string }>;
 
   // Trust System Operations
   submitVerificationRequest: (
@@ -2828,6 +2830,54 @@ const fetchIP = async () => {
     }
   }, [addNotification]);
 
+  const approveWithdrawal = useCallback(async (withdrawalId: string) => {
+    try {
+      const approveCallable = await getCallableFunction<{ withdrawalId: string }, { success: boolean; message: string }>('approveWithdrawal');
+      const result = await approveCallable({ withdrawalId });
+      if (result.data.success) {
+        addNotification(
+          language === 'ar' ? '💸 تم قبول طلب السحب' : '💸 Withdrawal Approved',
+          result.data.message || (language === 'ar' ? 'تمت الموافقة على طلب السحب بنجاح.' : 'Withdrawal approved successfully.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to approve withdrawal.' };
+    } catch (error: any) {
+      console.error("Cloud function approveWithdrawal failed:", error);
+      addNotification(
+        language === 'ar' ? '❌ خطأ في الموافقة على طلب السحب' : '❌ Approval Error',
+        error.message || 'Failed to approve withdrawal.',
+        'alert'
+      );
+      return { success: false, message: error.message || 'Failed to approve withdrawal.' };
+    }
+  }, [addNotification, language]);
+
+  const rejectWithdrawal = useCallback(async (withdrawalId: string, reason?: string) => {
+    try {
+      const rejectCallable = await getCallableFunction<{ withdrawalId: string; reason?: string }, { success: boolean; message: string }>('rejectWithdrawal');
+      const result = await rejectCallable({ withdrawalId, reason });
+      if (result.data.success) {
+        addNotification(
+          language === 'ar' ? '❌ تم رفض طلب السحب' : '❌ Withdrawal Rejected',
+          result.data.message || (language === 'ar' ? 'تم رفض طلب السحب.' : 'Withdrawal rejected successfully.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to reject withdrawal.' };
+    } catch (error: any) {
+      console.error("Cloud function rejectWithdrawal failed:", error);
+      addNotification(
+        language === 'ar' ? '❌ خطأ في رفض طلب السحب' : '❌ Rejection Error',
+        error.message || 'Failed to reject withdrawal.',
+        'alert'
+      );
+      return { success: false, message: error.message || 'Failed to reject withdrawal.' };
+    }
+  }, [addNotification, language]);
+
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);
     
@@ -3680,6 +3730,8 @@ const fetchIP = async () => {
       deleteAuction,
       repairEndedAuctionOrder,
       repairStuckEscrowsForEndedAuction,
+      approveWithdrawal,
+      rejectWithdrawal,
       createListing,
       isSimulating,
       setIsSimulating,

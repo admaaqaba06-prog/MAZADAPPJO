@@ -2102,6 +2102,325 @@ exports.resetTestAuctionData = functions.runWith({ cors: true }).https.onCall(as
   }
 });
 
+/**
+ * 16. approveWithdrawal Callable Cloud Function
+ * Secure admin-only withdrawal approval flow.
+ */
+exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً');
+  }
+
+  const callerUserId = context.auth.uid;
+  const { withdrawalId } = data;
+
+  if (!withdrawalId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف طلب السحب مطلوب');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // 1. Verify admin privileges
+      const callerRef = db.collection('users').doc(callerUserId);
+      const callerSnap = await transaction.get(callerRef);
+      if (!callerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الملف الشخصي للمشرف غير موجود');
+      }
+
+      const callerData = callerSnap.data();
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+
+      if (!isCallerAdmin) {
+        throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
+      }
+
+      // 2. Read Withdrawal Request
+      const withdrawalRef = db.collection('withdrawals').doc(withdrawalId);
+      const withdrawalSnap = await transaction.get(withdrawalRef);
+
+      if (!withdrawalSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'طلب السحب غير موجود');
+      }
+
+      const withdrawalData = withdrawalSnap.data();
+
+      // Idempotency / state checks
+      if (withdrawalData.status === 'completed') {
+        return { success: true, alreadyProcessed: true };
+      }
+      if (withdrawalData.status !== 'pending_review') {
+        throw new functions.https.HttpsError('failed-precondition', 'حالة الطلب الحالية لا تسمح بالموافقة عليه');
+      }
+
+      const userId = withdrawalData.userId;
+      const amount = withdrawalData.amount;
+      const amountFils = withdrawalData.amountFils || Math.round(amount * 1000);
+
+      // 3. Read Wallet
+      const walletRef = db.collection('wallets').doc(userId);
+      const walletSnap = await transaction.get(walletRef);
+
+      if (!walletSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'المحفظة غير موجودة');
+      }
+
+      const walletData = walletSnap.data();
+      const oldAvailable = walletData.availableBalance || 0;
+      const oldEscrow = walletData.escrowBalance || 0;
+      const oldPendingWithdrawal = walletData.pendingWithdrawalBalance || 0;
+
+      if (oldPendingWithdrawal < amountFils) {
+        throw new functions.https.HttpsError('failed-precondition', 'رصيد طلبات السحب المعلقة غير كافٍ');
+      }
+
+      // 4. Update Wallet: Deduct from pendingWithdrawalBalance
+      const newPendingWithdrawal = Math.max(0, oldPendingWithdrawal - amountFils);
+      const newTotal = oldAvailable + oldEscrow + newPendingWithdrawal;
+
+      transaction.update(walletRef, {
+        pendingWithdrawalBalance: newPendingWithdrawal,
+        totalBalance: newTotal,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 5. Update Withdrawal Document
+      transaction.update(withdrawalRef, {
+        status: 'completed',
+        approvedBy: callerUserId,
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 6. Create ledger entry
+      const ledgerRef = db.collection('ledger').doc();
+      transaction.set(ledgerRef, {
+        id: ledgerRef.id,
+        userId: userId,
+        amount: -amount,
+        amountFils: -amountFils,
+        type: 'withdrawal_approved',
+        direction: 'debit',
+        titleAr: 'اكتمل سحب الأموال',
+        titleEn: 'Withdrawal Completed',
+        descriptionAr: `تمت الموافقة على طلب السحب بقيمة ${amount} د.أ وتحويل الرصيد بنجاح.`,
+        descriptionEn: `Withdrawal request of ${amount} JOD approved and successfully transferred.`,
+        timestamp: Date.now()
+      });
+
+      // 7. Create audit log
+      const auditLogRef = db.collection('financialAuditLogs').doc();
+      transaction.set(auditLogRef, {
+        id: auditLogRef.id,
+        action: 'approve_withdrawal',
+        userId: userId,
+        amount: amount,
+        amountFils: amountFils,
+        withdrawalId: withdrawalId,
+        triggeredBy: callerUserId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 8. Create admin action log
+      const adminActionRef = db.collection('adminActions').doc();
+      transaction.set(adminActionRef, {
+        id: adminActionRef.id,
+        action: 'approve_withdrawal',
+        adminId: callerUserId,
+        adminName: callerData.name || 'Admin',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: `Approved withdrawal ID ${withdrawalId} of ${amount} JOD for user ${userId}`
+      });
+
+      // 9. Send Notification
+      const notifRef = db.collection('notifications').doc();
+      transaction.set(notifRef, {
+        id: notifRef.id,
+        userId: userId,
+        title: 'تمت الموافقة على طلب السحب 🎉',
+        titleAr: 'تمت الموافقة على طلب السحب 🎉',
+        titleEn: 'Withdrawal Approved 🎉',
+        description: `تمت الموافقة على طلب السحب بقيمة ${amount} د.أ وتحويل الرصيد بنجاح.`,
+        descriptionAr: `تمت الموافقة على طلب السحب بقيمة ${amount} د.أ وتحويل الرصيد بنجاح.`,
+        descriptionEn: `Your withdrawal of ${amount} JOD has been approved and successfully transferred.`,
+        type: 'info',
+        timestamp: Date.now(),
+        read: false
+      });
+
+      return {
+        success: true,
+        message: 'تمت الموافقة على طلب السحب وتحرير الرصيد بنجاح'
+      };
+    });
+  } catch (error) {
+    console.error('Error in approveWithdrawal:', error);
+    const arabicMsg = error.message || 'فشلت عملية الموافقة على طلب السحب المالي';
+    throw new functions.https.HttpsError('internal', arabicMsg);
+  }
+});
+
+/**
+ * 17. rejectWithdrawal Callable Cloud Function
+ * Secure admin-only withdrawal rejection flow.
+ * Refunds the withdrawal amount back to user's available balance.
+ */
+exports.rejectWithdrawal = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً');
+  }
+
+  const callerUserId = context.auth.uid;
+  const { withdrawalId, reason } = data;
+
+  if (!withdrawalId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف طلب السحب مطلوب');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      // 1. Verify admin privileges
+      const callerRef = db.collection('users').doc(callerUserId);
+      const callerSnap = await transaction.get(callerRef);
+      if (!callerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الملف الشخصي للمشرف غير موجود');
+      }
+
+      const callerData = callerSnap.data();
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+
+      if (!isCallerAdmin) {
+        throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
+      }
+
+      // 2. Read Withdrawal Request
+      const withdrawalRef = db.collection('withdrawals').doc(withdrawalId);
+      const withdrawalSnap = await transaction.get(withdrawalRef);
+
+      if (!withdrawalSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'طلب السحب غير موجود');
+      }
+
+      const withdrawalData = withdrawalSnap.data();
+
+      // Idempotency / state checks
+      if (withdrawalData.status === 'rejected') {
+        return { success: true, alreadyProcessed: true };
+      }
+      if (withdrawalData.status !== 'pending_review') {
+        throw new functions.https.HttpsError('failed-precondition', 'حالة الطلب الحالية لا تسمح برفضه');
+      }
+
+      const userId = withdrawalData.userId;
+      const amount = withdrawalData.amount;
+      const amountFils = withdrawalData.amountFils || Math.round(amount * 1000);
+
+      // 3. Read Wallet
+      const walletRef = db.collection('wallets').doc(userId);
+      const walletSnap = await transaction.get(walletRef);
+
+      if (!walletSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'المحفظة غير موجودة');
+      }
+
+      const walletData = walletSnap.data();
+      const oldAvailable = walletData.availableBalance || 0;
+      const oldEscrow = walletData.escrowBalance || 0;
+      const oldPendingWithdrawal = walletData.pendingWithdrawalBalance || 0;
+
+      if (oldPendingWithdrawal < amountFils) {
+        throw new functions.https.HttpsError('failed-precondition', 'رصيد طلبات السحب المعلقة غير كافٍ');
+      }
+
+      // 4. Update Wallet: Refund back from pendingWithdrawalBalance to availableBalance
+      const newPendingWithdrawal = Math.max(0, oldPendingWithdrawal - amountFils);
+      const newAvailable = oldAvailable + amountFils;
+      const newTotal = newAvailable + oldEscrow + newPendingWithdrawal;
+
+      transaction.update(walletRef, {
+        availableBalance: newAvailable,
+        pendingWithdrawalBalance: newPendingWithdrawal,
+        totalBalance: newTotal,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 5. Update Withdrawal Document
+      transaction.update(withdrawalRef, {
+        status: 'rejected',
+        rejectedBy: callerUserId,
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectionReason: reason || 'تم الرفض من الإدارة',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 6. Create ledger entry
+      const ledgerRef = db.collection('ledger').doc();
+      transaction.set(ledgerRef, {
+        id: ledgerRef.id,
+        userId: userId,
+        amount: amount,
+        amountFils: amountFils,
+        type: 'withdrawal_rejected',
+        direction: 'credit',
+        titleAr: 'رفض طلب السحب واستعادة الرصيد',
+        titleEn: 'Withdrawal Rejected & Funds Returned',
+        descriptionAr: `تم رفض طلب السحب بقيمة ${amount} د.أ وإرجاع المبلغ لمحفظتك. السبب: ${reason || 'تم الرفض من الإدارة'}`,
+        descriptionEn: `Withdrawal request of ${amount} JOD rejected and funds returned. Reason: ${reason || 'Rejected by admin'}`,
+        timestamp: Date.now()
+      });
+
+      // 7. Create audit log
+      const auditLogRef = db.collection('financialAuditLogs').doc();
+      transaction.set(auditLogRef, {
+        id: auditLogRef.id,
+        action: 'reject_withdrawal',
+        userId: userId,
+        amount: amount,
+        amountFils: amountFils,
+        withdrawalId: withdrawalId,
+        triggeredBy: callerUserId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 8. Create admin action log
+      const adminActionRef = db.collection('adminActions').doc();
+      transaction.set(adminActionRef, {
+        id: adminActionRef.id,
+        action: 'reject_withdrawal',
+        adminId: callerUserId,
+        adminName: callerData.name || 'Admin',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: `Rejected withdrawal ID ${withdrawalId} of ${amount} JOD for user ${userId}. Reason: ${reason || 'None'}`
+      });
+
+      // 9. Send Notification
+      const notifRef = db.collection('notifications').doc();
+      transaction.set(notifRef, {
+        id: notifRef.id,
+        userId: userId,
+        title: '❌ تم رفض طلب السحب',
+        titleAr: '❌ تم رفض طلب السحب',
+        titleEn: 'Withdrawal Rejected ❌',
+        description: `تم رفض طلب السحب بقيمة ${amount} د.أ وإرجاع الرصيد لمحفظتك. السبب: ${reason || 'تم الرفض من الإدارة'}`,
+        descriptionAr: `تم رفض طلب السحب بقيمة ${amount} د.أ وإرجاع الرصيد لمحفظتك. السبب: ${reason || 'تم الرفض من الإدارة'}`,
+        descriptionEn: `Your withdrawal of ${amount} JOD has been rejected and the funds returned to your balance. Reason: ${reason || 'Rejected by admin'}`,
+        type: 'info',
+        timestamp: Date.now(),
+        read: false
+      });
+
+      return {
+        success: true,
+        message: 'تم رفض طلب السحب واستعادة الرصيد بنجاح'
+      };
+    });
+  } catch (error) {
+    console.error('Error in rejectWithdrawal:', error);
+    const arabicMsg = error.message || 'فشلت عملية رفض طلب السحب المالي';
+    throw new functions.https.HttpsError('internal', arabicMsg);
+  }
+});
+
+
 
 
 
