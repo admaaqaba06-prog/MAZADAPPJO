@@ -90,7 +90,12 @@ service cloud.firestore {
     // 7. Chats
     match /chats/{chatId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.text is string && 
+                    request.resource.data.text.size() > 0 && 
+                    request.resource.data.text.size() <= 1000 &&
+                    request.resource.data.keys().hasOnly(['id', 'auctionId', 'userId', 'userName', 'userAvatar', 'text', 'timestamp', 'isSystem', 'isBid']);
       allow update, delete: if isAdmin();
     }
 
@@ -113,7 +118,7 @@ service cloud.firestore {
     // 9. System Health Logs
     match /system_health/{logId} {
       allow read: if isSignedIn() && isAdmin();
-      allow create: if true;
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && isAdmin();
     }
 
