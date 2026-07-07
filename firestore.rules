@@ -15,15 +15,7 @@ service cloud.firestore {
       return request.auth != null && (
         request.auth.uid == 'wtu2pG6X6Jc0mvhyKBCUsca2X0A2' ||
         (request.auth.token != null && 'email' in request.auth.token && 
-          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          ('isAdmin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true) ||
-          ('email' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.matches('(?i)admaaqaba06@gmail\\.com'))
-        ))
+          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
       );
     }
 
@@ -31,11 +23,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if request.auth != null && request.auth.uid == userId && (
-        request.resource.data.role == 'user' || 
-        (request.resource.data.role == 'admin' && request.auth.token != null && 'email' in request.auth.token && 
-          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
-      );
+      allow create: if request.auth != null && request.auth.uid == userId && 
+        !request.resource.data.keys().hasAny(['isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount']) &&
+        request.auth.token != null && 'email' in request.auth.token && request.resource.data.email == request.auth.token.email && (
+          request.resource.data.role == 'user' || 
+          (request.resource.data.role == 'admin' && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
+        );
       allow update: if request.auth != null && (
         isAdmin() || 
         (request.auth.token != null && 'email' in request.auth.token && 
