@@ -13,6 +13,7 @@ const ListingWizardView = lazy(() => import('./components/ListingWizardView').th
 const LoginView = lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
+const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -24,6 +25,8 @@ function ActiveViewRenderer() {
       return <LiveStreamView />;
     case 'wallet':
       return <WalletView />;
+    case 'profile':
+      return <ProfileView />;
     case 'seller-center':
       return <SellerCenterView />;
     case 'admin':
