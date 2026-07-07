@@ -973,7 +973,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
     }
     const handlerData = handlerSnap.data();
-    if (handlerData.role !== 'admin' && !context.auth.token.admin && handlerData.email !== 'admaaqaba06@gmail.com') {
+    if (handlerData.role !== 'admin' && !context.auth.token.admin && (context.auth.token.email || '').toLowerCase() !== 'admaaqaba06@gmail.com') {
       throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
     }
 
@@ -1092,7 +1092,7 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
       const isCallerBuyer = callerUserId === buyerId;
 
       if (!isCallerAdmin && !isCallerBuyer) {
@@ -1387,7 +1387,7 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
@@ -1665,7 +1665,7 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم الخاص بالمشرف غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'عذراً، هذا الإجراء مخصص للمشرفين فقط');
@@ -2044,7 +2044,7 @@ exports.resetTestAuctionData = functions.runWith({ cors: true }).https.onCall(as
     }
 
     const callerData = callerSnap.data();
-    const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || callerData.email === 'admaaqaba06@gmail.com';
+    const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
 
     if (!isCallerAdmin) {
       throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً');
