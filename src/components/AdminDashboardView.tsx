@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
@@ -179,7 +179,12 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'sessions' | 'health' | 'withdrawals'>('metrics');
-  const [allWithdrawals, setAllWithdrawals] = useState<any[]>([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
+  const [historyWithdrawals, setHistoryWithdrawals] = useState<any[]>([]);
+  const allWithdrawals = [
+    ...pendingWithdrawals,
+    ...historyWithdrawals.filter((hw) => !pendingWithdrawals.some((pw) => pw.id === hw.id))
+  ].sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [isProcessingAction, setIsProcessingAction] = useState<Record<string, boolean>>({});
@@ -409,17 +414,42 @@ export const AdminDashboardView: React.FC = () => {
   useEffect(() => {
     const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
     if (!isStrictAdmin) {
-      setAllWithdrawals([]);
+      setPendingWithdrawals([]);
+      setHistoryWithdrawals([]);
       return;
     }
-    const unsub = onSnapshot(collection(db, 'withdrawals'), (snap) => {
+
+    const qPending = query(
+      collection(db, 'withdrawals'),
+      where('status', '==', 'pending_review'),
+      limit(100)
+    );
+
+    const unsubPending = onSnapshot(qPending, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      list.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
-      setAllWithdrawals(list);
+      setPendingWithdrawals(list);
     }, (err) => {
-      console.warn("Firestore withdrawals query failed with permission or other error:", err);
+      console.warn("Firestore pending withdrawals query failed with permission or other error:", err);
     });
-    return () => unsub();
+
+    const qHistory = query(
+      collection(db, 'withdrawals'),
+      where('status', 'in', ['completed', 'rejected']),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const unsubHistory = onSnapshot(qHistory, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setHistoryWithdrawals(list);
+    }, (err) => {
+      console.warn("Firestore history withdrawals query failed with permission or other error:", err);
+    });
+
+    return () => {
+      unsubPending();
+      unsubHistory();
+    };
   }, [currentUser]);
 
   // Console logging for verification as requested by the user
