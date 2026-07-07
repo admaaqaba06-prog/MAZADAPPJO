@@ -21,6 +21,8 @@ const getFallbackVideoUrl = (category?: string): string => {
 import { 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -448,6 +450,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addNotificationRef.current = addNotification;
   });
 
+  // Handle Auth Redirect Results (e.g. Google/Facebook redirects) on app mount
+  useEffect(() => {
+    const handleRedirectResultFlow = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          const user = result.user;
+          console.log("[Auth Redirect] Redirect login success for user:", user.email);
+          
+          const newSessionId = generateSessionId();
+          localStorage.setItem('mazad_session_id', newSessionId);
+          localStorage.setItem('mazad_last_login_time', String(Date.now()));
+          
+          const dev = getDeviceInfo();
+          const ip = await fetchIP();
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          
+          const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
+          if (!userSnap.exists()) {
+            const freshUserDoc = {
+              id: user.uid,
+              uid: user.uid,
+              name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
+              email: user.email || `${user.uid}@auth-provider.com`,
+              avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              role: isGoogleAdmin ? 'admin' : 'user',
+              isVerified: true,
+              isBlocked: false,
+              subscriptionStatus: 'none',
+              subscriptionExpiry: null,
+              phoneNumber: user.phoneNumber || '',
+              phone: user.phoneNumber || '',
+              city: '',
+              createdAt: new Date().toISOString(),
+              sessionId: newSessionId,
+              lastLoginAt: new Date().toISOString(),
+              deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+              platform: dev.platform,
+              browser: dev.browser,
+              deviceType: dev.deviceType,
+              appVersion: dev.appVersion,
+              lastLoginIP: ip,
+              lastSeen: new Date().toISOString()
+            };
+            await setDoc(userRef, freshUserDoc);
+          } else {
+            await updateDoc(userRef, {
+              sessionId: newSessionId,
+              lastLoginAt: new Date().toISOString(),
+              deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+              platform: dev.platform,
+              browser: dev.browser,
+              deviceType: dev.deviceType,
+              appVersion: dev.appVersion,
+              lastLoginIP: ip,
+              lastSeen: new Date().toISOString()
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[Auth Redirect] Handle redirect result error:", err);
+      }
+    };
+    handleRedirectResultFlow();
+  }, [language]);
+
   // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -538,13 +607,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localSessionId = localStorage.getItem('mazad_session_id');
             const firestoreSessionId = fbData.sessionId;
 
-            if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
+            const lastLoginTime = localStorage.getItem('mazad_last_login_time');
+            const lastLoginTimestamp = lastLoginTime ? parseInt(lastLoginTime, 10) : 0;
+            const now = Date.now();
+            const isGracePeriod = (now - lastLoginTimestamp) < 10000;
+
+            if (isGracePeriod) {
+              console.log("[Single Session Check] Skipping verification check during login grace period.");
+            } else if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
               console.warn("Potential session conflict detected (cache read). Verifying with server...");
               let freshSessionId: string | null = null;
               try {
                 const freshSnap = await getDocFromServer(userRef);
                 if (freshSnap.exists()) {
                   freshSessionId = freshSnap.data()?.sessionId || null;
+                } else {
+                  // Fail-open if server document doesn't exist
+                  freshSessionId = localSessionId;
                 }
               } catch (serverErr) {
                 console.warn("Failed to read user document from server for session verification (Fail-Open):", serverErr);
@@ -1572,6 +1651,7 @@ const fetchIP = async () => {
     try {
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       const user = userCredential.user;
 
@@ -1603,6 +1683,7 @@ const fetchIP = async () => {
           console.log("[Auto-register] Email not found or invalid credential in clear environment; attempting fallback auto-registration...", cleanEmail);
           const newSessionId = generateSessionId();
           localStorage.setItem('mazad_session_id', newSessionId);
+          localStorage.setItem('mazad_last_login_time', String(Date.now()));
           const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
           const user = userCredential.user;
           
@@ -1674,55 +1755,14 @@ const fetchIP = async () => {
   const loginWithGoogle = useCallback(async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
       
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
-      const dev = getDeviceInfo();
-      const ip = await fetchIP();
-
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
-        const freshUserDoc = {
-          id: user.uid,
-          uid: user.uid,
-          name: user.displayName || 'Google User',
-          email: user.email || '',
-          avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-          role: isGoogleAdmin ? 'admin' : 'user',
-          phoneNumber: user.phoneNumber || '',
-          phone: user.phoneNumber || '',
-          city: '',
-          createdAt: new Date().toISOString(),
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          platform: dev.platform,
-          browser: dev.browser,
-          deviceType: dev.deviceType,
-          appVersion: dev.appVersion,
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        };
-        await setDoc(userRef, freshUserDoc);
-      } else {
-        await updateDoc(userRef, {
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          platform: dev.platform,
-          browser: dev.browser,
-          deviceType: dev.deviceType,
-          appVersion: dev.appVersion,
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        });
-      }
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
+      
+      await signInWithRedirect(auth, provider);
     } catch (error) {
-      console.warn("Google Auth popup failed: ", error);
+      console.warn("Google Auth redirect failed: ", error);
     }
   }, []);
 
@@ -1781,6 +1821,7 @@ const fetchIP = async () => {
     try {
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
       const dev = getDeviceInfo();
       const ip = await fetchIP();
 

@@ -76,84 +76,15 @@ export const LoginView: React.FC = () => {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const { FacebookAuthProvider, signInWithPopup } = await import('firebase/auth');
-      const { auth, db } = await import('../services/firebase');
-      const { doc, getDoc, setDoc, updateDoc } = await import('firebase/firestore');
+      const { FacebookAuthProvider, signInWithRedirect } = await import('firebase/auth');
+      const { auth } = await import('../services/firebase');
       const facebookProvider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, facebookProvider);
-      const fbUser = result.user;
 
       const newSessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       localStorage.setItem('mazad_session_id', newSessionId);
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
 
-      // Simple browser & platform detection
-      const ua = navigator.userAgent;
-      let browser = "Unknown";
-      if (ua.indexOf("Firefox") > -1) browser = "Firefox";
-      else if (ua.indexOf("Chrome") > -1) browser = "Chrome";
-      else if (ua.indexOf("Safari") > -1) browser = "Safari";
-      
-      let platform = "Web";
-      if (ua.indexOf("Windows") > -1) platform = "Windows";
-      else if (ua.indexOf("Macintosh") > -1) platform = "macOS";
-      else if (ua.indexOf("Android") > -1) platform = "Android";
-      else if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) platform = "iOS";
-
-      const isMobile = /Mobi|Android/i.test(ua);
-
-      let ip = 'not_available';
-      try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 1200);
-        const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
-        clearTimeout(id);
-        const data = await res.json();
-        ip = data.ip || 'not_available';
-      } catch (err) {
-        // Fallback silently
-      }
-
-      const userRef = doc(db, 'users', fbUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        const freshUserDoc = {
-          id: fbUser.uid,
-          uid: fbUser.uid,
-          name: fbUser.displayName || 'Facebook User',
-          email: fbUser.email || `${fbUser.uid}@facebook.com`,
-          avatar: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          role: 'user',
-          isVerified: true,
-          isBlocked: false,
-          subscriptionStatus: 'none',
-          subscriptionExpiry: null,
-          phoneNumber: '',
-          city: '',
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${browser} on ${platform} (${isMobile ? 'Mobile' : 'Desktop'})`,
-          platform: platform,
-          browser: browser,
-          deviceType: isMobile ? 'Mobile' : 'Desktop',
-          appVersion: '1.13.0',
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        };
-        await setDoc(userRef, freshUserDoc);
-      } else {
-        await updateDoc(userRef, {
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${browser} on ${platform} (${isMobile ? 'Mobile' : 'Desktop'})`,
-          platform: platform,
-          browser: browser,
-          deviceType: isMobile ? 'Mobile' : 'Desktop',
-          appVersion: '1.13.0',
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        });
-      }
-      setSuccessMsg(isAr ? 'تم تسجيل الدخول بنجاح عبر فيسبوك!' : 'Successfully signed in via Facebook!');
+      await signInWithRedirect(auth, facebookProvider);
     } catch (error) {
       console.warn("Facebook login failed:", error);
       setErrorMsg(isAr ? 'فشل تسجيل الدخول عبر فيسبوك.' : 'Facebook Sign-In failed.');
