@@ -248,6 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Single Session check tracking refs
   const sessionCheckInProgressRef = useRef<boolean>(false);
   const lastSessionCheckTimeRef = useRef<number>(0);
+  const redirectResultProcessingRef = useRef<boolean>(true);
   
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
@@ -457,6 +458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Handle Auth Redirect Results (e.g. Google/Facebook redirects) on app mount
   useEffect(() => {
     const handleRedirectResultFlow = async () => {
+      redirectResultProcessingRef.current = true;
       try {
         const result = await getRedirectResult(auth);
         if (result && result.user) {
@@ -472,6 +474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const userRef = doc(db, 'users', user.uid);
           const userSnap = await getDoc(userRef);
           
+          let fbData: any = {};
           const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
           if (!userSnap.exists()) {
             const freshUserDoc = {
@@ -500,8 +503,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               lastSeen: new Date().toISOString()
             };
             await setDoc(userRef, freshUserDoc);
+            fbData = freshUserDoc;
           } else {
-            await updateDoc(userRef, {
+            const updates = {
               sessionId: newSessionId,
               lastLoginAt: new Date().toISOString(),
               deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
@@ -511,11 +515,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               appVersion: dev.appVersion,
               lastLoginIP: ip,
               lastSeen: new Date().toISOString()
-            });
+            };
+            await updateDoc(userRef, updates);
+            fbData = { ...userSnap.data(), ...updates };
+          }
+
+          // Build user state object mimicking post-login steps exactly
+          const idTokenResult = await user.getIdTokenResult();
+          const hasAdminClaim = !!idTokenResult.claims.admin;
+          const userEmail = user.email ? user.email.toLowerCase().trim() : '';
+          const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
+          let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+
+          const loadedUser: User = {
+            id: user.uid,
+            uid: user.uid,
+            name: fbData.name || user.displayName || 'User',
+            email: fbData.email || user.email || '',
+            avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            role: loadedRole,
+            isAdmin: isAdminEmail && (hasAdminClaim || fbData.role === 'admin' || fbData.isAdmin === true),
+            accountStatus: fbData.accountStatus || 'active',
+            isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
+            isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
+            subscriptionStatus: fbData.subscriptionStatus || 'none',
+            subscriptionExpiry: fbData.subscriptionExpiry || null,
+            phoneNumber: fbData.phoneNumber || '',
+            phone: fbData.phone || fbData.phoneNumber || '',
+            city: fbData.city || '',
+            createdAt: fbData.createdAt || new Date().toISOString(),
+            isSeller: fbData.isSeller || false,
+            sellerStatus: fbData.sellerStatus || '',
+            sellerActivatedAt: fbData.sellerActivatedAt || null,
+            sellerProfile: fbData.sellerProfile || null,
+            onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : false,
+            shownHints: fbData.shownHints || {}
+          };
+
+          setCurrentUser(loadedUser);
+          setIsAuthenticated(true);
+          setActiveView('discovery');
+          if (addNotificationRef.current) {
+            addNotificationRef.current(
+              language === 'ar' ? 'تسجيل الدخول' : 'Sign In',
+              language === 'ar' ? 'تم تسجيل الدخول بنجاح عبر جوجل!' : 'Successfully signed in via Google!',
+              'admin'
+            );
           }
         }
       } catch (err) {
         console.warn("[Auth Redirect] Handle redirect result error:", err);
+      } finally {
+        redirectResultProcessingRef.current = false;
       }
     };
     handleRedirectResultFlow();
@@ -524,6 +575,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Wait for redirect handler to finish resolving if active
+      while (redirectResultProcessingRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         const userRef = doc(db, 'users', uid);
