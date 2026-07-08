@@ -484,10 +484,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: user.email || `${user.uid}@auth-provider.com`,
               avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: isGoogleAdmin ? 'admin' : 'user',
-              isVerified: true,
-              isBlocked: false,
-              subscriptionStatus: 'none',
-              subscriptionExpiry: null,
               phoneNumber: user.phoneNumber || '',
               phone: user.phoneNumber || '',
               city: '',
@@ -565,6 +561,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.warn("[Auth Redirect] Handle redirect result error:", err);
+        if (addNotificationRef.current) {
+          addNotificationRef.current(
+            language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
+            language === 'ar' ? 'فشل تسجيل الدخول عبر جوجل أو فيسبوك.' : 'Sign-In via Google or Facebook failed.',
+            'alert'
+          );
+        }
       } finally {
         redirectResultProcessingRef.current = false;
       }
