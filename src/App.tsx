@@ -1,5 +1,6 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -100,9 +101,19 @@ function MaintenanceView() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView } = useApp();
+  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
   const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+
+  useEffect(() => {
+    const id = parseAuctionIdFromSearch(window.location.search);
+    if (id) {
+      setActiveAuctionId(id);
+      setActiveView('live');
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Verify Maintenance Mode
   if (maintenanceMode.enabled && !isStrictAdmin) {
