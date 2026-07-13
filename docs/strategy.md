@@ -24,6 +24,16 @@ On WhatsApp, one group = one admin's full attention = literally one auction at a
 
 The app's engine already runs **unlimited auctions concurrently** — it closes each one on its own server-set time, picks each winner automatically, and never mixes them up. Schedule 30 auctions in the morning and they open, run, and settle themselves, all overlapping, with **zero attention during the session.** That is the single biggest prize: more auctions per day with *less* labor, not more.
 
+## Auction mechanics
+
+Because bidding is app-only (channels announce, they don't take bids), we're free to run the *fairest* engine — there's no WhatsApp rule to match.
+
+- **Anti-sniping = auto-extend, not punishment.** A hard cutoff rewards waiting; snipers snipe because it works. Instead, **any bid in the final 60 seconds extends the clock by 30 seconds, rolling until the room goes quiet.** Waiting buys nothing, so bidders post their real max — which kills sniping *and* tends to raise final prices. (The engine already has a tight 10s/15s version at `functions/index.js:476-480`; we widen and make it configurable.)
+- **Short base duration.** 10 minutes (or less) is fine — soft-close means quiet auctions end fast and hot ones run long on their own. Ideal for running many concurrently.
+- **Dynamic minimum increment.** A 1 JD free-for-all invites penny-wars that drag auctions out. Scale the increment with price (the code already seeds `minIncrement` at ~5% of starting price). Bigger jumps → faster resolution to a real price → more auctions/day.
+- **Configurable per auction.** House defaults, with per-auction overrides so a big-ticket car auction can be tuned differently from a phone.
+- **The theater improves.** Instead of a staged "1…2…3," bidders see a real **"⏱ Extended +30s!"** as the price climbs, then a genuine quiet-room close and the "sold at 360 — saved 120" reveal. The drama is earned.
+
 ## Why this is the right shape
 
 **1. Don't break what works — feed on it.** Our real asset is ~2,000 people of liquidity and a near-zero-return trust brand, both living on WhatsApp. An app that tries to replace WhatsApp on day one launches as an empty room, and empty rooms kill auctions. So the app consumes WhatsApp's reach (deep links, channel drops, bot notifications) instead of competing with it.
@@ -44,7 +54,7 @@ Every participant is already a verified WhatsApp phone number. We make that the 
 - **From a channel drop (broadcast):** the link is identical for every follower and cannot carry a per-user token, so it lands behind an **auth overlay**. The one-time code can be delivered **over WhatsApp** via Meta's official authentication-template (WhatsApp OTP), not just SMS.
 - **Note:** Firebase's built-in phone auth uses its own SMS pipeline; "OTP over WhatsApp" is a small custom flow (generate code → send via WhatsApp API → verify → mint Firebase custom token). Since the funnel is landing → bot → channel, most bidders hit the bot first, so the frictionless magic-link path covers the majority.
 
-**Only paying subscribers can bid.** A follower can be in a channel without having paid; tapping a drop routes them: not-logged-in → auth → not-subscribed → subscribe → bid. The app already gates bidding behind subscription, so this is the existing flow, not new work.
+**Only paying subscribers can bid** (see the subscription section below). A follower can be in a channel without having paid; tapping a drop routes them: not-logged-in → auth → not-subscribed → subscribe → bid. The app already gates bidding behind subscription, so this is the existing flow, not new work.
 
 ## The rollout
 
@@ -72,6 +82,26 @@ A role-aware internal console for the ~9-person team, mapped to existing roles. 
 - **Auto-open / auto-close** on server time — no human toggling.
 - **Prepare + package** the channel drop and deep link (assisted post).
 - Later: order + settlement ledger, inventory states, courier tracking, subscriber/CRM, support tickets.
+
+## Subscription & the payment gate (Aya's confirmation)
+
+Bidding is gated by a paid subscription, tiered by duration:
+
+| Pay | Bidding for |
+|-----|-------------|
+| 1 JD | 1 month |
+| 4 JD | 6 months |
+| 7 JD | 1 year |
+
+Payment is a bank/CliQ transfer, and confirmation is **manual for now**: a team member (Aya) verifies the transfer against the bank account, then unlocks bidding for that phone number.
+
+- **Aya's confirmation UI** (in the operator portal): she selects/enters a **phone number**, picks the **tier**, records amount + date + bank reference, and confirms. That sets `subscriptionStatus: active` with an **expiry** derived from the tier.
+- **Keyed to the phone number**, so confirming a payment unlocks that phone whether or not they've opened the app yet; when they authenticate (magic-link / OTP), they can bid immediately.
+- **Admin-only write** — the Firestore rules already block users from self-granting subscription status; Aya's action is server-side and **logged for audit** (who / when / amount / reference), since it is a money gate.
+- **Expiry + renewal:** bidding lapses at expiry; renewal reminders come later via the n8n notification pipe.
+- **Automatable later:** a bank/CliQ reconciliation webhook can replace the manual step without changing this model — Aya's confirmation is just the first, human implementation of it.
+
+Note: this base subscription is separate from **VIP** (pay-on-delivery, ~10 JD/mo), whose payment scheme is pending compliance review and is **not designed here**.
 
 ## Selling = team-verified intake (the trust moat)
 
