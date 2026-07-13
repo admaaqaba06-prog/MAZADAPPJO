@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Revision 2 (post-review):** folds in the plan review's blockers and fixes — drops are created as `'upcoming'` so deep links resolve (B1); `createListing` returns the new id and is typed `Promise<string>` (B2); an admin nav entry makes the view reachable (S1); the caption is display-only, not persisted with a placeholder link (S2); `scheduledStartAt` is stored as `null` in Phase 1 (S3); category is derived from the channel (S4); the `as any` cast is removed by supplying the required bidder fields (S5).
+
 **Goal:** Give the Mazad JO team an in-app admin screen that creates an auction and auto-produces the two things they paste into a WhatsApp Channel: the full Arabic caption and a shareable deep link that opens that exact auction in the app.
 
-**Architecture:** Extend the existing state-based (no-router) React app. The daily-pain logic (Arabic caption, deep link, channel mapping) is extracted into three **pure, unit-tested** modules under `src/utils/`. Persistence reuses the existing `createListing` path in `AppContext`, extended with three additive optional fields (`caption`, `channel`, `scheduledStartAt`). The UI is one new admin-gated view following the existing `ListingWizardView`/`AdminDashboardView` patterns. A tiny on-load URL parser turns `?auction=<id>` into the app's existing `setActiveAuctionId` + `setActiveView('live')` navigation.
+**Architecture:** Extend the existing state-based (no-router) React app. The daily-pain logic (Arabic caption, deep link, channel mapping) is extracted into pure, unit-tested modules under `src/utils/`. Persistence reuses the existing `createListing` path in `AppContext`, extended to (a) accept an `initialStatus`, (b) return the new auction id, and (c) write two additive optional fields (`channel`, `scheduledStartAt`). The UI is one new admin-gated view, reachable from an admin nav entry, following existing patterns. A tiny on-load URL parser turns `?auction=<id>` into the app's existing `setActiveAuctionId` + `setActiveView('live')` navigation.
 
 **Tech Stack:** React 19, TypeScript, Vite 6, Firebase (Firestore + Storage). Adds **vitest** (dev-only) as the test runner — none exists today.
 
@@ -13,10 +15,13 @@
 - **Runtime deps:** add NO new runtime dependencies. Only dev dependency `vitest` is permitted.
 - **Firestore collection** for auctions is `auctions`; docs are keyed by the generated auction id. Never write balances/bids/escrows from the client — those are server-only (unchanged by this plan).
 - **Additive only:** do not modify existing `category`, `endTime`/`endsAt`/`duration`, bid logic, or the `scheduledAuctionCloser`. New auction fields are optional and additive.
-- **Admin gate:** reuse the existing check verbatim — `currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true` (as in `src/App.tsx:30`).
-- **i18n/RTL:** no i18n library. UI labels use the existing inline pattern `const isAr = language === 'ar'; {isAr ? 'عربي' : 'English'}` and RTL via inline `style={{ direction: isAr ? 'rtl' : 'ltr' }}` (as in `src/components/ListingWizardView.tsx`). The generated **caption is always Arabic** regardless of UI language (it is content, not chrome).
+- **Drop lifecycle:** drops are created with `status: 'upcoming'` (this status IS in the live-auction listener's query at `AppContext.tsx:862-866`, so a deep link resolves to the exact auction the moment it's created). Going live and setting the authoritative countdown stays the existing manual `approveListing` (`AppContext.tsx:2582`) until Phase 2 auto-open. `'upcoming'` auctions are safe from `scheduledAuctionCloser` (it only closes `status === 'active' || 'live'`).
+- **Deep-link origin:** links use `window.location.origin`. For real WhatsApp Channel posts the app must be opened from its deployed origin (not `localhost`). This is an ops fact, not a code branch.
+- **Admin gate:** reuse the existing check verbatim — `currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true` (as in `src/App.tsx:30`/`:105`).
+- **i18n/RTL:** no i18n library. UI labels use the existing inline pattern `const isAr = language === 'ar'; {isAr ? 'عربي' : 'English'}` and RTL via inline `style={{ direction: isAr ? 'rtl' : 'ltr' }}` (as in `src/components/ListingWizardView.tsx`). The generated **caption is always Arabic** (content, not chrome).
+- **Numerals:** the generated caption uses Western digits throughout (matches the Task 1 tests). Do not mix Arabic-Indic and Western numerals in one caption.
 - **Typecheck gate:** `npm run lint` (= `tsc --noEmit`) must pass after every task.
-- **Deep-link start time is display-only in Phase 1.** Auto-opening at `scheduledStartAt` is Phase 2 (auto-open). Phase 1 stores the value and prints it in the caption; going live remains the existing manual `approveListing`.
+- **Human checkpoint (before shipping, not a task):** the Arabic boilerplate (hype / rules / terms lines) is transcribed from the current WhatsApp card and MUST be confirmed verbatim with the Mazad JO team before the feature is used in production.
 
 ---
 
@@ -133,7 +138,8 @@ export interface DropCaptionInput {
   deepLink: string;
 }
 
-// Standing boilerplate — matches the current WhatsApp card copy.
+// Standing boilerplate — transcribed from the current WhatsApp card.
+// MUST be confirmed verbatim with the team before production use (see Global Constraints).
 const HYPE = [
   '🚀 سرعة... حماس... وحسم حقيقي بأقوى الأسعار',
   '🔥 كل ثانية بالمزاد أصبحت تصنع الفرق',
@@ -300,7 +306,7 @@ git commit -m "feat(drop-builder): add deep-link builder and query parser"
 
 ---
 
-### Task 3: Channel (vertical) definitions + auction type extension (TDD)
+### Task 3: Channel (vertical) definitions + category mapping + auction type extension (TDD)
 
 **Files:**
 - Create: `src/utils/dropChannel.ts`
@@ -313,14 +319,15 @@ git commit -m "feat(drop-builder): add deep-link builder and query parser"
   - `export type DropChannel = 'phones' | 'cars' | 'misc'`
   - `export const DROP_CHANNELS: ReadonlyArray<{ value: DropChannel; en: string; ar: string }>`
   - `export function channelLabel(value: DropChannel, lang: 'en' | 'ar'): string`
-  - `AuctionItem` gains: `caption?: string; channel?: DropChannel; scheduledStartAt?: number`
+  - `export function channelToCategory(value: DropChannel): 'Electronics' | 'Vehicles' | 'Fashion'`
+  - `AuctionItem` gains: `caption?: string; channel?: DropChannel; scheduledStartAt?: number | null`
 
 - [ ] **Step 1: Write the failing test**
 
 Create `src/utils/dropChannel.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DROP_CHANNELS, channelLabel } from './dropChannel';
+import { DROP_CHANNELS, channelLabel, channelToCategory } from './dropChannel';
 
 describe('drop channels', () => {
   it('defines exactly phones, cars, misc', () => {
@@ -330,6 +337,12 @@ describe('drop channels', () => {
   it('returns the localized label', () => {
     expect(channelLabel('phones', 'en')).toBe('Mazad — Phones');
     expect(channelLabel('cars', 'ar')).toBe('مزاد — سيارات');
+  });
+
+  it('maps each channel to an existing AuctionItem category', () => {
+    expect(channelToCategory('phones')).toBe('Electronics');
+    expect(channelToCategory('cars')).toBe('Vehicles');
+    expect(channelToCategory('misc')).toBe('Fashion');
   });
 });
 ```
@@ -356,6 +369,20 @@ export function channelLabel(value: DropChannel, lang: 'en' | 'ar'): string {
   if (!found) return value;
   return lang === 'ar' ? found.ar : found.en;
 }
+
+// Maps a drop channel to one of AuctionItem.category's existing values, since
+// category drives the app's discovery filter and media-fallback logic.
+export function channelToCategory(value: DropChannel): 'Electronics' | 'Vehicles' | 'Fashion' {
+  switch (value) {
+    case 'cars':
+      return 'Vehicles';
+    case 'phones':
+      return 'Electronics';
+    case 'misc':
+    default:
+      return 'Fashion';
+  }
+}
 ```
 
 - [ ] **Step 4: Extend the auction type**
@@ -363,16 +390,16 @@ export function channelLabel(value: DropChannel, lang: 'en' | 'ar'): string {
 In `src/types.ts`, inside `interface AuctionItem` (currently ending around `:89` with `viewersCount: number;`), add these three optional fields right after `viewersCount: number;`:
 ```ts
   // Drop-builder fields (additive; optional). See docs/superpowers/plans/2026-07-13-admin-drop-builder.md
-  caption?: string;                 // generated Arabic channel caption
-  channel?: 'phones' | 'cars' | 'misc'; // which WhatsApp channel this drop targets
-  scheduledStartAt?: number;        // Unix ms; display-only in Phase 1, consumed by auto-open in Phase 2
+  caption?: string;                       // generated Arabic caption (display-only in Phase 1; not persisted)
+  channel?: 'phones' | 'cars' | 'misc';   // which WhatsApp channel this drop targets
+  scheduledStartAt?: number | null;       // Unix ms; null in Phase 1, consumed by auto-open in Phase 2
 ```
 (The literal union is repeated here rather than importing `DropChannel` to keep `types.ts` dependency-free, matching the file's existing self-contained style.)
 
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `cd /Users/mj/code/mazadjo && npx vitest run src/utils/dropChannel.test.ts`
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 6: Typecheck**
 
@@ -384,7 +411,7 @@ Expected: no errors.
 ```bash
 cd /Users/mj/code/mazadjo
 git add src/utils/dropChannel.ts src/utils/dropChannel.test.ts src/types.ts
-git commit -m "feat(drop-builder): add channel verticals + additive auction fields"
+git commit -m "feat(drop-builder): add channel verticals, category mapping + auction fields"
 ```
 
 ---
@@ -392,20 +419,23 @@ git commit -m "feat(drop-builder): add channel verticals + additive auction fiel
 ### Task 4: Parse `?auction=<id>` on app load (integration)
 
 **Files:**
-- Modify: `src/App.tsx` (add a mount effect in the component that already calls `useApp()` and renders `ActiveViewRenderer`)
+- Modify: `src/App.tsx` — add a mount effect in **`MainAppShell`** (the component that renders `<ActiveViewRenderer />` and holds the `isStrictAdmin` check at `:105`; it only mounts post-auth, so navigating to `'live'` is safe there). Do NOT put the effect in `ActiveViewRenderer`.
 
 **Interfaces:**
 - Consumes: `parseAuctionIdFromSearch` (Task 2); context `setActiveAuctionId`, `setActiveView` (`AppContext.tsx:73-74`).
 - Produces: nothing new.
 
-- [ ] **Step 1: Add the deep-link effect**
+- [ ] **Step 1: Add the import**
 
-`App.tsx` lives at `src/App.tsx` (per grounding), so `src/utils` is a sibling directory. Add the import at the top with the other imports:
+`App.tsx` lives at `src/App.tsx`, so `src/utils` is a sibling directory. Add with the other imports:
 ```ts
 import { parseAuctionIdFromSearch } from './utils/deepLink';
 ```
+Ensure `useEffect` is imported from `react` (add it to the existing React import if not already present).
 
-Inside the component that consumes `useApp()` and renders `<ActiveViewRenderer />` (the one holding the `isStrictAdmin` check near line 30), destructure the two setters and add a mount effect:
+- [ ] **Step 2: Add the deep-link effect in `MainAppShell`**
+
+Inside `MainAppShell` (the component holding the `isStrictAdmin` check at `:105`), destructure the two setters from `useApp()` (reuse existing bindings if already destructured there) and add a mount-only effect:
 ```tsx
   const { setActiveAuctionId, setActiveView } = useApp();
 
@@ -419,20 +449,19 @@ Inside the component that consumes `useApp()` and renders `<ActiveViewRenderer /
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 ```
-Ensure `useEffect` is imported from `react` (add it to the existing React import if not already present). If `setActiveAuctionId`/`setActiveView` are already destructured elsewhere in this component, reuse those bindings instead of re-declaring.
 
-- [ ] **Step 2: Typecheck**
+- [ ] **Step 3: Typecheck**
 
 Run: `cd /Users/mj/code/mazadjo && npm run lint`
 Expected: no errors.
 
-- [ ] **Step 3: Verify in the running app**
+- [ ] **Step 4: Verify in the running app**
 
 Run: `cd /Users/mj/code/mazadjo && npm run dev`
 Then open `http://localhost:3000/?auction=auction-rolex` (`auction-rolex` is the default seeded id per `AppContext.tsx:379`).
-Expected: the app boots directly into the **live auction view** for that id (not the discovery feed). Open `http://localhost:3000/` with no query → boots to the normal default view. Stop the dev server when confirmed.
+Expected: after auth, the app opens the **live auction view** targeting that id (not the discovery feed). Open `http://localhost:3000/` with no query → normal default view. Stop the dev server when confirmed.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/mj/code/mazadjo
@@ -442,67 +471,93 @@ git commit -m "feat(drop-builder): open ?auction=<id> deep links into the live v
 
 ---
 
-### Task 5: Persist drop fields through `createListing`
+### Task 5: `createListing` returns the id + accepts an initial status + persists drop fields
 
 **Files:**
-- Modify: `src/context/AppContext.tsx` — the `createListing` signature/interface (`:125-130`) and the `newListing` doc object (`:2520-2540`)
+- Modify: `src/context/AppContext.tsx` — the `createListing` interface (`:125-130`), its function signature/body (`:2383-2579`), and the `newListing` doc object (`:2520-2540`)
 
 **Interfaces:**
 - Consumes: the extended `AuctionItem` (Task 3).
-- Produces: `createListing` now accepts and writes `caption?`, `channel?`, `scheduledStartAt?` on the auction doc.
+- Produces: `createListing(listingData, videoFile?, thumbnailFile?, onProgress?, initialStatus?): Promise<string>` — resolves to the new auction id; writes `status: initialStatus` (default `'pending'`), `channel`, and `scheduledStartAt` on the doc.
 
-- [ ] **Step 1: Widen the createListing parameter type**
+- [ ] **Step 1: Change the interface signature**
 
-In `src/context/AppContext.tsx` at the interface declaration (`:125-130`), the first parameter is `Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>`. Because `caption`, `channel`, and `scheduledStartAt` are now optional members of `AuctionItem`, they are already permitted by this `Omit` type — **no signature change is required.** Confirm by reading the interface; if the caller passes them, they type-check.
-
-- [ ] **Step 2: Write the new fields into the doc**
-
-In the `newListing` object (`:2520-2540`), add these three lines alongside the other spread fields (place them after the `spread of listingData` line so an explicit value still wins if needed — but since they come from `listingData` they are already spread; add explicit passthrough only if the spread does not include them). Concretely, ensure the object contains:
+In `src/context/AppContext.tsx` at the interface declaration (`:125-130`), change `createListing`'s return type from `Promise<void>` to `Promise<string>` and add a trailing optional `initialStatus` param. The declaration becomes:
 ```ts
-      caption: listingData.caption ?? '',
+  createListing: (
+    listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
+    videoFile?: File,
+    thumbnailFile?: File,
+    onProgress?: (progress: number) => void,
+    initialStatus?: string,
+  ) => Promise<string>;
+```
+(Keep the exact `Omit` field list already present in the file. `caption?`/`channel?`/`scheduledStartAt?` are optional members of `AuctionItem`, so they are already permitted by this `Omit` — no change needed to accept them.)
+
+- [ ] **Step 2: Match the function signature**
+
+At the `createListing` implementation (`:2383-2388`), add the same trailing param with a default:
+```ts
+  const createListing = async (
+    listingData: /* keep existing Omit type */,
+    videoFile?: File,
+    thumbnailFile?: File,
+    onProgress?: (progress: number) => void,
+    initialStatus: string = 'pending',
+  ) => {
+```
+
+- [ ] **Step 3: Use the status + write the drop fields in the doc**
+
+In the `newListing` object (`:2520-2540`), (a) change the hardcoded `status: 'pending'` to `status: initialStatus`, and (b) add these two normalized passthrough fields (in addition to the existing `...listingData` spread):
+```ts
+      status: initialStatus,
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
 ```
-If `listingData` is already spread with `...listingData` at the top of `newListing`, these explicit lines are still safe (they normalize undefined → default) and make the drop fields first-class on the written doc.
+Do NOT persist `caption` — it is display-only in Phase 1 (a stored caption would embed a placeholder link before the id exists). Leave the `caption?` type field unwritten.
 
-- [ ] **Step 3: Typecheck**
+- [ ] **Step 4: Return the new id**
+
+At the end of the `createListing` body (after the `setDoc(...)` at `:2543-2545` and any post-write logic, before the function closes at `:2579`), add:
+```ts
+    return newListingId;
+```
+`newListingId` is generated at `:2395`. If any early-return path exists in the function, ensure it also returns the id (or throws) rather than returning `undefined`.
+
+- [ ] **Step 5: Typecheck**
 
 Run: `cd /Users/mj/code/mazadjo && npm run lint`
-Expected: no errors.
+Expected: no errors. In particular, the existing `ListingWizardView` caller (which ignores the return value and omits `initialStatus`) still type-checks because both changes are backward-compatible.
 
-- [ ] **Step 4: Verify the write shape (temporary log)**
-
-Add a temporary `console.log('[drop] writing', { caption: newListing.caption, channel: newListing.channel, scheduledStartAt: newListing.scheduledStartAt });` immediately before the `setDoc(doc(db,'auctions',newListingId), newListing)` call (`:2543-2545`). This is verified end-to-end in Task 6; the log is removed there.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 cd /Users/mj/code/mazadjo
 git add src/context/AppContext.tsx
-git commit -m "feat(drop-builder): persist caption, channel, scheduledStartAt on auctions"
+git commit -m "feat(drop-builder): createListing returns id, accepts initialStatus, writes channel"
 ```
 
 ---
 
-### Task 6: The Drop-Builder admin view (UI + assisted-post package)
+### Task 6: The Drop-Builder admin view (UI + assisted-post package + nav entry)
 
 **Files:**
 - Create: `src/components/DropBuilderView.tsx`
-- Modify: `src/context/AppContext.tsx:75-76` (add `'drop-builder'` to the `activeView` union, both occurrences)
-- Modify: `src/App.tsx` (lazy import + `switch` case, admin-gated like the `'admin'` case)
-- Modify: `src/context/AppContext.tsx` (remove the temporary log from Task 5, Step 4)
+- Modify: `src/context/AppContext.tsx` — add `'drop-builder'` to the `activeView` union in **all three places** (`:75` interface field, `:76` setter param, `:380` state default's inline type if present)
+- Modify: `src/App.tsx` (lazy import + admin-gated `switch` case)
+- Modify: `src/components/AdminDashboardView.tsx` (add a nav button that opens the drop-builder)
 
 **Interfaces:**
-- Consumes: `useApp()` (`language`, `currentUser`, `createListing`); `buildAuctionCaption` (Task 1); `buildAuctionUrl` (Task 2); `DROP_CHANNELS`, `channelLabel`, `DropChannel` (Task 3).
+- Consumes: `useApp()` (`language`, `currentUser`, `createListing`, `setActiveView`); `buildAuctionCaption` (Task 1); `buildAuctionUrl` (Task 2); `DROP_CHANNELS`, `channelLabel`, `channelToCategory`, `DropChannel` (Task 3).
 - Produces: an admin route value `'drop-builder'`.
 
-- [ ] **Step 1: Add the view to the union**
+- [ ] **Step 1: Add the view to the union (three places)**
 
-In `src/context/AppContext.tsx`, the `activeView` union appears twice (`:75` interface field and `:76`/`:380` state). Add `'drop-builder'` to each occurrence, e.g.:
+In `src/context/AppContext.tsx`, add `'drop-builder'` to the `activeView` union everywhere it is declared — the interface field (`:75`), the `setActiveView` parameter type (`:76`), and the `useState` default's inline type if it is typed inline (`:380`). Example for each occurrence:
 ```ts
-activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder';
+'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder'
 ```
-Do the same for the matching `setActiveView` parameter type and the `useState` default if it is typed inline.
 
 - [ ] **Step 2: Create the Drop-Builder component**
 
@@ -512,12 +567,12 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
-import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
+import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from '../utils/dropChannel';
 
 const DURATION_PRESETS = [
-  { seconds: 600, ar: '١٠ دقيقة', en: '10 min' },
-  { seconds: 900, ar: '١٥ دقيقة', en: '15 min' },
-  { seconds: 1800, ar: '٣٠ دقيقة', en: '30 min' },
+  { seconds: 600, label: '10 دقيقة', en: '10 min' },
+  { seconds: 900, label: '15 دقيقة', en: '15 min' },
+  { seconds: 1800, label: '30 دقيقة', en: '30 min' },
 ];
 
 export default function DropBuilderView() {
@@ -528,9 +583,9 @@ export default function DropBuilderView() {
   const [productName, setProductName] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
-  const [startTime, setStartTime] = useState(''); // e.g. "7:30"
+  const [startTime, setStartTime] = useState(''); // display only, e.g. "7:30"
   const [durationSeconds, setDurationSeconds] = useState(1800);
-  const [condition, setCondition] = useState(isAr ? 'جديدة كلياً' : 'Brand new');
+  const [condition, setCondition] = useState('جديدة كلياً');
   const [specsText, setSpecsText] = useState(''); // one spec per line
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
@@ -545,11 +600,12 @@ export default function DropBuilderView() {
 
   const durationLabel = useMemo(() => {
     const p = DURATION_PRESETS.find((d) => d.seconds === durationSeconds);
-    return p ? p.ar : `${Math.round(durationSeconds / 60)} دقيقة`;
+    return p ? p.label : `${Math.round(durationSeconds / 60)} دقيقة`;
   }, [durationSeconds]);
 
-  // Preview deep link uses a placeholder id until the drop is created.
-  const previewLink = useMemo(
+  // Before the drop is created we show a placeholder link; after creation the
+  // real id flows in and the caption/copy buttons reflect the final link.
+  const deepLink = useMemo(
     () => buildAuctionUrl(createdId ?? '{{auction-id}}', window.location.origin),
     [createdId],
   );
@@ -564,9 +620,9 @@ export default function DropBuilderView() {
         productName: productName.trim() || '—',
         specs,
         condition: condition.trim(),
-        deepLink: previewLink,
+        deepLink,
       }),
-    [title, startTime, durationLabel, startingPrice, productName, specs, condition, previewLink],
+    [title, startTime, durationLabel, startingPrice, productName, specs, condition, deepLink],
   );
 
   const onThumb = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -592,27 +648,28 @@ export default function DropBuilderView() {
     setSubmitting(true);
     try {
       const priceNum = Number(startingPrice);
-      const created = await createListing(
+      const newId = await createListing(
         {
           title: title.trim() || productName.trim(),
           description: productName.trim(),
-          category: 'Electronics',
+          category: channelToCategory(channel),
           startingPrice: priceNum,
           minIncrement: Math.max(5, Math.round(priceNum * 0.05)),
+          currentBidderId: null,
+          currentBidderName: null,
           videoUrl: '',
           thumbnailUrl: '',
           endTime: Date.now() + durationSeconds * 1000,
           duration: durationSeconds,
-          caption,
           channel,
-          scheduledStartAt: startTime.trim() ? Date.now() : null,
-        } as any,
+          scheduledStartAt: null,
+        },
         undefined,
         thumbnailFile ?? undefined,
+        undefined,
+        'upcoming',
       );
-      // createListing returns the new id (or the created doc); capture the id string.
-      const newId = typeof created === 'string' ? created : (created as any)?.id;
-      if (newId) setCreatedId(newId);
+      setCreatedId(newId);
     } catch (e: any) {
       setError(e?.message || (isAr ? 'فشل إنشاء المزاد' : 'Failed to create auction'));
     } finally {
@@ -654,7 +711,7 @@ export default function DropBuilderView() {
         <label className="block text-sm">{isAr ? 'المدة' : 'Duration'}
           <select className="mt-1 w-full border rounded p-2" value={durationSeconds} onChange={(e) => setDurationSeconds(Number(e.target.value))}>
             {DURATION_PRESETS.map((d) => (
-              <option key={d.seconds} value={d.seconds}>{isAr ? d.ar : d.en}</option>
+              <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
             ))}
           </select>
         </label>
@@ -681,7 +738,7 @@ export default function DropBuilderView() {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">{isAr ? 'معاينة المنشور' : 'Post preview'}</h2>
         <pre className="whitespace-pre-wrap border rounded p-3 text-sm bg-neutral-50" style={{ direction: 'rtl' }}>{caption}</pre>
-        <button onClick={() => copy(caption)} className="w-full border rounded p-2">{isAr ? 'نسخ النص' : 'Copy caption'}</button>
+        <button onClick={() => copy(caption)} disabled={!createdId} className="w-full border rounded p-2 disabled:opacity-50">{isAr ? 'نسخ النص' : 'Copy caption'}</button>
 
         {createdId ? (
           <>
@@ -690,13 +747,14 @@ export default function DropBuilderView() {
             <p className="text-green-700 text-sm">{isAr ? '✅ تم الإنشاء — الصقه في القناة' : '✅ Created — paste into the channel'}</p>
           </>
         ) : (
-          <p className="text-neutral-500 text-sm">{isAr ? 'أنشئ المزاد للحصول على الرابط النهائي' : 'Create the drop to get the final link'}</p>
+          <p className="text-neutral-500 text-sm">{isAr ? 'أنشئ المزاد للحصول على الرابط النهائي ثم انسخ النص' : 'Create the drop to get the final link, then copy the caption'}</p>
         )}
       </div>
     </div>
   );
 }
 ```
+Note: "Copy caption" is disabled until the drop is created, so the team never copies a caption containing the `{{auction-id}}` placeholder.
 
 - [ ] **Step 3: Register the lazy-loaded route (admin-gated)**
 
@@ -712,11 +770,20 @@ const DropBuilderView = React.lazy(() => import('./components/DropBuilderView'))
       return isStrictAdmin ? <DropBuilderView /> : <DiscoveryFeedView />;
     }
 ```
-Use whatever binding `App.tsx` already has for the current user (it references `currentUser` for the existing admin check); reuse it rather than re-fetching.
+Reuse whatever `currentUser` binding this component already has for the existing admin check.
 
-- [ ] **Step 4: Remove the temporary log from Task 5**
+- [ ] **Step 4: Add the admin nav entry (makes the view reachable)**
 
-In `src/context/AppContext.tsx`, delete the `console.log('[drop] writing', ...)` line added in Task 5, Step 4.
+In `src/components/AdminDashboardView.tsx`, this component already calls `useApp()`. Ensure `setActiveView` is destructured from it, then add a button in the dashboard's primary action area (near the other top-level admin action buttons) that navigates to the drop-builder:
+```tsx
+<button
+  onClick={() => setActiveView('drop-builder')}
+  className="px-4 py-2 rounded bg-amber-600 text-white"
+>
+  {language === 'ar' ? 'إنشاء مزاد (Drop Builder)' : 'Create Drop'}
+</button>
+```
+Place it where the admin will see it on load (e.g. the header/actions row). If `language`/`setActiveView` are not yet destructured in this component, add them to its existing `useApp()` destructure.
 
 - [ ] **Step 5: Typecheck + run the pure tests**
 
@@ -726,26 +793,28 @@ Expected: typecheck clean; all pure-logic tests (Tasks 1–3) still pass.
 - [ ] **Step 6: Verify end-to-end in the running app**
 
 Run: `cd /Users/mj/code/mazadjo && npm run dev`
-As an admin user (email `admaaqaba06@gmail.com` or a user with `isAdmin === true`), set `activeView` to `'drop-builder'` (temporarily wire a nav button, or set it via the existing admin nav). Then:
-1. Fill product name, starting price, start time, specs → confirm the **caption preview updates live** and reads like the washing-machine card, with the deep-link line present.
-2. Click **Create drop** → confirm no error, the **final link** appears (`.../?auction=<real-id>`), and "Copy caption"/"Copy link" work.
-3. In another tab open that final link → confirm it lands on the **live view** for the created auction (proves Task 4 + the real id line up).
-4. In the Firebase console, open the new `auctions/<id>` doc → confirm `caption`, `channel`, and `scheduledStartAt` are present.
+As an admin user (email `admaaqaba06@gmail.com` or a user with `isAdmin === true`):
+1. From the admin dashboard, click **Create Drop** → the drop-builder opens.
+2. Fill product name, starting price, start time, specs, pick a channel → confirm the **caption preview updates live** and reads like the washing-machine card; "Copy caption" is disabled pre-create.
+3. Click **Create drop** → no error; the **final link** appears (`.../?auction=<real-id>`); "Copy caption" enables; both copy buttons work.
+4. In another tab open that final link → it lands on the **live view** for the created auction (proves Task 4 + `'upcoming'` status + the real id line up).
+5. In the Firebase console, open the new `auctions/<id>` doc → confirm `status: 'upcoming'`, `channel` set, `scheduledStartAt: null`, `category` matches the channel (e.g. `cars` → `Vehicles`).
 Stop the dev server when confirmed.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/mj/code/mazadjo
-git add src/components/DropBuilderView.tsx src/App.tsx src/context/AppContext.tsx
-git commit -m "feat(drop-builder): admin drop-builder view with live caption + deep link"
+git add src/components/DropBuilderView.tsx src/App.tsx src/context/AppContext.tsx src/components/AdminDashboardView.tsx
+git commit -m "feat(drop-builder): admin drop-builder view, nav entry, live caption + deep link"
 ```
 
 ---
 
 ## Notes for the executor
 
-- **`createListing` return value:** the plan captures the new id via `typeof created === 'string' ? created : created?.id`. Before Task 6 Step 2, read `createListing`'s actual `return` (`AppContext.tsx:2383-2579`) and adjust that one line to match what it really returns (it generates `newListingId` internally). If it returns nothing today, add `return newListingId;` at the end of `createListing` and note it in the Task 5 commit instead.
+- **`createListing` early returns:** Task 5 assumes a single success path returning `newListingId`. Before Task 5, read the full function (`AppContext.tsx:2383-2579`) — if it has intermediate `return;` statements (e.g. on upload fallback), make each return the id or throw, so the signature's `Promise<string>` never resolves to `undefined`.
 - **Admin identity:** the operator team logs in as `admaaqaba06@gmail.com` or with the `isAdmin` custom claim (`set-admin.cjs`). Granting the wider team access is an ops step outside this plan.
+- **`'upcoming'` pre-open countdown (known, deferred):** a created drop carries `endTime`/`endsAt` set to creation-time + duration, so its countdown may appear to run before the operator opens it. This is cosmetic in Phase 1 — `approveListing` resets the authoritative timer at go-live, and `scheduledAuctionCloser` never closes a non-`live` auction. Proper scheduled opening is Phase 2 (auto-open).
 - **Image compositing (branded frame + badges + price plaque) is intentionally out of scope** — the team uploads the hero image they already produce. Auto-branding is a separate fast-follow slice.
-- **Auto-open at `scheduledStartAt` is Phase 2.** Until then, created drops sit as normal listings and go live via the existing `approveListing`.
+- **Confirm the Arabic boilerplate copy** with the team before production (Global Constraints).
