@@ -70,13 +70,17 @@ export const LoginView: React.FC = () => {
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
   const clearRecaptcha = () => {
-    // A consumed/errored verifier can't be reused — clear + null so the next
-    // attempt creates a fresh one (avoids "reCAPTCHA has already been rendered").
+    // A consumed/errored verifier can't be reused — clear + null AND wipe the
+    // container DOM so no stale widget lingers (avoids "reCAPTCHA has already
+    // been rendered", incl. after a retry or the Enterprise->v2 fallback).
     try { recaptchaRef.current?.clear(); } catch { /* container may be gone */ }
     recaptchaRef.current = null;
+    const container = document.getElementById('recaptcha-container');
+    if (container) container.innerHTML = '';
   };
 
   const handleSendCode = async () => {
+    if (phoneBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setPhoneErr('');
     const e164 = toE164Jordan(phoneInput);
     if (!e164) {
@@ -87,9 +91,11 @@ export const LoginView: React.FC = () => {
     try {
       const { RecaptchaVerifier } = await import('firebase/auth');
       const { auth } = await import('../services/firebase');
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
-      }
+      // Always start from a clean slate: tear down any prior verifier + wipe the
+      // container, then create a fresh one. Prevents "reCAPTCHA has already been
+      // rendered in this element" on retries and the Enterprise->v2 fallback.
+      clearRecaptcha();
+      recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const result = await loginWithPhone(e164, recaptchaRef.current);
       setConfirmation(result);
     } catch (e: any) {
