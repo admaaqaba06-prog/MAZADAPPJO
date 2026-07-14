@@ -15,6 +15,13 @@
 - **`marketPrice`** is optional/additive; the savings line shows ONLY when `marketPrice > final price`. Threads through `createListing` via the existing `...listingData` spread — just add the type field + builder input + reveal math.
 - `npm run lint` (tsc) AND `npm run build` must pass after each task; `npx vitest run` stays green.
 
+## Build-safety map (verified — remove each symbol END-TO-END within ONE task, or the build breaks between tasks)
+- **`viewerCount` is a REQUIRED prop** on both layouts (`MobileLiveAuctionLayout.tsx:37,204` interfaces, destructure `:71,234`, display `:523`; `DesktopLiveAuctionLayout.tsx:44` interface, destructure `:78`, display `:352`, fallback `:158`) and is passed from `LiveStreamView.tsx:622,653`. Removing the LiveStreamView `viewerCount` state (`:119`) WITHOUT also removing the prop from both layout interfaces + destructures + pass-sites + displays = broken build. **Do all of it in Task 2** (LiveStreamView + both layouts together): delete the prop from both layout interfaces, remove the destructures, remove the pass-sites, and replace each "watching" display with `{auction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}`. Also delete the `|| 2349` fallback (`DesktopLiveAuctionLayout.tsx:158`).
+- **`recentBids`/`allActivities` are OPTIONAL** (`DesktopLiveAuctionLayout.tsx:62-63,96-97`, default `[]`) — safe to stop passing (Task 2); Desktop then shows "No bidder"/empty (`:531,743`). Optionally feed real `currentBidderName` to `:531`.
+- **`localCurrentPrices`** (LiveStreamView `:110,161,415,451`): remove ENTIRELY — do NOT preserve an "optimistic bump." The Firestore auctions listener updates `currentPrice` after a successful bid; `activePrice` becomes just `activeAuction.currentPrice`. Update the `:451` effect dep array. (Supersedes the earlier "keep :495 optimism" note.)
+- **`isSimulating`/`setIsSimulating`** are wired through the context: `AppContext.tsx:138-139` (interface), `:426` (state), `:3940-3941` (provider value), and consumed in `DesktopFrame.tsx:40-41` (destructure) + `:324` (call). **Task 4 must remove ALL of these together** — interface lines, state, provider-value entries, AND the DesktopFrame destructure + the `:324` call — or `tsc` fails on the missing context property.
+- After each deletion task, grep the removed symbol across `src` to confirm zero remaining references before building.
+
 ---
 
 ### Task 1: `minNextBid` pure helper (TDD)
