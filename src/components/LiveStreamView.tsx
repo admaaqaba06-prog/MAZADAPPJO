@@ -11,6 +11,7 @@ import {
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
+import { isAuctionOpen } from '../utils/auctionPhase';
 
 // Countdown tick sound
 const playTick = () => {
@@ -209,12 +210,24 @@ export const LiveStreamView: React.FC = () => {
     }
     
     const updateTimer = () => {
-      const remainingSecs = Math.max(0, Math.floor((activeAuction.endTime - Date.now()) / 1000));
-      
+      // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
+      const open = isAuctionOpen(activeAuction?.status);
+      const target = !open && activeAuction?.scheduledStartAt
+        ? activeAuction.scheduledStartAt
+        : activeAuction?.endTime;
+      const remainingMs = (target ?? 0) - Date.now();
+      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
+
       if (activeAuction.status === 'live') {
         setSecondsRemaining(remainingSecs);
       } else {
         setSecondsRemaining(null);
+      }
+
+      // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
+      if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+        setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
+        return; // skip the 4-hour-boundary fallback clock
       }
 
       if (remainingSecs > 0) {
@@ -239,7 +252,7 @@ export const LiveStreamView: React.FC = () => {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [activeAuction]);
+  }, [activeAuction, isAr]);
 
   // Handle countdown tick/finish sound effects and database status transition
   useEffect(() => {

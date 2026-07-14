@@ -26,6 +26,8 @@ import {
   Maximize2
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import { isAuctionOpen } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -548,14 +550,23 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     );
                   })()}
 
-                  {/* SWIPE TO BID Button */}
+                  {/* SWIPE TO BID Button (hidden until the auction is open) */}
                   <div className="w-full">
-                    <SwipeToBid
-                      amount={nextBidAmount}
-                      onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                      disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                      language={isAr ? 'ar' : 'en'}
-                    />
+                    {!isAuctionOpen(activeAuction?.status) ? (
+                      <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
+                        <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
+                        <div className="text-lg font-bold">
+                          {activeAuction?.scheduledStartAt ? formatAmmanClock(activeAuction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
+                        </div>
+                      </div>
+                    ) : (
+                      <SwipeToBid
+                        amount={nextBidAmount}
+                        onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                        disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                        language={isAr ? 'ar' : 'en'}
+                      />
+                    )}
                   </div>
                 </>
               )}

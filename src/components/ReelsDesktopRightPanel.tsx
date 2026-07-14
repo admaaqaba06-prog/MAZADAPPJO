@@ -2,6 +2,8 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Gavel, Store, Info, ShieldCheck, UserCheck, Star, Calendar, Clock, Award } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import { isAuctionOpen } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
   const { 
@@ -24,7 +26,16 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   React.useEffect(() => {
     if (!currentItem) return;
     const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((currentItem.endTime - Date.now()) / 1000));
+      // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
+      const open = isAuctionOpen(currentItem.status);
+      const target = !open && currentItem.scheduledStartAt ? currentItem.scheduledStartAt : currentItem.endTime;
+      const remainingMs = target - Date.now();
+      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
+      // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
+      if (!open && (currentItem.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+        setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
+        return;
+      }
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);
@@ -44,7 +55,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentItem]);
+  }, [currentItem, isAr]);
 
   if (!currentItem) {
     return (
@@ -102,7 +113,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           <span className="text-base font-black text-[#FF6B00]">{currentItem.currentPrice.toLocaleString()} JOD</span>
         </div>
         <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
-          <span className="text-[8px] text-zinc-500 font-bold block uppercase">{isAr ? 'الوقت المتبقي' : 'TIME LEFT'}</span>
+          <span className="text-[8px] text-zinc-500 font-bold block uppercase">
+            {!isAuctionOpen(currentItem.status) && currentItem.scheduledStartAt
+              ? (isAr ? 'يبدأ خلال' : 'STARTS IN')
+              : (isAr ? 'الوقت المتبقي' : 'TIME LEFT')}
+          </span>
           <span className="text-xs font-black text-emerald-400 font-mono mt-0.5 block">
             {timeLeftStr}
           </span>
@@ -123,9 +138,16 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             }
             await placeBid(currentItem.id, nextBidAmount);
           }}
-          disabled={currentUser.isBlocked || (currentUser.subscriptionStatus !== 'active' && !isAr)}
+          disabled={currentUser.isBlocked || (currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
         />
+        {!isAuctionOpen(currentItem?.status) && (
+          <p className="text-[9px] text-amber-400 font-bold text-center pt-1">
+            {currentItem?.scheduledStartAt
+              ? (isAr ? `يبدأ المزاد ${formatAmmanClock(currentItem.scheduledStartAt)}` : `Auction starts at ${formatAmmanClock(currentItem.scheduledStartAt)}`)
+              : (isAr ? 'يبدأ المزاد قريباً' : 'Auction starts soon')}
+          </p>
+        )}
       </div>
 
       {/* 3. AUCTION DETAILS */}
