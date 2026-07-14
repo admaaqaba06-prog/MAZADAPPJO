@@ -478,7 +478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               id: user.uid,
               uid: user.uid,
               name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
-              email: user.email || `${user.uid}@auth-provider.com`,
+              email: user.email || '', // phone/email-less providers: write '' (never a fabricated email) so the users create rule passes
               avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: isGoogleAdmin ? 'admin' : 'user',
               phoneNumber: user.phoneNumber || '',
