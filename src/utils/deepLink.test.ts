@@ -30,4 +30,12 @@ describe('parseAuctionIdFromSearch', () => {
     expect(parseAuctionIdFromSearch('?foo=bar')).toBeNull();
     expect(parseAuctionIdFromSearch('')).toBeNull();
   });
+
+  it('trims a padded auction id', () => {
+    expect(parseAuctionIdFromSearch('?auction=%20abc%20')).toBe('abc');
+  });
+
+  it('returns null for a whitespace-only auction id', () => {
+    expect(parseAuctionIdFromSearch('?auction=%20%20')).toBeNull();
+  });
 });
