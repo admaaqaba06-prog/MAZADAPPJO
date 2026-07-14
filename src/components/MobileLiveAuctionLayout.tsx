@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { 
   Volume2, 
@@ -34,7 +35,6 @@ interface MobileLiveAuctionLayoutProps {
   onSaveToggle: (e: React.MouseEvent) => void;
   onLikeToggle: (e: React.MouseEvent) => void;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -68,7 +68,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onSaveToggle,
   onLikeToggle,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -162,13 +161,12 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               activePrice={currentReelPrice}
               timeLeftStr={timeLeftStr}
               isSaved={isSaved}
-              viewerCount={viewerCount}
               activeComments={activeComments}
               activeActivities={activeActivities}
               commentText={commentText}
               setCommentText={setCommentText}
               onCommentSubmit={onCommentSubmit}
-              nextBidAmount={isActive ? nextBidAmount : currentReelPrice + 10}
+              nextBidAmount={isActive ? nextBidAmount : minNextBid(currentReelPrice, auction.minIncrement, auction.totalBids || 0)}
               onBidExecute={onBidExecute}
               wallet={wallet}
               currentUser={currentUser}
@@ -201,7 +199,6 @@ interface MobileAuctionReelProps {
   activePrice: number;
   timeLeftStr: string;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -231,7 +228,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   activePrice,
   timeLeftStr,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -517,10 +513,10 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 </div>
               </div>
 
-              {/* Viewer Pill */}
+              {/* Bid count pill */}
               <div className="bg-black/20 backdrop-blur-xl border border-white/10 px-2 py-1 rounded-full flex items-center gap-1 shadow-md text-[9px] text-white font-bold leading-none h-7">
                 <Eye className="w-3 h-3 text-zinc-300" />
-                <span>{viewerCount.toLocaleString()}</span>
+                <span>{auction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
               </div>
             </div>
 
@@ -733,6 +729,13 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                         <span className="text-emerald-400 font-black text-xs block">
                           {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
                         </span>
+                        {auction?.marketPrice && auction.marketPrice > activePrice ? (
+                          <span className="text-emerald-300/80 text-[10.5px] font-bold block">
+                            {isAr
+                              ? `وفّرت ${auction.marketPrice - activePrice} دينار (السعر ${auction.marketPrice})`
+                              : `You saved ${auction.marketPrice - activePrice} JOD (worth ${auction.marketPrice})`}
+                          </span>
+                        ) : null}
                         <button
                           onClick={() => {
                             const matchingOrder = orders?.find(o => o.auctionId === auction?.id && o.buyerId === currentUser?.id);

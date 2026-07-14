@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { placeAuctionBid } from '../services/auctionService';
+import { minNextBid } from '../utils/bidMath';
 
 interface AuctionDetailsModalProps {
   auctionId: string | null;
@@ -213,18 +214,28 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                 {isAr ? 'تقديم مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT ESCROW BID'}
               </span>
               
-              <div className="grid grid-cols-4 gap-2">
-                {[10, 25, 50, 100].map(inc => (
-                  <button
-                    key={inc}
-                    onClick={() => handlePlaceBidAmt(auction.currentPrice + inc)}
-                    className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95"
-                  >
-                    <span className="text-[10.5px]">+{inc} JD</span>
-                    <span className="text-[8.5px] opacity-60 font-medium">{(auction.currentPrice + inc).toLocaleString()}</span>
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const inc = auction.minIncrement || 10;
+                const base = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids || 0);
+                return (
+                  <div className="grid grid-cols-4 gap-2">
+                    {[base, base + inc, base + 2 * inc, base + 3 * inc].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => handlePlaceBidAmt(amount)}
+                        className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        <span className="text-[10.5px]">
+                          {amount > auction.currentPrice
+                            ? `+${(amount - auction.currentPrice).toLocaleString()} JD`
+                            : (isAr ? 'الحد الأدنى' : 'MIN BID')}
+                        </span>
+                        <span className="text-[8.5px] opacity-60 font-medium">{amount.toLocaleString()}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

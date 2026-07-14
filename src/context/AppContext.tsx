@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { resolveVideoUrl } from '../utils/videoDb';
+import { minNextBid } from '../utils/bidMath';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -133,10 +134,6 @@ interface AppContextProps {
     onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void,
     initialStatus?: string,
   ) => Promise<string>;
-  
-  // Custom WebSocket Sim control
-  isSimulating: boolean;
-  setIsSimulating: React.Dispatch<React.SetStateAction<boolean>>;
 
   // AUTH & MULTILINGUAL & SUBSCRIPTION ADDITIONS
   language: 'en' | 'ar';
@@ -421,9 +418,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('mazad_autobids', JSON.stringify(autoBids));
   }, [autoBids]);
-
-  // Simulator controls
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
   // AUTH, MULTILINGUAL, & SUBSCRIPTION ADDITIONS
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
@@ -1143,7 +1137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: data.status || 'live',
             isFeatured: data.isFeatured ?? false,
             totalBids: data.totalBids ?? 0,
-            viewersCount: data.viewersCount ?? 15,
+            viewersCount: data.viewersCount ?? 0,
             ...data
           } as any;
 
@@ -1649,28 +1643,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubDisputes();
     };
   }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role, isDeferredReady]);
-
-  // Keep latest states in refs to completely avoid interval reset
-  const auctionsRef = useRef(auctions);
-  const escrowsRef = useRef(escrows);
-  const walletRef = useRef(wallet);
-  const activeAuctionIdRef = useRef(activeAuctionId);
-
-  useEffect(() => {
-    auctionsRef.current = auctions;
-  }, [auctions]);
-
-  useEffect(() => {
-    escrowsRef.current = escrows;
-  }, [escrows]);
-
-  useEffect(() => {
-    walletRef.current = wallet;
-  }, [wallet]);
-
-  useEffect(() => {
-    activeAuctionIdRef.current = activeAuctionId;
-  }, [activeAuctionId]);
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -2741,7 +2713,7 @@ const fetchIP = async () => {
       isApproved: false,
       isFeatured: false,
       totalBids: 0,
-      viewersCount: 2,
+      viewersCount: 0,
       createdAt: new Date().getTime(),
       createdById: currentUser.id, // Strictly match currentUser.id to comply with firestore.rules
       createdByName: currentUser.name || 'Seller JO',
@@ -3161,160 +3133,6 @@ const fetchIP = async () => {
   }, [auctions, escrows, language, addNotification]);
 
 
-  // ==========================================
-  // REAL-TIME WEBSOCKET SIMULATION WORKFLOWS
-  // Spins in background - fuels immersive bid activity, viewer alerts, and random chatter
-  // ==========================================
-  useEffect(() => {
-    if (!isSimulating) return;
-
-    // Simulation Tick interval: Runs every 6 seconds as a stable non-resetting heartbeat!
-    const interval = setInterval(() => {
-      // Use ref to find the selected live auction without hook resets
-      const currentActiveId = activeAuctionIdRef.current;
-      const targetAuction = auctionsRef.current.find(a => a.id === (currentActiveId || 'auction-rolex'));
-      if (!targetAuction || targetAuction.status !== 'live') return;
-
-      const randomMetric = Math.floor(Math.random() * 10);
-      
-      // 1. Metric: Fluctuating viewer counts
-      setAuctions(prev => prev.map(a => {
-        if (a.id === targetAuction.id) {
-          const shift = Math.floor(Math.random() * 11) - 5; // -5 to +5
-          return { ...a, viewersCount: Math.max(10, a.viewersCount + shift) };
-        }
-        return a;
-      }));
-
-      // Names & content for simulated bidders in Jordan
-      const arabBidders = [
-        { name: 'Karam Amman', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80' },
-        { name: 'Reem_Jabal', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=100&q=80' },
-        { name: 'Faisal_Fayiz', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=80' },
-        { name: 'Yasmine_A', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80' },
-        { name: 'Majd_Swailiq', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&q=80' }
-      ];
-
-      const arabChatter = [
-        'Is the serial number verified on blockchain? 🔒',
-        'Mashallah! Beautiful piece, very clean.',
-        'Is there shipping available to North Shouna?',
-        'Bid placed! Absolutely not letting this go.',
-        'Wow this exceeds boutique prices but worth it.',
-        'Does it include international certified warranty? 📜',
-        'Insane bidding velocity is happening right now, unbelievable.',
-        'Perfect luxury dealer representation. Jordan standard!',
-        'Let’s take it up! 🔥',
-        'Can I pay with CliQ instantly if I win?',
-        'Just topped up 5k JOD. Let’s do this!'
-      ];
-
-      // 2. Chat action (60% chance)
-      if (randomMetric < 6) {
-        const bidderSelection = arabBidders[Math.floor(Math.random() * arabBidders.length)];
-        const chatSelection = arabChatter[Math.floor(Math.random() * arabChatter.length)];
-        
-        const newMsg: ChatMessage = {
-          id: `sim-chat-${Date.now()}-${Math.random()}`,
-          auctionId: targetAuction.id,
-          userId: `sim-user-${Math.random()}`,
-          userName: bidderSelection.name,
-          userAvatar: bidderSelection.avatar,
-          text: chatSelection,
-          timestamp: Date.now(),
-          isSystem: false,
-          isBid: false
-        };
-        setChatMessages(prev => [...prev, newMsg]);
-      }
-
-      // 3. Simulated Bid Action (30% chance)
-      // Make background bidders try to bid higher than current price
-      if (randomMetric >= 6 && randomMetric < 9) {
-        // Re-read fresh state from ref
-        const auditAuction = auctionsRef.current.find(a => a.id === targetAuction.id);
-        if (!auditAuction || auditAuction.status !== 'live') return;
-
-        // Auto raise bid
-        const bidIncrement = auditAuction.minIncrement;
-        const newBidAmt = auditAuction.currentPrice + bidIncrement;
-
-        // Randomly picked Arab simulated bidder
-        const bidder = arabBidders[Math.floor(Math.random() * arabBidders.length)];
-        const mockBidderId = `sim-user-${bidder.name.replace(/\s/g, '')}`;
-
-        // 🚨 OUTBID THE USER: Refund checking!
-        // If the current highest bidder is the current client user, and we are outbidding them:
-        const activeUserId = currentUser?.id || 'user-current';
-        if (auditAuction.currentBidderId === activeUserId) {
-          // Find their active escrow for this auction
-          const clientEscrow = escrowsRef.current.find(
-            e => e.auctionId === auditAuction.id && e.bidderId === activeUserId && e.status === 'locked'
-          );
-          if (clientEscrow) {
-            const refundAmount = clientEscrow.amount;
-
-            // Refund client user's wallet immediately
-            setWallet(prev => {
-              const newEsc = Math.max(0, prev.escrowBalance - refundAmount);
-              const newAvail = prev.availableBalance + refundAmount;
-              return {
-                ...prev,
-                availableBalance: newAvail,
-                escrowBalance: newEsc,
-                totalBalance: newAvail + newEsc
-              };
-            });
-
-            // Mark escrow as refunded
-            setEscrows(prev => prev.map(e => e.id === clientEscrow.id ? { ...e, status: 'refunded' as const } : e));
-
-            // Outbid notification trigger
-            addNotification(
-              language === 'ar' ? '🚨 تم تجاوز عرضك! تم إرجاع المبلغ' : '🚨 Outbid! Funds Returned Secured',
-              language === 'ar'
-                ? `تم تجاوز عرضك على "${auditAuction.title}" بقيمة ${newBidAmt.toLocaleString()} دينار. تم إرجاع مبلغك ${refundAmount.toLocaleString()} دينار فوراً إلى محفظتك.`
-                : `You have been outbid on "${auditAuction.title}" at ${newBidAmt.toLocaleString()} JOD. Your escrow locked funds of ${refundAmount.toLocaleString()} JOD have returned instantly to your available wallet.`,
-              'outbid'
-            );
-          }
-        }
-
-        // Output Simulated Bid Chat
-        const newBidChat: ChatMessage = {
-          id: `sim-chat-bid-${Date.now()}-${Math.random()}`,
-          auctionId: auditAuction.id,
-          userId: mockBidderId,
-          userName: bidder.name,
-          userAvatar: bidder.avatar,
-          text: `placed a winning bid of ${newBidAmt.toLocaleString()} JOD`,
-          timestamp: Date.now(),
-          isSystem: false,
-          isBid: true,
-          bidAmount: newBidAmt
-        };
-        
-        setChatMessages(ch => [...ch, newBidChat]);
-
-        // Update the auction state
-        setAuctions(prev => prev.map(a => {
-          if (a.id === auditAuction.id) {
-            return {
-              ...a,
-              currentPrice: newBidAmt,
-              currentBidderId: mockBidderId,
-              currentBidderName: bidder.name,
-              totalBids: a.totalBids + 1
-            };
-          }
-          return a;
-        }));
-      }
-    }, 6000); // 6 seconds is perfect and interactive!
-
-    return () => clearInterval(interval);
-  }, [isSimulating, language, addNotification]);
-
   // 1. Watchlist and Auto-bid callback handles
   const toggleWatchlist = useCallback((auctionId: string) => {
     setWatchlist(prev => {
@@ -3382,13 +3200,13 @@ const fetchIP = async () => {
       const maxBid = autoBids[auction.id];
       if (!maxBid) return false;
 
-      const nextRequiredBid = auction.currentPrice + (auction.totalBids > 0 ? auction.minIncrement : 0);
+      const nextRequiredBid = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids);
       return nextRequiredBid <= maxBid;
     });
 
     if (triggerable) {
       isAutoBiddingRef.current = true;
-      const nextBid = triggerable.currentPrice + (triggerable.totalBids > 0 ? triggerable.minIncrement : 0);
+      const nextBid = minNextBid(triggerable.currentPrice, triggerable.minIncrement, triggerable.totalBids);
       
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
@@ -3937,8 +3755,6 @@ const fetchIP = async () => {
       approveWithdrawal,
       rejectWithdrawal,
       createListing,
-      isSimulating,
-      setIsSimulating,
       language,
       setLanguage,
       isAuthenticated,

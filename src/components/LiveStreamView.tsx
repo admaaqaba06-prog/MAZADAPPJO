@@ -12,6 +12,7 @@ import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 
 // Countdown tick sound
 const playTick = () => {
@@ -68,13 +69,6 @@ const playFinish = () => {
   }
 };
 
-// Names & logs for realistic simulation
-const JORDANIAN_NAMES = [
-  'أحمد الشمري', 'تالا القضاة', 'حمزة الكردي', 'ديما عبيد', 'زيد الفايز', 
-  'فرح حداد', 'تامر المصري', 'ليث الزعبي', 'رنا التل', 'رائد العبادي',
-  'Yousef K.', 'Noor A.', 'Samer J.', 'Rama F.', 'Omar M.', 'Hala S.'
-];
-
 export const LiveStreamView: React.FC = () => {
   const { 
     currentUser, 
@@ -106,17 +100,9 @@ export const LiveStreamView: React.FC = () => {
   const [selectedLotDetailsId, setSelectedLotDetailsId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
 
-  // Local overrides for dynamic feedback
-  const [localCurrentPrices, setLocalCurrentPrices] = useState<Record<string, number>>({});
-  const [simulatedBids, setSimulatedBids] = useState<Record<string, Array<{id: string, name: string, amount: number, time: string}>>>({});
-  const [simulatedActivities, setSimulatedActivities] = useState<Record<string, Array<{id: string, name: string, type: 'join' | 'like' | 'save' | 'follow', textAr: string, textEn: string, time: string}>>>({});
-  
   // Immersive overlay states (messages and alerts that fade away dynamically)
   const [activeComments, setActiveComments] = useState<Array<any>>([]);
   const [activeActivities, setActiveActivities] = useState<Array<any>>([]);
-
-  // Stream viewer count simulation
-  const [viewerCount, setViewerCount] = useState<number>(2354);
 
   // Premium Final Countdown States
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
@@ -157,9 +143,7 @@ export const LiveStreamView: React.FC = () => {
     prevSecondsRemaining.current = null;
   }, [activeAuctionId]);
 
-  const activePrice = activeAuction 
-    ? (localCurrentPrices[activeAuction.id] || activeAuction.currentPrice) 
-    : 0;
+  const activePrice = activeAuction ? activeAuction.currentPrice : 0;
 
   // Sync video source & playback when active lot swaps
   useEffect(() => {
@@ -316,140 +300,6 @@ export const LiveStreamView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [chatMessages, activeAuction?.id]);
 
-  // Sync active activities state with generated live events
-  useEffect(() => {
-    if (!activeAuction) return;
-    const currentSimulatedActivities = simulatedActivities[activeAuction.id] || [];
-    if (currentSimulatedActivities.length === 0) return;
-    
-    // Get the latest event (which is index 0 in our prepended simulation array)
-    const latestAct = currentSimulatedActivities[0];
-    
-    // Append and keep only latest 4 activities using functional state update to prevent duplicates
-    setActiveActivities(prev => {
-      if (prev.some(a => a.id === latestAct.id)) return prev;
-      return [...prev.slice(-3), latestAct];
-    });
-    
-    // Set timer to fade it out after 6 seconds
-    const timer = setTimeout(() => {
-      setActiveActivities(prev => prev.filter(a => a.id !== latestAct.id));
-    }, 6000);
-    
-    return () => clearTimeout(timer);
-  }, [simulatedActivities, activeAuction?.id]);
-
-  // Simulated live activity & bids loop
-  useEffect(() => {
-    if (!activeAuction) return;
-
-    // Build default activity & bids if empty
-    if (!simulatedBids[activeAuction.id]) {
-      const basePrice = activeAuction.currentPrice;
-      const initialBids = [
-        { id: `bid-1-${activeAuction.id}`, name: JORDANIAN_NAMES[0], amount: basePrice - 75, time: '2 mins ago' },
-        { id: `bid-2-${activeAuction.id}`, name: JORDANIAN_NAMES[1], amount: basePrice - 50, time: '1 min ago' },
-      ].filter(b => b.amount > 0);
-      setSimulatedBids(prev => ({ ...prev, [activeAuction.id]: initialBids }));
-    }
-
-    if (!simulatedActivities[activeAuction.id]) {
-      const initialActivities = [
-        { id: `act-1-${activeAuction.id}`, name: JORDANIAN_NAMES[3], type: 'join' as const, textAr: 'انضم إلى البث', textEn: 'joined the room', time: '1 min ago' },
-        { id: `act-2-${activeAuction.id}`, name: JORDANIAN_NAMES[4], type: 'like' as const, textAr: 'أعجب بالمعروض المباشر', textEn: 'sent a heart to this lot', time: '45s ago' },
-      ];
-      setSimulatedActivities(prev => ({ ...prev, [activeAuction.id]: initialActivities }));
-    }
-
-    // Interval to inject dynamic events
-    const interval = setInterval(() => {
-      setViewerCount(prev => Math.max(120, prev + Math.floor(Math.random() * 21) - 10));
-
-      const randUser = JORDANIAN_NAMES[Math.floor(Math.random() * JORDANIAN_NAMES.length)];
-      const dice = Math.random();
-
-      if (dice < 0.35) {
-        // Someone joins the stream
-        const newAct = {
-          id: `act-dyn-${Date.now()}`,
-          name: randUser,
-          type: 'join' as const,
-          textAr: 'انضم إلى البث',
-          textEn: 'joined',
-          time: isAr ? 'الآن' : 'now'
-        };
-        setSimulatedActivities(prev => ({
-          ...prev,
-          [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-        }));
-      } else if (dice < 0.65) {
-        // Someone likes
-        const newAct = {
-          id: `act-dyn-${Date.now()}`,
-          name: randUser,
-          type: 'like' as const,
-          textAr: 'أرسل قلباً للبث المباشر',
-          textEn: 'liked',
-          time: isAr ? 'الآن' : 'now'
-        };
-        setSimulatedActivities(prev => ({
-          ...prev,
-          [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-        }));
-      } else if (dice < 0.85) {
-        // Someone follows
-        const newAct = {
-          id: `act-dyn-${Date.now()}`,
-          name: randUser,
-          type: 'follow' as const,
-          textAr: 'تابع البائع للتو ⭐️',
-          textEn: 'followed ⭐️',
-          time: isAr ? 'الآن' : 'now'
-        };
-        setSimulatedActivities(prev => ({
-          ...prev,
-          [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-        }));
-      } else {
-        // Someone places a live bid
-        const currentLocalPrice = localCurrentPrices[activeAuction.id] || activeAuction.currentPrice;
-        const raise = Math.random() < 0.5 ? 10 : 25;
-        const newBidVal = currentLocalPrice + raise;
-
-        setLocalCurrentPrices(prev => ({ ...prev, [activeAuction.id]: newBidVal }));
-
-        const newBid = {
-          id: `bid-dyn-${Date.now()}`,
-          name: randUser,
-          amount: newBidVal,
-          time: isAr ? 'الآن' : 'now'
-        };
-
-        const newAct = {
-          id: `act-dyn-${Date.now()}`,
-          name: randUser,
-          type: 'like' as const,
-          textAr: `زايد بقيمة +${raise} د.أ`,
-          textEn: `bid +${raise}`,
-          time: isAr ? 'الآن' : 'now'
-        };
-
-        setSimulatedBids(prev => ({
-          ...prev,
-          [activeAuction.id]: [newBid, ...(prev[activeAuction.id] || [])].slice(0, 12)
-        }));
-
-        setSimulatedActivities(prev => ({
-          ...prev,
-          [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-        }));
-      }
-
-    }, 5500);
-
-    return () => clearInterval(interval);
-  }, [activeAuctionId, activeAuction, localCurrentPrices, isAr]);
-
   const triggerToast = (msg: string) => {
     setShowToast(msg);
     setTimeout(() => setShowToast(null), 3000);
@@ -490,35 +340,6 @@ export const LiveStreamView: React.FC = () => {
       triggerToast(res.message);
     } else {
       triggerToast(isAr ? '🚀 تم تقديم المزايدة بنجاح!' : '🚀 Bid Placed Successfully!');
-      
-      // Update local overrides immediately for lag-free premium feel
-      setLocalCurrentPrices(prev => ({ ...prev, [activeAuction.id]: amount }));
-
-      const newBid = {
-        id: `user-bid-${Date.now()}`,
-        name: currentUser?.name || (isAr ? 'أنت' : 'You'),
-        amount: amount,
-        time: isAr ? 'الآن' : 'now'
-      };
-
-      const newAct = {
-        id: `user-act-${Date.now()}`,
-        name: currentUser?.name || (isAr ? 'أنت' : 'You'),
-        type: 'like' as const,
-        textAr: `قدّم مزايدة جديدة بقيمة ${amount} د.أ`,
-        textEn: `bid +${amount - activePrice}`,
-        time: isAr ? 'الآن' : 'now'
-      };
-
-      setSimulatedBids(prev => ({
-        ...prev,
-        [activeAuction.id]: [newBid, ...(prev[activeAuction.id] || [])].slice(0, 12)
-      }));
-
-      setSimulatedActivities(prev => ({
-        ...prev,
-        [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-      }));
     }
   };
 
@@ -526,7 +347,7 @@ export const LiveStreamView: React.FC = () => {
     e.stopPropagation();
     triggerToast(isAr ? '❤️ أرسلت تفاعلاً للبث المباشر!' : '❤️ Sent stream appreciation!');
     
-    // Add to activity
+    // Show the user's own real reaction in the fading activity overlay
     const newAct = {
       id: `act-like-${Date.now()}`,
       name: currentUser?.name || (isAr ? 'أنت' : 'You'),
@@ -535,10 +356,10 @@ export const LiveStreamView: React.FC = () => {
       textEn: 'sent a love reaction',
       time: isAr ? 'الآن' : 'now'
     };
-    setSimulatedActivities(prev => ({
-      ...prev,
-      [activeAuction.id]: [newAct, ...(prev[activeAuction.id] || [])].slice(0, 15)
-    }));
+    setActiveActivities(prev => [...prev.slice(-3), newAct]);
+    setTimeout(() => {
+      setActiveActivities(prev => prev.filter(a => a.id !== newAct.id));
+    }, 6000);
   };
 
   const handleSaveToggle = (e: React.MouseEvent) => {
@@ -599,7 +420,7 @@ export const LiveStreamView: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const nextBidAmount = activePrice + 10;
+  const nextBidAmount = activeAuction ? minNextBid(activeAuction.currentPrice, activeAuction.minIncrement, activeAuction.totalBids || 0) : 0;
 
   return (
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
@@ -619,7 +440,6 @@ export const LiveStreamView: React.FC = () => {
           onSaveToggle={handleSaveToggle}
           onLikeToggle={handleLikeToggle}
           isSaved={isSaved}
-          viewerCount={viewerCount}
           activeComments={activeComments}
           activeActivities={activeActivities}
           commentText={commentText}
@@ -650,7 +470,6 @@ export const LiveStreamView: React.FC = () => {
           onSaveToggle={handleSaveToggle}
           onLikeToggle={handleLikeToggle}
           isSaved={isSaved}
-          viewerCount={viewerCount}
           activeComments={activeComments}
           activeActivities={activeActivities}
           commentText={commentText}
@@ -668,8 +487,6 @@ export const LiveStreamView: React.FC = () => {
           videoContainerRef={videoContainerRef}
           showToast={showToast}
           toggleFullscreen={toggleFullscreen}
-          recentBids={simulatedBids[activeAuction.id] || []}
-          allActivities={simulatedActivities[activeAuction.id] || []}
         />
       )}
 
@@ -749,6 +566,13 @@ export const LiveStreamView: React.FC = () => {
                           <p className="text-2xl font-black text-emerald-400">
                             {activePrice} JOD
                           </p>
+                          {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                            <p className="text-xs text-emerald-300/80 font-semibold mt-1">
+                              {isAr
+                                ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                                : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                            </p>
+                          ) : null}
                         </div>
 
                         <button

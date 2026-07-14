@@ -517,7 +517,7 @@ export const SellerCenterView: React.FC = () => {
     // 4. Views vs Bids
     const viewsVsBidsData = myAuctions.slice(0, 5).map(a => ({
       name: a.title.length > 15 ? a.title.substring(0, 15) + '...' : a.title,
-      views: a.viewersCount || 2,
+      views: a.viewersCount || 0,
       bids: a.totalBids || 0
     }));
 
@@ -594,7 +594,7 @@ export const SellerCenterView: React.FC = () => {
         currentBidderId: null,
         currentBidderName: null,
         totalBids: 0,
-        viewersCount: 2,
+        viewersCount: 0,
         status: 'upcoming',
         approvalStatus: 'pending',
         isApproved: false,

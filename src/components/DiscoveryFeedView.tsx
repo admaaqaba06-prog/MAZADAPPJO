@@ -121,10 +121,10 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
           </div>
         </div>
         
-        {/* Viewers count / Live state */}
+        {/* Live bid count (real signal; card body also shows 👥 total bids) */}
         {item.status === 'live' && (
           <span className="bg-zinc-100 text-zinc-600 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs shrink-0">
-            👁️ {item.viewersCount || 12}
+            🔨 {item.totalBids || 0}
           </span>
         )}
       </div>

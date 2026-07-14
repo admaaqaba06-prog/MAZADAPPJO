@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 interface DesktopLiveAuctionLayoutProps {
@@ -41,7 +42,6 @@ interface DesktopLiveAuctionLayoutProps {
   onSaveToggle: (e: React.MouseEvent) => void;
   onLikeToggle: (e: React.MouseEvent) => void;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -75,7 +75,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   onSaveToggle,
   onLikeToggle,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -105,7 +104,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
-  const trustScore = activeSellerProfile?.trustScore || 98;
+  const trustScore = activeSellerProfile?.trustScore;
   const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
 
   // Navigation Links for left sidebar
@@ -155,7 +154,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           {liveAuctions.map((item) => {
             const isActive = item.id === activeAuction.id;
             const itemPrice = item.currentPrice;
-            const itemViewerCount = item.viewerCount || 2349;
+            const itemBidCount = item.totalBids || 0;
             return (
               <button
                 key={item.id}
@@ -200,7 +199,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     </span>
                     <span className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
                       <Eye className="w-2.5 h-2.5" />
-                      {(itemViewerCount >= 1000 ? `${(itemViewerCount / 1000).toFixed(1)}K` : itemViewerCount)}
+                      {itemBidCount} {isAr ? 'مزايدة' : 'bids'}
                     </span>
                   </div>
                 </div>
@@ -349,7 +348,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
                 <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
                   <Eye className="w-3 h-3 text-white/80" />
-                  <span>{viewerCount.toLocaleString()} Watching</span>
+                  <span>{activeAuction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
                 </span>
               </div>
 
@@ -403,6 +402,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                             <span className="text-zinc-300 text-[11px] font-semibold block">
                               {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
                             </span>
+                            {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                              <span className="text-emerald-300/80 text-[11px] font-bold block">
+                                {isAr
+                                  ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                                  : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                              </span>
+                            ) : null}
                           </div>
                           <button
                             onClick={() => {
@@ -478,20 +484,24 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               ) : (
                 <>
                   {/* Quick Bid Multipliers (hidden until the auction is open) */}
-                  {isAuctionOpen(activeAuction?.status) && (
-                    <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                      {[10, 25, 50].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => onBidExecute(activePrice + val)}
-                          className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
-                        >
-                          +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {isAuctionOpen(activeAuction?.status) && (() => {
+                    const inc = activeAuction?.minIncrement || 10;
+                    const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
+                    return (
+                      <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                        {[base, base + inc, base + 2 * inc].map((amount) => (
+                          <button
+                            key={amount}
+                            type="button"
+                            onClick={() => onBidExecute(amount)}
+                            className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                          >
+                            {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
                     {/* Current Bid */}
@@ -503,7 +513,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
                       </span>
                       <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
-                        +{(activeAuction.bidIncrement || 25)} JOD
+                        +{(activeAuction.minIncrement || 10)} JOD
                       </span>
                     </div>
 
@@ -530,9 +540,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       <span className="text-xs font-bold text-white truncate mt-1 leading-none">
                         {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
                       </span>
-                      <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
-                        ★ {trustScore}% <span className="opacity-60">(124)</span>
-                      </span>
+                      {typeof trustScore === 'number' && (
+                        <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                          ★ {trustScore}%
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -694,7 +706,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             <div className="flex flex-col items-center">
               <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
                 <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                4.9 <span className="text-[9px] text-gray-400 font-normal">(124)</span>
+                4.9
               </span>
               <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
             </div>

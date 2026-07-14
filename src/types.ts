@@ -87,6 +87,7 @@ export interface AuctionItem {
   totalBids: number;
   viewersCount: number;
   caption?: string;
+  marketPrice?: number; // retail/market reference for the "you saved X" reveal
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
 }
