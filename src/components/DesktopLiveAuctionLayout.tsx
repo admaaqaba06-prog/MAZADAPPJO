@@ -41,7 +41,6 @@ interface DesktopLiveAuctionLayoutProps {
   onSaveToggle: (e: React.MouseEvent) => void;
   onLikeToggle: (e: React.MouseEvent) => void;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -75,7 +74,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   onSaveToggle,
   onLikeToggle,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -155,7 +153,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           {liveAuctions.map((item) => {
             const isActive = item.id === activeAuction.id;
             const itemPrice = item.currentPrice;
-            const itemViewerCount = item.viewerCount || 2349;
+            const itemBidCount = item.totalBids || 0;
             return (
               <button
                 key={item.id}
@@ -200,7 +198,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     </span>
                     <span className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
                       <Eye className="w-2.5 h-2.5" />
-                      {(itemViewerCount >= 1000 ? `${(itemViewerCount / 1000).toFixed(1)}K` : itemViewerCount)}
+                      {itemBidCount} {isAr ? 'مزايدة' : 'bids'}
                     </span>
                   </div>
                 </div>
@@ -349,7 +347,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
                 <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
                   <Eye className="w-3 h-3 text-white/80" />
-                  <span>{viewerCount.toLocaleString()} Watching</span>
+                  <span>{activeAuction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
                 </span>
               </div>
 

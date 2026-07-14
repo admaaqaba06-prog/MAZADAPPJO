@@ -34,7 +34,6 @@ interface MobileLiveAuctionLayoutProps {
   onSaveToggle: (e: React.MouseEvent) => void;
   onLikeToggle: (e: React.MouseEvent) => void;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -68,7 +67,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onSaveToggle,
   onLikeToggle,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -162,7 +160,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               activePrice={currentReelPrice}
               timeLeftStr={timeLeftStr}
               isSaved={isSaved}
-              viewerCount={viewerCount}
               activeComments={activeComments}
               activeActivities={activeActivities}
               commentText={commentText}
@@ -201,7 +198,6 @@ interface MobileAuctionReelProps {
   activePrice: number;
   timeLeftStr: string;
   isSaved: boolean;
-  viewerCount: number;
   activeComments: any[];
   activeActivities: any[];
   commentText: string;
@@ -231,7 +227,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   activePrice,
   timeLeftStr,
   isSaved,
-  viewerCount,
   activeComments,
   activeActivities,
   commentText,
@@ -517,10 +512,10 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 </div>
               </div>
 
-              {/* Viewer Pill */}
+              {/* Bid count pill */}
               <div className="bg-black/20 backdrop-blur-xl border border-white/10 px-2 py-1 rounded-full flex items-center gap-1 shadow-md text-[9px] text-white font-bold leading-none h-7">
                 <Eye className="w-3 h-3 text-zinc-300" />
-                <span>{viewerCount.toLocaleString()}</span>
+                <span>{auction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
               </div>
             </div>
 
