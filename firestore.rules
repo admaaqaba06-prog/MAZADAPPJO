@@ -48,7 +48,7 @@ service cloud.firestore {
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId && 
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
           ])
         )
       );
