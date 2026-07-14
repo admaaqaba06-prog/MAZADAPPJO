@@ -566,6 +566,13 @@ export const LiveStreamView: React.FC = () => {
                           <p className="text-2xl font-black text-emerald-400">
                             {activePrice} JOD
                           </p>
+                          {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                            <p className="text-xs text-emerald-300/80 font-semibold mt-1">
+                              {isAr
+                                ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                                : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                            </p>
+                          ) : null}
                         </div>
 
                         <button

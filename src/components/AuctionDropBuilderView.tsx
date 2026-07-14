@@ -18,6 +18,7 @@ export default function AuctionDropBuilderView() {
   const [title, setTitle] = useState('');
   const [productName, setProductName] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
+  const [marketPrice, setMarketPrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
   const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
@@ -109,6 +110,9 @@ export default function AuctionDropBuilderView() {
           duration: durationSeconds,
           channel,
           scheduledStartAt: scheduledStartAtMs,
+          // Conditional spread: Firestore setDoc rejects explicit `undefined` values
+          // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
+          ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
         },
         undefined,
         thumbnailFile ?? undefined,
@@ -140,6 +144,10 @@ export default function AuctionDropBuilderView() {
 
         <label className="block text-sm">{isAr ? 'سعر البداية (دينار)' : 'Starting price (JOD)'}
           <input type="number" className="mt-1 w-full border rounded p-2" value={startingPrice} onChange={(e) => setStartingPrice(e.target.value)} />
+        </label>
+
+        <label className="block text-sm">{isAr ? 'سعر السوق (اختياري)' : 'Market price (optional)'}
+          <input type="number" className="mt-1 w-full border rounded p-2" value={marketPrice} onChange={(e) => setMarketPrice(e.target.value)} />
         </label>
 
         <label className="block text-sm">{isAr ? 'القناة' : 'Channel'}

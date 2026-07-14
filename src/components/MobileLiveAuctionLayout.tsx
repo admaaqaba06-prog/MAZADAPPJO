@@ -729,6 +729,13 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                         <span className="text-emerald-400 font-black text-xs block">
                           {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
                         </span>
+                        {auction?.marketPrice && auction.marketPrice > activePrice ? (
+                          <span className="text-emerald-300/80 text-[10.5px] font-bold block">
+                            {isAr
+                              ? `وفّرت ${auction.marketPrice - activePrice} دينار (السعر ${auction.marketPrice})`
+                              : `You saved ${auction.marketPrice - activePrice} JOD (worth ${auction.marketPrice})`}
+                          </span>
+                        ) : null}
                         <button
                           onClick={() => {
                             const matchingOrder = orders?.find(o => o.auctionId === auction?.id && o.buyerId === currentUser?.id);

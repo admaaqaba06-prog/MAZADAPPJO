@@ -1136,7 +1136,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: data.status || 'live',
             isFeatured: data.isFeatured ?? false,
             totalBids: data.totalBids ?? 0,
-            viewersCount: data.viewersCount ?? 15,
+            viewersCount: data.viewersCount ?? 0,
             ...data
           } as any;
 

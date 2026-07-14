@@ -402,6 +402,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                             <span className="text-zinc-300 text-[11px] font-semibold block">
                               {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
                             </span>
+                            {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                              <span className="text-emerald-300/80 text-[11px] font-bold block">
+                                {isAr
+                                  ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                                  : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                              </span>
+                            ) : null}
                           </div>
                           <button
                             onClick={() => {
