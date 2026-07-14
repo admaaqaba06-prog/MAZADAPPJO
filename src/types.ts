@@ -86,6 +86,10 @@ export interface AuctionItem {
   isFeatured: boolean;
   totalBids: number;
   viewersCount: number;
+  // Drop-builder fields (additive; optional). See docs/superpowers/plans/2026-07-13-admin-drop-builder.md
+  caption?: string;                       // generated Arabic caption (display-only in Phase 1; not persisted)
+  channel?: 'phones' | 'cars' | 'misc';   // which WhatsApp channel this drop targets
+  scheduledStartAt?: number | null;       // Unix ms; null in Phase 1, consumed by auto-open in Phase 2
 }
 
 export interface Bid {

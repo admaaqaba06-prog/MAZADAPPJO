@@ -130,8 +130,9 @@ interface AppContextProps {
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
     videoFile?: File | Blob | null,
     thumbnailFile?: File | Blob | null,
-    onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void
-  ) => Promise<void>;
+    onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void,
+    initialStatus?: string,
+  ) => Promise<string>;
   
   // Custom WebSocket Sim control
   isSimulating: boolean;
@@ -2514,7 +2515,8 @@ const fetchIP = async () => {
     listingData: Omit<AuctionItem, 'id' | 'currentPrice' | 'sellerId' | 'sellerName' | 'sellerLogo' | 'status' | 'isFeatured' | 'totalBids' | 'viewersCount'>,
     videoFile?: File | Blob | null,
     thumbnailFile?: File | Blob | null,
-    onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void
+    onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void,
+    initialStatus: string = 'pending'
   ) => {
     if (!currentUser) {
       const errMsg = language === 'ar' ? 'يجب تسجيل الدخول لرفع المزاد.' : 'User must be logged in to upload a listing.';
@@ -2673,7 +2675,9 @@ const fetchIP = async () => {
       sellerId: currentUser.id,
       sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
       sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
-      status: 'pending', // Save under 'pending' status so Admin can review and approve
+      status: initialStatus, // Save under the requested status (default 'pending') so Admin can review and approve
+      channel: listingData.channel ?? 'misc',
+      scheduledStartAt: listingData.scheduledStartAt ?? null,
       approvalStatus: 'pending',
       isApproved: false,
       isFeatured: false,
@@ -2725,6 +2729,8 @@ const fetchIP = async () => {
         'win'
       );
     }
+
+    return newListingId;
   }, [sellerProfile, currentUser, addNotification, language]);
 
   // --- ADMIN ACTIONS ---
