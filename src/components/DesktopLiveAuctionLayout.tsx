@@ -477,19 +477,21 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </div>
               ) : (
                 <>
-                  {/* Quick Bid Multipliers */}
-                  <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                    {[10, 25, 50].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => onBidExecute(activePrice + val)}
-                        className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
-                      >
-                        +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {/* Quick Bid Multipliers (hidden until the auction is open) */}
+                  {isAuctionOpen(activeAuction?.status) && (
+                    <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                      {[10, 25, 50].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => onBidExecute(activePrice + val)}
+                          className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                        >
+                          +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
                     {/* Current Bid */}
@@ -532,8 +534,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     </div>
                   </div>
 
-                  {/* Winning/Losing indicator */}
+                  {/* Winning/Losing indicator (hidden until the auction is open) */}
                   {(() => {
+                    if (!isAuctionOpen(activeAuction?.status)) return null;
                     const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
                     const isUserWinning = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
                     if (!hasUserBid) return null;
