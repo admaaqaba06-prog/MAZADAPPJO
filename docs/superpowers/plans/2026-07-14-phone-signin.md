@@ -50,6 +50,10 @@ describe('toE164Jordan', () => {
     expect(toE164Jordan('00962791234567')).toBe('+962791234567');
     expect(toE164Jordan('962791234567')).toBe('+962791234567');
   });
+  it('handles country code followed by a local leading zero', () => {
+    expect(toE164Jordan('+9620791234567')).toBe('+962791234567');
+    expect(toE164Jordan('009620791234567')).toBe('+962791234567');
+  });
   it('accepts local without leading zero (7xxxxxxxx)', () => {
     expect(toE164Jordan('791234567')).toBe('+962791234567');
   });
@@ -73,10 +77,11 @@ Create `src/utils/phoneNumber.ts`:
 export function toE164Jordan(input: string): string | null {
   if (!input) return null;
   let d = input.replace(/[^\d]/g, ''); // strip spaces, +, dashes
-  // strip international prefixes down to the national number
+  // strip international prefix down to the national number...
   if (d.startsWith('00962')) d = d.slice(5);
   else if (d.startsWith('962')) d = d.slice(3);
-  else if (d.startsWith('0')) d = d.slice(1); // local 0-prefix
+  // ...then strip a local leading 0 (handles both "0791..." and "+962 0791...") — NOT else-if
+  if (d.startsWith('0')) d = d.slice(1);
   // national mobile must now be 9 digits starting with 7
   if (!/^7\d{8}$/.test(d)) return null;
   return `+962${d}`;
@@ -110,11 +115,13 @@ Read `firestore.rules:32-37`. It currently gates create on `'email' in request.a
 Replace the `allow create` block for `users/{userId}` with:
 ```
       allow create: if request.auth != null && request.auth.uid == userId &&
-        !request.resource.data.keys().hasAny(['isAdmin','isBlocked','isVerified','subscriptionStatus','subscriptionExpiry','wonCount']) &&
+        !request.resource.data.keys().hasAny(['isAdmin','isBlocked','isVerified','isSeller','subscriptionStatus','subscriptionExpiry','wonCount']) &&
         request.auth.token != null &&
         (
           ('email' in request.auth.token && request.resource.data.email == request.auth.token.email) ||
-          ('phone_number' in request.auth.token && request.resource.data.phoneNumber == request.auth.token.phone_number)
+          ('phone_number' in request.auth.token
+            && request.resource.data.phoneNumber == request.auth.token.phone_number
+            && (!('email' in request.resource.data) || request.resource.data.email == ''))
         ) &&
         (
           request.resource.data.role == 'user' ||
@@ -123,14 +130,20 @@ Replace the `allow create` block for `users/{userId}` with:
 ```
 Key security points to preserve/verify:
 - `request.auth.uid == userId` — unchanged (self only).
-- `!...hasAny([...])` — unchanged; still blocks self-granting `isAdmin`/`isBlocked`/`isVerified`/subscription/`wonCount`.
-- The admin-role branch now REQUIRES `'email' in request.auth.token` before matching the admin email — so a phone-only user (no email claim) can NEVER create an `admin` doc.
-- A phone user can only create a doc whose `phoneNumber` equals their verified token `phone_number` (E.164), and only with `role == 'user'`.
+- `!...hasAny([...])` — unchanged blocklist PLUS `'isSeller'` added (the app treats `isSeller===true` as seller role at `AppContext.tsx:525,755`; block self-granting it at create).
+- **CRITICAL (fixes review S1): the phone branch pins email to empty** (`!('email' in data) || data.email == ''`). Without this, a phone-verified user could create their own `role:'user'` doc with `email:'admaaqaba06@gmail.com'` and get **client-side** admin/seller UI (the client trusts the doc's email — `App.tsx:38,42`, `DesktopFrame.tsx:60`, `AdminDashboardView.tsx:401`, etc.). The app writes `email:''` for phone users (`AppContext.tsx:644`), so this passes for legit users.
+- The admin-role branch REQUIRES `'email' in request.auth.token` before matching — a phone-only user (no email claim) can NEVER create an `admin` doc.
+- Email/password/Google users have no `phone_number` claim, so the phone branch is unreachable for them (no cross-contamination).
 
-- [ ] **Step 3: Sanity-check the rules file parses**
+- [ ] **Step 3: Validate the rules syntax (best-effort) + note the deploy step**
 
-Run: `cd /Users/mj/code/mazadjo && npx firebase --version >/dev/null 2>&1 && npx firebase deploy --only firestore:rules --dry-run 2>&1 | tail -5 || echo "firebase CLI not available locally — rules validated by review + deploy-time"`
-(If the CLI isn't available, this is verified by review + at deploy time; note it in the report.)
+The rules take effect ONLY when deployed — editing the file does nothing at runtime. Deploy is a human/deploy step: `firebase deploy --only firestore:rules` (needs Firebase auth — call it out in the final summary alongside enabling the Phone provider).
+For local validation, check the file parses if the emulator/CLI is available:
+```bash
+cd /Users/mj/code/mazadjo
+if npx --no-install firebase --version >/dev/null 2>&1; then npx firebase emulators:exec --only firestore "true" 2>&1 | tail -8; else echo "firebase CLI not available — rules validated by review; must be deployed separately"; fi
+```
+(Do NOT invent flags like `--dry-run`; if unavailable, rely on review + deploy-time validation and say so in the report.)
 
 - [ ] **Step 4: Commit**
 ```bash
@@ -167,7 +180,26 @@ After `loginWithGoogle` (~`:1855`), add:
 
   const confirmPhoneCode = useCallback(async (confirmation: any, code: string) => {
     try {
-      await confirmation.confirm(code); // signs the user in -> onAuthStateChanged creates the doc
+      // (review B2) The OTP entry takes longer than the 10s session grace window
+      // (AppContext session logic ~:674-680). Refresh the timestamp IMMEDIATELY before
+      // confirm() so onAuthStateChanged doesn't force-logout a returning phone user.
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
+      const cred = await confirmation.confirm(code); // signs the user in
+      // (review B2) Mirror email login() (~:1741-1751): persist the new sessionId onto the
+      // EXISTING user doc so the session-conflict check passes. New users self-consistently
+      // write their sessionId in the onAuthStateChanged new-user path.
+      const uid = cred?.user?.uid;
+      if (uid) {
+        const ref = doc(db, 'users', uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          await updateDoc(ref, {
+            sessionId: localStorage.getItem('mazad_session_id') || '',
+            lastLoginAt: new Date().toISOString(),
+            lastSeen: serverTimestamp(),
+          });
+        }
+      }
       return { success: true, message: '' };
     } catch (e: any) {
       const msg = e?.code === 'auth/invalid-verification-code'
@@ -177,7 +209,7 @@ After `loginWithGoogle` (~`:1855`), add:
     }
   }, []);
 ```
-(Use `generateSessionId()` — the same helper `loginWithGoogle` uses. Type the params `any` to avoid importing types eagerly; the UI passes a real `RecaptchaVerifier`/`ConfirmationResult`.)
+(Use `generateSessionId()` in `loginWithPhone` — the same helper `loginWithGoogle` uses. `doc`, `getDoc`, `updateDoc`, `serverTimestamp` are already imported in this file — match the exact field names email `login()` uses at `~:1741-1751`; adjust if they differ. **Do NOT copy `loginWithGoogle`'s session handling — it lacks the post-sign-in `updateDoc` and has this same latent bug; `login()` is the correct template.**)
 
 - [ ] **Step 2: Expose them on the context**
 
@@ -196,6 +228,8 @@ In the `onAuthStateChanged` handler's new-user creation block (~`:640-663`), whe
 - Keep `email: firebaseUser.email || ''` — the relaxed rule's phone branch matches on `phoneNumber == token.phone_number`, so an empty email is fine for phone users.
 - Derive `name`: if no email, prefer the phone number as the display name fallback instead of `'User'` (e.g. `firebaseUser.displayName || firebaseUser.email?.split('@')[0] || firebaseUser.phoneNumber || 'User'`).
 Confirm `role: 'user'` is set (required by the rule).
+
+**(review SF1) A server trigger already creates this doc.** `functions/index.js:882-928` `onUserCreated` (Auth `onCreate`, Admin SDK, bypasses rules, `merge:true`) creates `users/{uid}` + the wallet for EVERY new auth user (phone included). The client `setDoc` here races it. To avoid the client clobbering server-set fields (`isVerified/isBlocked/subscriptionStatus`), **change this `setDoc(userRef, freshUserDoc)` to `setDoc(userRef, freshUserDoc, { merge: true })`** for the new-user path. (This is a targeted robustness fix on the block Task 3 already edits — note it explicitly in the report; behavior for email/Google new users is unchanged except it now merges rather than overwrites, which is strictly safer given the trigger.) Accept that the trigger may still set the display name to `'User'` if it commits last — cosmetic, deferred.
 
 - [ ] **Step 4: Typecheck + tests**
 
@@ -316,12 +350,15 @@ In the social block (~:203), add — as the FIRST/most-prominent option — a ph
       </>
     )}
     {phoneErr && <p className="text-red-600 text-xs">{phoneErr}</p>}
-    <button type="button" onClick={() => { setPhoneMode(false); setConfirmation(null); setSmsCode(''); setPhoneErr(''); }}
+    <button type="button" onClick={() => {
+        setPhoneMode(false); setConfirmation(null); setSmsCode(''); setPhoneErr('');
+        try { recaptchaRef.current?.clear?.(); } catch {} recaptchaRef.current = null; // consumed verifier can't be reused
+      }}
       className="w-full text-xs text-gray-500">{isAr ? 'رجوع' : 'Back'}</button>
   </div>
 )}
 ```
-Keep the existing Google/Facebook buttons + email form below, unchanged.
+Keep the existing Google/Facebook buttons + email form below, unchanged. Also add a friendly message for `e?.code === 'auth/too-many-requests'` in `sendCode`'s catch (e.g. "Too many attempts, try again later" / "حاول لاحقاً").
 
 - [ ] **Step 4: Typecheck + build**
 
