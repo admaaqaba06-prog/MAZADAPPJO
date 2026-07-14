@@ -55,7 +55,6 @@ export const AdminPanel: React.FC = () => {
             currentBidderId: null,
             currentBidderName: null,
             totalBids: 0,
-            viewersCount: Math.floor(2 + Math.random() * 8),
             // Clear highest bidder / winner data
             winnerId: null,
             winnerName: null,
