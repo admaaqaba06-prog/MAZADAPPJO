@@ -15,6 +15,7 @@ const LoginView = lazy(() => import('./components/LoginView').then(m => ({ defau
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
 const DropBuilderView = React.lazy(() => import('./components/DropBuilderView'));
+const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -26,6 +27,8 @@ function ActiveViewRenderer() {
       return <LiveStreamView />;
     case 'wallet':
       return <WalletView />;
+    case 'profile':
+      return <ProfileView />;
     case 'seller-center':
       return <SellerCenterView />;
     case 'admin':

@@ -20,9 +20,7 @@ service cloud.firestore {
           ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
           ('isAdmin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true) ||
-          ('email' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.matches('(?i)admaaqaba06@gmail\\.com'))
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
         ))
       );
     }
@@ -31,18 +29,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if request.auth != null && request.auth.uid == userId && (
-        request.resource.data.role == 'user' || 
-        (request.resource.data.role == 'admin' && request.auth.token != null && 'email' in request.auth.token && 
-          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
-      );
+      allow create: if request.auth != null && request.auth.uid == userId && 
+        !request.resource.data.keys().hasAny(['isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount']) &&
+        request.auth.token != null && 'email' in request.auth.token && request.resource.data.email == request.auth.token.email && (
+          request.resource.data.role == 'user' || 
+          (request.resource.data.role == 'admin' && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
+        );
       allow update: if request.auth != null && (
         isAdmin() || 
         (request.auth.token != null && 'email' in request.auth.token && 
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId && 
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount'
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
           ])
         )
       );
@@ -91,7 +90,12 @@ service cloud.firestore {
     // 7. Chats
     match /chats/{chatId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.text is string && 
+                    request.resource.data.text.size() > 0 && 
+                    request.resource.data.text.size() <= 1000 &&
+                    request.resource.data.keys().hasOnly(['id', 'auctionId', 'userId', 'userName', 'userAvatar', 'text', 'timestamp', 'isSystem', 'isBid']);
       allow update, delete: if isAdmin();
     }
 
@@ -114,7 +118,7 @@ service cloud.firestore {
     // 9. System Health Logs
     match /system_health/{logId} {
       allow read: if isSignedIn() && isAdmin();
-      allow create: if true;
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && isAdmin();
     }
 

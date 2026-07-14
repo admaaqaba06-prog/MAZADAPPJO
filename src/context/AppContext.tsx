@@ -21,13 +21,15 @@ const getFallbackVideoUrl = (category?: string): string => {
 import { 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -74,6 +76,8 @@ interface AppContextProps {
   setActiveAuctionId: (id: string | null) => void;
   activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder';
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder') => void;
+  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile';
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
@@ -100,6 +104,8 @@ interface AppContextProps {
   deleteAuction: (id: string) => void;
   repairEndedAuctionOrder: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   repairStuckEscrowsForEndedAuction: (auctionId: string) => Promise<{ success: boolean; message: string; refundedCount?: number; totalRefundedAmount?: number; keptWinnerEscrow?: boolean }>;
+  approveWithdrawal: (withdrawalId: string) => Promise<{ success: boolean; message: string }>;
+  rejectWithdrawal: (withdrawalId: string, reason?: string) => Promise<{ success: boolean; message: string }>;
 
   // Trust System Operations
   submitVerificationRequest: (
@@ -242,6 +248,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const lastBidTimestampRef = useRef<number>(0);
   const bidTimestampsRef = useRef<number[]>([]);
   
+  // Single Session check tracking refs
+  const sessionCheckInProgressRef = useRef<boolean>(false);
+  const lastSessionCheckTimeRef = useRef<number>(0);
+  const redirectResultProcessingRef = useRef<boolean>(true);
+  
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
@@ -378,7 +389,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
+<<<<<<< feat/drop-builder
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder'>('discovery');
+=======
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile'>('discovery');
+>>>>>>> main
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
@@ -442,9 +457,139 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [isAuthenticated, currentUser?.id]);
 
+  const addNotificationRef = useRef<any>(null);
+  useEffect(() => {
+    addNotificationRef.current = addNotification;
+  });
+
+  // Handle Auth Redirect Results (e.g. Google/Facebook redirects) on app mount
+  useEffect(() => {
+    const handleRedirectResultFlow = async () => {
+      redirectResultProcessingRef.current = true;
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          const user = result.user;
+          console.log("[Auth Redirect] Redirect login success for user:", user.email);
+          
+          const newSessionId = generateSessionId();
+          localStorage.setItem('mazad_session_id', newSessionId);
+          localStorage.setItem('mazad_last_login_time', String(Date.now()));
+          
+          const dev = getDeviceInfo();
+          const ip = await fetchIP();
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          
+          let fbData: any = {};
+          const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
+          if (!userSnap.exists()) {
+            const freshUserDoc = {
+              id: user.uid,
+              uid: user.uid,
+              name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
+              email: user.email || `${user.uid}@auth-provider.com`,
+              avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              role: isGoogleAdmin ? 'admin' : 'user',
+              phoneNumber: user.phoneNumber || '',
+              phone: user.phoneNumber || '',
+              city: '',
+              createdAt: new Date().toISOString(),
+              sessionId: newSessionId,
+              lastLoginAt: new Date().toISOString(),
+              deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+              platform: dev.platform,
+              browser: dev.browser,
+              deviceType: dev.deviceType,
+              appVersion: dev.appVersion,
+              lastLoginIP: ip,
+              lastSeen: new Date().toISOString()
+            };
+            await setDoc(userRef, freshUserDoc);
+            fbData = freshUserDoc;
+          } else {
+            const updates = {
+              sessionId: newSessionId,
+              lastLoginAt: new Date().toISOString(),
+              deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+              platform: dev.platform,
+              browser: dev.browser,
+              deviceType: dev.deviceType,
+              appVersion: dev.appVersion,
+              lastLoginIP: ip,
+              lastSeen: new Date().toISOString()
+            };
+            await updateDoc(userRef, updates);
+            fbData = { ...userSnap.data(), ...updates };
+          }
+
+          // Build user state object mimicking post-login steps exactly
+          const idTokenResult = await user.getIdTokenResult();
+          const hasAdminClaim = !!idTokenResult.claims.admin;
+          const userEmail = user.email ? user.email.toLowerCase().trim() : '';
+          const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
+          let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+
+          const loadedUser: User = {
+            id: user.uid,
+            uid: user.uid,
+            name: fbData.name || user.displayName || 'User',
+            email: fbData.email || user.email || '',
+            avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            role: loadedRole,
+            isAdmin: isAdminEmail && (hasAdminClaim || fbData.role === 'admin' || fbData.isAdmin === true),
+            accountStatus: fbData.accountStatus || 'active',
+            isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
+            isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
+            subscriptionStatus: fbData.subscriptionStatus || 'none',
+            subscriptionExpiry: fbData.subscriptionExpiry || null,
+            phoneNumber: fbData.phoneNumber || '',
+            phone: fbData.phone || fbData.phoneNumber || '',
+            city: fbData.city || '',
+            createdAt: fbData.createdAt || new Date().toISOString(),
+            isSeller: fbData.isSeller || false,
+            sellerStatus: fbData.sellerStatus || '',
+            sellerActivatedAt: fbData.sellerActivatedAt || null,
+            sellerProfile: fbData.sellerProfile || null,
+            onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : false,
+            shownHints: fbData.shownHints || {}
+          };
+
+          setCurrentUser(loadedUser);
+          setIsAuthenticated(true);
+          setActiveView('discovery');
+          if (addNotificationRef.current) {
+            addNotificationRef.current(
+              language === 'ar' ? 'تسجيل الدخول' : 'Sign In',
+              language === 'ar' ? 'تم تسجيل الدخول بنجاح عبر جوجل!' : 'Successfully signed in via Google!',
+              'admin'
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("[Auth Redirect] Handle redirect result error:", err);
+        if (addNotificationRef.current) {
+          addNotificationRef.current(
+            language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
+            language === 'ar' ? 'فشل تسجيل الدخول عبر جوجل أو فيسبوك.' : 'Sign-In via Google or Facebook failed.',
+            'alert'
+          );
+        }
+      } finally {
+        redirectResultProcessingRef.current = false;
+      }
+    };
+    handleRedirectResultFlow();
+  }, [language]);
+
   // 1. Listen to Firebase Authentication Auth State changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Wait for redirect handler to finish resolving if active
+      while (redirectResultProcessingRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         const userRef = doc(db, 'users', uid);
@@ -505,12 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 email: loadedUser.email,
                 avatar: loadedUser.avatar,
                 role: currentRole,
-                isAdmin: isAdminField,
                 accountStatus: 'active',
-                isVerified: true,
-                isBlocked: false,
-                subscriptionStatus: 'none',
-                subscriptionExpiry: null,
                 phoneNumber: firebaseUser.phoneNumber || '',
                 phone: firebaseUser.phoneNumber || '',
                 city: '',
@@ -537,14 +677,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localSessionId = localStorage.getItem('mazad_session_id');
             const firestoreSessionId = fbData.sessionId;
 
-            if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
-              console.warn("Session conflict: local session ID", localSessionId, "does not match Firestore session ID", firestoreSessionId);
-              localStorage.removeItem('mazad_session_id');
-              await signOut(auth);
-              setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
-              setIsAuthenticated(false);
-              alert("تم تسجيل الدخول من جهاز آخر.");
-              return;
+            const lastLoginTime = localStorage.getItem('mazad_last_login_time');
+            const lastLoginTimestamp = lastLoginTime ? parseInt(lastLoginTime, 10) : 0;
+            const now = Date.now();
+            const isGracePeriod = (now - lastLoginTimestamp) < 10000;
+
+            if (isGracePeriod) {
+              console.log("[Single Session Check] Skipping verification check during login grace period.");
+            } else if (firestoreSessionId && localSessionId && localSessionId !== firestoreSessionId) {
+              if (sessionCheckInProgressRef.current) {
+                console.log("[Single Session Check] Session verification check already in progress. Skipping.");
+              } else {
+                const lastCheckTime = lastSessionCheckTimeRef.current;
+                const timeSinceLastCheck = now - lastCheckTime;
+                if (timeSinceLastCheck < 30000) {
+                  console.log(`[Single Session Check] Verification check rate-limited. Skipping (last check was ${Math.round(timeSinceLastCheck / 1000)}s ago).`);
+                } else {
+                  console.warn("Potential session conflict detected (cache read). Verifying with server...");
+                  sessionCheckInProgressRef.current = true;
+                  lastSessionCheckTimeRef.current = now;
+
+                  (async () => {
+                    let freshSessionId: string | null = null;
+                    try {
+                      const freshSnap = await getDocFromServer(userRef);
+                      if (freshSnap.exists()) {
+                        freshSessionId = freshSnap.data()?.sessionId || null;
+                      } else {
+                        // Fail-open if server document doesn't exist
+                        freshSessionId = localSessionId;
+                      }
+                    } catch (serverErr) {
+                      console.warn("Failed to read user document from server for session verification (Fail-Open):", serverErr);
+                      // Fail-Open: Ignore check for this cycle and let user proceed
+                      freshSessionId = localSessionId; // simulate match to bypass logout
+                    } finally {
+                      sessionCheckInProgressRef.current = false;
+                    }
+
+                    if (freshSessionId && freshSessionId !== localSessionId) {
+                      console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
+                      localStorage.removeItem('mazad_session_id');
+                      await signOut(auth);
+                      setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
+                      setIsAuthenticated(false);
+                      if (addNotificationRef.current) {
+                        addNotificationRef.current(
+                          language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
+                          language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
+                          'admin'
+                        );
+                      }
+                    }
+                  })();
+                }
+              }
             }
 
             // If local session ID is empty, generate a new one and bootstrap
@@ -1550,6 +1737,7 @@ const fetchIP = async () => {
     try {
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       const user = userCredential.user;
 
@@ -1581,6 +1769,7 @@ const fetchIP = async () => {
           console.log("[Auto-register] Email not found or invalid credential in clear environment; attempting fallback auto-registration...", cleanEmail);
           const newSessionId = generateSessionId();
           localStorage.setItem('mazad_session_id', newSessionId);
+          localStorage.setItem('mazad_last_login_time', String(Date.now()));
           const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
           const user = userCredential.user;
           
@@ -1599,10 +1788,6 @@ const fetchIP = async () => {
             email: cleanEmail,
             avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: isAutoAdmin ? 'admin' : 'user',
-            isVerified: true,
-            isBlocked: false,
-            subscriptionStatus: 'none',
-            subscriptionExpiry: null,
             phoneNumber: '',
             phone: '',
             city: '',
@@ -1656,59 +1841,14 @@ const fetchIP = async () => {
   const loginWithGoogle = useCallback(async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
       
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
-      const dev = getDeviceInfo();
-      const ip = await fetchIP();
-
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
-        const freshUserDoc = {
-          id: user.uid,
-          uid: user.uid,
-          name: user.displayName || 'Google User',
-          email: user.email || '',
-          avatar: user.photoURL || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-          role: isGoogleAdmin ? 'admin' : 'user',
-          isVerified: true,
-          isBlocked: false,
-          subscriptionStatus: 'none',
-          subscriptionExpiry: null,
-          phoneNumber: user.phoneNumber || '',
-          phone: user.phoneNumber || '',
-          city: '',
-          createdAt: new Date().toISOString(),
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          platform: dev.platform,
-          browser: dev.browser,
-          deviceType: dev.deviceType,
-          appVersion: dev.appVersion,
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        };
-        await setDoc(userRef, freshUserDoc);
-      } else {
-        await updateDoc(userRef, {
-          sessionId: newSessionId,
-          lastLoginAt: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          platform: dev.platform,
-          browser: dev.browser,
-          deviceType: dev.deviceType,
-          appVersion: dev.appVersion,
-          lastLoginIP: ip,
-          lastSeen: new Date().toISOString()
-        });
-      }
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
+      
+      await signInWithRedirect(auth, provider);
     } catch (error) {
-      console.warn("Google Auth popup failed: ", error);
+      console.warn("Google Auth redirect failed: ", error);
     }
   }, []);
 
@@ -1767,6 +1907,7 @@ const fetchIP = async () => {
     try {
       const newSessionId = generateSessionId();
       localStorage.setItem('mazad_session_id', newSessionId);
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
       const dev = getDeviceInfo();
       const ip = await fetchIP();
 
@@ -1784,12 +1925,7 @@ const fetchIP = async () => {
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         role: isAdminEmail ? 'admin' : 'user',
-        isAdmin: isAdminEmail,
         accountStatus: 'active',
-        isVerified: true,
-        isBlocked: false,
-        subscriptionStatus: 'none',
-        subscriptionExpiry: null,
         phoneNumber: cleanPhone || '',
         phone: cleanPhone || '',
         normalizedPhone: cleanPhone.replace(/\D/g, ''),
@@ -2402,14 +2538,20 @@ const fetchIP = async () => {
 
     if (videoFile) {
       try {
-        const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage();
+        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+        const { getFirebaseStorage } = await import('../services/firebase');
+        const storage = await getFirebaseStorage();
         const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
         const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
         
         if (onProgress) onProgress(0, 'video');
 
-        const uploadTask = uploadBytesResumable(videoRef, videoFile);
+        const metadata = {
+          contentType: (videoFile as any).type && (videoFile as any).type.trim() !== '' 
+            ? (videoFile as any).type 
+            : 'video/mp4'
+        };
+        const uploadTask = uploadBytesResumable(videoRef, videoFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -2428,47 +2570,37 @@ const fetchIP = async () => {
 
         finalVideoUrl = await getDownloadURL(uploadTask.snapshot.ref);
       } catch (videoErr: any) {
-        console.warn("Firebase Storage write failure during video upload, applying local cache fallback. Code:", videoErr.code, "Message:", videoErr.message);
-        
-        // Save to IndexedDB so it plays perfectly on current user's browser
-        try {
-          const { saveVideoBlob } = await import('../utils/videoDb');
-          await saveVideoBlob(newListingId, videoFile);
-          finalVideoUrl = `blob:${newListingId}`;
-        } catch (dbErr) {
-          console.error("Failed to write to IndexedDB fallback:", dbErr);
-          const cat = (listingData.category || '').toLowerCase();
-          if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
-          } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-          } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
-          } else {
-            finalVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
-          }
-        }
+        console.error("Firebase Storage write failure during video upload. Code:", videoErr.code, "Message:", videoErr.message);
+        const code = videoErr.code || 'storage/unknown';
+        const errorMsg = language === 'ar'
+          ? `فشل رفع الفيديو (${code}). لم يُنشر المزاد — حاول مجدداً.`
+          : `Video upload failed (${code}). Auction not published — please try again.`;
 
         addNotification(
-          language === 'ar' ? '⚠️ تم الحفظ والرفع بنجاح' : '⚠️ Saved and Posted Successfully',
-          language === 'ar'
-            ? 'تم نشر المزاد بنجاح! تعذر رفع الفيديو للملقم السحابي بشكل كامل (ربما تحتاج لتفعيل Storage في Firebase Console)، ولكن تم حفظه في ذاكرة متصفحك وسيعمل لديك بشكل رائع.'
-            : 'Auction published successfully! The video could not be uploaded to Firebase Cloud Storage, but it has been saved locally in your browser memory and will play perfectly on your device.',
+          language === 'ar' ? '❌ فشل الرفع' : '❌ Upload Failed',
+          errorMsg,
           'alert'
         );
+        throw new Error(errorMsg);
       }
     }
 
     if (thumbnailFile) {
       try {
-        const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage();
+        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+        const { getFirebaseStorage } = await import('../services/firebase');
+        const storage = await getFirebaseStorage();
         const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
         const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
         
         if (onProgress) onProgress(0, 'thumbnail');
 
-        const uploadTask = uploadBytesResumable(thumbRef, thumbnailFile);
+        const metadata = {
+          contentType: (thumbnailFile as any).type && (thumbnailFile as any).type.trim() !== ''
+            ? (thumbnailFile as any).type
+            : 'image/jpeg'
+        };
+        const uploadTask = uploadBytesResumable(thumbRef, thumbnailFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -2487,19 +2619,18 @@ const fetchIP = async () => {
 
         finalThumbnailUrl = await getDownloadURL(uploadTask.snapshot.ref);
       } catch (thumbErr: any) {
-        console.warn("Firebase Storage write failure during thumbnail upload, applying fallback default. Code:", thumbErr.code, "Message:", thumbErr.message);
-        
-        // Fallback thumbnail URL
-        const cat = (listingData.category || '').toLowerCase();
-        if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=500&auto=format&fit=crop&q=60';
-        } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
-        } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500&auto=format&fit=crop&q=60';
-        } else {
-          finalThumbnailUrl = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60';
-        }
+        console.error("Firebase Storage write failure during thumbnail upload. Code:", thumbErr.code, "Message:", thumbErr.message);
+        const code = thumbErr.code || 'storage/unknown';
+        const errorMsg = language === 'ar'
+          ? `فشل رفع الصورة المصغرة (${code}). لم يُنشر المزاد — حاول مجدداً.`
+          : `Thumbnail upload failed (${code}). Auction not published — please try again.`;
+
+        addNotification(
+          language === 'ar' ? '❌ فشل الرفع' : '❌ Upload Failed',
+          errorMsg,
+          'alert'
+        );
+        throw new Error(errorMsg);
       }
     }
 
@@ -2825,6 +2956,54 @@ const fetchIP = async () => {
       return { success: false, message: 'تعذر تنفيذ العملية حالياً، حاول مرة أخرى لاحقاً' };
     }
   }, [addNotification]);
+
+  const approveWithdrawal = useCallback(async (withdrawalId: string) => {
+    try {
+      const approveCallable = await getCallableFunction<{ withdrawalId: string }, { success: boolean; message: string }>('approveWithdrawal');
+      const result = await approveCallable({ withdrawalId });
+      if (result.data.success) {
+        addNotification(
+          language === 'ar' ? '💸 تم قبول طلب السحب' : '💸 Withdrawal Approved',
+          result.data.message || (language === 'ar' ? 'تمت الموافقة على طلب السحب بنجاح.' : 'Withdrawal approved successfully.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to approve withdrawal.' };
+    } catch (error: any) {
+      console.error("Cloud function approveWithdrawal failed:", error);
+      addNotification(
+        language === 'ar' ? '❌ خطأ في الموافقة على طلب السحب' : '❌ Approval Error',
+        error.message || 'Failed to approve withdrawal.',
+        'alert'
+      );
+      return { success: false, message: error.message || 'Failed to approve withdrawal.' };
+    }
+  }, [addNotification, language]);
+
+  const rejectWithdrawal = useCallback(async (withdrawalId: string, reason?: string) => {
+    try {
+      const rejectCallable = await getCallableFunction<{ withdrawalId: string; reason?: string }, { success: boolean; message: string }>('rejectWithdrawal');
+      const result = await rejectCallable({ withdrawalId, reason });
+      if (result.data.success) {
+        addNotification(
+          language === 'ar' ? '❌ تم رفض طلب السحب' : '❌ Withdrawal Rejected',
+          result.data.message || (language === 'ar' ? 'تم رفض طلب السحب.' : 'Withdrawal rejected successfully.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data.message || 'Failed to reject withdrawal.' };
+    } catch (error: any) {
+      console.error("Cloud function rejectWithdrawal failed:", error);
+      addNotification(
+        language === 'ar' ? '❌ خطأ في رفض طلب السحب' : '❌ Rejection Error',
+        error.message || 'Failed to reject withdrawal.',
+        'alert'
+      );
+      return { success: false, message: error.message || 'Failed to reject withdrawal.' };
+    }
+  }, [addNotification, language]);
 
   const deleteAuction = useCallback(async (id: string) => {
     const targetA = auctions.find(a => a.id === id);
@@ -3678,6 +3857,8 @@ const fetchIP = async () => {
       deleteAuction,
       repairEndedAuctionOrder,
       repairStuckEscrowsForEndedAuction,
+      approveWithdrawal,
+      rejectWithdrawal,
       createListing,
       isSimulating,
       setIsSimulating,

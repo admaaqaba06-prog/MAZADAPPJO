@@ -12,6 +12,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState<string>('');
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAr = language === 'ar';
@@ -26,14 +28,49 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    
+    // Reset file input value immediately so that selecting the same file triggers onChange again
+    e.target.value = '';
+    
+    setErrorMessage(null);
+    setWarningMessage(null);
+
     if (file) {
-      if (!file.type.match('video.*')) {
-        alert(isAr ? 'الرجاء اختيار ملف فيديو فقط.' : 'Please select a video file only.');
+      console.log("File selected in VideoUploadForm:", {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+
+      // Validate type: accept startsWith('video/') OR (empty/application/octet-stream and having extensions .mp4, .mov, .m4v, .webm)
+      const fileType = file.type || '';
+      const fileName = file.name || '';
+      const lastDotIndex = fileName.lastIndexOf('.');
+      const fileExtension = lastDotIndex !== -1 ? fileName.substring(lastDotIndex).toLowerCase() : '';
+      const acceptedExtensions = ['.mp4', '.mov', '.m4v', '.webm'];
+
+      const isValidType = 
+        fileType.startsWith('video/') ||
+        ((fileType === '' || fileType === 'application/octet-stream') && acceptedExtensions.includes(fileExtension));
+
+      if (!isValidType) {
+        setErrorMessage(isAr 
+          ? 'المستند المختار غير مدعوم (يسمح فقط بفيديوهات MP4, MOV, M4V, WEBM).' 
+          : 'File type not supported (only MP4, MOV, M4V, WEBM videos are allowed).');
         return;
       }
 
+      // Max size: 100MB (Hard reject)
+      if (file.size > 100 * 1024 * 1024) {
+        setErrorMessage(isAr
+          ? 'عذراً، حجم الفيديو كبير جداً (الحد الأقصى المسموح به هو 100 ميجابايت).'
+          : 'Sorry, the video file size is too large (maximum allowed size is 100MB).');
+        return;
+      }
+
+      // Friendly warning for sizes between 25MB and 100MB
       if (file.size > 25 * 1024 * 1024) {
-        alert(isAr 
+        setWarningMessage(isAr 
           ? 'تنبيه: حجم الفيديو كبير (أكثر من ٢٥ ميجابايت). قد يستغرق رفعه وقتاً طويلاً أو يفشل تبعاً لسرعة اتصالك بالإنترنت. ننصحك بضغط الفيديو قليلاً أو استخدام خيار "رابط فيديو من الويب" لضمان نشر فوري بلا تأخير!' 
           : 'Warning: This video is quite large (over 25MB). Uploading it may take a long time or fail on slower connections. We highly recommend compressing the video or pasting a "Web Video URL" instead for a fast, hassle-free publish!');
       }
@@ -59,7 +96,35 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputUrl.trim()) return;
+    setErrorMessage(null);
+    setWarningMessage(null);
+
+    const trimmedUrl = inputUrl.trim();
+    if (!trimmedUrl) return;
+
+    // Validation: must start with https:// and end with .mp4 or .webm or .mov (ignoring query string)
+    if (!trimmedUrl.startsWith('https://')) {
+      setErrorMessage(isAr 
+        ? 'الرابط يجب أن يبدأ بـ https:// لضمان الأمان.' 
+        : 'The URL must start with https:// for security.');
+      return;
+    }
+
+    try {
+      const urlObj = new URL(trimmedUrl);
+      const pathname = urlObj.pathname.toLowerCase();
+      if (!pathname.endsWith('.mp4') && !pathname.endsWith('.webm') && !pathname.endsWith('.mov') && !pathname.endsWith('.m4v')) {
+        setErrorMessage(isAr 
+          ? 'الرابط يجب أن يكون رابط ملف فيديو مباشر (mp4/webm/mov).' 
+          : 'The URL must be a direct link to a video file (mp4/webm/mov).');
+        return;
+      }
+    } catch (urlErr) {
+      setErrorMessage(isAr 
+        ? 'الرابط غير صالح.' 
+        : 'Invalid URL.');
+      return;
+    }
 
     // Direct url from web
     if (videoUrl && videoUrl.startsWith('blob:')) {
@@ -67,14 +132,14 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
     }
 
     setVideoFile(null);
-    setVideoUrl(inputUrl.trim());
+    setVideoUrl(trimmedUrl);
     setFileDetails({
       name: isAr ? 'رابط فيديو خارجي' : 'External Web Video',
       size: isAr ? 'غير محدد' : 'Unknown size'
     });
 
     if (onVideoSelect) {
-      onVideoSelect(null, inputUrl.trim());
+      onVideoSelect(null, trimmedUrl);
     }
   };
 
@@ -90,6 +155,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
     setVideoUrl(null);
     setInputUrl('');
     setFileDetails(null);
+    setErrorMessage(null);
+    setWarningMessage(null);
     
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -136,9 +203,24 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
         </button>
       </div>
 
+      {/* Error and Warning Messages */}
+      {errorMessage && (
+        <div id="video-upload-error" className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <span>❌</span>
+          <p className="m-0">{errorMessage}</p>
+        </div>
+      )}
+
+      {warningMessage && (
+        <div id="video-upload-warning" className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <span>⚠️</span>
+          <p className="m-0 leading-relaxed">{warningMessage}</p>
+        </div>
+      )}
+
       <input
         type="file"
-        accept="video/mp4,video/*"
+        accept="video/*,.mp4,.mov,.m4v,.webm"
         onChange={handleFileSelect}
         ref={fileInputRef}
         style={{ display: 'none' }}
@@ -193,7 +275,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
                     {isAr ? 'اضغط لرفع فيديو المنتج' : 'Click to upload product video'}
                   </p>
                   <p className="text-xs text-gray-400 font-bold">
-                    {isAr ? 'MP4 أو أي صيغة فيديو' : 'MP4, WebM or Quicktime'}
+                    {isAr ? 'يجب أن يكون الملف بصيغة مدعومة (MP4, MOV, WEBM) بحجم أقصى 100 ميجابايت' : 'Supported formats (MP4, MOV, WEBM) up to 100MB'}
                   </p>
                 </div>
               </div>

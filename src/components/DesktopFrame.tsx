@@ -193,9 +193,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           </button>
 
           <button 
-            onClick={() => setActiveView('wallet')}
+            onClick={() => setActiveView('profile')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'wallet' && !isStrictAdmin
+              activeView === 'profile'
                 ? 'text-[#FF6B00]' 
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
             }`}
@@ -374,7 +374,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Profile Avatar */}
             {currentUser && (
               <div 
-                onClick={() => setActiveView('wallet')}
+                onClick={() => setActiveView('profile')}
                 className="flex items-center gap-2 cursor-pointer select-none group"
               >
                 <img 
