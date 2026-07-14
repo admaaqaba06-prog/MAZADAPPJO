@@ -58,10 +58,25 @@ service cloud.firestore {
     // 2. Auctions block
     match /auctions/{auctionId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.createdById == request.auth.uid;
+      // Non-admins may only create a 'pending' auction with NO auto-open schedule (still requires
+      // admin approval to go live). Only admins can create live/active/upcoming or set scheduledStartAt.
+      // Prevents a signed-in user from injecting a live auction directly or one that auto-opens.
+      allow create: if isSignedIn() && request.resource.data.createdById == request.auth.uid && (
+        isAdmin() ||
+        (
+          request.resource.data.status == 'pending' &&
+          (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
+        )
+      );
       allow update: if isSignedIn() && (
-        isAdmin() || 
-        (resource.data.createdById == request.auth.uid && (resource.data.status == 'upcoming' || resource.data.status == 'rejected'))
+        isAdmin() ||
+        (
+          resource.data.createdById == request.auth.uid &&
+          (resource.data.status == 'upcoming' || resource.data.status == 'rejected') &&
+          // a non-admin creator cannot self-promote to live/active or add an auto-open schedule
+          request.resource.data.status != 'live' && request.resource.data.status != 'active' &&
+          (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
+        )
       );
       allow delete: if isSignedIn() && (isAdmin() || (resource.data.createdById == request.auth.uid && (resource.data.totalBids == 0 || resource.data.totalBids == null) && resource.data.status == 'upcoming'));
     }
