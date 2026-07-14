@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from '../utils/dropChannel';
+import { parseAmmanLocalToMs, formatAmmanClock } from '../utils/ammanTime';
 
 const DURATION_PRESETS = [
   { seconds: 600, label: '10 دقيقة', en: '10 min' },
@@ -18,7 +19,7 @@ export default function DropBuilderView() {
   const [productName, setProductName] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
-  const [startTime, setStartTime] = useState(''); // display only, e.g. "7:30"
+  const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
   const [condition, setCondition] = useState('جديدة كلياً');
   const [specsText, setSpecsText] = useState(''); // one spec per line
@@ -31,6 +32,12 @@ export default function DropBuilderView() {
   const specs = useMemo(
     () => specsText.split('\n').map((s) => s.trim()).filter(Boolean),
     [specsText],
+  );
+
+  const scheduledStartAtMs = useMemo(() => parseAmmanLocalToMs(scheduledLocal), [scheduledLocal]);
+  const startTimeDisplay = useMemo(
+    () => (scheduledStartAtMs != null ? formatAmmanClock(scheduledStartAtMs) : '—'),
+    [scheduledStartAtMs],
   );
 
   const durationLabel = useMemo(() => {
@@ -49,7 +56,7 @@ export default function DropBuilderView() {
     () =>
       buildAuctionCaption({
         auctionNumber: title.trim() || '—',
-        startTime: startTime.trim() || '—',
+        startTime: startTimeDisplay,
         durationLabel,
         startingPriceJod: Number(startingPrice) || 0,
         productName: productName.trim() || '—',
@@ -57,7 +64,7 @@ export default function DropBuilderView() {
         condition: condition.trim(),
         deepLink,
       }),
-    [title, startTime, durationLabel, startingPrice, productName, specs, condition, deepLink],
+    [title, startTimeDisplay, durationLabel, startingPrice, productName, specs, condition, deepLink],
   );
 
   const onThumb = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,6 +87,10 @@ export default function DropBuilderView() {
       setError(isAr ? 'أدخل اسم المنتج وسعر البداية' : 'Enter a product name and starting price');
       return;
     }
+    if (scheduledStartAtMs != null && scheduledStartAtMs <= Date.now()) {
+      setError(isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future');
+      return;
+    }
     setSubmitting(true);
     try {
       const priceNum = Number(startingPrice);
@@ -94,10 +105,10 @@ export default function DropBuilderView() {
           currentBidderName: null,
           videoUrl: '',
           thumbnailUrl: '',
-          endTime: Date.now() + durationSeconds * 1000,
+          endTime: (scheduledStartAtMs ?? Date.now()) + durationSeconds * 1000,
           duration: durationSeconds,
           channel,
-          scheduledStartAt: null,
+          scheduledStartAt: scheduledStartAtMs,
         },
         undefined,
         thumbnailFile ?? undefined,
@@ -139,8 +150,13 @@ export default function DropBuilderView() {
           </select>
         </label>
 
-        <label className="block text-sm">{isAr ? 'وقت البدء' : 'Start time'}
-          <input className="mt-1 w-full border rounded p-2" value={startTime} onChange={(e) => setStartTime(e.target.value)} placeholder="7:30" />
+        <label className="block text-sm">{isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
+          <input
+            type="datetime-local"
+            className="mt-1 w-full border rounded p-2"
+            value={scheduledLocal}
+            onChange={(e) => setScheduledLocal(e.target.value)}
+          />
         </label>
 
         <label className="block text-sm">{isAr ? 'المدة' : 'Duration'}
