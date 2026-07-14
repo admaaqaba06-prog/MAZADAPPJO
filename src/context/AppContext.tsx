@@ -75,7 +75,7 @@ interface AppContextProps {
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
   activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder') => void;
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
