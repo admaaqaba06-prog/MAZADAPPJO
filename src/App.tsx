@@ -1,6 +1,5 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -14,7 +13,6 @@ const ListingWizardView = lazy(() => import('./components/ListingWizardView').th
 const LoginView = lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
-const DropBuilderView = React.lazy(() => import('./components/DropBuilderView'));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 
@@ -40,10 +38,6 @@ function ActiveViewRenderer() {
         return <DiscoveryFeedView />;
       }
       return <AdminDashboardView />;
-    case 'drop-builder': {
-      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
-      return isStrictAdmin ? <DropBuilderView /> : <DiscoveryFeedView />;
-    }
     case 'upload':
       return <ListingWizardView />;
     default:
@@ -112,19 +106,9 @@ function MaintenanceView() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
+  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView } = useApp();
 
   const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
-
-  useEffect(() => {
-    const id = parseAuctionIdFromSearch(window.location.search);
-    if (id) {
-      setActiveAuctionId(id);
-      setActiveView('live');
-    }
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // 1. Verify Maintenance Mode
   if (maintenanceMode.enabled && !isStrictAdmin) {
