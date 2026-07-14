@@ -36,7 +36,7 @@ service cloud.firestore {
           ('email' in request.auth.token && request.resource.data.email == request.auth.token.email) ||
           ('phone_number' in request.auth.token
             && request.resource.data.phoneNumber == request.auth.token.phone_number
-            && (!('email' in request.resource.data) || request.resource.data.email == ''))
+            && (!('email' in request.resource.data) || request.resource.data.email == '' || request.resource.data.email == null))
         ) &&
         (
           request.resource.data.role == 'user' ||
