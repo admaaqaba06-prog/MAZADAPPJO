@@ -80,6 +80,7 @@ export const LoginView: React.FC = () => {
   };
 
   const handleSendCode = async () => {
+    if (phoneBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setPhoneErr('');
     const e164 = toE164Jordan(phoneInput);
     if (!e164) {
