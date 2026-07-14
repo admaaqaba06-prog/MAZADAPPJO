@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { resolveVideoUrl } from '../utils/videoDb';
+import { minNextBid } from '../utils/bidMath';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -3199,13 +3200,13 @@ const fetchIP = async () => {
       const maxBid = autoBids[auction.id];
       if (!maxBid) return false;
 
-      const nextRequiredBid = auction.currentPrice + (auction.totalBids > 0 ? auction.minIncrement : 0);
+      const nextRequiredBid = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids);
       return nextRequiredBid <= maxBid;
     });
 
     if (triggerable) {
       isAutoBiddingRef.current = true;
-      const nextBid = triggerable.currentPrice + (triggerable.totalBids > 0 ? triggerable.minIncrement : 0);
+      const nextBid = minNextBid(triggerable.currentPrice, triggerable.minIncrement, triggerable.totalBids);
       
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);

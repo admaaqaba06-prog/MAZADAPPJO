@@ -104,7 +104,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
-  const trustScore = activeSellerProfile?.trustScore || 98;
+  const trustScore = activeSellerProfile?.trustScore;
   const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
 
   // Navigation Links for left sidebar
@@ -540,9 +540,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       <span className="text-xs font-bold text-white truncate mt-1 leading-none">
                         {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
                       </span>
-                      <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
-                        ★ {trustScore}% <span className="opacity-60">(124)</span>
-                      </span>
+                      {typeof trustScore === 'number' && (
+                        <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                          ★ {trustScore}%
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -704,7 +706,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             <div className="flex flex-col items-center">
               <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
                 <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                4.9 <span className="text-[9px] text-gray-400 font-normal">(124)</span>
+                4.9
               </span>
               <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
             </div>
