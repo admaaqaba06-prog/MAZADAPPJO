@@ -187,6 +187,61 @@ exports.scheduledAuctionCloser = functions.pubsub
   });
 
 /**
+ * scheduledAuctionOpener
+ * Runs every minute; flips `upcoming` auctions whose scheduledStartAt has
+ * arrived to `live`, resetting the countdown from `duration` at open time.
+ * Only touches auctions that HAVE a scheduledStartAt (null = manual open).
+ */
+exports.scheduledAuctionOpener = functions.pubsub
+  .schedule('every 1 minutes')
+  .onRun(async (context) => {
+    const nowMs = admin.firestore.Timestamp.now().toMillis();
+    try {
+      const snap = await db.collection('auctions').where('status', '==', 'upcoming').get();
+      if (snap.empty) return null;
+
+      const promises = snap.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        let startMs = data.scheduledStartAt;
+        if (startMs === null || startMs === undefined) return; // manual-open drop; skip
+        if (typeof startMs === 'object' && typeof startMs.toMillis === 'function') {
+          startMs = startMs.toMillis();
+        } else if (typeof startMs !== 'number') {
+          startMs = new Date(startMs).getTime();
+        }
+        if (!(startMs > 0) || startMs > nowMs) return; // not due yet
+
+        const durationSec = Number(data.duration) > 0 ? Number(data.duration) : 600;
+
+        return db.runTransaction(async (tx) => {
+          const fresh = await tx.get(docSnap.ref);
+          const fd = fresh.data();
+          if (!fd || fd.status !== 'upcoming') return; // already opened / changed
+          const openMs = admin.firestore.Timestamp.now().toMillis();
+          const endMs = openMs + durationSec * 1000;
+          tx.update(docSnap.ref, {
+            status: 'live',
+            // Mirror approveListing's go-live fields so an auto-opened auction is
+            // NOT left counted as a pending approval (AdminDashboardView badge,
+            // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
+            approvalStatus: 'approved',
+            isApproved: true,
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            openedAt: admin.firestore.FieldValue.serverTimestamp(),
+            endTime: endMs,
+            endsAt: admin.firestore.Timestamp.fromMillis(endMs),
+          });
+        }).catch((err) => console.error(`[scheduledAuctionOpener] open failed for ${docSnap.id}`, err));
+      });
+
+      await Promise.all(promises);
+    } catch (err) {
+      console.error('[scheduledAuctionOpener]', err);
+    }
+    return null;
+  });
+
+/**
  * 2. onBidCreated (BUG #5 Compliance)
  * Activates instant real-time outbid notifications.
  * Sends push messaging to the outbid user (previousBidderId) the instant a higher bid enters the database subcollection.
