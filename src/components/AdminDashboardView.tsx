@@ -152,7 +152,8 @@ export const AdminDashboardView: React.FC = () => {
     systemHealthLogs,
     logSystemHealth,
     setBids,
-    resetOnboarding
+    resetOnboarding,
+    setActiveView
   } = useApp();
 
   const t = translations[language];
@@ -591,9 +592,17 @@ export const AdminDashboardView: React.FC = () => {
             </p>
           </div>
         </div>
-        <span className="text-[10px] bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
-          {isAr ? 'حساب مدير النظام' : 'SYSTEM ADMIN'}
-        </span>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setActiveView('drop-builder')}
+            className="px-4 py-2 rounded bg-amber-600 text-white text-xs font-bold whitespace-nowrap"
+          >
+            {language === 'ar' ? 'إنشاء مزاد (Drop Builder)' : 'Create Drop'}
+          </button>
+          <span className="text-[10px] bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+            {isAr ? 'حساب مدير النظام' : 'SYSTEM ADMIN'}
+          </span>
+        </div>
       </div>
 
       {/* Navigation Submenu - Premium Tab Buttons */}
