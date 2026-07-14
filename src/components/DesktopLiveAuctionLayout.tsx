@@ -26,6 +26,8 @@ import {
   Maximize2
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import { isAuctionOpen } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -475,19 +477,21 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </div>
               ) : (
                 <>
-                  {/* Quick Bid Multipliers */}
-                  <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                    {[10, 25, 50].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => onBidExecute(activePrice + val)}
-                        className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
-                      >
-                        +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {/* Quick Bid Multipliers (hidden until the auction is open) */}
+                  {isAuctionOpen(activeAuction?.status) && (
+                    <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                      {[10, 25, 50].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => onBidExecute(activePrice + val)}
+                          className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                        >
+                          +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
                     {/* Current Bid */}
@@ -506,7 +510,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     {/* Time Remaining */}
                     <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
                       <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
-                        {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                        {!isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
+                          ? (isAr ? 'يبدأ خلال' : 'Starts in')
+                          : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
                       </span>
                       <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
                         {timeLeftStr}
@@ -530,8 +536,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     </div>
                   </div>
 
-                  {/* Winning/Losing indicator */}
+                  {/* Winning/Losing indicator (hidden until the auction is open) */}
                   {(() => {
+                    if (!isAuctionOpen(activeAuction?.status)) return null;
                     const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
                     const isUserWinning = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
                     if (!hasUserBid) return null;
@@ -548,14 +555,23 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     );
                   })()}
 
-                  {/* SWIPE TO BID Button */}
+                  {/* SWIPE TO BID Button (hidden until the auction is open) */}
                   <div className="w-full">
-                    <SwipeToBid
-                      amount={nextBidAmount}
-                      onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                      disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                      language={isAr ? 'ar' : 'en'}
-                    />
+                    {!isAuctionOpen(activeAuction?.status) ? (
+                      <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
+                        <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
+                        <div className="text-lg font-bold">
+                          {activeAuction?.scheduledStartAt ? formatAmmanClock(activeAuction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
+                        </div>
+                      </div>
+                    ) : (
+                      <SwipeToBid
+                        amount={nextBidAmount}
+                        onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                        disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                        language={isAr ? 'ar' : 'en'}
+                      />
+                    )}
                   </div>
                 </>
               )}

@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
+import { isAuctionOpen } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
 import { 
   Volume2, 
   VolumeX, 
@@ -754,6 +756,13 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     );
                   }
                 })()}
+              </div>
+            ) : !isAuctionOpen(auction?.status) ? (
+              <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
+                <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
+                <div className="text-lg font-bold">
+                  {auction?.scheduledStartAt ? formatAmmanClock(auction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
+                </div>
               </div>
             ) : (
               <>

@@ -86,6 +86,9 @@ export interface AuctionItem {
   isFeatured: boolean;
   totalBids: number;
   viewersCount: number;
+  caption?: string;
+  channel?: 'phones' | 'cars' | 'misc';
+  scheduledStartAt?: number | null;
 }
 
 export interface Bid {
