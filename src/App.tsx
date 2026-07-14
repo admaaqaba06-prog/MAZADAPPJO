@@ -16,6 +16,7 @@ const SubscriptionView = lazy(() => import('./components/SubscriptionView').then
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
 const DropBuilderView = React.lazy(() => import('./components/DropBuilderView'));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
+const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -31,6 +32,8 @@ function ActiveViewRenderer() {
       return <ProfileView />;
     case 'seller-center':
       return <SellerCenterView />;
+    case 'drop-builder':
+      return <DropBuilderView />;
     case 'admin':
       const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
       if (!isStrictAdmin) {

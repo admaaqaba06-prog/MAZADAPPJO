@@ -74,10 +74,8 @@ interface AppContextProps {
   // Active View State
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder') => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile') => void;
+  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder';
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
@@ -389,11 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
-<<<<<<< feat/drop-builder
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'drop-builder'>('discovery');
-=======
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile'>('discovery');
->>>>>>> main
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder'>('discovery');
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
@@ -1034,7 +1028,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time auctions synchronization with Firestore
   useEffect(() => {
-    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center'];
+    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder'];
     if (!viewsRequiringAuctions.includes(activeView)) {
       setAuctions([]);
       return;
@@ -1042,8 +1036,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
-    if (activeView === 'seller-center') {
-      // In Seller Center, fetch auctions including ended but capped at 100
+    if (activeView === 'seller-center' || activeView === 'drop-builder') {
+      // In Seller Center & Drop Builder, fetch auctions including ended but capped at 100
       q = query(auctionsRefCol, limit(100));
     } else {
       // On Discovery / Live views, subscribe ONLY to active/non-ended auctions
@@ -2536,41 +2530,86 @@ const fetchIP = async () => {
     let finalVideoUrl = listingData.videoUrl || '';
     let finalThumbnailUrl = listingData.thumbnailUrl || '';
 
-    if (videoFile) {
-      try {
-        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const { getFirebaseStorage } = await import('../services/firebase');
-        const storage = await getFirebaseStorage();
-        const videoName = (videoFile as any).name || `${Date.now()}_video.mp4`;
-        const videoRef = ref(storage, `auction-videos/${Date.now()}_${videoName}`);
-        
-        if (onProgress) onProgress(0, 'video');
+    // Helper to upload files with robust self-healing fallback retry
+    const uploadWithFallback = async (
+      file: File | Blob,
+      pathPrefix: 'auction-videos' | 'auction-thumbnails',
+      defaultName: string,
+      contentTypeDefault: string,
+      onProgressLocal?: (progress: number) => void
+    ): Promise<string> => {
+      const { ref, uploadBytesResumable, getDownloadURL, getStorage } = await import('firebase/storage');
+      const { getFirebaseStorage } = await import('../services/firebase');
+      
+      const storage = await getFirebaseStorage();
+      const fileName = (file as any).name || defaultName;
+      const cleanPath = `${pathPrefix}/${Date.now()}_${fileName}`;
+      const metadata = {
+        contentType: (file as any).type && (file as any).type.trim() !== ''
+          ? (file as any).type
+          : contentTypeDefault
+      };
 
-        const metadata = {
-          contentType: (videoFile as any).type && (videoFile as any).type.trim() !== '' 
-            ? (videoFile as any).type 
-            : 'video/mp4'
-        };
-        const uploadTask = uploadBytesResumable(videoRef, videoFile, metadata);
+      // Try primary bucket first
+      try {
+        console.log(`Attempting upload to primary bucket at path: ${cleanPath}...`);
+        const primaryRef = ref(storage, cleanPath);
+        const uploadTask = uploadBytesResumable(primaryRef, file, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
             (snapshot) => {
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              if (onProgress) onProgress(progress, 'video');
+              if (onProgressLocal) onProgressLocal(progress);
             },
-            (error) => {
-              reject(error);
-            },
-            () => {
-              resolve();
-            }
+            (error) => reject(error),
+            () => resolve()
           );
         });
+        return await getDownloadURL(uploadTask.snapshot.ref);
+      } catch (primaryErr: any) {
+        console.warn(`Primary storage bucket upload failed (Code: ${primaryErr.code || 'unknown'}). Retrying with older fallback bucket gs://mazadjoapp.appspot.com...`);
+        
+        try {
+          // Initialize storage instance with fallback bucket
+          const fallbackStorage = getStorage(storage.app, "gs://mazadjoapp.appspot.com");
+          const fallbackRef = ref(fallbackStorage, cleanPath);
+          const uploadTaskFallback = uploadBytesResumable(fallbackRef, file, metadata);
+          
+          if (onProgressLocal) onProgressLocal(0); // Reset progress for retry
+          
+          await new Promise<void>((resolve, reject) => {
+            uploadTaskFallback.on('state_changed',
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgressLocal) onProgressLocal(progress);
+              },
+              (error) => reject(error),
+              () => resolve()
+            );
+          });
+          return await getDownloadURL(uploadTaskFallback.snapshot.ref);
+        } catch (fallbackErr: any) {
+          console.error("Firebase Storage write failure during upload retry:", fallbackErr.code, fallbackErr.message);
+          throw fallbackErr;
+        }
+      }
+    };
 
-        finalVideoUrl = await getDownloadURL(uploadTask.snapshot.ref);
+    if (videoFile) {
+      try {
+        if (onProgress) onProgress(0, 'video');
+        finalVideoUrl = await uploadWithFallback(
+          videoFile,
+          'auction-videos',
+          `${Date.now()}_video.mp4`,
+          'video/mp4',
+          (progress) => {
+            if (onProgress) onProgress(progress, 'video');
+          }
+        );
       } catch (videoErr: any) {
-        console.error("Firebase Storage write failure during video upload. Code:", videoErr.code, "Message:", videoErr.message);
+        console.error("Final Firebase Storage write failure during video upload. Code:", videoErr.code, "Message:", videoErr.message);
         const code = videoErr.code || 'storage/unknown';
         const errorMsg = language === 'ar'
           ? `فشل رفع الفيديو (${code}). لم يُنشر المزاد — حاول مجدداً.`
@@ -2587,39 +2626,18 @@ const fetchIP = async () => {
 
     if (thumbnailFile) {
       try {
-        const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
-        const { getFirebaseStorage } = await import('../services/firebase');
-        const storage = await getFirebaseStorage();
-        const thumbName = (thumbnailFile as any).name || `${Date.now()}_thumbnail.jpg`;
-        const thumbRef = ref(storage, `auction-thumbnails/${Date.now()}_${thumbName}`);
-        
         if (onProgress) onProgress(0, 'thumbnail');
-
-        const metadata = {
-          contentType: (thumbnailFile as any).type && (thumbnailFile as any).type.trim() !== ''
-            ? (thumbnailFile as any).type
-            : 'image/jpeg'
-        };
-        const uploadTask = uploadBytesResumable(thumbRef, thumbnailFile, metadata);
-        
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on('state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              if (onProgress) onProgress(progress, 'thumbnail');
-            },
-            (error) => {
-              reject(error);
-            },
-            () => {
-              resolve();
-            }
-          );
-        });
-
-        finalThumbnailUrl = await getDownloadURL(uploadTask.snapshot.ref);
+        finalThumbnailUrl = await uploadWithFallback(
+          thumbnailFile,
+          'auction-thumbnails',
+          `${Date.now()}_thumbnail.jpg`,
+          'image/jpeg',
+          (progress) => {
+            if (onProgress) onProgress(progress, 'thumbnail');
+          }
+        );
       } catch (thumbErr: any) {
-        console.error("Firebase Storage write failure during thumbnail upload. Code:", thumbErr.code, "Message:", thumbErr.message);
+        console.error("Final Firebase Storage write failure during thumbnail upload. Code:", thumbErr.code, "Message:", thumbErr.message);
         const code = thumbErr.code || 'storage/unknown';
         const errorMsg = language === 'ar'
           ? `فشل رفع الصورة المصغرة (${code}). لم يُنشر المزاد — حاول مجدداً.`
@@ -2693,7 +2711,7 @@ const fetchIP = async () => {
         language === 'ar' ? `فشل تسجيل المزاد الجديد بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to create auction. Code: ${dbErr.code || 'unknown'}`,
         'alert'
       );
-      throw dbErr;
+      handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
     }
 
     setAuctions(prev => [newListing, ...prev]);
