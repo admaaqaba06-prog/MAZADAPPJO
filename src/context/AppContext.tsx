@@ -1832,16 +1832,24 @@ const fetchIP = async () => {
   }, [language]);
 
   const loginWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    
+    const newSessionId = generateSessionId();
+    localStorage.setItem('mazad_session_id', newSessionId);
+    localStorage.setItem('mazad_last_login_time', String(Date.now()));
+    
     try {
-      const provider = new GoogleAuthProvider();
-      
-      const newSessionId = generateSessionId();
-      localStorage.setItem('mazad_session_id', newSessionId);
-      localStorage.setItem('mazad_last_login_time', String(Date.now()));
-      
-      await signInWithRedirect(auth, provider);
-    } catch (error) {
-      console.warn("Google Auth redirect failed: ", error);
+      console.log("Attempting Google Auth via signInWithPopup first...");
+      await signInWithPopup(auth, provider);
+    } catch (popupError: any) {
+      console.warn("Google Auth popup failed, falling back to redirect:", popupError);
+      // Fallback to redirect
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch (redirectError: any) {
+        console.error("Google Auth completely failed:", redirectError);
+        throw redirectError;
+      }
     }
   }, []);
 

@@ -344,10 +344,11 @@ export const DiscoveryFeedView: React.FC = () => {
   }, [auctions, activeTab, searchTerm, selectedCategory]);
 
   const pendingListingsToDisplay = React.useMemo(() => {
+    const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin');
     return auctions.filter(a => {
-      if (a.status !== 'processing') return false;
-      if (currentUser?.role === 'admin') return false;
-      return a.sellerId === currentUser?.id;
+      if (a.status !== 'processing' && a.status !== 'pending') return false;
+      if (isStrictAdmin) return true; // Admins can see all pending lots to approve on-the-fly
+      return a.sellerId === currentUser?.id; // Regular merchants see their own under-review lots
     });
   }, [auctions, currentUser]);
 
@@ -586,43 +587,66 @@ export const DiscoveryFeedView: React.FC = () => {
         );
       })()}
 
-      {/* Pending Listings Banner (For Admins) */}
-      {pendingListingsToDisplay.length > 0 && (
-        <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
-          <div className="flex gap-2 items-start">
-            <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
-            <div>
-              <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
-                {isAr ? 'مزادك قيد المراجعة والتحقق' : 'YOUR UNDER REVIEW AUCTION'}
-              </h4>
-              <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
-                {isAr
-                  ? 'لقد تم رفع معروضك بنجاح وهو الآن تحت مراجعة الإدارة بهدف حمايتك:'
-                  : 'Your video stream asset successfully verified. It will appear live once approved:'}
-              </p>
+      {/* Pending Listings Banner (For Admins & Merchants) */}
+      {pendingListingsToDisplay.length > 0 && (() => {
+        const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin');
+        return (
+          <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
+            <div className="flex gap-2 items-start">
+              <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
+              <div>
+                <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
+                  {isStrictAdmin 
+                    ? (isAr ? '🛡️ مراجعة واعتماد المزادات المعلقة' : '🛡️ PENDING AUCTIONS RELEASES')
+                    : (isAr ? '⏳ مزادك قيد المراجعة والتحقق' : '⏳ YOUR UNDER REVIEW AUCTION')
+                  }
+                </h4>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                  {isStrictAdmin
+                    ? (isAr ? 'بصفتك مديراً للمنصة، يمكنك اعتماد وتفعيل هذه المزادات مباشرة لتظهر لجميع المزايدين:' : 'As an Administrator, you can instantly approve and launch these lots to the public live feed:')
+                    : (isAr ? 'تم رفع معروضك بنجاح وهو قيد المراجعة الأمنية وسيظهر للمزايدين فور اعتماده:' : 'Your listing was successfully uploaded. It will appear on the active live feed once approved:')
+                  }
+                </p>
+              </div>
             </div>
-          </div>
-          
-          <div className="space-y-2 pt-1 border-t border-orange-100">
-            {pendingListingsToDisplay.map(item => (
-              <div key={item.id} className="flex items-center justify-between bg-white border border-gray-150 p-2 rounded-xl">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" loading="lazy" width="32" height="32" />
-                  <div className="min-w-0">
-                    <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
-                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
-                      {item.startingPrice.toLocaleString()} JOD
-                    </span>
+            
+            <div className="space-y-2 pt-1 border-t border-orange-100">
+              {pendingListingsToDisplay.map(item => (
+                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-150 p-2.5 rounded-xl gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" loading="lazy" width="32" height="32" />
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
+                      <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
+                        {item.startingPrice.toLocaleString()} JOD
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-1.5 shrink-0">
+                    {isStrictAdmin ? (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(isAr ? `هل أنت متأكد من رغبتك في تفعيل المزاد "${item.title}" فوراً؟` : `Are you sure you want to approve "${item.title}" and go live now?`)) {
+                            approveListing(item.id);
+                          }
+                        }}
+                        className="text-[10px] font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        ✅ {isAr ? 'موافقة وتفعيل البث' : 'Approve & Go Live'}
+                      </button>
+                    ) : (
+                      <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
+                        {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
-                  {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tabs active live feed & upcoming drops with Fire & Calendar icon */}
       <div className="px-4 flex border-b border-gray-100 mb-3">
