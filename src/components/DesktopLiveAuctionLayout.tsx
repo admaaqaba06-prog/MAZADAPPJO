@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 interface DesktopLiveAuctionLayoutProps {
@@ -476,20 +477,24 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               ) : (
                 <>
                   {/* Quick Bid Multipliers (hidden until the auction is open) */}
-                  {isAuctionOpen(activeAuction?.status) && (
-                    <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                      {[10, 25, 50].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => onBidExecute(activePrice + val)}
-                          className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
-                        >
-                          +{val} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {isAuctionOpen(activeAuction?.status) && (() => {
+                    const inc = activeAuction?.minIncrement || 10;
+                    const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
+                    return (
+                      <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                        {[base, base + inc, base + 2 * inc].map((amount) => (
+                          <button
+                            key={amount}
+                            type="button"
+                            onClick={() => onBidExecute(amount)}
+                            className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                          >
+                            {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
                     {/* Current Bid */}
@@ -501,7 +506,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
                       </span>
                       <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
-                        +{(activeAuction.bidIncrement || 25)} JOD
+                        +{(activeAuction.minIncrement || 10)} JOD
                       </span>
                     </div>
 

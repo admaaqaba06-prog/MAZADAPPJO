@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Gavel, Store, Info, ShieldCheck, UserCheck, Star, Calendar, Clock, Award } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
@@ -100,8 +101,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     return isAr ? `قبل ${hoursAgo} س` : `${hoursAgo}h ago`;
   };
 
-  const bidIncrement = currentItem.minIncrement || 50;
-  const nextBidAmount = currentItem.currentPrice + bidIncrement;
+  const nextBidAmount = minNextBid(currentItem.currentPrice, currentItem.minIncrement, currentItem.totalBids || 0);
 
   return (
     <div className="flex flex-col h-full space-y-4 text-zinc-200 overflow-y-auto pr-1 no-scrollbar" id="reels-panel-content">

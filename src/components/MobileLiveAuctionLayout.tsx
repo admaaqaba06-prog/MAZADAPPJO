@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { 
   Volume2, 
@@ -165,7 +166,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               commentText={commentText}
               setCommentText={setCommentText}
               onCommentSubmit={onCommentSubmit}
-              nextBidAmount={isActive ? nextBidAmount : currentReelPrice + 10}
+              nextBidAmount={isActive ? nextBidAmount : minNextBid(currentReelPrice, auction.minIncrement, auction.totalBids || 0)}
               onBidExecute={onBidExecute}
               wallet={wallet}
               currentUser={currentUser}
