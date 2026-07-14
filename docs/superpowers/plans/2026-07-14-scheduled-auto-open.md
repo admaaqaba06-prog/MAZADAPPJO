@@ -199,6 +199,12 @@ exports.scheduledAuctionOpener = functions.pubsub
           const endMs = openMs + durationSec * 1000;
           tx.update(docSnap.ref, {
             status: 'live',
+            // Mirror approveListing's go-live fields so an auto-opened auction is
+            // NOT left counted as a pending approval (AdminDashboardView badge,
+            // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
+            approvalStatus: 'approved',
+            isApproved: true,
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
             openedAt: admin.firestore.FieldValue.serverTimestamp(),
             endTime: endMs,
             endsAt: admin.firestore.Timestamp.fromMillis(endMs),
@@ -300,6 +306,17 @@ to:
 ```
 (`scheduledStartAtMs` is `number | null`; `null` means no schedule → manual open, and the opener skips it. Keep `initialStatus` `'upcoming'`.)
 
+- [ ] **Step 5b: Reject a past start time**
+
+A `datetime-local` accepts past values; a past `scheduledStartAt` would make the creation-time `endTime` already expired, flashing "Auction Ended" until the opener flips it. In `handleCreate`, alongside the existing product-name/price validation, add a guard BEFORE calling `createListing`:
+```tsx
+    if (scheduledStartAtMs != null && scheduledStartAtMs <= Date.now()) {
+      setError(isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future');
+      return;
+    }
+```
+(Blank/`null` is allowed — that means manual open.)
+
 - [ ] **Step 6: Typecheck + tests**
 
 Run: `cd /Users/mj/code/mazadjo && npm run lint && npx vitest run`
@@ -322,13 +339,16 @@ git commit -m "feat(auto-open): drop-builder datetime picker sets scheduledStart
 
 **Files:**
 - Modify: `src/components/LiveStreamView.tsx` (countdown logic ~:211-235)
-- Modify: `src/components/MobileLiveAuctionLayout.tsx` (bid card ~:722-791, `isEnded` ~:260)
-- Modify: `src/components/ReelsDesktopRightPanel.tsx` (SwipeToBid ~:117-126)
+- Modify: `src/components/MobileLiveAuctionLayout.tsx` (bid card ~:722-791, `isEnded` ~:260) — mobile
+- Modify: `src/components/DesktopLiveAuctionLayout.tsx` (SwipeToBid ~:553-556, `isEnded` ~:107) — **the primary desktop room surface** (rendered by `LiveStreamView.tsx:628`)
+- Modify: `src/components/ReelsDesktopRightPanel.tsx` (SwipeToBid ~:117-126, own countdown ~:24-47) — the reels/`DesktopFrame` surface
 
 **Interfaces:**
 - Consumes: `isAuctionOpen` (Task 1), `formatAmmanClock` (Task 2).
 
-- [ ] **Step 1: Read the three components** at the cited lines to confirm the exact prop/variable names (`activeAuction`/`auction`, `status`, `scheduledStartAt`, `endTime`, `nextBidAmount`). Line numbers approximate.
+**CRITICAL — the auction variable name differs per file:** `activeAuction` in `LiveStreamView`, `auction` in `MobileLiveAuctionLayout` and `DesktopLiveAuctionLayout`, and **`currentItem`** in `ReelsDesktopRightPanel`. Read each file and use the correct name — a wrong name won't compile.
+
+- [ ] **Step 1: Read all four components** at the cited lines to confirm the exact prop/variable names (`activeAuction` / `auction` / `currentItem`, `status`, `scheduledStartAt`, `endTime`, `nextBidAmount`). Line numbers approximate — match the real code.
 
 - [ ] **Step 2: LiveStreamView — countdown to *start* when not open**
 
@@ -343,6 +363,15 @@ const target = !open && activeAuction?.scheduledStartAt
 const remainingMs = (target ?? 0) - Date.now();
 ```
 Use `remainingMs` where `activeAuction.endTime - Date.now()` was used to build `timeLeftStr`. Keep `secondsRemaining` (the final-10s overlay/sfx) gated on `status === 'live'` as it already is — do NOT trigger the closing sfx for a pre-open countdown. Preserve the existing formatting of `timeLeftStr`.
+
+**Also handle the T-0 dead zone:** when NOT open and `remainingMs <= 0` (the scheduled start has passed but the 1-minute cron hasn't flipped it yet — up to ~60s), do NOT fall into the existing `remainingSecs <= 0` "next 4-hour boundary" fake-clock branch (`~:227-235`). Instead show a "starting…" state:
+```tsx
+if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+  setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
+  return; // skip the 4-hour-boundary fallback
+}
+```
+(Match `setTimeLeftStr`/the actual state setter name in the file.)
 
 - [ ] **Step 3: MobileLiveAuctionLayout — replace bid button with a "starts at" panel when not open**
 
@@ -366,9 +395,33 @@ In the bidding card (`~:722-791`), gate the live bid button on open state. Where
 ```
 (Keep the existing `isEnded` ended-panel branch as the outermost condition; the not-open branch applies only when not ended.)
 
-- [ ] **Step 4: ReelsDesktopRightPanel — disable swipe + show "starts at" when not open**
+- [ ] **Step 4a: DesktopLiveAuctionLayout — gate the primary desktop bid slider (the surface `LiveStreamView` actually renders)**
 
-Import `isAuctionOpen` and `formatAmmanClock`. At the `<SwipeToBid ... disabled={...} />` (`~:117-126`), add `|| !isAuctionOpen(auction?.status)` to the existing `disabled` expression, and render a small "starts at {formatAmmanClock(scheduledStartAt)}" label above/beside it when `!isAuctionOpen(auction?.status)`.
+This is the main desktop room (`LiveStreamView.tsx:628` renders it). Import the helpers:
+```tsx
+import { isAuctionOpen } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
+```
+The auction variable here is `auction`. Around the `SwipeToBid` (`~:553-556`, `disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}`), gate on open state exactly like the mobile layout: when `!isAuctionOpen(auction?.status)` and not ended, render a "starts at" panel instead of the slider:
+```tsx
+{!isAuctionOpen(auction?.status) ? (
+  <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
+    <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
+    <div className="text-lg font-bold">
+      {auction?.scheduledStartAt ? formatAmmanClock(auction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
+    </div>
+  </div>
+) : (
+  /* existing <SwipeToBid ... /> JSX unchanged */
+)}
+```
+Keep the existing `isEnded` (`~:107`) ended-panel as the outer condition; the not-open branch applies only when not ended.
+
+- [ ] **Step 4b: ReelsDesktopRightPanel — disable swipe + retarget its own countdown**
+
+The auction variable here is **`currentItem`** (not `auction`). Import `isAuctionOpen` + `formatAmmanClock`. Two changes:
+1. At the `<SwipeToBid ... disabled={...} />` (`~:117-126`), add `|| !isAuctionOpen(currentItem?.status)` to the existing `disabled` expression, and render a small "starts at {formatAmmanClock(currentItem.scheduledStartAt)}" label near it when `!isAuctionOpen(currentItem?.status)`.
+2. This panel has its OWN "TIME LEFT" countdown to `endTime` (`~:24-47`). When `!isAuctionOpen(currentItem?.status)` and `currentItem?.scheduledStartAt`, target that countdown at `scheduledStartAt` and relabel it (isAr ? 'يبدأ خلال' : 'Starts in'); otherwise leave it as the end-countdown.
 
 - [ ] **Step 5: Typecheck + tests**
 
@@ -382,7 +435,7 @@ Run: `npm run dev`. With an `upcoming` auction whose `scheduledStartAt` is in th
 - [ ] **Step 7: Commit**
 ```bash
 cd /Users/mj/code/mazadjo
-git add src/components/LiveStreamView.tsx src/components/MobileLiveAuctionLayout.tsx src/components/ReelsDesktopRightPanel.tsx
+git add src/components/LiveStreamView.tsx src/components/MobileLiveAuctionLayout.tsx src/components/DesktopLiveAuctionLayout.tsx src/components/ReelsDesktopRightPanel.tsx
 git commit -m "feat(auto-open): gate bid controls + countdown on open state"
 ```
 
