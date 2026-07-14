@@ -146,6 +146,8 @@ interface AppContextProps {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
+  loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
+  confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
   
   // Onboarding Additions
@@ -608,7 +610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           let loadedUser: User;
           
           if (!userSnap.exists()) {
-            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
+            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : (firebaseUser.phoneNumber || 'User');
             const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
             
             const newSessionId = generateSessionId();
@@ -647,6 +649,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 accountStatus: 'active',
                 phoneNumber: firebaseUser.phoneNumber || '',
                 phone: firebaseUser.phoneNumber || '',
+                normalizedPhone: (firebaseUser.phoneNumber || '').replace(/\D/g, ''),
                 city: '',
                 createdAt: new Date().toISOString(),
                 onboardingCompleted: false,
@@ -660,7 +663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 appVersion: dev.appVersion,
                 lastLoginIP: ip,
                 lastSeen: new Date().toISOString()
-              });
+              }, { merge: true }); // (review SF1) server onUserCreated trigger also creates this doc; merge avoids clobbering server-set fields
             } catch (error) {
               handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
             }
@@ -1853,6 +1856,54 @@ const fetchIP = async () => {
       }
     }
   }, []);
+
+  const loginWithPhone = useCallback(async (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => {
+    const { signInWithPhoneNumber } = await import('firebase/auth');
+    const newSessionId = generateSessionId();
+    localStorage.setItem('mazad_session_id', newSessionId);
+    localStorage.setItem('mazad_last_login_time', String(Date.now()));
+    // Returns a ConfirmationResult; the UI then calls confirmPhoneCode with the SMS code.
+    return signInWithPhoneNumber(auth, phoneE164, appVerifier);
+  }, []);
+
+  const confirmPhoneCode = useCallback(async (confirmation: import('firebase/auth').ConfirmationResult, code: string) => {
+    try {
+      // (review B2) OTP entry takes longer than the 10s session grace window used by the
+      // onAuthStateChanged session-conflict check (~:674-680). Refresh the timestamp
+      // IMMEDIATELY before confirm() so a returning phone user isn't force-logged-out.
+      localStorage.setItem('mazad_last_login_time', String(Date.now()));
+      const cred = await confirmation.confirm(code); // signs the user in
+      // (review B2) Mirror email login(): persist the new sessionId onto the EXISTING user
+      // doc so the session-conflict check passes. New users get their sessionId written by
+      // the onAuthStateChanged new-user path.
+      const uid = cred?.user?.uid;
+      if (uid) {
+        const userRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const dev = getDeviceInfo();
+          const ip = await fetchIP();
+          await updateDoc(userRef, {
+            sessionId: localStorage.getItem('mazad_session_id') || '',
+            lastLoginAt: new Date().toISOString(),
+            deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+            platform: dev.platform,
+            browser: dev.browser,
+            deviceType: dev.deviceType,
+            appVersion: dev.appVersion,
+            lastLoginIP: ip,
+            lastSeen: new Date().toISOString()
+          });
+        }
+      }
+      return { success: true, message: '' };
+    } catch (e: any) {
+      const msg = e?.code === 'auth/invalid-verification-code'
+        ? (language === 'ar' ? 'رمز التحقق غير صحيح، يرجى المحاولة مرة أخرى.' : 'Invalid verification code, please try again.')
+        : (e?.message || 'Verification failed');
+      return { success: false, message: msg };
+    }
+  }, [language]);
 
   const logout = useCallback(async () => {
     try {
@@ -3893,6 +3944,8 @@ const fetchIP = async () => {
       isAuthenticated,
       login,
       loginWithGoogle,
+      loginWithPhone,
+      confirmPhoneCode,
       logout,
       registerUser,
       subscribeUser,

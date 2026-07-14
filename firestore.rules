@@ -29,11 +29,18 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if request.auth != null && request.auth.uid == userId && 
-        !request.resource.data.keys().hasAny(['isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount']) &&
-        request.auth.token != null && 'email' in request.auth.token && request.resource.data.email == request.auth.token.email && (
-          request.resource.data.role == 'user' || 
-          (request.resource.data.role == 'admin' && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        !request.resource.data.keys().hasAny(['isAdmin','isBlocked','isVerified','isSeller','subscriptionStatus','subscriptionExpiry','wonCount']) &&
+        request.auth.token != null &&
+        (
+          ('email' in request.auth.token && request.resource.data.email == request.auth.token.email) ||
+          ('phone_number' in request.auth.token
+            && request.resource.data.phoneNumber == request.auth.token.phone_number
+            && (!('email' in request.resource.data) || request.resource.data.email == ''))
+        ) &&
+        (
+          request.resource.data.role == 'user' ||
+          (request.resource.data.role == 'admin' && 'email' in request.auth.token && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
         );
       allow update: if request.auth != null && (
         isAdmin() || 
@@ -41,7 +48,7 @@ service cloud.firestore {
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId && 
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
           ])
         )
       );

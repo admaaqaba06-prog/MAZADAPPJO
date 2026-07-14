@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import type { ConfirmationResult, RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { Globe, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { toE164Jordan } from '../utils/phoneNumber';
+import { Globe, Eye, EyeOff, CheckCircle2, Phone } from 'lucide-react';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -33,11 +35,13 @@ const FacebookIcon = () => (
 
 
 export const LoginView: React.FC = () => {
-  const { 
-    login, 
-    loginWithGoogle, 
-    registerUser, 
-    language, 
+  const {
+    login,
+    loginWithGoogle,
+    loginWithPhone,
+    confirmPhoneCode,
+    registerUser,
+    language,
     setLanguage,
     setUsers,
     setCurrentUser
@@ -55,6 +59,72 @@ export const LoginView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Phone auth (send SMS code -> verify) state
+  const [phoneMode, setPhoneMode] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneErr, setPhoneErr] = useState('');
+  const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
+
+  const clearRecaptcha = () => {
+    // A consumed/errored verifier can't be reused — clear + null so the next
+    // attempt creates a fresh one (avoids "reCAPTCHA has already been rendered").
+    try { recaptchaRef.current?.clear(); } catch { /* container may be gone */ }
+    recaptchaRef.current = null;
+  };
+
+  const handleSendCode = async () => {
+    setPhoneErr('');
+    const e164 = toE164Jordan(phoneInput);
+    if (!e164) {
+      setPhoneErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      return;
+    }
+    setPhoneBusy(true);
+    try {
+      const { RecaptchaVerifier } = await import('firebase/auth');
+      const { auth } = await import('../services/firebase');
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      }
+      const result = await loginWithPhone(e164, recaptchaRef.current);
+      setConfirmation(result);
+    } catch (e: any) {
+      console.warn('Phone sign-in (send code) failed:', e);
+      if (e?.code === 'auth/too-many-requests') {
+        setPhoneErr(isAr ? 'محاولات كثيرة، يرجى المحاولة لاحقاً.' : 'Too many attempts, please try again later.');
+      } else {
+        setPhoneErr(e?.message || (isAr ? 'تعذّر إرسال الرمز.' : 'Could not send code.'));
+      }
+      clearRecaptcha();
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    setPhoneErr('');
+    if (!confirmation || smsCode.trim().length < 4) {
+      setPhoneErr(isAr ? 'أدخل رمز التحقق.' : 'Enter the verification code.');
+      return;
+    }
+    setPhoneBusy(true);
+    const res = await confirmPhoneCode(confirmation, smsCode.trim());
+    setPhoneBusy(false);
+    if (!res.success) setPhoneErr(res.message);
+    // On success, onAuthStateChanged flips isAuthenticated and the app renders the main shell.
+  };
+
+  const handlePhoneBack = () => {
+    setPhoneMode(false);
+    setConfirmation(null);
+    setSmsCode('');
+    setPhoneErr('');
+    clearRecaptcha();
+  };
 
   const handleLanguageToggle = () => {
     setLanguage(language === 'en' ? 'ar' : 'en');
@@ -202,6 +272,81 @@ export const LoginView: React.FC = () => {
 
         {/* Social Logins Block */}
         <div className="flex flex-col gap-3 mb-5">
+          {/* Invisible reCAPTCHA anchor for phone auth */}
+          <div id="recaptcha-container" />
+
+          {/* Continue with Phone (promoted) */}
+          {!phoneMode ? (
+            <button
+              type="button"
+              onClick={() => setPhoneMode(true)}
+              className="w-full h-11 flex items-center justify-center gap-3 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all"
+              id="phone-login-btn"
+            >
+              <Phone className="w-5 h-5 shrink-0" />
+              <span>{isAr ? 'المتابعة برقم الهاتف' : 'Continue with phone number'}</span>
+            </button>
+          ) : (
+            <div className="space-y-2" id="phone-login-panel">
+              {!confirmation ? (
+                <>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    dir="ltr"
+                    placeholder="07xxxxxxxx"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                    id="phone-number-input"
+                  />
+                  <button
+                    type="button"
+                    disabled={phoneBusy}
+                    onClick={handleSendCode}
+                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-50"
+                    id="phone-send-code-btn"
+                  >
+                    {phoneBusy ? (isAr ? 'جارٍ الإرسال...' : 'Sending...') : (isAr ? 'إرسال الرمز' : 'Send code')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    dir="ltr"
+                    placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
+                    value={smsCode}
+                    onChange={(e) => setSmsCode(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all tracking-widest text-center"
+                    id="phone-code-input"
+                  />
+                  <button
+                    type="button"
+                    disabled={phoneBusy}
+                    onClick={handleVerifyCode}
+                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-50"
+                    id="phone-verify-code-btn"
+                  >
+                    {phoneBusy ? (isAr ? 'جارٍ التحقق...' : 'Verifying...') : (isAr ? 'تأكيد' : 'Verify')}
+                  </button>
+                </>
+              )}
+              {phoneErr && (
+                <p className="text-red-600 text-xs font-semibold" id="phone-login-error">{phoneErr}</p>
+              )}
+              <button
+                type="button"
+                onClick={handlePhoneBack}
+                className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                id="phone-back-btn"
+              >
+                {isAr ? 'رجوع' : 'Back'}
+              </button>
+            </div>
+          )}
+
           {/* Continue with Google */}
           <button 
             type="button"
