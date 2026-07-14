@@ -227,6 +227,7 @@ exports.scheduledAuctionOpener = functions.pubsub
             approvalStatus: 'approved',
             isApproved: true,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            approvedBy: 'scheduledAuctionOpener',
             openedAt: admin.firestore.FieldValue.serverTimestamp(),
             endTime: endMs,
             endsAt: admin.firestore.Timestamp.fromMillis(endMs),

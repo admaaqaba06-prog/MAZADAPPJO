@@ -510,7 +510,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     {/* Time Remaining */}
                     <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
                       <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
-                        {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                        {!isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
+                          ? (isAr ? 'يبدأ خلال' : 'Starts in')
+                          : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
                       </span>
                       <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
                         {timeLeftStr}
