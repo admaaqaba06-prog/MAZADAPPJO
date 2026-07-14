@@ -1,5 +1,6 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -15,6 +16,7 @@ const SubscriptionView = lazy(() => import('./components/SubscriptionView').then
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
+const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -32,6 +34,10 @@ function ActiveViewRenderer() {
       return <SellerCenterView />;
     case 'drop-builder':
       return <DropBuilderView />;
+    case 'auction-drop-builder': {
+      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+      return isStrictAdmin ? <AuctionDropBuilderView /> : <DiscoveryFeedView />;
+    }
     case 'admin':
       const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
       if (!isStrictAdmin) {
@@ -106,9 +112,19 @@ function MaintenanceView() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView } = useApp();
+  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
   const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+
+  useEffect(() => {
+    const id = parseAuctionIdFromSearch(window.location.search);
+    if (id) {
+      setActiveAuctionId(id);
+      setActiveView('live');
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Verify Maintenance Mode
   if (maintenanceMode.enabled && !isStrictAdmin) {

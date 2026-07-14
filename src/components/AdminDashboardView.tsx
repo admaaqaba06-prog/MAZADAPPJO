@@ -154,7 +154,8 @@ export const AdminDashboardView: React.FC = () => {
     systemHealthLogs,
     logSystemHealth,
     setBids,
-    resetOnboarding
+    resetOnboarding,
+    setActiveView
   } = useApp();
 
   const t = translations[language];
@@ -723,6 +724,12 @@ export const AdminDashboardView: React.FC = () => {
             </button>
           );
         })}
+        <button
+          onClick={() => setActiveView('auction-drop-builder')}
+          className="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 bg-[#FF6B00] text-white shadow-sm hover:bg-orange-500"
+        >
+          <span>{isAr ? 'إنشاء مزاد (واتساب)' : 'Auction Drop'}</span>
+        </button>
       </div>
 
        {/* Main Content Area */}
