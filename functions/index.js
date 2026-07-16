@@ -5,6 +5,23 @@ const { getFirestore } = require('firebase-admin/firestore');
 admin.initializeApp();
 const db = admin.firestore();
 
+// Fire-and-forget notification to the n8n webhook. No-ops if unconfigured.
+// NEVER throws — these calls sit inside financial/transaction paths, so a
+// webhook failure must only log and never disrupt settlement/bid/escrow logic.
+async function postToN8n(event, payload) {
+  const url = process.env.N8N_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, ...payload, ts: Date.now() }),
+    });
+  } catch (e) {
+    console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
+  }
+}
+
 /**
  * 1. scheduledAuctionCloser (BUG #2 & BUG #6 Compliance)
  * Runs every minute to sweep, settle & close expired auctions with transactional consistency.
