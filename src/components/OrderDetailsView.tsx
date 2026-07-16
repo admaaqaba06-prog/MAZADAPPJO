@@ -1007,12 +1007,6 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{order.buyerName}</h4>
                   <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.2 rounded-md font-sans font-black">Bidder</span>
                 </div>
-                <div className="flex items-center gap-1 font-mono text-[9.5px] text-gray-500">
-                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span className="font-black">4.8 / 5.0</span>
-                  <span className="text-gray-250">•</span>
-                  <span>(12 {isAr ? 'تقييمات' : 'bids'})</span>
-                </div>
                 <p className="text-[9px] text-gray-400 font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
                 </p>
@@ -1031,9 +1025,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               const sellerProf = sellerProfiles?.find(p => p.userId === order.sellerId || p.id === order.sellerId);
               const isPremium = sellerProf?.verificationStatus === 'premium_verified';
               const isVerified = sellerProf?.verificationStatus === 'verified' || isPremium;
-              const trustScore = sellerProf?.trustScore || 85;
-              const completedSales = sellerProf?.completedSales || 12;
-              const ratingVal = sellerProf?.rating || 4.8;
+              const trustScore = sellerProf?.trustScore;
+              const completedSales = sellerProf?.totalSales;
+              const ratingVal = sellerProf?.rating;
 
               return (
                 <div className="flex items-center gap-3">
@@ -1051,14 +1045,28 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <ShieldCheck className={`w-4 h-4 ${isPremium ? 'text-amber-500' : 'text-emerald-500'} shrink-0`} />
                       )}
                     </div>
-                    <div className="flex items-center gap-1 font-mono text-[9.5px] text-gray-500 flex-wrap">
-                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                      <span className="font-black">{ratingVal.toFixed(1)} / 5.0</span>
-                      <span className="text-gray-250">•</span>
-                      <span>({completedSales} {isAr ? 'مبيعات' : 'lots'})</span>
-                      <span className="text-gray-250">•</span>
-                      <span className="text-orange-500 font-bold">{isAr ? 'ثقة' : 'Trust'} {trustScore}%</span>
-                    </div>
+                    {(!!ratingVal || !!completedSales || !!trustScore) && (
+                      <div className="flex items-center gap-1 font-mono text-[9.5px] text-gray-500 flex-wrap">
+                        {!!ratingVal && (
+                          <>
+                            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                            <span className="font-black">{ratingVal.toFixed(1)} / 5.0</span>
+                          </>
+                        )}
+                        {!!completedSales && (
+                          <>
+                            {!!ratingVal && <span className="text-gray-250">•</span>}
+                            <span>({completedSales} {isAr ? 'مبيعات' : 'lots'})</span>
+                          </>
+                        )}
+                        {!!trustScore && (
+                          <>
+                            {(!!ratingVal || !!completedSales) && <span className="text-gray-250">•</span>}
+                            <span className="text-orange-500 font-bold">{isAr ? 'ثقة' : 'Trust'} {trustScore}%</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={`text-[8.5px] font-sans font-extrabold px-1.5 py-0.5 rounded-md border ${
                         isPremium 

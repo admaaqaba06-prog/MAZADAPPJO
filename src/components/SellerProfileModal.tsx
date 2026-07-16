@@ -94,7 +94,6 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
     return sellerOrders.filter(o => o.status === 'cancelled').length;
   }, [sellerOrders]);
 
-  // Disputes won/lost simulation
   const disputesLostCount = 0;
 
   const averageRating = useMemo(() => {
@@ -304,9 +303,9 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
             </div>
             <div className="flex items-center gap-1.5 font-bold ml-auto">
               <Users className="w-4 h-4 text-zinc-500" />
-              <span><strong>{profile.followers || 150}</strong> {isAr ? 'متابع' : 'followers'}</span>
+              <span><strong>{profile.followers ?? 0}</strong> {isAr ? 'متابع' : 'followers'}</span>
               <span className="text-zinc-600">•</span>
-              <span><strong>{profile.following || 24}</strong> {isAr ? 'يتابع' : 'following'}</span>
+              <span><strong>{profile.following ?? 0}</strong> {isAr ? 'يتابع' : 'following'}</span>
             </div>
           </div>
 

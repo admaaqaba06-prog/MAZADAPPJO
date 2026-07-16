@@ -492,8 +492,8 @@ export const LiveStreamView: React.FC = () => {
 
       {/* Slide-up lot specifications sheet details modal */}
       {selectedLotDetailsId && (
-        <AuctionDetailsModal 
-          lotId={selectedLotDetailsId} 
+        <AuctionDetailsModal
+          auctionId={selectedLotDetailsId}
           onClose={() => setSelectedLotDetailsId(null)} 
         />
       )}

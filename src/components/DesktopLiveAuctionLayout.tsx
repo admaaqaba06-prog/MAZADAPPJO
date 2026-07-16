@@ -690,11 +690,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               <div className="text-left rtl:text-right min-w-0 flex-1">
                 <h4 className="text-xs font-black text-gray-900 leading-none flex items-center gap-1">
                   <span className="truncate">{activeSellerProfile?.storeName || 'MAZAD JO Store'}</span>
-                  <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />
+                  {isVerified && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />}
                 </h4>
-                <span className="text-[10px] text-emerald-500 font-bold block mt-1 leading-none">
-                  Verified Merchant Seller
-                </span>
+                {isVerified && (
+                  <span className="text-[10px] text-emerald-500 font-bold block mt-1 leading-none">
+                    Verified Merchant Seller
+                  </span>
+                )}
               </div>
             </div>
             <button className="px-3.5 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50 text-[11px] font-bold text-gray-700 transition-all cursor-pointer">
@@ -702,23 +704,31 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-            <div className="flex flex-col items-center">
-              <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
-                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                4.9
-              </span>
-              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
+          {(!!activeSellerProfile?.rating || !!activeSellerProfile?.totalSales || !!trustScore) && (
+            <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+              {!!activeSellerProfile?.rating && (
+                <div className="flex flex-col items-center">
+                  <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
+                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    {activeSellerProfile.rating.toFixed(1)}
+                  </span>
+                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
+                </div>
+              )}
+              {!!activeSellerProfile?.totalSales && (
+                <div className="flex flex-col items-center border-x border-gray-100">
+                  <span className="text-[11px] font-black text-gray-800">{activeSellerProfile.totalSales}</span>
+                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Sales</span>
+                </div>
+              )}
+              {!!trustScore && (
+                <div className="flex flex-col items-center">
+                  <span className="text-[11px] font-black text-gray-800">{trustScore}%</span>
+                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Trust</span>
+                </div>
+              )}
             </div>
-            <div className="flex flex-col items-center border-x border-gray-100">
-              <span className="text-[11px] font-black text-gray-800">512</span>
-              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Sales</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[11px] font-black text-gray-800">98%</span>
-              <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Protection</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Card 2: Current Bid & Time Left Card */}
