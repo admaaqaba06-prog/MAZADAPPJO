@@ -115,7 +115,10 @@ exports.scheduledAuctionCloser = functions.pubsub
             }
           }
 
-          return db.runTransaction(async (transaction) => {
+          // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
+          let notifyData = null;
+          await db.runTransaction(async (transaction) => {
+            notifyData = null; // reset each attempt — transactions retry on contention
             const freshDoc = await transaction.get(auctionDoc.ref);
             const freshData = freshDoc.data();
 
@@ -173,6 +176,11 @@ exports.scheduledAuctionCloser = functions.pubsub
 
               // Notify winner via FCM
               const winnerSnap = await transaction.get(winnerRef);
+              // (notify) capture for post-commit webhook; winnerSnap already read here
+              notifyData = {
+                phone: (winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
+                winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+              };
               if (winnerSnap.exists && winnerSnap.data().fcmToken) {
                 const token = winnerSnap.data().fcmToken;
                 await admin.messaging().send({
@@ -192,6 +200,21 @@ exports.scheduledAuctionCloser = functions.pubsub
               console.log(`[scheduledAuctionCloser] Closed unsold auction ${auctionId}`);
             }
           });
+
+          // (notify) post-commit: fire ONLY when this run actually settled a winner.
+          // Outside the transaction so retries never double-send; postToN8n never throws.
+          if (notifyData) {
+            await postToN8n('auction_won', {
+              phone: notifyData.phone, name: notifyData.winnerName,
+              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+              amount: notifyData.finalPrice,
+            });
+            await postToN8n('payment_due', {
+              phone: notifyData.phone, name: notifyData.winnerName,
+              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+              amount: notifyData.finalPrice,
+            });
+          }
         }
       });
 
