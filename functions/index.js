@@ -5,6 +5,26 @@ const { getFirestore } = require('firebase-admin/firestore');
 admin.initializeApp();
 const db = admin.firestore();
 
+// Fire-and-forget notification to the n8n webhook. No-ops if unconfigured.
+// NEVER throws — these calls sit inside financial/transaction paths, so a
+// webhook failure must only log and never disrupt settlement/bid/escrow logic.
+async function postToN8n(event, payload) {
+  const url = process.env.N8N_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, ...payload, ts: Date.now() }),
+      // Bound the wait: a hung n8n endpoint must never stall the settlement cron
+      // or a callable. On timeout, fetch rejects and the catch below swallows it.
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {
+    console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
+  }
+}
+
 /**
  * 1. scheduledAuctionCloser (BUG #2 & BUG #6 Compliance)
  * Runs every minute to sweep, settle & close expired auctions with transactional consistency.
@@ -98,7 +118,10 @@ exports.scheduledAuctionCloser = functions.pubsub
             }
           }
 
-          return db.runTransaction(async (transaction) => {
+          // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
+          let notifyData = null;
+          await db.runTransaction(async (transaction) => {
+            notifyData = null; // reset each attempt — transactions retry on contention
             const freshDoc = await transaction.get(auctionDoc.ref);
             const freshData = freshDoc.data();
 
@@ -156,6 +179,11 @@ exports.scheduledAuctionCloser = functions.pubsub
 
               // Notify winner via FCM
               const winnerSnap = await transaction.get(winnerRef);
+              // (notify) capture for post-commit webhook; winnerSnap already read here
+              notifyData = {
+                phone: (winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
+                winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+              };
               if (winnerSnap.exists && winnerSnap.data().fcmToken) {
                 const token = winnerSnap.data().fcmToken;
                 await admin.messaging().send({
@@ -175,6 +203,23 @@ exports.scheduledAuctionCloser = functions.pubsub
               console.log(`[scheduledAuctionCloser] Closed unsold auction ${auctionId}`);
             }
           });
+
+          // (notify) post-commit: fire ONLY when this run actually settled a winner.
+          // Outside the transaction so retries never double-send; postToN8n never throws.
+          if (notifyData) {
+            await postToN8n('auction_won', {
+              phone: notifyData.phone, name: notifyData.winnerName,
+              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+              amount: notifyData.finalPrice,
+              idempotencyKey: `${notifyData.auctionId}_auction_won`,
+            });
+            await postToN8n('payment_due', {
+              phone: notifyData.phone, name: notifyData.winnerName,
+              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+              amount: notifyData.finalPrice,
+              idempotencyKey: `${notifyData.auctionId}_payment_due`,
+            });
+          }
         }
       });
 
@@ -295,11 +340,60 @@ exports.onBidCreated = functions.firestore
           } else {
             console.log(`[onBidCreated] User ${previousBidderId} does not have a registered FCM Token.`);
           }
+
+          // (notify) WhatsApp outbid — fires even without an FCM token; never throws.
+          await postToN8n('outbid', {
+            phone: (prevUserData && prevUserData.phoneNumber) || '',
+            name: (prevUserData && prevUserData.name) || 'Bidder',
+            auctionId: auctionId,
+            auctionTitle: (auctionData && auctionData.title) || '',
+            amount: amount,
+            idempotencyKey: `outbid_${context.params.bidId}`,
+          });
         }
       }
     } catch (err) {
       console.error('[onBidCreated Error]', err);
     }
+    return null;
+  });
+
+/**
+ * onOrderStatusChanged
+ * Emits a WhatsApp webhook event when an order's `status` transitions to a
+ * notify-worthy value (shipped/delivered/etc). Never fires on create, and
+ * never on waiting_payment (that's covered by payment_due at auction close),
+ * so there's no overlap with the closer's events.
+ */
+exports.onOrderStatusChanged = functions.firestore
+  .document('orders/{orderId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    if (before.status === after.status) return null; // no status change
+    const NOTIFY = {
+      preparing_shipment: 'order_preparing',
+      shipped: 'order_shipped',
+      delivered: 'order_delivered',
+      completed: 'order_completed',
+      refunded: 'order_refunded',
+    };
+    const event = NOTIFY[after.status];
+    if (!event) return null;
+    let phone = '';
+    try {
+      if (after.buyerId) {
+        const u = await db.collection('users').doc(after.buyerId).get();
+        phone = (u.exists && u.data().phoneNumber) || '';
+      }
+    } catch (e) { console.warn('[n8n] order phone lookup failed:', e && e.message); }
+    await postToN8n(event, {
+      phone, name: after.buyerName || 'Buyer',
+      orderId: context.params.orderId, auctionId: after.auctionId || '',
+      auctionTitle: after.auctionTitle || '', amount: after.winningBidAmount || 0,
+      status: after.status, trackingNumber: after.trackingNumber || '',
+      idempotencyKey: `${context.params.orderId}_${after.status}`,
+    });
     return null;
   });
 
@@ -1097,6 +1191,24 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
 
     await orderRef.set(orderPayload);
     console.log(`[repairEndedAuctionOrder] Created repaired order for auction ${auctionId}`);
+
+    // (notify) mirror the closer: an admin-repaired win still owes payment, so
+    // send the same auction_won + payment_due WhatsApp events. Never throws.
+    let winnerPhone = '';
+    try {
+      const wSnap = await db.collection('users').doc(winnerId).get();
+      winnerPhone = (wSnap.exists && wSnap.data().phoneNumber) || '';
+    } catch (e) { console.warn('[n8n] repair phone lookup failed:', e && e.message); }
+    await postToN8n('auction_won', {
+      phone: winnerPhone, name: winnerName,
+      auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      idempotencyKey: `${auctionId}_auction_won`,
+    });
+    await postToN8n('payment_due', {
+      phone: winnerPhone, name: winnerName,
+      auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      idempotencyKey: `${auctionId}_payment_due`,
+    });
 
     return { success: true, message: `Successfully created repaired order for auction ${auctionId}.`, orderId: auctionId };
 
