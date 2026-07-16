@@ -48,5 +48,12 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      # Write the n8n webhook URL into functions/.env so the deployed functions
+      # can read process.env.N8N_WEBHOOK_URL. If the secret is unset/empty, the
+      # var is empty and postToN8n() no-ops — the notification pipe stays inert.
+      # functions/.env is git-ignored; it exists only on the CI runner.
+      - name: Configure Functions env (n8n webhook)
+        run: echo "N8N_WEBHOOK_URL=${{ secrets.N8N_WEBHOOK_URL }}" > functions/.env
+
       - name: Deploy rules, storage, and functions
         run: firebase deploy --only firestore:rules,storage,functions --project mazadjoapp --non-interactive --force
