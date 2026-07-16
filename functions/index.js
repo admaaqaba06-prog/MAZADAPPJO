@@ -335,6 +335,15 @@ exports.onBidCreated = functions.firestore
           } else {
             console.log(`[onBidCreated] User ${previousBidderId} does not have a registered FCM Token.`);
           }
+
+          // (notify) WhatsApp outbid — fires even without an FCM token; never throws.
+          await postToN8n('outbid', {
+            phone: (prevUserData && prevUserData.phoneNumber) || '',
+            name: (prevUserData && prevUserData.name) || 'Bidder',
+            auctionId: auctionId,
+            auctionTitle: (auctionData && auctionData.title) || '',
+            amount: amount,
+          });
         }
       }
     } catch (err) {
