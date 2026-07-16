@@ -16,6 +16,9 @@ async function postToN8n(event, payload) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event, ...payload, ts: Date.now() }),
+      // Bound the wait: a hung n8n endpoint must never stall the settlement cron
+      // or a callable. On timeout, fetch rejects and the catch below swallows it.
+      signal: AbortSignal.timeout(5000),
     });
   } catch (e) {
     console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
@@ -208,11 +211,13 @@ exports.scheduledAuctionCloser = functions.pubsub
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              idempotencyKey: `${notifyData.auctionId}_auction_won`,
             });
             await postToN8n('payment_due', {
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              idempotencyKey: `${notifyData.auctionId}_payment_due`,
             });
           }
         }
@@ -343,6 +348,7 @@ exports.onBidCreated = functions.firestore
             auctionId: auctionId,
             auctionTitle: (auctionData && auctionData.title) || '',
             amount: amount,
+            idempotencyKey: `outbid_${context.params.bidId}`,
           });
         }
       }
@@ -386,6 +392,7 @@ exports.onOrderStatusChanged = functions.firestore
       orderId: context.params.orderId, auctionId: after.auctionId || '',
       auctionTitle: after.auctionTitle || '', amount: after.winningBidAmount || 0,
       status: after.status, trackingNumber: after.trackingNumber || '',
+      idempotencyKey: `${context.params.orderId}_${after.status}`,
     });
     return null;
   });
@@ -1195,10 +1202,12 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     await postToN8n('auction_won', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      idempotencyKey: `${auctionId}_payment_due`,
     });
 
     return { success: true, message: `Successfully created repaired order for auction ${auctionId}.`, orderId: auctionId };

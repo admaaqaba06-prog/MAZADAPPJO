@@ -53,7 +53,9 @@ jobs:
       # var is empty and postToN8n() no-ops — the notification pipe stays inert.
       # functions/.env is git-ignored; it exists only on the CI runner.
       - name: Configure Functions env (n8n webhook)
-        run: echo "N8N_WEBHOOK_URL=${{ secrets.N8N_WEBHOOK_URL }}" > functions/.env
+        env:
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+        run: printf 'N8N_WEBHOOK_URL=%s\n' "$N8N_WEBHOOK_URL" > functions/.env
 
       - name: Deploy rules, storage, and functions
         run: firebase deploy --only firestore:rules,storage,functions --project mazadjoapp --non-interactive --force

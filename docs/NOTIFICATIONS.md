@@ -33,9 +33,16 @@ order), and watch the JSON land on webhook.site.
 
 ## Event payload contract
 
-Every event is a JSON POST with `{ event, ...fields, ts }` (`ts` = epoch ms).
-`phone` is the buyer/bidder's `phoneNumber` and **may be empty** — n8n decides
-what to do when it's missing (it is not normalized on the app side).
+Every event is a JSON POST with `{ event, ...fields, ts, idempotencyKey }`
+(`ts` = epoch ms). `phone` is the buyer/bidder's `phoneNumber` and **may be
+empty** — n8n decides what to do when it's missing (it is not normalized on the
+app side).
+
+**`idempotencyKey`** — a stable string unique to each logical event (e.g.
+`<auctionId>_payment_due`, `outbid_<bidId>`, `<orderId>_shipped`). Firestore
+triggers are at-least-once, so the same event can very occasionally arrive
+twice. To avoid double-messaging a customer, have n8n record processed keys
+(e.g. in a data store / dedupe node) and skip a key it has already handled.
 
 ### Auction events
 | event | when | fields |
@@ -63,9 +70,9 @@ Notes:
 
 ```
 auction_won / payment_due / outbid:
-  { event, phone, name, auctionId, auctionTitle, amount, ts }
+  { event, phone, name, auctionId, auctionTitle, amount, ts, idempotencyKey }
 
 order_*:
   { event, phone, name, orderId, auctionId, auctionTitle, amount,
-    status, trackingNumber, ts }
+    status, trackingNumber, ts, idempotencyKey }
 ```
