@@ -156,7 +156,7 @@ exports.scheduledAuctionCloser = functions.pubsub
 
               // Notify winner via FCM
               const winnerSnap = await transaction.get(winnerRef);
-              if (winnerSnap.exists() && winnerSnap.data().fcmToken) {
+              if (winnerSnap.exists && winnerSnap.data().fcmToken) {
                 const token = winnerSnap.data().fcmToken;
                 await admin.messaging().send({
                   token: token,
