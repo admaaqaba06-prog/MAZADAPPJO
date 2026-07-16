@@ -1,0 +1,56 @@
+name: Deploy Firebase (rules, storage, functions)
+
+# Keeps the Firebase backend in sync with main. Vercel already auto-deploys the
+# FRONTEND on merge to main; this does the same for Firestore rules, Storage
+# rules, and Cloud Functions — so the server never runs stale rules/functions
+# while the frontend is current.
+
+on:
+  push:
+    branches: [main]
+    # Only run when something Firebase-side actually changed (a frontend-only
+    # merge doesn't need a functions redeploy).
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firestore.indexes.json'
+      - 'firebase.json'
+      - 'functions/**'
+      - '.github/workflows/firebase-deploy.yml'
+  workflow_dispatch: {}   # allow manual "Run workflow" from the Actions tab
+
+# Never run two deploys at once; cancel an in-flight one if a newer merge lands.
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Cloud Functions dependencies
+        # functions/ has no package-lock.json, so use `npm install` (not `npm ci`).
+        run: npm install --prefix functions
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write service-account credentials
+        run: printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/firebase-sa.json"
+
+      - name: Deploy rules, storage, and functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        run: firebase deploy --only firestore:rules,storage,functions --project mazadjoapp --non-interactive --force
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json"
