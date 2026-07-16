@@ -353,6 +353,44 @@ exports.onBidCreated = functions.firestore
   });
 
 /**
+ * onOrderStatusChanged
+ * Emits a WhatsApp webhook event when an order's `status` transitions to a
+ * notify-worthy value (shipped/delivered/etc). Never fires on create, and
+ * never on waiting_payment (that's covered by payment_due at auction close),
+ * so there's no overlap with the closer's events.
+ */
+exports.onOrderStatusChanged = functions.firestore
+  .document('orders/{orderId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    if (before.status === after.status) return null; // no status change
+    const NOTIFY = {
+      preparing_shipment: 'order_preparing',
+      shipped: 'order_shipped',
+      delivered: 'order_delivered',
+      completed: 'order_completed',
+      refunded: 'order_refunded',
+    };
+    const event = NOTIFY[after.status];
+    if (!event) return null;
+    let phone = '';
+    try {
+      if (after.buyerId) {
+        const u = await db.collection('users').doc(after.buyerId).get();
+        phone = (u.exists && u.data().phoneNumber) || '';
+      }
+    } catch (e) { console.warn('[n8n] order phone lookup failed:', e && e.message); }
+    await postToN8n(event, {
+      phone, name: after.buyerName || 'Buyer',
+      orderId: context.params.orderId, auctionId: after.auctionId || '',
+      auctionTitle: after.auctionTitle || '', amount: after.winningBidAmount || 0,
+      status: after.status, trackingNumber: after.trackingNumber || '',
+    });
+    return null;
+  });
+
+/**
  * 3. placeBid Callable Cloud Function
  * Handles the high-frequency and critical bidding business rules transactionally in a single Firestore runTransaction block.
  * Ensures subscription checking, blocking, pricing thresholds, sniper extensions, wallet deductively atomic locking,
@@ -1146,6 +1184,22 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
 
     await orderRef.set(orderPayload);
     console.log(`[repairEndedAuctionOrder] Created repaired order for auction ${auctionId}`);
+
+    // (notify) mirror the closer: an admin-repaired win still owes payment, so
+    // send the same auction_won + payment_due WhatsApp events. Never throws.
+    let winnerPhone = '';
+    try {
+      const wSnap = await db.collection('users').doc(winnerId).get();
+      winnerPhone = (wSnap.exists && wSnap.data().phoneNumber) || '';
+    } catch (e) { console.warn('[n8n] repair phone lookup failed:', e && e.message); }
+    await postToN8n('auction_won', {
+      phone: winnerPhone, name: winnerName,
+      auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+    });
+    await postToN8n('payment_due', {
+      phone: winnerPhone, name: winnerName,
+      auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+    });
 
     return { success: true, message: `Successfully created repaired order for auction ${auctionId}.`, orderId: auctionId };
 
