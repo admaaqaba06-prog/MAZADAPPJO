@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
@@ -17,6 +17,7 @@ const SellerCenterView = lazy(() => import('./components/SellerCenterView').then
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
+const LandingView = lazy(() => import('./landing/LandingView'));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -115,6 +116,7 @@ function MainAppShell() {
   const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
   const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
     const id = parseAuctionIdFromSearch(window.location.search);
@@ -131,8 +133,17 @@ function MainAppShell() {
     return <MaintenanceView />;
   }
 
-  // 2. Verify Authentication Status
+  // 2. Unauthenticated: show the landing page as the front door — unless the
+  // visitor arrived via an auction deep link, or clicked "Enter" on the landing.
   if (!isAuthenticated) {
+    const hasDeepLink = !!parseAuctionIdFromSearch(window.location.search);
+    if (!entered && !hasDeepLink) {
+      return (
+        <div className="landing-root min-h-screen">
+          <LandingView onEnter={() => setEntered(true)} />
+        </div>
+      );
+    }
     return <LoginView />;
   }
 
