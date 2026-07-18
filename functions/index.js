@@ -435,8 +435,10 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       if (userData.isBlocked) {
         return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
-      if (userData.subscriptionStatus !== 'active') {
-        return { success: false, message: 'Active subscription pass required to place bids.' };
+      const subExpiry = userData.subscriptionExpiry;
+      const subExpiryMs = subExpiry && subExpiry.toMillis ? subExpiry.toMillis() : (typeof subExpiry === 'number' ? subExpiry : null);
+      if (userData.subscriptionStatus !== 'active' || (subExpiryMs && subExpiryMs <= Date.now())) {
+        return { success: false, message: 'MEMBERSHIP_REQUIRED' };
       }
 
       // 2. Get auction item
@@ -468,22 +470,6 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         return { success: false, message: 'This auction has already ended.' };
       }
 
-      // 3. Get bidder's wallet
-      const walletRef = db.collection('wallets').doc(userId);
-      const walletSnap = await transaction.get(walletRef);
-      let walletData = {
-        userId,
-        availableBalance: 0,
-        escrowBalance: 0,
-        totalBalance: 0
-      };
-      if (walletSnap.exists) {
-        const d = walletSnap.data();
-        walletData.availableBalance = d.availableBalance || 0;
-        walletData.escrowBalance = d.escrowBalance || 0;
-        walletData.totalBalance = walletData.availableBalance + walletData.escrowBalance;
-      }
-
       const minIncrementFils = Math.round((auctionData.minIncrement || 10) * 1000);
       const totalBids = auctionData.totalBids || 0;
       const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
@@ -492,73 +478,13 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         return { success: false, message: `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.` };
       }
 
-      // 4. Query if the bidder has an existing locked escrow for this auction INSIDE transaction
-      const existingEscrowsQuery = await transaction.get(
-        db.collection('escrows')
-          .where('auctionId', '==', auctionId)
-          .where('bidderId', '==', userId)
-          .where('status', '==', 'locked')
-      );
-      
-      let existingEscrowDoc = null;
-      let previousCommittedAmountFils = 0;
-      if (!existingEscrowsQuery.empty) {
-        existingEscrowDoc = existingEscrowsQuery.docs[0];
-        const prevEscData = existingEscrowDoc.data();
-        previousCommittedAmountFils = prevEscData.amountFils || Math.round((prevEscData.amount || 0) * 1000);
-      }
-
-      // Query if there is a previous locked escrow belonging to the outbid user INSIDE transaction
+      // Track the previous highest bidder for the auction update below
       const outbidUserId = auctionData.currentBidderId;
-      let prevEscrowDoc = null;
-      let prevRefundFils = 0;
-      let prevWalletSnap = null;
-      let prevWalletRef = null;
-
-      if (outbidUserId && outbidUserId !== userId) {
-        const prevEscrowsQuery = await transaction.get(
-          db.collection('escrows')
-            .where('auctionId', '==', auctionId)
-            .where('bidderId', '==', outbidUserId)
-            .where('status', '==', 'locked')
-        );
-
-        if (!prevEscrowsQuery.empty) {
-          prevEscrowDoc = prevEscrowsQuery.docs[0];
-          const prevEscrow = prevEscrowDoc.data();
-          prevRefundFils = prevEscrow.amountFils || Math.round((prevEscrow.amount || 0) * 1000);
-
-          // Get the outbid user's wallet INSIDE the transaction before any writes are done
-          prevWalletRef = db.collection('wallets').doc(outbidUserId);
-          prevWalletSnap = await transaction.get(prevWalletRef);
-        }
-      }
-
-      // All reads are now 100% completed! Now we begin writes.
-
-      // Incremental delta calculation in fils
-      const incrementalDeltaFils = amountFils - previousCommittedAmountFils;
-
-      if (walletData.availableBalance < incrementalDeltaFils) {
-        return { success: false, message: `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.` };
-      }
 
       // 5. Update user profile with rate limit timestamp
       transaction.update(userRef, {
         lastBidAt: now
       });
-
-      // 6. Update current bidder's wallet
-      const newAvailFils = walletData.availableBalance - incrementalDeltaFils;
-      const newEscrowFils = walletData.escrowBalance + incrementalDeltaFils;
-      const newTotalFils = newAvailFils + newEscrowFils;
-
-      transaction.set(walletRef, {
-        userId,
-        availableBalance: newAvailFils,
-        escrowBalance: newEscrowFils,
-        totalBalance: newTotalFils
-      }, { merge: true });
 
       // 7. Write new bid document
       const bidRef = db.collection('auctions').doc(auctionId).collection('bids').doc();
@@ -572,55 +498,6 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         bidderAvatar: userData.avatar || '',
         timestamp: Date.now()
       });
-
-      // 8. Update/Create current bidder's escrow transaction for this auction
-      if (existingEscrowDoc) {
-        transaction.update(existingEscrowDoc.ref, {
-          amount: amount,
-          amountFils: amountFils,
-          timestamp: Date.now()
-        });
-      } else {
-        const escrowRef = db.collection('escrows').doc();
-        transaction.set(escrowRef, {
-          id: escrowRef.id,
-          walletId: 'wallet-current',
-          auctionId: auctionId,
-          auctionTitle: auctionData.title || 'Auction Name',
-          bidderId: userId,
-          bidderName: userData.name || 'User',
-          sellerId: auctionData.sellerId || 'seller-system',
-          sellerName: auctionData.sellerName || 'Seller',
-          amount: amount,
-          amountFils: amountFils,
-          status: 'locked',
-          timestamp: Date.now()
-        });
-      }
-
-      // 9. Handle refunding the previous highest bidder
-      if (outbidUserId && outbidUserId !== userId && prevEscrowDoc) {
-        // Mark it as refunded
-        transaction.update(prevEscrowDoc.ref, { status: 'refunded' });
-
-        // Return funds to their wallet
-        if (prevWalletSnap && prevWalletSnap.exists && prevWalletRef) {
-          const pwData = prevWalletSnap.data();
-          const oldPrevAvailFils = pwData.availableBalance || 0;
-          const oldPrevEscrowFils = pwData.escrowBalance || 0;
-
-          const newPrevEscrowFils = Math.max(0, oldPrevEscrowFils - prevRefundFils);
-          const newPrevAvailFils = oldPrevAvailFils + prevRefundFils;
-          const newPrevTotalFils = newPrevAvailFils + newPrevEscrowFils;
-
-          transaction.set(prevWalletRef, {
-            userId: outbidUserId,
-            availableBalance: newPrevAvailFils,
-            escrowBalance: newPrevEscrowFils,
-            totalBalance: newPrevTotalFils
-          }, { merge: true });
-        }
-      }
 
       // 10. Update the auction details (anti-sniping and pricing)
       let finalEndTime = endTime || Date.now();
