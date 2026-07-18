@@ -45,13 +45,9 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
         );
       } else {
-        const now = new Date();
-        const hrs = 4 - (now.getHours() % 4);
-        const mins = 59 - now.getMinutes();
-        const secs = 59 - now.getSeconds();
-        setTimeLeftStr(
-          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        );
+        // Clamp at zero: the auction is over — never tick into a phantom
+        // "next window" clock. The server closer flips the status shortly.
+        setTimeLeftStr(isAr ? 'انتهى المزاد' : 'Auction ended');
       }
     }, 1000);
 

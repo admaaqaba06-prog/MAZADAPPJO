@@ -486,17 +486,25 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
         }
       `}</style>
 
-      {/* HTML5 Live Video Element */}
-      <video
-        ref={localVideoRef}
-        src={auction.videoUrl}
-        loop
-        muted={isMuted}
-        playsInline
-        preload="metadata"
-        className="absolute inset-0 w-full h-full object-cover z-0"
-        onClick={onPlayPauseToggle}
-      />
+      {/* HTML5 Live Video Element — falls back to the auction image when no video exists */}
+      {auction.videoUrl ? (
+        <video
+          ref={localVideoRef}
+          src={auction.videoUrl}
+          loop
+          muted={isMuted}
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          onClick={onPlayPauseToggle}
+        />
+      ) : (
+        <img
+          src={auction.thumbnailUrl || (auction as any).imageUrl || ''}
+          alt={auction.title}
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+      )}
 
       {/* Gradient overlays for contrast */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none z-10" />

@@ -109,7 +109,9 @@ export default function AuctionDropBuilderView() {
           endTime: (scheduledStartAtMs ?? Date.now()) + durationSeconds * 1000,
           duration: durationSeconds,
           channel,
-          scheduledStartAt: scheduledStartAtMs,
+          // No schedule = open now: the opener cron only flips auctions that
+          // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
+          scheduledStartAt: scheduledStartAtMs ?? Date.now(),
           // Conditional spread: Firestore setDoc rejects explicit `undefined` values
           // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
           ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
@@ -165,6 +167,9 @@ export default function AuctionDropBuilderView() {
             value={scheduledLocal}
             onChange={(e) => setScheduledLocal(e.target.value)}
           />
+          <span className="mt-1 block text-xs text-neutral-500">
+            {isAr ? 'اتركه فارغاً ليفتح المزاد فوراً (خلال دقيقة)' : 'Leave empty to open immediately (within a minute)'}
+          </span>
         </label>
 
         <label className="block text-sm">{isAr ? 'المدة' : 'Duration'}

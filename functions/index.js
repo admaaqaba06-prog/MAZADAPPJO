@@ -91,22 +91,24 @@ exports.scheduledAuctionCloser = functions.pubsub
 
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
-          const winnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
-          const winnerName = auctionData.currentBidderName || auctionData.highestBidderName || auctionData.winnerName || 'Buyer';
-          const finalPrice = auctionData.currentPrice || auctionData.startingPrice;
-          const totalBids = auctionData.totalBids || 0;
+          // NOTE: these are computed from the sweep-query snapshot and may be
+          // STALE (a bid can land between the sweep and the transaction below).
+          // They are only used for the vestigial escrow lookup + logging; the
+          // settlement itself derives winner/price from the fresh in-txn read.
+          const sweepWinnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
+          const sweepFinalPrice = auctionData.currentPrice || auctionData.startingPrice;
 
           console.log("Checking ended auction:", auctionId);
-          console.log("Winner:", winnerId);
-          console.log("Final price:", finalPrice);
+          console.log("Winner (sweep snapshot):", sweepWinnerId);
+          console.log("Final price (sweep snapshot):", sweepFinalPrice);
 
           let escrowId = null;
-          if (winnerId) {
+          if (sweepWinnerId) {
             console.log("Creating order:", auctionId);
             try {
               const escrowSnap = await db.collection('escrows')
                 .where('auctionId', '==', auctionId)
-                .where('bidderId', '==', winnerId)
+                .where('bidderId', '==', sweepWinnerId)
                 .where('status', '==', 'locked')
                 .limit(1)
                 .get();
@@ -128,6 +130,14 @@ exports.scheduledAuctionCloser = functions.pubsub
             if (freshData.status === 'completed' || freshData.status === 'ended') {
               return;
             }
+
+            // Derive winner/price/bids from the FRESH in-txn snapshot. A bid
+            // landing between the sweep query and this transaction would make
+            // the sweep values settle the wrong bidder at the wrong price.
+            const winnerId = freshData.currentBidderId || freshData.highestBidderId || freshData.winnerId;
+            const winnerName = freshData.currentBidderName || freshData.highestBidderName || freshData.winnerName || 'Buyer';
+            const finalPrice = freshData.currentPrice || freshData.startingPrice;
+            const totalBids = freshData.totalBids || 0;
 
             const orderRef = db.collection('orders').doc(auctionId);
             const orderSnap = await transaction.get(orderRef);

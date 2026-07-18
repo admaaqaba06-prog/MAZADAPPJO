@@ -100,8 +100,14 @@ export async function resolveVideoUrl(id: string, fbVideoUrl: string, category?:
     }
   }
 
-  // Fallback map if the blob is missing or starts with 'blob:' but not in this browser's IndexedDB
-  if (!fbVideoUrl || fbVideoUrl.startsWith('blob:')) {
+  // No video at all → keep it empty so the UI renders the thumbnail fallback
+  // (previously this substituted Google sample trailers — fake content).
+  if (!fbVideoUrl) {
+    return '';
+  }
+
+  // Fallback map if the blob starts with 'blob:' but isn't in this browser's IndexedDB
+  if (fbVideoUrl.startsWith('blob:')) {
     const cat = (category || '').toLowerCase();
     if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
       return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';

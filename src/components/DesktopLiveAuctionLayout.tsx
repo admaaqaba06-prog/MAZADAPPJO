@@ -372,17 +372,29 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             className="h-[calc(100vh-64px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto" 
             id="professional-video-player-canvas"
           >
-            {/* Live Video Tag */}
-            <video 
-              ref={videoRef}
-              src={activeAuction.videoUrl} 
-              loop 
-              muted={isMuted} 
-              playsInline 
-              autoPlay
-              className="w-full h-full object-cover bg-[#010101] cursor-pointer"
-              onClick={onPlayPauseToggle}
-            />
+            {/* Live Video Tag — falls back to the auction image when no video exists */}
+            {activeAuction.videoUrl ? (
+              <video
+                ref={videoRef}
+                src={activeAuction.videoUrl}
+                loop
+                muted={isMuted}
+                playsInline
+                autoPlay
+                className="w-full h-full object-cover bg-[#010101] cursor-pointer"
+                onClick={onPlayPauseToggle}
+              />
+            ) : (
+              <div className="w-full h-full relative bg-[#010101]">
+                <img
+                  src={activeAuction.thumbnailUrl || (activeAuction as any).imageUrl || ''}
+                  alt={activeAuction.title}
+                  className="w-full h-full object-cover"
+                />
+                {/* Subtle dark gradient so overlaid text stays legible */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
+              </div>
+            )}
 
             {/* 1. TOP LEFT OVERLAYS */}
             <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
@@ -587,7 +599,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
                       </span>
                       <span className="text-xs font-bold text-white truncate mt-1 leading-none">
-                        {recentBids?.[0]?.name || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
+                        {recentBids?.[0]?.name || activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
                       </span>
                       {typeof trustScore === 'number' && (
                         <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
@@ -851,8 +863,23 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             </button>
           </div>
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
-            {recentBids && recentBids.length > 0 ? (
-              recentBids.map((bid, index) => {
+            {(() => {
+              // The bids subcollection feed (recentBids) may be empty/not
+              // loaded even when the auction doc says bids exist — fall back
+              // to a single synthesized row from the auction doc so a live
+              // auction with bids never claims "No bids yet".
+              const historyBids = (recentBids && recentBids.length > 0)
+                ? recentBids
+                : ((activeAuction.totalBids || 0) > 0 && activeAuction.currentBidderName
+                  ? [{
+                      id: 'current-top-bid',
+                      name: activeAuction.currentBidderName,
+                      amount: activeAuction.currentPrice,
+                      time: isAr ? 'أعلى عطاء' : 'Top bid',
+                    }]
+                  : []);
+              return historyBids.length > 0 ? (
+                historyBids.map((bid, index) => {
                 const isHighest = index === 0;
                 return (
                   <div 
@@ -878,11 +905,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   </div>
                 );
               })
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 text-xs">
-                {isAr ? 'لا يوجد عطاءات بعد' : 'No bids yet'}
-              </div>
-            )}
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                  {isAr ? 'لا يوجد عطاءات بعد' : 'No bids yet'}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
