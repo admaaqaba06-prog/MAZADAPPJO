@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { db } from '../services/firebase';
-import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   Check, 
@@ -28,10 +28,13 @@ import {
   Building,
   Activity,
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  UploadCloud,
+  Landmark
 } from 'lucide-react';
 import { Order } from '../types';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { CountUp, useToast, winTotalDue } from './feedback';
 
 interface OrderDetailsViewProps {
   orderId: string;
@@ -39,14 +42,75 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId } = useApp();
   const isAr = language === 'ar';
 
   const order = orders.find(o => o.id === orderId);
   const [isUpdating, setIsUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [copiedIban, setCopiedIban] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string>('');
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
+  const { showToast } = useToast();
+
+  // Admin one-tap buyer rating (mazad_rates_buyer): existing stars for this order, if any.
+  const [adminBuyerStars, setAdminBuyerStars] = useState<number | null>(null);
+  const [adminRatingSaving, setAdminRatingSaving] = useState(false);
+
+  const isAdminViewer = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
+
+  useEffect(() => {
+    if (!order || !isAdminViewer) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'reviews'),
+          where('orderId', '==', order.id),
+          where('direction', '==', 'mazad_rates_buyer'),
+          limit(1)
+        ));
+        if (!cancelled && !snap.empty) {
+          setAdminBuyerStars((snap.docs[0].data() as any).stars ?? null);
+        }
+      } catch (err) {
+        console.warn('Admin buyer-rating lookup failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order?.id, isAdminViewer]);
+
+  const handleAdminRateBuyer = async (starsValue: number) => {
+    if (!order || adminRatingSaving || adminBuyerStars !== null) return;
+    setAdminRatingSaving(true);
+    try {
+      await addDoc(collection(db, 'reviews'), {
+        orderId: order.id,
+        auctionId: order.auctionId,
+        buyerId: order.buyerId,
+        ratedBy: currentUser.id,
+        stars: starsValue,
+        text: '',
+        direction: 'mazad_rates_buyer',
+        createdAt: serverTimestamp()
+      });
+      setAdminBuyerStars(starsValue);
+      showToast({
+        type: 'success',
+        title: isAr ? `تم تقييم المشتري ${starsValue}/5 ⭐` : `Buyer rated ${starsValue}/5 ⭐`,
+      });
+    } catch (err: any) {
+      console.error('Admin buyer rating failed:', err);
+      showToast({
+        type: 'warn',
+        title: isAr ? 'تعذر حفظ تقييم المشتري' : 'Could not save buyer rating',
+      });
+    } finally {
+      setAdminRatingSaving(false);
+    }
+  };
 
   // Subscribe to real-time order activity history from Firestore
   useEffect(() => {
@@ -97,10 +161,16 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const isSeller = currentUser.id === order.sellerId;
   const isAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
 
+  // Post-win review: buyer can rate a delivered/completed order they haven't reviewed yet.
+  const hasBuyerReview = (myReviews || []).some(
+    r => r.direction === 'buyer_rates_auction' && r.orderId === order.id
+  );
+  const canRateOrder = isBuyer && (order.status === 'completed' || order.status === 'delivered') && !hasBuyerReview;
+
   // Status index mapping
   const timelineSteps = [
-    { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يجب أن يدفع لحساب الضمان', descEn: 'Buyer needs to pay to secure funds' },
-    { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'تم حجز الأموال في الضمان بنجاح', descEn: 'Funds secured in escrow account' },
+    { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يحوّل عبر كليك ويرفع الإيصال', descEn: 'Buyer pays via CliQ and uploads the receipt' },
+    { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'استلمنا إثبات الدفع وتم تأكيده', descEn: 'Payment proof received and confirmed' },
     { id: 'preparing_shipment', labelAr: 'تجهيز الشحن', labelEn: 'Preparing Shipment', descAr: 'البائع يجهز المنتج والملصقات', descEn: 'Seller is preparing items and labels' },
     { id: 'shipped', labelAr: 'تم الشحن', labelEn: 'Shipped', descAr: 'الشحنة مع شركة التوصيل الآن', descEn: 'Parcel in transit with courier' },
     { id: 'delivered', labelAr: 'تم التوصيل', labelEn: 'Delivered', descAr: 'تم توصيل الشحنة للمشتري', descEn: 'Delivered to buyer destination' },
@@ -128,23 +198,67 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // Action handlers using workflow engine
-  const handlePayNow = async () => {
-    if (confirm(isAr ? 'هل ترغب في دفع قيمة المزايدة من محفظتك لحساب الضمان الآمن؟' : 'Do you want to authorize payment from your available balance to the secure Escrow?')) {
-      setIsUpdating(true);
-      try {
-        await executeOrderTransition(order, 'pay', currentUser);
-        addNotification(
-          isAr ? 'تم الدفع بنجاح' : 'Payment Confirmed',
-          isAr ? 'تم دفع قيمة الطلب بنجاح وحجزها في حساب الضمان.' : 'Bid amount paid and secured in Escrow.',
-          'info'
-        );
-      } catch (err: any) {
-        console.error(err);
-        alert(isAr ? `فشل الدفع: ${err.message}` : `Payment failed: ${err.message}`);
-      } finally {
-        setIsUpdating(false);
-      }
+  // CliQ recipient details — same constants as the membership (SubscriptionView) flow
+  const CLIQ_IBAN = 'JO83 CAPS 1020 0085 4100 00';
+  const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
+
+  const handleCopyIban = () => {
+    navigator.clipboard.writeText(CLIQ_IBAN);
+    setCopiedIban(true);
+    setTimeout(() => setCopiedIban(false), 2000);
+  };
+
+  const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.match('image.*')) {
+      alert(isAr ? 'الرجاء اختيار صورة فقط (jpg أو png).' : 'Please select an image file only (jpg, png).');
+      return;
+    }
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) setReceiptPreview(event.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Buyer CliQ payment: upload the transfer receipt screenshot, attach it to the
+  // order, then run the existing 'pay' workflow transition (admin confirms later).
+  const handleSubmitCliqPayment = async () => {
+    if (!receiptFile) {
+      alert(isAr ? 'الرجاء إرفاق لقطة شاشة لإيصال حوالة كليك أولاً.' : 'Please attach your CliQ transfer receipt screenshot first.');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const { getFirebaseStorage } = await import('../services/firebase');
+      const storageInstance = await getFirebaseStorage();
+
+      const storagePath = `payment-proofs/${currentUser.id}/${Date.now()}_order_${order.id}.png`;
+      const fileRef = storageRef(storageInstance, storagePath);
+      await uploadBytes(fileRef, receiptFile);
+      const proofUrl = await getDownloadURL(fileRef);
+
+      await updateDoc(doc(db, 'orders', order.id), {
+        paymentProofUrl: proofUrl,
+        updatedAt: Timestamp.now()
+      });
+
+      await executeOrderTransition(order, 'pay', currentUser);
+
+      showToast({
+        type: 'success',
+        title: isAr ? 'استلمنا إثبات الدفع — بانتظار التأكيد' : 'Payment proof received — pending confirmation',
+      });
+      setReceiptFile(null);
+      setReceiptPreview('');
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر إرسال إثبات الدفع: ${err.message}` : `Failed to submit payment proof: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -155,7 +269,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         await executeOrderTransition(order, 'cancel_before_payment', currentUser);
         addNotification(
           isAr ? 'تم إلغاء الطلب' : 'Order Cancelled',
-          isAr ? 'تم إلغاء الطلب وتحرير الضمان المالي بالكامل.' : 'Order cancelled and escrow holdings resolved successfully.',
+          isAr ? 'تم إلغاء الطلب بنجاح — لا يوجد أي مبلغ مستحق عليك.' : 'Order cancelled successfully — nothing is due from you.',
           'info'
         );
       } catch (err: any) {
@@ -463,9 +577,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isAr ? 'تنبيه: تم إلغاء هذا الطلب' : 'ORDER CANCELLED'}
             </h4>
             <p className="text-[11px] text-red-800 leading-relaxed">
-              {isAr 
-                ? 'تم إلغاء هذه المعاملة بنجاح، وتحرير أي أموال معلقة لصالح المشتري.'
-                : 'This transaction has been cancelled. All associated escrow funds have been released and returned to the buyer.'}
+              {isAr
+                ? 'تم إلغاء هذه المعاملة بنجاح. إذا كنت قد دفعت عبر كليك فسيتم إعادة المبلغ لك بحوالة بنكية.'
+                : 'This transaction has been cancelled. If you already paid via CliQ, the amount will be returned to you by bank transfer.'}
             </p>
           </div>
         </div>
@@ -482,9 +596,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isAr ? 'تنبيه: تم إرجاع قيمة هذا الطلب' : 'ORDER REFUNDED'}
             </h4>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              {isAr 
-                ? 'تمت إعادة قيمة المعاملة بالكامل لمحفظة المشتري بناءً على قرار التحكيم.'
-                : 'The entire bid amount has been fully refunded back to the buyer’s wallet based on dispute resolution/admin action.'}
+              {isAr
+                ? 'تمت إعادة قيمة المعاملة بالكامل للمشتري بحوالة بنكية / كليك بناءً على قرار التحكيم.'
+                : 'The entire amount has been fully refunded back to the buyer via bank/CliQ transfer based on dispute resolution/admin action.'}
             </p>
           </div>
         </div>
@@ -730,13 +844,25 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
                     <FileText className="w-4 h-4" />
                   </div>
-                  <h5 className="font-black text-gray-900 text-xs">{isAr ? 'إيصال دفع كليك الضمان' : 'Escrow Payment Receipt'}</h5>
+                  <h5 className="font-black text-gray-900 text-xs">{isAr ? 'إيصال الدفع عبر كليك' : 'CliQ Payment Receipt'}</h5>
                   <p className="text-[9px] text-gray-400 leading-tight">
-                    {order.paymentStatus === 'paid' ? (isAr ? 'مستند تحصيل رسمي جاهز' : 'Official payment receipt cleared') : (isAr ? 'بانتظار إتمام الدفع' : 'Awaiting payment ledger clearance')}
+                    {order.paymentProofUrl
+                      ? (isAr ? 'تم رفع إيصال حوالة كليك' : 'CliQ transfer receipt uploaded')
+                      : order.paymentStatus === 'paid'
+                        ? (isAr ? 'مستند الدفع مؤكد' : 'Payment record confirmed')
+                        : (isAr ? 'بانتظار الدفع عبر كليك' : 'Awaiting CliQ payment')}
                   </p>
                 </div>
-                {order.paymentStatus === 'paid' ? (
-                  <button 
+                {order.paymentProofUrl ? (
+                  <button
+                    onClick={() => window.open(order.paymentProofUrl, '_blank', 'noopener,noreferrer')}
+                    className="w-full bg-white hover:bg-gray-50 text-gray-700 hover:text-[#FF6B00] border border-gray-200 rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'عرض الإيصال' : 'View Receipt'}</span>
+                  </button>
+                ) : order.paymentStatus === 'paid' ? (
+                  <button
                     onClick={() => alert(isAr ? 'مستند الدفع متاح للتحميل للمحاسبين.' : 'Payment receipt available for direct download.')}
                     className="w-full bg-white hover:bg-gray-50 text-gray-700 hover:text-[#FF6B00] border border-gray-200 rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
                   >
@@ -819,14 +945,100 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isBuyer && (
                 <>
                   {order.status === 'waiting_payment' && (
-                    <button
-                      onClick={handlePayNow}
-                      disabled={isUpdating}
-                      className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      <span>{isAr ? 'ادفع الآن لحساب الضمان' : 'Authorize Escrow Payment'}</span>
-                    </button>
+                    <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
+                      {/* Amount due */}
+                      <div className="text-center space-y-1 border-b border-orange-100 pb-3">
+                        <span className="text-[9px] text-gray-400 uppercase font-black font-mono block">
+                          {isAr ? 'المبلغ المستحق — شامل عمولة ٥٪' : 'AMOUNT DUE — INCL. 5% PREMIUM'}
+                        </span>
+                        <div className="text-2xl font-black text-[#FF6B00] font-mono">
+                          <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString()} />
+                          <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
+                        </div>
+                        {order.paymentDeadlineAt && (
+                          <p className="text-[10px] text-amber-700 font-bold flex items-center justify-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{isAr ? `ادفع قبل: ${formatDate(order.paymentDeadlineAt)}` : `Pay before: ${formatDate(order.paymentDeadlineAt)}`}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* CliQ recipient details */}
+                      <div className="space-y-2 text-xs">
+                        <div className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5">
+                          <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
+                          <span>{isAr ? 'حوّل عبر كليك (CliQ) إلى:' : 'Transfer via CliQ to:'}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
+                          <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
+                          <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
+                          <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
+                          <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-bold text-gray-500">IBAN:</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono font-black text-gray-900 select-all text-[10.5px] truncate">{CLIQ_IBAN}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyIban}
+                              className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                            >
+                              {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Receipt screenshot upload */}
+                      <div className="relative border-2 border-dashed border-orange-200 hover:border-[#FF6B00] transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-white cursor-pointer group min-h-[110px]">
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg"
+                          onChange={handleReceiptFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          id="order-payment-receipt-input"
+                        />
+                        {receiptPreview ? (
+                          <div className="w-full relative flex flex-col items-center space-y-2">
+                            <img
+                              src={receiptPreview}
+                              alt="CliQ Receipt"
+                              className="max-h-40 w-auto object-contain rounded-lg border border-gray-200 shadow-sm"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold group-hover:text-[#FF6B00] transition-colors">
+                              {isAr ? 'اضغط لتغيير لقطة الشاشة' : 'Click to change screenshot'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center text-center space-y-1.5">
+                            <UploadCloud className="w-6 h-6 text-gray-400 group-hover:text-[#FF6B00] transition-colors" />
+                            <p className="text-[11px] text-gray-700 font-extrabold">
+                              {isAr ? 'ارفع لقطة شاشة لإيصال حوالة كليك' : 'Upload your CliQ transfer receipt screenshot'}
+                            </p>
+                            <p className="text-[9px] text-gray-400 font-mono">PNG, JPG</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Submit */}
+                      <button
+                        onClick={handleSubmitCliqPayment}
+                        disabled={isUpdating}
+                        className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                        id="submit-cliq-payment-btn"
+                      >
+                        {isUpdating ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CreditCard className="w-4 h-4" />
+                        )}
+                        <span>{isAr ? 'أرسل إثبات الدفع' : 'Submit Payment Proof'}</span>
+                      </button>
+                    </div>
                   )}
 
                   {order.status === 'waiting_payment' && (
@@ -837,6 +1049,17 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     >
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إلغاء الطلب بالكامل' : 'Cancel Bidding Order'}</span>
+                    </button>
+                  )}
+
+                  {canRateOrder && (
+                    <button
+                      onClick={() => setReviewPromptOrderId(order.id)}
+                      className="w-full bg-amber-400 hover:bg-amber-500 text-amber-950 font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-amber-400/20 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99]"
+                      id="rate-order-details-btn"
+                    >
+                      <Star className="w-4 h-4 fill-amber-950" />
+                      <span>{isAr ? 'قيّم تجربتك ⭐' : 'Rate Your Experience ⭐'}</span>
                     </button>
                   )}
 
@@ -974,6 +1197,43 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إغلاق الطلب قسرياً' : 'Force Close Order'}</span>
                     </button>
+                  )}
+
+                  {/* One-tap buyer trust rating at close-out (mazad_rates_buyer) */}
+                  {(order.status === 'completed' || order.status === 'delivered') && (
+                    <div className="bg-white border border-gray-150 rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
+                      <span className="text-[9px] text-gray-400 font-mono font-black uppercase block">
+                        {isAr ? 'تقييم المشتري (نقرة واحدة)' : 'RATE BUYER (ONE TAP)'}
+                      </span>
+                      <div className="flex items-center gap-1.5" dir="ltr">
+                        {[1, 2, 3, 4, 5].map((n) => {
+                          const highlighted = n <= (adminBuyerStars ?? 5); // defaults to a full 5-star highlight
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              disabled={adminRatingSaving || adminBuyerStars !== null}
+                              onClick={() => handleAdminRateBuyer(n)}
+                              aria-label={`${n}/5`}
+                              className={`p-0.5 transition-transform cursor-pointer disabled:cursor-default ${adminBuyerStars === null ? 'hover:scale-110 active:scale-95' : ''}`}
+                              id={`admin-rate-buyer-star-${n}`}
+                            >
+                              <Star
+                                className={`w-6 h-6 ${highlighted ? 'text-amber-400 fill-amber-400' : 'text-gray-200'} ${adminBuyerStars !== null && !highlighted ? 'opacity-60' : ''}`}
+                                strokeWidth={1.75}
+                              />
+                            </button>
+                          );
+                        })}
+                        <span className="text-[9.5px] text-gray-400 font-mono font-bold ms-1">
+                          {adminBuyerStars !== null
+                            ? (isAr ? `تم التقييم ${adminBuyerStars}/5` : `Rated ${adminBuyerStars}/5`)
+                            : adminRatingSaving
+                              ? (isAr ? 'جارٍ الحفظ...' : 'Saving...')
+                              : (isAr ? 'اضغط نجمة للحفظ' : 'Tap a star to save')}
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}

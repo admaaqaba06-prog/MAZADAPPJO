@@ -95,7 +95,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
-  const { sellerProfiles, setActiveView, bids, orders, setGlobalWalletSubView, setGlobalSelectedOrderId } = useApp();
+  const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const { showToast: pushToast } = useToast();
 
@@ -475,8 +475,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                               if (matchingOrder) {
                                 setGlobalSelectedOrderId(matchingOrder.id);
                               }
-                              setGlobalWalletSubView('orders');
-                              setActiveView('wallet');
+                              setActiveView('orders');
                             }}
                             className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
                           >

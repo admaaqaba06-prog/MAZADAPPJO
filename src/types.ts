@@ -90,6 +90,9 @@ export interface AuctionItem {
   marketPrice?: number; // retail/market reference for the "you saved X" reveal
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
+  /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
+  vendorId?: string | null;
+  vendorName?: string;
 }
 
 export interface Bid {
@@ -172,12 +175,42 @@ export interface Order {
   buyerId: string;
   buyerName: string;
   winningBidAmount: number;
-  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
+  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
   paymentStatus: "unpaid" | "paid";
   shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
   escrowStatus: "pending" | "released" | "refunded";
   createdAt: any;
   updatedAt: any;
+  // Money model (set by Cloud Functions on order creation):
+  // winner pays totalDue = winningBidAmount + 5% buyer's premium via CliQ
+  // bank transfer within paymentDeadlineAt (24h), then uploads a receipt.
+  buyersPremium?: number;
+  totalDue?: number;
+  paymentDeadlineAt?: any;
+  paymentProofUrl?: string;
+  trackingNumber?: string;
+  defaultedAt?: any;
+  /** Internal vendor slug copied from the auction (never buyer-facing). */
+  vendorId?: string | null;
+}
+
+/**
+ * Order-level review (v1 investment loop).
+ * Two directions share the `reviews` collection:
+ *  - buyer_rates_auction: buyer rates their won auction (buyerId == author uid, per firestore.rules)
+ *  - mazad_rates_buyer:   admin one-tap buyer trust rating (buyerId = the rated buyer, ratedBy = admin uid)
+ */
+export interface OrderReview {
+  id: string;
+  orderId: string;
+  auctionId: string;
+  buyerId: string;
+  stars: number;
+  text: string;
+  direction: 'buyer_rates_auction' | 'mazad_rates_buyer';
+  vendorId?: string | null;
+  ratedBy?: string;
+  createdAt: any;
 }
 
 export interface Review {

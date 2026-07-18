@@ -168,14 +168,16 @@ export async function executeOrderTransition(
   switch (action as any) {
     case 'pay':
       toStatus = 'paid';
+      // NOTE: escrowStatus intentionally NOT written here — the client guard
+      // below forbids that key (server owns escrow state), and including it
+      // made this transition throw on every call.
       updateFields = {
         status: 'paid',
-        paymentStatus: 'paid',
-        escrowStatus: 'pending'
+        paymentStatus: 'paid'
       };
       activityType = 'Buyer Paid';
-      activityMessageAr = 'قام المشتري بدفع قيمة المعاملة لحساب الضمان الآمن.';
-      activityMessageEn = 'Buyer authorized payment and secured funds in secure Escrow.';
+      activityMessageAr = 'رفع المشتري إثبات الدفع عبر كليك — بانتظار تأكيد الإدارة.';
+      activityMessageEn = 'Buyer submitted CliQ payment proof — pending admin confirmation.';
       break;
 
     case 'cancel_before_payment':

@@ -193,10 +193,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // 14. Seller Reviews
+    // 14. Reviews (seller reviews + order reviews)
+    // - Buyer-authored docs (incl. buyer_rates_auction) require buyerId == auth.uid.
+    // - Admin one-tap buyer trust ratings set buyerId to the RATED buyer, so they
+    //   are allowed only for admins and only with direction == 'mazad_rates_buyer'.
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow create: if isSignedIn() && (
+        (request.resource.data.buyerId == request.auth.uid &&
+          request.resource.data.direction != 'mazad_rates_buyer') ||
+        (isAdmin() && request.resource.data.direction == 'mazad_rates_buyer')
+      );
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }

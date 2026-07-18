@@ -39,7 +39,6 @@ interface PremiumAuctionCardProps {
   onJoinLive: (id: string) => void;
   onSelectLot: (id: string) => void;
   setGlobalSelectedOrderId: (id: string) => void;
-  setGlobalWalletSubView: (view: 'wallet' | 'transactions' | 'orders' | 'escrow') => void;
   setActiveView: (view: string) => void;
 }
 
@@ -53,7 +52,6 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
   onJoinLive,
   onSelectLot,
   setGlobalSelectedOrderId,
-  setGlobalWalletSubView,
   setActiveView,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -232,8 +230,7 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
                     if (matchingOrder) {
                       setGlobalSelectedOrderId(matchingOrder.id);
                     }
-                    setGlobalWalletSubView('orders');
-                    setActiveView('wallet');
+                    setActiveView('orders');
                   }}
                   className="w-full h-12 mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                 >
@@ -297,7 +294,6 @@ export const DiscoveryFeedView: React.FC = () => {
     sellerProfiles,
     bids,
     orders,
-    setGlobalWalletSubView,
     setGlobalSelectedOrderId
   } = useApp();
   
@@ -329,8 +325,7 @@ export const DiscoveryFeedView: React.FC = () => {
     if (matchingOrder) {
       setGlobalSelectedOrderId(matchingOrder.id);
     }
-    setGlobalWalletSubView('orders');
-    setActiveView('wallet');
+    setActiveView('orders');
   };
 
   // `match` includes legacy AuctionItem.category values so existing lots keep filtering correctly.
@@ -628,11 +623,10 @@ export const DiscoveryFeedView: React.FC = () => {
             </div>
             <button
               onClick={() => {
-                setGlobalWalletSubView('orders');
                 if (wonOrdersAwaiting[0]) {
                   setGlobalSelectedOrderId(wonOrdersAwaiting[0].id);
                 }
-                setActiveView('wallet');
+                setActiveView('orders');
               }}
               className="bg-white text-emerald-800 hover:bg-emerald-50 px-4 py-2 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all shrink-0"
             >
@@ -753,7 +747,6 @@ export const DiscoveryFeedView: React.FC = () => {
                 onJoinLive={handleJoinLive}
                 onSelectLot={setSelectedLotId}
                 setGlobalSelectedOrderId={setGlobalSelectedOrderId}
-                setGlobalWalletSubView={setGlobalWalletSubView}
                 setActiveView={setActiveView}
               />
             ))}

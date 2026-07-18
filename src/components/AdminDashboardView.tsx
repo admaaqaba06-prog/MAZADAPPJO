@@ -1286,6 +1286,11 @@ export const AdminDashboardView: React.FC = () => {
                         <p className="text-xs text-gray-500 mt-1">
                           {isAr ? 'سعر الابتداء: ' : 'Starting Bid: '} <span className="font-mono text-gray-800 font-bold">{item.startingPrice.toLocaleString()} JOD</span>
                         </p>
+                        {item.vendorName && (
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
+                            {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1368,8 +1373,11 @@ export const AdminDashboardView: React.FC = () => {
                             <div className="min-w-0 flex-1">
                               <h4 className="font-extrabold text-xs text-gray-900 truncate leading-none mt-1">{item.title}</h4>
                               <p className="text-[11px] text-gray-500 mt-2 font-mono">
-                                {isAr ? 'السعر النهائي المبيع: ' : 'Winning Bid: '} 
+                                {isAr ? 'السعر النهائي المبيع: ' : 'Winning Bid: '}
                                 <strong className="text-emerald-600 font-extrabold">{item.currentPrice.toLocaleString()} JOD</strong>
+                                {item.vendorName && (
+                                  <span className="text-gray-400"> · {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}</span>
+                                )}
                               </p>
                             </div>
                           </div>

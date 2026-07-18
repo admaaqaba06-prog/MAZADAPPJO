@@ -11,6 +11,16 @@ const DURATION_PRESETS = [
   { seconds: 1800, label: '30 دقيقة', en: '30 min' },
 ];
 
+/** Internal vendor slug: lowercase, dashes, keeps Arabic/Latin letters + digits. */
+const slugifyVendor = (name: string): string =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
 export default function AuctionDropBuilderView() {
   const { language, currentUser, createListing } = useApp();
   const isAr = language === 'ar';
@@ -23,6 +33,7 @@ export default function AuctionDropBuilderView() {
   const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
   const [condition, setCondition] = useState('جديدة كلياً');
+  const [vendorName, setVendorName] = useState(''); // internal-only, never buyer-facing
   const [specsText, setSpecsText] = useState(''); // one spec per line
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
@@ -115,6 +126,10 @@ export default function AuctionDropBuilderView() {
           // Conditional spread: Firestore setDoc rejects explicit `undefined` values
           // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
           ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
+          // Internal vendor tracking (spec: auctions.vendorId — never shown to buyers in v1).
+          ...(vendorName.trim()
+            ? { vendorName: vendorName.trim(), vendorId: slugifyVendor(vendorName) || null }
+            : {}),
         },
         undefined,
         thumbnailFile ?? undefined,
@@ -182,6 +197,15 @@ export default function AuctionDropBuilderView() {
 
         <label className="block text-sm">{isAr ? 'الحالة' : 'Condition'}
           <input className="mt-1 w-full border rounded p-2" value={condition} onChange={(e) => setCondition(e.target.value)} />
+        </label>
+
+        <label className="block text-sm">{isAr ? 'المورّد (داخلي)' : 'Vendor (internal)'}
+          <input
+            className="mt-1 w-full border rounded p-2"
+            value={vendorName}
+            onChange={(e) => setVendorName(e.target.value)}
+            placeholder={isAr ? 'اختياري — لا يظهر للمشترين' : 'Optional — never shown to buyers'}
+          />
         </label>
 
         <label className="block text-sm">{isAr ? 'المواصفات (سطر لكل مواصفة)' : 'Specs (one per line)'}

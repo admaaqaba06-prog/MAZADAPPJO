@@ -4,7 +4,7 @@ import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
-import { ToastProvider } from './components/feedback';
+import { ToastProvider, ReviewPrompt } from './components/feedback';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -19,6 +19,7 @@ const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m
 const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
 const LandingView = lazy(() => import('./landing/LandingView'));
 const SellWithUsView = lazy(() => import('./components/SellWithUsView').then(m => ({ default: m.SellWithUsView })));
+const MyOrdersView = lazy(() => import('./components/MyOrdersView').then(m => ({ default: m.MyOrdersView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -30,6 +31,8 @@ function ActiveViewRenderer() {
       return <LiveStreamView />;
     case 'wallet':
       return <SubscriptionView />;
+    case 'orders':
+      return <MyOrdersView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':
@@ -115,6 +118,29 @@ function MaintenanceView() {
   );
 }
 
+/**
+ * Global post-win review modal host: any view (live bidding, orders, …) can open
+ * it by setting reviewPromptOrderId in context — e.g. the unreviewed-order bid gate.
+ */
+function ReviewPromptHost() {
+  const { reviewPromptOrderId, setReviewPromptOrderId, orders, auctions, currentUser, language } = useApp();
+
+  const order = reviewPromptOrderId ? orders.find(o => o.id === reviewPromptOrderId) : undefined;
+  if (!order || !currentUser?.id || order.buyerId !== currentUser.id) return null;
+
+  const vendorId = order.vendorId ?? auctions.find(a => a.id === order.auctionId)?.vendorId ?? null;
+
+  return (
+    <ReviewPrompt
+      order={order}
+      buyerId={currentUser.id}
+      vendorId={vendorId}
+      language={language}
+      onClose={() => setReviewPromptOrderId(null)}
+    />
+  );
+}
+
 function MainAppShell() {
   const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
@@ -181,6 +207,9 @@ function MainAppShell() {
         {showSubscriptionPrompt && (
           <SubscriptionPromptModal onClose={() => setShowSubscriptionPrompt(false)} />
         )}
+
+        {/* Global Post-win Review Prompt */}
+        <ReviewPromptHost />
       </DesktopFrame>
 
       {/* Onboarding Flow Overlay */}

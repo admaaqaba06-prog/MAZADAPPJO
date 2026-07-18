@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { resolveVideoUrl } from '../utils/videoDb';
@@ -35,7 +35,7 @@ import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTim
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
-  Review, VerificationRequest, SellerReport, Dispute
+  Review, VerificationRequest, SellerReport, Dispute, OrderReview
 } from '../types';
 
 interface AppContextProps {
@@ -73,11 +73,17 @@ interface AppContextProps {
   sellerReports: SellerReport[];
   disputes: Dispute[];
 
+  // Post-win review loop (Track C2)
+  myReviews: OrderReview[];
+  pendingReviewOrder: Order | null;
+  reviewPromptOrderId: string | null;
+  setReviewPromptOrderId: (id: string | null) => void;
+
   // Active View State
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder') => void;
+  activeView: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder';
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
@@ -278,6 +284,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  // The signed-in user's own order reviews (lightweight listener) + the
+  // "please rate this before bidding again" modal target.
+  const [myReviews, setMyReviews] = useState<OrderReview[]>([]);
+  const [myReviewsLoaded, setMyReviewsLoaded] = useState(false);
+  const [reviewPromptOrderId, setReviewPromptOrderId] = useState<string | null>(null);
   const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
   const [sellerReports, setSellerReports] = useState<SellerReport[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -387,7 +398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Navigation / views
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder'>('discovery');
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder'>('discovery');
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
@@ -1402,6 +1413,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isAuthenticated, isDeferredReady, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.email]);
 
+  // Lightweight listener on the user's OWN reviews (buyerId == uid) — powers the
+  // post-win review prompt and the unreviewed-order bid gate without a global reviews sync.
+  useEffect(() => {
+    if (!isAuthenticated || !isDeferredReady || !currentUser?.id || currentUser.id === 'unauthenticated') {
+      setMyReviews([]);
+      return;
+    }
+    const q = query(collection(db, 'reviews'), where('buyerId', '==', currentUser.id), limit(200));
+    const unsub = onSnapshot(q, (snap) => {
+      const list: OrderReview[] = [];
+      snap.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as OrderReview);
+      });
+      setMyReviews(list);
+        setMyReviewsLoaded(true);
+    }, (err) => {
+      console.warn("Firestore 'reviews' (own) sync error:", err);
+    });
+    return () => unsub();
+  }, [isAuthenticated, isDeferredReady, currentUser?.id]);
+
+  // Oldest completed buyer order this user has NOT rated yet — gates the next bid (client-side v1).
+  const pendingReviewOrder = useMemo<Order | null>(() => {
+    // Never gate bidding before the user's reviews have actually loaded —
+    // an empty-but-unloaded list would false-positive on reviewed orders.
+    if (!myReviewsLoaded) return null;
+    if (!currentUser?.id || currentUser.id === 'unauthenticated') return null;
+    const toMs = (raw: any): number => {
+      if (!raw) return 0;
+      if (typeof raw?.toMillis === 'function') return raw.toMillis();
+      if (raw?.seconds) return raw.seconds * 1000;
+      const t = new Date(raw).getTime();
+      return Number.isNaN(t) ? 0 : t;
+    };
+    const reviewedOrderIds = new Set(
+      myReviews.filter(r => r.direction === 'buyer_rates_auction').map(r => r.orderId)
+    );
+    const candidates = (orders || []).filter(o =>
+      o.buyerId === currentUser.id &&
+      o.status === 'completed' &&
+      !reviewedOrderIds.has(o.id)
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt))[0];
+  }, [orders, myReviews, myReviewsLoaded, currentUser?.id]);
+
   // Automated pre-fetching of seller profiles of all active/upcoming auctions
   useEffect(() => {
     if (auctions.length === 0) return;
@@ -2354,6 +2411,25 @@ const fetchIP = async () => {
       };
     }
 
+    // 1.5. Unreviewed-order bid gate (client-side v1): an unreviewed completed
+    // order blocks the next bid — open the review prompt instead of calling the server.
+    if (pendingReviewOrder) {
+      addNotification(
+        language === 'ar' ? '⭐ قيّم مشترياتك السابقة للمتابعة' : '⭐ Rate your previous purchases to continue',
+        language === 'ar'
+          ? 'لديك طلب مكتمل بانتظار تقييمك — قيّمه (١٠ ثوانٍ) ثم تابع المزايدة.'
+          : 'A completed order is waiting for your rating — rate it (10 seconds), then keep bidding.',
+        'info'
+      );
+      setReviewPromptOrderId(pendingReviewOrder.id);
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'قيّم مشترياتك السابقة للمتابعة'
+          : 'Rate your previous purchases to continue'
+      };
+    }
+
     // 2. Bid Spam & Timing Protection (Min 1.5 seconds cooldown between bids)
     const lastBidTime = lastBidTimestampRef.current;
     if (now - lastBidTime < 1500) {
@@ -2446,7 +2522,7 @@ const fetchIP = async () => {
         message: errorMsg || 'Bidding failed.'
       };
     }
-  }, [currentUser, language, addNotification, logSystemHealth, featureFlags]);
+  }, [currentUser, language, addNotification, logSystemHealth, featureFlags, pendingReviewOrder]);
 
   // CliQ Jordanian instant receipt topup via Cloud Function
   const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
@@ -3729,6 +3805,10 @@ const fetchIP = async () => {
       verificationRequests,
       sellerReports,
       disputes,
+      myReviews,
+      pendingReviewOrder,
+      reviewPromptOrderId,
+      setReviewPromptOrderId,
       activeAuctionId, setActiveAuctionId,
       activeView, setActiveView,
       globalWalletSubView, setGlobalWalletSubView,

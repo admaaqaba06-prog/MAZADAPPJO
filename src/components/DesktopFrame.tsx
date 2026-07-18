@@ -24,7 +24,8 @@ import {
   Bell,
   Home,
   Play,
-  Store
+  Store,
+  ShoppingBag
 } from 'lucide-react';
 
 interface DesktopFrameProps {
@@ -177,11 +178,24 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </button>
           )}
 
-          <button 
+          <button
+            onClick={() => setActiveView('orders')}
+            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+              activeView === 'orders'
+                ? 'text-[#FF6B00]'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+            }`}
+            id="mobile-my-orders-tab-btn"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'مشترياتي' : 'Orders'}</span>
+          </button>
+
+          <button
             onClick={() => setActiveView('wallet')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'wallet' 
-                ? 'text-[#FF6B00]' 
+              activeView === 'wallet'
+                ? 'text-[#FF6B00]'
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
             }`}
           >
@@ -283,6 +297,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             >
               <PlusCircle className="w-4 h-4 shrink-0 stroke-[2]" />
               <span>{isAr ? 'إنشاء إدراج' : 'Sell'}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('orders')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeView === 'orders'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+              }`}
+              id="top-nav-my-orders-btn"
+            >
+              <ShoppingBag className="w-4 h-4 shrink-0 stroke-[2]" />
+              <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
             </button>
 
             <button
@@ -450,10 +477,23 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     </button>
 
                     <button
+                      onClick={() => setActiveView('orders')}
+                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
+                        activeView === 'orders'
+                          ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                      }`}
+                      id="sidebar-my-orders-btn"
+                    >
+                      <ShoppingBag className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
+                      <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
+                    </button>
+
+                    <button
                       onClick={() => setActiveView('wallet')}
                       className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'wallet' 
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]' 
+                        activeView === 'wallet'
+                          ? 'bg-[#E85D04]/10 text-[#E85D04]'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
                       }`}
                     >
