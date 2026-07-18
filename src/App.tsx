@@ -4,6 +4,7 @@ import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { ToastProvider } from './components/feedback';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -191,6 +192,7 @@ function MainAppShell() {
 export default function App() {
   return (
     <AppProvider>
+      <ToastProvider>
       <Suspense fallback={
         <div className="min-h-screen bg-white flex items-center justify-center font-sans">
           <div className="flex flex-col items-center gap-3">
@@ -203,6 +205,7 @@ export default function App() {
       }>
         <MainAppShell />
       </Suspense>
+      </ToastProvider>
     </AppProvider>
   );
 }

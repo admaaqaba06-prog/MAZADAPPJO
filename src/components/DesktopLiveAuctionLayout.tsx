@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
+import { Pressable, CountUp, BidConfirm, WinningPill, useToast } from './feedback';
 import { 
   Volume2, 
   VolumeX, 
@@ -48,7 +50,7 @@ interface DesktopLiveAuctionLayoutProps {
   setCommentText: (text: string) => void;
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
-  onBidExecute: (amount: number) => void;
+  onBidExecute: (amount: number) => void | Promise<{ success: boolean; message: string } | void>;
   currentUser: any;
   isAr: boolean;
   onOpenDetails: (id: string) => void;
@@ -95,6 +97,52 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 }) => {
   const { sellerProfiles, setActiveView, bids, orders, setGlobalWalletSubView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const { showToast: pushToast } = useToast();
+
+  // --- The bid moment: confirm-then-bid + success rush ---
+  const [pendingBid, setPendingBid] = useState<number | null>(null);
+  const [showWinPill, setShowWinPill] = useState(false);
+  const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (winPillTimer.current) clearTimeout(winPillTimer.current);
+  }, []);
+
+  // Executes the bid (used by the confirm flow and by SwipeToBid, which stays no-confirm)
+  const runBid = async (amount: number) => {
+    setPendingBid(null);
+    const res = await onBidExecute(amount);
+    if (res && res.success) {
+      // Success = a rush: the price CountUp animates on its own; pop the winning pill.
+      setShowWinPill(true);
+      if (winPillTimer.current) clearTimeout(winPillTimer.current);
+      winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
+    }
+  };
+
+  // --- Anti-snipe drama: red pulsing countdown under 10s ---
+  const msLeft = activeAuction?.endTime ? activeAuction.endTime - Date.now() : Infinity;
+  const isSnipeWindow =
+    isAuctionOpen(activeAuction?.status) &&
+    Number.isFinite(msLeft) &&
+    msLeft > 0 &&
+    msLeft < 10000;
+
+  // Toast when the end time extends (a late bid pushed the clock)
+  const prevEndRef = useRef<{ id: string; end: number } | null>(null);
+  useEffect(() => {
+    const id = activeAuction?.id;
+    const end = activeAuction?.endTime;
+    if (!id || !end) return;
+    const prev = prevEndRef.current;
+    if (prev && prev.id === id && end > prev.end && isAuctionOpen(activeAuction?.status)) {
+      pushToast({
+        type: 'info',
+        title: isAr ? '⏱️ تمديد ١٥ ثانية — مزايدة جديدة!' : '⏱️ +15s — new bid!',
+      });
+    }
+    prevEndRef.current = { id, end };
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status, isAr, pushToast]);
 
   const activeSellerProfile = sellerProfiles?.find(
     p => p.userId === activeAuction?.sellerId || p.id === activeAuction?.sellerId
@@ -488,14 +536,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     return (
                       <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
                         {[base, base + inc, base + 2 * inc].map((amount) => (
-                          <button
+                          <Pressable
                             key={amount}
-                            type="button"
-                            onClick={() => onBidExecute(amount)}
-                            className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-0.5 shadow-lg shadow-black/10 hover:bg-white/25"
+                            onClick={() => setPendingBid(amount)}
+                            className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-lg shadow-black/10 hover:bg-white/25"
                           >
-                            {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                          </button>
+                            {isAr ? 'زايد' : 'Bid'} {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                          </Pressable>
                         ))}
                       </div>
                     );
@@ -508,7 +555,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         {isAr ? 'العطاء الحالي' : 'Current Bid'}
                       </span>
                       <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
-                        {activePrice.toLocaleString()} <span className="text-[10px] font-normal text-white/70">JOD</span>
+                        <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-white/70">JOD</span>
                       </span>
                       <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
                         +{(activeAuction.minIncrement || 10)} JOD
@@ -522,9 +569,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                           ? (isAr ? 'يبدأ خلال' : 'Starts in')
                           : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
                       </span>
-                      <span className="text-sm font-bold font-mono tracking-wider text-emerald-400">
+                      <motion.span
+                        animate={isSnipeWindow ? { scale: [1, 1.1, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                        transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
+                        className={`text-sm font-bold font-mono tracking-wider ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
+                      >
                         {timeLeftStr}
-                      </span>
+                      </motion.span>
                       <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
                         HRS : MIN : SEC
                       </span>
@@ -558,10 +609,32 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently the highest bidder! 🎉'}</span>
                       </div>
                     ) : (
-                      <div className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 mb-2 text-center">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
-                        <span>{isAr ? 'عطاؤك متأخر! شخص آخر زايد أعلى منك ⚠️' : 'Outbid! Place a higher bid now ⚠️'}</span>
-                      </div>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{
+                          opacity: 1,
+                          boxShadow: [
+                            '0 0 0 0 rgba(244,63,94,0)',
+                            '0 0 0 5px rgba(244,63,94,0.25)',
+                            '0 0 0 0 rgba(244,63,94,0)',
+                            '0 0 0 5px rgba(244,63,94,0.25)',
+                            '0 0 0 0 rgba(244,63,94,0)',
+                          ],
+                        }}
+                        transition={{ duration: 1.2, ease: 'easeOut' }}
+                        className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex flex-col items-center justify-center gap-2 mb-2 text-center"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
+                          <span>{isAr ? 'تم تجاوز مزايدتك ⚠️' : "You've been outbid ⚠️"}</span>
+                        </span>
+                        <Pressable
+                          onClick={() => setPendingBid(nextBidAmount)}
+                          className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
+                        >
+                          {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
+                        </Pressable>
+                      </motion.div>
                     );
                   })()}
 
@@ -578,7 +651,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       <>
                         <SwipeToBid
                           amount={nextBidAmount}
-                          onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                          onSwipeSuccess={() => runBid(nextBidAmount)}
                           disabled={currentUser?.isBlocked}
                           language={isAr ? 'ar' : 'en'}
                         />
@@ -592,6 +665,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   </div>
                 </>
               )}
+
+              {/* Inline bid confirmation (anchored to the panel, auto-dismisses) */}
+              <BidConfirm
+                amount={pendingBid}
+                isAr={isAr}
+                onConfirm={runBid}
+                onCancel={() => setPendingBid(null)}
+              />
+
+              {/* Winning pill: pops over the panel on a successful bid */}
+              <WinningPill show={showWinPill} isAr={isAr} />
 
             </div>
 
@@ -743,14 +827,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
             </span>
             <span className="text-xl font-black text-[#E85D04] font-mono mt-2 block leading-none">
-              {activePrice.toLocaleString()} <span className="text-[11px] font-normal text-gray-500">JOD</span>
+              <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[11px] font-normal text-gray-500">JOD</span>
             </span>
           </div>
           <div className="text-right rtl:text-left border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
             <span className="text-[9px] text-gray-400 font-extrabold block uppercase tracking-wider leading-none">
               {isAr ? 'الوقت المتبقي' : 'TIME REMAINING'}
             </span>
-            <span className="text-lg font-black text-emerald-500 font-mono mt-2 block leading-none">
+            <span className={`text-lg font-black font-mono mt-2 block leading-none ${isSnipeWindow ? 'text-red-500' : 'text-emerald-500'}`}>
               {timeLeftStr}
             </span>
           </div>

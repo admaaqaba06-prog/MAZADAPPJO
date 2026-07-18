@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
+import { Pressable, CountUp, BidConfirm, WinningPill, useToast } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -41,7 +43,7 @@ interface MobileLiveAuctionLayoutProps {
   setCommentText: (text: string) => void;
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
-  onBidExecute: (amount: number) => void;
+  onBidExecute: (amount: number) => void | Promise<{ success: boolean; message: string } | void>;
   currentUser: any;
   language: string;
   isAr: boolean;
@@ -83,6 +85,23 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { sellerProfiles } = useApp();
+  const { showToast: pushToast } = useToast();
+
+  // Anti-snipe drama: toast when the end time extends (a late bid pushed the clock)
+  const prevEndRef = useRef<{ id: string; end: number } | null>(null);
+  useEffect(() => {
+    const id = activeAuction?.id;
+    const end = activeAuction?.endTime;
+    if (!id || !end) return;
+    const prev = prevEndRef.current;
+    if (prev && prev.id === id && end > prev.end && isAuctionOpen(activeAuction?.status)) {
+      pushToast({
+        type: 'info',
+        title: isAr ? '⏱️ تمديد ١٥ ثانية — مزايدة جديدة!' : '⏱️ +15s — new bid!',
+      });
+    }
+    prevEndRef.current = { id, end };
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status, isAr, pushToast]);
 
   // Handle scroll snap to detect current active reel
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -202,7 +221,7 @@ interface MobileAuctionReelProps {
   setCommentText: (text: string) => void;
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
-  onBidExecute: (amount: number) => void;
+  onBidExecute: (amount: number) => void | Promise<{ success: boolean; message: string } | void>;
   currentUser: any;
   language: string;
   isAr: boolean;
@@ -362,13 +381,45 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
   const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
 
-  const handleLocalBid = async () => {
-    setJustBidded(true);
-    await onBidExecute(nextBidAmount);
-    setTimeout(() => {
-      setJustBidded(false);
-    }, 2500);
+  // --- The bid moment: confirm-then-bid + success rush ---
+  const [pendingBid, setPendingBid] = useState<number | null>(null);
+  const [showWinPill, setShowWinPill] = useState(false);
+  const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justBiddedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (winPillTimer.current) clearTimeout(winPillTimer.current);
+    if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
+  }, []);
+
+  // Tapping the bid button opens the inline confirm (no accidental bids)
+  const handleLocalBid = () => {
+    setPendingBid(nextBidAmount);
   };
+
+  // Confirmed: execute the bid; on success pop the winning pill (price CountUp animates on its own)
+  const confirmBid = async (amount: number) => {
+    setPendingBid(null);
+    const res = await onBidExecute(amount);
+    if (res && res.success) {
+      setJustBidded(true);
+      setShowWinPill(true);
+      if (winPillTimer.current) clearTimeout(winPillTimer.current);
+      winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
+      if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
+      justBiddedTimer.current = setTimeout(() => setJustBidded(false), 2500);
+    }
+  };
+
+  // Anti-snipe drama: red pulsing countdown under 10s (active reel only)
+  const msLeft = auction?.endTime ? auction.endTime - Date.now() : Infinity;
+  const isSnipeWindow =
+    isActive &&
+    !isEnded &&
+    isAuctionOpen(auction?.status) &&
+    Number.isFinite(msLeft) &&
+    msLeft > 0 &&
+    msLeft < 10000;
 
   const getBidButtonText = () => {
     if (isUserWinner) {
@@ -693,10 +744,14 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 {auction.title}
               </h3>
               
-              <div className="inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-400 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <motion.div
+                animate={isSnipeWindow ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
+                className={`inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${isSnipeWindow ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                 <span>{timeLeftStr}</span>
-              </div>
+              </motion.div>
             </div>
 
             {/* Row 2: Current Bid */}
@@ -706,7 +761,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               </span>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                  {activePrice.toLocaleString()}
+                  <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} />
                 </span>
                 <span className="text-[11px] font-bold text-white/70">JOD</span>
               </div>
@@ -765,35 +820,65 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
             ) : (
               <>
                 {/* Row 3: Winning / Outbid status feed with instant feedback */}
-                <div 
-                  className={`py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black tracking-wide border transition-all duration-300 ${
-                    justBidded
-                      ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-400 animate-pulse"
-                      : isUserWinner
-                      ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
-                      : hasUserBid && !isUserWinner
-                      ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
-                      : "bg-white/5 border-white/5 text-zinc-400"
-                  }`}
-                >
-                  {justBidded && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
-                  <span>{getStatusMessage()}</span>
-                </div>
+                {(() => {
+                  const isLosing = hasUserBid && !isUserWinner && !justBidded;
+                  return (
+                    <motion.div
+                      key={isLosing ? 'outbid' : 'status'}
+                      initial={{ boxShadow: '0 0 0 0 rgba(244,63,94,0)' }}
+                      animate={
+                        isLosing
+                          ? {
+                              boxShadow: [
+                                '0 0 0 0 rgba(244,63,94,0)',
+                                '0 0 0 5px rgba(244,63,94,0.25)',
+                                '0 0 0 0 rgba(244,63,94,0)',
+                                '0 0 0 5px rgba(244,63,94,0.25)',
+                                '0 0 0 0 rgba(244,63,94,0)',
+                              ],
+                            }
+                          : { boxShadow: '0 0 0 0 rgba(244,63,94,0)' }
+                      }
+                      transition={{ duration: 1.2, ease: 'easeOut' }}
+                      className={`py-1.5 px-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-[11px] font-black tracking-wide border transition-all duration-300 ${
+                        justBidded
+                          ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-400 animate-pulse"
+                          : isUserWinner
+                          ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
+                          : isLosing
+                          ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
+                          : "bg-white/5 border-white/5 text-zinc-400"
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        {justBidded && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+                        <span>{getStatusMessage()}</span>
+                      </span>
+                      {isLosing && (
+                        <Pressable
+                          onClick={() => setPendingBid(nextBidAmount)}
+                          className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
+                        >
+                          {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
+                        </Pressable>
+                      )}
+                    </motion.div>
+                  );
+                })()}
 
-                {/* Row 4: Single HUGE Thumb-Tappable Bid Button */}
-                <button
-                  type="button"
+                {/* Row 4: Single HUGE Thumb-Tappable Bid Button (opens the inline confirm) */}
+                <Pressable
                   disabled={currentUser?.isBlocked}
                   onClick={handleLocalBid}
-                  className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-all shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
+                  className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
                 >
                   <span className="text-sm tracking-wide font-black">
                     {getBidButtonText()}
                   </span>
                   <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
-                    {isAr ? `تقديم عطاء بقيمة ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JOD`}
+                    {isAr ? `زايد ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JD`}
                   </span>
-                </button>
+                </Pressable>
                 <p className="text-[11px] text-gray-400 text-center mt-1">
                   {isAr
                     ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
@@ -801,6 +886,17 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 </p>
               </>
             )}
+
+            {/* Inline bid confirmation (anchored to the bidding card, auto-dismisses) */}
+            <BidConfirm
+              amount={pendingBid}
+              isAr={isAr}
+              onConfirm={confirmBid}
+              onCancel={() => setPendingBid(null)}
+            />
+
+            {/* Winning pill: pops over the bidding card on a successful bid */}
+            <WinningPill show={showWinPill} isAr={isAr} />
           </div>
         </>
       )}
