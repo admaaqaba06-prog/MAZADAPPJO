@@ -44,6 +44,7 @@ Ordered by how much they hurt customers / the business.
 - [x] Settlement crash fix deployed (auctions auto-complete + create orders)
 - [x] WhatsApp notification pipe live + tested end-to-end
 - [x] Landing page as front door, live at `mazad-jo.com`
+- [x] **Core Happy Path v1 (money model reset)** — 1 JD membership gate (no wallet/escrow), 5% buyer's premium + `totalDue` + 24h `paymentDeadlineAt` on orders, payment-default enforcer (defaulted + block), membership screen replaces wallet, phone-only auth, Arabic-default bilingual, template/false-claim sweep, premium disclosure at all bid sites. Spec: `docs/superpowers/specs/2026-07-18-core-happy-path-design.md`. Next: **Plan B** (two-sided ratings + vendor ladder), **Plan C** (landing 5%+5% copy, kill `#coming-soon`, empty-state schedule copy, copy/numeral polish).
 - [ ] Confirm every notification event fires correctly in production (outbid, order lifecycle) with a real auction
 
 ### Phase 1 — Stability & visibility _(the takeover priority: "flag bugs")_
