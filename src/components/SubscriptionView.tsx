@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { Confetti, useToast } from './feedback';
 import { ShieldCheck, Check, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
 
 // Helper to compress base64 images to stay under the 1MB Firestore limit
@@ -85,6 +86,24 @@ export const SubscriptionView: React.FC = () => {
   // request is still under review — kills the silent-success → duplicate-click loop.
   const isPendingReview = submitted || currentUser?.subscriptionStatus === 'pending';
 
+  // --- Approval celebration: fire ONLY on the live transition to 'active' ---
+  // (previous-value ref: no burst when mounting into an already-active account)
+  const { showToast } = useToast();
+  const [celebrate, setCelebrate] = useState(false);
+  const prevStatusRef = useRef<string | undefined>(currentUser?.subscriptionStatus);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const curr = currentUser?.subscriptionStatus;
+    if (prev !== 'active' && curr === 'active' && prev !== curr) {
+      setCelebrate(true);
+      showToast({
+        type: 'success',
+        title: isAr ? '🎉 أهلاً بك عضواً في مزاد جو!' : '🎉 Welcome — you are a MAZAD JO member!',
+      });
+    }
+    prevStatusRef.current = curr;
+  }, [currentUser?.subscriptionStatus, isAr, showToast]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
     setCopied(true);
@@ -139,6 +158,9 @@ export const SubscriptionView: React.FC = () => {
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="subscription-view-root"
     >
+      {/* Always mounted — bursts only on the fire=false→true toggle (approval transition) */}
+      <Confetti fire={celebrate} onDone={() => setCelebrate(false)} />
+
       {/* Top Header */}
       <header className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-gray-100 pb-4">
         <div className="flex items-center gap-1.5">
