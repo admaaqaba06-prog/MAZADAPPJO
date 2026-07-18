@@ -132,6 +132,13 @@ exports.scheduledAuctionCloser = functions.pubsub
             const orderRef = db.collection('orders').doc(auctionId);
             const orderSnap = await transaction.get(orderRef);
 
+            // Firestore requires ALL reads before ANY writes. Read the winner doc
+            // HERE (before the settlement writes below). Previously this read ran
+            // AFTER the writes, throwing on every settlement so no auction ever
+            // completed and no order was ever created.
+            const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
+            const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
+
             if (totalBids > 0 && winnerId) {
               // Mark completed
               transaction.update(auctionDoc.ref, {
@@ -139,8 +146,7 @@ exports.scheduledAuctionCloser = functions.pubsub
                 settledAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Increment win count
-              const winnerRef = db.collection('users').doc(winnerId);
+              // Increment win count (winnerRef was read above, before any writes)
               transaction.set(winnerRef, {
                 wonCount: admin.firestore.FieldValue.increment(1)
               }, { merge: true });
@@ -180,14 +186,13 @@ exports.scheduledAuctionCloser = functions.pubsub
 
               console.log(`[scheduledAuctionCloser] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
 
-              // Notify winner via FCM
-              const winnerSnap = await transaction.get(winnerRef);
-              // (notify) capture for post-commit webhook; winnerSnap already read here
+              // Notify winner via FCM (winnerSnap was read above, before writes)
+              // (notify) capture for post-commit webhook
               notifyData = {
-                phone: (winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
+                phone: (winnerSnap && winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
                 winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
               };
-              if (winnerSnap.exists && winnerSnap.data().fcmToken) {
+              if (winnerSnap && winnerSnap.exists && winnerSnap.data().fcmToken) {
                 const token = winnerSnap.data().fcmToken;
                 await admin.messaging().send({
                   token: token,
