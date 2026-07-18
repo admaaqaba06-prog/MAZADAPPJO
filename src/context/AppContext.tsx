@@ -3,6 +3,7 @@ import { db, auth, getCallableFunction, OperationType, handleFirestoreError } fr
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
+import { mapAuthError } from '../utils/authErrors';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -1874,10 +1875,8 @@ const fetchIP = async () => {
       }
       return { success: true, message: '' };
     } catch (e: any) {
-      const msg = e?.code === 'auth/invalid-verification-code'
-        ? (language === 'ar' ? 'رمز التحقق غير صحيح، يرجى المحاولة مرة أخرى.' : 'Invalid verification code, please try again.')
-        : (e?.message || 'Verification failed');
-      return { success: false, message: msg };
+      // Never surface raw Firebase strings — map to a friendly AR/EN message.
+      return { success: false, message: mapAuthError(e, language === 'ar') };
     }
   }, [language]);
 

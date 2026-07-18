@@ -3,7 +3,8 @@ import type { ConfirmationResult, RecaptchaVerifier as RecaptchaVerifierType } f
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { toE164Jordan } from '../utils/phoneNumber';
-import { Globe, Eye, EyeOff, CheckCircle2, Phone } from 'lucide-react';
+import { mapAuthError } from '../utils/authErrors';
+import { Globe, Eye, EyeOff, CheckCircle2, Phone, Loader2 } from 'lucide-react';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -100,11 +101,8 @@ export const LoginView: React.FC = () => {
       setConfirmation(result);
     } catch (e: any) {
       console.warn('Phone sign-in (send code) failed:', e);
-      if (e?.code === 'auth/too-many-requests') {
-        setPhoneErr(isAr ? 'محاولات كثيرة، يرجى المحاولة لاحقاً.' : 'Too many attempts, please try again later.');
-      } else {
-        setPhoneErr(e?.message || (isAr ? 'تعذّر إرسال الرمز.' : 'Could not send code.'));
-      }
+      // Never show raw Firebase strings — map to a friendly AR/EN message.
+      setPhoneErr(mapAuthError(e, isAr));
       clearRecaptcha();
     } finally {
       setPhoneBusy(false);
@@ -112,6 +110,7 @@ export const LoginView: React.FC = () => {
   };
 
   const handleVerifyCode = async () => {
+    if (phoneBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setPhoneErr('');
     if (!confirmation || smsCode.trim().length < 4) {
       setPhoneErr(isAr ? 'أدخل رمز التحقق.' : 'Enter the verification code.');
@@ -310,10 +309,17 @@ export const LoginView: React.FC = () => {
                     type="button"
                     disabled={phoneBusy}
                     onClick={handleSendCode}
-                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-50"
+                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     id="phone-send-code-btn"
                   >
-                    {phoneBusy ? (isAr ? 'جارٍ الإرسال...' : 'Sending...') : (isAr ? 'إرسال الرمز' : 'Send code')}
+                    {phoneBusy ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>{isAr ? 'جاري الإرسال…' : 'Sending…'}</span>
+                      </>
+                    ) : (
+                      <span>{isAr ? 'إرسال الرمز' : 'Send code'}</span>
+                    )}
                   </button>
                 </>
               ) : (
@@ -332,10 +338,17 @@ export const LoginView: React.FC = () => {
                     type="button"
                     disabled={phoneBusy}
                     onClick={handleVerifyCode}
-                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-50"
+                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     id="phone-verify-code-btn"
                   >
-                    {phoneBusy ? (isAr ? 'جارٍ التحقق...' : 'Verifying...') : (isAr ? 'تأكيد' : 'Verify')}
+                    {phoneBusy ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>{isAr ? 'جاري التحقق…' : 'Verifying…'}</span>
+                      </>
+                    ) : (
+                      <span>{isAr ? 'تأكيد' : 'Verify'}</span>
+                    )}
                   </button>
                 </>
               )}
