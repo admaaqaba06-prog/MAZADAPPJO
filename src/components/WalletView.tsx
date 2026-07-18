@@ -133,7 +133,7 @@ export const WalletView: React.FC = () => {
     secureSummary: isAr ? 'حماية وأمان المعاملات' : 'Secure Trust Assurance',
     pendingDeposits: isAr ? 'الإيداعات قيد التحقق' : 'Pending Verification Desk',
     helpSupport: isAr ? 'الدعم المالي المباشر' : 'Finance Support Desk',
-    helpDesc: isAr ? 'فريق العمليات المالية المباشر في عمان متاح طوال اليوم لمساعدتك وتدقيق حوالتك وتأكيد الشحن.' : 'Our 24/7 Amman Finance Desk is ready to assist you. Contact us for instant top-up approvals.',
+    helpDesc: isAr ? 'فريق الدعم في عمّان متاح يومياً من ٩ صباحاً حتى ١١ مساءً.' : 'Our Amman support team is available daily 9:00–23:00.',
     bankName: isAr ? 'اسم البنك المستقبل' : 'Bank Name',
     accountHolder: isAr ? 'اسم صاحب الحساب' : 'Account Holder Name',
     withdrawMethod: isAr ? 'طريقة السحب المفضلة' : 'Withdrawal Method',
@@ -273,12 +273,12 @@ export const WalletView: React.FC = () => {
   const [submittedProof, setSubmittedProof] = useState<boolean>(false);
   const [copiedIBAN, setCopiedIBAN] = useState<boolean>(false);
 
-  // Rebuilt Whatnot Screens State: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'
+  // Wallet screens state: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'
   const [walletSubView, setWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
   const [txFilter, setTxFilter] = useState<'all' | 'in' | 'out'>('all');
   const [ordersTab, setOrdersTab] = useState<'buying' | 'selling'>('buying');
 
-  // New withdrawal states matching the Whatnot simple form style
+  // New withdrawal states using a simple form style
   const [withdrawType, setWithdrawType] = useState<'bank' | 'cliq'>('cliq');
   const [wAmount, setWAmount] = useState<string>('');
   const [wBankName, setWBankName] = useState<string>('');
@@ -1500,7 +1500,7 @@ export const WalletView: React.FC = () => {
                   <Wallet className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="font-mono font-black text-xs tracking-widest text-[#FF6B00]">{isAr ? 'محفظة المزاد' : 'WHATNOT WALLET'}</h2>
+                  <h2 className="font-mono font-black text-xs tracking-widest text-[#FF6B00]">{isAr ? 'محفظة المزاد' : 'MAZAD WALLET'}</h2>
                   <p className="text-[10px] text-zinc-400 uppercase font-bold">{isAr ? 'تحكم مالي شامل' : 'Instant Secure FinTech'}</p>
                 </div>
               </div>
@@ -1589,9 +1589,9 @@ export const WalletView: React.FC = () => {
                 <h4 className="font-extrabold text-sm text-white">{localT.secureSummary}</h4>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                {isAr 
-                  ? 'جميع إيداعاتها وسحوباتها محمية بالكامل بواسطة محفظة كليك والبنك المركزي الأردني.'
-                  : 'All transactions are strictly authorized under our secure Escrow Shield via the Central Bank of Jordan.'}
+                {isAr
+                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.'
+                  : "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes."}
               </p>
             </div>
 

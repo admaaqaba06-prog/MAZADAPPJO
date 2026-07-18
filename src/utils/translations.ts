@@ -35,7 +35,7 @@ export const translations = {
     planAnnualUnit: " / Year",
     mostPopular: "MOST POPULAR",
     bestValue: "BEST VALUE",
-    subLockText: "Transactions processed through Central Bank of Jordan CliQ protocols. Funds are locked in escrow and only released with your confirmation upon delivery.",
+    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes.",
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live streams",
@@ -151,7 +151,7 @@ export const translations = {
     planAnnualUnit: " / سنوياً",
     mostPopular: "الأكثر اختياراً",
     bestValue: "أفضل قيمة",
-    subLockText: "تتم معالجة جميع المعاملات عبر نظام كليك البنكي المعتمد من البنك المركزي الأردني. تبقى المزايدات محفوظة في حساب الضمان للمشتري حتى تأكيد التسليم.",
+    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.",
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
       "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",

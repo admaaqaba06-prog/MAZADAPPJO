@@ -682,7 +682,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* ======================================================================
-              5. THE WHATNOT LIVE-BIDDING CARD (Strictly 5 Required Elements)
+              5. THE MAZAD LIVE-BIDDING CARD (Strictly 5 Required Elements)
               ====================================================================== */}
           <div 
             style={{ 

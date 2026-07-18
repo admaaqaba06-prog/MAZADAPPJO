@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Gavel, Store, Info, ShieldCheck, UserCheck, Star, Calendar, Clock, Award } from 'lucide-react';
+import { Gavel, Info, ShieldCheck, UserCheck, Star, Calendar, Clock, Award } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
@@ -181,13 +181,6 @@ export const ReelsDesktopRightPanel: React.FC = () => {
 
       {/* 4. SELLER INFO */}
       <div className="space-y-3 bg-zinc-900/60 border border-white/5 p-4 rounded-2xl">
-        <div className="flex items-center gap-2 border-b border-white/5 pb-1.5">
-          <Store className="w-4 h-4 text-[#FF6B00]" />
-          <h3 className="text-[11px] font-black tracking-wider uppercase">
-            {isAr ? 'معلومات البائع الضامن' : 'VERIFIED MERCHANT'}
-          </h3>
-        </div>
-
         <div className="flex items-center gap-2.5">
           <img 
             src={currentItem.sellerLogo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} 
