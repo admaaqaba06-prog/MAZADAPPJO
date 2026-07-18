@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { db } from '../services/firebase';
-import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   Check, 
@@ -54,6 +54,63 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
   const { showToast } = useToast();
+
+  // Admin one-tap buyer rating (mazad_rates_buyer): existing stars for this order, if any.
+  const [adminBuyerStars, setAdminBuyerStars] = useState<number | null>(null);
+  const [adminRatingSaving, setAdminRatingSaving] = useState(false);
+
+  const isAdminViewer = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
+
+  useEffect(() => {
+    if (!order || !isAdminViewer) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'reviews'),
+          where('orderId', '==', order.id),
+          where('direction', '==', 'mazad_rates_buyer'),
+          limit(1)
+        ));
+        if (!cancelled && !snap.empty) {
+          setAdminBuyerStars((snap.docs[0].data() as any).stars ?? null);
+        }
+      } catch (err) {
+        console.warn('Admin buyer-rating lookup failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order?.id, isAdminViewer]);
+
+  const handleAdminRateBuyer = async (starsValue: number) => {
+    if (!order || adminRatingSaving || adminBuyerStars !== null) return;
+    setAdminRatingSaving(true);
+    try {
+      await addDoc(collection(db, 'reviews'), {
+        orderId: order.id,
+        auctionId: order.auctionId,
+        buyerId: order.buyerId,
+        ratedBy: currentUser.id,
+        stars: starsValue,
+        text: '',
+        direction: 'mazad_rates_buyer',
+        createdAt: serverTimestamp()
+      });
+      setAdminBuyerStars(starsValue);
+      showToast({
+        type: 'success',
+        title: isAr ? `تم تقييم المشتري ${starsValue}/5 ⭐` : `Buyer rated ${starsValue}/5 ⭐`,
+      });
+    } catch (err: any) {
+      console.error('Admin buyer rating failed:', err);
+      showToast({
+        type: 'warn',
+        title: isAr ? 'تعذر حفظ تقييم المشتري' : 'Could not save buyer rating',
+      });
+    } finally {
+      setAdminRatingSaving(false);
+    }
+  };
 
   // Subscribe to real-time order activity history from Firestore
   useEffect(() => {
@@ -1140,6 +1197,43 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إغلاق الطلب قسرياً' : 'Force Close Order'}</span>
                     </button>
+                  )}
+
+                  {/* One-tap buyer trust rating at close-out (mazad_rates_buyer) */}
+                  {(order.status === 'completed' || order.status === 'delivered') && (
+                    <div className="bg-white border border-gray-150 rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
+                      <span className="text-[9px] text-gray-400 font-mono font-black uppercase block">
+                        {isAr ? 'تقييم المشتري (نقرة واحدة)' : 'RATE BUYER (ONE TAP)'}
+                      </span>
+                      <div className="flex items-center gap-1.5" dir="ltr">
+                        {[1, 2, 3, 4, 5].map((n) => {
+                          const highlighted = n <= (adminBuyerStars ?? 5); // defaults to a full 5-star highlight
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              disabled={adminRatingSaving || adminBuyerStars !== null}
+                              onClick={() => handleAdminRateBuyer(n)}
+                              aria-label={`${n}/5`}
+                              className={`p-0.5 transition-transform cursor-pointer disabled:cursor-default ${adminBuyerStars === null ? 'hover:scale-110 active:scale-95' : ''}`}
+                              id={`admin-rate-buyer-star-${n}`}
+                            >
+                              <Star
+                                className={`w-6 h-6 ${highlighted ? 'text-amber-400 fill-amber-400' : 'text-gray-200'} ${adminBuyerStars !== null && !highlighted ? 'opacity-60' : ''}`}
+                                strokeWidth={1.75}
+                              />
+                            </button>
+                          );
+                        })}
+                        <span className="text-[9.5px] text-gray-400 font-mono font-bold ms-1">
+                          {adminBuyerStars !== null
+                            ? (isAr ? `تم التقييم ${adminBuyerStars}/5` : `Rated ${adminBuyerStars}/5`)
+                            : adminRatingSaving
+                              ? (isAr ? 'جارٍ الحفظ...' : 'Saving...')
+                              : (isAr ? 'اضغط نجمة للحفظ' : 'Tap a star to save')}
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
