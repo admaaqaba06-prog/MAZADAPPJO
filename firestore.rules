@@ -200,7 +200,8 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn() && (
-        request.resource.data.buyerId == request.auth.uid ||
+        (request.resource.data.buyerId == request.auth.uid &&
+          request.resource.data.direction != 'mazad_rates_buyer') ||
         (isAdmin() && request.resource.data.direction == 'mazad_rates_buyer')
       );
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());

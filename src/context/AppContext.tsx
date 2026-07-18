@@ -287,6 +287,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // The signed-in user's own order reviews (lightweight listener) + the
   // "please rate this before bidding again" modal target.
   const [myReviews, setMyReviews] = useState<OrderReview[]>([]);
+  const [myReviewsLoaded, setMyReviewsLoaded] = useState(false);
   const [reviewPromptOrderId, setReviewPromptOrderId] = useState<string | null>(null);
   const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
   const [sellerReports, setSellerReports] = useState<SellerReport[]>([]);
@@ -1426,6 +1427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         list.push({ id: docSnap.id, ...docSnap.data() } as OrderReview);
       });
       setMyReviews(list);
+        setMyReviewsLoaded(true);
     }, (err) => {
       console.warn("Firestore 'reviews' (own) sync error:", err);
     });
@@ -1434,6 +1436,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Oldest completed buyer order this user has NOT rated yet — gates the next bid (client-side v1).
   const pendingReviewOrder = useMemo<Order | null>(() => {
+    // Never gate bidding before the user's reviews have actually loaded —
+    // an empty-but-unloaded list would false-positive on reviewed orders.
+    if (!myReviewsLoaded) return null;
     if (!currentUser?.id || currentUser.id === 'unauthenticated') return null;
     const toMs = (raw: any): number => {
       if (!raw) return 0;
@@ -1452,7 +1457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     if (candidates.length === 0) return null;
     return [...candidates].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt))[0];
-  }, [orders, myReviews, currentUser?.id]);
+  }, [orders, myReviews, myReviewsLoaded, currentUser?.id]);
 
   // Automated pre-fetching of seller profiles of all active/upcoming auctions
   useEffect(() => {
