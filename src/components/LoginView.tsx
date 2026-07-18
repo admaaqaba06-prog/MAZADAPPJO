@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { mapAuthError } from '../utils/authErrors';
+import { parseAuctionIdFromSearch } from '../utils/deepLink';
 import { Globe, Eye, EyeOff, CheckCircle2, Phone, Loader2 } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -69,6 +70,10 @@ export const LoginView: React.FC = () => {
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneErr, setPhoneErr] = useState('');
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
+
+  // Visitor arrived via a WhatsApp auction deep link (?auction=...) — after auth,
+  // App.tsx routes them straight into that live room. Tell them why they're here.
+  const cameFromAuctionLink = !!parseAuctionIdFromSearch(window.location.search);
 
   const clearRecaptcha = () => {
     // A consumed/errored verifier can't be reused — clear + null AND wipe the
@@ -230,6 +235,16 @@ export const LoginView: React.FC = () => {
           <span>{t.langLabel}</span>
         </button>
       </header>
+
+      {/* Deep-link context: the visitor followed a live-auction link — say so */}
+      {cameFromAuctionLink && (
+        <div
+          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 mt-16 -mb-12"
+          id="deep-link-auction-banner"
+        >
+          {isAr ? '⚡ سجّل دخولك للمشاركة في المزاد المباشر' : '⚡ Sign in to join the live auction'}
+        </div>
+      )}
 
       {/* Center White Modal Box */}
       <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 my-16">
