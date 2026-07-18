@@ -8,10 +8,10 @@ export const OnboardingModal: React.FC = () => {
   const [step, setStep] = useState(1);
   const [onboardingLang, setOnboardingLang] = useState<'ar' | 'en'>('ar');
 
-  // Show ONLY when we positively know onboarding is incomplete:
-  // - currentUser must be loaded (no flash while auth/snapshot is settling)
-  // - a session latch prevents resurrection if a later snapshot re-emits
-  //   without the flag (listener races previously made the modal reappear)
+  // Show ONLY when we positively know onboarding is incomplete.
+  // The session latch is the real fix: it prevents resurrection when a later
+  // snapshot re-emits without the flag (listener races made the modal reappear).
+  // resetOnboarding() clears the latch so admin re-tests work within a session.
   if (
     !currentUser ||
     currentUser.onboardingCompleted ||
