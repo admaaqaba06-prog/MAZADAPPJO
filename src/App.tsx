@@ -8,7 +8,6 @@ import { OnboardingModal } from './components/OnboardingModal';
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
 const LiveStreamView = lazy(() => import('./components/LiveStreamView').then(m => ({ default: m.LiveStreamView })));
-const WalletView = lazy(() => import('./components/WalletView').then(m => ({ default: m.WalletView })));
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(m => ({ default: m.AdminDashboardView })));
 const ListingWizardView = lazy(() => import('./components/ListingWizardView').then(m => ({ default: m.ListingWizardView })));
 const LoginView = lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
@@ -28,7 +27,7 @@ function ActiveViewRenderer() {
     case 'live':
       return <LiveStreamView />;
     case 'wallet':
-      return <WalletView />;
+      return <SubscriptionView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':

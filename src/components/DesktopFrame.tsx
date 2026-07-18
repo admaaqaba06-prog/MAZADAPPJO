@@ -187,7 +187,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             }`}
           >
             <WalletIcon className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'المحفظة' : 'Wallet'}</span>
+            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'العضوية' : 'Membership'}</span>
           </button>
 
           <button 
@@ -298,7 +298,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               }`}
             >
               <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>{isAr ? 'المحفظة' : 'Wallet'}</span>
+              <span>{isAr ? 'العضوية' : 'Membership'}</span>
             </button>
 
             {isSeller && (
@@ -333,14 +333,18 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {/* 3. Actions: Wallet balance, Language switcher, Notifications bell, User Profile (Right) */}
           <div className="flex items-center gap-3 xl:gap-4" id="global-header-actions">
             
-            {/* Wallet pill */}
-            {wallet && (
-              <div 
+            {/* Membership pill */}
+            {currentUser && (
+              <div
                 onClick={() => setActiveView('wallet')}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-[#FAF9F6] border-gray-200/80 text-gray-800 hover:border-gray-300"
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
-                <span>{(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-[10px] text-gray-400">JOD</span></span>
+                <span>
+                  {currentUser?.subscriptionStatus === 'active'
+                    ? (isAr ? 'عضو ✓' : 'Member ✓')
+                    : (isAr ? 'انضم بـ ١ د.أ' : 'Join — 1 JD')}
+                </span>
               </div>
             )}
 
@@ -458,7 +462,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       }`}
                     >
                       <WalletIcon className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'الملف والمحفظة' : 'Wallet & Profile'}</span>
+                      <span>{isAr ? 'العضوية' : 'Membership'}</span>
                     </button>
 
                     {isSeller && (
