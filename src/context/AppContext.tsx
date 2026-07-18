@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { resolveVideoUrl } from '../utils/videoDb';
@@ -35,7 +35,7 @@ import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTim
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
-  Review, VerificationRequest, SellerReport, Dispute
+  Review, VerificationRequest, SellerReport, Dispute, OrderReview
 } from '../types';
 
 interface AppContextProps {
@@ -72,6 +72,12 @@ interface AppContextProps {
   verificationRequests: VerificationRequest[];
   sellerReports: SellerReport[];
   disputes: Dispute[];
+
+  // Post-win review loop (Track C2)
+  myReviews: OrderReview[];
+  pendingReviewOrder: Order | null;
+  reviewPromptOrderId: string | null;
+  setReviewPromptOrderId: (id: string | null) => void;
 
   // Active View State
   activeAuctionId: string | null;
@@ -278,6 +284,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  // The signed-in user's own order reviews (lightweight listener) + the
+  // "please rate this before bidding again" modal target.
+  const [myReviews, setMyReviews] = useState<OrderReview[]>([]);
+  const [reviewPromptOrderId, setReviewPromptOrderId] = useState<string | null>(null);
   const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
   const [sellerReports, setSellerReports] = useState<SellerReport[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -1401,6 +1411,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return () => unsub();
     }
   }, [isAuthenticated, isDeferredReady, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.email]);
+
+  // Lightweight listener on the user's OWN reviews (buyerId == uid) — powers the
+  // post-win review prompt and the unreviewed-order bid gate without a global reviews sync.
+  useEffect(() => {
+    if (!isAuthenticated || !isDeferredReady || !currentUser?.id || currentUser.id === 'unauthenticated') {
+      setMyReviews([]);
+      return;
+    }
+    const q = query(collection(db, 'reviews'), where('buyerId', '==', currentUser.id), limit(200));
+    const unsub = onSnapshot(q, (snap) => {
+      const list: OrderReview[] = [];
+      snap.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as OrderReview);
+      });
+      setMyReviews(list);
+    }, (err) => {
+      console.warn("Firestore 'reviews' (own) sync error:", err);
+    });
+    return () => unsub();
+  }, [isAuthenticated, isDeferredReady, currentUser?.id]);
+
+  // Oldest completed buyer order this user has NOT rated yet — gates the next bid (client-side v1).
+  const pendingReviewOrder = useMemo<Order | null>(() => {
+    if (!currentUser?.id || currentUser.id === 'unauthenticated') return null;
+    const toMs = (raw: any): number => {
+      if (!raw) return 0;
+      if (typeof raw?.toMillis === 'function') return raw.toMillis();
+      if (raw?.seconds) return raw.seconds * 1000;
+      const t = new Date(raw).getTime();
+      return Number.isNaN(t) ? 0 : t;
+    };
+    const reviewedOrderIds = new Set(
+      myReviews.filter(r => r.direction === 'buyer_rates_auction').map(r => r.orderId)
+    );
+    const candidates = (orders || []).filter(o =>
+      o.buyerId === currentUser.id &&
+      o.status === 'completed' &&
+      !reviewedOrderIds.has(o.id)
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt))[0];
+  }, [orders, myReviews, currentUser?.id]);
 
   // Automated pre-fetching of seller profiles of all active/upcoming auctions
   useEffect(() => {
@@ -3729,6 +3781,10 @@ const fetchIP = async () => {
       verificationRequests,
       sellerReports,
       disputes,
+      myReviews,
+      pendingReviewOrder,
+      reviewPromptOrderId,
+      setReviewPromptOrderId,
       activeAuctionId, setActiveAuctionId,
       activeView, setActiveView,
       globalWalletSubView, setGlobalWalletSubView,

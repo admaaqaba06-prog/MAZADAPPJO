@@ -3,7 +3,10 @@ import { useApp } from '../context/AppContext';
 import { OrderDetailsView } from './OrderDetailsView';
 import { winTotalDue } from './feedback';
 import { Order } from '../types';
-import { ShoppingBag, Clock, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ShoppingBag, Clock, ChevronLeft, ChevronRight, Sparkles, Star } from 'lucide-react';
+
+/** Session guard: auto-open the review prompt at most once per browser session. */
+const REVIEW_AUTOPROMPT_KEY = 'mazad_review_autoprompted';
 
 /** Firestore Timestamp | ISO string | ms number → epoch ms (0 when absent). */
 const toMillis = (raw: any): number => {
@@ -62,7 +65,7 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 };
 
 export const MyOrdersView: React.FC = () => {
-  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId } = useApp();
+  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
   const isAr = language === 'ar';
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -78,6 +81,29 @@ export const MyOrdersView: React.FC = () => {
   const myOrders = (orders || [])
     .filter((o: Order) => o.buyerId === currentUser?.id)
     .sort((a: Order, b: Order) => toMillis(b.createdAt) - toMillis(a.createdAt));
+
+  // Orders the buyer can still rate: completed/delivered with no buyer review yet.
+  const reviewedOrderIds = new Set(
+    (myReviews || []).filter(r => r.direction === 'buyer_rates_auction').map(r => r.orderId)
+  );
+  const isReviewable = (o: Order) =>
+    (o.status === 'completed' || o.status === 'delivered') && !reviewedOrderIds.has(o.id);
+
+  // Auto-open the review prompt once per session when an unreviewed
+  // completed order first shows up (oldest first — same order the bid gate targets).
+  const firstReviewable = myOrders.filter(isReviewable).sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt))[0];
+  const firstReviewableId = firstReviewable?.id ?? null;
+  useEffect(() => {
+    if (!firstReviewableId) return;
+    try {
+      if (sessionStorage.getItem(REVIEW_AUTOPROMPT_KEY)) return;
+      sessionStorage.setItem(REVIEW_AUTOPROMPT_KEY, firstReviewableId);
+    } catch {
+      return; // storage blocked — skip the nudge rather than nag every render
+    }
+    setReviewPromptOrderId(firstReviewableId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstReviewableId]);
 
   if (selectedOrderId) {
     return (
@@ -135,9 +161,12 @@ export const MyOrdersView: React.FC = () => {
               const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
 
               return (
-                <button
+                <div
                   key={order.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedOrderId(order.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedOrderId(order.id); } }}
                   className="w-full text-left rtl:text-right bg-white border border-gray-150 hover:border-orange-200 rounded-3xl p-4 transition-all cursor-pointer active:scale-[0.995] shadow-[0_2px_8px_rgba(0,0,0,0.01)] flex items-center gap-4"
                   id={`my-order-card-${order.id}`}
                 >
@@ -167,10 +196,25 @@ export const MyOrdersView: React.FC = () => {
                     {order.status === 'waiting_payment' && (
                       <PaymentCountdown deadline={order.paymentDeadlineAt} isAr={isAr} />
                     )}
+
+                    {isReviewable(order) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReviewPromptOrderId(order.id);
+                        }}
+                        className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-black text-[10.5px] px-3 py-1.5 rounded-xl transition-all cursor-pointer active:scale-[0.98]"
+                        id={`rate-order-btn-${order.id}`}
+                      >
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        <span>{isAr ? 'قيّم تجربتك ⭐' : 'Rate your experience ⭐'}</span>
+                      </button>
+                    )}
                   </div>
 
                   <Chevron className="w-4 h-4 text-gray-300 shrink-0" />
-                </button>
+                </div>
               );
             })}
           </div>

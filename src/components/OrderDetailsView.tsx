@@ -42,7 +42,7 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId } = useApp();
   const isAr = language === 'ar';
 
   const order = orders.find(o => o.id === orderId);
@@ -103,6 +103,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const isBuyer = currentUser.id === order.buyerId;
   const isSeller = currentUser.id === order.sellerId;
   const isAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
+
+  // Post-win review: buyer can rate a delivered/completed order they haven't reviewed yet.
+  const hasBuyerReview = (myReviews || []).some(
+    r => r.direction === 'buyer_rates_auction' && r.orderId === order.id
+  );
+  const canRateOrder = isBuyer && (order.status === 'completed' || order.status === 'delivered') && !hasBuyerReview;
 
   // Status index mapping
   const timelineSteps = [
@@ -986,6 +992,17 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     >
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إلغاء الطلب بالكامل' : 'Cancel Bidding Order'}</span>
+                    </button>
+                  )}
+
+                  {canRateOrder && (
+                    <button
+                      onClick={() => setReviewPromptOrderId(order.id)}
+                      className="w-full bg-amber-400 hover:bg-amber-500 text-amber-950 font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-amber-400/20 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99]"
+                      id="rate-order-details-btn"
+                    >
+                      <Star className="w-4 h-4 fill-amber-950" />
+                      <span>{isAr ? 'قيّم تجربتك ⭐' : 'Rate Your Experience ⭐'}</span>
                     </button>
                   )}
 

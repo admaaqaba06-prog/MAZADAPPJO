@@ -4,7 +4,7 @@ import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
-import { ToastProvider } from './components/feedback';
+import { ToastProvider, ReviewPrompt } from './components/feedback';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -118,6 +118,29 @@ function MaintenanceView() {
   );
 }
 
+/**
+ * Global post-win review modal host: any view (live bidding, orders, …) can open
+ * it by setting reviewPromptOrderId in context — e.g. the unreviewed-order bid gate.
+ */
+function ReviewPromptHost() {
+  const { reviewPromptOrderId, setReviewPromptOrderId, orders, auctions, currentUser, language } = useApp();
+
+  const order = reviewPromptOrderId ? orders.find(o => o.id === reviewPromptOrderId) : undefined;
+  if (!order || !currentUser?.id || order.buyerId !== currentUser.id) return null;
+
+  const vendorId = order.vendorId ?? auctions.find(a => a.id === order.auctionId)?.vendorId ?? null;
+
+  return (
+    <ReviewPrompt
+      order={order}
+      buyerId={currentUser.id}
+      vendorId={vendorId}
+      language={language}
+      onClose={() => setReviewPromptOrderId(null)}
+    />
+  );
+}
+
 function MainAppShell() {
   const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
@@ -184,6 +207,9 @@ function MainAppShell() {
         {showSubscriptionPrompt && (
           <SubscriptionPromptModal onClose={() => setShowSubscriptionPrompt(false)} />
         )}
+
+        {/* Global Post-win Review Prompt */}
+        <ReviewPromptHost />
       </DesktopFrame>
 
       {/* Onboarding Flow Overlay */}
