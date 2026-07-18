@@ -577,12 +577,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         </div>
                       </div>
                     ) : (
-                      <SwipeToBid
-                        amount={nextBidAmount}
-                        onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                        disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                        language={isAr ? 'ar' : 'en'}
-                      />
+                      <>
+                        <SwipeToBid
+                          amount={nextBidAmount}
+                          onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                          disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                          language={isAr ? 'ar' : 'en'}
+                        />
+                        <p className="text-[11px] text-gray-400 text-center mt-1">
+                          {isAr
+                            ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                            : `Total if you win: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                        </p>
+                      </>
                     )}
                   </div>
                 </>

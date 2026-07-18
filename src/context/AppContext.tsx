@@ -2363,11 +2363,11 @@ const fetchIP = async () => {
     }
     if (currentUser.subscriptionStatus !== 'active') {
       setShowSubscriptionPrompt(true);
-      return { 
-        success: false, 
-        message: language === 'ar' 
-          ? '❌ انتهى مفعول اشتراكك! يرجى تجديد اشتراك المزاد الفضي لمواصلة المزايدة.' 
-          : '🎒 Bid rejected: Active subscription pass required. Please renew your subscription to place bids.' 
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط'
+          : 'Membership required to bid — join for 1 JD'
       };
     }
 
@@ -2426,6 +2426,15 @@ const fetchIP = async () => {
         );
       } else {
         await logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`);
+        if (result.data.message === 'MEMBERSHIP_REQUIRED') {
+          setShowSubscriptionPrompt(true);
+          return {
+            success: false,
+            message: language === 'ar'
+              ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط'
+              : 'Membership required to bid — join for 1 JD'
+          };
+        }
       }
       return {
         success: result.data.success,

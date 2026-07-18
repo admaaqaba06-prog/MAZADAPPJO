@@ -799,6 +799,11 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     {isAr ? `تقديم عطاء بقيمة ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JOD`}
                   </span>
                 </button>
+                <p className="text-[11px] text-gray-400 text-center mt-1">
+                  {isAr
+                    ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                    : `Total if you win: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                </p>
               </>
             )}
           </div>
