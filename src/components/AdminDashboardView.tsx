@@ -55,6 +55,59 @@ const formatRequestDate = (v: any, locale: string): string => {
   return date.toLocaleString(locale);
 };
 
+/**
+ * Normalize any timestamp shape we store (Firestore Timestamp, {seconds},
+ * ISO string, epoch ms) to epoch milliseconds. Returns 0 when unparseable.
+ */
+const tsToMillis = (v: any): number => {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v?.toMillis === 'function') return v.toMillis();
+  if (typeof v?.toDate === 'function') return v.toDate().getTime();
+  if (typeof v?.seconds === 'number') return v.seconds * 1000;
+  if (typeof v === 'string') {
+    const parsed = Date.parse(v);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+type StatusSeverity = 'ok' | 'warn' | 'bad' | 'neutral';
+
+/** One glanceable card on the health status board. */
+const HealthStatusCard: React.FC<{
+  icon: string;
+  label: string;
+  value: string;
+  severity: StatusSeverity;
+  subtext?: string;
+}> = ({ icon, label, value, severity, subtext }) => {
+  const styles: Record<StatusSeverity, string> = {
+    ok: 'bg-emerald-50/60 border-emerald-100 text-emerald-700',
+    warn: 'bg-amber-50/60 border-amber-100 text-amber-700',
+    bad: 'bg-rose-50/60 border-rose-100 text-rose-700',
+    neutral: 'bg-gray-50 border-gray-150 text-gray-400',
+  };
+  const dotStyles: Record<StatusSeverity, string> = {
+    ok: 'bg-emerald-500',
+    warn: 'bg-amber-500',
+    bad: 'bg-rose-500 animate-pulse',
+    neutral: 'bg-gray-300',
+  };
+  return (
+    <div className={`border rounded-2xl p-4 shadow-xs flex flex-col gap-1.5 ${styles[severity]}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+          <span aria-hidden="true">{icon}</span> {label}
+        </span>
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dotStyles[severity]}`} />
+      </div>
+      <p className="text-lg font-black leading-none font-mono">{value}</p>
+      {subtext && <p className="text-[9px] font-mono text-gray-400 leading-snug">{subtext}</p>}
+    </div>
+  );
+};
+
 const AuctionEscrowDiagnosticPanel: React.FC<{
   auctionId: string;
   winnerId: string | null;
@@ -348,6 +401,75 @@ export const AdminDashboardView: React.FC = () => {
   
   const [healthFilter, setHealthFilter] = useState<'all' | 'error' | 'bid_fail' | 'payment_fail'>('all');
   const [lastBackupTime, setLastBackupTime] = useState<string>(() => localStorage.getItem('mazad_last_backup_time') || '');
+
+  // ── Health status board ──────────────────────────────────────────────────
+  // system_status/current is written by the pollN8nHealth Cloud Function every
+  // 15 minutes; null means the doc doesn't exist yet (pre-first-poll).
+  const [systemStatus, setSystemStatus] = useState<any | null>(null);
+  // Ticker so the time-derived signals (stuck auctions / unpaid >48h /
+  // settlement freshness) stay honest even when no snapshot fires.
+  const [healthNow, setHealthNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system_status', 'current'), (snap) => {
+      setSystemStatus(snap.exists() ? snap.data() : null);
+    }, (err) => {
+      console.warn('[HEALTH] system_status subscription failed:', err);
+    });
+    const tick = setInterval(() => setHealthNow(Date.now()), 30000);
+    return () => { unsub(); clearInterval(tick); };
+  }, []);
+
+  // Auctions the settlement cron should already have closed: still live/active
+  // but ended more than 2 minutes ago.
+  const stuckAuctions = (auctions || []).filter((a: any) => {
+    if (a.status !== 'live' && a.status !== 'active') return false;
+    const endMs = tsToMillis(a.endTime) || tsToMillis(a.endsAt);
+    return endMs > 0 && endMs < healthNow - 2 * 60 * 1000;
+  });
+
+  // Orders still unpaid more than 48h after creation.
+  const stuckOrders = (orders || []).filter((o: any) => {
+    if (o.status !== 'waiting_payment') return false;
+    const createdMs = tsToMillis(o.createdAt);
+    return createdMs > 0 && createdMs < healthNow - 48 * 60 * 60 * 1000;
+  });
+
+  // Coarse "settlement cron is alive" signal: either nothing was due to close,
+  // or the most recent settlement happened within the last ~10 minutes of an
+  // auction actually ending (no stuck auctions means the closer is keeping up).
+  const anyAuctionsDue = (auctions || []).some((a: any) => {
+    if (a.status !== 'live' && a.status !== 'active') return false;
+    const endMs = tsToMillis(a.endTime) || tsToMillis(a.endsAt);
+    return endMs > 0 && endMs < healthNow;
+  });
+  const lastSettledMs = Math.max(0, ...(auctions || []).map((a: any) => tsToMillis(a.settledAt)));
+  const settlementFresh =
+    (!anyAuctionsDue && stuckAuctions.length === 0) ||
+    (lastSettledMs > 0 && lastSettledMs > healthNow - 10 * 60 * 1000);
+
+  const n8nBot = systemStatus?.n8n?.bot;
+  const n8nNotif = systemStatus?.n8n?.notifications;
+  const statusAsOfMs = tsToMillis(systemStatus?.updatedAt);
+
+  const rateSeverity = (stats: any): StatusSeverity => {
+    if (!stats || typeof stats.failureRate !== 'number') return 'neutral';
+    if (stats.failureRate > 0.25) return 'bad';
+    if (stats.failureRate >= 0.10) return 'warn';
+    return 'ok';
+  };
+  const rateValue = (stats: any): string =>
+    stats && typeof stats.failureRate === 'number'
+      ? `${Math.round(stats.failureRate * 100)}%`
+      : '—';
+  const rateSubtext = (stats: any): string => {
+    if (!stats) return isAr ? 'بانتظار أول فحص' : 'awaiting first check';
+    const asOf = statusAsOfMs || tsToMillis(stats.checkedAt);
+    const asOfStr = asOf ? new Date(asOf).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US') : '';
+    const runs = isAr ? `آخر ${stats.total} تشغيلة` : `last ${stats.total} runs`;
+    return asOfStr ? `${runs} · ${isAr ? 'حتى' : 'as of'} ${asOfStr}` : runs;
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Keep local maintenance fields in sync with database live snapshots
   useEffect(() => {
@@ -2150,6 +2272,45 @@ export const AdminDashboardView: React.FC = () => {
                   ? 'قم بإدارة حالة الصيانة الطارئة للعامة، بوابات المزايدين والمحافظ بنظام كليك، ومعاينة سجل الأخطاء والعمليات فورا.' 
                   : 'Manage system-wide maintenance mode, toggle key transaction gates, and monitor operational log streams.'}
               </p>
+            </div>
+
+            {/* Status board: n8n pipes (polled server-side) + Firestore-derived operational signals */}
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+              <HealthStatusCard
+                icon="🤖"
+                label={isAr ? 'صحة البوت' : 'Bot health'}
+                value={rateValue(n8nBot)}
+                severity={rateSeverity(n8nBot)}
+                subtext={rateSubtext(n8nBot)}
+              />
+              <HealthStatusCard
+                icon="📲"
+                label={isAr ? 'صحة الإشعارات' : 'Notification health'}
+                value={rateValue(n8nNotif)}
+                severity={rateSeverity(n8nNotif)}
+                subtext={rateSubtext(n8nNotif)}
+              />
+              <HealthStatusCard
+                icon="⏱️"
+                label={isAr ? 'مزادات عالقة' : 'Stuck auctions'}
+                value={String(stuckAuctions.length)}
+                severity={stuckAuctions.length > 0 ? 'bad' : 'ok'}
+                subtext={isAr ? 'انتهت منذ >دقيقتين ولم تُغلق' : 'ended >2 min ago, still open'}
+              />
+              <HealthStatusCard
+                icon="📦"
+                label={isAr ? 'غير مدفوعة +٤٨ س' : 'Unpaid >48h'}
+                value={String(stuckOrders.length)}
+                severity={stuckOrders.length > 0 ? 'warn' : 'ok'}
+                subtext={isAr ? 'طلبات بانتظار الدفع' : 'orders awaiting payment'}
+              />
+              <HealthStatusCard
+                icon="✅"
+                label={isAr ? 'التسوية' : 'Settlement'}
+                value={settlementFresh ? (isAr ? 'حديثة' : 'Fresh') : (isAr ? 'متأخرة' : 'Stale')}
+                severity={settlementFresh ? 'ok' : 'bad'}
+                subtext={isAr ? 'إشارة حياة مؤقّت الإغلاق' : 'closer-cron liveness signal'}
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
