@@ -322,24 +322,26 @@ export const LiveStreamView: React.FC = () => {
     triggerToast(!isMuted ? (isAr ? '🔊 تم تشغيل الصوت المباشر' : '🔊 Stream unmuted') : (isAr ? '🔇 تم كتم الصوت' : '🔇 Stream muted'));
   };
 
-  const executeBid = async (amount: number) => {
+  const executeBid = async (amount: number): Promise<{ success: boolean; message: string }> => {
     if (currentUser?.isBlocked) {
-      triggerToast(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
-      return;
+      const message = isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!';
+      triggerToast(message);
+      return { success: false, message };
     }
-    
+
     const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
     if (isEnded) {
-      triggerToast(isAr ? '❌ انتهى المزاد بالفعل!' : '❌ The auction has already ended!');
-      return;
+      const message = isAr ? '❌ انتهى المزاد بالفعل!' : '❌ The auction has already ended!';
+      triggerToast(message);
+      return { success: false, message };
     }
 
     const res = await placeBid(activeAuction.id, amount);
     if (!res.success) {
       triggerToast(res.message);
-    } else {
-      triggerToast(isAr ? '🚀 تم تقديم المزايدة بنجاح!' : '🚀 Bid Placed Successfully!');
     }
+    // Success feedback (price count-up + winning pill) is owned by the layouts.
+    return res;
   };
 
   const handleLikeToggle = (e: React.MouseEvent) => {

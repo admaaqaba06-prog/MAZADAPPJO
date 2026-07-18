@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'motion/react';
 
 type PressableProps = {
+  /** JSX list key (consumed by React itself, never forwarded as a prop). */
+  key?: React.Key;
   children: React.ReactNode;
   className?: string;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
