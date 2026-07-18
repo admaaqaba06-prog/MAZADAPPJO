@@ -129,7 +129,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       whyUs: "لماذا مزاد جو؟",
       liveExp: "تجربة مباشرة",
       categories: "الفئات",
-      comingSoon: "الآن في الأردن",
+      comingSoon: "ابدأ الآن",
       pricing: "الأسعار",
       reserveBtn: "تواصل معنا",
       langBtn: "English",
@@ -204,7 +204,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     interactive: {
       title: "تجربة تفاعلية",
-      subtitle: "إحساس المزاد الحي… قبل الإطلاق.",
+      subtitle: "جرّب المزاد الحي الآن.",
       stats: [
         { value: "%98", label: "تركيز على الثقة" },
         { value: "3≤", label: "خطوات للمزايدة" },
@@ -277,16 +277,16 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     comingSoon: {
       title: "الآن في الأردن",
-      subtitle: "كن أول من يحصل على الدعوة.",
+      subtitle: "المزادات الحية انطلقت — جرّب المزاد الحي الآن.",
       days: "يوم",
       hours: "ساعة",
       minutes: "دقيقة",
       seconds: "ثانية",
-      formTitle: "احجز مكانك في قائمة الانتظار للمشاركة المبكرة",
+      formTitle: "خلّيك على اطلاع — سجّل ليصلك جديد المزادات والقطع المميزة",
       formName: "الاسم الكامل (اختياري)",
       formContact: "البريد الإلكتروني أو رقم الهاتف الأردني (مثال: 079xxxxxxx)",
-      formSubmit: "احجز دعوتك الآن",
-      formSuccess: "تم التسجيل بنجاح! سنتواصل معك عند فتح الوصول المبكر 🎉",
+      formSubmit: "أبقني على اطلاع",
+      formSuccess: "تم التسجيل بنجاح! سنرسل لك جديد المزادات والقطع المميزة 🎉",
       formErrorEmailPhone: "يرجى إدخال بريد إلكتروني صحيح أو رقم هاتف أردني صالح (مثل 079، 078، 077)",
       formErrorEmpty: "يرجى ملء حقل الاتصال (البريد أو الهاتف)",
       experimentalNote: "ملاحظة: هذا النموذج تجريبي لأغراض العرض والبيانات تخزن محلياً في متصفحك.",
@@ -303,7 +303,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "كيف أدفع؟",
-          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فتمر عبر نظام الضمان المالي ولا تُحوَّل للبائع إلا بعد استلامك للقطعة."
+          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فتمر عبر نظام الضمان المالي ولا تُحوَّل للبائع إلا بعد استلامك للقطعة. تُضاف عمولة مشترٍ ٥٪ عند الفوز."
         },
         {
           q: "ماذا تعني \"مفحوص من مزادو\"؟",
@@ -319,7 +319,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "كم تكلفة البيع؟",
-          a: "لا شيء مقدماً. نأخذ ٧.٥٪ فقط عند بيع قطعتك. إذا لم تُبع، لا تدفع شيئاً."
+          a: "لا شيء مقدماً. البائع يستلم ٩٥٪ — عمولة ٥٪ فقط عند بيع قطعتك. إذا لم تُبع، لا تدفع شيئاً."
         }
       ]
     },
@@ -341,7 +341,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       whyUs: "Why MazadJo?",
       liveExp: "Live Experience",
       categories: "Categories",
-      comingSoon: "Now in Jordan",
+      comingSoon: "Start Now",
       pricing: "Pricing",
       reserveBtn: "Contact Us",
       langBtn: "العربية",
@@ -416,7 +416,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     interactive: {
       title: "Interactive Experience",
-      subtitle: "The feel of a live auction... before launch.",
+      subtitle: "The feel of a live auction — try it right now.",
       stats: [
         { value: "98%", label: "Focus on Trust" },
         { value: "≤3", label: "Steps to Bid" },
@@ -489,16 +489,16 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     comingSoon: {
       title: "Now in Jordan",
-      subtitle: "Be the first to get the invitation.",
+      subtitle: "Live auctions are on — try the live auction now.",
       days: "Days",
       hours: "Hours",
       minutes: "Min",
       seconds: "Sec",
-      formTitle: "Reserve your spot on the early access waitlist",
+      formTitle: "Stay in the loop — get notified about new auctions and featured items",
       formName: "Full Name (Optional)",
       formContact: "Email or Jordanian Phone Number (e.g., 079xxxxxxx)",
-      formSubmit: "Reserve Your Invite Now",
-      formSuccess: "Registered successfully! We will contact you when early access opens 🎉",
+      formSubmit: "Keep Me Posted",
+      formSuccess: "Registered successfully! We'll keep you posted on new auctions 🎉",
       formErrorEmailPhone: "Please enter a valid email or active Jordanian phone number (079, 078, 077)",
       formErrorEmpty: "Please fill in the contact field (Email or Phone)",
       experimentalNote: "Note: This is a prototype form; data is saved locally in your browser's local storage.",
@@ -515,7 +515,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "How do I pay?",
-          a: "Subscriptions are paid via CliQ. Auction payments go through our secure escrow system and are not transferred to the seller until you receive and approve the item."
+          a: "Subscriptions are paid via CliQ. Auction payments go through our secure escrow system and are not transferred to the seller until you receive and approve the item. A 5% buyer's premium is added on winning bids."
         },
         {
           q: "What does \"Verified by Mazadjo\" mean?",
@@ -531,7 +531,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "How much does it cost to sell?",
-          a: "Nothing upfront. We only take 7.5% when your item is successfully sold. If it doesn't sell, you pay absolutely nothing."
+          a: "Nothing upfront. Sellers keep 95% — just 5% commission when your item is successfully sold. If it doesn't sell, you pay absolutely nothing."
         }
       ]
     },

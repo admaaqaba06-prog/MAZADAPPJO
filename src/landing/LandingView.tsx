@@ -104,26 +104,6 @@ function Counter({ target, prefix = "", suffix = "" }: { target: number; prefix?
   );
 }
 
-// FlipNumber for Coming Soon vertical flip countdown
-function FlipNumber({ value }: { value: number | string }) {
-  return (
-    <div className="relative h-10 sm:h-12 overflow-hidden flex justify-center items-center">
-      <AnimatePresence mode="popLayout">
-        <motion.span
-          key={value}
-          initial={{ y: 30, opacity: 0, rotateX: -60 }}
-          animate={{ y: 0, opacity: 1, rotateX: 0 }}
-          exit={{ y: -30, opacity: 0, rotateX: 60 }}
-          transition={{ duration: 0.45, ease: "easeInOut" }}
-          className="text-3xl sm:text-4xl font-bold text-[#F05123] font-mono block transform origin-center"
-        >
-          {value}
-        </motion.span>
-      </AnimatePresence>
-    </div>
-  );
-}
-
 const marqueeBids = [
   { name: "أحمد العبادي", item: "تويوتا كامري", amount: "14,500 د.أ", time: "منذ دقيقة", nameEn: "Ahmad Al-Abadi", itemEn: "Toyota Camry", amountEn: "14,500 JOD", timeEn: "1m ago" },
   { name: "سارة حداد", item: "آيفون 15 برو ماكس", amount: "875 د.أ", time: "منذ ثوانٍ", nameEn: "Sarah Haddad", itemEn: "iPhone 15 Pro Max", amountEn: "875 JOD", timeEn: "Seconds ago" },
@@ -372,14 +352,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     restDelta: 0.001
   });
 
-  // Global Countdown (Target: 30 days from now)
-  const [globalCountdown, setGlobalCountdown] = useState({
-    days: 30,
-    hours: 0,
-    minutes: 0,
-    seconds: 0
-  });
-
   // Effects
   useEffect(() => {
     // Scroll event
@@ -437,30 +409,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     }, 8000);
     return () => clearInterval(cycleInterval);
   }, [isAutoCycling]);
-
-  // Global Launch Countdown (30 days from now)
-  useEffect(() => {
-    const launchTime = new Date().getTime() + 30 * 24 * 60 * 60 * 1000;
-    
-    const ticker = setInterval(() => {
-      const now = new Date().getTime();
-      const difference = launchTime - now;
-
-      if (difference <= 0) {
-        clearInterval(ticker);
-        return;
-      }
-
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-      setGlobalCountdown({ days, hours, minutes, seconds });
-    }, 1000);
-
-    return () => clearInterval(ticker);
-  }, []);
 
   // Automatically simulate a bidding update for the active item every 5 seconds
   useEffect(() => {
@@ -772,10 +720,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               {t.nav.pricing}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#coming-soon" className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <button type="button" onClick={onEnter} className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 cursor-pointer ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.comingSoon}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
-            </a>
+            </button>
           </nav>
 
           {/* Action Buttons */}
@@ -859,13 +807,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           >
             {t.nav.pricing}
           </a>
-          <a
-            href="#coming-soon"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-base font-semibold text-[#0A0A0A] hover:text-[#F05123] py-2 border-b border-[#E5E5E5]/40 transition-colors duration-200 font-ibmarabic"
+          <button
+            type="button"
+            onClick={() => { setMobileMenuOpen(false); onEnter(); }}
+            className="text-start text-base font-semibold text-[#0A0A0A] hover:text-[#F05123] py-2 border-b border-[#E5E5E5]/40 transition-colors duration-200 font-ibmarabic cursor-pointer"
           >
             {t.nav.comingSoon}
-          </a>
+          </button>
           
           <a
             href="https://wa.me/962781444899"
@@ -1496,7 +1444,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         {lang === "ar" ? "استلم فلوسك" : "Get Paid"}
                       </h3>
                       <p className="text-sm text-gray-600 font-ibmarabic leading-relaxed">
-                        {lang === "ar" ? "نأخذ 7.5% فقط عند البيع، والباقي إلك فوراً" : "We only take a 7.5% commission upon sale, and you get the rest instantly."}
+                        {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط عند البيع، والباقي إلك فوراً" : "Sellers keep 95% — just 5% commission on sale, and the rest is yours instantly."}
                       </p>
                     </div>
                   </>
@@ -2207,12 +2155,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </div>
 
                     <div className="pt-8">
-                      <a
-                        href="#coming-soon"
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#0A0A0A] font-bold text-sm font-ibmarabic transition-colors duration-200"
+                      <button
+                        type="button"
+                        onClick={onEnter}
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#0A0A0A] font-bold text-sm font-ibmarabic transition-colors duration-200 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
-                      </a>
+                      </button>
                     </div>
                   </motion.div>
                 </Reveal>
@@ -2274,12 +2223,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </div>
 
                     <div className="pt-8">
-                      <a
-                        href="#coming-soon"
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-[#F05123] hover:bg-[#d44319] text-white font-bold text-sm font-ibmarabic transition-all duration-200 shadow-md shadow-[#F05123]/25"
+                      <button
+                        type="button"
+                        onClick={onEnter}
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-[#F05123] hover:bg-[#d44319] text-white font-bold text-sm font-ibmarabic transition-all duration-200 shadow-md shadow-[#F05123]/25 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
-                      </a>
+                      </button>
                     </div>
                   </motion.div>
                 </Reveal>
@@ -2330,12 +2280,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </div>
 
                     <div className="pt-8">
-                      <a
-                        href="#coming-soon"
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#0A0A0A] font-bold text-sm font-ibmarabic transition-colors duration-200"
+                      <button
+                        type="button"
+                        onClick={onEnter}
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#0A0A0A] font-bold text-sm font-ibmarabic transition-colors duration-200 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
-                      </a>
+                      </button>
                     </div>
                   </motion.div>
                 </Reveal>
@@ -2346,9 +2297,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             {/* Small Grey Line below cards */}
             <Reveal>
               <div className="text-center mt-8 text-xs text-gray-500 font-ibmarabic">
-                {lang === "ar" 
-                  ? "مزايدة بلا حدود · الدفع عبر كليك · بدون رسوم خفية" 
-                  : "Unlimited bidding · Pay via CliQ · No hidden fees"}
+                {lang === "ar"
+                  ? "مزايدة بلا حدود · الدفع عبر كليك · بدون رسوم خفية · + عمولة مشترٍ ٥٪ عند الفوز"
+                  : "Unlimited bidding · Pay via CliQ · No hidden fees · +5% buyer's premium on wins"}
               </div>
             </Reveal>
 
@@ -2369,24 +2320,25 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
                     <div className="space-y-4 max-w-2xl">
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
-                        {lang === "ar" ? "للبائعين: احتفظ بـ ٩٢.٥٪ من كل عملية بيع" : "Sellers: Keep 92.5% of every sale"}
+                        {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "بدون رسوم إدراج خلال فترة الإطلاق. لا رسوم إذا لم تُبع القطعة. فقط ٧.٥٪ عندما تجد قطعتك مشتريها." 
-                          : "No listing fees during launch. No fees if the item is not sold. Only 7.5% when your item finds a buyer."}
+                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
+                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
                       </p>
                     </div>
 
                     <div className="shrink-0">
-                      <motion.a
+                      <motion.button
+                        type="button"
+                        onClick={onEnter}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.98 }}
-                        href="#coming-soon"
-                        className="inline-block px-8 py-3.5 bg-white text-black hover:bg-gray-50 font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto"
+                        className="inline-block px-8 py-3.5 bg-white text-black hover:bg-gray-50 font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
                       >
                         {lang === "ar" ? "بيع معنا" : "Sell with Us"}
-                      </motion.a>
+                      </motion.button>
                     </div>
                   </div>
 
@@ -2566,14 +2518,14 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 8. Section "قريباً في الأردن" (Coming Soon & Registration) */}
+        {/* 8. Section "الآن في الأردن" (We're Live — CTA & Updates Signup) */}
         <section id="coming-soon" className="py-24 bg-[#F7F7F7] border-t border-[#F0F0EE] relative overflow-hidden">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-12">
-            
+
             {/* Title */}
             <div className="flex flex-col items-center gap-4 text-center">
               <span className={`inline-block px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 ${lang === "en" ? "tracking-wide" : ""}`}>
-                {lang === "ar" ? "الوصول المبكر" : "EARLY ACCESS"}
+                {lang === "ar" ? "متاح الآن" : "NOW LIVE"}
               </span>
               <h2 className="text-4xl sm:text-5xl font-extrabold text-[#0A0A0A] font-alexandria">
                 {t.comingSoon.title}
@@ -2581,39 +2533,16 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <p className="text-gray-700 text-sm sm:text-base font-ibmarabic max-w-lg mx-auto">
                 {t.comingSoon.subtitle}
               </p>
-            </div>
-
-            {/* Launch Countdown Grid with Gold Numbers */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-xl mx-auto">
-              
-              <div className="bg-white border border-[#ECECEA] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden">
-                <FlipNumber value={globalCountdown.days < 10 ? `0${globalCountdown.days}` : globalCountdown.days} />
-                <span className="text-xs text-gray-500 font-ibmarabic mt-1 block">
-                  {t.comingSoon.days}
-                </span>
-              </div>
-
-              <div className="bg-white border border-[#ECECEA] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden">
-                <FlipNumber value={globalCountdown.hours < 10 ? `0${globalCountdown.hours}` : globalCountdown.hours} />
-                <span className="text-xs text-gray-500 font-ibmarabic mt-1 block">
-                  {t.comingSoon.hours}
-                </span>
-              </div>
-
-              <div className="bg-white border border-[#ECECEA] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden">
-                <FlipNumber value={globalCountdown.minutes < 10 ? `0${globalCountdown.minutes}` : globalCountdown.minutes} />
-                <span className="text-xs text-gray-500 font-ibmarabic mt-1 block">
-                  {t.comingSoon.minutes}
-                </span>
-              </div>
-
-              <div className="bg-white border border-[#ECECEA] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden">
-                <FlipNumber value={globalCountdown.seconds < 10 ? `0${globalCountdown.seconds}` : globalCountdown.seconds} />
-                <span className="text-xs text-gray-500 font-ibmarabic mt-1 block">
-                  {t.comingSoon.seconds}
-                </span>
-              </div>
-
+              <motion.button
+                type="button"
+                onClick={onEnter}
+                whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
+                whileTap={{ scale: 0.97 }}
+                className="mt-2 px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
+              >
+                <span>{lang === "ar" ? "جرّب المزاد الحي الآن" : "Try the live auction now"}</span>
+                <span className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5">→</span>
+              </motion.button>
             </div>
 
             {/* Form Box with Slide Reveal and active focus states */}
@@ -2755,22 +2684,23 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
                 <Reveal delay={0.15}>
                   <p className="text-white/90 text-sm sm:text-lg font-ibmarabic max-w-xl mx-auto leading-relaxed">
-                    {lang === "ar" 
-                      ? "انضم اليوم واستفد من فترة بدون رسوم عرض — العمولة بس 7.5% عند البيع الفعلي." 
-                      : "Join today and take advantage of a listing fee-free period — commission is only 7.5% on actual sales."}
+                    {lang === "ar"
+                      ? "انضم اليوم واستفد من فترة بدون رسوم عرض — البائع يستلم ٩٥٪ وعمولتنا ٥٪ فقط عند البيع الفعلي، + عمولة مشترٍ ٥٪ عند الفوز."
+                      : "Join today and take advantage of a listing fee-free period — sellers keep 95% with just 5% commission on actual sales, +5% buyer's premium on wins."}
                   </p>
                 </Reveal>
 
                 <Reveal delay={0.3}>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                    <motion.a
+                    <motion.button
+                      type="button"
+                      onClick={onEnter}
                       whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}
                       whileTap={{ scale: 0.98 }}
-                      href="#coming-soon"
-                      className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-[#D63E10] hover:bg-gray-50 font-bold font-ibmarabic text-base transition-colors duration-200 text-center shadow-lg"
+                      className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-[#D63E10] hover:bg-gray-50 font-bold font-ibmarabic text-base transition-colors duration-200 text-center shadow-lg cursor-pointer"
                     >
                       {lang === "ar" ? "ابدأ البيع الآن" : "Start Selling Now"}
-                    </motion.a>
+                    </motion.button>
                     
                     <motion.a
                       whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.1)" }}
@@ -2816,7 +2746,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <a href="#pricing" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
                 {t.nav.pricing}
               </a>
-              <a href="#coming-soon" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic font-semibold">
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic font-semibold">
                 {t.footer.links.contact}
               </a>
             </div>
@@ -2858,16 +2788,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             >
               <span>{lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}</span>
             </button>
-            <a
-              href="#coming-soon"
-              onClick={(e) => {
-                e.preventDefault();
-                document.getElementById("coming-soon")?.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-white border-2 border-[#0A0A0A] text-[#0A0A0A] font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic"
+            <button
+              type="button"
+              onClick={onEnter}
+              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-white border-2 border-[#0A0A0A] text-[#0A0A0A] font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
             >
               <span>{lang === "ar" ? "بيع قطعتك" : "Sell Your Item"}</span>
-            </a>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
