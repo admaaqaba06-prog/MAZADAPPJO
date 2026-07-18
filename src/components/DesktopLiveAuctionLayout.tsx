@@ -928,7 +928,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 {isAr ? 'الدردشة الحية' : 'Live Chat'}
               </span>
             </div>
-            <span className="text-[9px] text-gray-400 font-bold">● 2.1K</span>
+            {activeComments && activeComments.length > 0 && (
+              <span className="text-[9px] text-gray-400 font-bold">● {activeComments.length.toLocaleString()}</span>
+            )}
           </div>
 
           {/* Messages list */}

@@ -570,11 +570,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     <span className="text-xs font-bold text-gray-950 truncate leading-tight">
                       {currentUser.name}
                     </span>
-                    {isStrictAdmin && (
-                      <span className="text-[9px] font-black text-[#E85D04] tracking-wider uppercase mt-1">
-                        {isAr ? 'مستشار النظام' : 'SYSTEM CRITICAL'}
-                      </span>
-                    )}
                   </div>
                 </div>
               )}
