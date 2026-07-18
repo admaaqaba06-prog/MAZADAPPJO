@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
+import { WinCelebration, useWinDetection } from './feedback';
 import { 
   Flame, 
   Search, 
@@ -316,6 +317,21 @@ export const DiscoveryFeedView: React.FC = () => {
 
   const t = translations[language];
   const isAr = language === 'ar';
+
+  // Win celebration: fires only when a watched auction *transitions* to
+  // 'completed' while this user is the highest bidder (per-id previous-status
+  // ref inside the hook — never on mount into already-completed auctions).
+  const { win, clearWin } = useWinDetection(auctions, currentUser?.id);
+  const handleWinPay = () => {
+    const wonAuctionId = win?.auctionId;
+    clearWin();
+    const matchingOrder = orders?.find(o => o.auctionId === wonAuctionId && o.buyerId === currentUser?.id);
+    if (matchingOrder) {
+      setGlobalSelectedOrderId(matchingOrder.id);
+    }
+    setGlobalWalletSubView('orders');
+    setActiveView('wallet');
+  };
 
   // `match` includes legacy AuctionItem.category values so existing lots keep filtering correctly.
   const categoriesList = React.useMemo(() => [
@@ -791,13 +807,22 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Render Seller complete profile modal */}
       {selectedProfileId && (
-        <SellerProfileModal 
+        <SellerProfileModal
           sellerId={selectedProfileId}
           isOpen={true}
           onClose={() => setSelectedProfileId(null)}
         />
       )}
 
+      {/* Win celebration — always mounted; bursts on the win transition */}
+      <WinCelebration
+        show={win !== null}
+        auctionTitle={win?.auctionTitle ?? ''}
+        totalDue={win?.totalDue ?? 0}
+        isAr={isAr}
+        onPay={handleWinPay}
+        onClose={clearWin}
+      />
     </div>
   );
 };

@@ -13,6 +13,7 @@ import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
+import { WinCelebration, useWinDetection } from './feedback';
 
 // Countdown tick sound
 const playTick = () => {
@@ -143,6 +144,42 @@ export const LiveStreamView: React.FC = () => {
   }, [activeAuctionId]);
 
   const activePrice = activeAuction ? activeAuction.currentPrice : 0;
+
+  // Win celebration: fires only on the status *transition* to 'completed'
+  // while this user holds the highest bid (per-id previous-status ref inside
+  // the hook — never fires on mount into an already-completed auction).
+  const winWatchList = useMemo(() => [activeAuction], [activeAuction]);
+  const { win, clearWin } = useWinDetection(winWatchList, currentUser?.id);
+
+  // When the celebration takes over, stand down the countdown/winner overlay
+  // so the two full-screen layers never stack.
+  useEffect(() => {
+    if (win) setIsOverlayDismissed(true);
+  }, [win]);
+
+  const handleWinPay = () => {
+    const wonAuctionId = win?.auctionId;
+    clearWin();
+    const matchingOrder = orders?.find(o => o.auctionId === wonAuctionId && o.buyerId === currentUser?.id);
+    if (matchingOrder) {
+      setGlobalSelectedOrderId(matchingOrder.id);
+    }
+    setGlobalWalletSubView('orders');
+    setActiveView('wallet');
+  };
+
+  // Always mounted (Confetti needs the false→true flip to burst); renders
+  // nothing interactive while hidden.
+  const winCelebrationEl = (
+    <WinCelebration
+      show={win !== null}
+      auctionTitle={win?.auctionTitle ?? ''}
+      totalDue={win?.totalDue ?? 0}
+      isAr={isAr}
+      onPay={handleWinPay}
+      onClose={clearWin}
+    />
+  );
 
   // Sync video source & playback when active lot swaps
   useEffect(() => {
@@ -387,6 +424,18 @@ export const LiveStreamView: React.FC = () => {
     return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
   }, [auctions]);
 
+  // Must stay above the no-live-auctions early return: the branch switch on
+  // the last auction completing would otherwise change the hook order.
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   if (!hasLiveAuctions || !activeAuction) {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#070709] p-6 text-gray-400 h-full min-h-[500px]" id="no-live-stream-fallback">
@@ -407,19 +456,12 @@ export const LiveStreamView: React.FC = () => {
         >
           {isAr ? 'تصفح المزادات القادمة' : 'Browse Upcoming Auctions'}
         </button>
+        {/* The last live auction completing lands us on this branch — the
+            celebration must survive the branch switch to still fire. */}
+        {winCelebrationEl}
       </div>
     );
   }
-
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const nextBidAmount = activeAuction ? minNextBid(activeAuction.currentPrice, activeAuction.minIncrement, activeAuction.totalBids || 0) : 0;
 
@@ -666,6 +708,9 @@ export const LiveStreamView: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Win celebration — always mounted; bursts on the win transition */}
+      {winCelebrationEl}
     </div>
   );
 };
