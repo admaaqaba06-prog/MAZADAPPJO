@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
@@ -34,6 +34,26 @@ import {
   HardDrive,
   RotateCcw
 } from 'lucide-react';
+
+/**
+ * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
+ * .toDate()), an ISO string, or an epoch-ms number. Server-created requests
+ * carry a Firestore Timestamp — naively passing it to `new Date()` yields
+ * "Invalid Date".
+ */
+const formatRequestDate = (v: any, locale: string): string => {
+  if (!v) return '';
+  let date: Date | null = null;
+  if (typeof v?.toDate === 'function') {
+    date = v.toDate();
+  } else if (typeof v?.seconds === 'number') {
+    date = new Date(v.seconds * 1000);
+  } else if (typeof v === 'string' || typeof v === 'number') {
+    date = new Date(v);
+  }
+  if (!date || isNaN(date.getTime())) return '';
+  return date.toLocaleString(locale);
+};
 
 const AuctionEscrowDiagnosticPanel: React.FC<{
   auctionId: string;
@@ -566,17 +586,27 @@ export const AdminDashboardView: React.FC = () => {
 
   const rejectSubscription = async (request: any) => {
     try {
+      // Reject always updates the REQUEST doc...
       await updateDoc(doc(db, 'subscriptionRequests', request.id), {
         subscriptionStatus: 'rejected',
         status: 'rejected'
       });
-      await updateDoc(doc(db, 'users', request.userId), {
-        subscriptionStatus: 'rejected',
-        subscriptionExpiry: null,
-        subscriptionPlan: null,
-        subscriptionApprovedAt: null,
-        subscriptionExpiresAt: null
-      });
+
+      // ...but only downgrades the USER if they are still pending. Rejecting a
+      // duplicate/stale request must NEVER wipe an already-active membership.
+      if (request.userId) {
+        const userSnap = await getDoc(doc(db, 'users', request.userId));
+        const userStatus = userSnap.exists() ? (userSnap.data() as any)?.subscriptionStatus : null;
+        if (userStatus === 'pending') {
+          await updateDoc(doc(db, 'users', request.userId), {
+            subscriptionStatus: 'rejected',
+            subscriptionExpiry: null,
+            subscriptionPlan: null,
+            subscriptionApprovedAt: null,
+            subscriptionExpiresAt: null
+          });
+        }
+      }
 
       alert(isAr 
         ? `⚠️ تم رفض طلب الاشتراك للعضو (${request.userName || request.userEmail}) بنجاح.` 
@@ -1648,10 +1678,10 @@ export const AdminDashboardView: React.FC = () => {
                       <div>
                         <h4 className="font-extrabold text-sm text-gray-900 leading-none">{req.userName}</h4>
                         <p className="text-[10px] text-gray-400 mt-1">{req.userEmail}</p>
-                        {req.createdAt && (
+                        {!!formatRequestDate(req.createdAt, isAr ? 'ar-JO' : 'en-US') && (
                           <p className="text-[10px] text-gray-500 mt-1">
                             <span className="font-semibold">{isAr ? 'تاريخ الطلب: ' : 'Requested At: '}</span>
-                            {new Date(req.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-US')}
+                            {formatRequestDate(req.createdAt, isAr ? 'ar-JO' : 'en-US')}
                           </p>
                         )}
                       </div>

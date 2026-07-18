@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { ShieldCheck, Check, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud } from 'lucide-react';
+import { ShieldCheck, Check, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
 
 // Helper to compress base64 images to stay under the 1MB Firestore limit
 const compressBase64Image = (base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.65): Promise<string> => {
@@ -42,7 +42,7 @@ const compressBase64Image = (base64Str: string, maxWidth = 600, maxHeight = 600,
 };
 
 export const SubscriptionView: React.FC = () => {
-  const { subscribeUser, language, setLanguage, logout } = useApp();
+  const { subscribeUser, language, setLanguage, logout, currentUser } = useApp();
   const t = translations[language];
 
   const plans = [
@@ -74,11 +74,16 @@ export const SubscriptionView: React.FC = () => {
 
   const [selectedPlan, setSelectedPlan] = useState<typeof plans[0]>(plans[1]);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [paymentProofImage, setPaymentProofImage] = useState<string>('');
   const [transferFullName, setTransferFullName] = useState('');
   const [transferPhone, setTransferPhone] = useState('');
   const [copied, setCopied] = useState(false);
   const isAr = language === 'ar';
+
+  // Show the pending state after a successful submit AND on refresh while the
+  // request is still under review — kills the silent-success → duplicate-click loop.
+  const isPendingReview = submitted || currentUser?.subscriptionStatus === 'pending';
 
   const handleCopy = () => {
     navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
@@ -105,7 +110,8 @@ export const SubscriptionView: React.FC = () => {
     }
   };
 
-  const handlePay = () => {
+  const handlePay = async () => {
+    if (loading || isPendingReview) return;
     if (!transferFullName.trim()) {
       alert(isAr ? 'الرجاء إدخال الاسم الثلاثي.' : 'Please enter your full name as on ID.');
       return;
@@ -119,10 +125,12 @@ export const SubscriptionView: React.FC = () => {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const ok = await subscribeUser(selectedPlan.price, paymentProofImage || undefined, transferFullName, transferPhone);
+      if (ok) setSubmitted(true);
+    } finally {
       setLoading(false);
-      subscribeUser(selectedPlan.price, paymentProofImage || undefined, transferFullName, transferPhone);
-    }, 1200);
+    }
   };
 
   return (
@@ -157,6 +165,30 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Main Body */}
       <main className="w-full max-w-2xl mx-auto my-auto py-8">
+        {isPendingReview ? (
+          /* PENDING REVIEW STATE — replaces the form entirely (also shown on refresh
+             while subscriptionStatus === 'pending') so users can't double-submit. */
+          <div className="text-center space-y-5 py-10" id="subscription-pending-state">
+            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+              <Hourglass className="w-6 h-6 text-emerald-600" />
+            </div>
+            <h1 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+              {isAr
+                ? '✅ استلمنا طلبك — قيد المراجعة'
+                : '✅ We got your request — under review'}
+            </h1>
+            <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+              {isAr
+                ? 'سنفعّل عضويتك خلال دقائق. لا حاجة لإعادة الإرسال — ستصلك إشعار فور التفعيل.'
+                : 'We will activate your membership within minutes. No need to resubmit — you will be notified the moment it goes live.'}
+            </p>
+            <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold px-4 py-2 rounded-full">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} />
+              <span>{isAr ? 'قيد المراجعة من الإدارة' : 'Being reviewed by our team'}</span>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="text-center space-y-3 mb-8">
           <div className="mx-auto w-10 h-10 rounded-full bg-orange-100/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-5 h-5 fill-current text-white stroke-[#FF6B00]" />
@@ -336,6 +368,8 @@ export const SubscriptionView: React.FC = () => {
         <p className="text-[9.5px] text-gray-400 leading-relaxed text-center mt-4">
           {t.subLockText}
         </p>
+        </>
+        )}
       </main>
 
       {/* Footer */}

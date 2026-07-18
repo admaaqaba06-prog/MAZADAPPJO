@@ -145,7 +145,7 @@ interface AppContextProps {
   registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
   loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
-  subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => void;
+  subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => Promise<boolean>;
   
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
@@ -2213,12 +2213,12 @@ const fetchIP = async () => {
     }
   }, [currentUser]);
 
-  const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => {
+  const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string): Promise<boolean> => {
     const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
 
     if (!currentUser) {
       addNotification('❌ Error', 'User must be logged in.', 'alert');
-      return;
+      return false;
     }
 
     if (!featureFlags.enableSubscriptions) {
@@ -2227,7 +2227,7 @@ const fetchIP = async () => {
         language === 'ar' ? 'عمليات ترقية الاشتراكات معطلة مؤقتاً للصيانة المجدولة.' : 'Subscription upgrades are temporarily disabled for system maintenance.',
         'alert'
       );
-      return;
+      return false;
     }
 
     try {
@@ -2250,67 +2250,33 @@ const fetchIP = async () => {
             language === 'ar' ? `لم نتمكن من رفع صورة إثبات الدفع. رمز الخطأ: ${storageErr.code || 'unknown'}` : `Failed to upload payment proof. Code: ${storageErr.code || 'unknown'}`,
             'alert'
           );
-          throw storageErr;
+          await logSystemHealth('payment_fail', 'Subscription Proof Upload Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${storageErr.message || String(storageErr)}`);
+          return false;
         }
       } else {
         downloadURL = paymentProofImage || '';
       }
 
-      // 1. Direct write to Firestore "subscriptionRequests" collection to ensure absolute reliability
-      const reqId = `sub-req-${Date.now()}-${currentUser.id}`;
-      const newRequest = {
-        id: reqId,
-        userId: currentUser.id,
-        userName: currentUser.name || 'User',
-        userEmail: currentUser.email || '',
-        plan: plan,
-        price: price,
+      // Single write path: the `requestSubscription` callable is the sole creator of the
+      // subscriptionRequests doc (server-authoritative; it also sets the user to pending).
+      // A failure here is a REAL failure — surface it, don't swallow it.
+      const requestSubCallable = await getCallableFunction<{
+        price: number;
+        plan: string;
+        paymentProofUrl: string;
+        paymentProofImage: string;
+        transferFullName: string;
+        transferPhone: string;
+       }, { success: boolean; message: string }>('requestSubscription');
+
+      await requestSubCallable({
+        price,
+        plan,
         paymentProofUrl: downloadURL,
         paymentProofImage: downloadURL,
-        paymentImageUrl: downloadURL, // For explicit user-requested compatibility
-        amount: price,                // For explicit user-requested compatibility
         transferFullName: transferFullName || '',
-        transferPhone: transferPhone || '',
-        status: 'pending',            // For explicit user-requested compatibility
-        subscriptionStatus: 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await setDoc(doc(db, 'subscriptionRequests', reqId), newRequest);
-        console.log("Subscription request created", newRequest);
-      } catch (dbErr: any) {
-        console.error("Direct subscriptionRequest write to Firestore failed. Code:", dbErr.code, "Message:", dbErr.message);
-        addNotification(
-          language === 'ar' ? '❌ فشل حفظ الطلب' : '❌ Firestore Write Failed',
-          language === 'ar' ? `فشل تسجيل طلب الاشتراك بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to record subscription request. Code: ${dbErr.code || 'unknown'}`,
-          'alert'
-        );
-        throw dbErr;
-      }
-
-      // 2. Call the cloud function as a background update; catch errors safely so it is non-blocking
-      try {
-        const requestSubCallable = await getCallableFunction<{
-          price: number;
-          plan: string;
-          paymentProofUrl: string;
-          paymentProofImage: string;
-          transferFullName: string;
-          transferPhone: string;
-         }, { success: boolean; message: string }>('requestSubscription');
-
-        await requestSubCallable({
-          price,
-          plan,
-          paymentProofUrl: downloadURL,
-          paymentProofImage: downloadURL,
-          transferFullName: transferFullName || '',
-          transferPhone: transferPhone || ''
-        });
-      } catch (cfErr: any) {
-        console.warn("Cloud function [requestSubscription] warning/bypass (using Direct Firestore fallback instead):", cfErr.code, cfErr.message || cfErr);
-      }
+        transferPhone: transferPhone || ''
+      });
 
       setCurrentUser(prev => {
         if (!prev) return prev;
@@ -2339,11 +2305,25 @@ const fetchIP = async () => {
       }));
 
       setShowSubscriptionPrompt(false);
-      addNotification('⏳ Subscription Pending', `شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.`, 'verify');
+      addNotification(
+        language === 'ar' ? '⏳ الاشتراك قيد المراجعة' : '⏳ Subscription Pending',
+        language === 'ar'
+          ? 'شكراً! تم استلام طلب اشتراكك. سيتم مراجعته من الإدارة وتفعيله خلال دقائق.'
+          : 'Thanks! We received your subscription request. It will be reviewed and activated within minutes.',
+        'verify'
+      );
+      return true;
     } catch (error: any) {
       console.error("[requestSubscription] Overall process failure. Code:", error.code, "Message:", error.message, "error:", error);
       await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
-      addNotification('❌ Subscription Error', error.message || 'Failed to submit subscription request.', 'alert');
+      addNotification(
+        language === 'ar' ? '❌ لم يتم إرسال الطلب' : '❌ Request Not Sent',
+        language === 'ar'
+          ? 'تعذّر إرسال طلب الاشتراك — تحقق من اتصالك وحاول مرة أخرى.'
+          : 'We could not submit your subscription request — check your connection and try again.',
+        'alert'
+      );
+      return false;
     }
   }, [currentUser, addNotification, logSystemHealth, featureFlags, language]);
 
