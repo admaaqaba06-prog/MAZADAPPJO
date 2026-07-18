@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Gavel, Info, ShieldCheck, UserCheck, Star, Calendar, Clock, Award } from 'lucide-react';
+import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
@@ -78,7 +78,6 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   const seller = sellerProfiles.find(s => s.userId === currentItem.sellerId) || {
     name: currentItem.sellerName || (isAr ? 'شريك رسمي معتمد' : 'Official Verified Partner'),
     companyName: isAr ? 'مجموعة عمان الفاخرة' : 'Amman Luxury Group',
-    rating: 4.9,
     isVerified: true
   };
 
@@ -189,24 +188,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             referrerPolicy="no-referrer"
           />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-black text-white truncate block">{seller.name}</span>
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            </div>
-            <span className="text-[8px] text-zinc-500 font-bold block leading-none mt-0.5 uppercase tracking-wider">
-              {isAr ? 'تاجر ذهبي معتمد كليك' : 'CliQ Verified Platinum Merchant'}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-0.5 font-sans">
-          <div className="flex items-center gap-1 text-[9px] text-zinc-400">
-            <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0" />
-            <span><strong className="text-white">4.9</strong> {isAr ? 'التقييم' : 'Score'}</span>
-          </div>
-          <div className="flex items-center gap-1 text-[9px] text-zinc-400">
-            <Award className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-            <span><strong className="text-white">100%</strong> {isAr ? 'تسليم مضمون' : 'Secure Delivery'}</span>
+            <span className="text-xs font-black text-white truncate block">{seller.name}</span>
           </div>
         </div>
       </div>
