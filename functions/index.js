@@ -157,6 +157,9 @@ exports.scheduledAuctionCloser = functions.pubsub
                   buyerId: winnerId,
                   buyerName: winnerName,
                   winningBidAmount: finalPrice,
+                  buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+                  totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+                  paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
                   status: "waiting_payment",
                   paymentStatus: "unpaid",
                   shippingStatus: "not_started",
@@ -211,12 +214,18 @@ exports.scheduledAuctionCloser = functions.pubsub
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+              paymentHours: 24,
               idempotencyKey: `${notifyData.auctionId}_auction_won`,
             });
             await postToN8n('payment_due', {
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+              paymentHours: 24,
               idempotencyKey: `${notifyData.auctionId}_payment_due`,
             });
           }
@@ -1054,6 +1063,9 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       buyerId: winnerId,
       buyerName: winnerName,
       winningBidAmount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
       status: "waiting_payment",
       paymentStatus: "unpaid",
       shippingStatus: "not_started",
@@ -1079,11 +1091,17 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     await postToN8n('auction_won', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
       idempotencyKey: `${auctionId}_payment_due`,
     });
 
