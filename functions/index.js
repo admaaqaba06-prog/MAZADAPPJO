@@ -297,6 +297,45 @@ exports.scheduledAuctionOpener = functions.pubsub
   });
 
 /**
+ * paymentDefaultEnforcer
+ * Every 30 minutes: any order still waiting_payment past its paymentDeadlineAt
+ * is marked defaulted and the buyer is blocked (isBlocked) pending admin review.
+ * Re-run / runner-up offer is a manual admin decision in v1.
+ */
+exports.paymentDefaultEnforcer = functions.pubsub
+  .schedule('every 30 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    try {
+      const snap = await db.collection('orders')
+        .where('status', '==', 'waiting_payment')
+        .where('paymentDeadlineAt', '<=', now)
+        .get();
+      if (snap.empty) return null;
+      for (const doc of snap.docs) {
+        const o = doc.data();
+        const batch = db.batch();
+        batch.update(doc.ref, { status: 'defaulted', defaultedAt: admin.firestore.FieldValue.serverTimestamp() });
+        if (o.buyerId) {
+          batch.set(db.collection('users').doc(o.buyerId), { isBlocked: true, blockedReason: 'payment_default' }, { merge: true });
+        }
+        batch.set(db.collection('system_health').doc(), {
+          type: 'payment_fail',
+          title: 'Order defaulted (24h unpaid)',
+          details: `Order ${doc.id} (${o.auctionTitle || ''}) buyer ${o.buyerName || o.buyerId} — ${o.totalDue || o.winningBidAmount} JOD. Buyer blocked; decide re-run/runner-up.`,
+          source: 'paymentDefaultEnforcer',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        console.log(`[paymentDefaultEnforcer] defaulted order ${doc.id}, blocked ${o.buyerId}`);
+      }
+    } catch (err) {
+      console.error('[paymentDefaultEnforcer]', err);
+    }
+    return null;
+  });
+
+/**
  * 2. onBidCreated (BUG #5 Compliance)
  * Activates instant real-time outbid notifications.
  * Sends push messaging to the outbid user (previousBidderId) the instant a higher bid enters the database subcollection.
