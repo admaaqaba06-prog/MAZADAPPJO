@@ -527,7 +527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: fbData.email || user.email || '',
             avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: loadedRole,
-            isAdmin: isAdminEmail && (hasAdminClaim || fbData.role === 'admin' || fbData.isAdmin === true),
+            isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
             accountStatus: fbData.accountStatus || 'active',
             isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
             isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -758,7 +758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } catch (updateErr) {
                 console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
               }
-            } else if (!isAdminEmail && fbData.role === 'admin') {
+            } else if (!isAdminEmail && fbData.role === 'admin' && fbData.isAdmin !== true) {
               loadedRole = 'user';
               try {
                 await updateDoc(userRef, { role: 'user', isAdmin: false });
@@ -774,7 +774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: loadedRole,
-              isAdmin: isAdminEmail && (hasAdminClaim || fbData.role === 'admin' || fbData.isAdmin === true),
+              isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
               accountStatus: fbData.accountStatus || 'active',
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -962,6 +962,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           sellerStatus: fbData.sellerStatus || currentUser.sellerStatus || '',
           sellerActivatedAt: fbData.sellerActivatedAt || currentUser.sellerActivatedAt || null,
           sellerProfile: fbData.sellerProfile || currentUser.sellerProfile || null,
+          // Carry admin + onboarding flags through live sync — omitting them
+          // silently stripped console-granted admins and resurrected onboarding
+          isAdmin: fbData.isAdmin !== undefined ? fbData.isAdmin === true : currentUser.isAdmin,
+          onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : currentUser.onboardingCompleted,
         };
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(mergedUser);
