@@ -2406,6 +2406,25 @@ const fetchIP = async () => {
       };
     }
 
+    // 1.5. Unreviewed-order bid gate (client-side v1): an unreviewed completed
+    // order blocks the next bid — open the review prompt instead of calling the server.
+    if (pendingReviewOrder) {
+      addNotification(
+        language === 'ar' ? '⭐ قيّم مشترياتك السابقة للمتابعة' : '⭐ Rate your previous purchases to continue',
+        language === 'ar'
+          ? 'لديك طلب مكتمل بانتظار تقييمك — قيّمه (١٠ ثوانٍ) ثم تابع المزايدة.'
+          : 'A completed order is waiting for your rating — rate it (10 seconds), then keep bidding.',
+        'info'
+      );
+      setReviewPromptOrderId(pendingReviewOrder.id);
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'قيّم مشترياتك السابقة للمتابعة'
+          : 'Rate your previous purchases to continue'
+      };
+    }
+
     // 2. Bid Spam & Timing Protection (Min 1.5 seconds cooldown between bids)
     const lastBidTime = lastBidTimestampRef.current;
     if (now - lastBidTime < 1500) {
@@ -2498,7 +2517,7 @@ const fetchIP = async () => {
         message: errorMsg || 'Bidding failed.'
       };
     }
-  }, [currentUser, language, addNotification, logSystemHealth, featureFlags]);
+  }, [currentUser, language, addNotification, logSystemHealth, featureFlags, pendingReviewOrder]);
 
   // CliQ Jordanian instant receipt topup via Cloud Function
   const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
