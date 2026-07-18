@@ -85,7 +85,6 @@ export const LiveStreamView: React.FC = () => {
     sendChatMessage,
     bids,
     orders,
-    setGlobalWalletSubView,
     setGlobalSelectedOrderId
   } = useApp();
 
@@ -166,8 +165,7 @@ export const LiveStreamView: React.FC = () => {
     if (matchingOrder) {
       setGlobalSelectedOrderId(matchingOrder.id);
     }
-    setGlobalWalletSubView('orders');
-    setActiveView('wallet');
+    setActiveView('orders');
   };
 
   // Always mounted (Confetti needs the false→true flip to burst); renders
@@ -621,8 +619,7 @@ export const LiveStreamView: React.FC = () => {
                             if (matchingOrder) {
                               setGlobalSelectedOrderId(matchingOrder.id);
                             }
-                            setGlobalWalletSubView('orders');
-                            setActiveView('wallet');
+                            setActiveView('orders');
                           }}
                           className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
                         >

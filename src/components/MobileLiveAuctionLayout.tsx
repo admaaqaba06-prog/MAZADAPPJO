@@ -260,7 +260,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
-  const { sellerProfiles, bids, orders, setActiveView, setGlobalWalletSubView, setGlobalSelectedOrderId } = useApp();
+  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -801,8 +801,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                             if (matchingOrder) {
                               setGlobalSelectedOrderId(matchingOrder.id);
                             }
-                            setGlobalWalletSubView('orders');
-                            setActiveView('wallet');
+                            setActiveView('orders');
                           }}
                           className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-black shadow-md cursor-pointer"
                         >
