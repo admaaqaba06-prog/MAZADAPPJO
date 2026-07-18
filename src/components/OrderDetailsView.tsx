@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../types';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
 
 interface OrderDetailsViewProps {
@@ -247,6 +248,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       });
 
       await executeOrderTransition(order, 'pay', currentUser);
+
+      // Funnel metric — fire-and-forget (service handles its own errors)
+      logAnalyticsEvent('payment_submitted', currentUser.id, currentUser.email, {
+        orderId: order.id,
+        totalDue
+      });
 
       showToast({
         type: 'success',

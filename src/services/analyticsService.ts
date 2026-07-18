@@ -7,7 +7,11 @@ export type AnalyticsEventType =
   | 'bid_placed'
   | 'subscription_conversion'
   | 'rate_limit_triggered'
-  | 'bid_spam_blocked';
+  | 'bid_spam_blocked'
+  | 'membership_submitted'
+  | 'first_bid'
+  | 'auction_won_seen'
+  | 'payment_submitted';
 
 export interface AnalyticsEvent {
   id?: string;
