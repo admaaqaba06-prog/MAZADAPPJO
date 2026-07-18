@@ -198,10 +198,10 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
               {feedback.type === 'success' && (
                 <ContextualHint
                   hintKey="first_bid"
-                  titleAr="ماذا يحدث بعد المزايدة؟ 🔒"
-                  titleEn="What Happens After Bidding? 🔒"
-                  descAr="رائع! تم حجز قيمة العطاء مؤقتاً في كليك لحماية البائع والمشتري. إذا خسرت، يعود رصيدك فوراً ومحفظتك آمنة. وإذا فزت، يُستخدم للدفع."
-                  descEn="Awesome! Your bid amount is temporarily reserved in CliQ escrow to protect both parties. If you lose, it returns instantly and your wallet is secure. If you win, it goes towards payment."
+                  titleAr="ماذا يحدث بعد المزايدة؟ 🔨"
+                  titleEn="What Happens After Bidding? 🔨"
+                  descAr="رائع! أنت الآن في المنافسة. إذا فزت، تدفع سعر الفوز + عمولة المشتري ٥٪ عبر كليك خلال ٢٤ ساعة. إذا خسرت، لا تدفع شيئاً."
+                  descEn="Awesome! You're in the running. If you win, you pay the final price + 5% buyer's premium via CliQ within 24 hours. If you lose, you pay nothing."
                 />
               )}
             </div>
@@ -211,29 +211,36 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {auction.status === 'live' && (
             <div className="space-y-2">
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                {isAr ? 'تقديم مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT ESCROW BID'}
+                {isAr ? 'مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT BID'}
               </span>
               
               {(() => {
                 const inc = auction.minIncrement || 10;
                 const base = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids || 0);
                 return (
-                  <div className="grid grid-cols-4 gap-2">
-                    {[base, base + inc, base + 2 * inc, base + 3 * inc].map(amount => (
-                      <button
-                        key={amount}
-                        onClick={() => handlePlaceBidAmt(amount)}
-                        className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95"
-                      >
-                        <span className="text-[10.5px]">
-                          {amount > auction.currentPrice
-                            ? `+${(amount - auction.currentPrice).toLocaleString()} JD`
-                            : (isAr ? 'الحد الأدنى' : 'MIN BID')}
-                        </span>
-                        <span className="text-[8.5px] opacity-60 font-medium">{amount.toLocaleString()}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[base, base + inc, base + 2 * inc, base + 3 * inc].map(amount => (
+                        <button
+                          key={amount}
+                          onClick={() => handlePlaceBidAmt(amount)}
+                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95"
+                        >
+                          <span className="text-[10.5px]">
+                            {amount > auction.currentPrice
+                              ? `+${(amount - auction.currentPrice).toLocaleString()} JD`
+                              : (isAr ? 'الحد الأدنى' : 'MIN BID')}
+                          </span>
+                          <span className="text-[8.5px] opacity-60 font-medium">{amount.toLocaleString()}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-gray-400 text-center mt-1">
+                      {isAr
+                        ? `المجموع عند الفوز: ${(Math.round(base * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                        : `Total if you win: ${(Math.round(base * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                    </p>
+                  </>
                 );
               })()}
             </div>

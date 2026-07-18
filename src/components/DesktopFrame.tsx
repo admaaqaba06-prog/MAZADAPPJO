@@ -41,7 +41,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     setLanguage,
     logout,
     setActiveAuctionId,
-    wallet,
     escrows,
     users,
     notifications,
@@ -187,7 +186,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             }`}
           >
             <WalletIcon className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'المحفظة' : 'Wallet'}</span>
+            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'العضوية' : 'Membership'}</span>
           </button>
 
           <button 
@@ -240,9 +239,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <div className="flex flex-col text-left rtl:text-right">
               <span className="text-xs font-black font-sans leading-none tracking-tight uppercase text-gray-950">
                 {t.appName}
-              </span>
-              <span className="text-[8.5px] text-gray-400 font-bold tracking-widest mt-1 leading-none font-mono">
-                {isAr ? 'تجريبي V3' : 'V3 PILOT'}
               </span>
             </div>
           </div>
@@ -298,7 +294,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               }`}
             >
               <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>{isAr ? 'المحفظة' : 'Wallet'}</span>
+              <span>{isAr ? 'العضوية' : 'Membership'}</span>
             </button>
 
             {isSeller && (
@@ -333,14 +329,18 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {/* 3. Actions: Wallet balance, Language switcher, Notifications bell, User Profile (Right) */}
           <div className="flex items-center gap-3 xl:gap-4" id="global-header-actions">
             
-            {/* Wallet pill */}
-            {wallet && (
-              <div 
+            {/* Membership pill */}
+            {currentUser && (
+              <div
                 onClick={() => setActiveView('wallet')}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-[#FAF9F6] border-gray-200/80 text-gray-800 hover:border-gray-300"
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
-                <span>{(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-[10px] text-gray-400">JOD</span></span>
+                <span>
+                  {currentUser?.subscriptionStatus === 'active'
+                    ? (isAr ? 'عضو ✓' : 'Member ✓')
+                    : (isAr ? 'انضم بـ ١ د.أ' : 'Join — 1 JD')}
+                </span>
               </div>
             )}
 
@@ -458,7 +458,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       }`}
                     >
                       <WalletIcon className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'الملف والمحفظة' : 'Wallet & Profile'}</span>
+                      <span>{isAr ? 'العضوية' : 'Membership'}</span>
                     </button>
 
                     {isSeller && (
@@ -530,49 +530,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     <span className="text-xs font-bold text-gray-950 truncate leading-tight">
                       {currentUser.name}
                     </span>
-                    <span className="text-[9px] font-black text-[#E85D04] tracking-wider uppercase mt-1">
-                      {isStrictAdmin 
-                        ? (isAr ? 'مستشار النظام' : 'SYSTEM CRITICAL') 
-                        : (isAr ? 'عضو موثق بضمان' : 'VERIFIED MERCHANT')}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Wallet Financial Overview (Revolut Business style) */}
-              {wallet && (
-                <div className="p-5 bg-white rounded-2xl border border-gray-200/70 shadow-[0_1px_3px_rgba(0,0,0,0.01)] flex flex-col gap-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                      {isAr ? 'رصيد المحفظة الآمن' : 'SECURE WALLET'}
-                    </span>
-                    <button 
-                      onClick={() => setActiveView('wallet')}
-                      className="text-[10px] font-bold text-[#E85D04] hover:underline uppercase tracking-wider cursor-pointer"
-                    >
-                      {isAr ? 'شحن' : 'TOP UP'}
-                    </button>
-                  </div>
-
-                  <div className="py-1">
-                    <span className="text-2xl font-black text-gray-900 font-mono tracking-tight block">
-                      {(wallet.availableBalance ?? 0).toLocaleString()} <span className="text-xs font-bold text-gray-400">JOD</span>
-                    </span>
-                    <span className="text-[9.5px] text-gray-400 font-medium block mt-1.5 leading-snug">
-                      {isAr ? 'رصيد كليك الموثق لعمليات الضمان الفورية.' : 'Verified CliQ balance available for secure escrow transactions.'}
-                    </span>
-                  </div>
-
-                  {wallet.escrowBalance > 0 && (
-                    <div className="flex justify-between items-center pt-2.5 border-t border-gray-100 mt-1">
-                      <span className="text-[10px] font-semibold text-gray-400">
-                        {isAr ? 'الضمان المعلق' : 'Escrow Balance'}
+                    {isStrictAdmin && (
+                      <span className="text-[9px] font-black text-[#E85D04] tracking-wider uppercase mt-1">
+                        {isAr ? 'مستشار النظام' : 'SYSTEM CRITICAL'}
                       </span>
-                      <span className="text-xs font-black text-[#E85D04] font-mono">
-                        {(wallet.escrowBalance ?? 0).toLocaleString()} JD
-                      </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
 

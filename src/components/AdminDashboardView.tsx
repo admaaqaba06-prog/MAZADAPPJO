@@ -191,7 +191,7 @@ export const AdminDashboardView: React.FC = () => {
   const [isProcessingAction, setIsProcessingAction] = useState<Record<string, boolean>>({});
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
 
-  const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed'>('all');
+  const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'defaulted'>('all');
   const [adminSelectedOrderId, setAdminSelectedOrderId] = useState<string | null>(null);
 
   const filteredOrders = (orders || []).filter((o: any) => {
@@ -767,22 +767,24 @@ export const AdminDashboardView: React.FC = () => {
 
             {/* Filter buttons bar */}
             <div className="bg-white p-2 rounded-2xl border border-gray-150 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-              {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'completed', 'disputed'] as const).map((filterOpt) => {
-                const label = isAr 
+              {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'completed', 'disputed', 'defaulted'] as const).map((filterOpt) => {
+                const label = isAr
                   ? (filterOpt === 'all' ? 'الكل' :
                      filterOpt === 'waiting_payment' ? 'بانتظار الدفع' :
                      filterOpt === 'paid' ? 'مدفوع' :
                      filterOpt === 'preparing_shipment' ? 'تجهيز الشحن' :
                      filterOpt === 'shipped' ? 'تم الشحن' :
                      filterOpt === 'delivered' ? 'تم التوصيل' :
-                     filterOpt === 'completed' ? 'مكتمل' : 'نزاع')
+                     filterOpt === 'completed' ? 'مكتمل' :
+                     filterOpt === 'disputed' ? 'نزاع' : 'متخلف عن الدفع')
                   : (filterOpt === 'all' ? 'ALL ORDERS' :
                      filterOpt === 'waiting_payment' ? 'WAITING PAYMENT' :
                      filterOpt === 'paid' ? 'PAID' :
                      filterOpt === 'preparing_shipment' ? 'PREPARING SHIPMENT' :
                      filterOpt === 'shipped' ? 'SHIPPED' :
                      filterOpt === 'delivered' ? 'DELIVERED' :
-                     filterOpt === 'completed' ? 'COMPLETED' : 'DISPUTED');
+                     filterOpt === 'completed' ? 'COMPLETED' :
+                     filterOpt === 'disputed' ? 'DISPUTED' : 'DEFAULTED');
                 
                 const isSelected = adminOrderFilter === filterOpt;
                 const count = filterOpt === 'all' ? (orders?.length || 0) : (orders?.filter((o: any) => o.status === filterOpt).length || 0);

@@ -680,18 +680,24 @@ export const DiscoveryFeedView: React.FC = () => {
       {activeTab === 'live' && (
         <div className="w-full bg-white z-20 font-sans mb-3.5 px-1">
           <div className="flex gap-2 px-3 overflow-x-auto scrollbar-none bg-white">
-            <button className="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors bg-white text-gray-800 border border-gray-950">
-              {isAr ? 'حديث ومستعمل للرجال' : "Men's modern & thrift"}
-            </button>
-            <button className="px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors bg-white text-gray-400 border border-gray-200">
-              {isAr ? 'مستعمل مميز' : 'Thrift'}
-            </button>
-            <button className="px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors bg-white text-gray-400 border border-gray-200">
-              {isAr ? 'كرة قدم رياضية' : 'Soccer'}
-            </button>
-            <button className="px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors bg-white text-gray-400 border border-gray-200">
-              {isAr ? 'إكسسوارات' : 'Accessories'}
-            </button>
+            {[
+              { ar: 'سيارات', en: 'Cars' },
+              { ar: 'عقارات', en: 'Real Estate' },
+              { ar: 'هواتف', en: 'Phones' },
+              { ar: 'ساعات', en: 'Watches' },
+              { ar: 'إلكترونيات', en: 'Electronics' },
+            ].map((pill, idx) => (
+              <button
+                key={pill.en}
+                className={`px-3.5 py-1.5 rounded-full text-xs shrink-0 transition-colors bg-white ${
+                  idx === 0
+                    ? 'font-bold text-gray-800 border border-gray-950'
+                    : 'font-semibold text-gray-400 border border-gray-200'
+                }`}
+              >
+                {isAr ? pill.ar : pill.en}
+              </button>
+            ))}
           </div>
         </div>
       )}

@@ -42,7 +42,6 @@ interface MobileLiveAuctionLayoutProps {
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
   onBidExecute: (amount: number) => void;
-  wallet: any;
   currentUser: any;
   language: string;
   isAr: boolean;
@@ -75,7 +74,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onCommentSubmit,
   nextBidAmount,
   onBidExecute,
-  wallet,
   currentUser,
   language,
   isAr,
@@ -168,7 +166,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               onCommentSubmit={onCommentSubmit}
               nextBidAmount={isActive ? nextBidAmount : minNextBid(currentReelPrice, auction.minIncrement, auction.totalBids || 0)}
               onBidExecute={onBidExecute}
-              wallet={wallet}
               currentUser={currentUser}
               language={language}
               isAr={isAr}
@@ -206,7 +203,6 @@ interface MobileAuctionReelProps {
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
   onBidExecute: (amount: number) => void;
-  wallet: any;
   currentUser: any;
   language: string;
   isAr: boolean;
@@ -235,7 +231,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onCommentSubmit,
   nextBidAmount,
   onBidExecute,
-  wallet,
   currentUser,
   language,
   isAr,
@@ -682,7 +677,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* ======================================================================
-              5. THE WHATNOT LIVE-BIDDING CARD (Strictly 5 Required Elements)
+              5. THE MAZAD LIVE-BIDDING CARD (Strictly 5 Required Elements)
               ====================================================================== */}
           <div 
             style={{ 
@@ -788,7 +783,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 {/* Row 4: Single HUGE Thumb-Tappable Bid Button */}
                 <button
                   type="button"
-                  disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
+                  disabled={currentUser?.isBlocked}
                   onClick={handleLocalBid}
                   className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-all shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
                 >
@@ -799,6 +794,11 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     {isAr ? `تقديم عطاء بقيمة ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JOD`}
                   </span>
                 </button>
+                <p className="text-[11px] text-gray-400 text-center mt-1">
+                  {isAr
+                    ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                    : `Total if you win: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                </p>
               </>
             )}
           </div>

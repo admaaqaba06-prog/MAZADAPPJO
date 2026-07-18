@@ -49,7 +49,6 @@ interface DesktopLiveAuctionLayoutProps {
   onCommentSubmit: (e: React.FormEvent) => void;
   nextBidAmount: number;
   onBidExecute: (amount: number) => void;
-  wallet: any;
   currentUser: any;
   isAr: boolean;
   onOpenDetails: (id: string) => void;
@@ -82,7 +81,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   onCommentSubmit,
   nextBidAmount,
   onBidExecute,
-  wallet,
   currentUser,
   isAr,
   onOpenDetails,
@@ -439,7 +437,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                               {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
                             </span>
                             <span className="text-emerald-400 text-[10.5px] font-bold block bg-emerald-500/10 border border-emerald-500/20 py-1 px-2.5 rounded-lg mt-1">
-                              {isAr ? 'تم إرجاع المبلغ المحجوز إلى محفظتك' : 'The reserved amount has been returned to your wallet'}
+                              {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
                             </span>
                           </div>
                           <button
@@ -577,12 +575,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         </div>
                       </div>
                     ) : (
-                      <SwipeToBid
-                        amount={nextBidAmount}
-                        onSwipeSuccess={() => onBidExecute(nextBidAmount)}
-                        disabled={currentUser?.isBlocked || wallet.availableBalance < nextBidAmount}
-                        language={isAr ? 'ar' : 'en'}
-                      />
+                      <>
+                        <SwipeToBid
+                          amount={nextBidAmount}
+                          onSwipeSuccess={() => onBidExecute(nextBidAmount)}
+                          disabled={currentUser?.isBlocked}
+                          language={isAr ? 'ar' : 'en'}
+                        />
+                        <p className="text-[11px] text-gray-400 text-center mt-1">
+                          {isAr
+                            ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                            : `Total if you win: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                        </p>
+                      </>
                     )}
                   </div>
                 </>

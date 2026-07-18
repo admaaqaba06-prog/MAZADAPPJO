@@ -421,7 +421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // AUTH, MULTILINGUAL, & SUBSCRIPTION ADDITIONS
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
-    return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'en';
+    return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'ar';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
  
@@ -2363,11 +2363,11 @@ const fetchIP = async () => {
     }
     if (currentUser.subscriptionStatus !== 'active') {
       setShowSubscriptionPrompt(true);
-      return { 
-        success: false, 
-        message: language === 'ar' 
-          ? '❌ انتهى مفعول اشتراكك! يرجى تجديد اشتراك المزاد الفضي لمواصلة المزايدة.' 
-          : '🎒 Bid rejected: Active subscription pass required. Please renew your subscription to place bids.' 
+      return {
+        success: false,
+        message: language === 'ar'
+          ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط'
+          : 'Membership required to bid — join for 1 JD'
       };
     }
 
@@ -2421,11 +2421,22 @@ const fetchIP = async () => {
 
         addNotification(
           '🏆 Winning Bid Placed',
-          `Locked ${amount.toLocaleString()} JOD securely in Mazad Escrow.`,
+          language === 'ar'
+            ? 'تم تسجيل مزايدتك بنجاح — أنت الأعلى الآن!'
+            : "Bid placed — you're the highest bidder!",
           'win'
         );
       } else {
         await logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`);
+        if (result.data.message === 'MEMBERSHIP_REQUIRED') {
+          setShowSubscriptionPrompt(true);
+          return {
+            success: false,
+            message: language === 'ar'
+              ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط'
+              : 'Membership required to bid — join for 1 JD'
+          };
+        }
       }
       return {
         success: result.data.success,

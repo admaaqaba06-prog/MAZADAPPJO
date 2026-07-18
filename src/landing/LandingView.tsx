@@ -274,7 +274,12 @@ const ACTIVE_ITEMS = [
 ];
 
 export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/962781444899" }: { onEnter: () => void; whatsappUrl?: string }) {
-  const [lang, setLang] = useState<"ar" | "en">("ar");
+  const [lang, setLang] = useState<"ar" | "en">(() => (localStorage.getItem('mazad_language') === 'en' ? 'en' : 'ar'));
+  const toggleLang = () => {
+    const next = lang === "ar" ? "en" : "ar";
+    setLang(next);
+    localStorage.setItem('mazad_language', next);
+  };
   const t: TranslationType = translations[lang];
 
   // Active item switching states
@@ -777,7 +782,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           <div className="hidden md:flex items-center gap-4">
             {/* Language Switch */}
             <button
-              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+              onClick={toggleLang}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] border border-[#E5E5E5] hover:border-[#F05123] text-[#0A0A0A] hover:text-[#F05123] transition-all duration-200 bg-white/60 text-xs font-semibold cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5 text-[#F05123]" />
@@ -799,7 +804,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           <div className="flex md:hidden items-center gap-3">
             {/* Language switch on mobile */}
             <button
-              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+              onClick={toggleLang}
               className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] border border-[#E5E5E5] text-[#0A0A0A] bg-white text-xs"
             >
               <Globe className="w-3 h-3 text-[#F05123]" />

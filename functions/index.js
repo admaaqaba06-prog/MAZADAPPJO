@@ -157,6 +157,9 @@ exports.scheduledAuctionCloser = functions.pubsub
                   buyerId: winnerId,
                   buyerName: winnerName,
                   winningBidAmount: finalPrice,
+                  buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+                  totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+                  paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
                   status: "waiting_payment",
                   paymentStatus: "unpaid",
                   shippingStatus: "not_started",
@@ -211,12 +214,18 @@ exports.scheduledAuctionCloser = functions.pubsub
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+              paymentHours: 24,
               idempotencyKey: `${notifyData.auctionId}_auction_won`,
             });
             await postToN8n('payment_due', {
               phone: notifyData.phone, name: notifyData.winnerName,
               auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
               amount: notifyData.finalPrice,
+              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+              paymentHours: 24,
               idempotencyKey: `${notifyData.auctionId}_payment_due`,
             });
           }
@@ -283,6 +292,45 @@ exports.scheduledAuctionOpener = functions.pubsub
       await Promise.all(promises);
     } catch (err) {
       console.error('[scheduledAuctionOpener]', err);
+    }
+    return null;
+  });
+
+/**
+ * paymentDefaultEnforcer
+ * Every 30 minutes: any order still waiting_payment past its paymentDeadlineAt
+ * is marked defaulted and the buyer is blocked (isBlocked) pending admin review.
+ * Re-run / runner-up offer is a manual admin decision in v1.
+ */
+exports.paymentDefaultEnforcer = functions.pubsub
+  .schedule('every 30 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    try {
+      const snap = await db.collection('orders')
+        .where('status', '==', 'waiting_payment')
+        .where('paymentDeadlineAt', '<=', now)
+        .get();
+      if (snap.empty) return null;
+      for (const doc of snap.docs) {
+        const o = doc.data();
+        const batch = db.batch();
+        batch.update(doc.ref, { status: 'defaulted', defaultedAt: admin.firestore.FieldValue.serverTimestamp() });
+        if (o.buyerId) {
+          batch.set(db.collection('users').doc(o.buyerId), { isBlocked: true, blockedReason: 'payment_default' }, { merge: true });
+        }
+        batch.set(db.collection('system_health').doc(), {
+          type: 'payment_fail',
+          title: 'Order defaulted (24h unpaid)',
+          details: `Order ${doc.id} (${o.auctionTitle || ''}) buyer ${o.buyerName || o.buyerId} — ${o.totalDue || o.winningBidAmount} JOD. Buyer blocked; decide re-run/runner-up.`,
+          source: 'paymentDefaultEnforcer',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        console.log(`[paymentDefaultEnforcer] defaulted order ${doc.id}, blocked ${o.buyerId}`);
+      }
+    } catch (err) {
+      console.error('[paymentDefaultEnforcer]', err);
     }
     return null;
   });
@@ -435,8 +483,10 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
       if (userData.isBlocked) {
         return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
-      if (userData.subscriptionStatus !== 'active') {
-        return { success: false, message: 'Active subscription pass required to place bids.' };
+      const subExpiry = userData.subscriptionExpiry;
+      const subExpiryMs = subExpiry && subExpiry.toMillis ? subExpiry.toMillis() : (typeof subExpiry === 'number' ? subExpiry : null);
+      if (userData.subscriptionStatus !== 'active' || (subExpiryMs && subExpiryMs <= Date.now())) {
+        return { success: false, message: 'MEMBERSHIP_REQUIRED' };
       }
 
       // 2. Get auction item
@@ -468,22 +518,6 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         return { success: false, message: 'This auction has already ended.' };
       }
 
-      // 3. Get bidder's wallet
-      const walletRef = db.collection('wallets').doc(userId);
-      const walletSnap = await transaction.get(walletRef);
-      let walletData = {
-        userId,
-        availableBalance: 0,
-        escrowBalance: 0,
-        totalBalance: 0
-      };
-      if (walletSnap.exists) {
-        const d = walletSnap.data();
-        walletData.availableBalance = d.availableBalance || 0;
-        walletData.escrowBalance = d.escrowBalance || 0;
-        walletData.totalBalance = walletData.availableBalance + walletData.escrowBalance;
-      }
-
       const minIncrementFils = Math.round((auctionData.minIncrement || 10) * 1000);
       const totalBids = auctionData.totalBids || 0;
       const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
@@ -492,73 +526,13 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         return { success: false, message: `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.` };
       }
 
-      // 4. Query if the bidder has an existing locked escrow for this auction INSIDE transaction
-      const existingEscrowsQuery = await transaction.get(
-        db.collection('escrows')
-          .where('auctionId', '==', auctionId)
-          .where('bidderId', '==', userId)
-          .where('status', '==', 'locked')
-      );
-      
-      let existingEscrowDoc = null;
-      let previousCommittedAmountFils = 0;
-      if (!existingEscrowsQuery.empty) {
-        existingEscrowDoc = existingEscrowsQuery.docs[0];
-        const prevEscData = existingEscrowDoc.data();
-        previousCommittedAmountFils = prevEscData.amountFils || Math.round((prevEscData.amount || 0) * 1000);
-      }
-
-      // Query if there is a previous locked escrow belonging to the outbid user INSIDE transaction
+      // Track the previous highest bidder for the auction update below
       const outbidUserId = auctionData.currentBidderId;
-      let prevEscrowDoc = null;
-      let prevRefundFils = 0;
-      let prevWalletSnap = null;
-      let prevWalletRef = null;
-
-      if (outbidUserId && outbidUserId !== userId) {
-        const prevEscrowsQuery = await transaction.get(
-          db.collection('escrows')
-            .where('auctionId', '==', auctionId)
-            .where('bidderId', '==', outbidUserId)
-            .where('status', '==', 'locked')
-        );
-
-        if (!prevEscrowsQuery.empty) {
-          prevEscrowDoc = prevEscrowsQuery.docs[0];
-          const prevEscrow = prevEscrowDoc.data();
-          prevRefundFils = prevEscrow.amountFils || Math.round((prevEscrow.amount || 0) * 1000);
-
-          // Get the outbid user's wallet INSIDE the transaction before any writes are done
-          prevWalletRef = db.collection('wallets').doc(outbidUserId);
-          prevWalletSnap = await transaction.get(prevWalletRef);
-        }
-      }
-
-      // All reads are now 100% completed! Now we begin writes.
-
-      // Incremental delta calculation in fils
-      const incrementalDeltaFils = amountFils - previousCommittedAmountFils;
-
-      if (walletData.availableBalance < incrementalDeltaFils) {
-        return { success: false, message: `Insufficient Wallet Funds! You need ${((incrementalDeltaFils - walletData.availableBalance) / 1000).toLocaleString()} JOD more.` };
-      }
 
       // 5. Update user profile with rate limit timestamp
       transaction.update(userRef, {
         lastBidAt: now
       });
-
-      // 6. Update current bidder's wallet
-      const newAvailFils = walletData.availableBalance - incrementalDeltaFils;
-      const newEscrowFils = walletData.escrowBalance + incrementalDeltaFils;
-      const newTotalFils = newAvailFils + newEscrowFils;
-
-      transaction.set(walletRef, {
-        userId,
-        availableBalance: newAvailFils,
-        escrowBalance: newEscrowFils,
-        totalBalance: newTotalFils
-      }, { merge: true });
 
       // 7. Write new bid document
       const bidRef = db.collection('auctions').doc(auctionId).collection('bids').doc();
@@ -572,55 +546,6 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         bidderAvatar: userData.avatar || '',
         timestamp: Date.now()
       });
-
-      // 8. Update/Create current bidder's escrow transaction for this auction
-      if (existingEscrowDoc) {
-        transaction.update(existingEscrowDoc.ref, {
-          amount: amount,
-          amountFils: amountFils,
-          timestamp: Date.now()
-        });
-      } else {
-        const escrowRef = db.collection('escrows').doc();
-        transaction.set(escrowRef, {
-          id: escrowRef.id,
-          walletId: 'wallet-current',
-          auctionId: auctionId,
-          auctionTitle: auctionData.title || 'Auction Name',
-          bidderId: userId,
-          bidderName: userData.name || 'User',
-          sellerId: auctionData.sellerId || 'seller-system',
-          sellerName: auctionData.sellerName || 'Seller',
-          amount: amount,
-          amountFils: amountFils,
-          status: 'locked',
-          timestamp: Date.now()
-        });
-      }
-
-      // 9. Handle refunding the previous highest bidder
-      if (outbidUserId && outbidUserId !== userId && prevEscrowDoc) {
-        // Mark it as refunded
-        transaction.update(prevEscrowDoc.ref, { status: 'refunded' });
-
-        // Return funds to their wallet
-        if (prevWalletSnap && prevWalletSnap.exists && prevWalletRef) {
-          const pwData = prevWalletSnap.data();
-          const oldPrevAvailFils = pwData.availableBalance || 0;
-          const oldPrevEscrowFils = pwData.escrowBalance || 0;
-
-          const newPrevEscrowFils = Math.max(0, oldPrevEscrowFils - prevRefundFils);
-          const newPrevAvailFils = oldPrevAvailFils + prevRefundFils;
-          const newPrevTotalFils = newPrevAvailFils + newPrevEscrowFils;
-
-          transaction.set(prevWalletRef, {
-            userId: outbidUserId,
-            availableBalance: newPrevAvailFils,
-            escrowBalance: newPrevEscrowFils,
-            totalBalance: newPrevTotalFils
-          }, { merge: true });
-        }
-      }
 
       // 10. Update the auction details (anti-sniping and pricing)
       let finalEndTime = endTime || Date.now();
@@ -1177,6 +1102,9 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       buyerId: winnerId,
       buyerName: winnerName,
       winningBidAmount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
       status: "waiting_payment",
       paymentStatus: "unpaid",
       shippingStatus: "not_started",
@@ -1202,11 +1130,17 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     await postToN8n('auction_won', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
+      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
       idempotencyKey: `${auctionId}_payment_due`,
     });
 
@@ -1303,74 +1237,81 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         }
       }
 
-      if (!escrowRef || !escrowData) {
-        throw new functions.https.HttpsError('not-found', 'المبلغ غير محجوز أو تم تحريره سابقاً');
-      }
+      // Under the membership model no escrow is created for bids, so a missing
+      // escrow simply means there are no funds to move — the order must still complete.
+      const hasEscrow = !!(escrowRef && escrowData);
 
-      // 4. Read wallets
-      const buyerWalletRef = db.collection('wallets').doc(buyerId);
-      const sellerWalletRef = db.collection('wallets').doc(sellerId);
+      // 5. Determine amount for messaging/records
+      let amountFils = 0;
+      if (hasEscrow) {
+        amountFils = escrowData.amountFils;
+        if (!amountFils && escrowData.amount) {
+          amountFils = Math.round(escrowData.amount * 1000);
+        }
+        if (!amountFils && orderData.winningBidAmount) {
+          amountFils = Math.round(orderData.winningBidAmount * 1000);
+        }
 
-      const buyerWalletSnap = await transaction.get(buyerWalletRef);
-      const sellerWalletSnap = await transaction.get(sellerWalletRef);
-
-      // 5. Determine amount: Use the escrow amount as the source of truth
-      let amountFils = escrowData.amountFils;
-      if (!amountFils && escrowData.amount) {
-        amountFils = Math.round(escrowData.amount * 1000);
-      }
-      if (!amountFils && orderData.winningBidAmount) {
+        if (!amountFils || amountFils <= 0) {
+          throw new functions.https.HttpsError('failed-precondition', 'قيمة العملية غير صالحة');
+        }
+      } else if (orderData.winningBidAmount) {
         amountFils = Math.round(orderData.winningBidAmount * 1000);
-      }
-
-      if (!amountFils || amountFils <= 0) {
-        throw new functions.https.HttpsError('failed-precondition', 'قيمة العملية غير صالحة');
       }
 
       const winningAmountJOD = amountFils / 1000;
 
-      // 6. Validate balances
-      const oldBuyerEscrow = buyerWalletSnap.exists ? (buyerWalletSnap.data().escrowBalance || 0) : 0;
-      const oldBuyerAvail = buyerWalletSnap.exists ? (buyerWalletSnap.data().availableBalance || 0) : 0;
+      if (escrowRef && escrowData) {
+        // 4. Read wallets (reads must precede writes inside the transaction)
+        const buyerWalletRef = db.collection('wallets').doc(buyerId);
+        const sellerWalletRef = db.collection('wallets').doc(sellerId);
 
-      if (oldBuyerEscrow < amountFils) {
-        throw new functions.https.HttpsError('failed-precondition', 'رصيد المشتري المحجوز غير كافٍ');
+        const buyerWalletSnap = await transaction.get(buyerWalletRef);
+        const sellerWalletSnap = await transaction.get(sellerWalletRef);
+
+        // 6. Validate balances
+        const oldBuyerEscrow = buyerWalletSnap.exists ? (buyerWalletSnap.data().escrowBalance || 0) : 0;
+        const oldBuyerAvail = buyerWalletSnap.exists ? (buyerWalletSnap.data().availableBalance || 0) : 0;
+
+        if (oldBuyerEscrow < amountFils) {
+          throw new functions.https.HttpsError('failed-precondition', 'رصيد المشتري المحجوز غير كافٍ');
+        }
+
+        // 7. Apply wallet movement
+        const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
+        const newBuyerTotal = oldBuyerAvail + newBuyerEscrow;
+
+        const oldSellerAvail = sellerWalletSnap.exists ? (sellerWalletSnap.data().availableBalance || 0) : 0;
+        const oldSellerEscrow = sellerWalletSnap.exists ? (sellerWalletSnap.data().escrowBalance || 0) : 0;
+        const newSellerAvail = oldSellerAvail + amountFils;
+        const newSellerTotal = newSellerAvail + oldSellerEscrow;
+
+        // Execute Writes in Transaction
+        transaction.set(buyerWalletRef, {
+          userId: buyerId,
+          availableBalance: oldBuyerAvail,
+          escrowBalance: newBuyerEscrow,
+          totalBalance: newBuyerTotal,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        transaction.set(sellerWalletRef, {
+          userId: sellerId,
+          availableBalance: newSellerAvail,
+          escrowBalance: oldSellerEscrow,
+          totalBalance: newSellerTotal,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // 8. Update escrow status
+        transaction.update(escrowRef, {
+          status: 'released',
+          releasedAt: admin.firestore.FieldValue.serverTimestamp(),
+          releasedBy: callerUserId,
+          releaseReason: action || 'buyer_confirm_delivery',
+          orderId: orderId
+        });
       }
-
-      // 7. Apply wallet movement
-      const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
-      const newBuyerTotal = oldBuyerAvail + newBuyerEscrow;
-
-      const oldSellerAvail = sellerWalletSnap.exists ? (sellerWalletSnap.data().availableBalance || 0) : 0;
-      const oldSellerEscrow = sellerWalletSnap.exists ? (sellerWalletSnap.data().escrowBalance || 0) : 0;
-      const newSellerAvail = oldSellerAvail + amountFils;
-      const newSellerTotal = newSellerAvail + oldSellerEscrow;
-
-      // Execute Writes in Transaction
-      transaction.set(buyerWalletRef, {
-        userId: buyerId,
-        availableBalance: oldBuyerAvail,
-        escrowBalance: newBuyerEscrow,
-        totalBalance: newBuyerTotal,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-
-      transaction.set(sellerWalletRef, {
-        userId: sellerId,
-        availableBalance: newSellerAvail,
-        escrowBalance: oldSellerEscrow,
-        totalBalance: newSellerTotal,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-
-      // 8. Update escrow status
-      transaction.update(escrowRef, {
-        status: 'released',
-        releasedAt: admin.firestore.FieldValue.serverTimestamp(),
-        releasedBy: callerUserId,
-        releaseReason: action || 'buyer_confirm_delivery',
-        orderId: orderId
-      });
 
       // 9. Update order status
       transaction.update(orderRef, {
@@ -1382,56 +1323,58 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 10. Create double-entry ledger records
-      const buyerLedgerRef = db.collection('ledger').doc();
-      const sellerLedgerRef = db.collection('ledger').doc();
+      if (escrowRef && escrowData) {
+        // 10. Create double-entry ledger records
+        const buyerLedgerRef = db.collection('ledger').doc();
+        const sellerLedgerRef = db.collection('ledger').doc();
 
-      transaction.set(buyerLedgerRef, {
-        id: buyerLedgerRef.id,
-        userId: buyerId,
-        orderId: orderId,
-        auctionId: auctionId,
-        amount: -winningAmountJOD,
-        amountFils: -amountFils,
-        type: 'escrow_released_to_seller',
-        direction: 'debit',
-        titleAr: 'تحرير الضمان المالي للطلب',
-        titleEn: 'Escrow Released to Seller',
-        descriptionAr: `تم تحرير مبلغ الضمان بقيمة ${winningAmountJOD} د.أ وتحويله إلى البائع.`,
-        descriptionEn: `Escrow funds of ${winningAmountJOD} JOD released to seller.`,
-        timestamp: Date.now()
-      });
+        transaction.set(buyerLedgerRef, {
+          id: buyerLedgerRef.id,
+          userId: buyerId,
+          orderId: orderId,
+          auctionId: auctionId,
+          amount: -winningAmountJOD,
+          amountFils: -amountFils,
+          type: 'escrow_released_to_seller',
+          direction: 'debit',
+          titleAr: 'تحرير الضمان المالي للطلب',
+          titleEn: 'Escrow Released to Seller',
+          descriptionAr: `تم تحرير مبلغ الضمان بقيمة ${winningAmountJOD} د.أ وتحويله إلى البائع.`,
+          descriptionEn: `Escrow funds of ${winningAmountJOD} JOD released to seller.`,
+          timestamp: Date.now()
+        });
 
-      transaction.set(sellerLedgerRef, {
-        id: sellerLedgerRef.id,
-        userId: sellerId,
-        orderId: orderId,
-        auctionId: auctionId,
-        amount: winningAmountJOD,
-        amountFils: amountFils,
-        type: 'sale_payment_received',
-        direction: 'credit',
-        titleAr: 'تحصيل دفعة مبيعات',
-        titleEn: 'Sale Payment Received',
-        descriptionAr: `تم استلام مبلغ ${winningAmountJOD} د.أ في رصيدك بعد تحرير ضمان المبيعات.`,
-        descriptionEn: `Received ${winningAmountJOD} JOD into your available balance from order escrow.`,
-        timestamp: Date.now()
-      });
+        transaction.set(sellerLedgerRef, {
+          id: sellerLedgerRef.id,
+          userId: sellerId,
+          orderId: orderId,
+          auctionId: auctionId,
+          amount: winningAmountJOD,
+          amountFils: amountFils,
+          type: 'sale_payment_received',
+          direction: 'credit',
+          titleAr: 'تحصيل دفعة مبيعات',
+          titleEn: 'Sale Payment Received',
+          descriptionAr: `تم استلام مبلغ ${winningAmountJOD} د.أ في رصيدك بعد تحرير ضمان المبيعات.`,
+          descriptionEn: `Received ${winningAmountJOD} JOD into your available balance from order escrow.`,
+          timestamp: Date.now()
+        });
 
-      // 11. Create audit log
-      const auditLogRef = db.collection('financialAuditLogs').doc();
-      transaction.set(auditLogRef, {
-        id: auditLogRef.id,
-        action: 'release_order_escrow',
-        orderId: orderId,
-        auctionId: auctionId,
-        buyerId: buyerId,
-        sellerId: sellerId,
-        amount: winningAmountJOD,
-        amountFils: amountFils,
-        triggeredBy: callerUserId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+        // 11. Create audit log
+        const auditLogRef = db.collection('financialAuditLogs').doc();
+        transaction.set(auditLogRef, {
+          id: auditLogRef.id,
+          action: 'release_order_escrow',
+          orderId: orderId,
+          auctionId: auctionId,
+          buyerId: buyerId,
+          sellerId: sellerId,
+          amount: winningAmountJOD,
+          amountFils: amountFils,
+          triggeredBy: callerUserId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
 
       if (isCallerAdmin) {
         const adminActionsRef = db.collection('adminActions').doc();
@@ -1442,22 +1385,35 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           adminId: callerUserId,
           adminName: callerData.name || 'Admin',
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          details: `Force released escrow of ${winningAmountJOD} JOD to seller for order ${orderId}`
+          details: hasEscrow
+            ? `Force released escrow of ${winningAmountJOD} JOD to seller for order ${orderId}`
+            : `Force completed order ${orderId} (no escrow funds to move)`
         });
       }
 
       // Write Order Activity record
       const activityRef = orderRef.collection('activity').doc();
-      const messageAr = isCallerAdmin 
-        ? `قام المشرف بفرض إغلاق الطلب وتحرير الضمان المالي بقيمة ${winningAmountJOD} د.أ للبائع.`
-        : `تم الإفراج عن الضمان المالي بقيمة ${winningAmountJOD} د.أ وتحويله إلى محفظة البائع بنجاح.`;
-      const messageEn = isCallerAdmin
-        ? `Admin forced close order and released secure Escrow funds of ${winningAmountJOD} JOD to seller.`
-        : `Escrow funds of ${winningAmountJOD} JOD released and securely deposited into seller's wallet.`;
+      let messageAr;
+      let messageEn;
+      if (hasEscrow) {
+        messageAr = isCallerAdmin
+          ? `قام المشرف بفرض إغلاق الطلب وتحرير الضمان المالي بقيمة ${winningAmountJOD} د.أ للبائع.`
+          : `تم الإفراج عن الضمان المالي بقيمة ${winningAmountJOD} د.أ وتحويله إلى محفظة البائع بنجاح.`;
+        messageEn = isCallerAdmin
+          ? `Admin forced close order and released secure Escrow funds of ${winningAmountJOD} JOD to seller.`
+          : `Escrow funds of ${winningAmountJOD} JOD released and securely deposited into seller's wallet.`;
+      } else {
+        messageAr = isCallerAdmin
+          ? 'قام المشرف بفرض إغلاق الطلب وتأكيد اكتماله.'
+          : 'تم تأكيد استلام الطلب واكتماله بنجاح.';
+        messageEn = isCallerAdmin
+          ? 'Admin forced close order and confirmed its completion.'
+          : 'Delivery confirmed and order completed successfully.';
+      }
 
       transaction.set(activityRef, {
         id: activityRef.id,
-        type: 'Escrow Released',
+        type: hasEscrow ? 'Escrow Released' : 'Order Completed',
         messageAr: messageAr,
         messageEn: messageEn,
         message: messageEn,
@@ -1476,9 +1432,15 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         title: 'تم اكتمال الطلب',
         titleAr: 'تم اكتمال الطلب',
         titleEn: 'Order Completed',
-        description: `الطلب رقم ${orderId.substring(0, 8)} مكتمل. تم تحويل الضمان للبائع.`,
-        descriptionAr: `الطلب رقم ${orderId.substring(0, 8)} مكتمل. تم تحويل الضمان للبائع.`,
-        descriptionEn: `Order #${orderId.substring(0, 8)} has been completed. Escrow funds transferred to seller.`,
+        description: hasEscrow
+          ? `الطلب رقم ${orderId.substring(0, 8)} مكتمل. تم تحويل الضمان للبائع.`
+          : `الطلب رقم ${orderId.substring(0, 8)} مكتمل بنجاح.`,
+        descriptionAr: hasEscrow
+          ? `الطلب رقم ${orderId.substring(0, 8)} مكتمل. تم تحويل الضمان للبائع.`
+          : `الطلب رقم ${orderId.substring(0, 8)} مكتمل بنجاح.`,
+        descriptionEn: hasEscrow
+          ? `Order #${orderId.substring(0, 8)} has been completed. Escrow funds transferred to seller.`
+          : `Order #${orderId.substring(0, 8)} has been completed.`,
         type: 'info',
         timestamp: Date.now(),
         read: false,
@@ -1488,21 +1450,29 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
       transaction.set(sellerNotifRef, {
         id: sellerNotifRef.id,
         userId: sellerId,
-        title: 'تحصيل رصيد مبيعات 🎉',
-        titleAr: 'تحصيل رصيد مبيعات 🎉',
-        titleEn: 'Sales Funds Collected 🎉',
-        description: `تم الإفراج عن مبلغ ${winningAmountJOD} د.أ وإضافته لرصيدك المتاح بنجاح!`,
-        descriptionAr: `تم الإفراج عن مبلغ ${winningAmountJOD} د.أ وإضافته لرصيدك المتاح بنجاح!`,
-        descriptionEn: `Funds of ${winningAmountJOD} JOD have been released to your available wallet balance.`,
+        title: hasEscrow ? 'تحصيل رصيد مبيعات 🎉' : 'تم اكتمال الطلب 🎉',
+        titleAr: hasEscrow ? 'تحصيل رصيد مبيعات 🎉' : 'تم اكتمال الطلب 🎉',
+        titleEn: hasEscrow ? 'Sales Funds Collected 🎉' : 'Order Completed 🎉',
+        description: hasEscrow
+          ? `تم الإفراج عن مبلغ ${winningAmountJOD} د.أ وإضافته لرصيدك المتاح بنجاح!`
+          : `الطلب رقم ${orderId.substring(0, 8)} مكتمل. أكد المشتري استلام الطلب.`,
+        descriptionAr: hasEscrow
+          ? `تم الإفراج عن مبلغ ${winningAmountJOD} د.أ وإضافته لرصيدك المتاح بنجاح!`
+          : `الطلب رقم ${orderId.substring(0, 8)} مكتمل. أكد المشتري استلام الطلب.`,
+        descriptionEn: hasEscrow
+          ? `Funds of ${winningAmountJOD} JOD have been released to your available wallet balance.`
+          : `Order #${orderId.substring(0, 8)} has been completed. The buyer confirmed delivery.`,
         type: 'win',
         timestamp: Date.now(),
         read: false,
         orderId: orderId
       });
 
-      return { 
-        success: true, 
-        message: `تم تحرير مبلغ ${winningAmountJOD} د.أ بنجاح للبائع.` 
+      return {
+        success: true,
+        message: hasEscrow
+          ? `تم تحرير مبلغ ${winningAmountJOD} د.أ بنجاح للبائع.`
+          : 'تم اكتمال الطلب بنجاح.'
       };
     });
   } catch (error) {
@@ -1617,59 +1587,66 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         }
       }
 
-      if (!escrowRef || !escrowData) {
-        throw new functions.https.HttpsError('not-found', 'المبلغ غير محجوز أو تم تحريره/استرداده سابقاً');
-      }
+      // Under the membership model no escrow is created for bids, so a missing
+      // escrow simply means there are no funds to move — the order must still be refunded.
+      const hasEscrow = !!(escrowRef && escrowData);
 
-      // 4. Read wallets (only buyer is credited)
-      const buyerWalletRef = db.collection('wallets').doc(buyerId);
-      const buyerWalletSnap = await transaction.get(buyerWalletRef);
+      // 5. Determine amount for messaging/records
+      let amountFils = 0;
+      if (hasEscrow) {
+        amountFils = escrowData.amountFils;
+        if (!amountFils && escrowData.amount) {
+          amountFils = Math.round(escrowData.amount * 1000);
+        }
+        if (!amountFils && orderData.winningBidAmount) {
+          amountFils = Math.round(orderData.winningBidAmount * 1000);
+        }
 
-      // 5. Determine amount: Use the escrow amount as the source of truth
-      let amountFils = escrowData.amountFils;
-      if (!amountFils && escrowData.amount) {
-        amountFils = Math.round(escrowData.amount * 1000);
-      }
-      if (!amountFils && orderData.winningBidAmount) {
+        if (!amountFils || amountFils <= 0) {
+          throw new functions.https.HttpsError('failed-precondition', 'قيمة العملية غير صالحة');
+        }
+      } else if (orderData.winningBidAmount) {
         amountFils = Math.round(orderData.winningBidAmount * 1000);
-      }
-
-      if (!amountFils || amountFils <= 0) {
-        throw new functions.https.HttpsError('failed-precondition', 'قيمة العملية غير صالحة');
       }
 
       const winningAmountJOD = amountFils / 1000;
 
-      // 6. Validate balances
-      const oldBuyerEscrow = buyerWalletSnap.exists ? (buyerWalletSnap.data().escrowBalance || 0) : 0;
-      const oldBuyerAvail = buyerWalletSnap.exists ? (buyerWalletSnap.data().availableBalance || 0) : 0;
+      if (escrowRef && escrowData) {
+        // 4. Read wallets (only buyer is credited; reads must precede writes)
+        const buyerWalletRef = db.collection('wallets').doc(buyerId);
+        const buyerWalletSnap = await transaction.get(buyerWalletRef);
 
-      if (oldBuyerEscrow < amountFils) {
-        throw new functions.https.HttpsError('failed-precondition', 'رصيد المشتري المحجوز غير كافٍ');
+        // 6. Validate balances
+        const oldBuyerEscrow = buyerWalletSnap.exists ? (buyerWalletSnap.data().escrowBalance || 0) : 0;
+        const oldBuyerAvail = buyerWalletSnap.exists ? (buyerWalletSnap.data().availableBalance || 0) : 0;
+
+        if (oldBuyerEscrow < amountFils) {
+          throw new functions.https.HttpsError('failed-precondition', 'رصيد المشتري المحجوز غير كافٍ');
+        }
+
+        // 7. Apply wallet movement (from escrow to available for buyer)
+        const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
+        const newBuyerAvail = oldBuyerAvail + amountFils;
+        const newBuyerTotal = newBuyerAvail + newBuyerEscrow;
+
+        // Execute Writes in Transaction
+        transaction.set(buyerWalletRef, {
+          userId: buyerId,
+          availableBalance: newBuyerAvail,
+          escrowBalance: newBuyerEscrow,
+          totalBalance: newBuyerTotal,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // 8. Update escrow status
+        transaction.update(escrowRef, {
+          status: 'refunded',
+          refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+          refundedBy: callerUserId,
+          refundReason: action || 'admin_refund_dispute',
+          orderId: orderId
+        });
       }
-
-      // 7. Apply wallet movement (from escrow to available for buyer)
-      const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
-      const newBuyerAvail = oldBuyerAvail + amountFils;
-      const newBuyerTotal = newBuyerAvail + newBuyerEscrow;
-
-      // Execute Writes in Transaction
-      transaction.set(buyerWalletRef, {
-        userId: buyerId,
-        availableBalance: newBuyerAvail,
-        escrowBalance: newBuyerEscrow,
-        totalBalance: newBuyerTotal,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-
-      // 8. Update escrow status
-      transaction.update(escrowRef, {
-        status: 'refunded',
-        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
-        refundedBy: callerUserId,
-        refundReason: action || 'admin_refund_dispute',
-        orderId: orderId
-      });
 
       // 9. Update order status
       transaction.update(orderRef, {
@@ -1681,58 +1658,60 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 10. Create double-entry ledger records
-      const buyerLedgerRef = db.collection('ledger').doc();
-      const sellerLedgerRef = db.collection('ledger').doc();
+      if (escrowRef && escrowData) {
+        // 10. Create double-entry ledger records
+        const buyerLedgerRef = db.collection('ledger').doc();
+        const sellerLedgerRef = db.collection('ledger').doc();
 
-      // Buyer Ledger: credit
-      transaction.set(buyerLedgerRef, {
-        id: buyerLedgerRef.id,
-        userId: buyerId,
-        orderId: orderId,
-        auctionId: auctionId,
-        amount: winningAmountJOD,
-        amountFils: amountFils,
-        type: 'escrow_refund',
-        direction: 'credit',
-        titleAr: 'استرداد الضمان المالي للطلب',
-        titleEn: 'Escrow Refunded for Order',
-        descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${winningAmountJOD} د.أ وإعادته لمحافظتك بنجاح بعد إلغاء الطلب.`,
-        descriptionEn: `Escrow funds of ${winningAmountJOD} JOD returned to your available balance.`,
-        timestamp: Date.now()
-      });
+        // Buyer Ledger: credit
+        transaction.set(buyerLedgerRef, {
+          id: buyerLedgerRef.id,
+          userId: buyerId,
+          orderId: orderId,
+          auctionId: auctionId,
+          amount: winningAmountJOD,
+          amountFils: amountFils,
+          type: 'escrow_refund',
+          direction: 'credit',
+          titleAr: 'استرداد الضمان المالي للطلب',
+          titleEn: 'Escrow Refunded for Order',
+          descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${winningAmountJOD} د.أ وإعادته لمحافظتك بنجاح بعد إلغاء الطلب.`,
+          descriptionEn: `Escrow funds of ${winningAmountJOD} JOD returned to your available balance.`,
+          timestamp: Date.now()
+        });
 
-      // Seller Ledger: neutral / cancellation reference
-      transaction.set(sellerLedgerRef, {
-        id: sellerLedgerRef.id,
-        userId: sellerId,
-        orderId: orderId,
-        auctionId: auctionId,
-        amount: 0,
-        amountFils: 0,
-        type: 'order_refunded_neutral',
-        direction: 'neutral',
-        titleAr: 'إلغاء الطلب واسترداد الضمان للمشتري',
-        titleEn: 'Order Cancelled and Escrow Refunded',
-        descriptionAr: `تم إلغاء الطلب واسترجاع الضمان بقيمة ${winningAmountJOD} د.أ للمشتري بقرار من الإدارة.`,
-        descriptionEn: `Order cancelled and escrow of ${winningAmountJOD} JOD refunded to the buyer.`,
-        timestamp: Date.now()
-      });
+        // Seller Ledger: neutral / cancellation reference
+        transaction.set(sellerLedgerRef, {
+          id: sellerLedgerRef.id,
+          userId: sellerId,
+          orderId: orderId,
+          auctionId: auctionId,
+          amount: 0,
+          amountFils: 0,
+          type: 'order_refunded_neutral',
+          direction: 'neutral',
+          titleAr: 'إلغاء الطلب واسترداد الضمان للمشتري',
+          titleEn: 'Order Cancelled and Escrow Refunded',
+          descriptionAr: `تم إلغاء الطلب واسترجاع الضمان بقيمة ${winningAmountJOD} د.أ للمشتري بقرار من الإدارة.`,
+          descriptionEn: `Order cancelled and escrow of ${winningAmountJOD} JOD refunded to the buyer.`,
+          timestamp: Date.now()
+        });
 
-      // 11. Create audit log
-      const auditLogRef = db.collection('financialAuditLogs').doc();
-      transaction.set(auditLogRef, {
-        id: auditLogRef.id,
-        action: 'refund_order_escrow',
-        orderId: orderId,
-        auctionId: auctionId,
-        buyerId: buyerId,
-        sellerId: sellerId,
-        amount: winningAmountJOD,
-        amountFils: amountFils,
-        triggeredBy: callerUserId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+        // 11. Create audit log
+        const auditLogRef = db.collection('financialAuditLogs').doc();
+        transaction.set(auditLogRef, {
+          id: auditLogRef.id,
+          action: 'refund_order_escrow',
+          orderId: orderId,
+          auctionId: auctionId,
+          buyerId: buyerId,
+          sellerId: sellerId,
+          amount: winningAmountJOD,
+          amountFils: amountFils,
+          triggeredBy: callerUserId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
 
       // Admin Action Log
       const adminActionsRef = db.collection('adminActions').doc();
@@ -1743,17 +1722,23 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         adminId: callerUserId,
         adminName: callerData.name || 'Admin',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        details: `Force refunded escrow of ${winningAmountJOD} JOD to buyer for order ${orderId}`
+        details: hasEscrow
+          ? `Force refunded escrow of ${winningAmountJOD} JOD to buyer for order ${orderId}`
+          : `Force refunded (cancelled) order ${orderId} (no escrow funds to move)`
       });
 
       // Write Order Activity record
       const activityRef = orderRef.collection('activity').doc();
-      const messageAr = `قام المشرف بفرض إلغاء الطلب واسترداد الضمان المالي بقيمة ${winningAmountJOD} د.أ للمشتري.`;
-      const messageEn = `Admin forced refund. Escrow funds of ${winningAmountJOD} JOD returned to buyer's available wallet.`;
+      const messageAr = hasEscrow
+        ? `قام المشرف بفرض إلغاء الطلب واسترداد الضمان المالي بقيمة ${winningAmountJOD} د.أ للمشتري.`
+        : 'قام المشرف بفرض إلغاء الطلب وإرجاعه.';
+      const messageEn = hasEscrow
+        ? `Admin forced refund. Escrow funds of ${winningAmountJOD} JOD returned to buyer's available wallet.`
+        : 'Admin forced refund. Order has been cancelled and marked as refunded.';
 
       transaction.set(activityRef, {
         id: activityRef.id,
-        type: 'Escrow Refunded',
+        type: hasEscrow ? 'Escrow Refunded' : 'Order Refunded',
         messageAr: messageAr,
         messageEn: messageEn,
         message: messageEn,
@@ -1769,12 +1754,18 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
       transaction.set(buyerNotifRef, {
         id: buyerNotifRef.id,
         userId: buyerId,
-        title: 'استرداد الضمان المالي للطلب 💸',
-        titleAr: 'استرداد الضمان المالي للطلب 💸',
-        titleEn: 'Order Escrow Refunded 💸',
-        description: `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`,
-        descriptionAr: `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`,
-        descriptionEn: `A pending escrow of ${winningAmountJOD} JOD has been returned to your wallet available balance.`,
+        title: hasEscrow ? 'استرداد الضمان المالي للطلب 💸' : 'تم إلغاء الطلب 💸',
+        titleAr: hasEscrow ? 'استرداد الضمان المالي للطلب 💸' : 'تم إلغاء الطلب 💸',
+        titleEn: hasEscrow ? 'Order Escrow Refunded 💸' : 'Order Refunded 💸',
+        description: hasEscrow
+          ? `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`
+          : `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} وإرجاعه بنجاح.`,
+        descriptionAr: hasEscrow
+          ? `تم إرجاع مبلغ الضمان بقيمة ${winningAmountJOD} د.أ إلى رصيدك المتاح بنجاح لعدم اكتمال الطلب.`
+          : `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} وإرجاعه بنجاح.`,
+        descriptionEn: hasEscrow
+          ? `A pending escrow of ${winningAmountJOD} JOD has been returned to your wallet available balance.`
+          : `Order #${orderId.substring(0, 8)} has been cancelled and refunded.`,
         type: 'info',
         timestamp: Date.now(),
         read: false,
@@ -1787,18 +1778,26 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         title: 'تم إلغاء واسترداد الطلب',
         titleAr: 'تم إلغاء واسترداد الطلب',
         titleEn: 'Order Cancelled & Refunded',
-        description: `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`,
-        descriptionAr: `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`,
-        descriptionEn: `Order #${orderId.substring(0, 8)} has been cancelled and funds refunded to the buyer.`,
+        description: hasEscrow
+          ? `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`
+          : `تم إلغاء الطلب رقم ${orderId.substring(0, 8)}.`,
+        descriptionAr: hasEscrow
+          ? `تم إلغاء الطلب رقم ${orderId.substring(0, 8)} واسترجاع الضمان المالي للمشتري.`
+          : `تم إلغاء الطلب رقم ${orderId.substring(0, 8)}.`,
+        descriptionEn: hasEscrow
+          ? `Order #${orderId.substring(0, 8)} has been cancelled and funds refunded to the buyer.`
+          : `Order #${orderId.substring(0, 8)} has been cancelled.`,
         type: 'alert',
         timestamp: Date.now(),
         read: false,
         orderId: orderId
       });
 
-      return { 
-        success: true, 
-        message: `تم استرداد مبلغ ${winningAmountJOD} د.أ بنجاح للمشتري.` 
+      return {
+        success: true,
+        message: hasEscrow
+          ? `تم استرداد مبلغ ${winningAmountJOD} د.أ بنجاح للمشتري.`
+          : 'تم إلغاء الطلب وإرجاعه بنجاح.'
       };
     });
   } catch (error) {
