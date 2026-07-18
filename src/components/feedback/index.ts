@@ -6,3 +6,4 @@ export { default as WinCelebration, useWinDetection, winTotalDue } from './WinCe
 export type { WinInfo } from './WinCelebration';
 export { ToastProvider, useToast } from './Toast';
 export type { ToastOptions, ToastType } from './Toast';
+export { default as FirstBidCoach, markFirstBidDone, isFirstBidDone } from './FirstBidCoach';

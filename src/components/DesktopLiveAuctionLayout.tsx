@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
-import { Pressable, CountUp, BidConfirm, WinningPill, useToast } from './feedback';
+import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, markFirstBidDone } from './feedback';
 import { 
   Volume2, 
   VolumeX, 
@@ -113,6 +113,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     setPendingBid(null);
     const res = await onBidExecute(amount);
     if (res && res.success) {
+      markFirstBidDone(); // first successful bid retires the first-bid coach
       // Success = a rush: the price CountUp animates on its own; pop the winning pill.
       setShowWinPill(true);
       if (winPillTimer.current) clearTimeout(winPillTimer.current);
@@ -661,6 +662,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       </div>
                     ) : (
                       <>
+                        {/* One-time first-bid coach for active members who have never bid */}
+                        <FirstBidCoach
+                          show={currentUser?.subscriptionStatus === 'active'}
+                          isAr={isAr}
+                        />
                         <SwipeToBid
                           amount={nextBidAmount}
                           onSwipeSuccess={() => runBid(nextBidAmount)}
