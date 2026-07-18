@@ -174,8 +174,8 @@ export async function executeOrderTransition(
         escrowStatus: 'pending'
       };
       activityType = 'Buyer Paid';
-      activityMessageAr = 'قام المشتري بدفع قيمة المعاملة لحساب الضمان الآمن.';
-      activityMessageEn = 'Buyer authorized payment and secured funds in secure Escrow.';
+      activityMessageAr = 'رفع المشتري إثبات الدفع عبر كليك — بانتظار تأكيد الإدارة.';
+      activityMessageEn = 'Buyer submitted CliQ payment proof — pending admin confirmation.';
       break;
 
     case 'cancel_before_payment':

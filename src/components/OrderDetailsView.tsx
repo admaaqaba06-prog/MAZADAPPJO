@@ -28,10 +28,13 @@ import {
   Building,
   Activity,
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  UploadCloud,
+  Landmark
 } from 'lucide-react';
 import { Order } from '../types';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { CountUp, useToast, winTotalDue } from './feedback';
 
 interface OrderDetailsViewProps {
   orderId: string;
@@ -45,8 +48,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const order = orders.find(o => o.id === orderId);
   const [isUpdating, setIsUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [copiedIban, setCopiedIban] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string>('');
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
+  const { showToast } = useToast();
 
   // Subscribe to real-time order activity history from Firestore
   useEffect(() => {
@@ -128,23 +135,67 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // Action handlers using workflow engine
-  const handlePayNow = async () => {
-    if (confirm(isAr ? 'هل ترغب في دفع قيمة المزايدة من محفظتك لحساب الضمان الآمن؟' : 'Do you want to authorize payment from your available balance to the secure Escrow?')) {
-      setIsUpdating(true);
-      try {
-        await executeOrderTransition(order, 'pay', currentUser);
-        addNotification(
-          isAr ? 'تم الدفع بنجاح' : 'Payment Confirmed',
-          isAr ? 'تم دفع قيمة الطلب بنجاح وحجزها في حساب الضمان.' : 'Bid amount paid and secured in Escrow.',
-          'info'
-        );
-      } catch (err: any) {
-        console.error(err);
-        alert(isAr ? `فشل الدفع: ${err.message}` : `Payment failed: ${err.message}`);
-      } finally {
-        setIsUpdating(false);
-      }
+  // CliQ recipient details — same constants as the membership (SubscriptionView) flow
+  const CLIQ_IBAN = 'JO83 CAPS 1020 0085 4100 00';
+  const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
+
+  const handleCopyIban = () => {
+    navigator.clipboard.writeText(CLIQ_IBAN);
+    setCopiedIban(true);
+    setTimeout(() => setCopiedIban(false), 2000);
+  };
+
+  const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.match('image.*')) {
+      alert(isAr ? 'الرجاء اختيار صورة فقط (jpg أو png).' : 'Please select an image file only (jpg, png).');
+      return;
+    }
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) setReceiptPreview(event.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Buyer CliQ payment: upload the transfer receipt screenshot, attach it to the
+  // order, then run the existing 'pay' workflow transition (admin confirms later).
+  const handleSubmitCliqPayment = async () => {
+    if (!receiptFile) {
+      alert(isAr ? 'الرجاء إرفاق لقطة شاشة لإيصال حوالة كليك أولاً.' : 'Please attach your CliQ transfer receipt screenshot first.');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const { getFirebaseStorage } = await import('../services/firebase');
+      const storageInstance = await getFirebaseStorage();
+
+      const storagePath = `payment-proofs/${currentUser.id}/${Date.now()}_order_${order.id}.png`;
+      const fileRef = storageRef(storageInstance, storagePath);
+      await uploadBytes(fileRef, receiptFile);
+      const proofUrl = await getDownloadURL(fileRef);
+
+      await updateDoc(doc(db, 'orders', order.id), {
+        paymentProofUrl: proofUrl,
+        updatedAt: Timestamp.now()
+      });
+
+      await executeOrderTransition(order, 'pay', currentUser);
+
+      showToast({
+        type: 'success',
+        title: isAr ? 'استلمنا إثبات الدفع — بانتظار التأكيد' : 'Payment proof received — pending confirmation',
+      });
+      setReceiptFile(null);
+      setReceiptPreview('');
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر إرسال إثبات الدفع: ${err.message}` : `Failed to submit payment proof: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -819,14 +870,100 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isBuyer && (
                 <>
                   {order.status === 'waiting_payment' && (
-                    <button
-                      onClick={handlePayNow}
-                      disabled={isUpdating}
-                      className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      <span>{isAr ? 'ادفع الآن لحساب الضمان' : 'Authorize Escrow Payment'}</span>
-                    </button>
+                    <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
+                      {/* Amount due */}
+                      <div className="text-center space-y-1 border-b border-orange-100 pb-3">
+                        <span className="text-[9px] text-gray-400 uppercase font-black font-mono block">
+                          {isAr ? 'المبلغ المستحق — شامل عمولة ٥٪' : 'AMOUNT DUE — INCL. 5% PREMIUM'}
+                        </span>
+                        <div className="text-2xl font-black text-[#FF6B00] font-mono">
+                          <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString()} />
+                          <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
+                        </div>
+                        {order.paymentDeadlineAt && (
+                          <p className="text-[10px] text-amber-700 font-bold flex items-center justify-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{isAr ? `ادفع قبل: ${formatDate(order.paymentDeadlineAt)}` : `Pay before: ${formatDate(order.paymentDeadlineAt)}`}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* CliQ recipient details */}
+                      <div className="space-y-2 text-xs">
+                        <div className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5">
+                          <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
+                          <span>{isAr ? 'حوّل عبر كليك (CliQ) إلى:' : 'Transfer via CliQ to:'}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
+                          <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
+                          <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
+                          <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
+                          <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-bold text-gray-500">IBAN:</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono font-black text-gray-900 select-all text-[10.5px] truncate">{CLIQ_IBAN}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyIban}
+                              className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                            >
+                              {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Receipt screenshot upload */}
+                      <div className="relative border-2 border-dashed border-orange-200 hover:border-[#FF6B00] transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-white cursor-pointer group min-h-[110px]">
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg"
+                          onChange={handleReceiptFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          id="order-payment-receipt-input"
+                        />
+                        {receiptPreview ? (
+                          <div className="w-full relative flex flex-col items-center space-y-2">
+                            <img
+                              src={receiptPreview}
+                              alt="CliQ Receipt"
+                              className="max-h-40 w-auto object-contain rounded-lg border border-gray-200 shadow-sm"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold group-hover:text-[#FF6B00] transition-colors">
+                              {isAr ? 'اضغط لتغيير لقطة الشاشة' : 'Click to change screenshot'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center text-center space-y-1.5">
+                            <UploadCloud className="w-6 h-6 text-gray-400 group-hover:text-[#FF6B00] transition-colors" />
+                            <p className="text-[11px] text-gray-700 font-extrabold">
+                              {isAr ? 'ارفع لقطة شاشة لإيصال حوالة كليك' : 'Upload your CliQ transfer receipt screenshot'}
+                            </p>
+                            <p className="text-[9px] text-gray-400 font-mono">PNG, JPG</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Submit */}
+                      <button
+                        onClick={handleSubmitCliqPayment}
+                        disabled={isUpdating}
+                        className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                        id="submit-cliq-payment-btn"
+                      >
+                        {isUpdating ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CreditCard className="w-4 h-4" />
+                        )}
+                        <span>{isAr ? 'أرسل إثبات الدفع' : 'Submit Payment Proof'}</span>
+                      </button>
+                    </div>
                   )}
 
                   {order.status === 'waiting_payment' && (
