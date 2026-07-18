@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
-import { Sparkles, Wallet, Gavel, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Sparkles, BadgeCheck, Gavel, X, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const OnboardingModal: React.FC = () => {
   const { currentUser, completeOnboarding } = useApp();
@@ -39,20 +39,20 @@ export const OnboardingModal: React.FC = () => {
       color: 'from-amber-500/10 to-orange-500/10 border-amber-200/50'
     },
     {
-      titleAr: 'اشحن رصيدك بكل سهولة 💳',
-      titleEn: 'Add Balance Simply 💳',
-      descAr: 'قبل ما تبلش تزايد، لازم تشحن محفظتك عشان تقدر تشارك بالمزادات.',
-      descEn: 'Before bidding, you need to add balance.',
+      titleAr: 'انضم بدينار واحد 🎯',
+      titleEn: 'Join for 1 JD 🎯',
+      descAr: 'عضوية مزاد جو بدينار واحد فقط عبر كليك — اشترك مرة وزايد على كل المزادات بحرية.',
+      descEn: 'Mazad JO membership is just 1 JD via CliQ — join once and bid freely on every auction.',
       buttonAr: 'فهمت',
       buttonEn: 'Got it',
-      icon: <Wallet className="w-12 h-12 text-emerald-500" />,
+      icon: <BadgeCheck className="w-12 h-12 text-emerald-500" />,
       color: 'from-emerald-500/10 to-teal-500/10 border-emerald-200/50'
     },
     {
       titleAr: 'زايد وأنت مطمن 🔨',
       titleEn: 'Bid Safely 🔨',
-      descAr: 'عند المزايدة رصيدك بضل محفوظ بأمان. إذا خسرت برجعلك رصيدك تلقائياً، وإذا فزت بتشتري فيه السلعة.',
-      descEn: 'When you bid, your amount is temporarily reserved. If you lose, it returns automatically. If you win, it is used to pay.',
+      descAr: 'المزايدة مجانية — ما بتدفع إلا إذا فزت. عند الفوز بتدفع سعر الفوز + عمولة المشتري ٥٪ عبر كليك خلال ٢٤ ساعة. إذا خسرت، ما عليك شي.',
+      descEn: 'Bidding is free — you only pay if you win: the final price + 5% buyer\'s premium via CliQ within 24 hours. If you lose, you owe nothing.',
       buttonAr: 'ابدأ المزايدة',
       buttonEn: 'Start Bidding',
       icon: <Gavel className="w-12 h-12 text-blue-500" />,
