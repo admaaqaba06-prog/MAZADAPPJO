@@ -372,17 +372,29 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             className="h-[calc(100vh-64px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto" 
             id="professional-video-player-canvas"
           >
-            {/* Live Video Tag */}
-            <video 
-              ref={videoRef}
-              src={activeAuction.videoUrl} 
-              loop 
-              muted={isMuted} 
-              playsInline 
-              autoPlay
-              className="w-full h-full object-cover bg-[#010101] cursor-pointer"
-              onClick={onPlayPauseToggle}
-            />
+            {/* Live Video Tag — falls back to the auction image when no video exists */}
+            {activeAuction.videoUrl ? (
+              <video
+                ref={videoRef}
+                src={activeAuction.videoUrl}
+                loop
+                muted={isMuted}
+                playsInline
+                autoPlay
+                className="w-full h-full object-cover bg-[#010101] cursor-pointer"
+                onClick={onPlayPauseToggle}
+              />
+            ) : (
+              <div className="w-full h-full relative bg-[#010101]">
+                <img
+                  src={activeAuction.thumbnailUrl || (activeAuction as any).imageUrl || ''}
+                  alt={activeAuction.title}
+                  className="w-full h-full object-cover"
+                />
+                {/* Subtle dark gradient so overlaid text stays legible */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
+              </div>
+            )}
 
             {/* 1. TOP LEFT OVERLAYS */}
             <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
