@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
-import { Pressable, CountUp, BidConfirm, WinningPill, useToast } from './feedback';
+import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, markFirstBidDone } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -402,6 +402,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     setPendingBid(null);
     const res = await onBidExecute(amount);
     if (res && res.success) {
+      markFirstBidDone(); // first successful bid retires the first-bid coach
       setJustBidded(true);
       setShowWinPill(true);
       if (winPillTimer.current) clearTimeout(winPillTimer.current);
@@ -873,6 +874,12 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                     </motion.div>
                   );
                 })()}
+
+                {/* One-time first-bid coach for active members who have never bid */}
+                <FirstBidCoach
+                  show={isActive && currentUser?.subscriptionStatus === 'active'}
+                  isAr={isAr}
+                />
 
                 {/* Row 4: Single HUGE Thumb-Tappable Bid Button (opens the inline confirm) */}
                 <Pressable
