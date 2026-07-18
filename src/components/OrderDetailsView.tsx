@@ -106,8 +106,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
   // Status index mapping
   const timelineSteps = [
-    { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يجب أن يدفع لحساب الضمان', descEn: 'Buyer needs to pay to secure funds' },
-    { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'تم حجز الأموال في الضمان بنجاح', descEn: 'Funds secured in escrow account' },
+    { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يحوّل عبر كليك ويرفع الإيصال', descEn: 'Buyer pays via CliQ and uploads the receipt' },
+    { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'استلمنا إثبات الدفع وتم تأكيده', descEn: 'Payment proof received and confirmed' },
     { id: 'preparing_shipment', labelAr: 'تجهيز الشحن', labelEn: 'Preparing Shipment', descAr: 'البائع يجهز المنتج والملصقات', descEn: 'Seller is preparing items and labels' },
     { id: 'shipped', labelAr: 'تم الشحن', labelEn: 'Shipped', descAr: 'الشحنة مع شركة التوصيل الآن', descEn: 'Parcel in transit with courier' },
     { id: 'delivered', labelAr: 'تم التوصيل', labelEn: 'Delivered', descAr: 'تم توصيل الشحنة للمشتري', descEn: 'Delivered to buyer destination' },
@@ -206,7 +206,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         await executeOrderTransition(order, 'cancel_before_payment', currentUser);
         addNotification(
           isAr ? 'تم إلغاء الطلب' : 'Order Cancelled',
-          isAr ? 'تم إلغاء الطلب وتحرير الضمان المالي بالكامل.' : 'Order cancelled and escrow holdings resolved successfully.',
+          isAr ? 'تم إلغاء الطلب بنجاح — لا يوجد أي مبلغ مستحق عليك.' : 'Order cancelled successfully — nothing is due from you.',
           'info'
         );
       } catch (err: any) {
@@ -514,9 +514,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isAr ? 'تنبيه: تم إلغاء هذا الطلب' : 'ORDER CANCELLED'}
             </h4>
             <p className="text-[11px] text-red-800 leading-relaxed">
-              {isAr 
-                ? 'تم إلغاء هذه المعاملة بنجاح، وتحرير أي أموال معلقة لصالح المشتري.'
-                : 'This transaction has been cancelled. All associated escrow funds have been released and returned to the buyer.'}
+              {isAr
+                ? 'تم إلغاء هذه المعاملة بنجاح. إذا كنت قد دفعت عبر كليك فسيتم إعادة المبلغ لك بحوالة بنكية.'
+                : 'This transaction has been cancelled. If you already paid via CliQ, the amount will be returned to you by bank transfer.'}
             </p>
           </div>
         </div>
@@ -533,9 +533,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isAr ? 'تنبيه: تم إرجاع قيمة هذا الطلب' : 'ORDER REFUNDED'}
             </h4>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              {isAr 
-                ? 'تمت إعادة قيمة المعاملة بالكامل لمحفظة المشتري بناءً على قرار التحكيم.'
-                : 'The entire bid amount has been fully refunded back to the buyer’s wallet based on dispute resolution/admin action.'}
+              {isAr
+                ? 'تمت إعادة قيمة المعاملة بالكامل للمشتري بحوالة بنكية / كليك بناءً على قرار التحكيم.'
+                : 'The entire amount has been fully refunded back to the buyer via bank/CliQ transfer based on dispute resolution/admin action.'}
             </p>
           </div>
         </div>
@@ -781,13 +781,25 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
                     <FileText className="w-4 h-4" />
                   </div>
-                  <h5 className="font-black text-gray-900 text-xs">{isAr ? 'إيصال دفع كليك الضمان' : 'Escrow Payment Receipt'}</h5>
+                  <h5 className="font-black text-gray-900 text-xs">{isAr ? 'إيصال الدفع عبر كليك' : 'CliQ Payment Receipt'}</h5>
                   <p className="text-[9px] text-gray-400 leading-tight">
-                    {order.paymentStatus === 'paid' ? (isAr ? 'مستند تحصيل رسمي جاهز' : 'Official payment receipt cleared') : (isAr ? 'بانتظار إتمام الدفع' : 'Awaiting payment ledger clearance')}
+                    {order.paymentProofUrl
+                      ? (isAr ? 'تم رفع إيصال حوالة كليك' : 'CliQ transfer receipt uploaded')
+                      : order.paymentStatus === 'paid'
+                        ? (isAr ? 'مستند الدفع مؤكد' : 'Payment record confirmed')
+                        : (isAr ? 'بانتظار الدفع عبر كليك' : 'Awaiting CliQ payment')}
                   </p>
                 </div>
-                {order.paymentStatus === 'paid' ? (
-                  <button 
+                {order.paymentProofUrl ? (
+                  <button
+                    onClick={() => window.open(order.paymentProofUrl, '_blank', 'noopener,noreferrer')}
+                    className="w-full bg-white hover:bg-gray-50 text-gray-700 hover:text-[#FF6B00] border border-gray-200 rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'عرض الإيصال' : 'View Receipt'}</span>
+                  </button>
+                ) : order.paymentStatus === 'paid' ? (
+                  <button
                     onClick={() => alert(isAr ? 'مستند الدفع متاح للتحميل للمحاسبين.' : 'Payment receipt available for direct download.')}
                     className="w-full bg-white hover:bg-gray-50 text-gray-700 hover:text-[#FF6B00] border border-gray-200 rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
                   >
