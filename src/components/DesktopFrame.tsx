@@ -543,7 +543,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between pb-1">
                   <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    {isAr ? 'تنبيهات ومعاملات الضمان' : 'ESCROW LEDGER & ALERTS'}
+                    {isAr ? 'الطلبات والتنبيهات' : 'ORDERS & ALERTS'}
                   </h4>
                   <button 
                     onClick={() => setShowNotifications(true)}
@@ -580,9 +580,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <div className="mt-auto bg-[#F7F6F3] rounded-xl p-3 flex gap-2 items-start border border-gray-200/50">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="text-[9.5px] text-gray-500 font-medium leading-relaxed">
-                  {isAr 
-                    ? 'جميع المعاملات مؤمنة بضمان منصة كليك التابع للبنك المركزي الأردني.' 
-                    : 'Transactions secure under Jordan CliQ escrow protection.'}
+                  {isAr
+                    ? 'مدفوعاتك عبر كليك إلى حساب مزاد جو في كابيتال بنك.'
+                    : "Payments via CliQ to Mazad JO's Capital Bank account."}
                 </p>
               </div>
 

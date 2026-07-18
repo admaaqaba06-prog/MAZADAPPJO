@@ -17,6 +17,7 @@ const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ d
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
 const LandingView = lazy(() => import('./landing/LandingView'));
+const SellWithUsView = lazy(() => import('./components/SellWithUsView').then(m => ({ default: m.SellWithUsView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -44,8 +45,10 @@ function ActiveViewRenderer() {
         return <DiscoveryFeedView />;
       }
       return <AdminDashboardView />;
-    case 'upload':
-      return <ListingWizardView />;
+    case 'upload': {
+      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+      return isStrictAdmin ? <ListingWizardView /> : <SellWithUsView />;
+    }
     default:
       return <DiscoveryFeedView />;
   }
