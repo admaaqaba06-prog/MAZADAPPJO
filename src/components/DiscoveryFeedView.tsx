@@ -18,12 +18,15 @@ import {
   Bookmark,
   Bell,
   ShieldCheck,
-  Play
+  Play,
+  MessageCircle
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
-import { AuctionCardSkeleton, EmptyState } from './FeedbackStates';
+import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
+
+const WHATSAPP_URL = 'https://wa.me/962781444899';
 
 interface PremiumAuctionCardProps {
   item: AuctionItem;
@@ -524,6 +527,38 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Search Input bar with soft beige/gray layout bg */}
       <div className="p-4 space-y-4">
+        {/* Join Funnel Banner (Non-members only): 3-step money story + join CTA */}
+        {currentUser?.subscriptionStatus !== 'active' && (
+          <div
+            className="bg-orange-50/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            id="join-funnel-banner"
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">①</span>
+                {isAr ? 'انضم بدينار واحد' : 'Join for 1 JD'}
+              </span>
+              <span className="text-orange-200">•</span>
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">②</span>
+                {isAr ? 'زايد مجاناً' : 'Bid freely'}
+              </span>
+              <span className="text-orange-200">•</span>
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">③</span>
+                {isAr ? 'ادفع فقط عند الفوز (+٥٪ عمولة)' : 'Pay only when you win (+5% premium)'}
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveView('wallet')}
+              className="px-4 py-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-extrabold text-[11px] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+            >
+              {isAr ? 'انضم الآن — ١ د.أ' : 'Join now — 1 JD'}
+            </button>
+          </div>
+        )}
+
         <div className="relative">
           <input
             type="text"
@@ -730,11 +765,41 @@ export const DiscoveryFeedView: React.FC = () => {
             ))}
           </div>
         ) : (
-          <EmptyState 
-            title={auctions.length === 0 ? (isAr ? 'لا توجد مزادات بعد' : 'No auctions yet') : (isAr ? 'لم يتم العثور على أي مزادات مطابقة' : 'No auctions found')}
-            description={auctions.length === 0 ? (isAr ? 'لا توجد أي مزادات نشطة أو مجدولة على المنصة حالياً.' : 'There are no active or scheduled auctions on the platform currently.') : (isAr ? 'يرجى تغيير فئة الفرز أو مسح كلمات البحث للوصول لمعروضات فاخرة أخرى.' : 'No active or upcoming slots match your filter conditions. Try changing categories or resetting search parameters.')}
-            language={isAr ? 'ar' : 'en'}
-          />
+          <div
+            className="text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            id="feedback-empty-state"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
+              <Calendar className="w-6 h-6 stroke-[1.5]" />
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                {isAr ? 'المزادات تُعلن يومياً 📢' : 'Auctions are announced daily 📢'}
+              </h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {isAr
+                  ? 'تابع قناتنا على واتساب ليوصلك موعد كل مزاد أول بأول — أو تفقد المواعيد القادمة.'
+                  : 'Follow our WhatsApp channel to catch every drop — or check the upcoming schedule.'}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <button
+                onClick={() => window.open(WHATSAPP_URL, '_blank', 'noopener,noreferrer')}
+                className="px-4 py-2 bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50 font-extrabold text-[11px] rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                {isAr ? 'تابعنا على واتساب' : 'Follow on WhatsApp'}
+              </button>
+              <button
+                onClick={() => setActiveTab('upcoming')}
+                className="px-4 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 font-bold text-[11px] rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {isAr ? 'المواعيد القادمة' : 'Upcoming drops'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
