@@ -58,4 +58,4 @@ jobs:
         run: printf 'N8N_WEBHOOK_URL=%s\n' "$N8N_WEBHOOK_URL" > functions/.env
 
       - name: Deploy rules, storage, and functions
-        run: firebase deploy --only firestore:rules,storage,functions --project mazadjoapp --non-interactive --force
+        run: firebase deploy --only firestore,storage,functions --project mazadjoapp --non-interactive --force
