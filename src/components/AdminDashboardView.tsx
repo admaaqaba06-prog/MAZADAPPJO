@@ -145,6 +145,127 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
   );
 };
 
+/** Ordered funnel stages: analytics eventType → AR/EN label. */
+const FUNNEL_STAGES: Array<{ event: string; labelAr: string; labelEn: string }> = [
+  { event: 'user_registration', labelAr: 'تسجيل', labelEn: 'Registered' },
+  { event: 'membership_submitted', labelAr: 'طلب عضوية', labelEn: 'Membership Submitted' },
+  { event: 'subscription_conversion', labelAr: 'عضوية مفعّلة', labelEn: 'Membership Activated' },
+  { event: 'first_bid', labelAr: 'مزايدة أولى', labelEn: 'First Bid' },
+  { event: 'auction_won_seen', labelAr: 'فوز', labelEn: 'Auction Won' },
+  { event: 'payment_submitted', labelAr: 'دفع', labelEn: 'Payment Submitted' },
+];
+
+/**
+ * Conversion funnel card: one getDocs over `analytics_events` for the chosen
+ * window (7/30 days, epoch-ms `timestamp` field written by analyticsService),
+ * counted client-side per stage. No live listener — refetches on window toggle.
+ */
+const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
+  const [windowDays, setWindowDays] = useState<7 | 30>(7);
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [funnelError, setFunnelError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCounts(null);
+    setFunnelError(false);
+    const since = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    getDocs(query(collection(db, 'analytics_events'), where('timestamp', '>=', since)))
+      .then((snap) => {
+        if (cancelled) return;
+        const next: Record<string, number> = {};
+        snap.forEach((d) => {
+          const type = d.data().eventType;
+          if (type) next[type] = (next[type] || 0) + 1;
+        });
+        setCounts(next);
+      })
+      .catch((err) => {
+        console.warn('[FUNNEL] Failed to load analytics_events:', err);
+        if (!cancelled) setFunnelError(true);
+      });
+    return () => { cancelled = true; };
+  }, [windowDays]);
+
+  const stageCounts = FUNNEL_STAGES.map((s) => counts?.[s.event] || 0);
+  const maxCount = Math.max(1, ...stageCounts);
+
+  return (
+    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-gray-100 gap-3 flex-wrap">
+        <div>
+          <h3 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-[#FF6B00]" />
+            {isAr ? 'قمع التحويل' : 'CONVERSION FUNNEL'}
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {isAr ? 'من التسجيل حتى الدفع — حسب أحداث المنصة' : 'Registration through payment — from platform events'}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
+          {([7, 30] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setWindowDays(d)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                windowDays === d
+                  ? 'bg-[#FF6B00] text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {isAr ? (d === 7 ? '٧ أيام' : '٣٠ يوم') : `${d}D`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {funnelError ? (
+        <div className="text-center py-8 text-red-500 text-xs font-medium">
+          {isAr ? 'تعذر تحميل بيانات القمع.' : 'Unable to load funnel data.'}
+        </div>
+      ) : counts === null ? (
+        <div className="text-center py-8 text-gray-400 text-xs animate-pulse">
+          {isAr ? 'جاري تحميل بيانات القمع…' : 'Loading funnel data…'}
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {FUNNEL_STAGES.map((stage, i) => {
+            const count = stageCounts[i];
+            const prev = i === 0 ? null : stageCounts[i - 1];
+            const pct = prev === null ? null : prev > 0 ? Math.round((count / prev) * 100) : null;
+            return (
+              <div key={stage.event} className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-extrabold text-gray-800">
+                    {isAr ? stage.labelAr : stage.labelEn}
+                  </span>
+                  <span className="font-mono text-gray-500">
+                    <span className="font-black text-gray-900">{count.toLocaleString()}</span>
+                    {pct !== null && (
+                      <span className="text-[9px] text-gray-400 font-bold ms-2">
+                        {isAr ? `٪${pct} من السابق` : `${pct}% of prev`}
+                      </span>
+                    )}
+                    {i > 0 && pct === null && (
+                      <span className="text-[9px] text-gray-300 font-bold ms-2">—</span>
+                    )}
+                  </span>
+                </div>
+                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#FF6B00] to-orange-400 transition-all duration-500"
+                    style={{ width: `${Math.max(count > 0 ? 3 : 0, (count / maxCount) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const AdminDashboardView: React.FC = () => {
   const { 
     currentUser,
@@ -1073,6 +1194,9 @@ export const AdminDashboardView: React.FC = () => {
               </div>
 
             </div>
+
+            {/* Conversion funnel: registration → payment, 7/30-day window */}
+            <ConversionFunnelCard isAr={isAr} />
 
             {/* Simpler, Friendly Action Feed (Replacing complex SVG graphs & System Telemetry Logs) */}
             <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
