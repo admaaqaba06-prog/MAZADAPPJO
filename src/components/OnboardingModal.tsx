@@ -8,20 +8,33 @@ export const OnboardingModal: React.FC = () => {
   const [step, setStep] = useState(1);
   const [onboardingLang, setOnboardingLang] = useState<'ar' | 'en'>('ar');
 
-  // Do not show if onboarding is already completed
-  if (currentUser?.onboardingCompleted) {
+  // Show ONLY when we positively know onboarding is incomplete.
+  // The session latch is the real fix: it prevents resurrection when a later
+  // snapshot re-emits without the flag (listener races made the modal reappear).
+  // resetOnboarding() clears the latch so admin re-tests work within a session.
+  if (
+    !currentUser ||
+    currentUser.onboardingCompleted ||
+    sessionStorage.getItem('mazad_onboarding_dismissed') === '1'
+  ) {
     return null;
   }
+
+  const dismissForSession = () => {
+    sessionStorage.setItem('mazad_onboarding_dismissed', '1');
+  };
 
   const handleNext = () => {
     if (step < 3) {
       setStep(step + 1);
     } else {
+      dismissForSession();
       completeOnboarding();
     }
   };
 
   const handleSkip = () => {
+    dismissForSession();
     completeOnboarding();
   };
 

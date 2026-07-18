@@ -3309,6 +3309,8 @@ const fetchIP = async () => {
       try {
         await updateDoc(userRef, { onboardingCompleted: false });
         if (currentUser && currentUser.id === targetUserId) {
+          // Clear the session latch so the modal can re-show immediately after a reset
+          sessionStorage.removeItem('mazad_onboarding_dismissed');
           setCurrentUser(prev => ({ ...prev, onboardingCompleted: false }));
         }
       } catch (err) {
@@ -3316,6 +3318,7 @@ const fetchIP = async () => {
       }
     } else {
       localStorage.removeItem('mazad_local_onboarding_completed');
+      sessionStorage.removeItem('mazad_onboarding_dismissed');
       setCurrentUser(prev => ({ ...prev, onboardingCompleted: false }));
     }
   }, [currentUser]);

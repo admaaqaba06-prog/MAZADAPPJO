@@ -7,23 +7,26 @@ import {
   Search, 
   Clock, 
   Plus, 
-  Car, 
-  Laptop, 
-  Gem,
+  Car,
+  Laptop,
+  Building2,
   Smartphone,
-  Shirt,
+  Watch,
   LayoutGrid,
   Calendar,
   ArrowDown,
   Bookmark,
   Bell,
   ShieldCheck,
-  Play
+  Play,
+  MessageCircle
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
-import { AuctionCardSkeleton, EmptyState } from './FeedbackStates';
+import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
+
+const WHATSAPP_URL = 'https://wa.me/962781444899';
 
 interface PremiumAuctionCardProps {
   item: AuctionItem;
@@ -314,12 +317,14 @@ export const DiscoveryFeedView: React.FC = () => {
   const t = translations[language];
   const isAr = language === 'ar';
 
+  // `match` includes legacy AuctionItem.category values so existing lots keep filtering correctly.
   const categoriesList = React.useMemo(() => [
-    { name: 'All', icon: <LayoutGrid className="w-3.5 h-3.5" />, arName: 'الكل' },
-    { name: 'Luxury', icon: <Gem className="w-3.5 h-3.5" />, arName: 'فاخر' },
-    { name: 'Vehicles', icon: <Car className="w-3.5 h-3.5" />, arName: 'مركبات' },
-    { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات' },
-    { name: 'Fashion', icon: <Shirt className="w-3.5 h-3.5" />, arName: 'أزياء' }
+    { name: 'All', icon: <LayoutGrid className="w-3.5 h-3.5" />, arName: 'الكل', match: null as string[] | null },
+    { name: 'Cars', icon: <Car className="w-3.5 h-3.5" />, arName: 'سيارات', match: ['Cars', 'Vehicles'] },
+    { name: 'Real Estate', icon: <Building2 className="w-3.5 h-3.5" />, arName: 'عقارات', match: ['Real Estate'] },
+    { name: 'Phones', icon: <Smartphone className="w-3.5 h-3.5" />, arName: 'هواتف', match: ['Phones', 'Electronics'] },
+    { name: 'Watches', icon: <Watch className="w-3.5 h-3.5" />, arName: 'ساعات', match: ['Watches'] },
+    { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات', match: ['Electronics'] }
   ], []);
 
   const filteredAuctions = React.useMemo(() => {
@@ -335,13 +340,15 @@ export const DiscoveryFeedView: React.FC = () => {
         if (!matchText.includes(searchTerm.toLowerCase())) return false;
       }
 
-      if (selectedCategory !== 'All' && item.category !== selectedCategory) {
-        return false;
+      if (selectedCategory !== 'All') {
+        const pill = categoriesList.find(c => c.name === selectedCategory);
+        const matches = pill?.match || [selectedCategory];
+        if (!matches.includes(item.category)) return false;
       }
 
       return true;
     });
-  }, [auctions, activeTab, searchTerm, selectedCategory]);
+  }, [auctions, activeTab, searchTerm, selectedCategory, categoriesList]);
 
   const pendingListingsToDisplay = React.useMemo(() => {
     const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin');
@@ -524,10 +531,42 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Search Input bar with soft beige/gray layout bg */}
       <div className="p-4 space-y-4">
+        {/* Join Funnel Banner (Non-members only): 3-step money story + join CTA */}
+        {currentUser?.subscriptionStatus !== 'active' && (
+          <div
+            className="bg-orange-50/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            id="join-funnel-banner"
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">①</span>
+                {isAr ? 'انضم بدينار واحد' : 'Join for 1 JD'}
+              </span>
+              <span className="text-orange-200">•</span>
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">②</span>
+                {isAr ? 'زايد مجاناً' : 'Bid freely'}
+              </span>
+              <span className="text-orange-200">•</span>
+              <span className="flex items-center gap-1">
+                <span className="text-[#FF6B00] font-black">③</span>
+                {isAr ? 'ادفع فقط عند الفوز (+٥٪ عمولة)' : 'Pay only when you win (+5% premium)'}
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveView('wallet')}
+              className="px-4 py-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-extrabold text-[11px] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+            >
+              {isAr ? 'انضم الآن — ١ د.أ' : 'Join now — 1 JD'}
+            </button>
+          </div>
+        )}
+
         <div className="relative">
           <input
             type="text"
-            placeholder={isAr ? 'ابحث عن سيارات، ساعات رولكس، أراضي ونقاط البيع الفاخرة...' : 'Search Rolex, premium land slots...'}
+            placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className={`w-full bg-[#F2F2EF] border border-transparent rounded-[18px] py-3.5 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:bg-white focus:border-gray-250 transition-all font-sans`}
@@ -676,32 +715,6 @@ export const DiscoveryFeedView: React.FC = () => {
         </button>
       </div>
 
-      {/* Sub Filter Capsules Row matches screenshot */}
-      {activeTab === 'live' && (
-        <div className="w-full bg-white z-20 font-sans mb-3.5 px-1">
-          <div className="flex gap-2 px-3 overflow-x-auto scrollbar-none bg-white">
-            {[
-              { ar: 'سيارات', en: 'Cars' },
-              { ar: 'عقارات', en: 'Real Estate' },
-              { ar: 'هواتف', en: 'Phones' },
-              { ar: 'ساعات', en: 'Watches' },
-              { ar: 'إلكترونيات', en: 'Electronics' },
-            ].map((pill, idx) => (
-              <button
-                key={pill.en}
-                className={`px-3.5 py-1.5 rounded-full text-xs shrink-0 transition-colors bg-white ${
-                  idx === 0
-                    ? 'font-bold text-gray-800 border border-gray-950'
-                    : 'font-semibold text-gray-400 border border-gray-200'
-                }`}
-              >
-                {isAr ? pill.ar : pill.en}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Dual-Column High Fidelity grid list of live streams preview */}
       <div className="flex-grow px-4 pb-12">
         {isLoading ? (
@@ -730,11 +743,41 @@ export const DiscoveryFeedView: React.FC = () => {
             ))}
           </div>
         ) : (
-          <EmptyState 
-            title={auctions.length === 0 ? (isAr ? 'لا توجد مزادات بعد' : 'No auctions yet') : (isAr ? 'لم يتم العثور على أي مزادات مطابقة' : 'No auctions found')}
-            description={auctions.length === 0 ? (isAr ? 'لا توجد أي مزادات نشطة أو مجدولة على المنصة حالياً.' : 'There are no active or scheduled auctions on the platform currently.') : (isAr ? 'يرجى تغيير فئة الفرز أو مسح كلمات البحث للوصول لمعروضات فاخرة أخرى.' : 'No active or upcoming slots match your filter conditions. Try changing categories or resetting search parameters.')}
-            language={isAr ? 'ar' : 'en'}
-          />
+          <div
+            className="text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            id="feedback-empty-state"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
+              <Calendar className="w-6 h-6 stroke-[1.5]" />
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                {isAr ? 'المزادات تُعلن يومياً 📢' : 'Auctions are announced daily 📢'}
+              </h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {isAr
+                  ? 'تابع قناتنا على واتساب ليوصلك موعد كل مزاد أول بأول — أو تفقد المواعيد القادمة.'
+                  : 'Follow our WhatsApp channel to catch every drop — or check the upcoming schedule.'}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <button
+                onClick={() => window.open(WHATSAPP_URL, '_blank', 'noopener,noreferrer')}
+                className="px-4 py-2 bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50 font-extrabold text-[11px] rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                {isAr ? 'تابعنا على واتساب' : 'Follow on WhatsApp'}
+              </button>
+              <button
+                onClick={() => setActiveTab('upcoming')}
+                className="px-4 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 font-bold text-[11px] rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {isAr ? 'المواعيد القادمة' : 'Upcoming drops'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
