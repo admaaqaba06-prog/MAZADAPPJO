@@ -84,7 +84,7 @@ export const SubscriptionView: React.FC = () => {
 
   // Show the pending state after a successful submit AND on refresh while the
   // request is still under review — kills the silent-success → duplicate-click loop.
-  const isPendingReview = submitted || currentUser?.subscriptionStatus === 'pending';
+  const isPendingReview = (submitted && currentUser?.subscriptionStatus !== 'active' && currentUser?.subscriptionStatus !== 'rejected') || currentUser?.subscriptionStatus === 'pending';
 
   // --- Approval celebration: fire ONLY on the live transition to 'active' ---
   // (previous-value ref: no burst when mounting into an already-active account)
