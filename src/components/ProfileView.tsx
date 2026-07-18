@@ -2,27 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { db } from '../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { 
-  User as UserIcon, 
-  ShieldCheck, 
-  Sparkles, 
-  LogOut, 
-  Wallet, 
-  Laptop, 
-  Save, 
+import { winTotalDue } from './feedback';
+import { Order } from '../types';
+import {
+  User as UserIcon,
+  ShieldCheck,
+  Sparkles,
+  LogOut,
+  Wallet,
+  Laptop,
+  Save,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Trophy
 } from 'lucide-react';
 
+/** Order states that count as a "win" the buyer followed through on (paid → completed). */
+const WON_ORDER_STATUSES: Order['status'][] = ['paid', 'preparing_shipment', 'shipped', 'delivered', 'completed'];
+
 export const ProfileView: React.FC = () => {
-  const { 
-    currentUser, 
-    language, 
-    logout, 
-    setShowSubscriptionPrompt, 
-    setActiveView 
+  const {
+    currentUser,
+    language,
+    logout,
+    setShowSubscriptionPrompt,
+    setActiveView,
+    orders,
+    setGlobalSelectedOrderId
   } = useApp();
 
   const isAr = language === 'ar';
@@ -97,6 +105,24 @@ export const ProfileView: React.FC = () => {
     }
   };
 
+  // Wins shelf: the user's paid/completed orders, newest first.
+  const toMillis = (raw: any): number => {
+    if (!raw) return 0;
+    if (typeof raw?.toMillis === 'function') return raw.toMillis();
+    if (raw?.seconds) return raw.seconds * 1000;
+    const t = new Date(raw).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const wonOrders = (orders || [])
+    .filter((o: Order) => o.buyerId === currentUser.id && WON_ORDER_STATUSES.includes(o.status))
+    .sort((a: Order, b: Order) => toMillis(b.createdAt) - toMillis(a.createdAt));
+  const wonCount = wonOrders.length;
+
+  const openWonOrder = (orderId: string) => {
+    setGlobalSelectedOrderId(orderId);
+    setActiveView('orders');
+  };
+
   const formatExpiry = (expiry: any) => {
     if (!expiry) return isAr ? 'لا يوجد اشتراك نشط' : 'No active subscription';
     try {
@@ -152,6 +178,54 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Wins shelf «انتصاراتي 🏆» */}
+        {wonCount > 0 && (
+          <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-4" id="profile-wins-shelf">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div className="flex items-baseline gap-3 min-w-0">
+                <span className="text-3xl font-black font-mono text-amber-400 leading-none">{wonCount}</span>
+                <div className="min-w-0">
+                  <h3 className="font-sans font-black text-xs text-white uppercase tracking-wider">
+                    {isAr ? 'انتصاراتي 🏆' : 'My Wins 🏆'}
+                  </h3>
+                  <p className="text-[9px] text-zinc-400 truncate">
+                    {isAr ? 'مزادات ربحتها وأتممتها — استمر!' : 'Auctions you won and followed through — keep going!'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+              {wonOrders.map((order: Order) => {
+                const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => openWonOrder(order.id)}
+                    className="w-36 shrink-0 bg-zinc-900/60 hover:bg-zinc-900 border border-white/5 hover:border-amber-500/30 rounded-2xl p-2.5 space-y-2 text-start transition-colors cursor-pointer"
+                    id={`profile-win-card-${order.id}`}
+                  >
+                    <img
+                      src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
+                      alt={order.auctionTitle}
+                      className="w-full h-20 rounded-xl object-cover border border-white/5"
+                      referrerPolicy="no-referrer"
+                    />
+                    <p className="text-[10.5px] font-black text-white leading-snug truncate">{order.auctionTitle}</p>
+                    <p className="text-[10px] font-black font-mono text-amber-400">
+                      {totalDue.toLocaleString()} {isAr ? 'د.أ' : 'JOD'}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Form (2/3 grid span) */}
