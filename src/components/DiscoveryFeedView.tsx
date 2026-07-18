@@ -317,7 +317,7 @@ export const DiscoveryFeedView: React.FC = () => {
   // Win celebration: fires only when a watched auction *transitions* to
   // 'completed' while this user is the highest bidder (per-id previous-status
   // ref inside the hook — never on mount into already-completed auctions).
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id);
+  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
   const handleWinPay = () => {
     const wonAuctionId = win?.auctionId;
     clearWin();

@@ -52,6 +52,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const t = translations[language];
   const isAr = language === 'ar';
@@ -393,20 +394,67 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               )}
             </button>
 
-            {/* Profile Avatar */}
+            {/* Profile Avatar + user menu (Profile / Terms / Log Out) */}
             {currentUser && (
-              <div 
-                onClick={() => setActiveView('profile')}
-                className="flex items-center gap-2 cursor-pointer select-none group"
-              >
-                <img 
-                  src={currentUser.avatar} 
-                  alt={currentUser.name} 
-                  className="w-8 h-8 rounded-full object-cover border border-gray-200/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
-                />
-                <span className="hidden xl:inline text-xs font-bold text-gray-700 group-hover:text-gray-900">
-                  {currentUser.name.split(' ')[0]}
-                </span>
+              <div className="relative" id="header-user-menu-root">
+                <button
+                  onClick={() => setIsUserMenuOpen(v => !v)}
+                  className="flex items-center gap-2 cursor-pointer select-none group"
+                  title={currentUser.name}
+                  id="header-user-menu-btn"
+                >
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
+                  />
+                  <span className="hidden xl:inline text-xs font-bold text-gray-700 group-hover:text-gray-900">
+                    {currentUser.name.split(' ')[0]}
+                  </span>
+                </button>
+
+                {isUserMenuOpen && (
+                  <>
+                    {/* Click-away overlay */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    />
+                    <div
+                      className="absolute end-0 top-full mt-2 w-52 bg-white border border-gray-200/80 rounded-2xl shadow-lg py-1.5 z-50"
+                      id="header-user-menu-dropdown"
+                    >
+                      <button
+                        onClick={() => { setIsUserMenuOpen(false); setActiveView('profile'); }}
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <User className="w-4 h-4 text-gray-400 shrink-0 stroke-[1.75]" />
+                        <span>{isAr ? 'حسابي' : 'My Profile'}</span>
+                      </button>
+                      <button
+                        onClick={() => { setIsUserMenuOpen(false); setIsTermsOpen(true); }}
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <HelpCircle className="w-4 h-4 text-gray-400 shrink-0 stroke-[1.75]" />
+                        <span>{isAr ? 'الشروط والأحكام' : 'Terms & Policies'}</span>
+                      </button>
+                      <div className="my-1 border-t border-gray-100" />
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          if (window.confirm(isAr ? 'هل تريد تسجيل الخروج؟' : 'Log out of your account?')) {
+                            logout();
+                          }
+                        }}
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 flex items-center gap-2.5 cursor-pointer"
+                        id="header-logout-btn"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0 stroke-[1.75]" />
+                        <span>{isAr ? 'تسجيل الخروج' : 'Log Out'}</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -429,115 +477,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           ) : (
             <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#F7F6F3]" id="desktop-three-column-root">
               
-              {/* Left Sidebar stays inside but logo section removed/reduced as it's now in the Top Header */}
-              <aside className="w-[260px] h-full bg-white border-r border-gray-200/80 flex flex-col p-5 shrink-0 select-none justify-between" id="left-sidebar-panel">
-                <div className="space-y-4">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3">
-                    {isAr ? 'القائمة الرئيسية' : 'NAVIGATION'}
-                  </div>
-                  <nav className="flex flex-col gap-1" id="sidebar-nav-container">
-                    <button
-                      onClick={() => setActiveView('discovery')}
-                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'discovery' 
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                      }`}
-                    >
-                      <Home className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'تصفح المزادات' : 'Discover'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
-                        if (firstLive) setActiveAuctionId(firstLive.id);
-                        setActiveView('live');
-                      }}
-                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'live' 
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                      }`}
-                    >
-                      <Play className="w-4.5 h-4.5 shrink-0 stroke-[1.75] animate-pulse text-[#E85D04]" />
-                      <span>{isAr ? 'البث المباشر' : 'Live Stream'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveView('upload')}
-                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'upload' 
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                      }`}
-                    >
-                      <PlusCircle className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'إنشاء إدراج بائع' : 'Sell'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveView('orders')}
-                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'orders'
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                      }`}
-                      id="sidebar-my-orders-btn"
-                    >
-                      <ShoppingBag className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveView('wallet')}
-                      className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                        activeView === 'wallet'
-                          ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                      }`}
-                    >
-                      <WalletIcon className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'العضوية' : 'Membership'}</span>
-                    </button>
-
-                    {isSeller && (
-                      <button
-                        onClick={() => setActiveView('seller-center')}
-                        className={`w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition-colors cursor-pointer ${
-                          activeView === 'seller-center' 
-                            ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-                        }`}
-                      >
-                        <Store className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                        <span>{isAr ? 'مركز البائع' : 'Seller Center'}</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setIsTermsOpen(true)}
-                      className="w-full text-left rtl:text-right px-3 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-950 transition-colors flex items-center gap-3 cursor-pointer mt-2"
-                    >
-                      <HelpCircle className="w-4.5 h-4.5 shrink-0 stroke-[1.75]" />
-                      <span>{isAr ? 'الشروط والأحكام' : 'Terms & Policies'}</span>
-                    </button>
-                  </nav>
-                </div>
-
-                {/* Sidebar bottom footer: Log Out only */}
-                <div className="pt-4 border-t border-gray-100 flex flex-col gap-2.5">
-                  <button 
-                    onClick={logout}
-                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors cursor-pointer rounded-lg hover:bg-red-50"
-                  >
-                    <LogOut className="w-4 h-4 text-gray-400 shrink-0 stroke-[1.75]" />
-                    <span>{isAr ? 'تسجيل الخروج' : 'Log Out'}</span>
-                  </button>
-                </div>
-
-              </aside>
-
               {/* ======================================================================
                   COLUMN 2: CENTER / MAIN CONTENT VIEWPORT (MAX-W-1100PX)
                   ====================================================================== */}
@@ -570,11 +509,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     <span className="text-xs font-bold text-gray-950 truncate leading-tight">
                       {currentUser.name}
                     </span>
-                    {isStrictAdmin && (
-                      <span className="text-[9px] font-black text-[#E85D04] tracking-wider uppercase mt-1">
-                        {isAr ? 'مستشار النظام' : 'SYSTEM CRITICAL'}
-                      </span>
-                    )}
                   </div>
                 </div>
               )}

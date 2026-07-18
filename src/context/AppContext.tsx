@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
+import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBidCoach';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
@@ -2334,6 +2335,12 @@ const fetchIP = async () => {
         transferPhone: transferPhone || ''
       });
 
+      // Funnel metric — fire-and-forget (service handles its own errors)
+      logAnalyticsEvent('membership_submitted', currentUser.id, currentUser.email, {
+        plan,
+        price
+      });
+
       setCurrentUser(prev => {
         if (!prev) return prev;
         return { 
@@ -2472,11 +2479,18 @@ const fetchIP = async () => {
         lastBidTimestampRef.current = Date.now();
         bidTimestampsRef.current = [...updatedWindow, Date.now()];
 
-        // Record analytical conversion metric
-        await logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
+        // Record analytical conversion metrics — fire-and-forget (service handles its own errors)
+        logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
           auctionId,
           amount
         });
+        if (!isFirstBidDone()) {
+          logAnalyticsEvent('first_bid', currentUser.id, currentUser.email, {
+            auctionId,
+            amount
+          });
+          markFirstBidDone(); // idempotent — layouts also call this after a successful bid
+        }
 
         addNotification(
           '🏆 Winning Bid Placed',

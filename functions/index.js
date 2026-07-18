@@ -351,6 +351,106 @@ exports.paymentDefaultEnforcer = functions.pubsub
   });
 
 /**
+ * pollN8nHealth
+ * Every 15 minutes: pull execution stats for the two n8n workflows (WhatsApp
+ * bot + notification pipe) via the n8n API and write a single status doc the
+ * admin health tab reads in real time. If the failure rate crosses 20%,
+ * append an incident to system_health (de-duped to at most one per hour per
+ * workflow). Requires N8N_API_KEY + N8N_BASE_URL; if either is unset this is
+ * a clean no-op (same discipline as postToN8n). NEVER throws — a failed poll
+ * only logs and leaves the last-known system_status/current doc intact.
+ */
+const N8N_HEALTH_WORKFLOWS = [
+  { key: 'bot', id: 'WB0gnN7vZUmi4tS7', label: 'bot' },
+  { key: 'notifications', id: 'F8kFAQkiwlmxSYMI', label: 'notifications' },
+];
+
+exports.pollN8nHealth = functions.pubsub
+  .schedule('every 15 minutes')
+  .onRun(async () => {
+    const apiKey = process.env.N8N_API_KEY;
+    const baseUrl = process.env.N8N_BASE_URL;
+    if (!apiKey || !baseUrl) {
+      console.log('[pollN8nHealth] N8N_API_KEY / N8N_BASE_URL not configured — skipping.');
+      return null;
+    }
+
+    try {
+      const n8n = {};
+
+      for (const wf of N8N_HEALTH_WORKFLOWS) {
+        try {
+          const url = `${baseUrl.replace(/\/+$/, '')}/api/v1/executions?workflowId=${wf.id}&limit=100`;
+          const res = await fetch(url, {
+            headers: { 'X-N8N-API-KEY': apiKey },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!res.ok) {
+            console.warn(`[pollN8nHealth] n8n API ${res.status} for workflow ${wf.key} — skipping this block.`);
+            continue;
+          }
+          const body = await res.json();
+          // Tolerate both API shapes: { data: [...] } (n8n public API) or a bare array.
+          const executions = Array.isArray(body) ? body : (Array.isArray(body.data) ? body.data : []);
+          const total = executions.length;
+          const errors = executions.filter((ex) =>
+            ex.status === 'error' || (ex.finished === false && !!ex.stoppedAt)
+          ).length;
+          const failureRate = total > 0 ? errors / total : 0;
+          n8n[wf.key] = {
+            total,
+            errors,
+            failureRate,
+            checkedAt: admin.firestore.Timestamp.now(),
+          };
+        } catch (wfErr) {
+          console.warn(`[pollN8nHealth] Poll failed for workflow ${wf.key}:`, wfErr && wfErr.message);
+        }
+      }
+
+      if (Object.keys(n8n).length === 0) {
+        console.warn('[pollN8nHealth] No workflow blocks fetched — leaving last status doc intact.');
+        return null;
+      }
+
+      await db.collection('system_status').doc('current').set({
+        n8n,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // Threshold incidents (de-duped: at most one per workflow per hour).
+      for (const wf of N8N_HEALTH_WORKFLOWS) {
+        const stats = n8n[wf.key];
+        if (!stats || stats.failureRate <= 0.2) continue;
+        const title = `n8n ${wf.label} failure rate high`;
+        try {
+          const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+          const recent = await db.collection('system_health')
+            .where('source', '==', 'pollN8nHealth')
+            .where('title', '==', title)
+            .where('createdAt', '>=', oneHourAgo)
+            .limit(1)
+            .get();
+          if (!recent.empty) continue;
+          await db.collection('system_health').add({
+            type: 'error',
+            title,
+            details: `${Math.round(stats.failureRate * 100)}% over last ${stats.total} runs`,
+            source: 'pollN8nHealth',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`[pollN8nHealth] Incident logged: ${title} (${Math.round(stats.failureRate * 100)}%)`);
+        } catch (incErr) {
+          console.warn(`[pollN8nHealth] Incident write failed for ${wf.key}:`, incErr && incErr.message);
+        }
+      }
+    } catch (err) {
+      console.error('[pollN8nHealth]', err);
+    }
+    return null;
+  });
+
+/**
  * 2. onBidCreated (BUG #5 Compliance)
  * Activates instant real-time outbid notifications.
  * Sends push messaging to the outbid user (previousBidderId) the instant a higher bid enters the database subcollection.

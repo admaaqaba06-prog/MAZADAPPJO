@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Trophy } from 'lucide-react';
 import Confetti from './Confetti';
 import Pressable from './Pressable';
+import { logAnalyticsEvent } from '../../services/analyticsService';
 
 /**
  * Total due on a win: hammer price + 5% buyer's premium, rounded at the
@@ -41,6 +42,7 @@ export type WinInfo = {
 export function useWinDetection(
   auctions: Array<WinnableAuction | null | undefined>,
   currentUserId: string | null | undefined,
+  currentUserEmail?: string | null,
 ): { win: WinInfo | null; clearWin: () => void } {
   const [win, setWin] = useState<WinInfo | null>(null);
   const prevStatuses = useRef<Map<string, string>>(new Map());
@@ -56,15 +58,21 @@ export function useWinDetection(
         currentUserId &&
         a.currentBidderId === currentUserId
       ) {
+        const totalDue = winTotalDue(a.currentPrice);
         setWin({
           auctionId: a.id,
           auctionTitle: a.title,
-          totalDue: winTotalDue(a.currentPrice),
+          totalDue,
+        });
+        // Funnel metric — fire-and-forget (service handles its own errors)
+        logAnalyticsEvent('auction_won_seen', currentUserId, currentUserEmail ?? null, {
+          auctionId: a.id,
+          totalDue,
         });
       }
       prevStatuses.current.set(a.id, a.status);
     }
-  }, [auctions, currentUserId]);
+  }, [auctions, currentUserId, currentUserEmail]);
 
   return { win, clearWin: () => setWin(null) };
 }

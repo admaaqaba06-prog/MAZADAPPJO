@@ -144,10 +144,17 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && isAdmin();
     }
 
+    // 9b. System Status (single doc written by pollN8nHealth via Admin SDK;
+    // clients only ever read it)
+    match /system_status/{statusId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // 10. Analytics Events
     match /analytics_events/{eventId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
@@ -188,7 +195,7 @@ service cloud.firestore {
     // 13. Seller Profiles
     match /sellerProfiles/{profileId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
@@ -211,7 +218,7 @@ service cloud.firestore {
     // 15. Seller Verification Requests
     match /sellerVerificationRequests/{reqId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

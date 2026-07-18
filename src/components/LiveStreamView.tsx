@@ -150,7 +150,7 @@ export const LiveStreamView: React.FC = () => {
   // Watch ALL auctions (not just the active lot): a won auction drops out of
   // liveAuctions the moment it flips to completed, so watching only the active
   // lot would miss the winning edge whenever another live lot exists.
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id);
+  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
 
   // When the celebration takes over, stand down the countdown/winner overlay
   // so the two full-screen layers never stack.
