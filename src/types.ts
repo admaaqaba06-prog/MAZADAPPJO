@@ -172,12 +172,21 @@ export interface Order {
   buyerId: string;
   buyerName: string;
   winningBidAmount: number;
-  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
+  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
   paymentStatus: "unpaid" | "paid";
   shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
   escrowStatus: "pending" | "released" | "refunded";
   createdAt: any;
   updatedAt: any;
+  // Money model (set by Cloud Functions on order creation):
+  // winner pays totalDue = winningBidAmount + 5% buyer's premium via CliQ
+  // bank transfer within paymentDeadlineAt (24h), then uploads a receipt.
+  buyersPremium?: number;
+  totalDue?: number;
+  paymentDeadlineAt?: any;
+  paymentProofUrl?: string;
+  trackingNumber?: string;
+  defaultedAt?: any;
 }
 
 export interface Review {
