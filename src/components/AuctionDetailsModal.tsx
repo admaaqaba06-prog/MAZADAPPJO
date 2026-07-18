@@ -198,10 +198,10 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
               {feedback.type === 'success' && (
                 <ContextualHint
                   hintKey="first_bid"
-                  titleAr="ماذا يحدث بعد المزايدة؟ 🔒"
-                  titleEn="What Happens After Bidding? 🔒"
-                  descAr="رائع! تم حجز قيمة العطاء مؤقتاً في كليك لحماية البائع والمشتري. إذا خسرت، يعود رصيدك فوراً ومحفظتك آمنة. وإذا فزت، يُستخدم للدفع."
-                  descEn="Awesome! Your bid amount is temporarily reserved in CliQ escrow to protect both parties. If you lose, it returns instantly and your wallet is secure. If you win, it goes towards payment."
+                  titleAr="ماذا يحدث بعد المزايدة؟ 🔨"
+                  titleEn="What Happens After Bidding? 🔨"
+                  descAr="رائع! أنت الآن في المنافسة. إذا فزت، تدفع سعر الفوز + عمولة المشتري ٥٪ عبر كليك خلال ٢٤ ساعة. إذا خسرت، لا تدفع شيئاً."
+                  descEn="Awesome! You're in the running. If you win, you pay the final price + 5% buyer's premium via CliQ within 24 hours. If you lose, you pay nothing."
                 />
               )}
             </div>
