@@ -421,7 +421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // AUTH, MULTILINGUAL, & SUBSCRIPTION ADDITIONS
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
-    return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'en';
+    return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'ar';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
  
