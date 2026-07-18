@@ -148,8 +148,10 @@ export const LiveStreamView: React.FC = () => {
   // Win celebration: fires only on the status *transition* to 'completed'
   // while this user holds the highest bid (per-id previous-status ref inside
   // the hook — never fires on mount into an already-completed auction).
-  const winWatchList = useMemo(() => [activeAuction], [activeAuction]);
-  const { win, clearWin } = useWinDetection(winWatchList, currentUser?.id);
+  // Watch ALL auctions (not just the active lot): a won auction drops out of
+  // liveAuctions the moment it flips to completed, so watching only the active
+  // lot would miss the winning edge whenever another live lot exists.
+  const { win, clearWin } = useWinDetection(auctions, currentUser?.id);
 
   // When the celebration takes over, stand down the countdown/winner overlay
   // so the two full-screen layers never stack.

@@ -825,7 +825,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                   return (
                     <motion.div
                       key={isLosing ? 'outbid' : 'status'}
-                      initial={false}
+                      initial={{ boxShadow: '0 0 0 0 rgba(244,63,94,0)' }}
                       animate={
                         isLosing
                           ? {

@@ -31,6 +31,9 @@ export default function BidConfirm({
   onCancel,
   className,
 }: BidConfirmProps) {
+
+  const firedRef = React.useRef(false);
+  React.useEffect(() => { firedRef.current = false; }, [amount]);
   // Keep the latest onCancel in a ref so the 5s timer isn't reset by
   // parent re-renders (live rooms re-render every second).
   const onCancelRef = useRef(onCancel);
@@ -69,7 +72,11 @@ export default function BidConfirm({
           </p>
           <div className="flex gap-2 w-full max-w-[280px] mt-1">
             <Pressable
-              onClick={() => onConfirm(amount)}
+              onClick={() => {
+                if (firedRef.current) return; // exit-animation window: one shot only
+                firedRef.current = true;
+                onConfirm(amount);
+              }}
               className="flex-1 py-2 rounded-xl bg-[#FF6B00] hover:bg-orange-600 text-white text-[11px] font-black shadow-md cursor-pointer"
             >
               {isAr ? 'زايد الآن' : 'Bid now'}
