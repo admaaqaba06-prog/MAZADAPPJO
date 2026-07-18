@@ -211,7 +211,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {auction.status === 'live' && (
             <div className="space-y-2">
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                {isAr ? 'تقديم مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT ESCROW BID'}
+                {isAr ? 'مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT BID'}
               </span>
               
               {(() => {

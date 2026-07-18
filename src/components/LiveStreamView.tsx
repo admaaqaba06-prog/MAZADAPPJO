@@ -76,8 +76,7 @@ export const LiveStreamView: React.FC = () => {
     activeAuctionId, 
     setActiveAuctionId, 
     setActiveView, 
-    placeBid, 
-    wallet,
+    placeBid,
     language,
     watchlist,
     toggleWatchlist,
@@ -447,7 +446,6 @@ export const LiveStreamView: React.FC = () => {
           onCommentSubmit={handleCommentSubmit}
           nextBidAmount={nextBidAmount}
           onBidExecute={executeBid}
-          wallet={wallet}
           currentUser={currentUser}
           language={language}
           isAr={isAr}
@@ -477,7 +475,6 @@ export const LiveStreamView: React.FC = () => {
           onCommentSubmit={handleCommentSubmit}
           nextBidAmount={nextBidAmount}
           onBidExecute={executeBid}
-          wallet={wallet}
           currentUser={currentUser}
           isAr={isAr}
           onOpenDetails={(id) => setSelectedLotDetailsId(id)}
@@ -605,7 +602,7 @@ export const LiveStreamView: React.FC = () => {
                         </p>
 
                         <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-4 border border-emerald-500/20 text-center text-xs text-emerald-400 font-bold leading-relaxed my-1">
-                          {isAr ? 'تم إرجاع المبلغ المحجوز إلى محفظتك' : 'The reserved amount has been returned to your wallet'}
+                          {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
                         </div>
 
                         <button

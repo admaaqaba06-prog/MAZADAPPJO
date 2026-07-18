@@ -2421,7 +2421,9 @@ const fetchIP = async () => {
 
         addNotification(
           '🏆 Winning Bid Placed',
-          `Locked ${amount.toLocaleString()} JOD securely in Mazad Escrow.`,
+          language === 'ar'
+            ? 'تم تسجيل مزايدتك بنجاح — أنت الأعلى الآن!'
+            : "Bid placed — you're the highest bidder!",
           'win'
         );
       } else {
