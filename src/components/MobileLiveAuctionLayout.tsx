@@ -6,7 +6,7 @@ import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, m
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
-import { serverNow } from '../utils/serverTime';
+import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { translations } from '../utils/translations';
 import { useBidFlow } from '../hooks/useBidFlow';
 import { 
@@ -32,7 +32,6 @@ interface MobileLiveAuctionLayoutProps {
   onSelectAuction: (id: string) => void;
   activeAuction: any;
   activePrice: number;
-  timeLeftStr: string;
   isMuted: boolean;
   isPlaying: boolean;
   onMuteToggle: (e: React.MouseEvent) => void;
@@ -64,7 +63,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onSelectAuction,
   activeAuction,
   activePrice,
-  timeLeftStr,
   isMuted,
   isPlaying,
   onMuteToggle,
@@ -180,7 +178,6 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
               isPlaying={isPlaying}
               onPlayPauseToggle={onPlayPauseToggle}
               activePrice={currentReelPrice}
-              timeLeftStr={timeLeftStr}
               isSaved={isSaved}
               activeComments={activeComments}
               activeActivities={activeActivities}
@@ -217,7 +214,6 @@ interface MobileAuctionReelProps {
   isPlaying: boolean;
   onPlayPauseToggle: () => void;
   activePrice: number;
-  timeLeftStr: string;
   isSaved: boolean;
   activeComments: any[];
   activeActivities: any[];
@@ -245,7 +241,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   isPlaying,
   onPlayPauseToggle,
   activePrice,
-  timeLeftStr,
   isSaved,
   activeComments,
   activeActivities,
@@ -274,7 +269,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
-  const isEnded = auction?.status === 'completed' || (auction?.endTime ? auction.endTime <= Date.now() : false);
+  const isEnded = isAuctionFinished(auction, serverNow());
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
@@ -309,6 +304,37 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
       return () => clearTimeout(timer);
     }
   }, [displayPrice]);
+
+  // Per-reel countdown: each reel derives its OWN clock from its own endTime
+  // (or scheduledStartAt before it opens) via serverNow(), so a swiped reel
+  // never shows the active lot's time. Ticks only while loaded (2 reels max).
+  const [reelTimeLeft, setReelTimeLeft] = useState<string>('00:00:00');
+  useEffect(() => {
+    if (!shouldLoad) return;
+    const compute = () => {
+      const open = isAuctionOpen(auction?.status);
+      const target = !open && auction?.scheduledStartAt ? auction.scheduledStartAt : auction?.endTime;
+      const remainingMs = (target ?? 0) - serverNow();
+      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
+
+      // T-0 dead zone: scheduled start passed but the opener cron hasn't flipped it live.
+      if (!open && (auction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+        setReelTimeLeft(isAr ? 'يبدأ الآن…' : 'Starting…');
+        return;
+      }
+      if (remainingSecs > 0) {
+        const hrs = Math.floor(remainingSecs / 3600);
+        const mins = Math.floor((remainingSecs % 3600) / 60);
+        const secs = remainingSecs % 60;
+        setReelTimeLeft(`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+      } else {
+        setReelTimeLeft(isAr ? 'انتهى المزاد' : 'Auction ended');
+      }
+    };
+    compute();
+    const interval = setInterval(compute, 1000);
+    return () => clearInterval(interval);
+  }, [shouldLoad, auction?.endTime, auction?.scheduledStartAt, auction?.status, isAr]);
 
   // Queue joined, liked, saved notifications
   useEffect(() => {
@@ -446,7 +472,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   };
 
   // Anti-snipe drama: red pulsing countdown under 10s (active reel only)
-  const msLeft = auction?.endTime ? auction.endTime - Date.now() : Infinity;
+  const msLeft = auction?.endTime ? auction.endTime - serverNow() : Infinity;
   const isSnipeWindow =
     isActive &&
     !isEnded &&
@@ -792,7 +818,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                 className={`inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${isSnipeWindow ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
-                <span>{timeLeftStr}</span>
+                <span>{reelTimeLeft}</span>
               </motion.div>
             </div>
 

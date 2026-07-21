@@ -474,7 +474,6 @@ export const LiveStreamView: React.FC = () => {
           onSelectAuction={(id) => setActiveAuctionId(id)}
           activeAuction={activeAuction}
           activePrice={activePrice}
-          timeLeftStr={timeLeftStr}
           isMuted={isMuted}
           isPlaying={isPlaying}
           onMuteToggle={handleMuteToggle}
