@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { serializeNav, parseNav } from './navUrl';
+import { serializeNav, parseNav, isModalCloseTransition } from './navUrl';
 
 describe('serializeNav', () => {
   it('returns empty string for the clean discovery home', () => {
@@ -88,6 +88,63 @@ describe('parseNav', () => {
 
   it('ignores an unknown view and falls back to discovery', () => {
     expect(parseNav('?view=not-a-real-view')).toEqual({ view: 'discovery' });
+  });
+});
+
+describe('isModalCloseTransition', () => {
+  it('is true when a modal closes and the view stays the same', () => {
+    expect(
+      isModalCloseTransition(
+        { view: 'wallet', modal: 'order', modalParam: { key: 'order', value: 'x' } },
+        { view: 'wallet' },
+      ),
+    ).toBe(true);
+  });
+
+  it('is true when a modal closes and the live auction stays the same', () => {
+    expect(
+      isModalCloseTransition(
+        { view: 'live', auctionId: 'a1', modal: 'subscription' },
+        { view: 'live', auctionId: 'a1' },
+      ),
+    ).toBe(true);
+  });
+
+  it('is false when opening a modal (closed -> open)', () => {
+    expect(
+      isModalCloseTransition({ view: 'wallet' }, { view: 'wallet', modal: 'notifications' }),
+    ).toBe(false);
+  });
+
+  it('is false when the view changes even if the modal also closes', () => {
+    expect(
+      isModalCloseTransition(
+        { view: 'wallet', modal: 'order', modalParam: { key: 'order', value: 'x' } },
+        { view: 'discovery' },
+      ),
+    ).toBe(false);
+  });
+
+  it('is false when the live auction changes', () => {
+    expect(
+      isModalCloseTransition(
+        { view: 'live', auctionId: 'a1', modal: 'order' },
+        { view: 'live', auctionId: 'a2' },
+      ),
+    ).toBe(false);
+  });
+
+  it('is false when swapping one modal for another', () => {
+    expect(
+      isModalCloseTransition(
+        { view: 'discovery', modal: 'order', modalParam: { key: 'order', value: 'x' } },
+        { view: 'discovery', modal: 'review', modalParam: { key: 'order', value: 'x' } },
+      ),
+    ).toBe(false);
+  });
+
+  it('is false for a plain view->view change with no modal involved', () => {
+    expect(isModalCloseTransition({ view: 'wallet' }, { view: 'orders' })).toBe(false);
   });
 });
 

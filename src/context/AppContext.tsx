@@ -8,7 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
-import { serializeNav, parseNav, type NavNode } from '../utils/navUrl';
+import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -502,12 +502,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window === 'undefined') return;
     const node = deriveNavNode();
     const search = serializeNav(node);
-    if (historyNodeRef.current === search) return; // already in history (e.g. from a pop)
+    const prevSearch = historyNodeRef.current;
+    if (prevSearch === search) return; // already in history (e.g. from a pop)
     const url = search || window.location.pathname;
     if (!historyInitRef.current) {
+      // Initial mount / deep-link entry: seed the top entry, no phantom push.
       historyInitRef.current = true;
       window.history.replaceState(node, '', url);
+    } else if (prevSearch !== null && isModalCloseTransition(parseNav(prevSearch), node)) {
+      // A wired modal was closed by its X/close button (view/auction unchanged).
+      // Collapse the modal entry in place instead of pushing a new clean one —
+      // otherwise history becomes [view, modal, view'] and Back reopens the modal.
+      window.history.replaceState(node, '', url);
     } else {
+      // Real in-app navigation (view change, or opening a modal): add a Back target.
       window.history.pushState(node, '', url);
     }
     historyNodeRef.current = search;

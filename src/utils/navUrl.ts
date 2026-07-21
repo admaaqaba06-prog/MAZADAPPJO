@@ -116,6 +116,25 @@ export function parseNav(search: string): NavNode {
   return node;
 }
 
+/**
+ * True when the ONLY change from `prev` to `next` is a modal closing while the
+ * underlying view (and live auction) stays the same.
+ *
+ * The history sync layer uses this to `replaceState` instead of `pushState` on
+ * a button-close: opening a modal pushes its own entry (so Back closes it), but
+ * closing via an X/close button must NOT push a new clean entry — otherwise
+ * history becomes `[view, modal, view']` and Back pops back to `modal`, which
+ * reopens the just-closed modal. Collapsing the modal entry in place avoids that.
+ */
+export function isModalCloseTransition(prev: NavNode, next: NavNode): boolean {
+  return (
+    prev.view === next.view &&
+    prev.auctionId === next.auctionId &&
+    !!prev.modal &&
+    !next.modal
+  );
+}
+
 function applyModal(node: NavNode, params: URLSearchParams): void {
   const modal = params.get('modal')?.trim();
   if (!modal) return;
