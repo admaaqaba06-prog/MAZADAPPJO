@@ -582,6 +582,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.warn("[Auth Redirect] Handle redirect result error:", err);
+        // Surface via toast — the 'alert' notification below is now filtered from the
+        // user bell (Wave D), so without this the sign-in failure would be silent.
+        showToast({
+          title: language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
+          message: language === 'ar' ? 'ما زبط تسجيل الدخول عبر جوجل أو فيسبوك — جرّب مرة ثانية.' : 'Google/Facebook sign-in failed — please try again.',
+          type: 'warn',
+        });
         if (addNotificationRef.current) {
           addNotificationRef.current(
             language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
