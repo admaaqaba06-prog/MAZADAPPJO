@@ -124,6 +124,7 @@ export const SellView: React.FC = () => {
           endTime: Date.now() + 3600 * 1000,
           duration: 3600,
           isFeatured: false,
+          isConcierge: true,
           condition: cCondition,
           conciergeContact: cContact.trim(),
           conciergePhotos: extraPhotoUrls

@@ -2977,6 +2977,10 @@ const fetchIP = async () => {
       sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
       sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
       status: initialStatus, // Save under the requested status (default 'processing' = awaiting Mazad review) so Admin can approve/reject
+      // Concierge flag (a.k.a. listedByMazad): true only when the seller asked
+      // Mazad to build the listing — the admin queue badges these so the team
+      // completes details before approving. Defaults to false.
+      isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
       approvalStatus: 'pending',
