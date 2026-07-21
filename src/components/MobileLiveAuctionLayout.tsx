@@ -600,6 +600,9 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
         <img
           src={auction.thumbnailUrl || (auction as any).imageUrl || ''}
           alt={auction.title}
+          width={1080}
+          height={1920}
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-cover z-0"
         />
       )}
@@ -786,9 +789,12 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                     key={`chat-reel-${auction.id}-${msg.id}`} 
                     className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
                   >
-                    <img 
-                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                      alt="User" 
+                    <img
+                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'}
+                      alt="User"
+                      width={16}
+                      height={16}
+                      loading="lazy"
                       className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
                       referrerPolicy="no-referrer"
                     />
