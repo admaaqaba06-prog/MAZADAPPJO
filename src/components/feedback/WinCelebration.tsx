@@ -4,15 +4,14 @@ import { Trophy } from 'lucide-react';
 import Confetti from './Confetti';
 import Pressable from './Pressable';
 import { logAnalyticsEvent } from '../../services/analyticsService';
+import { totalWithPremium } from '../../utils/bidMath';
 
 /**
- * Total due on a win: hammer price + 5% buyer's premium, rounded at the
- * fils (1/1000 JOD) level to avoid float drift.
+ * Total due on a win: hammer price + 5% buyer's premium. Single source of
+ * truth is `totalWithPremium` in utils/bidMath; re-exported here for the
+ * order/profile views that already import from feedback.
  */
-export function winTotalDue(price: number): number {
-  const fils = Math.round(price * 1000);
-  return (fils + Math.round(fils * 0.05)) / 1000;
-}
+export const winTotalDue = totalWithPremium;
 
 type WinnableAuction = {
   id: string;
@@ -58,7 +57,7 @@ export function useWinDetection(
         currentUserId &&
         a.currentBidderId === currentUserId
       ) {
-        const totalDue = winTotalDue(a.currentPrice);
+        const totalDue = totalWithPremium(a.currentPrice);
         setWin({
           auctionId: a.id,
           auctionTitle: a.title,

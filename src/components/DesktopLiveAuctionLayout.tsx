@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
-import { minNextBid } from '../utils/bidMath';
+import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 interface DesktopLiveAuctionLayoutProps {
@@ -674,8 +674,8 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         />
                         <p className="text-[11px] text-gray-400 text-center mt-1">
                           {isAr
-                            ? `المجموع عند الفوز: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                            : `Total if you win: ${(Math.round(nextBidAmount * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                            ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                            : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
                         </p>
                       </>
                     )}
