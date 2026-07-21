@@ -55,10 +55,14 @@ service cloud.firestore {
           // absent/''/null because the phone-signup create rule allows all three.
           // Untouched email (any state, incl. missing key) is checked via
           // affectedKeys so docs without an email field can still self-update.
+          // The claimed email may NEVER be the admin address (same case-insensitive
+          // pattern isAdmin() uses) — ~25 client gates treat doc email == admin
+          // address as an admin-UI credential, so claiming it would spoof admin UI.
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
             ((!('email' in resource.data) || resource.data.email == '' || resource.data.email == null) &&
-              request.resource.data.email is string)
+              request.resource.data.email is string &&
+              !request.resource.data.email.matches('(?i)admaaqaba06@gmail\\.com'))
           )
         )
       );
