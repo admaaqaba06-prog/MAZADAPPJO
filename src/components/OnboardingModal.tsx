@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 import { Sparkles, BadgeCheck, Gavel, X, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const OnboardingModal: React.FC = () => {
-  const { currentUser, completeOnboarding, setActiveView } = useApp();
+  const { currentUser, completeOnboarding, setActiveView, language } = useApp();
   const [step, setStep] = useState(1);
-  const [onboardingLang, setOnboardingLang] = useState<'ar' | 'en'>('ar');
+  // Honour the language the user already chose globally instead of forcing
+  // Arabic; the in-modal toggle can still flip it locally.
+  const [onboardingLang, setOnboardingLang] = useState<'ar' | 'en'>(language === 'en' ? 'en' : 'ar');
 
   // Show ONLY when we positively know onboarding is incomplete.
   // The session latch is the real fix: it prevents resurrection when a later

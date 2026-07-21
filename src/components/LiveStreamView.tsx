@@ -10,6 +10,7 @@ import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid } from '../utils/bidMath';
+import { formatMoney } from '../utils/formatMoney';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
@@ -164,13 +165,13 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                           {isAr ? 'السعر النهائي' : 'Winning Bid'}
                         </p>
                         <p className="text-2xl font-black text-emerald-400">
-                          {activePrice} JOD
+                          {formatMoney(activePrice, isAr ? 'ar' : 'en')}
                         </p>
                         {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
                           <p className="text-xs text-emerald-300/80 font-semibold mt-1">
                             {isAr
-                              ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
-                              : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                              ? `وفّرت ${formatMoney(activeAuction.marketPrice - activePrice, 'ar')} (السعر ${formatMoney(activeAuction.marketPrice, 'ar')})`
+                              : `You saved ${formatMoney(activeAuction.marketPrice - activePrice, 'en')} (worth ${formatMoney(activeAuction.marketPrice, 'en')})`}
                           </p>
                         ) : null}
                       </div>
@@ -243,7 +244,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                             {isAr ? 'السعر النهائي' : 'Winning Bid'}
                           </p>
                           <p className="text-xl font-black text-emerald-400">
-                            {activePrice} JOD
+                            {formatMoney(activePrice, isAr ? 'ar' : 'en')}
                           </p>
                         </div>
                       )}
@@ -314,9 +315,12 @@ export const LiveStreamView: React.FC = () => {
     );
     // Fallback (nothing live/upcoming): never leak unapproved lots — a
     // 'processing' (awaiting Mazad review), legacy 'pending' or 'rejected'
-    // listing must stay invisible to buyers on every surface (spec §6).
+    // listing must stay invisible to buyers on every surface (spec §6). Also
+    // exclude finished lots ('completed'/'ended') so the fallback never shows a
+    // dead auction as if it were watchable.
     const approvedOnly = auctions.filter(a =>
-      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected'
+      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
+      a.status !== 'completed' && a.status !== 'ended'
     );
     const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {
@@ -552,7 +556,11 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const hasLiveAuctions = useMemo(() => {
-    return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > serverNow()));
+    // An upcoming-only room is still an active room — gating on 'live' alone
+    // made a room that only holds scheduled lots render "No live auctions".
+    return auctions.some(a =>
+      (a.status === 'live' || a.status === 'upcoming') && (!a.endTime || a.endTime > serverNow())
+    );
   }, [auctions]);
 
   // Must stay above the no-live-auctions early return: the branch switch on

@@ -5,6 +5,7 @@ import { SellerProfileModal } from './SellerProfileModal';
 import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, markFirstBidDone } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { formatMoney } from '../utils/formatMoney';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { translations } from '../utils/translations';
@@ -274,6 +275,15 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
   const [isChatHidden, setIsChatHidden] = useState(false);
+  // Prominent first-play "tap for sound" affordance: video autoplays muted
+  // (browser policy), so surface a big one-tap unmute over the video. Latches
+  // dismissed the moment the viewer unmutes so it never nags again.
+  const [unmutePromptDismissed, setUnmutePromptDismissed] = useState(false);
+
+  // Once the stream is unmuted, retire the prompt for good.
+  useEffect(() => {
+    if (!isMuted) setUnmutePromptDismissed(true);
+  }, [isMuted]);
 
   // States for micro-animations and feedback
   const [priceAnimate, setPriceAnimate] = useState(false);
@@ -590,6 +600,9 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
         <img
           src={auction.thumbnailUrl || (auction as any).imageUrl || ''}
           alt={auction.title}
+          width={1080}
+          height={1920}
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-cover z-0"
         />
       )}
@@ -607,6 +620,24 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
             <Play className="w-5 h-5 ml-0.5 fill-white text-white" />
           </div>
         </div>
+      )}
+
+      {/* Prominent one-tap unmute affordance — shown over the video on first
+          play while muted, dismissed permanently once the viewer unmutes. */}
+      {isActive && isPlaying && isMuted && !unmutePromptDismissed && (
+        <button
+          onClick={(e) => {
+            onMuteToggle(e);
+            setUnmutePromptDismissed(true);
+          }}
+          className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 flex justify-center animate-fade-in pointer-events-none"
+          aria-label={isAr ? 'اضغط للصوت' : 'Tap for sound'}
+        >
+          <span className="pointer-events-auto inline-flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/20 text-white px-5 py-3 rounded-full shadow-2xl text-sm font-black active:scale-95 transition-transform cursor-pointer">
+            <Volume2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{isAr ? '🔊 اضغط للصوت' : '🔊 Tap for sound'}</span>
+          </span>
+        </button>
       )}
 
       {isActive && (
@@ -758,9 +789,12 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                     key={`chat-reel-${auction.id}-${msg.id}`} 
                     className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
                   >
-                    <img 
-                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                      alt="User" 
+                    <img
+                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'}
+                      alt="User"
+                      width={16}
+                      height={16}
+                      loading="lazy"
                       className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
                       referrerPolicy="no-referrer"
                     />
@@ -857,9 +891,9 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </span>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString()} />
+                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString('en-US')} />
                 </span>
-                <span className="text-[11px] font-bold text-white/70">JOD</span>
+                <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
               </div>
             </div>
 
@@ -878,8 +912,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         {auction?.marketPrice && auction.marketPrice > activePrice ? (
                           <span className="text-emerald-300/80 text-[10.5px] font-bold block">
                             {isAr
-                              ? `وفّرت ${auction.marketPrice - activePrice} دينار (السعر ${auction.marketPrice})`
-                              : `You saved ${auction.marketPrice - activePrice} JOD (worth ${auction.marketPrice})`}
+                              ? `وفّرت ${formatMoney(auction.marketPrice - activePrice, 'ar')} (السعر ${formatMoney(auction.marketPrice, 'ar')})`
+                              : `You saved ${formatMoney(auction.marketPrice - activePrice, 'en')} (worth ${formatMoney(auction.marketPrice, 'en')})`}
                           </span>
                         ) : null}
                         <button
@@ -956,7 +990,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                           className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-[10px] font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
-                          <span>{isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}</span>
+                          <span>{isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')} لاستعادة الصدارة` : `Bid ${formatMoney(nextBidAmount, 'en')} to retake the lead`}</span>
                         </Pressable>
                       )}
                     </motion.div>
@@ -990,15 +1024,15 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         {getBidButtonText()}
                       </span>
                       <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
-                        {isAr ? `زايد ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JD`}
+                        {isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')}` : `Bid ${formatMoney(nextBidAmount, 'en')}`}
                       </span>
                     </>
                   )}
                 </Pressable>
                 <p className="text-[11px] text-gray-400 text-center mt-1">
                   {isAr
-                    ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                    : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                    ? `المجموع عند الفوز: ${formatMoney(totalWithPremium(nextBidAmount), 'ar')} (شامل عمولة المشتري ٥٪)`
+                    : `Total if you win: ${formatMoney(totalWithPremium(nextBidAmount), 'en')} (incl. 5% buyer's premium)`}
                 </p>
               </>
             )}
