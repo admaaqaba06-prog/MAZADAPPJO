@@ -8,6 +8,7 @@ import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow } from '../utils/serverTime';
 import { translations } from '../utils/translations';
+import { useBidFlow } from '../hooks/useBidFlow';
 import { 
   Volume2, 
   VolumeX, 
@@ -263,12 +264,8 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
-  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId, setShowSubscriptionPrompt } = useApp();
+  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-
-  // Membership gate: non-members must never reach BidConfirm — the bid control
-  // becomes an invite that opens the subscription sheet first.
-  const isMember = currentUser?.subscriptionStatus === 'active';
   const t = translations[language as 'en' | 'ar'];
 
   const activeSellerProfile = sellerProfiles?.find(
@@ -286,8 +283,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   // States for micro-animations and feedback
   const [priceAnimate, setPriceAnimate] = useState(false);
   const [justBidded, setJustBidded] = useState(false);
-  // In-flight bid guard (blocks double-submit) + optimistic price override.
-  const [submitting, setSubmitting] = useState(false);
+  // Optimistic price override (submitting/pending live in useBidFlow below).
   const [optimisticPrice, setOptimisticPrice] = useState<number | null>(null);
   const [toastQueue, setToastQueue] = useState<{ id: string; text: string; icon: string }[]>([]);
   const [activeToast, setActiveToast] = useState<{ id: string; text: string; icon: string } | null>(null);
@@ -406,7 +402,6 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
 
   // --- The bid moment: confirm-then-bid + success rush ---
-  const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [showWinPill, setShowWinPill] = useState(false);
   const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justBiddedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -416,53 +411,38 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
   }, []);
 
-  // Single entry point for starting a bid. Non-members are invited to join
-  // (subscription sheet) BEFORE any confirm — they never reach BidConfirm.
-  // Members get the inline confirm (no accidental bids).
-  const startBid = (amount: number) => {
-    if (!isMember) {
-      setShowSubscriptionPrompt(true);
-      return;
-    }
-    setPendingBid(amount);
-  };
-
-  // Tapping the bid button opens the inline confirm (no accidental bids)
-  const handleLocalBid = () => {
-    startBid(nextBidAmount);
-  };
-
-  // Confirmed: lock the controls (no double-submit), paint the optimistic
-  // "you're winning" state instantly, then await the callable. The subscription
-  // echo reconciles the real price/winner; a rejection rolls the optimism back.
-  const confirmBid = async (amount: number) => {
-    if (submitting) return; // in-flight guard
-    setPendingBid(null);
-    setSubmitting(true);
-
-    // Optimistic UI (reconciled by the subscription echo)
+  // Execute wraps the callable with the reel's optimistic paint: reflect the bid
+  // + "you're winning" instantly, then await. The subscription echo reconciles
+  // the real price/winner; a rejection rolls the optimism back.
+  const executeWithOptimism = async (amount: number) => {
     setOptimisticPrice(amount);
     setJustBidded(true);
     setShowWinPill(true);
     if (winPillTimer.current) clearTimeout(winPillTimer.current);
     winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
 
-    try {
-      const res = await onBidExecute(amount);
-      if (res && res.success) {
-        markFirstBidDone(); // first successful bid retires the first-bid coach
-        if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
-        justBiddedTimer.current = setTimeout(() => setJustBidded(false), 2500);
-      } else {
-        // Rejected (outbid, ended, membership, spam): roll back the optimism —
-        // the real state (outbid banner + toast) governs from here.
-        setOptimisticPrice(null);
-        setJustBidded(false);
-        setShowWinPill(false);
-      }
-    } finally {
-      setSubmitting(false);
+    const res = await onBidExecute(amount);
+    if (res && res.success) {
+      markFirstBidDone(); // first successful bid retires the first-bid coach
+      if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
+      justBiddedTimer.current = setTimeout(() => setJustBidded(false), 2500);
+    } else {
+      // Rejected (outbid, ended, membership, spam): roll back the optimism —
+      // the real state (outbid banner + toast) governs from here.
+      setOptimisticPrice(null);
+      setJustBidded(false);
+      setShowWinPill(false);
     }
+    return res;
+  };
+
+  // Shared bid flow: membership gate (non-members never reach confirm) +
+  // confirm step + in-flight submitting guard. Same handler the details modal uses.
+  const { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
+
+  // Tapping the bid button routes through the shared gate (invite → confirm).
+  const handleLocalBid = () => {
+    startBid(nextBidAmount);
   };
 
   // Anti-snipe drama: red pulsing countdown under 10s (active reel only)
@@ -974,7 +954,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               amount={pendingBid}
               isAr={isAr}
               onConfirm={confirmBid}
-              onCancel={() => setPendingBid(null)}
+              onCancel={cancelBid}
             />
 
             {/* Winning pill: pops over the bidding card on a successful bid */}
