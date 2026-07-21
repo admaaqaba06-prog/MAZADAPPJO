@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
-import { useBidFlow } from '../hooks/useBidFlow';
+import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
 
 interface AuctionDetailsModalProps {
@@ -53,6 +53,34 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
     return result;
   };
   const { pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeBidAmt);
+
+  // Same price-move protection as the reel: if a rival outbids during the confirm
+  // window, re-prompt at the fresh minimum instead of sending the stale amount
+  // (which the server would reject with a generic "minimum bid required").
+  const [priceMoved, setPriceMoved] = useState(false);
+
+  const openConfirm = (amount: number) => {
+    setPriceMoved(false);
+    startBid(amount);
+  };
+
+  const handleConfirm = (amount: number) => {
+    if (!auction) return;
+    const latestMin = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids || 0);
+    const decision = resolveConfirm(amount, latestMin);
+    if (decision.action === 'reprompt') {
+      setPriceMoved(true);
+      startBid(decision.amount); // re-open confirm at the fresh minimum
+      return;
+    }
+    setPriceMoved(false);
+    confirmBid(decision.amount);
+  };
+
+  const handleCancel = () => {
+    setPriceMoved(false);
+    cancelBid();
+  };
 
   // Multi-step custom details derived from lot id helper
   const isRolex = auction?.id?.includes('rolex');
@@ -230,7 +258,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                         <button
                           key={amount}
                           disabled={submitting}
-                          onClick={() => startBid(amount)}
+                          onClick={() => openConfirm(amount)}
                           className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-[10.5px]">
@@ -254,8 +282,9 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                       <BidConfirm
                         amount={pendingBid}
                         isAr={isAr}
-                        onConfirm={confirmBid}
-                        onCancel={cancelBid}
+                        priceMoved={priceMoved}
+                        onConfirm={handleConfirm}
+                        onCancel={handleCancel}
                         className="relative z-10 mt-2 rounded-xl bg-zinc-900 border border-white/10 shadow-xl flex flex-col items-center justify-center gap-2 p-3"
                       />
                     </div>

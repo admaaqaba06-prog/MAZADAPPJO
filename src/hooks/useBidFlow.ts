@@ -4,6 +4,26 @@ import { useApp } from '../context/AppContext';
 type BidResult = { success: boolean; message: string } | void;
 type BidExecute = (amount: number) => Promise<BidResult> | BidResult;
 
+export type ConfirmDecision =
+  | { action: 'reprompt'; amount: number }
+  | { action: 'send'; amount: number };
+
+/**
+ * Decide what a confirm tap should do, given the amount the user staged and the
+ * LATEST minimum next bid for that auction. If a rival outbid during the (≤5s)
+ * confirm window the latest minimum rises above the staged amount, so the
+ * surface must re-prompt at the new minimum ("price moved") instead of sending
+ * a stale amount the server would reject with a generic "minimum bid required".
+ *
+ * Pure + shared so the live reel and the details modal decide this identically.
+ */
+export function resolveConfirm(pendingAmount: number, latestMin: number): ConfirmDecision {
+  if (latestMin > pendingAmount) {
+    return { action: 'reprompt', amount: latestMin };
+  }
+  return { action: 'send', amount: pendingAmount };
+}
+
 /**
  * Shared bid entry flow for every bid surface (live reel + details modal), so a
  * bid can only ever be placed one way. It enforces three guarantees:

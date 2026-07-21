@@ -8,7 +8,7 @@ import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { translations } from '../utils/translations';
-import { useBidFlow } from '../hooks/useBidFlow';
+import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { 
   Volume2, 
   VolumeX, 
@@ -479,13 +479,14 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   // the confirm window, re-prompt at the new min instead of sending the stale
   // amount (which the server would reject). Otherwise send.
   const handleConfirm = (amount: number) => {
-    if (nextBidAmount > amount) {
+    const decision = resolveConfirm(amount, nextBidAmount);
+    if (decision.action === 'reprompt') {
       setPriceMoved(true);
-      startBid(nextBidAmount); // re-open confirm at the fresh minimum
+      startBid(decision.amount); // re-open confirm at the fresh minimum
       return;
     }
     setPriceMoved(false);
-    confirmBid(amount);
+    confirmBid(decision.amount);
   };
 
   const handleCancel = () => {
