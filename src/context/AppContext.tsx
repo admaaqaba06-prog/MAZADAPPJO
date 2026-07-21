@@ -220,6 +220,15 @@ const INITIAL_CHATS: ChatMessage[] = [];
 const INITIAL_ESCROWS: EscrowTransaction[] = [];
 const INITIAL_NOTIFICATIONS: Notification[] = [];
 
+// Bell state contains PRIVATE, cross-user Firestore verdicts (incl. rejection
+// reasons), so it is persisted PER-USER — never under a shared key a later
+// account on the same device could read (Wave E1 review fix).
+const NOTIF_STORE_PREFIX = 'mazad_notifications_';
+const DISMISSED_STORE_PREFIX = 'mazad_dismissed_notif_ids_';
+// Pre-fix shared keys — purged on boot and on logout.
+const LEGACY_NOTIF_KEY = 'mazad_notifications';
+const LEGACY_DISMISSED_KEY = 'mazad_dismissed_notif_ids';
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Transient error feedback: the bell only shows the bidder-relevant
   // allowlist (Wave D), so user-facing failures must ALSO toast.
@@ -308,10 +317,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('mazad_chat_messages');
     return saved ? JSON.parse(saved) : INITIAL_CHATS;
   });
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const saved = localStorage.getItem('mazad_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-  });
+  // Starts empty; the signed-in user's persisted bell is loaded from the
+  // uid-keyed localStorage entry once auth resolves (see effect below).
+  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  // Which uid the keyed bell store has been hydrated for — guards the persist
+  // effect from clobbering another user's entry before hydration.
+  const notifStoreUidRef = useRef<string | null>(null);
+  // IDs of bell entries that were merged from the Firestore /notifications
+  // collection (vs session-local addNotification). Declared here so logout()
+  // can purge it on shared devices.
+  const firestoreNotifIdsRef = useRef<Set<string>>(new Set());
   const [adminActions, setAdminActions] = useState<AdminAction[]>([]);
   const [adminActionsError, setAdminActionsError] = useState<string | undefined>(undefined);
 
@@ -366,9 +381,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_chat_messages', JSON.stringify(chatMessages));
   }, [chatMessages]);
 
+  // One-time purge of the pre-fix SHARED bell keys: they leaked one user's
+  // private verdicts (incl. rejection reasons) to the next account on the
+  // same device. Per-user persistence lives further down (uid-keyed).
   useEffect(() => {
-    localStorage.setItem('mazad_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    try {
+      localStorage.removeItem(LEGACY_NOTIF_KEY);
+      localStorage.removeItem(LEGACY_DISMISSED_KEY);
+    } catch { /* storage unavailable — nothing leaked then */ }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('mazad_admin_actions', JSON.stringify(adminActions));
@@ -1969,9 +1990,25 @@ const fetchIP = async () => {
 
   const logout = useCallback(async () => {
     try {
+      const uid = currentUser?.id;
       await signOut(auth);
       setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
       setIsAuthenticated(false);
+      // Shared-device privacy (Wave E1 review fix): the bell holds PRIVATE
+      // cross-user verdicts (incl. rejection reasons) — purge the in-memory
+      // list, the persisted per-user entries, the dismissed-ids cache and the
+      // Firestore-merge bookkeeping so the next account sees nothing.
+      setNotifications([]);
+      firestoreNotifIdsRef.current = new Set();
+      notifStoreUidRef.current = null;
+      try {
+        if (uid) {
+          localStorage.removeItem(`${NOTIF_STORE_PREFIX}${uid}`);
+          localStorage.removeItem(`${DISMISSED_STORE_PREFIX}${uid}`);
+        }
+        localStorage.removeItem(LEGACY_NOTIF_KEY);
+        localStorage.removeItem(LEGACY_DISMISSED_KEY);
+      } catch { /* storage unavailable — nothing persisted then */ }
       setWallet({
         userId: 'user-current',
         totalBalance: 0,
@@ -1981,7 +2018,7 @@ const fetchIP = async () => {
     } catch (error) {
       console.error("Logout error:", error);
     }
-  }, []);
+  }, [currentUser?.id]);
 
   const registerUser = useCallback(async (name: string, email: string, password = '', phone = '') => {
     const cleanEmail = email.toLowerCase().trim();
@@ -2288,16 +2325,43 @@ const fetchIP = async () => {
   // user's Firestore notification docs into the bell state, mapped to the
   // device language. Locally-removed ones are remembered in localStorage so
   // the live subscription doesn't resurrect them.
-  const firestoreNotifIdsRef = useRef<Set<string>>(new Set());
+  // (firestoreNotifIdsRef is declared next to the notifications state so
+  // logout() can purge it — shared-device privacy.)
   const notificationsStateRef = useRef<Notification[]>(notifications);
   useEffect(() => {
     notificationsStateRef.current = notifications;
   }, [notifications]);
 
+  // Hydrate the bell from the CURRENT user's uid-keyed store on sign-in.
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id || currentUser.id === DEFAULT_UNAUTHENTICATED_USER.id) {
+      notifStoreUidRef.current = null;
+      return;
+    }
+    if (notifStoreUidRef.current === currentUser.id) return;
+    let hydrated: Notification[] = INITIAL_NOTIFICATIONS;
+    try {
+      const saved = localStorage.getItem(`${NOTIF_STORE_PREFIX}${currentUser.id}`);
+      if (saved) hydrated = JSON.parse(saved);
+    } catch { /* corrupted entry — start clean */ }
+    notifStoreUidRef.current = currentUser.id;
+    setNotifications(hydrated);
+  }, [isAuthenticated, currentUser?.id]);
+
+  // Persist the bell PER-USER (uid-keyed) — never under a shared key.
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id || notifStoreUidRef.current !== currentUser.id) return;
+    try {
+      localStorage.setItem(`${NOTIF_STORE_PREFIX}${currentUser.id}`, JSON.stringify(notifications));
+    } catch { /* storage full/unavailable — bell simply won't persist */ }
+  }, [notifications, isAuthenticated, currentUser?.id]);
+
   useEffect(() => {
     if (!isAuthenticated || !currentUser?.id) return;
 
-    const DISMISSED_KEY = 'mazad_dismissed_notif_ids';
+    // uid-keyed for the same reason as the bell store: dismissals must not
+    // bleed across accounts on a shared device.
+    const DISMISSED_KEY = `${DISMISSED_STORE_PREFIX}${currentUser.id}`;
     const readDismissed = (): Set<string> => {
       try {
         return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]'));
