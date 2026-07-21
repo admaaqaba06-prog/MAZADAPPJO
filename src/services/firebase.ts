@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
-  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "mazadappjo.vercel.app",
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "mazad-jo.com",
   projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || "mazadjoapp",
   storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || "mazadjoapp.firebasestorage.app",
   messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || "622832200971",
