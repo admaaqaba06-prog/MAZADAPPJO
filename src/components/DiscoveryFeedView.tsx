@@ -658,7 +658,7 @@ export const DiscoveryFeedView: React.FC = () => {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
               <span className="flex items-center gap-1">
                 <span className="text-[#FF6B00] font-black">①</span>
-                {isAr ? 'انضم بدينار واحد' : 'Join for 1 JD'}
+                {isAr ? 'انضم من ١ دينار بالشهر' : 'Join from 1 JD/mo'}
               </span>
               <span className="text-orange-200">•</span>
               <span className="flex items-center gap-1">
@@ -926,10 +926,11 @@ export const DiscoveryFeedView: React.FC = () => {
                 onClick={() =>
                   showToast({
                     type: 'success',
-                    title: isAr ? 'رح نعلمك 🔔' : "We'll let you know 🔔",
+                    title: isAr ? 'تابع قناتنا 🔔' : 'Follow our channel 🔔',
                     message: isAr
-                      ? 'أول ما يبدأ المزاد الجاي بيوصلك إشعار.'
-                      : "You'll get a notification the moment the next drop goes live.",
+                      ? 'تابع قناتنا على واتساب ليوصلك كل مزاد جديد أول بأول.'
+                      : "Follow our WhatsApp channel to catch every new drop first.",
+                    // NOTE: in-app drop-follow alerts land in Wave D; until then we point to the channel.
                   })
                 }
                 className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
