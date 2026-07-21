@@ -158,7 +158,7 @@ interface AppContextProps {
   registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
   loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
-  subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string) => Promise<boolean>;
+  subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
   
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
@@ -2458,8 +2458,11 @@ const fetchIP = async () => {
     }
   }, [currentUser]);
 
-  const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string): Promise<boolean> => {
-    const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
+  const subscribeUser = useCallback(async (price: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string): Promise<boolean> => {
+    // Prefer the explicit plan id from the UI. The price-based fallback is a
+    // safety net only — and it must NOT re-introduce the Wave C bug where the
+    // 4 JD tier fell through to 'annual' (365 days). Tiers: 1 JD/mo · 4 JD/6mo · 7 JD/yr.
+    const plan = planId || (price === 1 ? 'monthly' : price === 7 ? 'annual' : 'semiannual');
 
     if (!currentUser) {
       const loginTitle = language === 'ar' ? '❌ خطأ' : '❌ Error';
