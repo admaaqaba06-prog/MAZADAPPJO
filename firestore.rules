@@ -58,13 +58,15 @@ service cloud.firestore {
     // 2. Auctions block
     match /auctions/{auctionId} {
       allow read: if true;
-      // Non-admins may only create a 'pending' auction with NO auto-open schedule (still requires
-      // admin approval to go live). Only admins can create live/active/upcoming or set scheduledStartAt.
-      // Prevents a signed-in user from injecting a live auction directly or one that auto-opens.
+      // Non-admins may only create an under-review auction ('processing' — the standardized
+      // pending-review status; legacy 'pending' still accepted) with NO auto-open schedule
+      // (still requires admin approval to go live). Only admins can create live/active/upcoming
+      // or set scheduledStartAt. Prevents a signed-in user from injecting a live auction
+      // directly or one that auto-opens.
       allow create: if isSignedIn() && request.resource.data.createdById == request.auth.uid && (
         isAdmin() ||
         (
-          request.resource.data.status == 'pending' &&
+          request.resource.data.status in ['processing', 'pending'] &&
           (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
         )
       );

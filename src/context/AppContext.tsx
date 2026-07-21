@@ -2657,7 +2657,7 @@ const fetchIP = async () => {
     videoFile?: File | Blob | null,
     thumbnailFile?: File | Blob | null,
     onProgress?: (progress: number, stage: 'video' | 'thumbnail' | 'saving') => void,
-    initialStatus: string = 'pending'
+    initialStatus: string = 'processing'
   ) => {
     if (!currentUser) {
       const errMsg = language === 'ar' ? 'يجب تسجيل الدخول لرفع المزاد.' : 'User must be logged in to upload a listing.';
@@ -2817,7 +2817,7 @@ const fetchIP = async () => {
       sellerId: currentUser.id,
       sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
       sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
-      status: initialStatus, // Save under the requested status (default 'pending') so Admin can review and approve
+      status: initialStatus, // Save under the requested status (default 'processing' = awaiting Mazad review) so Admin can approve/reject
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
       approvalStatus: 'pending',

@@ -435,7 +435,7 @@ export const SellerCenterView: React.FC = () => {
     return {
       upcoming: myAuctions.filter(a => a.status === 'upcoming' && a.approvalStatus !== 'rejected'),
       live: myAuctions.filter(a => a.status === 'live'),
-      pending: myAuctions.filter(a => a.status === 'pending' || a.approvalStatus === 'pending'),
+      pending: myAuctions.filter(a => a.status === 'processing' || a.status === 'pending' || a.approvalStatus === 'pending'),
       completed: myAuctions.filter(a => a.status === 'completed'),
       rejected: myAuctions.filter(a => a.status === 'rejected' || a.approvalStatus === 'rejected')
     };
