@@ -37,13 +37,33 @@ export function isValidCityId(x: unknown): boolean {
 }
 
 /**
+ * Names that look like a phone number (all digits / E.164, optionally with
+ * spaces or dashes). Legacy phone signups were created with
+ * `name = firebaseUser.phoneNumber` — that must never count as a real name.
+ */
+const PHONE_LIKE_NAME = /^\+?[\d][\d\s-]{5,}$/;
+
+/**
+ * True when the user still needs to provide a real display name:
+ * missing/blank, the phone-signup placeholder 'User', or a name that is
+ * really a phone number (legacy docs created before the placeholder fix).
+ */
+export function needsName(user: any): boolean {
+  if (!user) return true;
+  const name = typeof user.name === 'string' ? user.name.trim() : '';
+  if (!name || name === 'User') return true;
+  return PHONE_LIKE_NAME.test(name);
+}
+
+/**
  * A profile is complete when the user has a real name (phone signups get the
- * placeholder 'User') and a city. Email is optional — receipts only — and is
- * deliberately NOT part of completeness.
+ * placeholder 'User'; a phone-number-looking name doesn't count either) and a
+ * city. Email is optional — receipts only — and is deliberately NOT part of
+ * completeness.
  */
 export function isProfileComplete(user: any): boolean {
   if (!user) return false;
-  if (!user.name || user.name === 'User') return false;
+  if (needsName(user)) return false;
   if (!user.city) return false;
   return true;
 }

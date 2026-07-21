@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
-import { JORDAN_GOVERNORATES, isProfileComplete } from '../utils/jordanCities';
+import { JORDAN_GOVERNORATES, isProfileComplete, isValidCityId, needsName } from '../utils/jordanCities';
 import { UserRound, MapPin, Mail, ArrowRight, ArrowLeft } from 'lucide-react';
 
 /**
@@ -22,11 +22,17 @@ export const ProfileCompletionModal: React.FC = () => {
   const t = translations[language as 'en' | 'ar'];
   const isAr = language === 'ar';
 
-  const needsName = !currentUser?.name || currentUser.name === 'User';
+  // Shared rule (jordanCities.needsName): blank, the 'User' placeholder, or a
+  // phone-number-looking name all require a real name to be entered here.
+  const showNameField = needsName(currentUser);
   const needsEmail = !currentUser?.email;
 
   const [name, setName] = useState('');
-  const [city, setCity] = useState('');
+  // Seed from the account when it already holds a valid governorate id (e.g.
+  // a user with a real city but a placeholder name shouldn't re-pick it).
+  const [city, setCity] = useState(() =>
+    currentUser?.city && isValidCityId(currentUser.city) ? currentUser.city : ''
+  );
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -39,7 +45,7 @@ export const ProfileCompletionModal: React.FC = () => {
     e.preventDefault();
     if (saving) return;
 
-    if (needsName && !name.trim()) {
+    if (showNameField && !name.trim()) {
       setFieldError(t.profileNameRequired);
       return;
     }
@@ -51,7 +57,7 @@ export const ProfileCompletionModal: React.FC = () => {
     setSaving(true);
     try {
       const fields: { name?: string; city?: string; email?: string } = { city };
-      if (needsName) fields.name = name.trim();
+      if (showNameField) fields.name = name.trim();
       if (needsEmail && email.trim()) fields.email = email.trim();
 
       const result = await updateOwnProfile(fields);
@@ -93,7 +99,7 @@ export const ProfileCompletionModal: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Name — only when the account still has the placeholder */}
-          {needsName && (
+          {showNameField && (
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <UserRound className="w-3.5 h-3.5" />

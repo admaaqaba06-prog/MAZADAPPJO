@@ -8,6 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
+import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
@@ -871,7 +872,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           let loadedUser: User;
           
           if (!userSnap.exists()) {
-            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : (firebaseUser.phoneNumber || 'User');
+            // Phone signups have no displayName/email — NEVER fall back to the
+            // phone number as the public bidder name (it would leak into chat/
+            // bids and defeat the profile-completion gate). 'User' matches the
+            // server onUserCreated placeholder, so no double-prompt later.
+            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
             const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
             
             const newSessionId = generateSessionId();
@@ -3858,7 +3863,10 @@ const fetchIP = async () => {
     if (typeof fields.name === 'string' && fields.name.trim()) {
       updates.name = fields.name.trim();
     }
-    if (typeof fields.city === 'string' && fields.city.trim()) {
+    // Only persist a known governorate id — silently skip garbage so a bad
+    // caller can't write an invalid city (the modal's <select> already
+    // constrains it; this guards future callers).
+    if (typeof fields.city === 'string' && isValidCityId(fields.city.trim())) {
       updates.city = fields.city.trim();
     }
     // Email: only if the account has no email yet AND a non-empty one was passed.

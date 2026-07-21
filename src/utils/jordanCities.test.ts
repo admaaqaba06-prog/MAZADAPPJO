@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { JORDAN_GOVERNORATES, CITY_IDS, isValidCityId, isProfileComplete } from './jordanCities';
+import { JORDAN_GOVERNORATES, CITY_IDS, isValidCityId, isProfileComplete, needsName } from './jordanCities';
 
 describe('JORDAN_GOVERNORATES', () => {
   it('contains exactly the 12 governorates of Jordan', () => {
@@ -66,8 +66,42 @@ describe('isProfileComplete', () => {
     expect(isProfileComplete({ name: 'Tareq', email: 'a@b.com' })).toBe(false);
   });
 
+  it('is false when the name is really a phone number (legacy phone signups)', () => {
+    expect(isProfileComplete({ name: '+962791234567', city: 'amman', email: '' })).toBe(false);
+    expect(isProfileComplete({ name: '0791234567', city: 'amman', email: '' })).toBe(false);
+  });
+
   it('is true when name + city are set — email is irrelevant', () => {
     expect(isProfileComplete({ name: 'Tareq', city: 'amman', email: '' })).toBe(true);
     expect(isProfileComplete({ name: 'Tareq', city: 'irbid', email: 'a@b.com' })).toBe(true);
+    expect(isProfileComplete({ name: 'Ahmad', city: 'amman', email: '' })).toBe(true);
+  });
+});
+
+describe('needsName', () => {
+  it('is true for null/undefined user', () => {
+    expect(needsName(null)).toBe(true);
+    expect(needsName(undefined)).toBe(true);
+  });
+
+  it("is true for blank or the 'User' placeholder", () => {
+    expect(needsName({ name: '' })).toBe(true);
+    expect(needsName({ name: '   ' })).toBe(true);
+    expect(needsName({ name: 'User' })).toBe(true);
+    expect(needsName({})).toBe(true);
+  });
+
+  it('is true for phone-number-looking names (E.164 and local formats)', () => {
+    expect(needsName({ name: '+962791234567' })).toBe(true);
+    expect(needsName({ name: '0791234567' })).toBe(true);
+    expect(needsName({ name: '079 123 4567' })).toBe(true);
+    expect(needsName({ name: '079-123-4567' })).toBe(true);
+  });
+
+  it('is false for real names', () => {
+    expect(needsName({ name: 'Ahmad' })).toBe(false);
+    expect(needsName({ name: 'Tareq Al-Omari' })).toBe(false);
+    // Short digit strings are not phone-like (pattern requires 6+ chars).
+    expect(needsName({ name: 'Abu 79' })).toBe(false);
   });
 });
