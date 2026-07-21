@@ -15,11 +15,14 @@ import {
   Tv,
   CheckCircle,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { placeAuctionBid } from '../services/auctionService';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { serverNow } from '../utils/serverTime';
+import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
+import { BidConfirm } from './feedback';
 
 interface AuctionDetailsModalProps {
   auctionId: string | null;
@@ -36,6 +39,50 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
   const [feedback, setFeedback] = useState<{ type: 'success' | 'err'; msg: string } | null>(null);
   const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
 
+  // Route bids through the SAME shared flow as the live reel: membership gate
+  // (non-members are invited to join, never single-tap a bid) + confirm step +
+  // submitting guard. (Hooks must run before the `!auction` early return.)
+  const executeBidAmt = async (amt: number) => {
+    if (!auction) return;
+    setFeedback(null);
+    const result = await placeBid(auction.id, amt);
+    if (result.success) {
+      setFeedback({ type: 'success', msg: isAr ? `🚀 تم تقديم مزايدتكم بقيمة ${amt.toLocaleString()} د.أ بنجاح!` : `🚀 Bid of ${amt.toLocaleString()} JOD logged successfully!` });
+    } else {
+      setFeedback({ type: 'err', msg: result.message });
+    }
+    return result;
+  };
+  const { pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeBidAmt);
+
+  // Same price-move protection as the reel: if a rival outbids during the confirm
+  // window, re-prompt at the fresh minimum instead of sending the stale amount
+  // (which the server would reject with a generic "minimum bid required").
+  const [priceMoved, setPriceMoved] = useState(false);
+
+  const openConfirm = (amount: number) => {
+    setPriceMoved(false);
+    startBid(amount);
+  };
+
+  const handleConfirm = (amount: number) => {
+    if (!auction) return;
+    const latestMin = minNextBid(auction.currentPrice, auction.minIncrement, auction.totalBids || 0);
+    const decision = resolveConfirm(amount, latestMin);
+    if (decision.action === 'reprompt') {
+      setPriceMoved(true);
+      startBid(decision.amount); // re-open confirm at the fresh minimum
+      return;
+    }
+    setPriceMoved(false);
+    confirmBid(decision.amount);
+  };
+
+  const handleCancel = () => {
+    setPriceMoved(false);
+    cancelBid();
+  };
+
   // Multi-step custom details derived from lot id helper
   const isRolex = auction?.id?.includes('rolex');
   const isPorsche = auction?.id?.includes('porsche');
@@ -50,7 +97,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
   useEffect(() => {
     if (!auction) return;
     const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((auction.endTime - Date.now()) / 1000));
+      const remainingSecs = Math.max(0, Math.floor((auction.endTime - serverNow()) / 1000));
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);
@@ -67,18 +114,6 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
   }, [auction, isAr]);
 
   if (!auction) return null;
-
-  const handlePlaceBidAmt = async (amt: number) => {
-    setFeedback(null);
-    const result = await placeBid(auction.id, amt);
-    if (result.success) {
-       setFeedback({ type: 'success', msg: isAr ? `🚀 تم تقديم مزايدتكم بقيمة ${amt.toLocaleString()} د.أ بنجاح!` : `🚀 Bid of ${amt.toLocaleString()} JOD logged successfully!` });
-    } else {
-      setFeedback({ type: 'err', msg: result.message });
-    }
-  };
-
-  const currentBidCTA = auction.currentPrice + (auction.totalBids > 0 ? auction.minIncrement : 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-zinc-950/65 backdrop-blur-xs">
@@ -223,8 +258,9 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                       {[base, base + inc, base + 2 * inc, base + 3 * inc].map(amount => (
                         <button
                           key={amount}
-                          onClick={() => handlePlaceBidAmt(amount)}
-                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95"
+                          disabled={submitting}
+                          onClick={() => openConfirm(amount)}
+                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-[10.5px]">
                             {amount > auction.currentPrice
@@ -240,6 +276,26 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                         ? `المجموع عند الفوز: ${totalWithPremium(base).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
                         : `Total if you win: ${totalWithPremium(base).toLocaleString()} JOD (incl. 5% buyer's premium)`}
                     </p>
+
+                    {/* Confirm step (same as the reel) — non-members never reach here;
+                        they are sent to the subscription sheet by startBid. */}
+                    <div className="relative min-h-0">
+                      <BidConfirm
+                        amount={pendingBid}
+                        isAr={isAr}
+                        priceMoved={priceMoved}
+                        onConfirm={handleConfirm}
+                        onCancel={handleCancel}
+                        className="relative z-10 mt-2 rounded-xl bg-zinc-900 border border-white/10 shadow-xl flex flex-col items-center justify-center gap-2 p-3"
+                      />
+                    </div>
+
+                    {submitting && (
+                      <p className="flex items-center justify-center gap-2 text-[11px] text-[#FF6B00] font-bold mt-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        {isAr ? 'جارٍ إرسال المزايدة…' : 'Placing your bid…'}
+                      </p>
+                    )}
                   </>
                 );
               })()}
