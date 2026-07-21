@@ -11,6 +11,7 @@ import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
+import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 
 // Countdown tick sound
@@ -397,7 +398,12 @@ export const LiveStreamView: React.FC = () => {
 
   const handleShareClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(window.location.href);
+    // Copy the canonical deep link (/?auction=<id>), not window.location.href —
+    // in-app nav keeps the URL clean so href would otherwise share the homepage.
+    const shareUrl = activeAuctionId
+      ? buildAuctionUrl(activeAuctionId, window.location.origin)
+      : window.location.href;
+    navigator.clipboard.writeText(shareUrl);
     triggerToast(isAr ? '🔗 تم نسخ رابط البث لمشاركته!' : '🔗 Broadcast link copied to clipboard!');
   };
 

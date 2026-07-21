@@ -8,6 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
+import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -431,12 +432,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   */
 
   // Navigation / views
-  const [activeAuctionId, setActiveAuctionId] = useState<string | null>('auction-rolex');
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder'>('discovery');
+  //
+  // Seed the initial nav node from the entry URL so a deep-link / refresh lands
+  // on the right view in the FIRST render — the History-API sync effect below
+  // then replaceState()s it (no phantom entry). parseNav normalizes a Firebase
+  // auth-redirect callback to a neutral discovery so OAuth is never routed.
+  const initialNav = parseNav(typeof window !== 'undefined' ? window.location.search : '');
+  const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // History-API sync layer
+  // ---------------------------------------------------------------------------
+  // The router is state-based (activeView / activeAuctionId + overlay flags), so
+  // the browser never had more than one history entry and hardware/gesture Back
+  // exited the app. This mirrors the nav node into window.history:
+  //   - a real in-app navigation -> pushState (adds a Back target)
+  //   - initial mount / deep-link entry -> replaceState (no phantom entry)
+  //   - Back/Forward (popstate) -> apply the popped node WITHOUT re-pushing
+  //
+  // Overlays wired to Back (each pushes its own entry so Back closes it first
+  // instead of leaving the app): post-win review prompt, subscription prompt,
+  // notifications panel, and the global order-details modal.
+
+  // Serialized search string currently reflected in the top history entry. The
+  // sync effect only pushes when the derived node differs from this; the popstate
+  // handler pre-sets it to the popped node so applying that node never re-pushes
+  // (breaks the push<->pop loop).
+  const historyNodeRef = useRef<string | null>(null);
+  const historyInitRef = useRef<boolean>(false);
+
+  const deriveNavNode = useCallback((): NavNode => {
+    const node: NavNode = { view: activeView };
+    if (activeView === 'live' && activeAuctionId) node.auctionId = activeAuctionId;
+
+    // Top-most overlay (only one is meaningfully open at a time; priority order
+    // is a blocking review gate, then subscription, notifications, order).
+    if (reviewPromptOrderId) {
+      node.modal = 'review';
+      node.modalParam = { key: 'order', value: reviewPromptOrderId };
+    } else if (showSubscriptionPrompt) {
+      node.modal = 'subscription';
+    } else if (showNotifications) {
+      node.modal = 'notifications';
+    } else if (globalSelectedOrderId) {
+      node.modal = 'order';
+      node.modalParam = { key: 'order', value: globalSelectedOrderId };
+    }
+    return node;
+  }, [activeView, activeAuctionId, reviewPromptOrderId, showSubscriptionPrompt, showNotifications, globalSelectedOrderId]);
+
+  // Apply a nav node coming from Back/Forward to app state. auctionId is only set
+  // when present so a discovery pop doesn't nuke the live-view default.
+  const applyNavNode = useCallback((node: NavNode) => {
+    setActiveView(node.view);
+    if (node.auctionId) setActiveAuctionId(node.auctionId);
+    setShowNotifications(node.modal === 'notifications');
+    setShowSubscriptionPrompt(node.modal === 'subscription');
+    setReviewPromptOrderId(node.modal === 'review' ? (node.modalParam?.value ?? null) : null);
+    setGlobalSelectedOrderId(node.modal === 'order' ? (node.modalParam?.value ?? null) : null);
+  }, []);
+
+  // Push/replace on real navigation (skips no-op / popstate-applied changes).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const node = deriveNavNode();
+    const search = serializeNav(node);
+    const prevSearch = historyNodeRef.current;
+    if (prevSearch === search) return; // already in history (e.g. from a pop)
+    const url = search || window.location.pathname;
+    if (!historyInitRef.current) {
+      // Initial mount / deep-link entry: seed the top entry, no phantom push.
+      historyInitRef.current = true;
+      window.history.replaceState(node, '', url);
+    } else if (prevSearch !== null && isModalCloseTransition(parseNav(prevSearch), node)) {
+      // A wired modal was closed by its X/close button (view/auction unchanged).
+      // Collapse the modal entry in place instead of pushing a new clean one —
+      // otherwise history becomes [view, modal, view'] and Back reopens the modal.
+      window.history.replaceState(node, '', url);
+    } else {
+      // Real in-app navigation (view change, or opening a modal): add a Back target.
+      window.history.pushState(node, '', url);
+    }
+    historyNodeRef.current = search;
+  }, [deriveNavNode]);
+
+  // Single popstate listener (mounted once). Reads the popped node from
+  // event.state (fallback: parse the current URL) and applies it. Pre-setting
+  // historyNodeRef guards the sync effect above from re-pushing.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = (event: PopStateEvent) => {
+      const raw = event.state as NavNode | null;
+      const node: NavNode = raw && raw.view ? raw : parseNav(window.location.search);
+      historyNodeRef.current = serializeNav(node);
+      applyNavNode(node);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [applyNavNode]);
 
   // Watchlist & Auto-bid state hooks
   const [watchlist, setWatchlist] = useState<string[]>(() => {

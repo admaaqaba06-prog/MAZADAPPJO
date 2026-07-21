@@ -325,14 +325,8 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 select-none shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
           
           {/* Back button */}
-          <button 
-            onClick={() => {
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                setActiveView('discovery');
-              }
-            }}
+          <button
+            onClick={() => setActiveView('discovery')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors cursor-pointer font-bold tracking-wide"
           >
             <span className="text-sm font-sans">{isAr ? '←' : '←'}</span>
