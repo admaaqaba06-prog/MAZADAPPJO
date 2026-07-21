@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ListingWizardView } from './ListingWizardView';
+import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
 import {
   Store,
   Handshake,
@@ -39,6 +40,7 @@ export const SellView: React.FC = () => {
   const [cName, setCName] = useState('');
   const [cDesc, setCDesc] = useState('');
   const [cCondition, setCCondition] = useState<'new' | 'used' | null>(null);
+  const [cChannel, setCChannel] = useState<DropChannel | null>(null);
   const [cPrice, setCPrice] = useState('');
   const [cContact, setCContact] = useState(currentUser?.phone || currentUser?.phoneNumber || '');
   const [cPhotos, setCPhotos] = useState<{ file: File; url: string }[]>([]);
@@ -70,6 +72,10 @@ export const SellView: React.FC = () => {
     }
     if (!cCondition) {
       setCError(isAr ? 'حدد حالة المنتج: جديد أو مستعمل.' : 'Select the item condition: new or used.');
+      return;
+    }
+    if (!cChannel) {
+      setCError(isAr ? 'اختر فئة المنتج: هواتف أو سيارات أو منوعات.' : 'Choose a category: phones, cars, or misc.');
       return;
     }
     const priceNum = Number(cPrice);
@@ -115,8 +121,11 @@ export const SellView: React.FC = () => {
         {
           title: cName.trim(),
           description: cDesc.trim() || cName.trim(),
-          // The Mazad team completes/corrects details (incl. category) before approving.
-          category: 'Fashion',
+          // Seller picks the drop channel; category is derived from it (same
+          // mapping the self-serve drop builder uses) so discovery filters and
+          // media fallbacks line up. The Mazad team can still refine before approving.
+          channel: cChannel,
+          category: channelToCategory(cChannel),
           startingPrice: priceNum,
           minIncrement: Math.max(5, Math.round(priceNum * 0.05)),
           videoUrl: '',
@@ -304,6 +313,34 @@ export const SellView: React.FC = () => {
                       {opt.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Category / channel (required) */}
+              <div className="space-y-1">
+                <label className="block text-gray-600">{isAr ? 'فئة المنتج' : 'Category'}</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {DROP_CHANNELS.map(opt => {
+                    const label = opt.value === 'phones'
+                      ? (isAr ? 'هواتف' : 'Phones')
+                      : opt.value === 'cars'
+                        ? (isAr ? 'سيارات' : 'Cars')
+                        : (isAr ? 'منوعات' : 'Misc');
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCChannel(opt.value)}
+                        className={`py-3 rounded-xl font-black text-center border transition-all cursor-pointer ${
+                          cChannel === opt.value
+                            ? 'bg-[#FF6B00] border-transparent text-white shadow-sm'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
