@@ -275,6 +275,15 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
   const [isChatHidden, setIsChatHidden] = useState(false);
+  // Prominent first-play "tap for sound" affordance: video autoplays muted
+  // (browser policy), so surface a big one-tap unmute over the video. Latches
+  // dismissed the moment the viewer unmutes so it never nags again.
+  const [unmutePromptDismissed, setUnmutePromptDismissed] = useState(false);
+
+  // Once the stream is unmuted, retire the prompt for good.
+  useEffect(() => {
+    if (!isMuted) setUnmutePromptDismissed(true);
+  }, [isMuted]);
 
   // States for micro-animations and feedback
   const [priceAnimate, setPriceAnimate] = useState(false);
@@ -608,6 +617,24 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
             <Play className="w-5 h-5 ml-0.5 fill-white text-white" />
           </div>
         </div>
+      )}
+
+      {/* Prominent one-tap unmute affordance — shown over the video on first
+          play while muted, dismissed permanently once the viewer unmutes. */}
+      {isActive && isPlaying && isMuted && !unmutePromptDismissed && (
+        <button
+          onClick={(e) => {
+            onMuteToggle(e);
+            setUnmutePromptDismissed(true);
+          }}
+          className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 flex justify-center animate-fade-in pointer-events-none"
+          aria-label={isAr ? 'اضغط للصوت' : 'Tap for sound'}
+        >
+          <span className="pointer-events-auto inline-flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/20 text-white px-5 py-3 rounded-full shadow-2xl text-sm font-black active:scale-95 transition-transform cursor-pointer">
+            <Volume2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{isAr ? '🔊 اضغط للصوت' : '🔊 Tap for sound'}</span>
+          </span>
+        </button>
       )}
 
       {isActive && (
