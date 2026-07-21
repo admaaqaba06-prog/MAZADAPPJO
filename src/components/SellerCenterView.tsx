@@ -584,7 +584,9 @@ export const SellerCenterView: React.FC = () => {
     try {
       const newId = `auction-dup-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
       // Strip the source's review-gate artifacts — a copy is a fresh submission.
-      const { id, rejectionReason, rejectedAt, rejectedBy, approvedAt, approvedBy, ...dataToCopy } = auction as any;
+      const { id, rejectionReason, rejectedAt, rejectedBy, approvedAt, approvedBy,
+        scheduledStartAt, winnerId, winnerName, winnerEmail, winnerPhone, winnerCity,
+        ...dataToCopy } = auction as any;
       
       const endsAtMillis = Date.now() + (auction.duration || 3600) * 1000;
       const duplicated: any = {

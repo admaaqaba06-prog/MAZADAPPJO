@@ -67,7 +67,20 @@ service cloud.firestore {
         isAdmin() ||
         (
           request.resource.data.status in ['processing', 'pending'] &&
-          (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
+          (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null) &&
+          // Prevent seeding forged bid/winner/approval state that would survive admin approval
+          // (fake social-proof wins + inflated bid floor). createListing writes none of these
+          // (or writes the safe values checked below); the duplicate flow writes nulls/zeros.
+          (!('currentBidderId' in request.resource.data) || request.resource.data.currentBidderId == null) &&
+          (!('currentBidderName' in request.resource.data) || request.resource.data.currentBidderName == null) &&
+          (!('winnerId' in request.resource.data) || request.resource.data.winnerId == null) &&
+          (!('winnerName' in request.resource.data) || request.resource.data.winnerName == null) &&
+          (!('winnerEmail' in request.resource.data) || request.resource.data.winnerEmail == null) &&
+          (!('winnerPhone' in request.resource.data) || request.resource.data.winnerPhone == null) &&
+          (!('totalBids' in request.resource.data) || request.resource.data.totalBids == 0) &&
+          (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false) &&
+          (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus == 'pending') &&
+          (!('currentPrice' in request.resource.data) || request.resource.data.currentPrice == request.resource.data.startingPrice)
         )
       );
       // Non-admin (creator) updates are confined to the REVIEW states: they may
