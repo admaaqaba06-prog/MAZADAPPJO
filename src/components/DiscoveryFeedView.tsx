@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
+import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
-import { getFirstLiveAuction } from '../utils/auctionPhase';
+import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
 import { 
   Flame, 
   Search, 
@@ -431,6 +432,10 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView('live');
   };
 
+  // Genuinely live right now (status 'live' AND not past endTime) — drives the
+  // live-now strip, the primary route into the bidding room from Discover.
+  const liveNowAuctions = getLiveAuctions<AuctionItem>(auctions);
+
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
   const handleWatchLive = () => {
@@ -504,6 +509,35 @@ export const DiscoveryFeedView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Live-now strip: the primary route into the bidding room from Discover.
+          Hidden when nothing is genuinely live. */}
+      {liveNowAuctions.length > 0 && (
+        <motion.button
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          onClick={handleWatchLive}
+          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl px-4 py-2.5 shadow-md shadow-red-600/20 transition-colors cursor-pointer active:scale-[0.99]"
+          id="live-now-strip"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <span className="text-xs font-black tracking-tight truncate">
+              {isAr
+                ? `🔴 مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
+                : `🔴 Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider shrink-0 bg-white/15 rounded-full px-2.5 py-1">
+            <Play className="w-3 h-3 fill-white" />
+            <span>{isAr ? 'ادخل البث' : 'Watch'}</span>
+          </span>
+        </motion.button>
+      )}
 
       {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
       <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
