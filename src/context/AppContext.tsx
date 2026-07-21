@@ -1227,8 +1227,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (auctionSubMode === 'admin') {
       // In Seller Center, Drop Builder & Admin dashboard, fetch auctions of
       // EVERY status (incl. 'processing'/'rejected'/'completed') capped at 100 —
-      // the admin approval queue and winners panel need the full set.
-      q = query(auctionsRefCol, limit(100));
+      // the admin approval queue and winners panel need the full set. Order by
+      // newest first so a fresh 'processing' listing always lands inside the
+      // window: with no ordering, an unbounded read past 100 auctions could
+      // strand a new listing outside the cap and it would never surface for
+      // approval.
+      q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(100));
     } else {
       // On Discovery / Live views, subscribe ONLY to active/non-ended auctions
       q = query(
