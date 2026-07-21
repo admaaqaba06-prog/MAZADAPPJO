@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -15,6 +15,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+// Persist the session in localStorage so it survives full app reopens (default
+// on web, but set explicitly to guard against environments that default to
+// session/none). Async and non-blocking — never await it at module init.
+setPersistence(auth, browserLocalPersistence).catch((e) =>
+  console.warn("[firebase] Failed to set auth persistence:", e)
+);
 export const db = getFirestore(app);
 
 // Lazy loaders to prevent firebase/storage and firebase/functions from being bundled on initial page load
