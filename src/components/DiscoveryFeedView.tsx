@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
-import { WinCelebration, useWinDetection } from './feedback';
+import { WinCelebration, useWinDetection, useToast } from './feedback';
+import { getFirstLiveAuction } from '../utils/auctionPhase';
 import { 
   Flame, 
   Search, 
@@ -297,6 +298,7 @@ export const DiscoveryFeedView: React.FC = () => {
     setGlobalSelectedOrderId
   } = useApp();
   
+  const { showToast } = useToast();
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -429,6 +431,24 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView('live');
   };
 
+  // Dead-stream guard: only enter the live room when an auction is genuinely
+  // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
+  const handleWatchLive = () => {
+    // Explicit type arg: useApp() is untyped here (circular import), so
+    // inference would otherwise collapse to the helper's constraint.
+    const firstLive = getFirstLiveAuction<AuctionItem>(auctions);
+    if (firstLive) {
+      setActiveAuctionId(firstLive.id);
+      setActiveView('live');
+    } else {
+      showToast({
+        type: 'info',
+        title: isAr ? 'لا توجد مزادات مباشرة حالياً' : 'No live auctions right now',
+        message: isAr ? 'تفقد المواعيد القادمة — البث يبدأ قريباً.' : 'Check the upcoming drops — the next stream starts soon.',
+      });
+    }
+  };
+
   return (
     <div 
       className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-4 overscroll-contain select-none font-sans"
@@ -498,14 +518,8 @@ export const DiscoveryFeedView: React.FC = () => {
           </p>
         </div>
         <div>
-          <button 
-            onClick={() => {
-              const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
-              if (firstLive) {
-                setActiveAuctionId(firstLive.id);
-              }
-              setActiveView('live');
-            }}
+          <button
+            onClick={handleWatchLive}
             className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />

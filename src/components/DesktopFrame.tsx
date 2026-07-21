@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { getLiveAuctions } from '../utils/auctionPhase';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
 
@@ -58,7 +59,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  const liveAuctions = auctions.filter(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
+  const liveAuctions = getLiveAuctions(auctions);
 
   const handleAuctionClick = (id: string) => {
     setActiveAuctionId(id);
