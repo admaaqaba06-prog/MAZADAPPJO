@@ -112,7 +112,12 @@ export const translations = {
     tabMetrics: "Metrics",
     tabPayments: "CliQ Receipts",
     tabListings: "Audit Streams",
-    tabUsers: "Gating Security"
+    tabUsers: "Gating Security",
+
+    // Bidding (dummy-proofing)
+    joinToBid: "Join for 1 JD to bid",
+    priceMovedTitle: "Price moved — new min is {amount} JD. Bid that?",
+    priceMovedConfirm: "Bid {amount} JD",
   },
   ar: {
     appName: "مزاد جو",
@@ -227,6 +232,11 @@ export const translations = {
     tabMetrics: "مؤشرات حيوية",
     tabPayments: "مراجعة كليك",
     tabListings: "اعتماد البث المباشر",
-    tabUsers: "أمن العضويات"
+    tabUsers: "أمن العضويات",
+
+    // Bidding (dummy-proofing)
+    joinToBid: "انضم بـ ١ دينار للمزايدة",
+    priceMovedTitle: "تغيّر السعر — الحد الأدنى الجديد {amount} د.أ. أزايد به؟",
+    priceMovedConfirm: "زايد {amount} د.أ",
   }
 };

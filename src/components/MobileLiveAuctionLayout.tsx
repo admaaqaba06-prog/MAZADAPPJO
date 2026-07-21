@@ -6,6 +6,8 @@ import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, m
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
+import { serverNow } from '../utils/serverTime';
+import { translations } from '../utils/translations';
 import { 
   Volume2, 
   VolumeX, 
@@ -261,8 +263,13 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   onLikeToggle,
   onClose,
 }) => {
-  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
+  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId, setShowSubscriptionPrompt } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Membership gate: non-members must never reach BidConfirm — the bid control
+  // becomes an invite that opens the subscription sheet first.
+  const isMember = currentUser?.subscriptionStatus === 'active';
+  const t = translations[language as 'en' | 'ar'];
 
   const activeSellerProfile = sellerProfiles?.find(
     p => p.userId === auction?.sellerId || p.id === auction?.sellerId
@@ -409,9 +416,20 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
   }, []);
 
+  // Single entry point for starting a bid. Non-members are invited to join
+  // (subscription sheet) BEFORE any confirm — they never reach BidConfirm.
+  // Members get the inline confirm (no accidental bids).
+  const startBid = (amount: number) => {
+    if (!isMember) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
+    setPendingBid(amount);
+  };
+
   // Tapping the bid button opens the inline confirm (no accidental bids)
   const handleLocalBid = () => {
-    setPendingBid(nextBidAmount);
+    startBid(nextBidAmount);
   };
 
   // Confirmed: lock the controls (no double-submit), paint the optimistic
@@ -900,7 +918,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                       {isLosing && (
                         <Pressable
                           disabled={submitting}
-                          onClick={() => setPendingBid(nextBidAmount)}
+                          onClick={() => startBid(nextBidAmount)}
                           className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-[10px] font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -923,7 +941,11 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                   onClick={handleLocalBid}
                   className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
                 >
-                  {submitting ? (
+                  {!isMember ? (
+                    <span className="text-sm tracking-wide font-black">
+                      {t.joinToBid}
+                    </span>
+                  ) : submitting ? (
                     <span className="flex items-center gap-2 text-sm tracking-wide font-black">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       {isAr ? 'جارٍ الإرسال…' : 'Placing bid…'}
