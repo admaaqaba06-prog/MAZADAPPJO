@@ -5,6 +5,7 @@ import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
 import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
+import { useSocialProof } from '../hooks/useSocialProof';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { 
   Flame, 
@@ -23,7 +24,9 @@ import {
   Bell,
   ShieldCheck,
   Play,
-  MessageCircle
+  MessageCircle,
+  Trophy,
+  Coins
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
@@ -302,6 +305,9 @@ export const DiscoveryFeedView: React.FC = () => {
   } = useApp();
   
   const { showToast } = useToast();
+  // Real social proof (spec §4): live bidders from the loaded auctions +
+  // recent wins from a one-time cached query. Never fabricated.
+  const { biddersNow, recentWins } = useSocialProof();
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -655,21 +661,38 @@ export const DiscoveryFeedView: React.FC = () => {
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="join-funnel-banner"
           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
-              <span className="flex items-center gap-1">
-                <span className="text-[#FF6B00] font-black">①</span>
-                {isAr ? 'انضم من ١ دينار بالشهر' : 'Join from 1 JD/mo'}
-              </span>
-              <span className="text-orange-200">•</span>
-              <span className="flex items-center gap-1">
-                <span className="text-[#FF6B00] font-black">②</span>
-                {isAr ? 'زايد مجاناً' : 'Bid freely'}
-              </span>
-              <span className="text-orange-200">•</span>
-              <span className="flex items-center gap-1">
-                <span className="text-[#FF6B00] font-black">③</span>
-                {isAr ? 'ادفع فقط عند الفوز (+٥٪ عمولة)' : 'Pay only when you win (+5% premium)'}
-              </span>
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
+                <span className="flex items-center gap-1">
+                  <span className="text-[#FF6B00] font-black">①</span>
+                  {isAr ? 'انضم من ١ دينار بالشهر' : 'Join from 1 JD/mo'}
+                </span>
+                <span className="text-orange-200">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-[#FF6B00] font-black">②</span>
+                  {isAr ? 'زايد مجاناً' : 'Bid freely'}
+                </span>
+                <span className="text-orange-200">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-[#FF6B00] font-black">③</span>
+                  {isAr ? 'ادفع فقط عند الفوز (+٥٪ عمولة)' : 'Pay only when you win (+5% premium)'}
+                </span>
+              </div>
+              {/* Live social proof — real count of distinct people currently
+                  leading live auctions; rendered only when > 0. */}
+              {biddersNow > 0 && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                  className="text-[10.5px] font-extrabold text-red-600 leading-snug"
+                  id="join-banner-live-proof"
+                >
+                  {isAr
+                    ? (biddersNow === 1 ? '🔥 شخص واحد بيزايد الآن' : `🔥 ${biddersNow} أشخاص بيزايدوا الآن`)
+                    : `🔥 ${biddersNow} bidding right now`}
+                </motion.p>
+              )}
             </div>
             <button
               onClick={() => setActiveView('wallet')}
@@ -909,6 +932,53 @@ export const DiscoveryFeedView: React.FC = () => {
                     </span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Social proof (real data only): recent wins strip when we have
+                them — proves the room is real even when nothing's live.
+                Otherwise 3 qualitative trust chips. Never fabricated. */}
+            {recentWins.length > 0 ? (
+              <div className="w-full max-w-sm space-y-1.5" id="empty-state-recent-wins">
+                <span className="block text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                  {isAr ? 'أحدث الفائزين' : 'Recent wins'}
+                </span>
+                {recentWins.slice(0, 3).map((w, i) => (
+                  <motion.div
+                    key={`${w.item}-${i}`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeOut', delay: i * 0.05 }}
+                    className="w-full flex items-center justify-between gap-2 bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2 text-start"
+                  >
+                    <span className="text-xs font-bold text-gray-800 truncate flex items-center gap-1.5 min-w-0">
+                      <Trophy className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {isAr
+                          ? `${w.winner ?? 'حدا'} ربح ${w.item} 🎉`
+                          : `${w.winner ?? 'Someone'} won ${w.item} 🎉`}
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-emerald-600 shrink-0">
+                      {w.when}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-1.5" id="empty-state-trust-chips">
+                <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                  <ShieldCheck className="w-3 h-3" />
+                  {isAr ? 'كليك آمن' : 'Secure CliQ'}
+                </span>
+                <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                  <ShieldCheck className="w-3 h-3" />
+                  {isAr ? 'بائعون موثّقون' : 'Verified sellers'}
+                </span>
+                <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                  <Coins className="w-3 h-3" />
+                  {isAr ? 'ادفع فقط عند الفوز' : 'Pay only if you win'}
+                </span>
               </div>
             )}
 

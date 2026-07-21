@@ -56,9 +56,9 @@ export const SubscriptionView: React.FC = () => {
       color: 'border-gray-200'
     },
     {
-      id: 'quarterly',
+      id: 'quarterly', // legacy id; this tier is 4 JD / 6 months (see translations planQuarterlyUnit)
       name: language === 'en' ? 'Professional Elite' : 'النخبة الاحترافية',
-      price: 3,
+      price: 4,
       period: t.planQuarterlyUnit,
       badge: t.mostPopular,
       color: 'border-[#FF6B00] shadow-[0_8px_20px_rgba(255,107,0,0.08)]'
