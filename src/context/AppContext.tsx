@@ -3191,6 +3191,13 @@ const fetchIP = async () => {
       isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
+      // Wave 4 (seller-KYC groundwork): listing-time ownership + legality
+      // attestation. Both sell paths (wizard + concierge) require the checkbox
+      // before submit can reach here; the stamp survives on the doc for audit.
+      // Extra keys pass the auctions create rule (no hasOnly / no blocked-key
+      // check on these fields).
+      ownershipAttested: true,
+      attestedAt: serverTimestamp(),
       approvalStatus: 'pending',
       isApproved: false,
       isFeatured: false,

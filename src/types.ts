@@ -103,6 +103,14 @@ export interface AuctionItem {
    * a.k.a. listedByMazad — the admin queue badges these. Default false.
    */
   isConcierge?: boolean;
+  /**
+   * Wave 4 (seller-KYC groundwork): seller checked the required listing-time
+   * "I own this item and it is legal to sell in Jordan" attestation.
+   * createListing stamps both onto every auction doc it writes.
+   */
+  ownershipAttested?: boolean;
+  /** Firestore serverTimestamp of when the ownership/legality attestation was made. */
+  attestedAt?: any;
   /** Seller-declared item condition (concierge submit form). */
   condition?: 'new' | 'used';
   /** Seller contact (phone/WhatsApp) for the concierge team to follow up. */
