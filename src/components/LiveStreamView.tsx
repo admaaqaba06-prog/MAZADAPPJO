@@ -9,65 +9,264 @@ import {
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
-import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
+import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
 
-// Countdown tick sound
-const playTick = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1200, audioCtx.currentTime); // Crisp high tick
-    
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-    
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.08);
-  } catch (err) {
-    console.warn("Audio Context tick failed:", err);
-  }
-};
+/* ======================================================================
+   ISOLATED COUNTDOWN LAYER (Wave 4)
+   ----------------------------------------------------------------------
+   The final-countdown clock ticks once per second. Keeping its state
+   (`secondsRemaining`) in LiveStreamView re-rendered the ENTIRE live room —
+   both heavy layouts and every reel — every second. This child owns the 1s
+   interval, the per-second `secondsRemaining` state, the tick/finish audio +
+   snipe-window haptics, and the full-screen countdown/winner overlay. A tick
+   now re-renders ONLY this small component; the parent room stays still.
+   (Desktop's inline HH:MM:SS clock lives inside DesktopLiveAuctionLayout for
+   the same reason, so the parent holds no per-second state at all.)
+   ====================================================================== */
+interface AuctionCountdownLayerProps {
+  activeAuction: any;
+  activePrice: number;
+  isAr: boolean;
+  isOverlayDismissed: boolean;
+  onDismiss: () => void;
+}
 
-// Countdown finish chime
-const playFinish = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    // Play dual-tone pleasant triumphant finish sound
-    const osc1 = audioCtx.createOscillator();
-    const osc2 = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc1.type = 'triangle';
-    osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
-    
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
-    
-    osc1.start();
-    osc2.start();
-    
-    osc1.stop(audioCtx.currentTime + 1.2);
-    osc2.stop(audioCtx.currentTime + 1.2);
-  } catch (err) {
-    console.warn("Audio Context finish failed:", err);
-  }
+const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
+  activeAuction,
+  activePrice,
+  isAr,
+  isOverlayDismissed,
+  onDismiss,
+}) => {
+  const { bids, currentUser, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
+
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  const prevSecondsRemaining = useRef<number | null>(null);
+
+  // 1s countdown tick — only meaningful while the lot is live.
+  useEffect(() => {
+    if (!activeAuction) {
+      setSecondsRemaining(null);
+      return;
+    }
+    const update = () => {
+      if (activeAuction.status === 'live') {
+        const remainingMs = (activeAuction.endTime ?? 0) - serverNow();
+        setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+      } else {
+        setSecondsRemaining(null);
+      }
+    };
+    update(); // run once immediately
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [activeAuction]);
+
+  // Reset the edge-detector when the active lot swaps.
+  useEffect(() => {
+    prevSecondsRemaining.current = null;
+  }, [activeAuction?.id]);
+
+  // Tick/finish audio + snipe-window haptics (edge-triggered so each second
+  // fires exactly once). Uses the shared single AudioContext (auctioneerAudio).
+  useEffect(() => {
+    if (secondsRemaining === null || !activeAuction || activeAuction.status !== 'live') {
+      prevSecondsRemaining.current = null;
+      return;
+    }
+    if (prevSecondsRemaining.current !== secondsRemaining) {
+      if (secondsRemaining > 0 && secondsRemaining <= 10) {
+        playTick();
+      } else if (secondsRemaining === 0 && prevSecondsRemaining.current !== 0 && prevSecondsRemaining.current !== null) {
+        playFinish();
+        // NOTE: settlement is server-authoritative. The client must NEVER write
+        // status:'completed' — the scheduledAuctionCloser cron settles the lot
+        // (order creation, wonCount, FCM, auction_won/payment_due webhooks) and
+        // only for auctions still in ['active','live','upcoming']. A client flip
+        // to 'completed' would orphan the win. Countdown-zero is visual only.
+      }
+      prevSecondsRemaining.current = secondsRemaining;
+    }
+  }, [secondsRemaining, activeAuction]);
+
+  // DERIVED finish state — recomputed each tick (this component re-renders every
+  // second), so if an anti-snipe extension (functions/index.js, +15s) pushes
+  // endTime back into the future, the ended/winner overlay re-clears itself.
+  const isFinished = activeAuction ? isAuctionFinished(activeAuction, serverNow()) : false;
+
+  return (
+    <AnimatePresence>
+      {activeAuction && !isOverlayDismissed && ((activeAuction.status === 'live' && secondsRemaining !== null && secondsRemaining <= 10) || isFinished) && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex flex-col items-center justify-center select-none"
+        >
+          {/* Close Button */}
+          <button
+            onClick={onDismiss}
+            className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {secondsRemaining !== null && secondsRemaining > 0 ? (
+            <div className="flex flex-col items-center gap-4 text-center">
+              {/* Big Scale Countdown Number */}
+              <AnimatePresence mode="popLayout">
+                <motion.div
+                  key={secondsRemaining}
+                  initial={{ scale: 0.3, opacity: 0 }}
+                  animate={{ scale: 1.1, opacity: 1 }}
+                  exit={{ scale: 1.5, opacity: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="text-[120px] md:text-[200px] font-black text-white select-none filter drop-shadow-[0_0_35px_rgba(255,255,255,0.45)]"
+                >
+                  {secondsRemaining}
+                </motion.div>
+              </AnimatePresence>
+              <p className="text-white/80 font-semibold text-lg md:text-xl uppercase tracking-widest animate-pulse">
+                {isAr ? 'المزايدة النهائية!' : 'Final Countdown!'}
+              </p>
+            </div>
+          ) : (
+            /* Winner Card */
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              className="bg-zinc-950/95 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
+            >
+              {(() => {
+                const hasUserBid = activeAuction?.id && bids ? bids.some((b: any) => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+
+                if (isUserWinner) {
+                  return (
+                    <>
+                      <div className="bg-emerald-500/15 text-emerald-400 p-4 rounded-full mb-1 animate-bounce">
+                        <Trophy className="w-12 h-12" />
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black text-white">
+                        {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
+                      </h2>
+                      <p className="text-zinc-300 text-sm font-semibold">
+                        {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment or confirmation'}
+                      </p>
+
+                      <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20 mt-2">
+                        <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
+                          {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                        </p>
+                        <p className="text-2xl font-black text-emerald-400">
+                          {activePrice} JOD
+                        </p>
+                        {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                          <p className="text-xs text-emerald-300/80 font-semibold mt-1">
+                            {isAr
+                              ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                              : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          onDismiss();
+                          const matchingOrder = orders?.find((o: any) => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
+                          if (matchingOrder) {
+                            setGlobalSelectedOrderId(matchingOrder.id);
+                          }
+                          setActiveView('orders');
+                        }}
+                        className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'عرض الطلب' : 'View Order'}
+                      </button>
+                    </>
+                  );
+                } else if (hasUserBid) {
+                  return (
+                    <>
+                      <div className="bg-zinc-500/15 text-zinc-400 p-4 rounded-full mb-1">
+                        <X className="w-12 h-12" />
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black text-white">
+                        {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                      </h2>
+                      <p className="text-zinc-300 text-sm font-semibold">
+                        {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
+                      </p>
+
+                      <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-4 border border-emerald-500/20 text-center text-xs text-emerald-400 font-bold leading-relaxed my-1">
+                        {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          onDismiss();
+                          setActiveView('discovery');
+                        }}
+                        className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                      </button>
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <div className="bg-amber-500/15 text-amber-400 p-4 rounded-full mb-1">
+                        <Trophy className="w-12 h-12" />
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black text-white">
+                        {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                      </h2>
+
+                      <div className="w-full bg-white/5 rounded-2xl py-3 px-6 border border-white/5 my-2">
+                        <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
+                          {isAr ? 'المزايد الأعلى' : 'Winner'}
+                        </p>
+                        <p className="text-lg font-bold text-white truncate">
+                          {activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}
+                        </p>
+                      </div>
+
+                      {activeAuction.currentBidderName && (
+                        <div className="w-full bg-emerald-500/10 rounded-2xl py-2.5 px-6 border border-emerald-500/20">
+                          <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
+                            {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                          </p>
+                          <p className="text-xl font-black text-emerald-400">
+                            {activePrice} JOD
+                          </p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          onDismiss();
+                          setActiveView('discovery');
+                        }}
+                        className="mt-4 w-full bg-white/15 hover:bg-white/25 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                      </button>
+                    </>
+                  );
+                }
+              })()}
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 };
 
 export const LiveStreamView: React.FC = () => {
@@ -83,7 +282,6 @@ export const LiveStreamView: React.FC = () => {
     toggleWatchlist,
     chatMessages,
     sendChatMessage,
-    bids,
     orders,
     setGlobalSelectedOrderId
   } = useApp();
@@ -103,10 +301,10 @@ export const LiveStreamView: React.FC = () => {
   const [activeComments, setActiveComments] = useState<Array<any>>([]);
   const [activeActivities, setActiveActivities] = useState<Array<any>>([]);
 
-  // Premium Final Countdown States
-  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  // Premium Final Countdown States. The per-second `secondsRemaining` now lives
+  // in <AuctionCountdownLayer> (isolated so a tick doesn't re-render this room);
+  // only the infrequently-changing dismissal flag stays here.
   const [isOverlayDismissed, setIsOverlayDismissed] = useState<boolean>(false);
-  const prevSecondsRemaining = useRef<number | null>(null);
 
   // Get live and upcoming auctions
   const liveAuctions = useMemo(() => {
@@ -145,7 +343,6 @@ export const LiveStreamView: React.FC = () => {
   // reset for it — it re-clears on its own if anti-snipe pushes endTime forward.
   useEffect(() => {
     setIsOverlayDismissed(false);
-    prevSecondsRemaining.current = null;
   }, [activeAuctionId]);
 
   const activePrice = activeAuction ? activeAuction.currentPrice : 0;
@@ -227,76 +424,10 @@ export const LiveStreamView: React.FC = () => {
     }
   };
 
-  // Handle countdown timers per card
-  const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
-  useEffect(() => {
-    if (!activeAuction) {
-      setSecondsRemaining(null);
-      return;
-    }
-    
-    const updateTimer = () => {
-      // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
-      const open = isAuctionOpen(activeAuction?.status);
-      const target = !open && activeAuction?.scheduledStartAt
-        ? activeAuction.scheduledStartAt
-        : activeAuction?.endTime;
-      const remainingMs = (target ?? 0) - serverNow();
-      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
-
-      if (activeAuction.status === 'live') {
-        setSecondsRemaining(remainingSecs);
-      } else {
-        setSecondsRemaining(null);
-      }
-
-      // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
-      if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
-        setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
-        return; // skip the 4-hour-boundary fallback clock
-      }
-
-      if (remainingSecs > 0) {
-        const hrs = Math.floor(remainingSecs / 3600);
-        const mins = Math.floor((remainingSecs % 3600) / 60);
-        const secs = remainingSecs % 60;
-        setTimeLeftStr(
-          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        );
-      } else {
-        // Clamp at zero: the auction is over — never tick into a phantom
-        // "next window" clock. The server closer flips the status shortly.
-        setTimeLeftStr(isAr ? 'انتهى المزاد' : 'Auction ended');
-      }
-    };
-
-    updateTimer(); // Run once immediately
-    const interval = setInterval(updateTimer, 1000);
-
-    return () => clearInterval(interval);
-  }, [activeAuction, isAr]);
-
-  // Handle countdown tick/finish sound effects and database status transition
-  useEffect(() => {
-    if (secondsRemaining === null || !activeAuction || activeAuction.status !== 'live') {
-      prevSecondsRemaining.current = null;
-      return;
-    }
-
-    if (prevSecondsRemaining.current !== secondsRemaining) {
-      if (secondsRemaining > 0 && secondsRemaining <= 10) {
-        playTick();
-      } else if (secondsRemaining === 0 && prevSecondsRemaining.current !== 0 && prevSecondsRemaining.current !== null) {
-        playFinish();
-        // NOTE: settlement is server-authoritative. The client must NEVER write
-        // status:'completed' — the scheduledAuctionCloser cron settles the lot
-        // (order creation, wonCount, FCM, auction_won/payment_due webhooks) and
-        // only for auctions still in ['active','live','upcoming']. A client flip
-        // to 'completed' would orphan the win. Countdown-zero is visual only.
-      }
-      prevSecondsRemaining.current = secondsRemaining;
-    }
-  }, [secondsRemaining, activeAuction, currentUser]);
+  // The per-second countdown clock (secondsRemaining + HH:MM:SS + tick/finish
+  // audio) now lives entirely inside <AuctionCountdownLayer> (see top of file)
+  // and, for the desktop HH:MM:SS pill, inside DesktopLiveAuctionLayout — so a
+  // tick no longer re-renders this whole room.
 
   // Active auction watchlist checks
   const isSaved = activeAuction ? watchlist.includes(activeAuction.id) : false;
@@ -331,6 +462,9 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const togglePlayPause = () => {
+    // User gesture — unlock the shared AudioContext (iOS autoplay policy) so the
+    // later programmatic countdown ticks are audible.
+    resumeAudio();
     const video = videoRef.current;
     if (!video) return;
     if (isPlaying) {
@@ -344,6 +478,9 @@ export const LiveStreamView: React.FC = () => {
 
   const handleMuteToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Unmuting is the clearest intent-to-hear gesture — resume the shared audio
+    // context here so snipe-window ticks/finish chime can play.
+    resumeAudio();
     setIsMuted(!isMuted);
     triggerToast(!isMuted ? (isAr ? '🔊 تم تشغيل الصوت المباشر' : '🔊 Stream unmuted') : (isAr ? '🔇 تم كتم الصوت' : '🔇 Stream muted'));
   };
@@ -459,12 +596,6 @@ export const LiveStreamView: React.FC = () => {
 
   const nextBidAmount = activeAuction ? minNextBid(activeAuction.currentPrice, activeAuction.minIncrement, activeAuction.totalBids || 0) : 0;
 
-  // DERIVED finish state (replaces the old latched hasFinishedInSession). Recomputed
-  // every render — and the 1s countdown tick + subscription updates keep renders
-  // flowing — so if an anti-snipe extension (functions/index.js:668-669, +15s)
-  // pushes endTime back into the future, the ended/winner overlay re-clears itself.
-  const isFinished = isAuctionFinished(activeAuction, serverNow());
-
   return (
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
       {isMobile ? (
@@ -502,7 +633,6 @@ export const LiveStreamView: React.FC = () => {
         <DesktopLiveAuctionLayout
           activeAuction={activeAuction}
           activePrice={activePrice}
-          timeLeftStr={timeLeftStr}
           isMuted={isMuted}
           isPlaying={isPlaying}
           onMuteToggle={handleMuteToggle}
@@ -538,174 +668,15 @@ export const LiveStreamView: React.FC = () => {
         />
       )}
 
-      {/* Premium Final Countdown Overlay */}
-      <AnimatePresence>
-        {activeAuction && !isOverlayDismissed && ((activeAuction.status === 'live' && secondsRemaining !== null && secondsRemaining <= 10) || isFinished) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex flex-col items-center justify-center select-none"
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setIsOverlayDismissed(true)}
-              className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {secondsRemaining !== null && secondsRemaining > 0 ? (
-              <div className="flex flex-col items-center gap-4 text-center">
-                {/* Big Scale Countdown Number */}
-                <AnimatePresence mode="popLayout">
-                  <motion.div
-                    key={secondsRemaining}
-                    initial={{ scale: 0.3, opacity: 0 }}
-                    animate={{ scale: 1.1, opacity: 1 }}
-                    exit={{ scale: 1.5, opacity: 0 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="text-[120px] md:text-[200px] font-black text-white select-none filter drop-shadow-[0_0_35px_rgba(255,255,255,0.45)]"
-                  >
-                    {secondsRemaining}
-                  </motion.div>
-                </AnimatePresence>
-                <p className="text-white/80 font-semibold text-lg md:text-xl uppercase tracking-widest animate-pulse">
-                  {isAr ? 'المزايدة النهائية!' : 'Final Countdown!'}
-                </p>
-              </div>
-            ) : (
-              /* Winner Card */
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-                className="bg-zinc-950/95 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
-              >
-                {(() => {
-                  const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
-                  const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
-
-                  if (isUserWinner) {
-                    return (
-                      <>
-                        <div className="bg-emerald-500/15 text-emerald-400 p-4 rounded-full mb-1 animate-bounce">
-                          <Trophy className="w-12 h-12" />
-                        </div>
-                        <h2 className="text-2xl md:text-3xl font-black text-white">
-                          {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
-                        </h2>
-                        <p className="text-zinc-300 text-sm font-semibold">
-                          {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment or confirmation'}
-                        </p>
-                        
-                        <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20 mt-2">
-                          <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
-                            {isAr ? 'السعر النهائي' : 'Winning Bid'}
-                          </p>
-                          <p className="text-2xl font-black text-emerald-400">
-                            {activePrice} JOD
-                          </p>
-                          {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
-                            <p className="text-xs text-emerald-300/80 font-semibold mt-1">
-                              {isAr
-                                ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
-                                : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            setIsOverlayDismissed(true);
-                            const matchingOrder = orders?.find(o => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
-                            if (matchingOrder) {
-                              setGlobalSelectedOrderId(matchingOrder.id);
-                            }
-                            setActiveView('orders');
-                          }}
-                          className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
-                        >
-                          {isAr ? 'عرض الطلب' : 'View Order'}
-                        </button>
-                      </>
-                    );
-                  } else if (hasUserBid) {
-                    return (
-                      <>
-                        <div className="bg-zinc-500/15 text-zinc-400 p-4 rounded-full mb-1">
-                          <X className="w-12 h-12" />
-                        </div>
-                        <h2 className="text-2xl md:text-3xl font-black text-white">
-                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                        </h2>
-                        <p className="text-zinc-300 text-sm font-semibold">
-                          {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
-                        </p>
-
-                        <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-4 border border-emerald-500/20 text-center text-xs text-emerald-400 font-bold leading-relaxed my-1">
-                          {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            setIsOverlayDismissed(true);
-                            setActiveView('discovery');
-                          }}
-                          className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
-                        >
-                          {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
-                        </button>
-                      </>
-                    );
-                  } else {
-                    return (
-                      <>
-                        <div className="bg-amber-500/15 text-amber-400 p-4 rounded-full mb-1">
-                          <Trophy className="w-12 h-12" />
-                        </div>
-                        <h2 className="text-2xl md:text-3xl font-black text-white">
-                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                        </h2>
-
-                        <div className="w-full bg-white/5 rounded-2xl py-3 px-6 border border-white/5 my-2">
-                          <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
-                            {isAr ? 'المزايد الأعلى' : 'Winner'}
-                          </p>
-                          <p className="text-lg font-bold text-white truncate">
-                            {activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bids placed')}
-                          </p>
-                        </div>
-
-                        {activeAuction.currentBidderName && (
-                          <div className="w-full bg-emerald-500/10 rounded-2xl py-2.5 px-6 border border-emerald-500/20">
-                            <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
-                              {isAr ? 'السعر النهائي' : 'Winning Bid'}
-                            </p>
-                            <p className="text-xl font-black text-emerald-400">
-                              {activePrice} JOD
-                            </p>
-                          </div>
-                        )}
-
-                        <button
-                          onClick={() => {
-                            setIsOverlayDismissed(true);
-                            setActiveView('discovery');
-                          }}
-                          className="mt-4 w-full bg-white/15 hover:bg-white/25 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
-                        >
-                          {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
-                        </button>
-                      </>
-                    );
-                  }
-                })()}
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Premium Final Countdown Overlay — isolated so its 1s tick re-renders
+          only itself, not this whole live room. */}
+      <AuctionCountdownLayer
+        activeAuction={activeAuction}
+        activePrice={activePrice}
+        isAr={isAr}
+        isOverlayDismissed={isOverlayDismissed}
+        onDismiss={() => setIsOverlayDismissed(true)}
+      />
 
       {/* Win celebration — always mounted; bursts on the win transition */}
       {winCelebrationEl}

@@ -31,11 +31,11 @@ import { SwipeToBid } from './SwipeToBid';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
+import { serverNow } from '../utils/serverTime';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
   activePrice: number;
-  timeLeftStr: string;
   isMuted: boolean;
   isPlaying: boolean;
   onMuteToggle: (e: React.MouseEvent) => void;
@@ -67,7 +67,6 @@ interface DesktopLiveAuctionLayoutProps {
 export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> = ({
   activeAuction,
   activePrice,
-  timeLeftStr,
   isMuted,
   isPlaying,
   onMuteToggle,
@@ -98,6 +97,47 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const { showToast: pushToast } = useToast();
+
+  // PERF (Wave 4): the desktop HH:MM:SS pill owns its OWN 1s clock instead of
+  // receiving `timeLeftStr` from LiveStreamView. That way the per-second tick
+  // stays confined to this component and never re-renders the parent room.
+  const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
+  useEffect(() => {
+    if (!activeAuction) {
+      setTimeLeftStr('00:00:00');
+      return;
+    }
+    const updateTimer = () => {
+      // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
+      const open = isAuctionOpen(activeAuction?.status);
+      const target = !open && activeAuction?.scheduledStartAt
+        ? activeAuction.scheduledStartAt
+        : activeAuction?.endTime;
+      const remainingMs = (target ?? 0) - serverNow();
+      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
+
+      // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
+      if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+        setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
+        return;
+      }
+
+      if (remainingSecs > 0) {
+        const hrs = Math.floor(remainingSecs / 3600);
+        const mins = Math.floor((remainingSecs % 3600) / 60);
+        const secs = remainingSecs % 60;
+        setTimeLeftStr(
+          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+      } else {
+        // Clamp at zero: the server closer flips the status shortly.
+        setTimeLeftStr(isAr ? 'انتهى المزاد' : 'Auction ended');
+      }
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [activeAuction, isAr]);
 
   // --- The bid moment: confirm-then-bid + success rush ---
   const [pendingBid, setPendingBid] = useState<number | null>(null);
