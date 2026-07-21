@@ -315,9 +315,12 @@ export const LiveStreamView: React.FC = () => {
     );
     // Fallback (nothing live/upcoming): never leak unapproved lots — a
     // 'processing' (awaiting Mazad review), legacy 'pending' or 'rejected'
-    // listing must stay invisible to buyers on every surface (spec §6).
+    // listing must stay invisible to buyers on every surface (spec §6). Also
+    // exclude finished lots ('completed'/'ended') so the fallback never shows a
+    // dead auction as if it were watchable.
     const approvedOnly = auctions.filter(a =>
-      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected'
+      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
+      a.status !== 'completed' && a.status !== 'ended'
     );
     const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {
@@ -553,7 +556,11 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const hasLiveAuctions = useMemo(() => {
-    return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > serverNow()));
+    // An upcoming-only room is still an active room — gating on 'live' alone
+    // made a room that only holds scheduled lots render "No live auctions".
+    return auctions.some(a =>
+      (a.status === 'live' || a.status === 'upcoming') && (!a.endTime || a.endTime > serverNow())
+    );
   }, [auctions]);
 
   // Must stay above the no-live-auctions early return: the branch switch on
