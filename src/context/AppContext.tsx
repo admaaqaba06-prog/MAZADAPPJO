@@ -152,6 +152,7 @@ interface AppContextProps {
   language: 'en' | 'ar';
   setLanguage: (lang: 'en' | 'ar') => void;
   isAuthenticated: boolean;
+  authReady: boolean;
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -469,7 +470,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'ar';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
- 
+  // authReady gates the app boot: it flips true only once the async
+  // onAuthStateChanged chain (token + Firestore doc load) has resolved in
+  // EITHER direction. Until then App.tsx shows the loading splash instead of
+  // flashing Login while a valid session is still restoring.
+  const [authReady, setAuthReady] = useState<boolean>(false);
+
   // Session Heartbeat - updates lastSeen, deviceInfo, and appVersion every 5 minutes
   useEffect(() => {
     if (!isAuthenticated || !currentUser || currentUser.id === 'user-current') return;
@@ -760,17 +766,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                     if (freshSessionId && freshSessionId !== localSessionId) {
                       console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
-                      localStorage.removeItem('mazad_session_id');
-                      await signOut(auth);
-                      setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
-                      setIsAuthenticated(false);
+                      // SOFT notice: this audience hops between WhatsApp/mobile
+                      // devices constantly, so we no longer force-logout on a
+                      // duplicate session. Adopt the server's session id locally
+                      // so the check stops re-firing every cycle, keep the user
+                      // signed in on THIS device, and surface a dismissible heads-up.
+                      localStorage.setItem('mazad_session_id', freshSessionId);
+                      const dupTitle = language === 'ar' ? 'تنبيه' : 'Notice';
+                      const dupMsg = language === 'ar' ? 'تم تسجيل دخولك من جهاز آخر' : "You're signed in on another device.";
                       if (addNotificationRef.current) {
-                        addNotificationRef.current(
-                          language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
-                          language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
-                          'admin'
-                        );
+                        addNotificationRef.current(dupTitle, dupMsg, 'admin');
                       }
+                      showToast({ title: dupTitle, message: dupMsg, type: 'info' });
                     }
                   })();
                 }
@@ -847,6 +854,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           setCurrentUser(loadedUser);
           setIsAuthenticated(true);
+          setAuthReady(true);
         } catch (error) {
           console.error("Error setting up user profile in auth change:", error);
           const fallbackUser: User = {
@@ -868,10 +876,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           setCurrentUser(fallbackUser);
           setIsAuthenticated(true);
+          // Resolve the boot gate even when the Firestore doc load failed —
+          // a fallback session is still authenticated, and the splash must
+          // never hang forever on an error path.
+          setAuthReady(true);
         }
       } else {
         setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
         setIsAuthenticated(false);
+        setAuthReady(true);
       }
     });
 
@@ -4133,6 +4146,7 @@ const fetchIP = async () => {
       language,
       setLanguage,
       isAuthenticated,
+      authReady,
       login,
       loginWithGoogle,
       loginWithPhone,

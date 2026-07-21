@@ -145,7 +145,7 @@ function ReviewPromptHost() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
   const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
   const [entered, setEntered] = useState(false);
@@ -160,6 +160,22 @@ function MainAppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 0. Boot gate: while Firebase is still restoring a persisted session
+  // (onAuthStateChanged + Firestore doc load), show the loading splash rather
+  // than flashing Landing/Login for a user who is actually still signed in.
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
+            M
+          </div>
+          <span className="text-xs text-gray-400 font-mono tracking-widest uppercase">Loading Mazad...</span>
+        </div>
+      </div>
+    );
+  }
+
   // 1. Verify Maintenance Mode
   if (maintenanceMode.enabled && !isStrictAdmin) {
     return <MaintenanceView />;
@@ -167,6 +183,7 @@ function MainAppShell() {
 
   // 2. Unauthenticated: show the landing page as the front door — unless the
   // visitor arrived via an auction deep link, or clicked "Enter" on the landing.
+  // Reached only once authReady is true, so this is a real logged-out state.
   if (!isAuthenticated) {
     const hasDeepLink = !!parseAuctionIdFromSearch(window.location.search);
     if (!entered && !hasDeepLink) {

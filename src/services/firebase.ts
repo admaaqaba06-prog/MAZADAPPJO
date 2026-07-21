@@ -1,10 +1,10 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
-  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "mazadappjo.vercel.app",
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "mazad-jo.com",
   projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || "mazadjoapp",
   storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || "mazadjoapp.firebasestorage.app",
   messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || "622832200971",
@@ -15,6 +15,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+// Persist the session in localStorage so it survives full app reopens (default
+// on web, but set explicitly to guard against environments that default to
+// session/none). Async and non-blocking — never await it at module init.
+setPersistence(auth, browserLocalPersistence).catch((e) =>
+  console.warn("[firebase] Failed to set auth persistence:", e)
+);
 export const db = getFirestore(app);
 
 // Lazy loaders to prevent firebase/storage and firebase/functions from being bundled on initial page load
