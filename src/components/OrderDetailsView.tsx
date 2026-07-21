@@ -38,6 +38,7 @@ import {
 import { Order } from '../types';
 import { translations } from '../utils/translations';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
 
@@ -73,7 +74,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [adminBuyerStars, setAdminBuyerStars] = useState<number | null>(null);
   const [adminRatingSaving, setAdminRatingSaving] = useState(false);
 
-  const isAdminViewer = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
+  const isAdminViewer = isAdminUser(currentUser);
 
   useEffect(() => {
     if (!order || !isAdminViewer) return;
@@ -173,7 +174,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // Identify roles
   const isBuyer = currentUser.id === order.buyerId;
   const isSeller = currentUser.id === order.sellerId;
-  const isAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin';
+  const isAdmin = isAdminUser(currentUser);
 
   // Post-win review: buyer can rate a delivered/completed order they haven't reviewed yet.
   const hasBuyerReview = (myReviews || []).some(

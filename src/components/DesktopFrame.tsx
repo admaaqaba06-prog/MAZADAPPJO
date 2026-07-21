@@ -2,6 +2,7 @@ import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
 import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
+import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import type { Notification } from '../types';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
@@ -84,14 +85,14 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   const t = translations[language];
   const isAr = language === 'ar';
-  const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const isStrictAdmin = isAdminUser(currentUser);
 
   // Wave D: the bell badge counts only bidder-relevant notifications for
   // regular users; admins keep the full unfiltered stream.
   const unreadCount = isStrictAdmin
     ? (notifications || []).filter(n => !n.read).length
     : unreadUserFacingCount(notifications);
-  const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const isSeller = isAdminOrSeller(currentUser);
 
   // Wave D (spec §5): the right rail shows the user's OWN relevant alerts —
   // outbid / won / payment / subscription — not the raw escrow ledger.

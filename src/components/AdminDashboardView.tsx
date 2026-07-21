@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
+import { isAdminUser } from '../utils/adminAuth';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
@@ -673,7 +674,7 @@ export const AdminDashboardView: React.FC = () => {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
     if (!isStrictAdmin) {
       setSubscriptionRequests([]);
       return;
@@ -688,7 +689,7 @@ export const AdminDashboardView: React.FC = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
     if (!isStrictAdmin) {
       setPendingWithdrawals([]);
       setHistoryWithdrawals([]);
@@ -730,7 +731,7 @@ export const AdminDashboardView: React.FC = () => {
 
   // Console logging for verification as requested by the user
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
     if (!isStrictAdmin) return;
 
     const pendingAuctionsCount = auctions.filter((a: any) => a.status === 'pending' || a.status === 'processing' || a.approvalStatus === 'pending').length;

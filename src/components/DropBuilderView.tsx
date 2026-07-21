@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { isAdminUser } from '../utils/adminAuth';
 import { 
   Calendar, 
   Clock, 
@@ -108,7 +109,7 @@ export const DropBuilderView: React.FC = () => {
   const sellerAuctions = auctions.filter(a => {
     // If admin, they can see/use all auctions to curate a drop.
     // If seller, only their own upcoming/live auctions.
-    const isAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    const isAdmin = isAdminUser(currentUser);
     if (isAdmin) return true;
     return a.sellerId === currentUser?.id;
   });

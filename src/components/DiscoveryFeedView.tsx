@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
 import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
 import { unreadUserFacingCount } from '../utils/notifications';
+import { isAdminUser } from '../utils/adminAuth';
 import { useSocialProof } from '../hooks/useSocialProof';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { 
@@ -312,7 +313,7 @@ export const DiscoveryFeedView: React.FC = () => {
   // Wave D: the mobile bell badge counts only bidder-relevant notifications
   // for regular users; strict admins keep the full stream (parity with the
   // NotificationCenter drawer + desktop bell).
-  const isStrictAdminUser = !!currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const isStrictAdminUser = isAdminUser(currentUser);
   const unreadCount = isStrictAdminUser
     ? (notifications || []).filter(n => !n.read).length
     : unreadUserFacingCount(notifications);
@@ -378,7 +379,7 @@ export const DiscoveryFeedView: React.FC = () => {
   }, [auctions, activeTab, searchTerm, selectedCategory, categoriesList]);
 
   const pendingListingsToDisplay = React.useMemo(() => {
-    const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin');
+    const isStrictAdmin = isAdminUser(currentUser);
     return auctions.filter(a => {
       if (a.status !== 'processing' && a.status !== 'pending') return false;
       if (isStrictAdmin) return true; // Admins can see all pending lots to approve on-the-fly
@@ -774,7 +775,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Pending Listings Banner (For Admins & Merchants) */}
       {pendingListingsToDisplay.length > 0 && (() => {
-        const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin');
+        const isStrictAdmin = isAdminUser(currentUser);
         return (
           <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
             <div className="flex gap-2 items-start">

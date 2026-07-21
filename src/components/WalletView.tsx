@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { CLIQ_RECIPIENT_NAME_AR, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
+import { isAdminUser } from '../utils/adminAuth';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
 import { ContextualHint } from './ContextualHint';
 import { db } from '../services/firebase';
@@ -247,7 +248,7 @@ export const WalletView: React.FC = () => {
     }
   };
 
-  const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const isStrictAdmin = isAdminUser(currentUser);
 
   const myEscrows = isStrictAdmin 
     ? escrows 
