@@ -11,6 +11,7 @@ import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
+import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 
@@ -105,7 +106,6 @@ export const LiveStreamView: React.FC = () => {
   // Premium Final Countdown States
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [isOverlayDismissed, setIsOverlayDismissed] = useState<boolean>(false);
-  const [hasFinishedInSession, setHasFinishedInSession] = useState<boolean>(false);
   const prevSecondsRemaining = useRef<number | null>(null);
 
   // Get live and upcoming auctions
@@ -140,10 +140,11 @@ export const LiveStreamView: React.FC = () => {
     return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
   }, [liveAuctions, activeAuctionId]);
 
-  // Reset overlay & session end states on auction change
+  // Reset the manual overlay dismissal on auction change. The finished state is
+  // now DERIVED (isAuctionFinished) rather than latched, so there is nothing to
+  // reset for it — it re-clears on its own if anti-snipe pushes endTime forward.
   useEffect(() => {
     setIsOverlayDismissed(false);
-    setHasFinishedInSession(false);
     prevSecondsRemaining.current = null;
   }, [activeAuctionId]);
 
@@ -240,7 +241,7 @@ export const LiveStreamView: React.FC = () => {
       const target = !open && activeAuction?.scheduledStartAt
         ? activeAuction.scheduledStartAt
         : activeAuction?.endTime;
-      const remainingMs = (target ?? 0) - Date.now();
+      const remainingMs = (target ?? 0) - serverNow();
       const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
 
       if (activeAuction.status === 'live') {
@@ -287,7 +288,6 @@ export const LiveStreamView: React.FC = () => {
         playTick();
       } else if (secondsRemaining === 0 && prevSecondsRemaining.current !== 0 && prevSecondsRemaining.current !== null) {
         playFinish();
-        setHasFinishedInSession(true);
         // NOTE: settlement is server-authoritative. The client must NEVER write
         // status:'completed' — the scheduledAuctionCloser cron settles the lot
         // (order creation, wonCount, FCM, auction_won/payment_due webhooks) and
@@ -355,7 +355,7 @@ export const LiveStreamView: React.FC = () => {
       return { success: false, message };
     }
 
-    const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
+    const isEnded = isAuctionFinished(activeAuction, serverNow());
     if (isEnded) {
       const message = isAr ? '❌ انتهى المزاد بالفعل!' : '❌ The auction has already ended!';
       triggerToast(message);
@@ -459,6 +459,12 @@ export const LiveStreamView: React.FC = () => {
 
   const nextBidAmount = activeAuction ? minNextBid(activeAuction.currentPrice, activeAuction.minIncrement, activeAuction.totalBids || 0) : 0;
 
+  // DERIVED finish state (replaces the old latched hasFinishedInSession). Recomputed
+  // every render — and the 1s countdown tick + subscription updates keep renders
+  // flowing — so if an anti-snipe extension (functions/index.js:668-669, +15s)
+  // pushes endTime back into the future, the ended/winner overlay re-clears itself.
+  const isFinished = isAuctionFinished(activeAuction, serverNow());
+
   return (
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
       {isMobile ? (
@@ -535,7 +541,7 @@ export const LiveStreamView: React.FC = () => {
 
       {/* Premium Final Countdown Overlay */}
       <AnimatePresence>
-        {activeAuction && !isOverlayDismissed && ((activeAuction.status === 'live' && secondsRemaining !== null && secondsRemaining <= 10) || hasFinishedInSession) && (
+        {activeAuction && !isOverlayDismissed && ((activeAuction.status === 'live' && secondsRemaining !== null && secondsRemaining <= 10) || isFinished) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
