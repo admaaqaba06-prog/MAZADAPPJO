@@ -43,6 +43,109 @@ import {
   Review, VerificationRequest, SellerReport, Dispute, OrderReview
 } from '../types';
 
+// Maps a raw Firestore auction doc → AuctionItem (thumbnail/video fallbacks,
+// fils→JOD conversion, timestamp normalisation). Shared by the main
+// live/upcoming subscription and the seller's own-pending targeted read so both
+// surfaces render identical shapes. Any doc whose video needs async blob
+// resolution is pushed onto `itemsToResolve` for the caller to resolve.
+const mapAuctionDoc = (
+  docSnap: any,
+  itemsToResolve: { id: string; rawUrl: string; category: string }[]
+): AuctionItem => {
+  const data = docSnap.data();
+  const parseTimestamp = (val: any): number => {
+    if (!val) return Date.now() + 3600000;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const parsed = Date.parse(val);
+      return isNaN(parsed) ? Date.now() + 3600000 : parsed;
+    }
+    if (typeof val.toDate === 'function') {
+      return val.toDate().getTime();
+    }
+    if (val.seconds !== undefined) {
+      return val.seconds * 1000;
+    }
+    return Date.now() + 3600000;
+  };
+
+  let endTimeNum = Date.now() + 3600000;
+  if (data.endsAt) {
+    endTimeNum = parseTimestamp(data.endsAt);
+  } else if (data.endTime) {
+    endTimeNum = parseTimestamp(data.endTime);
+  }
+  if (isNaN(endTimeNum)) {
+    endTimeNum = Date.now() + 3600000;
+  }
+  const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
+  let finalThumbnail = rawThumbnail;
+
+  if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
+    const cat = (data.category || '').toLowerCase();
+    const tit = (data.title || '').toLowerCase();
+    if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
+      finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=400&q=80';
+    } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
+      finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80';
+    } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
+      finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80';
+    } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
+      finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=400&q=80';
+    } else {
+      finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=400&q=80';
+    }
+  }
+
+  const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
+  const currentPrice = (data.currentPriceFils !== undefined ? data.currentPriceFils / 1000 : (data.currentPrice ?? startingPrice));
+  const minIncrement = (data.minIncrementFils !== undefined ? data.minIncrementFils / 1000 : (data.minIncrement ?? 10));
+
+  const rawVideoUrl = data.videoUrl || '';
+  const itemId = docSnap.id;
+  let finalVideoUrl = rawVideoUrl;
+
+  const cached = videoUrlCache.get(itemId);
+  if (cached && cached.rawUrl === rawVideoUrl) {
+    finalVideoUrl = cached.resolvedUrl;
+  } else if (rawVideoUrl && !rawVideoUrl.startsWith('blob:')) {
+    // It's a direct network URL, resolve synchronously
+    finalVideoUrl = rawVideoUrl;
+    videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
+  } else {
+    // Use instant synchronous fallback while loading
+    finalVideoUrl = getFallbackVideoUrl(data.category || 'Luxury');
+    itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
+  }
+
+  const itemWithFallback = {
+    id: itemId,
+    title: data.title || '',
+    description: data.description || '',
+    category: data.category || 'Luxury',
+    startingPrice,
+    currentPrice,
+    minIncrement,
+    currentBidderId: data.currentBidderId || null,
+    currentBidderName: data.currentBidderName || null,
+    videoUrl: finalVideoUrl,
+    endTime: endTimeNum,
+    duration: data.duration ?? 3600,
+    sellerId: data.sellerId || 'seller-system',
+    sellerName: data.sellerName || data.createdByName || 'Seller JO',
+    sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+    status: data.status || 'live',
+    isFeatured: data.isFeatured ?? false,
+    totalBids: data.totalBids ?? 0,
+    viewersCount: data.viewersCount ?? 0,
+    ...data
+  } as any;
+
+  itemWithFallback.thumbnailUrl = finalThumbnail;
+  itemWithFallback.imageUrl = finalThumbnail;
+  return itemWithFallback as AuctionItem;
+};
+
 interface AppContextProps {
   currentUser: User;
   setCurrentUser: React.Dispatch<React.SetStateAction<User>>;
@@ -284,6 +387,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
   });
   const [auctions, setAuctions] = useState<AuctionItem[]>([]);
+  // The current user's OWN 'processing' listings. The public grid query no
+  // longer includes 'processing', so this targeted read is what keeps a
+  // seller's own under-review lot visible to them in the feed (E1 behavior)
+  // without leaking anyone else's pending lots. Merged into `visibleAuctions`.
+  const [ownPendingAuctions, setOwnPendingAuctions] = useState<AuctionItem[]>([]);
   // Real loading signal for the first auctions fetch — replaces the old
   // synthetic 550ms skeleton delay in the Discover feed.
   const [auctionsLoaded, setAuctionsLoaded] = useState(false);
@@ -1234,10 +1342,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // approval.
       q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(100));
     } else {
-      // On Discovery / Live views, subscribe ONLY to active/non-ended auctions
+      // On Discovery / Live views, the PUBLIC grid subscribes ONLY to
+      // approved, active lots. 'processing' is deliberately excluded here —
+      // a seller's own under-review listing is surfaced separately via the
+      // targeted own-pending subscription below (never leaked to buyers).
       q = query(
         auctionsRefCol,
-        where('status', 'in', ['live', 'upcoming', 'processing']),
+        where('status', 'in', ['live', 'upcoming']),
         limit(80)
       );
     }
@@ -1250,98 +1361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
 
         snap.forEach((docSnap) => {
-          const data = docSnap.data();
-          const parseTimestamp = (val: any): number => {
-            if (!val) return Date.now() + 3600000;
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string') {
-              const parsed = Date.parse(val);
-              return isNaN(parsed) ? Date.now() + 3600000 : parsed;
-            }
-            if (typeof val.toDate === 'function') {
-              return val.toDate().getTime();
-            }
-            if (val.seconds !== undefined) {
-              return val.seconds * 1000;
-            }
-            return Date.now() + 3600000;
-          };
-
-          let endTimeNum = Date.now() + 3600000;
-          if (data.endsAt) {
-            endTimeNum = parseTimestamp(data.endsAt);
-          } else if (data.endTime) {
-            endTimeNum = parseTimestamp(data.endTime);
-          }
-          if (isNaN(endTimeNum)) {
-            endTimeNum = Date.now() + 3600000;
-          }
-          const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
-          let finalThumbnail = rawThumbnail;
-
-          if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
-            const cat = (data.category || '').toLowerCase();
-            const tit = (data.title || '').toLowerCase();
-            if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=400&q=80';
-            } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80';
-            } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80';
-            } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
-              finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=400&q=80';
-            } else {
-              finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=400&q=80';
-            }
-          }
-
-          const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
-          const currentPrice = (data.currentPriceFils !== undefined ? data.currentPriceFils / 1000 : (data.currentPrice ?? startingPrice));
-          const minIncrement = (data.minIncrementFils !== undefined ? data.minIncrementFils / 1000 : (data.minIncrement ?? 10));
-
-          const rawVideoUrl = data.videoUrl || '';
-          const itemId = docSnap.id;
-          let finalVideoUrl = rawVideoUrl;
-
-          const cached = videoUrlCache.get(itemId);
-          if (cached && cached.rawUrl === rawVideoUrl) {
-            finalVideoUrl = cached.resolvedUrl;
-          } else if (rawVideoUrl && !rawVideoUrl.startsWith('blob:')) {
-            // It's a direct network URL, resolve synchronously
-            finalVideoUrl = rawVideoUrl;
-            videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
-          } else {
-            // Use instant synchronous fallback while loading
-            finalVideoUrl = getFallbackVideoUrl(data.category || 'Luxury');
-            itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
-          }
-
-          const itemWithFallback = {
-            id: itemId,
-            title: data.title || '',
-            description: data.description || '',
-            category: data.category || 'Luxury',
-            startingPrice,
-            currentPrice,
-            minIncrement,
-            currentBidderId: data.currentBidderId || null,
-            currentBidderName: data.currentBidderName || null,
-            videoUrl: finalVideoUrl,
-            endTime: endTimeNum,
-            duration: data.duration ?? 3600,
-            sellerId: data.sellerId || 'seller-system',
-            sellerName: data.sellerName || data.createdByName || 'Seller JO',
-            sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
-            status: data.status || 'live',
-            isFeatured: data.isFeatured ?? false,
-            totalBids: data.totalBids ?? 0,
-            viewersCount: data.viewersCount ?? 0,
-            ...data
-          } as any;
-
-          itemWithFallback.thumbnailUrl = finalThumbnail;
-          itemWithFallback.imageUrl = finalThumbnail;
-          fetchedList.push(itemWithFallback as AuctionItem);
+          fetchedList.push(mapAuctionDoc(docSnap, itemsToResolve));
         });
 
         // Set the auctions synchronously so viewer counts, bids and clock ticks feel butter-smooth!
@@ -1378,6 +1398,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     return () => unsub();
   }, [auctionSubMode]);
+
+  // Seller-own pending: targeted read of THIS user's own 'processing' listings,
+  // merged into visibleAuctions so a seller still sees their under-review lot in
+  // the feed even though the public grid query dropped 'processing' (E1). Only
+  // runs in buyer mode — admin mode already fetches every status, so keeping
+  // this off there prevents a duplicate render of the seller's own lot.
+  useEffect(() => {
+    if (auctionSubMode !== 'buyer' || !isAuthenticated || !currentUser?.id) {
+      setOwnPendingAuctions([]);
+      return;
+    }
+    const qOwn = query(
+      collection(db, 'auctions'),
+      where('createdById', '==', currentUser.id),
+      where('status', '==', 'processing'),
+      limit(20)
+    );
+    const unsubOwn = onSnapshot(qOwn, (snap) => {
+      const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
+      const list = snap.docs.map((docSnap) => mapAuctionDoc(docSnap, itemsToResolve));
+      setOwnPendingAuctions(list);
+      if (itemsToResolve.length > 0) {
+        Promise.all(
+          itemsToResolve.map(async ({ id, rawUrl, category }) => {
+            const resolvedUrl = await resolveVideoUrl(id, rawUrl, category);
+            videoUrlCache.set(id, { rawUrl, resolvedUrl });
+            return { id, resolvedUrl };
+          })
+        ).then((results) => {
+          setOwnPendingAuctions((prev) =>
+            prev.map((item) => {
+              const matched = results.find((r) => r.id === item.id);
+              return matched ? { ...item, videoUrl: matched.resolvedUrl } : item;
+            })
+          );
+        }).catch((err) => {
+          console.error("Own-pending video resolution failed:", err);
+        });
+      }
+    }, (err) => {
+      console.warn("Firestore own-pending auctions sync error:", err);
+      setOwnPendingAuctions([]);
+    });
+    return () => unsubOwn();
+  }, [auctionSubMode, isAuthenticated, currentUser?.id]);
 
   // Real-time escrows synchronization with Firestore
   useEffect(() => {
@@ -4213,7 +4278,16 @@ const fetchIP = async () => {
     }
   }, [addNotification]);
 
-  const visibleAuctions = auctions.filter(a => !deletedAuctionIds.includes(a.id));
+  const visibleAuctions = useMemo(() => {
+    const base = auctions.filter(a => !deletedAuctionIds.includes(a.id));
+    if (ownPendingAuctions.length === 0) return base;
+    // Merge the seller's own pending lots, de-duped by id (the optimistic
+    // insert on createListing can already have it in `auctions`), so the
+    // seller's under-review lot renders exactly once.
+    const seen = new Set(base.map(a => a.id));
+    const extras = ownPendingAuctions.filter(a => !seen.has(a.id) && !deletedAuctionIds.includes(a.id));
+    return extras.length > 0 ? [...base, ...extras] : base;
+  }, [auctions, ownPendingAuctions, deletedAuctionIds]);
 
   return (
     <AppContext.Provider value={{
