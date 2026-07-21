@@ -5,7 +5,7 @@ import { translations } from '../utils/translations';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { mapAuthError } from '../utils/authErrors';
 import { parseAuctionIdFromSearch } from '../utils/deepLink';
-import { Globe, Eye, EyeOff, CheckCircle2, Phone, Loader2 } from 'lucide-react';
+import { Globe, CheckCircle2, Phone, Loader2 } from 'lucide-react';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -28,37 +28,18 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const FacebookIcon = () => (
-  <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-    <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
-  </svg>
-);
-
-
-
 export const LoginView: React.FC = () => {
   const {
-    login,
     loginWithGoogle,
     loginWithPhone,
     confirmPhoneCode,
-    registerUser,
     language,
-    setLanguage,
-    setUsers,
-    setCurrentUser
+    setLanguage
   } = useApp();
 
   const t = translations[language];
   const isAr = language === 'ar';
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -152,63 +133,6 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const handleFacebookClick = async () => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const { FacebookAuthProvider, signInWithRedirect } = await import('firebase/auth');
-      const { auth } = await import('../services/firebase');
-      const facebookProvider = new FacebookAuthProvider();
-
-      const newSessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('mazad_session_id', newSessionId);
-      localStorage.setItem('mazad_last_login_time', String(Date.now()));
-
-      await signInWithRedirect(auth, facebookProvider);
-    } catch (error) {
-      console.warn("Facebook login failed:", error);
-      setErrorMsg(isAr ? 'فشل تسجيل الدخول عبر فيسبوك.' : 'Facebook Sign-In failed.');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    if (mode === 'login') {
-      if (!email || !password) {
-        setErrorMsg(isAr ? 'الرجاء ملء كافة الحقول المطلوبة.' : 'Kindly fill in all required fields.');
-        return;
-      }
-      const res = await login(email, password);
-      if (res.success) {
-        setSuccessMsg(res.message);
-      } else {
-        setErrorMsg(res.message);
-      }
-    } else {
-      if (!name || !email || !password || !confirmPassword) {
-        setErrorMsg(isAr ? 'الرجاء ملء جميع الحقول المطلوبة بما في ذلك كلمة المرور وتأكيدها.' : 'Kindly fill in all required fields including password and confirmation.');
-        return;
-      }
-      if (password.length < 6) {
-        setErrorMsg(isAr ? 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMsg(isAr ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.');
-        return;
-      }
-      const res = await registerUser(name, email, password, phone);
-      if (res.success) {
-        setSuccessMsg(res.message);
-      } else {
-        setErrorMsg(res.message);
-      }
-    }
-  };
-
   return (
     <div 
       className="min-h-screen w-full bg-neutral-50 text-gray-900 flex flex-col justify-center items-center p-4 md:p-8 font-sans select-none relative"
@@ -239,7 +163,7 @@ export const LoginView: React.FC = () => {
       {/* Deep-link context: the visitor followed a live-auction link — say so */}
       {cameFromAuctionLink && (
         <div
-          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 mt-16 -mb-12"
+          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 mt-16"
           id="deep-link-auction-banner"
         >
           {isAr ? '⚡ سجّل دخولك للمشاركة في المزاد المباشر' : '⚡ Sign in to join the live auction'}
@@ -247,34 +171,12 @@ export const LoginView: React.FC = () => {
       )}
 
       {/* Center White Modal Box */}
-      <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 my-16">
-        
+      <div className={`w-full max-w-md bg-white rounded-3xl p-6 md:p-8 border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
+
         {/* Title */}
         <h1 className="text-2xl font-black text-gray-900 tracking-tight text-center mb-6">
-          {isAr ? 'انضم إلى MAZAD JO!' : 'Join MAZAD JO!'}
+          {isAr ? 'يا هلا فيك — سجّل دخولك' : 'Welcome — sign in'}
         </h1>
-
-        {/* Tab Switcher - Sign up / Log in */}
-        <div className="flex border-b border-gray-100 mb-6">
-          <button
-            type="button"
-            onClick={() => { setMode('register'); setErrorMsg(''); setSuccessMsg(''); }}
-            className={`flex-1 pb-3 text-center text-sm font-bold border-b-2 transition-all ${
-              mode === 'register' ? 'border-[#FF6B00] text-black font-black' : 'border-transparent text-gray-400 font-medium'
-            }`}
-          >
-            {isAr ? 'إنشاء حساب' : 'Sign up'}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('login'); setErrorMsg(''); setSuccessMsg(''); }}
-            className={`flex-1 pb-3 text-center text-sm font-bold border-b-2 transition-all ${
-              mode === 'login' ? 'border-[#FF6B00] text-black font-black' : 'border-transparent text-gray-400 font-medium'
-            }`}
-          >
-            {isAr ? 'تسجيل الدخول' : 'Log in'}
-          </button>
-        </div>
 
         {/* Alert Notifications */}
         {errorMsg && (
@@ -380,11 +282,25 @@ export const LoginView: React.FC = () => {
               </button>
             </div>
           )}
-        </div>
 
-        {/* Email/username + password auth removed — phone number is the identity.
-            Handlers (handleSubmit, handleGoogleClick, handleFacebookClick) and their
-            state are intentionally kept in case a hidden auth path needs restoring. */}
+          {/* Divider */}
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-[11px] text-gray-400 font-semibold">{isAr ? 'أو' : 'or'}</span>
+            <div className="flex-1 h-px bg-gray-100" />
+          </div>
+
+          {/* Continue with Google (secondary) */}
+          <button
+            type="button"
+            onClick={handleGoogleClick}
+            className="w-full h-11 flex items-center justify-center gap-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 text-sm font-bold rounded-full shadow-sm transition-all"
+            id="google-login-btn"
+          >
+            <GoogleIcon />
+            <span>{isAr ? 'المتابعة بـ Google' : 'Continue with Google'}</span>
+          </button>
+        </div>
 
       </div>
 
