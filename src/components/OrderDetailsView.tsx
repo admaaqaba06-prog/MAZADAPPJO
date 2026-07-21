@@ -241,7 +241,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     setReceiptEmailSaving(true);
     try {
       const result = await updateOwnProfile({ email: value });
-      if (result.success) {
+      // Only celebrate + dismiss when the email actually persisted — success
+      // alone can be true while the email write was denied/offline.
+      if (result.success && result.emailSaved) {
         setReceiptEmailDismissed(true);
         showToast({ type: 'success', title: t.receiptEmailSavedTitle });
       } else {
