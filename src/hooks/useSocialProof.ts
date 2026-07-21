@@ -100,7 +100,7 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
     // small so the read cost stays trivial.
     const q = query(
       collection(db, 'auctions'),
-      where('status', 'in', ['completed', 'ended']),
+      where('status', 'in', ['completed', 'ended', 'closed']),
       limit(24)
     );
     recentWinsCache = getDocs(q)
@@ -111,11 +111,13 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
           const title = typeof data.title === 'string' ? data.title.trim() : '';
           if (!title) return; // no title → skip gracefully
           if (!data.currentBidderId) return; // ended with no winner → not a win
+          const whenTs = toMillis(data.endTime ?? data.endsAt);
+          if (!whenTs || whenTs <= 0) return; // no timestamp → skip (avoids "~20000d ago")
           wins.push({
             item: title,
             winner: firstNameOnly(data.currentBidderName),
             city: undefined,
-            whenTs: toMillis(data.endTime ?? data.endsAt),
+            whenTs,
           });
         });
         return wins.sort((a, b) => b.whenTs - a.whenTs).slice(0, 6);
