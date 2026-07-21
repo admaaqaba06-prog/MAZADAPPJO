@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Sparkles, BadgeCheck, Gavel, X, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const OnboardingModal: React.FC = () => {
-  const { currentUser, completeOnboarding } = useApp();
+  const { currentUser, completeOnboarding, setActiveView } = useApp();
   const [step, setStep] = useState(1);
   const [onboardingLang, setOnboardingLang] = useState<'ar' | 'en'>('ar');
 
@@ -24,18 +24,33 @@ export const OnboardingModal: React.FC = () => {
     sessionStorage.setItem('mazad_onboarding_dismissed', '1');
   };
 
+  // Non-members get a converting final CTA (→ join flow); active members just
+  // close onto Discover and start bidding.
+  const isMember = currentUser?.subscriptionStatus === 'active';
+
+  const finishOnboarding = () => {
+    dismissForSession();
+    completeOnboarding();
+  };
+
   const handleNext = () => {
     if (step < 3) {
       setStep(step + 1);
     } else {
-      dismissForSession();
-      completeOnboarding();
+      finishOnboarding();
+      if (!isMember) {
+        setActiveView('wallet'); // join flow
+      }
     }
   };
 
   const handleSkip = () => {
-    dismissForSession();
-    completeOnboarding();
+    finishOnboarding();
+  };
+
+  const handleHowItWorks = () => {
+    finishOnboarding();
+    setActiveView('about');
   };
 
   const isAr = onboardingLang === 'ar';
@@ -52,10 +67,10 @@ export const OnboardingModal: React.FC = () => {
       color: 'from-amber-500/10 to-orange-500/10 border-amber-200/50'
     },
     {
-      titleAr: 'انضم بدينار واحد 🎯',
-      titleEn: 'Join for 1 JD 🎯',
-      descAr: 'عضوية مزاد جو بدينار واحد فقط عبر كليك — اشترك مرة وزايد على كل المزادات بحرية.',
-      descEn: 'Mazad JO membership is just 1 JD via CliQ — join once and bid freely on every auction.',
+      titleAr: 'انضم من ١ دينار بالشهر 🎯',
+      titleEn: 'Join from 1 JD/month 🎯',
+      descAr: 'عضوية شهرية تبدأ من دينار عبر كليك — اشترك وزايد على كل المزادات.',
+      descEn: 'Monthly membership from 1 JD via CliQ — bid freely on every auction.',
       buttonAr: 'فهمت',
       buttonEn: 'Got it',
       icon: <BadgeCheck className="w-12 h-12 text-emerald-500" />,
@@ -66,8 +81,8 @@ export const OnboardingModal: React.FC = () => {
       titleEn: 'Bid Safely 🔨',
       descAr: 'المزايدة مجانية — ما بتدفع إلا إذا فزت. عند الفوز بتدفع سعر الفوز + عمولة المشتري ٥٪ عبر كليك خلال ٢٤ ساعة. إذا خسرت، ما عليك شي.',
       descEn: 'Bidding is free — you only pay if you win: the final price + 5% buyer\'s premium via CliQ within 24 hours. If you lose, you owe nothing.',
-      buttonAr: 'ابدأ المزايدة',
-      buttonEn: 'Start Bidding',
+      buttonAr: isMember ? 'ابدأ المزايدة' : 'انضم الآن — من ١ دينار',
+      buttonEn: isMember ? 'Start Bidding' : 'Join now — from 1 JD',
       icon: <Gavel className="w-12 h-12 text-blue-500" />,
       color: 'from-blue-500/10 to-indigo-500/10 border-blue-200/50'
     }
@@ -161,6 +176,15 @@ export const OnboardingModal: React.FC = () => {
                   {isAr ? 'السابق' : 'Back'}
                 </button>
               )}
+
+              {/* Footer: How-it-works link (marks onboarding done, opens explainer) */}
+              <button
+                onClick={handleHowItWorks}
+                className="w-full py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-700 underline underline-offset-2 decoration-slate-200 hover:decoration-slate-400 transition-colors cursor-pointer"
+                id="onboarding-how-it-works-link"
+              >
+                {isAr ? 'كيف يعمل مزاد جو؟' : 'How does Mazad JO work?'}
+              </button>
             </div>
           </div>
         </motion.div>
