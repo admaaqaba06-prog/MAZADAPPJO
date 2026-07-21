@@ -1047,7 +1047,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time auctions synchronization with Firestore
   useEffect(() => {
-    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder'];
+    // 'about' falls through to DiscoveryFeedView until Wave C ships HowItWorksView;
+    // keep it here so auctions load + auctionsLoaded flips (else infinite skeleton).
+    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder', 'about'];
     if (!viewsRequiringAuctions.includes(activeView)) {
       setAuctions([]);
       setAuctionsLoaded(false);

@@ -1,7 +1,6 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { getLiveAuctions } from '../utils/auctionPhase';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
 
@@ -59,15 +58,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  const liveAuctions = getLiveAuctions(auctions);
-
-  const handleAuctionClick = (id: string) => {
-    setActiveAuctionId(id);
-    setActiveView('live');
-  };
-
   // Dynamic calculations for outer header
-  const liveCount = liveAuctions.length;
   const activeEscrowSum = escrows
     ? escrows.filter(e => e.status === 'locked').reduce((acc, curr) => acc + (curr.amount || 0), 0)
     : 0;
@@ -508,7 +499,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {/* Rail body: active members WITH activity keep their alert/ledger
                   stream; everyone else gets a compact How-it-works + trust card
                   instead of an empty 'No recent transactions' ledger. */}
-              {currentUser?.subscriptionStatus === 'active' && allLedgerEvents.length > 0 ? (
+              {allLedgerEvents.length > 0 ? (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between pb-1">
                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
