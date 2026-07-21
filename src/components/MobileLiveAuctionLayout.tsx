@@ -233,7 +233,7 @@ interface MobileAuctionReelProps {
   onClose: () => void;
 }
 
-const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
+const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   auction,
   isActive,
   shouldLoad,
@@ -1020,7 +1020,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
       {/* Complete Seller Profile Modal */}
       {selectedProfileId && (
-        <SellerProfileModal 
+        <SellerProfileModal
           sellerId={selectedProfileId}
           isOpen={true}
           onClose={() => setSelectedProfileId(null)}
@@ -1029,3 +1029,91 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     </div>
   );
 };
+
+/* ----------------------------------------------------------------------
+   PERF (Wave 4): memoize the reel.
+
+   Every auctions snapshot rebuilds the whole `auctions` array in AppContext, so
+   each reel receives a BRAND-NEW `auction` object reference on every write, and
+   the parent also passes fresh inline callbacks each render. Without memo, all
+   loaded reels (incl. the off-screen next lot) re-render on every write and —
+   before the countdown was isolated — every second.
+
+   This comparator re-renders a reel ONLY when a value it actually renders from
+   changes. It deliberately IGNORES the unstable inline callback props
+   (onBidExecute, onMuteToggle, onCommentSubmit, …): whenever a value one of them
+   closes over matters, a corresponding scalar prop below also changes and forces
+   the re-render, so the reel never runs a stale handler. Context-sourced data
+   (bids/orders/sellerProfiles via useApp) bypasses memo and re-renders anyway.
+   Return TRUE to SKIP re-render (props considered equal).
+   ---------------------------------------------------------------------- */
+const areReelPropsEqual = (
+  prev: Readonly<MobileAuctionReelProps>,
+  next: Readonly<MobileAuctionReelProps>
+): boolean => {
+  const a = prev.auction ?? {};
+  const b = next.auction ?? {};
+  // Auction fields the reel renders from (compared by value, since the object
+  // ref changes on every snapshot even when the content is identical).
+  if (
+    a.id !== b.id ||
+    a.currentPrice !== b.currentPrice ||
+    a.endTime !== b.endTime ||
+    a.status !== b.status ||
+    a.scheduledStartAt !== b.scheduledStartAt ||
+    a.currentBidderId !== b.currentBidderId ||
+    a.totalBids !== b.totalBids ||
+    a.title !== b.title ||
+    a.videoUrl !== b.videoUrl ||
+    a.thumbnailUrl !== b.thumbnailUrl ||
+    a.imageUrl !== b.imageUrl ||
+    a.marketPrice !== b.marketPrice ||
+    a.minIncrement !== b.minIncrement ||
+    a.sellerId !== b.sellerId
+  ) {
+    return false;
+  }
+
+  // Scalar props that drive layout / behaviour on this reel.
+  if (
+    prev.isActive !== next.isActive ||
+    prev.shouldLoad !== next.shouldLoad ||
+    prev.isMuted !== next.isMuted ||
+    prev.isPlaying !== next.isPlaying ||
+    prev.activePrice !== next.activePrice ||
+    prev.isSaved !== next.isSaved ||
+    prev.nextBidAmount !== next.nextBidAmount ||
+    prev.language !== next.language ||
+    prev.isAr !== next.isAr
+  ) {
+    return false;
+  }
+
+  // Fields of currentUser the reel reads (object ref may churn on profile sync).
+  const pu = prev.currentUser ?? {};
+  const nu = next.currentUser ?? {};
+  if (
+    pu.id !== nu.id ||
+    pu.isBlocked !== nu.isBlocked ||
+    pu.subscriptionStatus !== nu.subscriptionStatus
+  ) {
+    return false;
+  }
+
+  // The chat feed, floating toasts and comment input only render on the ACTIVE
+  // reel, so only it needs to react to comment/activity/input churn. Off-screen
+  // reels ignore these (their toast-queue effects are irrelevant while hidden).
+  if (next.isActive) {
+    if (
+      prev.activeComments !== next.activeComments ||
+      prev.activeActivities !== next.activeActivities ||
+      prev.commentText !== next.commentText
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const MobileAuctionReel = React.memo(MobileAuctionReelBase, areReelPropsEqual);

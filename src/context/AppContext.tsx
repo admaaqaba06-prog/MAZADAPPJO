@@ -1190,16 +1190,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated, currentUser?.id]);
 
-  // Real-time auctions synchronization with Firestore
+  // Real-time auctions synchronization with Firestore.
+  //
+  // PERF (Wave 4): this effect keys off a derived SUBSCRIPTION MODE, not the raw
+  // activeView. The two buyer surfaces — 'discovery' and 'live' — share the exact
+  // same query, so swiping between them must NOT tear down and rebuild the
+  // Firestore listener (which also re-ran every video-URL resolution for all 80
+  // lots). By collapsing them to a single 'buyer' mode the subscription stays
+  // MOUNTED across the whole live room; the effect only re-subscribes when the
+  // mode genuinely changes (buyer ↔ admin ↔ none). Because the query is chosen
+  // from the stable `mode` (not the exact activeView), there is no stale-closure
+  // hazard: every view inside a mode maps to the identical query.
+  //
+  // 'about' now renders its own HowItWorksView (Wave C) — it no longer needs
+  // the auctions subscription, so it maps to 'none'.
+  // 'admin' IS required ('admin' mode): the AdminDashboardView approval queue
+  // (pendingListingDrops) filters this context state — without the
+  // subscription the queue is always empty and the reject-with-reason
+  // gate UI never renders.
+  const auctionSubMode: 'buyer' | 'admin' | 'none' =
+    activeView === 'discovery' || activeView === 'live'
+      ? 'buyer'
+      : activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin'
+        ? 'admin'
+        : 'none';
+
   useEffect(() => {
-    // 'about' now renders its own HowItWorksView (Wave C) — it no longer needs
-    // the auctions subscription, so it's intentionally NOT in this list.
-    // 'admin' IS required: the AdminDashboardView approval queue
-    // (pendingListingDrops) filters this context state — without the
-    // subscription the queue is always empty and the reject-with-reason
-    // gate UI never renders.
-    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder', 'admin'];
-    if (!viewsRequiringAuctions.includes(activeView)) {
+    if (auctionSubMode === 'none') {
       setAuctions([]);
       setAuctionsLoaded(false);
       return;
@@ -1207,7 +1224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
-    if (activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin') {
+    if (auctionSubMode === 'admin') {
       // In Seller Center, Drop Builder & Admin dashboard, fetch auctions of
       // EVERY status (incl. 'processing'/'rejected'/'completed') capped at 100 —
       // the admin approval queue and winners panel need the full set.
@@ -1356,7 +1373,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAuctionsLoaded(true);
     });
     return () => unsub();
-  }, [activeView]);
+  }, [auctionSubMode]);
 
   // Real-time escrows synchronization with Firestore
   useEffect(() => {
