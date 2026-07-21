@@ -1,5 +1,6 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
+import { useSocialProof } from '../hooks/useSocialProof';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
@@ -49,6 +50,10 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   } = useApp();
 
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
+
+  // Real social proof for the new-user right rail (spec §4): live bidders
+  // from the loaded auctions + recent wins (one-time cached query).
+  const { biddersNow, recentWins } = useSocialProof();
 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -577,6 +582,23 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       <span>{isAr ? 'اعرف المزيد — كيف يعمل' : 'Learn more — How it works'}</span>
                     </button>
                   </div>
+
+                  {/* Live social proof (real data only): people bidding right
+                      now, else the latest real win. Nothing when data is thin —
+                      the qualitative trust chips below carry the fallback. */}
+                  {biddersNow > 0 ? (
+                    <p className="text-[10.5px] font-extrabold text-red-600 leading-snug px-1" id="rail-live-proof">
+                      {isAr
+                        ? (biddersNow === 1 ? '🔥 شخص واحد بيزايد الآن' : `🔥 ${biddersNow} أشخاص بيزايدوا الآن`)
+                        : `🔥 ${biddersNow} bidding right now`}
+                    </p>
+                  ) : recentWins.length > 0 ? (
+                    <p className="text-[10.5px] font-bold text-emerald-700 leading-snug px-1 truncate" id="rail-recent-win">
+                      {isAr
+                        ? `🏆 آخر فوز: ${recentWins[0].winner ?? 'حدا'} ربح ${recentWins[0].item} — ${recentWins[0].when}`
+                        : `🏆 Latest win: ${recentWins[0].winner ?? 'someone'} won ${recentWins[0].item} — ${recentWins[0].when}`}
+                    </p>
+                  ) : null}
 
                   {/* Trust chips */}
                   <div className="flex flex-wrap gap-1.5" id="rail-trust-chips">
