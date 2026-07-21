@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch } from './utils/deepLink';
+import { isAdminUser } from './utils/adminAuth';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -47,11 +48,11 @@ function ActiveViewRenderer() {
     case 'drop-builder':
       return <DropBuilderView />;
     case 'auction-drop-builder': {
-      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+      const isStrictAdmin = isAdminUser(currentUser);
       return isStrictAdmin ? <AuctionDropBuilderView /> : <DiscoveryFeedView />;
     }
     case 'admin':
-      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+      const isStrictAdmin = isAdminUser(currentUser);
       if (!isStrictAdmin) {
         return <DiscoveryFeedView />;
       }
@@ -152,7 +153,7 @@ function ReviewPromptHost() {
 function MainAppShell() {
   const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
-  const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+  const isStrictAdmin = isAdminUser(currentUser);
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {

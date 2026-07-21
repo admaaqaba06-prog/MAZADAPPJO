@@ -8,6 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
+import { isAdminUser } from '../utils/adminAuth';
 import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
@@ -1160,7 +1161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync System Health logs (For admins)
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' && (currentUser?.role === 'admin' || currentUser?.isAdmin === true);
+    const isStrictAdmin = isAdminUser(currentUser);
     if (!isStrictAdmin) {
       setSystemHealthLogs([]);
       return;
@@ -1187,7 +1188,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync adminActions collection in real-time (For admins)
   useEffect(() => {
-    const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
     if (!isStrictAdmin) {
       setAdminActions([]);
       setAdminActionsError(undefined);
@@ -1458,7 +1459,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' && (currentUser.role === 'admin' || currentUser.isAdmin === true);
+    const isStrictAdmin = isAdminUser(currentUser);
     if (isStrictAdmin) {
       const escrowsRefCol = collection(db, 'escrows');
       const q = query(escrowsRefCol, orderBy('timestamp', 'desc'), limit(100));
@@ -1535,7 +1536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, isDeferredReady]);
 
   // Real-time chats synchronization with Firestore
   useEffect(() => {
@@ -1569,7 +1570,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
-    if (!isAuthenticated || currentUser?.role !== 'admin') {
+    if (!isAuthenticated || !isAdminUser(currentUser)) {
       return;
     }
     const usersRefCol = collection(db, 'users');
@@ -1600,13 +1601,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'users' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated, currentUser?.role]);
+  }, [isAuthenticated, currentUser?.role, currentUser?.isAdmin]);
 
   // Real-time sellerProfiles synchronization with Firestore
   useEffect(() => {
     if (!isAuthenticated || !isDeferredReady || !currentUser?.id) return;
 
-    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
 
     if (isStrictAdmin) {
       // Admins get up to 100 profiles
@@ -1667,7 +1668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return () => unsub();
     }
-  }, [isAuthenticated, isDeferredReady, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.email]);
+  }, [isAuthenticated, isDeferredReady, currentUser?.id, currentUser?.role, currentUser?.isAdmin]);
 
   // Lightweight listener on the user's OWN reviews (buyerId == uid) — powers the
   // post-win review prompt and the unreviewed-order bid gate without a global reviews sync.
@@ -1780,7 +1781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
     if (isStrictAdmin) {
       const ordersRefCol = collection(db, 'orders');
       const q = query(ordersRefCol, orderBy('createdAt', 'desc'), limit(100));
@@ -1856,7 +1857,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
 
   // Real-time synchronization for trust system collections
   useEffect(() => {
@@ -1868,7 +1869,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const isStrictAdmin = currentUser.email === 'admaaqaba06@gmail.com' || currentUser.role === 'admin' || currentUser.isAdmin === true;
+    const isStrictAdmin = isAdminUser(currentUser);
 
     // 1. Reviews (Removed global real-time listener to optimize read cost. Loaded on-demand instead)
     const unsubReviews = () => {};
@@ -1960,7 +1961,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReports();
       unsubDisputes();
     };
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.email, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
