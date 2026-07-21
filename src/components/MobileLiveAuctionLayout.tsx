@@ -891,7 +891,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </span>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString()} />
+                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString('en-US')} />
                 </span>
                 <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
               </div>

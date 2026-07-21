@@ -969,7 +969,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </span>
                         <div className="flex items-center justify-center gap-2">
                           <div className="text-2xl font-black text-[#FF6B00] font-mono">
-                            <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString()} />
+                            <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString('en-US')} />
                             <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
                           </div>
                           <button
