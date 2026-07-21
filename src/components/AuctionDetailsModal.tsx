@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
 
@@ -96,7 +97,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
   useEffect(() => {
     if (!auction) return;
     const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((auction.endTime - Date.now()) / 1000));
+      const remainingSecs = Math.max(0, Math.floor((auction.endTime - serverNow()) / 1000));
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);

@@ -112,7 +112,7 @@ export const LiveStreamView: React.FC = () => {
   const liveAuctions = useMemo(() => {
     const filtered = auctions.filter(a =>
       (a.status === 'live' || a.status === 'upcoming') &&
-      (!a.endTime || a.endTime > Date.now())
+      (!a.endTime || a.endTime > serverNow())
     );
     // Fallback (nothing live/upcoming): never leak unapproved lots — a
     // 'processing' (awaiting Mazad review), legacy 'pending' or 'rejected'
@@ -415,7 +415,7 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const hasLiveAuctions = useMemo(() => {
-    return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
+    return auctions.some(a => a.status === 'live' && (!a.endTime || a.endTime > serverNow()));
   }, [auctions]);
 
   // Must stay above the no-live-auctions early return: the branch switch on
