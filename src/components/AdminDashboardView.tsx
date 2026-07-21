@@ -745,8 +745,10 @@ export const AdminDashboardView: React.FC = () => {
     try {
       const plan = request.plan || 'monthly';
       let durationDays = 30;
-      if (plan === 'quarterly') {
-        durationDays = 90;
+      if (plan === 'semiannual') {
+        durationDays = 180; // 4 JD / 6-month tier
+      } else if (plan === 'quarterly') {
+        durationDays = 90; // legacy 3-month tier (retained for any old pending request)
       } else if (plan === 'annual' || plan === 'yearly') {
         durationDays = 365;
       }

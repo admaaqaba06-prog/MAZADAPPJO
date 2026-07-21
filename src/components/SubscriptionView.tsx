@@ -56,7 +56,7 @@ export const SubscriptionView: React.FC = () => {
       color: 'border-gray-200'
     },
     {
-      id: 'quarterly', // legacy id; this tier is 4 JD / 6 months (see translations planQuarterlyUnit)
+      id: 'semiannual', // 4 JD / 6 months (see translations planQuarterlyUnit) — was mislabeled 'quarterly'
       name: language === 'en' ? 'Professional Elite' : 'النخبة الاحترافية',
       price: 4,
       period: t.planQuarterlyUnit,
@@ -145,7 +145,7 @@ export const SubscriptionView: React.FC = () => {
     }
     setLoading(true);
     try {
-      const ok = await subscribeUser(selectedPlan.price, paymentProofImage || undefined, transferFullName, transferPhone);
+      const ok = await subscribeUser(selectedPlan.price, paymentProofImage || undefined, transferFullName, transferPhone, selectedPlan.id);
       if (ok) setSubmitted(true);
     } finally {
       setLoading(false);
