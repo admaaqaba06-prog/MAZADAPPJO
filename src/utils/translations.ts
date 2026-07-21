@@ -135,6 +135,16 @@ export const translations = {
     profileCityRequired: "Please choose your city",
     profileSaveFailedTitle: "Couldn't save your profile",
     profileSaveFailedMsg: "Something went wrong — please try again.",
+
+    // Progressive email capture at win/receipt (Auth/KYC Wave 3)
+    receiptEmailPromptTitle: "Where should we send your receipt?",
+    receiptEmailPromptHint: "Optional — we'll email your payment receipt and order updates.",
+    receiptEmailPlaceholder: "you@example.com",
+    receiptEmailSave: "Save",
+    receiptEmailSkip: "Skip",
+    receiptEmailInvalid: "Please enter a valid email address",
+    receiptEmailSavedTitle: "Receipt email saved",
+    receiptEmailFailedTitle: "Couldn't save your email — try again",
   },
   ar: {
     appName: "مزاد جو",
@@ -272,5 +282,15 @@ export const translations = {
     profileCityRequired: "اختار مدينتك لو سمحت",
     profileSaveFailedTitle: "ما زبط حفظ البيانات",
     profileSaveFailedMsg: "صار خطأ بسيط — جرّب مرة ثانية.",
+
+    // Progressive email capture at win/receipt (Auth/KYC Wave 3)
+    receiptEmailPromptTitle: "وين نبعتلك الإيصال؟",
+    receiptEmailPromptHint: "اختياري — بنبعتلك إيصال الدفع وتحديثات الطلب على إيميلك.",
+    receiptEmailPlaceholder: "you@example.com",
+    receiptEmailSave: "احفظ",
+    receiptEmailSkip: "لاحقاً",
+    receiptEmailInvalid: "اكتب إيميل صحيح لو سمحت",
+    receiptEmailSavedTitle: "تم حفظ إيميل الإيصالات",
+    receiptEmailFailedTitle: "ما زبط حفظ الإيميل — جرّب مرة ثانية",
   }
 };

@@ -30,9 +30,12 @@ import {
   DollarSign,
   RefreshCw,
   UploadCloud,
-  Landmark
+  Landmark,
+  Mail,
+  X
 } from 'lucide-react';
 import { Order } from '../types';
+import { translations } from '../utils/translations';
 import { executeOrderTransition } from '../utils/orderWorkflow';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
@@ -43,8 +46,9 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile } = useApp();
   const isAr = language === 'ar';
+  const t = translations[language as 'en' | 'ar'];
 
   const order = orders.find(o => o.id === orderId);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -56,6 +60,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
   const { showToast } = useToast();
+
+  // Progressive email capture (Auth/KYC Wave 3): shown only while the account
+  // has no email — the rules allow a one-time empty→set claim by the owner.
+  const [receiptEmail, setReceiptEmail] = useState('');
+  const [receiptEmailSaving, setReceiptEmailSaving] = useState(false);
+  const [receiptEmailError, setReceiptEmailError] = useState(false);
+  const [receiptEmailDismissed, setReceiptEmailDismissed] = useState(false);
 
   // Admin one-tap buyer rating (mazad_rates_buyer): existing stars for this order, if any.
   const [adminBuyerStars, setAdminBuyerStars] = useState<number | null>(null);
@@ -216,6 +227,32 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     navigator.clipboard.writeText(totalDue.toFixed(3));
     setCopiedAmount(true);
     setTimeout(() => setCopiedAmount(false), 2000);
+  };
+
+  // Save the optional receipt email (write-once claim; rules allow empty→set only).
+  const handleSaveReceiptEmail = async () => {
+    if (receiptEmailSaving) return;
+    const value = receiptEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+      setReceiptEmailError(true);
+      return;
+    }
+    setReceiptEmailError(false);
+    setReceiptEmailSaving(true);
+    try {
+      const result = await updateOwnProfile({ email: value });
+      if (result.success) {
+        setReceiptEmailDismissed(true);
+        showToast({ type: 'success', title: t.receiptEmailSavedTitle });
+      } else {
+        showToast({ type: 'warn', title: t.receiptEmailFailedTitle });
+      }
+    } catch (err) {
+      console.error('Receipt email save failed:', err);
+      showToast({ type: 'warn', title: t.receiptEmailFailedTitle });
+    } finally {
+      setReceiptEmailSaving(false);
+    }
   };
 
   const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1089,6 +1126,55 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إلغاء الطلب بالكامل' : 'Cancel Bidding Order'}</span>
                     </button>
+                  )}
+
+                  {/* Progressive email capture — only while the account has no email.
+                      Optional and dismissible; persists via the write-once rules claim. */}
+                  {!currentUser?.email && !receiptEmailDismissed && (
+                    <div className="bg-white border border-gray-150 rounded-2xl p-3.5 space-y-2" id="receipt-email-capture">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[11px] font-black text-gray-800 flex items-center gap-1.5">
+                          <Mail className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                          <span>{t.receiptEmailPromptTitle}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setReceiptEmailDismissed(true)}
+                          aria-label={t.receiptEmailSkip}
+                          className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer shrink-0"
+                          id="receipt-email-skip-btn"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-[9.5px] text-gray-400 leading-snug">{t.receiptEmailPromptHint}</p>
+                      <div className="flex items-stretch gap-2">
+                        <input
+                          type="email"
+                          dir="ltr"
+                          inputMode="email"
+                          autoComplete="email"
+                          value={receiptEmail}
+                          onChange={e => { setReceiptEmail(e.target.value); if (receiptEmailError) setReceiptEmailError(false); }}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveReceiptEmail(); } }}
+                          placeholder={t.receiptEmailPlaceholder}
+                          className={`flex-1 min-w-0 bg-[#FAF9F6] border rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${receiptEmailError ? 'border-red-300' : 'border-gray-150'}`}
+                          id="receipt-email-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveReceiptEmail}
+                          disabled={receiptEmailSaving}
+                          className="bg-[#121318] hover:bg-gray-900 text-white font-black px-4 rounded-xl text-[10px] uppercase font-mono transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                          id="receipt-email-save-btn"
+                        >
+                          {receiptEmailSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>{t.receiptEmailSave}</span>}
+                        </button>
+                      </div>
+                      {receiptEmailError && (
+                        <p className="text-[9.5px] text-red-500 font-bold">{t.receiptEmailInvalid}</p>
+                      )}
+                    </div>
                   )}
 
                   {canRateOrder && (
