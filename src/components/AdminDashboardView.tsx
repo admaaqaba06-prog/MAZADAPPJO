@@ -1584,6 +1584,7 @@ export const AdminDashboardView: React.FC = () => {
                           onChange={(e) => setRejectionReason(e.target.value)}
                           className="w-full text-xs p-2.5 border border-rose-200 rounded-xl bg-rose-50/20 focus:outline-none focus:ring-1 focus:ring-rose-400"
                           rows={2}
+                          maxLength={300}
                           autoFocus
                         />
                         <div className="flex gap-2">

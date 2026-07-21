@@ -70,14 +70,25 @@ service cloud.firestore {
           (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
         )
       );
+      // Non-admin (creator) updates are confined to the REVIEW states: they may
+      // edit while under review ('processing'/legacy 'pending') or resubmit a
+      // 'rejected' listing back into review — NEVER move a doc to a
+      // buyer-visible/terminal status ('upcoming'/'live'/'active'/'completed'),
+      // and never touch winner/bidder/price-race or approval-gate fields
+      // (forged social-proof wins / self-approval). Only isAdmin() — or the
+      // Cloud Functions service path, which bypasses rules — may do those.
       allow update: if isSignedIn() && (
         isAdmin() ||
         (
           resource.data.createdById == request.auth.uid &&
-          (resource.data.status == 'upcoming' || resource.data.status == 'rejected') &&
-          // a non-admin creator cannot self-promote to live/active or add an auto-open schedule
-          request.resource.data.status != 'live' && request.resource.data.status != 'active' &&
-          (!('scheduledStartAt' in request.resource.data) || request.resource.data.scheduledStartAt == null)
+          resource.data.status in ['processing', 'pending', 'rejected'] &&
+          request.resource.data.status in ['processing', 'pending', 'rejected'] &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentBidderId', 'currentBidderName', 'winnerId', 'winnerName',
+            'winnerEmail', 'winnerPhone', 'winnerCity', 'currentPrice',
+            'totalBids', 'scheduledStartAt', 'approvalStatus', 'isApproved',
+            'approvedAt', 'approvedBy', 'createdById'
+          ])
         )
       );
       allow delete: if isSignedIn() && (isAdmin() || (resource.data.createdById == request.auth.uid && (resource.data.totalBids == 0 || resource.data.totalBids == null) && resource.data.status == 'upcoming'));
@@ -242,9 +253,28 @@ service cloud.firestore {
     }
 
     // 18. Notifications
+    // Create stays cross-user (order events + admin listing verdicts target
+    // OTHER users' bells) but is shape/size/type constrained so a signed-in
+    // user can't inject arbitrary phishing docs into someone's global bell:
+    // only the known key set, bounded title/description strings, and a type
+    // from the app's Notification union. userId is deliberately NOT
+    // restricted to self — that would break the legit cross-user writes.
     match /notifications/{notifId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasOnly([
+          'id', 'userId', 'title', 'titleAr', 'titleEn',
+          'description', 'descriptionAr', 'descriptionEn',
+          'type', 'priority', 'timestamp', 'read', 'auctionId', 'orderId'
+        ]) &&
+        request.resource.data.userId is string &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 300 &&
+        (!('titleAr' in request.resource.data) || (request.resource.data.titleAr is string && request.resource.data.titleAr.size() <= 300)) &&
+        (!('titleEn' in request.resource.data) || (request.resource.data.titleEn is string && request.resource.data.titleEn.size() <= 300)) &&
+        request.resource.data.description is string && request.resource.data.description.size() <= 500 &&
+        (!('descriptionAr' in request.resource.data) || (request.resource.data.descriptionAr is string && request.resource.data.descriptionAr.size() <= 500)) &&
+        (!('descriptionEn' in request.resource.data) || (request.resource.data.descriptionEn is string && request.resource.data.descriptionEn.size() <= 500)) &&
+        request.resource.data.type in ['info', 'outbid', 'win', 'refund', 'verify', 'alert', 'bid', 'loss', 'wallet', 'order', 'subscription', 'admin'];
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 

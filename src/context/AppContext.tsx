@@ -3047,17 +3047,22 @@ const fetchIP = async () => {
   ) => {
     if (!sellerId) return;
     const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    // firestore.rules caps notification titles at 300 and descriptions at 500
+    // chars (anti-phishing) — clamp defensively so an extreme title/reason
+    // combination can never make the verdict write bounce off the rules.
+    const clampT = (s: string) => s.slice(0, 300);
+    const clampD = (s: string) => s.slice(0, 500);
     // Type 'order' — a user-facing type from the Wave D allowlist, so the
     // verdict actually reaches the seller's bell ('admin'/'alert' are filtered).
     setDoc(doc(db, 'notifications', notifId), {
       id: notifId,
       userId: sellerId,
-      title: strings.titleAr,
-      titleAr: strings.titleAr,
-      titleEn: strings.titleEn,
-      description: strings.descAr,
-      descriptionAr: strings.descAr,
-      descriptionEn: strings.descEn,
+      title: clampT(strings.titleAr),
+      titleAr: clampT(strings.titleAr),
+      titleEn: clampT(strings.titleEn),
+      description: clampD(strings.descAr),
+      descriptionAr: clampD(strings.descAr),
+      descriptionEn: clampD(strings.descEn),
       type: 'order',
       priority: 'high',
       timestamp: Date.now(),
