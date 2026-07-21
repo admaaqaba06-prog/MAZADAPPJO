@@ -23,7 +23,6 @@ import {
   Search,
   Bell,
   Home,
-  Play,
   Store,
   ShoppingBag
 } from 'lucide-react';
@@ -59,15 +58,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  const liveAuctions = auctions.filter(a => a.status === 'live' && (!a.endTime || a.endTime > Date.now()));
-
-  const handleAuctionClick = (id: string) => {
-    setActiveAuctionId(id);
-    setActiveView('live');
-  };
-
   // Dynamic calculations for outer header
-  const liveCount = liveAuctions.length;
   const activeEscrowSum = escrows
     ? escrows.filter(e => e.status === 'locked').reduce((acc, curr) => acc + (curr.amount || 0), 0)
     : 0;
@@ -135,25 +126,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'الرئيسية' : 'Home'}</span>
           </button>
 
-          <button 
-            onClick={() => {
-              const firstLive = auctions.find(a => a.status === 'live') || auctions[0];
-              if (firstLive) {
-                setActiveAuctionId(firstLive.id);
-              }
-              setActiveView('live');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'live' 
-                ? 'text-[#FF6B00]' 
-                : 'text-gray-400 hover:text-gray-700'
-            }`}
-          >
-            <Play className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'مباشر' : 'Live'}</span>
-          </button>
-
-          <button 
+          <button
             onClick={() => setActiveView('upload')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'upload' 
@@ -204,7 +177,20 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'العضوية' : 'Membership'}</span>
           </button>
 
-          <button 
+          <button
+            onClick={() => setActiveView('about')}
+            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+              activeView === 'about'
+                ? 'text-[#FF6B00]'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+            }`}
+            id="mobile-how-it-works-tab-btn"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span className="text-[9px] font-extrabold tracking-normal whitespace-nowrap">{isAr ? 'كيف يعمل' : 'How it works'}</span>
+          </button>
+
+          <button
             onClick={() => setActiveView('profile')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'profile'
@@ -273,22 +259,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => {
-                const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
-                if (firstLive) setActiveAuctionId(firstLive.id);
-                setActiveView('live');
-              }}
-              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                activeView === 'live'
-                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-              }`}
-            >
-              <Play className="w-4 h-4 shrink-0 stroke-[2] text-[#E85D04]" />
-              <span>{isAr ? 'البث المباشر' : 'Live Stream'}</span>
-            </button>
-
-            <button
               onClick={() => setActiveView('upload')}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
@@ -323,6 +293,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             >
               <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
               <span>{isAr ? 'العضوية' : 'Membership'}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('about')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeView === 'about'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+              }`}
+              id="top-nav-how-it-works-btn"
+            >
+              <HelpCircle className="w-4 h-4 shrink-0 stroke-[2]" />
+              <span>{isAr ? 'كيف يعمل' : 'How it works'}</span>
             </button>
 
             {isSeller && (
@@ -513,42 +496,105 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 </div>
               )}
 
-              {/* Ledger Stream / Live Alerts */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between pb-1">
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    {isAr ? 'الطلبات والتنبيهات' : 'ORDERS & ALERTS'}
-                  </h4>
-                  <button 
-                    onClick={() => setShowNotifications(true)}
-                    className="text-gray-400 hover:text-gray-900 cursor-pointer relative"
-                    title={isAr ? 'الإشعارات' : 'Notifications'}
-                  >
-                    <Bell className="w-4 h-4" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#E85D04] rounded-full border border-white"></span>
-                    )}
-                  </button>
-                </div>
-                
-                <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                  {allLedgerEvents.map((event) => (
-                    <div 
-                      key={event.id} 
-                      className="text-[11px] leading-relaxed font-medium text-gray-600 border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+              {/* Rail body: active members WITH activity keep their alert/ledger
+                  stream; everyone else gets a compact How-it-works + trust card
+                  instead of an empty 'No recent transactions' ledger. */}
+              {allLedgerEvents.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between pb-1">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      {isAr ? 'الطلبات والتنبيهات' : 'ORDERS & ALERTS'}
+                    </h4>
+                    <button
+                      onClick={() => setShowNotifications(true)}
+                      className="text-gray-400 hover:text-gray-900 cursor-pointer relative"
+                      title={isAr ? 'الإشعارات' : 'Notifications'}
                     >
-                      <span className="font-bold text-gray-950 block">{event.user}</span>
-                      <p className="text-gray-500 mt-0.5">{event.action}</p>
-                      <span className="text-[9px] text-gray-400 font-mono mt-1 block">{event.time}</span>
-                    </div>
-                  ))}
-                  {allLedgerEvents.length === 0 && (
-                    <p className="text-center text-xs text-gray-400 font-medium py-4">
-                      {isAr ? 'لا توجد معاملات حالية' : 'No recent transactions'}
-                    </p>
-                  )}
+                      <Bell className="w-4 h-4" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#E85D04] rounded-full border border-white"></span>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                    {allLedgerEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="text-[11px] leading-relaxed font-medium text-gray-600 border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+                      >
+                        <span className="font-bold text-gray-950 block">{event.user}</span>
+                        <p className="text-gray-500 mt-0.5">{event.action}</p>
+                        <span className="text-[9px] text-gray-400 font-mono mt-1 block">{event.time}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col gap-4" id="rail-how-it-works">
+                  <div className="flex items-center justify-between pb-1">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      {isAr ? 'كيف يعمل مزاد جو' : 'HOW MAZAD WORKS'}
+                    </h4>
+                    <button
+                      onClick={() => setShowNotifications(true)}
+                      className="text-gray-400 hover:text-gray-900 cursor-pointer relative"
+                      title={isAr ? 'الإشعارات' : 'Notifications'}
+                    >
+                      <Bell className="w-4 h-4" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#E85D04] rounded-full border border-white"></span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Compact 3-step card */}
+                  <div className="bg-[#FAF9F6] border border-gray-200/60 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">①</span>
+                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                        {isAr ? 'انضم من ١ د.أ شهرياً' : 'Join from 1 JD/mo'}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">②</span>
+                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                        {isAr ? 'زايد مجاناً — تدفع فقط عند الفوز' : 'Bid free — pay only if you win'}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">③</span>
+                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                        {isAr ? 'ادفع عبر كليك (+٥٪) — استلام أو توصيل' : 'Pay via CliQ (+5%) — pickup or delivery'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActiveView('about')}
+                      className="text-[10px] font-extrabold text-[#E85D04] hover:text-orange-700 cursor-pointer flex items-center gap-1 pt-0.5"
+                      id="rail-how-it-works-link"
+                    >
+                      <HelpCircle className="w-3 h-3" />
+                      <span>{isAr ? 'اعرف المزيد — كيف يعمل' : 'Learn more — How it works'}</span>
+                    </button>
+                  </div>
+
+                  {/* Trust chips */}
+                  <div className="flex flex-wrap gap-1.5" id="rail-trust-chips">
+                    <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                      <ShieldCheck className="w-3 h-3" />
+                      {isAr ? 'كليك آمن' : 'Secure CliQ'}
+                    </span>
+                    <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                      <ShieldCheck className="w-3 h-3" />
+                      {isAr ? 'بائعون موثّقون' : 'Verified sellers'}
+                    </span>
+                    <span className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9.5px] font-bold px-2 py-1 rounded-full">
+                      <Coins className="w-3 h-3" />
+                      {isAr ? 'ادفع فقط عند الفوز' : 'Pay only if you win'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Security Banner footer */}
               <div className="mt-auto bg-[#F7F6F3] rounded-xl p-3 flex gap-2 items-start border border-gray-200/50">

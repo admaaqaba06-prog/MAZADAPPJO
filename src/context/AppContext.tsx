@@ -52,6 +52,8 @@ interface AppContextProps {
   setSellerProfiles: React.Dispatch<React.SetStateAction<SellerProfile[]>>;
   auctions: AuctionItem[];
   setAuctions: React.Dispatch<React.SetStateAction<AuctionItem[]>>;
+  /** True once the first auctions snapshot (or an error) has arrived for the current view. */
+  auctionsLoaded: boolean;
   bids: Bid[];
   setBids: React.Dispatch<React.SetStateAction<Bid[]>>;
   wallet: Wallet;
@@ -265,6 +267,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
   });
   const [auctions, setAuctions] = useState<AuctionItem[]>([]);
+  // Real loading signal for the first auctions fetch — replaces the old
+  // synthetic 550ms skeleton delay in the Discover feed.
+  const [auctionsLoaded, setAuctionsLoaded] = useState(false);
   const [bids, setBids] = useState<Bid[]>(() => {
     const saved = localStorage.getItem('mazad_bids');
     return saved ? JSON.parse(saved) : [];
@@ -1042,9 +1047,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time auctions synchronization with Firestore
   useEffect(() => {
-    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder'];
+    // 'about' falls through to DiscoveryFeedView until Wave C ships HowItWorksView;
+    // keep it here so auctions load + auctionsLoaded flips (else infinite skeleton).
+    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder', 'about'];
     if (!viewsRequiringAuctions.includes(activeView)) {
       setAuctions([]);
+      setAuctionsLoaded(false);
       return;
     }
 
@@ -1062,6 +1070,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
     const unsub = onSnapshot(q, (snap) => {
+      setAuctionsLoaded(true);
       if (snap.empty) {
         setAuctions([]);
       } else {
@@ -1193,6 +1202,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error:", err);
       setAuctions([]);
+      setAuctionsLoaded(true);
     });
     return () => unsub();
   }, [activeView]);
@@ -3807,6 +3817,7 @@ const fetchIP = async () => {
       users, setUsers,
       sellerProfiles, setSellerProfiles,
       auctions: visibleAuctions, setAuctions,
+      auctionsLoaded,
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,

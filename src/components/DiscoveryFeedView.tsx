@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
-import { WinCelebration, useWinDetection } from './feedback';
+import { motion } from 'motion/react';
+import { WinCelebration, useWinDetection, useToast } from './feedback';
+import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
 import { 
   Flame, 
   Search, 
@@ -281,9 +283,10 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
 };
 
 export const DiscoveryFeedView: React.FC = () => {
-  const { 
-    auctions, 
-    setActiveAuctionId, 
+  const {
+    auctions,
+    auctionsLoaded,
+    setActiveAuctionId,
     setActiveView, 
     language, 
     setLanguage, 
@@ -297,19 +300,18 @@ export const DiscoveryFeedView: React.FC = () => {
     setGlobalSelectedOrderId
   } = useApp();
   
+  const { showToast } = useToast();
   const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  React.useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, activeTab, searchTerm]);
+  // Skeletons only while genuinely waiting on the first auctions snapshot —
+  // tab/category/search changes filter in-memory data and render instantly
+  // (the old synthetic 550ms delay is gone).
+  const isLoading = !auctionsLoaded;
 
   const t = translations[language];
   const isAr = language === 'ar';
@@ -429,6 +431,28 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView('live');
   };
 
+  // Genuinely live right now (status 'live' AND not past endTime) — drives the
+  // live-now strip, the primary route into the bidding room from Discover.
+  const liveNowAuctions = getLiveAuctions<AuctionItem>(auctions);
+
+  // Dead-stream guard: only enter the live room when an auction is genuinely
+  // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
+  const handleWatchLive = () => {
+    // Explicit type arg: useApp() is untyped here (circular import), so
+    // inference would otherwise collapse to the helper's constraint.
+    const firstLive = getFirstLiveAuction<AuctionItem>(auctions);
+    if (firstLive) {
+      setActiveAuctionId(firstLive.id);
+      setActiveView('live');
+    } else {
+      showToast({
+        type: 'info',
+        title: isAr ? 'لا توجد مزادات مباشرة حالياً' : 'No live auctions right now',
+        message: isAr ? 'تفقد المواعيد القادمة — البث يبدأ قريباً.' : 'Check the upcoming drops — the next stream starts soon.',
+      });
+    }
+  };
+
   return (
     <div 
       className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-4 overscroll-contain select-none font-sans"
@@ -485,6 +509,35 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
+      {/* Live-now strip: the primary route into the bidding room from Discover.
+          Hidden when nothing is genuinely live. */}
+      {liveNowAuctions.length > 0 && (
+        <motion.button
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          onClick={handleWatchLive}
+          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl px-4 py-2.5 shadow-md shadow-red-600/20 transition-colors cursor-pointer active:scale-[0.99]"
+          id="live-now-strip"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <span className="text-xs font-black tracking-tight truncate">
+              {isAr
+                ? `🔴 مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
+                : `🔴 Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider shrink-0 bg-white/15 rounded-full px-2.5 py-1">
+            <Play className="w-3 h-3 fill-white" />
+            <span>{isAr ? 'ادخل البث' : 'Watch'}</span>
+          </span>
+        </motion.button>
+      )}
+
       {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
       <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
         <div className="space-y-1">
@@ -498,14 +551,8 @@ export const DiscoveryFeedView: React.FC = () => {
           </p>
         </div>
         <div>
-          <button 
-            onClick={() => {
-              const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
-              if (firstLive) {
-                setActiveAuctionId(firstLive.id);
-              }
-              setActiveView('live');
-            }}
+          <button
+            onClick={handleWatchLive}
             className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />
