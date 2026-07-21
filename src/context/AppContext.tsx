@@ -3854,7 +3854,7 @@ const fetchIP = async () => {
       return { success: false, message: 'Not authenticated' };
     }
 
-    const updates: { name?: string; city?: string; email?: string } = {};
+    const updates: { name?: string; city?: string } = {};
     if (typeof fields.name === 'string' && fields.name.trim()) {
       updates.name = fields.name.trim();
     }
@@ -3862,24 +3862,46 @@ const fetchIP = async () => {
       updates.city = fields.city.trim();
     }
     // Email: only if the account has no email yet AND a non-empty one was passed.
-    if (!currentUser.email && typeof fields.email === 'string' && fields.email.trim()) {
-      updates.email = fields.email.trim();
-    }
+    const emailUpdate =
+      !currentUser.email && typeof fields.email === 'string' && fields.email.trim()
+        ? fields.email.trim()
+        : null;
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && !emailUpdate) {
       return { success: true, message: 'Nothing to update' };
     }
 
+    const userRef = doc(db, 'users', currentUser.id);
+    const mirrored: { name?: string; city?: string; email?: string } = { ...updates };
+
     try {
-      await updateDoc(doc(db, 'users', currentUser.id), updates);
-      setCurrentUser(prev => ({ ...prev, ...updates }));
-      setUsers(prev => prev.map(u => (u.id === currentUser.id ? { ...u, ...updates } : u)));
-      return { success: true, message: 'Profile updated' };
+      // Primary write: the fields completeness depends on (name/city). Kept
+      // SEPARATE from email so an email-rules denial can never block the
+      // profile-completion gate from clearing.
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(userRef, updates);
+      }
     } catch (err: any) {
       console.error('updateOwnProfile error:', err);
       handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}`);
       return { success: false, message: err?.message || 'Profile update failed' };
     }
+
+    if (emailUpdate) {
+      // Best-effort, write-once: today's users rules still deny self-service
+      // email updates (the allow-when-empty rule ships with Wave 3), so a
+      // denial here is swallowed — name/city already landed above.
+      try {
+        await updateDoc(userRef, { email: emailUpdate });
+        mirrored.email = emailUpdate;
+      } catch (err) {
+        console.warn('updateOwnProfile: optional email write skipped (rules):', err);
+      }
+    }
+
+    setCurrentUser(prev => ({ ...prev, ...mirrored }));
+    setUsers(prev => prev.map(u => (u.id === currentUser.id ? { ...u, ...mirrored } : u)));
+    return { success: true, message: 'Profile updated' };
   }, [currentUser]);
 
   const completeOnboarding = useCallback(async () => {
