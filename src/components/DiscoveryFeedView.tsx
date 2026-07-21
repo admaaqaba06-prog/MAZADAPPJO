@@ -5,6 +5,7 @@ import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
 import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
+import { unreadUserFacingCount } from '../utils/notifications';
 import { useSocialProof } from '../hooks/useSocialProof';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { 
@@ -308,7 +309,13 @@ export const DiscoveryFeedView: React.FC = () => {
   // Real social proof (spec §4): live bidders from the loaded auctions +
   // recent wins from a one-time cached query. Never fabricated.
   const { biddersNow, recentWins } = useSocialProof();
-  const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
+  // Wave D: the mobile bell badge counts only bidder-relevant notifications
+  // for regular users; strict admins keep the full stream (parity with the
+  // NotificationCenter drawer + desktop bell).
+  const isStrictAdminUser = !!currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const unreadCount = isStrictAdminUser
+    ? (notifications || []).filter(n => !n.read).length
+    : unreadUserFacingCount(notifications);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
