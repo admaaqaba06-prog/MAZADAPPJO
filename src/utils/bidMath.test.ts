@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { minNextBid } from './bidMath';
+import { minNextBid, totalWithPremium } from './bidMath';
+
+describe('totalWithPremium', () => {
+  // Double-round at fils (1/1000 JOD): matches the server order totalDue.
+  const expected = (x: number) =>
+    (Math.round(x * 1000) + Math.round(Math.round(x * 1000) * 0.05)) / 1000;
+
+  it('double-rounds at the fils level for representative prices', () => {
+    for (const price of [1, 1.001, 12.345, 0.999, 47.25, 100, 3.33]) {
+      expect(totalWithPremium(price)).toBe(expected(price));
+    }
+  });
+});
 
 describe('minNextBid', () => {
   it('first bid (no bids yet) equals the current/starting price', () => {

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { placeAuctionBid } from '../services/auctionService';
-import { minNextBid } from '../utils/bidMath';
+import { minNextBid, totalWithPremium } from '../utils/bidMath';
 
 interface AuctionDetailsModalProps {
   auctionId: string | null;
@@ -237,8 +237,8 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                     </div>
                     <p className="text-[11px] text-gray-400 text-center mt-1">
                       {isAr
-                        ? `المجموع عند الفوز: ${(Math.round(base * 1000) * 1.05 / 1000).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                        : `Total if you win: ${(Math.round(base * 1000) * 1.05 / 1000).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                        ? `المجموع عند الفوز: ${totalWithPremium(base).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                        : `Total if you win: ${totalWithPremium(base).toLocaleString()} JOD (incl. 5% buyer's premium)`}
                     </p>
                   </>
                 );

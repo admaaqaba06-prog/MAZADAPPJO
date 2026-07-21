@@ -1,11 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Pressable from './Pressable';
-
-/** Total incl. 5% buyer's premium — same rounding as the disclosure lines. */
-export function bidTotalWithPremium(amount: number): string {
-  return ((Math.round(amount * 1000) * 1.05) / 1000).toLocaleString();
-}
+import { totalWithPremium } from '../../utils/bidMath';
 
 type BidConfirmProps = {
   /** Amount pending confirmation; null = hidden. */
@@ -67,8 +63,8 @@ export default function BidConfirm({
           </p>
           <p className="text-[10px] text-zinc-300 font-bold text-center leading-snug">
             {isAr
-              ? `المجموع عند الفوز ${bidTotalWithPremium(amount)} د.أ (شامل ٥٪)`
-              : `Total if you win ${bidTotalWithPremium(amount)} JD (incl. 5%)`}
+              ? `المجموع عند الفوز ${totalWithPremium(amount).toLocaleString()} د.أ (شامل ٥٪)`
+              : `Total if you win ${totalWithPremium(amount).toLocaleString()} JD (incl. 5%)`}
           </p>
           <div className="flex gap-2 w-full max-w-[280px] mt-1">
             <Pressable
