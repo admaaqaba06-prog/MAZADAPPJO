@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { db, getCallableFunction } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDocs, writeBatch, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { Film, User, ShieldAlert, Check, X, AlertCircle, RotateCcw } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
-  const { users, currentUser, setUsers, addNotification, language, escrows, setBids } = useApp();
+  const { users, currentUser, setUsers, addNotification, language, escrows, setBids, approveListing, rejectListing } = useApp();
   const isAr = language === 'ar';
-  
+
   const [activeTab, setActiveTab] = useState<'subscriptions' | 'auctions'>('auctions');
   const [pendingAuctions, setPendingAuctions] = useState<any[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  // Reject-with-reason mini-form: which listing is being rejected + why.
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const handleResetAllAuctions = async () => {
     const confirmMsg = isAr 
@@ -126,47 +129,26 @@ export const AdminPanel: React.FC = () => {
     }, 3500);
   };
 
+  // Both verdicts route through the context gate actions (approveListing /
+  // rejectListing): they persist approvalStatus/rejectionReason AND write the
+  // cross-user Firestore /notifications doc that reaches the SELLER's bell —
+  // a local addNotification here would only ever reach the admin's own bell.
   const handleApproveAuction = async (auctionId: string) => {
     try {
-      const targetA = pendingAuctions.find(a => a.id === auctionId);
-      const durationSec = targetA?.duration ? Number(targetA.duration) : 86400; // fallback to 24 hours (86400s)
-      const freshEndTime = Date.now() + durationSec * 1000;
-      const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
-
-      await updateDoc(doc(db, 'auctions', auctionId), {
-        status: 'live',
-        approvedAt: serverTimestamp(),
-        approvedBy: currentUser?.id || 'admin-system',
-        endTime: freshEndTime,
-        endsAt: endsAtTimestamp
-      });
+      await approveListing(auctionId);
       showToast(isAr ? 'تم الموافقة على المزاد وهو الآن مباشر!' : 'Auction approved and now live!', 'success');
-      
-      addNotification(
-        isAr ? '🚀 تم إطلاق المزاد الحركي' : '🚀 Video Auction released direct!',
-        isAr ? 'تم تفعيل المزاد بنجاح ونقله إلى البثوث المباشرة.' : 'Video approved and pushed to live reels stream successfully.',
-        'win'
-      );
     } catch (error) {
       console.error("Error approving auction:", error);
       showToast(isAr ? 'حدث خطأ أثناء الموافقة' : 'Error approving auction', 'warning');
     }
   };
 
-  const handleRejectAuction = async (auctionId: string) => {
+  const handleRejectAuction = async (auctionId: string, reason?: string) => {
     try {
-      await updateDoc(doc(db, 'auctions', auctionId), {
-        status: 'rejected',
-        rejectedAt: serverTimestamp(),
-        rejectedBy: currentUser?.id || 'admin-system'
-      });
-      showToast(isAr ? 'تم رفض المزاد' : 'Auction rejected', 'success');
-
-      addNotification(
-        isAr ? '❌ تم رفض المزاد' : '❌ Live Auction request rejected',
-        isAr ? 'تم رفض نشر هذا المزاد لمخالفة الشروط.' : 'Listing was rejected due to content checks.',
-        'error'
-      );
+      await rejectListing(auctionId, reason);
+      showToast(isAr ? 'تم رفض المزاد وإبلاغ البائع' : 'Auction rejected and seller notified', 'success');
+      setRejectingId(null);
+      setRejectionReason('');
     } catch (error) {
       console.error("Error rejecting auction:", error);
       showToast(isAr ? 'حدث خطأ أثناء رفض المزاد' : 'Error rejecting auction', 'warning');
@@ -289,22 +271,56 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex gap-1.5 pt-1">
-                  <button
-                    onClick={() => handleApproveAuction(item.id)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10.5px] py-1.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    {isAr ? 'موافقة وإطلاق' : 'APPROVE'}
-                  </button>
-                  <button
-                    onClick={() => handleRejectAuction(item.id)}
-                    className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-zinc-250 flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    {isAr ? 'رفض' : 'REJECT'}
-                  </button>
-                </div>
+                {rejectingId === item.id ? (
+                  <div className="space-y-1.5 pt-1">
+                    <textarea
+                      placeholder={isAr ? 'اكتب سبب الرفض ليصل للبائع...' : 'Enter a rejection reason for the seller...'}
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      className="w-full text-[11px] p-2 border border-rose-200 rounded-xl bg-rose-50/20 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                      rows={2}
+                      maxLength={300}
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleRejectAuction(item.id, rejectionReason.trim() || undefined)}
+                        className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black text-[10.5px] py-1.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                      >
+                        {isAr ? 'تأكيد الرفض وإبلاغ البائع' : 'CONFIRM REJECT & NOTIFY SELLER'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRejectingId(null);
+                          setRejectionReason('');
+                        }}
+                        className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] px-3 py-1.5 rounded-xl transition-all border border-zinc-200 cursor-pointer"
+                      >
+                        {isAr ? 'إلغاء' : 'Cancel'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5 pt-1">
+                    <button
+                      onClick={() => handleApproveAuction(item.id)}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10.5px] py-1.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      {isAr ? 'موافقة وإطلاق' : 'APPROVE'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRejectingId(item.id);
+                        setRejectionReason('');
+                      }}
+                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-zinc-250 flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      {isAr ? 'رفض' : 'REJECT'}
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )

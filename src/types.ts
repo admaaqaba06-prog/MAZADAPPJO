@@ -83,6 +83,10 @@ export interface AuctionItem {
   sellerName: string;
   sellerLogo: string;
   status: 'upcoming' | 'live' | 'processing' | 'rejected' | 'completed';
+  /** Mazad review gate verdict ('processing' listings are 'pending'). */
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  /** Admin-entered reason shown to the seller when a listing is rejected. */
+  rejectionReason?: string;
   isFeatured: boolean;
   totalBids: number;
   viewersCount: number;

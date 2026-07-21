@@ -435,7 +435,7 @@ export const SellerCenterView: React.FC = () => {
     return {
       upcoming: myAuctions.filter(a => a.status === 'upcoming' && a.approvalStatus !== 'rejected'),
       live: myAuctions.filter(a => a.status === 'live'),
-      pending: myAuctions.filter(a => a.status === 'pending' || a.approvalStatus === 'pending'),
+      pending: myAuctions.filter(a => a.status === 'processing' || a.status === 'pending' || a.approvalStatus === 'pending'),
       completed: myAuctions.filter(a => a.status === 'completed'),
       rejected: myAuctions.filter(a => a.status === 'rejected' || a.approvalStatus === 'rejected')
     };
@@ -583,7 +583,10 @@ export const SellerCenterView: React.FC = () => {
   const handleDuplicate = async (auction: AuctionItem) => {
     try {
       const newId = `auction-dup-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const { id, ...dataToCopy } = auction;
+      // Strip the source's review-gate artifacts — a copy is a fresh submission.
+      const { id, rejectionReason, rejectedAt, rejectedBy, approvedAt, approvedBy,
+        scheduledStartAt, winnerId, winnerName, winnerEmail, winnerPhone, winnerCity,
+        ...dataToCopy } = auction as any;
       
       const endsAtMillis = Date.now() + (auction.duration || 3600) * 1000;
       const duplicated: any = {
@@ -595,7 +598,10 @@ export const SellerCenterView: React.FC = () => {
         currentBidderName: null,
         totalBids: 0,
         viewersCount: 0,
-        status: 'upcoming',
+        // A duplicate is a NEW unapproved listing: it must re-enter the Mazad
+        // review gate ('processing'), never land on a buyer surface as
+        // 'upcoming'. Also matches firestore.rules for non-admin creates.
+        status: 'processing',
         approvalStatus: 'pending',
         isApproved: false,
         createdAt: Date.now(),
@@ -1047,7 +1053,14 @@ export const SellerCenterView: React.FC = () => {
                         <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase font-mono">{auction.category}</p>
                         <h4 className="text-sm font-black text-gray-900 line-clamp-1">{auction.title}</h4>
                         <p className="text-xs text-gray-500 line-clamp-2 min-h-[32px]">{auction.description}</p>
-                        
+
+                        {/* Rejection reason back to the seller (spec §6) */}
+                        {(auction.status === 'rejected' || auction.approvalStatus === 'rejected') && auction.rejectionReason && (
+                          <p className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-lg">
+                            {isAr ? 'سبب الرفض: ' : 'Rejection reason: '}{auction.rejectionReason}
+                          </p>
+                        )}
+
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500">
                           <div>
                             <p className="text-[10px] text-gray-400">{isAr ? 'السعر الحالي / الابتدائي' : 'Starting / Current Price'}</p>
