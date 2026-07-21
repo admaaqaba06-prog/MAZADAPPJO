@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { userFacingNotifications } from '../utils/notifications';
+import { isAdminUser } from '../utils/adminAuth';
 import type { Notification as AppNotification } from '../types';
 import { 
   X, 
@@ -48,7 +49,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
 
   const [selectedFilter, setSelectedFilter] = useState<NotificationFilterType>('all');
   const isAr = language === 'ar';
-  const isStrictAdmin = !!currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  const isStrictAdmin = isAdminUser(currentUser);
   // Display-time allowlist: users see only bidder-relevant notifications.
   const visibleNotifications = isStrictAdmin ? notifications : userFacingNotifications(notifications);
   const filterChips = isStrictAdmin ? ADMIN_FILTER_CHIPS : USER_FILTER_CHIPS;
