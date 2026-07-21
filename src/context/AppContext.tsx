@@ -766,17 +766,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                     if (freshSessionId && freshSessionId !== localSessionId) {
                       console.warn("Session conflict confirmed by server: local session ID", localSessionId, "does not match Firestore session ID", freshSessionId);
-                      localStorage.removeItem('mazad_session_id');
-                      await signOut(auth);
-                      setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
-                      setIsAuthenticated(false);
+                      // SOFT notice: this audience hops between WhatsApp/mobile
+                      // devices constantly, so we no longer force-logout on a
+                      // duplicate session. Adopt the server's session id locally
+                      // so the check stops re-firing every cycle, keep the user
+                      // signed in on THIS device, and surface a dismissible heads-up.
+                      localStorage.setItem('mazad_session_id', freshSessionId);
+                      const dupTitle = language === 'ar' ? 'تنبيه' : 'Notice';
+                      const dupMsg = language === 'ar' ? 'تم تسجيل دخولك من جهاز آخر' : "You're signed in on another device.";
                       if (addNotificationRef.current) {
-                        addNotificationRef.current(
-                          language === 'ar' ? 'تنبيه الأمان' : 'Security Alert',
-                          language === 'ar' ? 'تم تسجيل الدخول من جهاز آخر.' : 'You have been logged in from another device.',
-                          'admin'
-                        );
+                        addNotificationRef.current(dupTitle, dupMsg, 'admin');
                       }
+                      showToast({ title: dupTitle, message: dupMsg, type: 'info' });
                     }
                   })();
                 }
