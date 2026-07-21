@@ -23,7 +23,6 @@ import {
   Search,
   Bell,
   Home,
-  Play,
   Store,
   ShoppingBag
 } from 'lucide-react';
@@ -135,25 +134,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'الرئيسية' : 'Home'}</span>
           </button>
 
-          <button 
-            onClick={() => {
-              const firstLive = auctions.find(a => a.status === 'live') || auctions[0];
-              if (firstLive) {
-                setActiveAuctionId(firstLive.id);
-              }
-              setActiveView('live');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'live' 
-                ? 'text-[#FF6B00]' 
-                : 'text-gray-400 hover:text-gray-700'
-            }`}
-          >
-            <Play className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'مباشر' : 'Live'}</span>
-          </button>
-
-          <button 
+          <button
             onClick={() => setActiveView('upload')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'upload' 
@@ -270,22 +251,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             >
               <Home className="w-4 h-4 shrink-0 stroke-[2]" />
               <span>{isAr ? 'تصفح المزادات' : 'Discover'}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                const firstLive = auctions.filter(a => a.status === 'live')[0] || auctions[0];
-                if (firstLive) setActiveAuctionId(firstLive.id);
-                setActiveView('live');
-              }}
-              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                activeView === 'live'
-                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-              }`}
-            >
-              <Play className="w-4 h-4 shrink-0 stroke-[2] text-[#E85D04]" />
-              <span>{isAr ? 'البث المباشر' : 'Live Stream'}</span>
             </button>
 
             <button
