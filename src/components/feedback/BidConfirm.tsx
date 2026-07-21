@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Pressable from './Pressable';
 import { totalWithPremium } from '../../utils/bidMath';
+import { translations } from '../../utils/translations';
 
 type BidConfirmProps = {
   /** Amount pending confirmation; null = hidden. */
@@ -11,6 +12,12 @@ type BidConfirmProps = {
   onCancel: () => void;
   /** Positioning wrapper classes; defaults to an overlay anchored to the bid panel. */
   className?: string;
+  /**
+   * The price moved up during the confirm window and `amount` is the fresh
+   * minimum — swap the copy to "price moved — new min is X. Bid that?" so the
+   * user knowingly re-confirms the higher amount instead of a stale rejection.
+   */
+  priceMoved?: boolean;
 };
 
 const AUTO_DISMISS_MS = 5000;
@@ -26,8 +33,10 @@ export default function BidConfirm({
   onConfirm,
   onCancel,
   className,
+  priceMoved = false,
 }: BidConfirmProps) {
 
+  const t = translations[isAr ? 'ar' : 'en'];
   const firedRef = React.useRef(false);
   React.useEffect(() => { firedRef.current = false; }, [amount]);
   // Keep the latest onCancel in a ref so the 5s timer isn't reset by
@@ -56,10 +65,12 @@ export default function BidConfirm({
           }
           dir={isAr ? 'rtl' : 'ltr'}
         >
-          <p className="text-xs font-black text-white text-center leading-snug">
-            {isAr
-              ? `تأكيد المزايدة: ${amount.toLocaleString()} د.أ`
-              : `Confirm bid: ${amount.toLocaleString()} JD`}
+          <p className={`text-xs font-black text-center leading-snug ${priceMoved ? 'text-amber-400' : 'text-white'}`}>
+            {priceMoved
+              ? t.priceMovedTitle.replace('{amount}', amount.toLocaleString())
+              : isAr
+                ? `تأكيد المزايدة: ${amount.toLocaleString()} د.أ`
+                : `Confirm bid: ${amount.toLocaleString()} JD`}
           </p>
           <p className="text-[10px] text-zinc-300 font-bold text-center leading-snug">
             {isAr
@@ -75,7 +86,9 @@ export default function BidConfirm({
               }}
               className="flex-1 py-2 rounded-xl bg-[#FF6B00] hover:bg-orange-600 text-white text-[11px] font-black shadow-md cursor-pointer"
             >
-              {isAr ? 'زايد الآن' : 'Bid now'}
+              {priceMoved
+                ? t.priceMovedConfirm.replace('{amount}', amount.toLocaleString())
+                : isAr ? 'زايد الآن' : 'Bid now'}
             </Pressable>
             <Pressable
               onClick={onCancel}

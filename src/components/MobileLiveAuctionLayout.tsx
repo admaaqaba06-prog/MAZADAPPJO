@@ -466,9 +466,36 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   // confirm step + in-flight submitting guard. Same handler the details modal uses.
   const { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
 
+  // Was the staged amount bumped by a rival bid during the ≤5s confirm window?
+  const [priceMoved, setPriceMoved] = useState(false);
+
+  // Open a fresh confirm (resets any stale "price moved" flag).
+  const openConfirm = (amount: number) => {
+    setPriceMoved(false);
+    startBid(amount);
+  };
+
+  // At confirm, recompute against the LATEST minimum: if a rival outbid us during
+  // the confirm window, re-prompt at the new min instead of sending the stale
+  // amount (which the server would reject). Otherwise send.
+  const handleConfirm = (amount: number) => {
+    if (nextBidAmount > amount) {
+      setPriceMoved(true);
+      startBid(nextBidAmount); // re-open confirm at the fresh minimum
+      return;
+    }
+    setPriceMoved(false);
+    confirmBid(amount);
+  };
+
+  const handleCancel = () => {
+    setPriceMoved(false);
+    cancelBid();
+  };
+
   // Tapping the bid button routes through the shared gate (invite → confirm).
   const handleLocalBid = () => {
-    startBid(nextBidAmount);
+    openConfirm(nextBidAmount);
   };
 
   // Anti-snipe drama: red pulsing countdown under 10s (active reel only)
@@ -924,7 +951,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                       {isLosing && (
                         <Pressable
                           disabled={submitting}
-                          onClick={() => startBid(nextBidAmount)}
+                          onClick={() => openConfirm(nextBidAmount)}
                           className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-[10px] font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -979,8 +1006,9 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
             <BidConfirm
               amount={pendingBid}
               isAr={isAr}
-              onConfirm={confirmBid}
-              onCancel={cancelBid}
+              priceMoved={priceMoved}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
             />
 
             {/* Winning pill: pops over the bidding card on a successful bid */}
