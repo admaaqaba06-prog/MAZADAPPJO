@@ -97,6 +97,18 @@ export interface AuctionItem {
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
   vendorId?: string | null;
   vendorName?: string;
+  /**
+   * Concierge submission ("Let Mazad list it for me"): the seller sent item
+   * details and the Mazad team completes the listing before approving.
+   * a.k.a. listedByMazad — the admin queue badges these. Default false.
+   */
+  isConcierge?: boolean;
+  /** Seller-declared item condition (concierge submit form). */
+  condition?: 'new' | 'used';
+  /** Seller contact (phone/WhatsApp) for the concierge team to follow up. */
+  conciergeContact?: string;
+  /** Extra concierge photos beyond the thumbnail (up to 2 more). */
+  conciergePhotos?: string[];
 }
 
 export interface Bid {

@@ -3,7 +3,15 @@ import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
-export const ListingWizardView: React.FC = () => {
+interface ListingWizardViewProps {
+  /**
+   * Wave E2: when hosted inside SellView, the wizard hands off to the shared
+   * "submitted for review" success screen instead of redirecting to discovery.
+   */
+  onDone?: () => void;
+}
+
+export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) => {
   const { createListing, setActiveView, language } = useApp();
   const isAr = language === 'ar';
 
@@ -82,6 +90,11 @@ export const ListingWizardView: React.FC = () => {
         setUploadStage(stage);
       });
       
+      if (onDone) {
+        // Hosted in SellView: show the shared review-gate success screen.
+        onDone();
+        return;
+      }
       setUploadStage('done');
       setTimeout(() => {
         setActiveView('discovery');
