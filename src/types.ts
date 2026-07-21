@@ -40,6 +40,13 @@ export interface User {
   };
   onboardingCompleted?: boolean;
   shownHints?: { [key: string]: boolean };
+  /**
+   * Reserved for future seller KYC (Wave 4 groundwork) — NOT captured or
+   * enforced anywhere yet. Jordanian national number (الرقم الوطني).
+   */
+  nationalNumber?: string;
+  /** Reserved for future seller KYC — legal name as on official ID. Unenforced. */
+  legalName?: string;
 }
 
 export interface SellerProfile {
@@ -63,6 +70,13 @@ export interface SellerProfile {
   trustScore?: number;
   badges?: string[];
   isSuspended?: boolean;
+  /**
+   * Reserved for future seller KYC (Wave 4 groundwork) — NOT captured or
+   * enforced anywhere yet. Jordanian national number (الرقم الوطني).
+   */
+  nationalNumber?: string;
+  /** Reserved for future seller KYC — legal name as on official ID. Unenforced. */
+  legalName?: string;
 }
 
 export interface AuctionItem {
