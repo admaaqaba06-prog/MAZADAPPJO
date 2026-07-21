@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { db } from '../services/firebase';
 import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
@@ -1049,7 +1050,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
                           <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
-                          <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
+                          <span className="font-black text-gray-900 font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
                           <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>

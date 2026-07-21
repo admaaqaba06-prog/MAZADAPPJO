@@ -13,7 +13,8 @@ import {
   ImagePlus,
   Loader2,
   X,
-  Phone
+  Phone,
+  Ban
 } from 'lucide-react';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
@@ -44,6 +45,8 @@ export const SellView: React.FC = () => {
   const [cPrice, setCPrice] = useState('');
   const [cContact, setCContact] = useState(currentUser?.phone || currentUser?.phoneNumber || '');
   const [cPhotos, setCPhotos] = useState<{ file: File; url: string }[]>([]);
+  // Wave 4: required listing-time ownership + legality attestation
+  const [cAttested, setCAttested] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [cError, setCError] = useState<string | null>(null);
@@ -89,6 +92,12 @@ export const SellView: React.FC = () => {
     }
     if (!cContact.trim()) {
       setCError(isAr ? 'أدخل رقم تواصل (هاتف أو واتساب).' : 'Enter a contact number (phone or WhatsApp).');
+      return;
+    }
+    if (!cAttested) {
+      setCError(isAr
+        ? 'يجب الإقرار بأن الغرض ملكك وقانوني للبيع في الأردن قبل الإرسال.'
+        : 'You must confirm you own this item and it is legal to sell in Jordan before submitting.');
       return;
     }
 
@@ -409,6 +418,24 @@ export const SellView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Wave 4 — required ownership + legality attestation */}
+              <label
+                className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none"
+                id="concierge-ownership-attestation"
+              >
+                <input
+                  type="checkbox"
+                  checked={cAttested}
+                  onChange={(e) => setCAttested(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
+                />
+                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                  {isAr
+                    ? 'أُقرّ بأن هذا الغرض ملكي وقانوني للبيع في الأردن'
+                    : 'I confirm I own this item and it is legal to sell in Jordan.'}
+                </span>
+              </label>
+
               {cError && (
                 <p className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2.5 rounded-xl">
                   {cError}
@@ -533,6 +560,24 @@ export const SellView: React.FC = () => {
                 <MessageCircle className="w-3.5 h-3.5" />
                 {isAr ? 'أو راسلنا على واتساب' : 'or message us on WhatsApp'}
               </a>
+            </motion.div>
+
+            {/* Prohibited-items policy link */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...easeOut, delay: 0.3 }}
+              className="text-center"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveView('prohibited-items')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                id="sell-prohibited-items-link"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {isAr ? 'شو الأغراض الممنوع بيعها؟' : 'What items are prohibited?'}
+              </button>
             </motion.div>
           </motion.div>
         )}

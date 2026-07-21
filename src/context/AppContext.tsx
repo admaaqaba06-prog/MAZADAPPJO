@@ -193,8 +193,8 @@ interface AppContextProps {
   // Active View State
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder') => void;
+  activeView: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items';
+  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
@@ -551,7 +551,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // auth-redirect callback to a neutral discovery so OAuth is never routed.
   const initialNav = parseNav(typeof window !== 'undefined' ? window.location.search : '');
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder'>(initialNav.view);
+  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
@@ -3191,6 +3191,13 @@ const fetchIP = async () => {
       isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
+      // Wave 4 (seller-KYC groundwork): listing-time ownership + legality
+      // attestation. Both sell paths (wizard + concierge) require the checkbox
+      // before submit can reach here; the stamp survives on the doc for audit.
+      // Extra keys pass the auctions create rule (no hasOnly / no blocked-key
+      // check on these fields).
+      ownershipAttested: true,
+      attestedAt: serverTimestamp(),
       approvalStatus: 'pending',
       isApproved: false,
       isFeatured: false,

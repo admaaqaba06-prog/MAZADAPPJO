@@ -29,6 +29,9 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
   const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
 
+  // Wave 4: required listing-time ownership + legality attestation
+  const [ownershipAttested, setOwnershipAttested] = useState(false);
+
   // Success flow trigger & progress indicators
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -65,6 +68,12 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
     }
     if (!startingPrice || isNaN(Number(startingPrice)) || Number(startingPrice) <= 0) {
       alert(isAr ? 'حدد سعر بدء صحيح بالدينار الأردني.' : 'Specify correct JOD price.');
+      return;
+    }
+    if (!ownershipAttested) {
+      alert(isAr
+        ? 'يجب الإقرار بأن الغرض ملكك وقانوني للبيع في الأردن قبل النشر.'
+        : 'You must confirm you own this item and it is legal to sell in Jordan before publishing.');
       return;
     }
 
@@ -349,6 +358,24 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                   </div>
                 </div>
               </div>
+
+              {/* Wave 4 — required ownership + legality attestation */}
+              <label
+                className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none"
+                id="wizard-ownership-attestation"
+              >
+                <input
+                  type="checkbox"
+                  checked={ownershipAttested}
+                  onChange={(e) => setOwnershipAttested(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
+                />
+                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                  {isAr
+                    ? 'أُقرّ بأن هذا الغرض ملكي وقانوني للبيع في الأردن'
+                    : 'I confirm I own this item and it is legal to sell in Jordan.'}
+                </span>
+              </label>
 
               {/* SUBMIT BUTTON */}
               <div className="pt-4 lg:pt-8">

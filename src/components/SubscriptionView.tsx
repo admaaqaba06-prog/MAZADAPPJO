@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
 import { ShieldCheck, Check, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
@@ -267,7 +268,7 @@ export const SubscriptionView: React.FC = () => {
           <div className="space-y-1.5 text-xs text-gray-800">
             <div className="flex justify-between border-b border-orange-100 pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
-              <span className="font-black text-gray-900 font-mono">MAZAD JO M</span>
+              <span className="font-black text-gray-900 font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
             </div>
             <div className="flex justify-between pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>

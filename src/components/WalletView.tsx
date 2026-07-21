@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { CLIQ_RECIPIENT_NAME_AR, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
@@ -1042,7 +1043,7 @@ export const WalletView: React.FC = () => {
                       
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
                         <span className="text-zinc-400">{localT.accountName}:</span>
-                        <span className="font-black text-white">{isAr ? 'مؤسسة مزاد الأردن م' : 'MAZAD JO M'}</span>
+                        <span className="font-black text-white">{isAr ? CLIQ_RECIPIENT_NAME_AR : CLIQ_RECIPIENT_NAME_EN}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
