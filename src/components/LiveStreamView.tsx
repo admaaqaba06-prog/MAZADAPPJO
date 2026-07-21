@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { db } from '../services/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FolderLock,
@@ -289,23 +287,11 @@ export const LiveStreamView: React.FC = () => {
       } else if (secondsRemaining === 0 && prevSecondsRemaining.current !== 0 && prevSecondsRemaining.current !== null) {
         playFinish();
         setHasFinishedInSession(true);
-
-        // Auto-end the auction in Firestore if the current user is an admin
-        if (currentUser?.isAdmin || currentUser?.role === 'admin') {
-          // Double check that activeAuction has a valid non-NaN endTime and it is truly in the past
-          if (activeAuction?.endTime && !isNaN(activeAuction.endTime) && activeAuction.endTime <= Date.now()) {
-            const docRef = doc(db, 'auctions', activeAuction.id);
-            updateDoc(docRef, { status: 'completed' })
-              .then(() => {
-                console.log("[Admin auto-end] Successfully updated auction status to completed.");
-              })
-              .catch(err => {
-                console.error("[Admin auto-end] Failed to update auction status in Firestore:", err);
-              });
-          } else {
-            console.log("[Admin auto-end] Skipped completion check because endTime is in the future or invalid:", activeAuction?.endTime);
-          }
-        }
+        // NOTE: settlement is server-authoritative. The client must NEVER write
+        // status:'completed' — the scheduledAuctionCloser cron settles the lot
+        // (order creation, wonCount, FCM, auction_won/payment_due webhooks) and
+        // only for auctions still in ['active','live','upcoming']. A client flip
+        // to 'completed' would orphan the win. Countdown-zero is visual only.
       }
       prevSecondsRemaining.current = secondsRemaining;
     }
