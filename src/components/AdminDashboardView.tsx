@@ -907,7 +907,10 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   const pendingCliQDrops = escrows.filter(e => e.status === 'locked' && e.auctionId === 'cliq-dep');
-  const pendingListingDrops = auctions.filter(a => a.status === 'processing' || a.status === 'pending');
+  // Approval queue: every under-review listing ('processing' + legacy 'pending'), newest first.
+  const pendingListingDrops = auctions
+    .filter((a: any) => a.status === 'processing' || a.status === 'pending')
+    .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
   
   const pendingByUsersOnly = users.filter((u: any) => {
     const isPending = u.subscriptionStatus === 'pending';
@@ -1525,12 +1528,26 @@ export const AdminDashboardView: React.FC = () => {
                         className="w-16 h-16 rounded-xl object-cover border border-gray-150 shrink-0 shadow-xs"
                       />
                       <div className="min-w-0 flex-1">
-                        <span className="bg-orange-50 text-[#FF6B00] border border-orange-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          {item.category}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-orange-50 text-[#FF6B00] border border-orange-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                            {item.category}
+                          </span>
+                          {/* Concierge flag (Wave E2 sets it; tolerate its absence) */}
+                          {(item.listedByMazad || item.isConcierge) && (
+                            <span className="bg-violet-50 text-violet-600 border border-violet-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                              {isAr ? 'كونسيرج مزاد' : 'Mazad Concierge'}
+                            </span>
+                          )}
+                        </div>
                         <h4 className="font-extrabold text-sm text-gray-900 truncate mt-2">{item.title}</h4>
                         <p className="text-xs text-gray-500 mt-1">
                           {isAr ? 'سعر الابتداء: ' : 'Starting Bid: '} <span className="font-mono text-gray-800 font-bold">{item.startingPrice.toLocaleString()} JOD</span>
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
+                          {isAr ? 'البائع: ' : 'Seller: '}{item.sellerName || item.createdByName || (isAr ? 'غير معروف' : 'Unknown')}
+                          {item.createdAt ? (
+                            <span> · {isAr ? 'قُدّم ' : 'Submitted '}{new Date(item.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          ) : null}
                         </p>
                         {item.vendorName && (
                           <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
@@ -1559,20 +1576,57 @@ export const AdminDashboardView: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => approveListing(item.id)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
-                      >
-                        {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
-                      </button>
-                      <button 
-                        onClick={() => rejectListing(item.id)}
-                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl transition-all border border-gray-200"
-                      >
-                        {isAr ? 'رفض الطلب' : 'REJECT'}
-                      </button>
-                    </div>
+                    {rejectingId === item.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          placeholder={isAr ? 'اكتب سبب الرفض ليصل للبائع...' : 'Enter a rejection reason for the seller...'}
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          className="w-full text-xs p-2.5 border border-rose-200 rounded-xl bg-rose-50/20 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                          rows={2}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              rejectListing(item.id, rejectionReason.trim() || undefined);
+                              setRejectingId(null);
+                              setRejectionReason('');
+                            }}
+                            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
+                          >
+                            {isAr ? 'تأكيد الرفض وإبلاغ البائع' : 'CONFIRM REJECT & NOTIFY SELLER'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRejectingId(null);
+                              setRejectionReason('');
+                            }}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs px-4 py-2 rounded-xl transition-all border border-gray-200"
+                          >
+                            {isAr ? 'إلغاء' : 'Cancel'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => approveListing(item.id)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
+                        >
+                          {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRejectingId(item.id);
+                            setRejectionReason('');
+                          }}
+                          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl transition-all border border-gray-200"
+                        >
+                          {isAr ? 'رفض الطلب' : 'REJECT'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (

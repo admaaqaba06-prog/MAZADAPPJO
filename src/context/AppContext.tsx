@@ -107,7 +107,7 @@ interface AppContextProps {
   
   // Admin Operations
   approveListing: (id: string) => void;
-  rejectListing: (id: string) => void;
+  rejectListing: (id: string, reason?: string) => void;
   verifySeller: (userId: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
@@ -2275,11 +2275,100 @@ const fetchIP = async () => {
     }
   }, [featureFlags.enablePushNotifications]);
 
+  // --- Cross-user notification delivery (bell) ---
+  // Notifications written to /notifications by ANOTHER session — e.g. the
+  // admin approving/rejecting a seller's listing — must reach THIS user's
+  // bell. addNotification is session-local (localStorage), so we merge the
+  // user's Firestore notification docs into the bell state, mapped to the
+  // device language. Locally-removed ones are remembered in localStorage so
+  // the live subscription doesn't resurrect them.
+  const firestoreNotifIdsRef = useRef<Set<string>>(new Set());
+  const notificationsStateRef = useRef<Notification[]>(notifications);
+  useEffect(() => {
+    notificationsStateRef.current = notifications;
+  }, [notifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+
+    const DISMISSED_KEY = 'mazad_dismissed_notif_ids';
+    const readDismissed = (): Set<string> => {
+      try {
+        return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]'));
+      } catch {
+        return new Set();
+      }
+    };
+    const persistDismissed = (s: Set<string>) => {
+      try {
+        localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(s).slice(-300)));
+      } catch { /* storage full/unavailable — resurrection is tolerable */ }
+    };
+
+    // Same index-free pattern as SellerCenterView: where-only + client sort.
+    const q = query(collection(db, 'notifications'), where('userId', '==', currentUser.id));
+    const unsub = onSnapshot(q, (snap) => {
+      const dismissed = readDismissed();
+      const currentIds = new Set(notificationsStateRef.current.map(n => n.id));
+      let dismissedChanged = false;
+      const incoming: Notification[] = [];
+
+      snap.forEach(d => {
+        if (dismissed.has(d.id)) return;
+        if (firestoreNotifIdsRef.current.has(d.id) && !currentIds.has(d.id)) {
+          // Was merged earlier this session and the user removed it — don't resurrect.
+          dismissed.add(d.id);
+          dismissedChanged = true;
+          return;
+        }
+        const data: any = d.data();
+        firestoreNotifIdsRef.current.add(d.id);
+        const ts = typeof data.timestamp === 'number'
+          ? data.timestamp
+          : (data.timestamp?.seconds ? data.timestamp.seconds * 1000 : Date.now());
+        incoming.push({
+          id: d.id,
+          userId: data.userId,
+          title: (language === 'ar' ? data.titleAr : data.titleEn) || data.title || '',
+          description: (language === 'ar' ? data.descriptionAr : data.descriptionEn) || data.description || '',
+          type: data.type || 'info',
+          priority: data.priority || 'medium',
+          timestamp: ts,
+          read: !!data.read,
+          auctionId: data.auctionId
+        });
+      });
+
+      if (dismissedChanged) persistDismissed(dismissed);
+      if (incoming.length === 0) return;
+
+      setNotifications(prev => {
+        const incomingIds = new Set(incoming.map(n => n.id));
+        const rest = prev.filter(n => !incomingIds.has(n.id));
+        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp);
+      });
+    }, (err: any) => {
+      console.warn('Bell notifications subscription failed:', err?.code, err?.message);
+    });
+
+    return () => unsub();
+  }, [isAuthenticated, currentUser?.id, language]);
+
   const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    // Firestore-delivered notifications keep read-state on the server so the
+    // live subscription (and other devices) don't flip them back to unread.
+    if (firestoreNotifIdsRef.current.has(id)) {
+      updateDoc(doc(db, 'notifications', id), { read: true }).catch(() => { /* non-fatal */ });
+    }
   }, []);
 
   const markAllAsRead = useCallback(() => {
+    notificationsStateRef.current.forEach(n => {
+      if (!n.read && firestoreNotifIdsRef.current.has(n.id)) {
+        updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => { /* non-fatal */ });
+      }
+    });
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
@@ -2875,6 +2964,40 @@ const fetchIP = async () => {
   }, [sellerProfile, currentUser, addNotification, showToast, language]);
 
   // --- ADMIN ACTIONS ---
+
+  // Approval-gate verdicts must reach the SELLER, not the admin who clicked.
+  // Local addNotification only feeds the current session's bell, so verdicts
+  // are written to the cross-user /notifications collection (the same
+  // mechanism orderWorkflow uses; Seller Center + the bell subscribe to it).
+  // Bilingual fields are stored so the seller's device renders its own language.
+  const notifySellerOfListingDecision = useCallback((
+    sellerId: string | undefined,
+    auctionId: string,
+    strings: { titleAr: string; titleEn: string; descAr: string; descEn: string }
+  ) => {
+    if (!sellerId) return;
+    const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    // Type 'order' — a user-facing type from the Wave D allowlist, so the
+    // verdict actually reaches the seller's bell ('admin'/'alert' are filtered).
+    setDoc(doc(db, 'notifications', notifId), {
+      id: notifId,
+      userId: sellerId,
+      title: strings.titleAr,
+      titleAr: strings.titleAr,
+      titleEn: strings.titleEn,
+      description: strings.descAr,
+      descriptionAr: strings.descAr,
+      descriptionEn: strings.descEn,
+      type: 'order',
+      priority: 'high',
+      timestamp: Date.now(),
+      read: false,
+      auctionId
+    }).catch(err => {
+      console.warn('Failed to write seller listing-decision notification:', err?.code, err?.message);
+    });
+  }, []);
+
   const approveListing = useCallback((id: string) => {
     // Find the target auction to respect its duration (e.g. 6 hours / 10 minutes etc.)
     const targetA = auctions.find(a => a.id === id);
@@ -2907,6 +3030,14 @@ const fetchIP = async () => {
       return a;
     }));
     
+    // Tell the seller their listing passed the gate and is now live.
+    notifySellerOfListingDecision(targetA?.sellerId || (targetA as any)?.createdById, id, {
+      titleAr: 'تمت الموافقة على مزادك ✅',
+      titleEn: 'Your auction is approved ✅',
+      descAr: `مزادك "${targetA?.title || ''}" صار مباشر الآن — بالتوفيق!`,
+      descEn: `Your auction "${targetA?.title || ''}" is now live — good luck!`
+    });
+
     const action: AdminAction = {
       id: `admin-act-${Date.now()}-${Math.random()}`,
       actionType: 'approve_listing',
@@ -2917,15 +3048,17 @@ const fetchIP = async () => {
       details: 'Visual stream quality & price guide certified.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions, currentUser, addNotification, language]);
+  }, [auctions, currentUser, addNotification, language, notifySellerOfListingDecision]);
 
-  const rejectListing = useCallback((id: string) => {
+  const rejectListing = useCallback((id: string, reason?: string) => {
+    const trimmedReason = (reason || '').trim();
     // Write reject properties directly to Firestore database
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
       status: 'rejected',
       approvalStatus: 'rejected',
       isApproved: false,
+      rejectionReason: trimmedReason,
       rejectedAt: serverTimestamp(),
       rejectedBy: currentUser?.id || 'admin-system'
     }).catch(err => {
@@ -2939,12 +3072,21 @@ const fetchIP = async () => {
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'rejected', approvalStatus: 'rejected', isApproved: false };
+        return { ...a, status: 'rejected', approvalStatus: 'rejected', isApproved: false, rejectionReason: trimmedReason };
       }
       return a;
     }));
 
     const targetA = auctions.find(a => a.id === id);
+
+    // Tell the seller their listing was declined — including why.
+    notifySellerOfListingDecision(targetA?.sellerId || (targetA as any)?.createdById, id, {
+      titleAr: 'مزادك ما تم قبوله',
+      titleEn: "Your listing wasn't approved",
+      descAr: `للأسف ما تمت الموافقة على "${targetA?.title || ''}".${trimmedReason ? ` السبب: ${trimmedReason}` : ''}`,
+      descEn: `Unfortunately "${targetA?.title || ''}" wasn't approved.${trimmedReason ? ` Reason: ${trimmedReason}` : ''}`
+    });
+
     const action: AdminAction = {
       id: `admin-act-${Date.now()}-${Math.random()}`,
       actionType: 'reject_listing',
@@ -2952,10 +3094,10 @@ const fetchIP = async () => {
       targetName: targetA?.title || 'Unknown Item',
       adminName: currentUser?.name || 'Admin',
       timestamp: Date.now(),
-      details: 'Video did not pass alignment checks.'
+      details: trimmedReason ? `Rejected: ${trimmedReason}` : 'Rejected without a stated reason.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [auctions, currentUser, addNotification, language]);
+  }, [auctions, currentUser, addNotification, language, notifySellerOfListingDecision]);
 
   const verifySeller = useCallback(async (userId: string) => {
     try {
