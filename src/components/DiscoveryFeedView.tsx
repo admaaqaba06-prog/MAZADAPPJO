@@ -5,6 +5,7 @@ import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
 import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
+import { formatAmmanClock } from '../utils/ammanTime';
 import { 
   Flame, 
   Search, 
@@ -435,6 +436,26 @@ export const DiscoveryFeedView: React.FC = () => {
   // live-now strip, the primary route into the bidding room from Discover.
   const liveNowAuctions = getLiveAuctions<AuctionItem>(auctions);
 
+  // Next scheduled drops (soonest first, unscheduled last) — previewed inline
+  // in the empty state so a quiet feed still shows what's coming.
+  const upcomingPreview = React.useMemo(() => {
+    return auctions
+      .filter(a => a.status === 'upcoming')
+      .sort((a, b) => (a.scheduledStartAt ?? Infinity) - (b.scheduledStartAt ?? Infinity))
+      .slice(0, 3);
+  }, [auctions]);
+
+  const formatUpcomingWhen = (item: AuctionItem) => {
+    if (!item.scheduledStartAt) return isAr ? 'قريباً' : 'Soon';
+    const weekday = new Date(item.scheduledStartAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-GB', {
+      weekday: 'short',
+      timeZone: 'Asia/Amman',
+    });
+    return `${weekday} ${formatAmmanClock(item.scheduledStartAt)}`;
+  };
+
+  const isMember = currentUser?.subscriptionStatus === 'active';
+
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
   const handleWatchLive = () => {
@@ -805,34 +826,80 @@ export const DiscoveryFeedView: React.FC = () => {
             id="feedback-empty-state"
           >
             <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
-              <Calendar className="w-6 h-6 stroke-[1.5]" />
+              <Flame className="w-6 h-6 stroke-[1.5]" />
             </div>
             <div className="space-y-1.5 max-w-sm">
               <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">
-                {isAr ? 'المزادات تُعلن يومياً 📢' : 'Auctions are announced daily 📢'}
+                {isAr ? 'المزادات القوية جاية 🔥' : 'Strong auctions are coming 🔥'}
               </h3>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                {isAr
-                  ? 'تابع قناتنا على واتساب ليوصلك موعد كل مزاد أول بأول — أو تفقد المواعيد القادمة.'
-                  : 'Follow our WhatsApp channel to catch every drop — or check the upcoming schedule.'}
-              </p>
+              {upcomingPreview.length === 0 && (
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  {isAr
+                    ? 'المزادات تُعلن يومياً — انضم اليوم وكن جاهزاً لأول مزاد.'
+                    : 'Auctions are announced daily — join today and be ready for the next drop.'}
+                </p>
+              )}
             </div>
-            <div className="flex flex-col sm:flex-row items-center gap-2">
+
+            {/* Next-drops inline preview: keeps the quiet feed on-platform */}
+            {upcomingPreview.length > 0 && (
+              <div className="w-full max-w-sm space-y-1.5" id="empty-state-upcoming-preview">
+                <span className="block text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                  {isAr ? 'المواعيد القادمة' : 'Next drops'}
+                </span>
+                {upcomingPreview.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedLotId(item.id)}
+                    className="w-full flex items-center justify-between gap-2 bg-gray-50 hover:bg-orange-50/60 border border-gray-100 rounded-xl px-3 py-2 transition-colors cursor-pointer text-start"
+                  >
+                    <span className="text-xs font-bold text-gray-800 truncate">{item.title}</span>
+                    <span className="text-[10px] font-mono font-bold text-[#FF6B00] shrink-0 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatUpcomingWhen(item)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Primary CTA: join (non-members) / notify me (members) — on-platform first */}
+            {!isMember ? (
               <button
-                onClick={() => window.open(WHATSAPP_URL, '_blank', 'noopener,noreferrer')}
-                className="px-4 py-2 bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50 font-extrabold text-[11px] rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                onClick={() => setActiveView('wallet')}
+                className="px-5 py-2.5 bg-[#FF6B00] hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-orange-500/20 active:scale-95 cursor-pointer"
+                id="empty-state-join-cta"
               >
-                <MessageCircle className="w-3.5 h-3.5" />
-                {isAr ? 'تابعنا على واتساب' : 'Follow on WhatsApp'}
+                {isAr ? 'انضم الآن — من ١ دينار' : 'Join now — from 1 JD'}
               </button>
+            ) : (
               <button
-                onClick={() => setActiveTab('upcoming')}
-                className="px-4 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 font-bold text-[11px] rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                onClick={() =>
+                  showToast({
+                    type: 'success',
+                    title: isAr ? 'رح نعلمك 🔔' : "We'll let you know 🔔",
+                    message: isAr
+                      ? 'أول ما يبدأ المزاد الجاي بيوصلك إشعار.'
+                      : "You'll get a notification the moment the next drop goes live.",
+                  })
+                }
+                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
+                id="empty-state-notify-cta"
               >
-                <Calendar className="w-3.5 h-3.5" />
-                {isAr ? 'المواعيد القادمة' : 'Upcoming drops'}
+                <Bell className="w-3.5 h-3.5" />
+                {isAr ? 'ذكّرني بأول مزاد' : 'Notify me of the next drop'}
               </button>
-            </div>
+            )}
+
+            {/* WhatsApp demoted to a secondary text link */}
+            <button
+              onClick={() => window.open(WHATSAPP_URL, '_blank', 'noopener,noreferrer')}
+              className="text-[11px] font-semibold text-gray-400 hover:text-emerald-600 underline underline-offset-2 decoration-gray-200 hover:decoration-emerald-400 transition-colors cursor-pointer flex items-center gap-1"
+              id="empty-state-whatsapp-link"
+            >
+              <MessageCircle className="w-3 h-3" />
+              {isAr ? 'أو تابع قناتنا' : 'or follow our channel'}
+            </button>
           </div>
         )}
       </div>
