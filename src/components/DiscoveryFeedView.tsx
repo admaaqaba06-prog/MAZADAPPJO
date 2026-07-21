@@ -601,6 +601,35 @@ export const DiscoveryFeedView: React.FC = () => {
             <p className="text-[11px] text-gray-400 mt-2 font-sans font-medium">
               {isAr ? 'مزادات فورية بالوقت الحقيقي مع حماية وضمان أموال المشترين.' : 'Real-time auctions with secure escrow payments.'}
             </p>
+
+            {/* Real CTA: join (non-members) / watch live or browse (members) */}
+            {!isMember ? (
+              <button
+                onClick={() => setActiveView('wallet')}
+                className="mt-4 self-start px-4 py-2.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-orange-900/30 active:scale-95 cursor-pointer"
+                id="mobile-hero-join-cta"
+              >
+                {isAr ? 'انضم من ١ دينار' : 'Join from 1 JD'}
+              </button>
+            ) : liveNowAuctions.length > 0 ? (
+              <button
+                onClick={handleWatchLive}
+                className="mt-4 self-start px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-red-900/30 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                id="mobile-hero-live-cta"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                {isAr ? 'شوف المباشر' : 'Watch live'}
+              </button>
+            ) : (
+              <button
+                onClick={() => document.getElementById('discover-feed-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="mt-4 self-start px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                id="mobile-hero-browse-cta"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+                {isAr ? 'تصفّح' : 'Browse'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -794,7 +823,7 @@ export const DiscoveryFeedView: React.FC = () => {
       </div>
 
       {/* Dual-Column High Fidelity grid list of live streams preview */}
-      <div className="flex-grow px-4 pb-12">
+      <div className="flex-grow px-4 pb-12" id="discover-feed-grid">
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
