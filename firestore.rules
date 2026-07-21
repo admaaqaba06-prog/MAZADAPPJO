@@ -46,10 +46,20 @@ service cloud.firestore {
         isAdmin() || 
         (request.auth.token != null && 'email' in request.auth.token && 
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
-        (request.auth.uid == userId && 
+        (request.auth.uid == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount', 'email'
-          ])
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount'
+          ]) &&
+          // Owner may CLAIM an email once (empty -> string) but can never CHANGE
+          // a non-empty email (it's the receipt/contact identity). "Empty" covers
+          // absent/''/null because the phone-signup create rule allows all three.
+          // Untouched email (any state, incl. missing key) is checked via
+          // affectedKeys so docs without an email field can still self-update.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
+            ((!('email' in resource.data) || resource.data.email == '' || resource.data.email == null) &&
+              request.resource.data.email is string)
+          )
         )
       );
       allow delete: if isAdmin();
