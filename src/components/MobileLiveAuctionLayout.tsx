@@ -19,7 +19,8 @@ import {
   Heart,
   Play,
   MessageSquare,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 
 interface MobileLiveAuctionLayoutProps {
@@ -278,17 +279,33 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
   // States for micro-animations and feedback
   const [priceAnimate, setPriceAnimate] = useState(false);
   const [justBidded, setJustBidded] = useState(false);
+  // In-flight bid guard (blocks double-submit) + optimistic price override.
+  const [submitting, setSubmitting] = useState(false);
+  const [optimisticPrice, setOptimisticPrice] = useState<number | null>(null);
   const [toastQueue, setToastQueue] = useState<{ id: string; text: string; icon: string }[]>([]);
   const [activeToast, setActiveToast] = useState<{ id: string; text: string; icon: string } | null>(null);
 
+  // Optimistic price: show the just-placed bid instantly; never dip below the
+  // real echo (a higher outbid overtakes it). Reconciled when the subscription
+  // catches up — CountUp smooths any correction.
+  const displayPrice = optimisticPrice != null ? Math.max(optimisticPrice, activePrice) : activePrice;
+
+  // Reconcile: once the real (subscription) price reaches our optimistic value,
+  // drop the override so live updates flow through unmodified.
+  useEffect(() => {
+    if (optimisticPrice != null && activePrice >= optimisticPrice) {
+      setOptimisticPrice(null);
+    }
+  }, [activePrice, optimisticPrice]);
+
   // Trigger price micro-animation
   useEffect(() => {
-    if (activePrice > 0) {
+    if (displayPrice > 0) {
       setPriceAnimate(true);
       const timer = setTimeout(() => setPriceAnimate(false), 300);
       return () => clearTimeout(timer);
     }
-  }, [activePrice]);
+  }, [displayPrice]);
 
   // Queue joined, liked, saved notifications
   useEffect(() => {
@@ -397,18 +414,36 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
     setPendingBid(nextBidAmount);
   };
 
-  // Confirmed: execute the bid; on success pop the winning pill (price CountUp animates on its own)
+  // Confirmed: lock the controls (no double-submit), paint the optimistic
+  // "you're winning" state instantly, then await the callable. The subscription
+  // echo reconciles the real price/winner; a rejection rolls the optimism back.
   const confirmBid = async (amount: number) => {
+    if (submitting) return; // in-flight guard
     setPendingBid(null);
-    const res = await onBidExecute(amount);
-    if (res && res.success) {
-      markFirstBidDone(); // first successful bid retires the first-bid coach
-      setJustBidded(true);
-      setShowWinPill(true);
-      if (winPillTimer.current) clearTimeout(winPillTimer.current);
-      winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
-      if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
-      justBiddedTimer.current = setTimeout(() => setJustBidded(false), 2500);
+    setSubmitting(true);
+
+    // Optimistic UI (reconciled by the subscription echo)
+    setOptimisticPrice(amount);
+    setJustBidded(true);
+    setShowWinPill(true);
+    if (winPillTimer.current) clearTimeout(winPillTimer.current);
+    winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
+
+    try {
+      const res = await onBidExecute(amount);
+      if (res && res.success) {
+        markFirstBidDone(); // first successful bid retires the first-bid coach
+        if (justBiddedTimer.current) clearTimeout(justBiddedTimer.current);
+        justBiddedTimer.current = setTimeout(() => setJustBidded(false), 2500);
+      } else {
+        // Rejected (outbid, ended, membership, spam): roll back the optimism —
+        // the real state (outbid banner + toast) governs from here.
+        setOptimisticPrice(null);
+        setJustBidded(false);
+        setShowWinPill(false);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -770,7 +805,7 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
               </span>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                  <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} />
+                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString()} />
                 </span>
                 <span className="text-[11px] font-bold text-white/70">JOD</span>
               </div>
@@ -864,10 +899,12 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
                       </span>
                       {isLosing && (
                         <Pressable
+                          disabled={submitting}
                           onClick={() => setPendingBid(nextBidAmount)}
-                          className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
+                          className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-[10px] font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
+                          {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
+                          <span>{isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}</span>
                         </Pressable>
                       )}
                     </motion.div>
@@ -882,16 +919,25 @@ const MobileAuctionReel: React.FC<MobileAuctionReelProps> = ({
 
                 {/* Row 4: Single HUGE Thumb-Tappable Bid Button (opens the inline confirm) */}
                 <Pressable
-                  disabled={currentUser?.isBlocked}
+                  disabled={currentUser?.isBlocked || submitting}
                   onClick={handleLocalBid}
                   className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
                 >
-                  <span className="text-sm tracking-wide font-black">
-                    {getBidButtonText()}
-                  </span>
-                  <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
-                    {isAr ? `زايد ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JD`}
-                  </span>
+                  {submitting ? (
+                    <span className="flex items-center gap-2 text-sm tracking-wide font-black">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {isAr ? 'جارٍ الإرسال…' : 'Placing bid…'}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-sm tracking-wide font-black">
+                        {getBidButtonText()}
+                      </span>
+                      <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
+                        {isAr ? `زايد ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JD`}
+                      </span>
+                    </>
+                  )}
                 </Pressable>
                 <p className="text-[11px] text-gray-400 text-center mt-1">
                   {isAr
