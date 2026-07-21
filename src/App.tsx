@@ -4,6 +4,8 @@ import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { ProfileCompletionModal } from './components/ProfileCompletionModal';
+import { isProfileComplete } from './utils/jordanCities';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
 
 // Named exports require mapping to default in React's lazy
@@ -194,6 +196,20 @@ function MainAppShell() {
       );
     }
     return <LoginView />;
+  }
+
+  // 2.5. Profile-completion gate (Auth/KYC Wave 2): authenticated but the
+  // profile is missing name and/or city (phone signups arrive as 'User' with
+  // no city; Google/FB signups have no city). Full-screen, non-dismissable —
+  // the marketplace stays closed until name + city exist. The deep-link
+  // capture above has already run, so activeAuctionId/activeView are latched
+  // and the user lands on the captured auction right after completing.
+  if (!isProfileComplete(currentUser)) {
+    return (
+      <div className="min-h-screen bg-white">
+        <ProfileCompletionModal />
+      </div>
+    );
   }
 
   // 3. Render Desktop Outer viewport wrapper frame

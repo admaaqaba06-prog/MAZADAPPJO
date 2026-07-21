@@ -8,6 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
+import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
@@ -265,6 +266,9 @@ interface AppContextProps {
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
   
+  // Profile Completion (Auth/KYC Wave 2)
+  updateOwnProfile: (fields: { name?: string; city?: string; email?: string }) => Promise<{ success: boolean; message: string }>;
+
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
   resetOnboarding: (userId?: string) => Promise<void>;
@@ -868,7 +872,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           let loadedUser: User;
           
           if (!userSnap.exists()) {
-            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : (firebaseUser.phoneNumber || 'User');
+            // Phone signups have no displayName/email — NEVER fall back to the
+            // phone number as the public bidder name (it would leak into chat/
+            // bids and defeat the profile-completion gate). 'User' matches the
+            // server onUserCreated placeholder, so no double-prompt later.
+            const nameFromEmail = firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User';
             const capitalizedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
             
             const newSessionId = generateSessionId();
@@ -3840,6 +3848,70 @@ const fetchIP = async () => {
     }
   }, [currentUser, addNotification, logSystemHealth]);
 
+  // Wave 2 (profile completion): partial self-profile update. Writes ONLY the
+  // provided keys to the user's Firestore doc and mirrors them into local
+  // currentUser + users. Email is write-once from the client (mirrors the
+  // Wave 3 server rule): it is included ONLY when the current email is empty.
+  const updateOwnProfile = useCallback(async (
+    fields: { name?: string; city?: string; email?: string }
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser || currentUser.id === 'unauthenticated') {
+      return { success: false, message: 'Not authenticated' };
+    }
+
+    const updates: { name?: string; city?: string } = {};
+    if (typeof fields.name === 'string' && fields.name.trim()) {
+      updates.name = fields.name.trim();
+    }
+    // Only persist a known governorate id — silently skip garbage so a bad
+    // caller can't write an invalid city (the modal's <select> already
+    // constrains it; this guards future callers).
+    if (typeof fields.city === 'string' && isValidCityId(fields.city.trim())) {
+      updates.city = fields.city.trim();
+    }
+    // Email: only if the account has no email yet AND a non-empty one was passed.
+    const emailUpdate =
+      !currentUser.email && typeof fields.email === 'string' && fields.email.trim()
+        ? fields.email.trim()
+        : null;
+
+    if (Object.keys(updates).length === 0 && !emailUpdate) {
+      return { success: true, message: 'Nothing to update' };
+    }
+
+    const userRef = doc(db, 'users', currentUser.id);
+    const mirrored: { name?: string; city?: string; email?: string } = { ...updates };
+
+    try {
+      // Primary write: the fields completeness depends on (name/city). Kept
+      // SEPARATE from email so an email-rules denial can never block the
+      // profile-completion gate from clearing.
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(userRef, updates);
+      }
+    } catch (err: any) {
+      console.error('updateOwnProfile error:', err);
+      handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}`);
+      return { success: false, message: err?.message || 'Profile update failed' };
+    }
+
+    if (emailUpdate) {
+      // Best-effort, write-once: today's users rules still deny self-service
+      // email updates (the allow-when-empty rule ships with Wave 3), so a
+      // denial here is swallowed — name/city already landed above.
+      try {
+        await updateDoc(userRef, { email: emailUpdate });
+        mirrored.email = emailUpdate;
+      } catch (err) {
+        console.warn('updateOwnProfile: optional email write skipped (rules):', err);
+      }
+    }
+
+    setCurrentUser(prev => ({ ...prev, ...mirrored }));
+    setUsers(prev => prev.map(u => (u.id === currentUser.id ? { ...u, ...mirrored } : u)));
+    return { success: true, message: 'Profile updated' };
+  }, [currentUser]);
+
   const completeOnboarding = useCallback(async () => {
     if (currentUser && currentUser.id !== 'unauthenticated') {
       const userRef = doc(db, 'users', currentUser.id);
@@ -4347,6 +4419,7 @@ const fetchIP = async () => {
       logout,
       registerUser,
       subscribeUser,
+      updateOwnProfile,
       completeOnboarding,
       resetOnboarding,
       markHintAsShown,
