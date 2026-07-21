@@ -223,8 +223,11 @@ function MainAppShell() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <ToastProvider>
+    // ToastProvider wraps AppProvider (it has no app-state dependency) so
+    // AppContext flows can raise transient error toasts for users — the bell
+    // no longer surfaces internal 'alert' errors (Wave D allowlist).
+    <ToastProvider>
+      <AppProvider>
       <Suspense fallback={
         <div className="min-h-screen bg-white flex items-center justify-center font-sans">
           <div className="flex flex-col items-center gap-3">
@@ -237,7 +240,7 @@ export default function App() {
       }>
         <MainAppShell />
       </Suspense>
-      </ToastProvider>
-    </AppProvider>
+      </AppProvider>
+    </ToastProvider>
   );
 }

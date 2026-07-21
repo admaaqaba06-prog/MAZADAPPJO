@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from './feedback';
 import { translations } from '../utils/translations';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
 import { ContextualHint } from './ContextualHint';
@@ -75,6 +76,7 @@ export const WalletView: React.FC = () => {
     globalSelectedOrderId,
     setGlobalSelectedOrderId
   } = useApp();
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (globalWalletSubView) {
@@ -226,13 +228,13 @@ export const WalletView: React.FC = () => {
         }
       }) : null);
 
-      addNotification(
-        isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated',
-        isAr 
-          ? 'تهانينا! تم تفعيل حساب البائع الخاص بك بنجاح. يمكنك الآن الانتقال إلى مركز البائع وإدراج المزادات.' 
-          : 'Congratulations! Your seller account is active. You can now visit the Seller Center to manage your business.',
-        'info'
-      );
+      const sellerOkTitle = isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated';
+      const sellerOkMsg = isAr
+        ? 'تهانينا! تم تفعيل حساب البائع الخاص بك بنجاح. يمكنك الآن الانتقال إلى مركز البائع وإدراج المزادات.'
+        : 'Congratulations! Your seller account is active. You can now visit the Seller Center to manage your business.';
+      addNotification(sellerOkTitle, sellerOkMsg, 'info');
+      // 'info' is hidden from the user bell (Wave D) — confirm transiently.
+      showToast({ title: sellerOkTitle, message: sellerOkMsg, type: 'success' });
     } catch (err: any) {
       console.error("Failed to activate seller:", err);
       alert(isAr 
@@ -377,11 +379,11 @@ export const WalletView: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Firebase Storage write failure during CliQ receipt upload:", error);
-      addNotification(
-        isAr ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed',
-        isAr ? `تعذر رفع صورة إيصال التحويل. الرجاء المحاولة مرة أخرى.` : `Failed to upload payment receipt. Please try again.`,
-        'alert'
-      );
+      const uploadFailTitle = isAr ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed';
+      const uploadFailMsg = isAr ? 'تعذر رفع صورة إيصال التحويل. الرجاء المحاولة مرة أخرى.' : 'Failed to upload payment receipt. Please try again.';
+      addNotification(uploadFailTitle, uploadFailMsg, 'alert');
+      // 'alert' errors are hidden from the user bell (Wave D) — toast instead.
+      showToast({ title: uploadFailTitle, message: uploadFailMsg, type: 'warn' });
       setIsSubmitting(false);
     }
   };

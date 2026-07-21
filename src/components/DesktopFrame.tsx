@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSocialProof } from '../hooks/useSocialProof';
+import { unreadUserFacingCount } from '../utils/notifications';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
@@ -49,8 +50,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     setShowNotifications
   } = useApp();
 
-  const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
-
   // Real social proof for the new-user right rail (spec §4): live bidders
   // from the loaded auctions + recent wins (one-time cached query).
   const { biddersNow, recentWins } = useSocialProof();
@@ -61,6 +60,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const t = translations[language];
   const isAr = language === 'ar';
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+
+  // Wave D: the bell badge counts only bidder-relevant notifications for
+  // regular users; admins keep the full unfiltered stream.
+  const unreadCount = isStrictAdmin
+    ? (notifications || []).filter(n => !n.read).length
+    : unreadUserFacingCount(notifications);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
   // Dynamic calculations for outer header

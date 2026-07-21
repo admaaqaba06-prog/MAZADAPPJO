@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { userFacingNotifications } from '../utils/notifications';
 import type { Notification as AppNotification } from '../types';
 import { 
   X, 
@@ -28,19 +29,29 @@ interface NotificationCenterProps {
   onClose: () => void;
 }
 
-type NotificationFilterType = 'all' | 'bid' | 'win' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
+type NotificationFilterType = 'all' | 'outbid' | 'bid' | 'win' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
+
+// Regular users only see the bidder-relevant alert kinds (Wave D, spec §5);
+// admins keep the full unfiltered stream for ops visibility.
+const USER_FILTER_CHIPS: readonly NotificationFilterType[] = ['all', 'outbid', 'win', 'loss', 'order', 'subscription'];
+const ADMIN_FILTER_CHIPS: readonly NotificationFilterType[] = ['all', 'outbid', 'bid', 'win', 'loss', 'wallet', 'order', 'subscription', 'admin'];
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
-  const { 
-    notifications, 
-    setNotifications, 
-    markAsRead, 
-    markAllAsRead, 
-    language 
+  const {
+    notifications,
+    setNotifications,
+    markAsRead,
+    markAllAsRead,
+    language,
+    currentUser
   } = useApp();
 
   const [selectedFilter, setSelectedFilter] = useState<NotificationFilterType>('all');
   const isAr = language === 'ar';
+  const isStrictAdmin = !!currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+  // Display-time allowlist: users see only bidder-relevant notifications.
+  const visibleNotifications = isStrictAdmin ? notifications : userFacingNotifications(notifications);
+  const filterChips = isStrictAdmin ? ADMIN_FILTER_CHIPS : USER_FILTER_CHIPS;
 
   const handleClearAll = () => {
     if (window.confirm(isAr ? 'هل أنت متأكد من رغبتك في مسح جميع الإشعارات؟' : 'Are you sure you want to clear all notifications?')) {
@@ -136,6 +147,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
   const getCategoryLabel = (type: NotificationFilterType) => {
     switch (type) {
       case 'all': return isAr ? 'الكل' : 'All';
+      case 'outbid': return isAr ? 'تجاوز العرض' : 'Outbid';
       case 'bid': return isAr ? 'مزايدة' : 'Bidding';
       case 'win': return isAr ? 'فوز' : 'Win';
       case 'loss': return isAr ? 'خسارة' : 'Loss';
@@ -146,10 +158,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = visibleNotifications.filter(n => !n.read).length;
 
   // Filter notifications
-  const filteredNotifications = notifications.filter(n => {
+  const filteredNotifications = visibleNotifications.filter(n => {
     if (selectedFilter === 'all') return true;
     return n.type === selectedFilter;
   });
@@ -211,7 +223,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         <span className="hidden sm:inline">{isAr ? 'قراءة الكل' : 'All Read'}</span>
                       </button>
                     )}
-                    {notifications.length > 0 && (
+                    {visibleNotifications.length > 0 && (
                       <button
                         onClick={handleClearAll}
                         className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 transition-colors flex items-center gap-1 text-[10px] font-extrabold uppercase cursor-pointer"
@@ -232,10 +244,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
 
                 {/* Filter Tabs Chips */}
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1.5 shrink-0 select-none">
-                  {(['all', 'bid', 'win', 'loss', 'wallet', 'order', 'subscription', 'admin'] as const).map((filter) => {
-                    const count = filter === 'all' 
-                      ? notifications.length 
-                      : notifications.filter(n => n.type === filter).length;
+                  {filterChips.map((filter) => {
+                    const count = filter === 'all'
+                      ? visibleNotifications.length
+                      : visibleNotifications.filter(n => n.type === filter).length;
                     
                     const isSelected = selectedFilter === filter;
                     return (
