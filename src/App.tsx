@@ -20,6 +20,7 @@ const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilde
 const LandingView = lazy(() => import('./landing/LandingView'));
 const SellWithUsView = lazy(() => import('./components/SellWithUsView').then(m => ({ default: m.SellWithUsView })));
 const MyOrdersView = lazy(() => import('./components/MyOrdersView').then(m => ({ default: m.MyOrdersView })));
+const HowItWorksView = lazy(() => import('./components/HowItWorksView').then(m => ({ default: m.HowItWorksView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -33,6 +34,8 @@ function ActiveViewRenderer() {
       return <SubscriptionView />;
     case 'orders':
       return <MyOrdersView />;
+    case 'about':
+      return <HowItWorksView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':
