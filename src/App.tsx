@@ -10,7 +10,6 @@ import { ToastProvider, ReviewPrompt } from './components/feedback';
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
 const LiveStreamView = lazy(() => import('./components/LiveStreamView').then(m => ({ default: m.LiveStreamView })));
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(m => ({ default: m.AdminDashboardView })));
-const ListingWizardView = lazy(() => import('./components/ListingWizardView').then(m => ({ default: m.ListingWizardView })));
 const LoginView = lazy(() => import('./components/LoginView').then(m => ({ default: m.LoginView })));
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
@@ -18,7 +17,7 @@ const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ d
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
 const LandingView = lazy(() => import('./landing/LandingView'));
-const SellWithUsView = lazy(() => import('./components/SellWithUsView').then(m => ({ default: m.SellWithUsView })));
+const SellView = lazy(() => import('./components/SellView').then(m => ({ default: m.SellView })));
 const MyOrdersView = lazy(() => import('./components/MyOrdersView').then(m => ({ default: m.MyOrdersView })));
 const HowItWorksView = lazy(() => import('./components/HowItWorksView').then(m => ({ default: m.HowItWorksView })));
 
@@ -52,10 +51,11 @@ function ActiveViewRenderer() {
         return <DiscoveryFeedView />;
       }
       return <AdminDashboardView />;
-    case 'upload': {
-      const isStrictAdmin = currentUser?.email === 'admaaqaba06@gmail.com' || currentUser?.isAdmin === true;
-      return isStrictAdmin ? <ListingWizardView /> : <SellWithUsView />;
-    }
+    case 'upload':
+      // Wave E2: selling is open to every authenticated member (self-serve
+      // wizard + concierge, both behind the mandatory Mazad approval gate).
+      // Selling does NOT require the bidding membership.
+      return <SellView />;
     default:
       return <DiscoveryFeedView />;
   }

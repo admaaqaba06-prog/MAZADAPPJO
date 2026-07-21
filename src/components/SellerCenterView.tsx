@@ -133,7 +133,10 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     no_orders: 'لا يوجد طلبات مبيعات مسجلة بعد.',
     no_reviews: 'لا يوجد تقييمات مكتوبة بعد.',
     no_notifications: 'لا توجد إشعارات جديدة للبائع.',
-    all_notifs: 'جميع إشعارات البائع'
+    all_notifs: 'جميع إشعارات البائع',
+    resubmit: 'أعد الإرسال',
+    no_listings_yet: 'ما عندك مزادات بعد — أضف أول منتج',
+    start_selling: 'ابدأ البيع'
   },
   en: {
     seller_center: 'Seller Center',
@@ -196,7 +199,10 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     no_orders: 'No orders logged yet.',
     no_reviews: 'No reviews found yet.',
     no_notifications: 'No seller notifications found.',
-    all_notifs: 'All Seller Notifications'
+    all_notifs: 'All Seller Notifications',
+    resubmit: 'Resubmit',
+    no_listings_yet: 'No listings yet — add your first',
+    start_selling: 'Start selling'
   }
 };
 
@@ -211,7 +217,8 @@ export const SellerCenterView: React.FC = () => {
     setAuctions,
     sellerProfiles,
     submitVerificationRequest,
-    requestWithdrawal
+    requestWithdrawal,
+    setActiveView
   } = useApp();
 
   const isAr = language === 'ar';
@@ -430,14 +437,27 @@ export const SellerCenterView: React.FC = () => {
     };
   }, [myAuctions, myOrders, wallet, reviews]);
 
-  // My Auctions categorized
+  // My Auctions categorized — mutually exclusive status buckets, newest first.
+  // A resubmitted listing (status back to 'processing', approvalStatus stuck on
+  // 'rejected' — the rules deny sellers touching approvalStatus) must land in
+  // Pending review, not Rejected: status wins over approvalStatus.
   const categorizedAuctions = useMemo(() => {
+    const newestFirst = [...myAuctions].sort(
+      (a, b) => ((b as any).createdAt || 0) - ((a as any).createdAt || 0)
+    );
+    const isPendingReview = (a: AuctionItem) =>
+      a.status === 'processing' || (a.status as string) === 'pending' ||
+      (a.status === 'upcoming' && a.approvalStatus === 'pending'); // legacy scheduled-but-unreviewed docs
     return {
-      upcoming: myAuctions.filter(a => a.status === 'upcoming' && a.approvalStatus !== 'rejected'),
-      live: myAuctions.filter(a => a.status === 'live'),
-      pending: myAuctions.filter(a => a.status === 'processing' || a.status === 'pending' || a.approvalStatus === 'pending'),
-      completed: myAuctions.filter(a => a.status === 'completed'),
-      rejected: myAuctions.filter(a => a.status === 'rejected' || a.approvalStatus === 'rejected')
+      pending: newestFirst.filter(isPendingReview),
+      live: newestFirst.filter(a => a.status === 'live'),
+      upcoming: newestFirst.filter(a =>
+        a.status === 'upcoming' && a.approvalStatus !== 'rejected' && a.approvalStatus !== 'pending'
+      ),
+      completed: newestFirst.filter(a => a.status === 'completed'),
+      rejected: newestFirst.filter(a =>
+        a.status === 'rejected' || (a.status === 'upcoming' && a.approvalStatus === 'rejected')
+      )
     };
   }, [myAuctions]);
 
@@ -545,33 +565,44 @@ export const SellerCenterView: React.FC = () => {
     e.preventDefault();
     if (!editingAuction) return;
 
+    // Resubmit path: editing a rejected listing sends it straight back into the
+    // Mazad review queue ('processing') and clears the old rejection reason.
+    // (firestore.rules allow the creator rejected→processing; approvalStatus is
+    // admin-only and stays untouched.)
+    const isResubmit = editingAuction.status === 'rejected';
+
     try {
       const docRef = doc(db, 'auctions', editingAuction.id);
-      await updateDoc(docRef, {
+      const patch: any = {
         title: editTitle,
         description: editDesc,
         startingPrice: editStartingPrice,
         category: editCategory,
         duration: editDuration,
-        endsAt: Timestamp.fromMillis(Date.now() + editDuration * 1000)
-      });
+        endsAt: Timestamp.fromMillis(Date.now() + editDuration * 1000),
+        ...(isResubmit ? { status: 'processing', rejectionReason: '' } : {})
+      };
+      await updateDoc(docRef, patch);
 
       // Update locally
       setAuctions(prev => prev.map(a => a.id === editingAuction.id ? {
         ...a,
-        title: editTitle,
-        description: editDesc,
-        startingPrice: editStartingPrice,
-        category: editCategory,
-        duration: editDuration,
-        endsAt: Timestamp.fromMillis(Date.now() + editDuration * 1000)
+        ...patch
       } : a));
 
-      addNotification(
-        isAr ? '✅ تم تحديث المزاد' : '✅ Auction Updated',
-        isAr ? `تم تعديل بيانات المزاد "${editTitle}" بنجاح.` : `Auction "${editTitle}" successfully updated.`,
-        'info'
-      );
+      if (isResubmit) {
+        addNotification(
+          isAr ? '🔄 تمت إعادة الإرسال للمراجعة' : '🔄 Resubmitted for Review',
+          isAr ? `تمت إعادة إرسال "${editTitle}" لفريق مزاد جو للمراجعة والموافقة.` : `"${editTitle}" was resubmitted to the Mazad JO team for review & approval.`,
+          'info'
+        );
+      } else {
+        addNotification(
+          isAr ? '✅ تم تحديث المزاد' : '✅ Auction Updated',
+          isAr ? `تم تعديل بيانات المزاد "${editTitle}" بنجاح.` : `Auction "${editTitle}" successfully updated.`,
+          'info'
+        );
+      }
       setIsEditModalOpen(false);
       setEditingAuction(null);
     } catch (err: any) {
@@ -1020,7 +1051,22 @@ export const SellerCenterView: React.FC = () => {
             </div>
 
             {/* AUCTION LISTINGS */}
-            {categorizedAuctions[activeAuctionTab].length === 0 ? (
+            {myAuctions.length === 0 ? (
+              /* No listings at all: point the seller at the unified Sell entry */
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4" id="seller-empty-state">
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                  <PlusCircle className="w-7 h-7 text-[#FF6B00]" />
+                </div>
+                <p className="text-sm font-black text-gray-900">{st.no_listings_yet}</p>
+                <button
+                  onClick={() => setActiveView('upload')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{st.start_selling}</span>
+                </button>
+              </div>
+            ) : categorizedAuctions[activeAuctionTab].length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-400 text-sm">
                 {st.no_auctions}
               </div>
@@ -1054,11 +1100,20 @@ export const SellerCenterView: React.FC = () => {
                         <h4 className="text-sm font-black text-gray-900 line-clamp-1">{auction.title}</h4>
                         <p className="text-xs text-gray-500 line-clamp-2 min-h-[32px]">{auction.description}</p>
 
-                        {/* Rejection reason back to the seller (spec §6) */}
+                        {/* Rejection reason back to the seller (spec §6) + resubmit affordance */}
                         {(auction.status === 'rejected' || auction.approvalStatus === 'rejected') && auction.rejectionReason && (
-                          <p className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-lg">
-                            {isAr ? 'سبب الرفض: ' : 'Rejection reason: '}{auction.rejectionReason}
-                          </p>
+                          <div className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-lg space-y-1.5">
+                            <p>{isAr ? 'سبب الرفض: ' : 'Rejection reason: '}{auction.rejectionReason}</p>
+                            {auction.status === 'rejected' && (
+                              <button
+                                onClick={() => handleEditClick(auction)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>{st.resubmit}</span>
+                              </button>
+                            )}
+                          </div>
                         )}
 
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500">
@@ -1084,21 +1139,30 @@ export const SellerCenterView: React.FC = () => {
                         <span>{st.view}</span>
                       </button>
 
-                      <button
-                        onClick={() => handleEditClick(auction)}
-                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
-                        title={st.edit}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
+                      {/* Edit only while the seller still owns the doc per firestore.rules:
+                          under review ('processing'/legacy 'pending') or 'rejected' (resubmit
+                          path). Once approved ('live'/'upcoming') the rules DENY non-admin
+                          edits — the button would just error, so it's hidden. */}
+                      {(auction.status === 'processing' || (auction.status as string) === 'pending' || auction.status === 'rejected') && (
+                        <button
+                          onClick={() => handleEditClick(auction)}
+                          className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                          title={auction.status === 'rejected' ? st.resubmit : st.edit}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
 
-                      <button
-                        onClick={() => handleDuplicate(auction)}
-                        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
-                        title={st.duplicate}
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
+                      {/* Duplicate hidden on approved surfaces ('live'/'upcoming'). */}
+                      {auction.status !== 'live' && auction.status !== 'upcoming' && (
+                        <button
+                          onClick={() => handleDuplicate(auction)}
+                          className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                          title={st.duplicate}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      )}
 
                       <button
                         onClick={() => handleDelete(auction)}
@@ -1716,7 +1780,9 @@ export const SellerCenterView: React.FC = () => {
             <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
               <Edit className="w-5 h-5 text-[#FF6B00]" />
               <h3 className="text-sm font-black text-gray-900">
-                {isAr ? 'تعديل بيانات المزاد' : 'Edit Auction Details'}
+                {editingAuction.status === 'rejected'
+                  ? (isAr ? 'عدّل وأعد الإرسال للمراجعة' : 'Edit & Resubmit for Review')
+                  : (isAr ? 'تعديل بيانات المزاد' : 'Edit Auction Details')}
               </h3>
             </div>
 
@@ -1781,7 +1847,9 @@ export const SellerCenterView: React.FC = () => {
                 type="submit"
                 className="w-full py-3.5 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-600 text-white font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-500/15 text-center mt-2"
               >
-                {isAr ? 'حفظ التعديلات' : 'Save Modifications'}
+                {editingAuction.status === 'rejected'
+                  ? (isAr ? 'أعد الإرسال للمراجعة' : 'Resubmit for Review')
+                  : (isAr ? 'حفظ التعديلات' : 'Save Modifications')}
               </button>
             </form>
           </div>

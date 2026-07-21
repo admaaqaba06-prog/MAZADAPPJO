@@ -2977,6 +2977,10 @@ const fetchIP = async () => {
       sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
       sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
       status: initialStatus, // Save under the requested status (default 'processing' = awaiting Mazad review) so Admin can approve/reject
+      // Concierge flag (a.k.a. listedByMazad): true only when the seller asked
+      // Mazad to build the listing — the admin queue badges these so the team
+      // completes details before approving. Defaults to false.
+      isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
       scheduledStartAt: listingData.scheduledStartAt ?? null,
       approvalStatus: 'pending',
@@ -3088,6 +3092,17 @@ const fetchIP = async () => {
     const freshEndTime = Date.now() + durationSec * 1000;
     const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
 
+    // Re-baseline the live price to the (possibly corrected) starting price.
+    // A seller who resubmits a rejected item with a fixed price only changes
+    // startingPrice — currentPrice is frozen by the rules for non-admins — so
+    // without this the auction would go live showing the stale old price.
+    // Only the admin path can write currentPrice, and only before any bids exist.
+    const startBaseline = Number(targetA?.startingPrice);
+    const priceReset =
+      Number.isFinite(startBaseline) && Number(targetA?.totalBids || 0) === 0
+        ? { currentPrice: startBaseline }
+        : {};
+
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
       status: 'live',
@@ -3096,7 +3111,8 @@ const fetchIP = async () => {
       approvedAt: serverTimestamp(),
       approvedBy: currentUser?.id || 'admin-system',
       endTime: freshEndTime, // Respect the real duration (e.g. 6 hours)
-      endsAt: endsAtTimestamp
+      endsAt: endsAtTimestamp,
+      ...priceReset
     }).then(() => {
       // Tell the seller their listing passed the gate — ONLY once the status
       // write actually settled (a failed write must not claim "now live").
@@ -3117,7 +3133,7 @@ const fetchIP = async () => {
 
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp };
+        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp, ...priceReset };
       }
       return a;
     }));
