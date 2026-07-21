@@ -595,7 +595,10 @@ export const SellerCenterView: React.FC = () => {
         currentBidderName: null,
         totalBids: 0,
         viewersCount: 0,
-        status: 'upcoming',
+        // A duplicate is a NEW unapproved listing: it must re-enter the Mazad
+        // review gate ('processing'), never land on a buyer surface as
+        // 'upcoming'. Also matches firestore.rules for non-admin creates.
+        status: 'processing',
         approvalStatus: 'pending',
         isApproved: false,
         createdAt: Date.now(),

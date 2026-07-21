@@ -111,11 +111,17 @@ export const LiveStreamView: React.FC = () => {
 
   // Get live and upcoming auctions
   const liveAuctions = useMemo(() => {
-    const filtered = auctions.filter(a => 
-      (a.status === 'live' || a.status === 'upcoming') && 
+    const filtered = auctions.filter(a =>
+      (a.status === 'live' || a.status === 'upcoming') &&
       (!a.endTime || a.endTime > Date.now())
     );
-    const displayList = filtered.length > 0 ? filtered : auctions;
+    // Fallback (nothing live/upcoming): never leak unapproved lots — a
+    // 'processing' (awaiting Mazad review), legacy 'pending' or 'rejected'
+    // listing must stay invisible to buyers on every surface (spec §6).
+    const approvedOnly = auctions.filter(a =>
+      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected'
+    );
+    const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {
       const tA = a.approvedAt ? (a.approvedAt.seconds ? a.approvedAt.seconds * 1000 : Number(a.approvedAt)) : (a.createdAt || 0);
       const tB = b.approvedAt ? (b.approvedAt.seconds ? b.approvedAt.seconds * 1000 : Number(b.approvedAt)) : (b.createdAt || 0);
