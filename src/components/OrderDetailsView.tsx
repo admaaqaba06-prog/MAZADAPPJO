@@ -50,6 +50,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [isUpdating, setIsUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedIban, setCopiedIban] = useState(false);
+  const [copiedAmount, setCopiedAmount] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>('');
   const [activities, setActivities] = useState<any[]>([]);
@@ -207,6 +208,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     navigator.clipboard.writeText(CLIQ_IBAN);
     setCopiedIban(true);
     setTimeout(() => setCopiedIban(false), 2000);
+  };
+
+  // Copy the exact amount to the fil (3 dp) so the buyer transfers a value that
+  // matches the order to the fil — mismatches stall reconciliation.
+  const handleCopyAmount = () => {
+    navigator.clipboard.writeText(totalDue.toFixed(3));
+    setCopiedAmount(true);
+    setTimeout(() => setCopiedAmount(false), 2000);
   };
 
   const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -958,16 +967,39 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <span className="text-[9px] text-gray-400 uppercase font-black font-mono block">
                           {isAr ? 'المبلغ المستحق — شامل عمولة ٥٪' : 'AMOUNT DUE — INCL. 5% PREMIUM'}
                         </span>
-                        <div className="text-2xl font-black text-[#FF6B00] font-mono">
-                          <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString()} />
-                          <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="text-2xl font-black text-[#FF6B00] font-mono">
+                            <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString()} />
+                            <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyAmount}
+                            className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                            aria-label={isAr ? 'نسخ المبلغ' : 'Copy amount'}
+                          >
+                            {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
+                        <p className="text-[9.5px] text-gray-500 font-bold">
+                          {isAr ? 'لازم يطابق للفلس' : 'Must match to the fil'}
+                        </p>
                         {order.paymentDeadlineAt && (
                           <p className="text-[10px] text-amber-700 font-bold flex items-center justify-center gap-1">
                             <Clock className="w-3 h-3" />
                             <span>{isAr ? `ادفع قبل: ${formatDate(order.paymentDeadlineAt)}` : `Pay before: ${formatDate(order.paymentDeadlineAt)}`}</span>
                           </p>
                         )}
+                      </div>
+
+                      {/* Buyer-protection reassurance — a dispute model backs this pay step. */}
+                      <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 -mt-1">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-emerald-800 font-bold leading-snug">
+                          {isAr
+                            ? 'مبلغك محمي: إذا لم تستلم القطعة كما وُصفت، افتح نزاعاً وسنسترجع لك المبلغ وفق سياسة حماية المشتري.'
+                            : 'Your payment is protected: if the item does not arrive as described, open a dispute and you are refunded under our buyer-protection policy.'}
+                        </p>
                       </div>
 
                       {/* CliQ recipient details */}
