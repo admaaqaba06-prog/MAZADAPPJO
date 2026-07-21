@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBidCoach';
+// Direct file import (not the feedback barrel) to avoid a circular import:
+// other feedback components consume useApp from this module.
+import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
@@ -218,6 +221,9 @@ const INITIAL_ESCROWS: EscrowTransaction[] = [];
 const INITIAL_NOTIFICATIONS: Notification[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Transient error feedback: the bell only shows the bidder-relevant
+  // allowlist (Wave D), so user-facing failures must ALSO toast.
+  const { showToast } = useToast();
   // Core user states
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const localCompleted = localStorage.getItem('mazad_local_onboarding_completed') === 'true';
@@ -576,6 +582,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.warn("[Auth Redirect] Handle redirect result error:", err);
+        // Surface via toast — the 'alert' notification below is now filtered from the
+        // user bell (Wave D), so without this the sign-in failure would be silent.
+        showToast({
+          title: language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
+          message: language === 'ar' ? 'ما زبط تسجيل الدخول عبر جوجل أو فيسبوك — جرّب مرة ثانية.' : 'Google/Facebook sign-in failed — please try again.',
+          type: 'warn',
+        });
         if (addNotificationRef.current) {
           addNotificationRef.current(
             language === 'ar' ? 'فشل تسجيل الدخول' : 'Sign In Failed',
@@ -2087,8 +2100,10 @@ const fetchIP = async () => {
     // 1. Determine group/type mapping
     let inferredType: Notification['type'] = type;
     
-    // Explicit map standard legacy types to the 7 clean groups
-    if (type === 'outbid') inferredType = 'bid';
+    // Explicit map standard legacy types to the 7 clean groups.
+    // 'outbid' intentionally survives as-is: it is one of the four
+    // bidder-relevant alert kinds (Wave D, spec §5) and must stay
+    // distinguishable from generic 'bid' chatter at display time.
     if (type === 'refund') inferredType = 'loss';
     if (type === 'verify') inferredType = 'subscription';
     if (type === 'alert') inferredType = 'admin';
@@ -2096,10 +2111,14 @@ const fetchIP = async () => {
     const lowerTitle = title.toLowerCase();
     const lowerDesc = description.toLowerCase();
 
-    // Contextual type mapping
+    // Contextual type mapping — outbid first so it never collapses into 'bid'
     if (
-      lowerTitle.includes('outbid') || 
-      lowerTitle.includes('مزايدة مضادة') || 
+      lowerTitle.includes('outbid') ||
+      lowerTitle.includes('تجاوز عرضك')
+    ) {
+      inferredType = 'outbid';
+    } else if (
+      lowerTitle.includes('مزايدة مضادة') ||
       lowerTitle.includes('خسارة مزايدة') ||
       lowerTitle.includes('winning') ||
       lowerTitle.includes('متقدم') ||
@@ -2203,7 +2222,7 @@ const fetchIP = async () => {
       }
     }
     // Default fallback based on type
-    else if (inferredType === 'win' || inferredType === 'loss') {
+    else if (inferredType === 'win' || inferredType === 'loss' || inferredType === 'outbid') {
       inferredPriority = 'high';
     } else if (inferredType === 'bid' || inferredType === 'order' || inferredType === 'wallet') {
       inferredPriority = 'medium';
@@ -2230,9 +2249,9 @@ const fetchIP = async () => {
 
     setNotifications(prev => {
       let filtered = prev;
-      if (inferredType === 'bid' && auctionTitle) {
+      if ((inferredType === 'bid' || inferredType === 'outbid') && auctionTitle) {
         filtered = prev.filter(n => {
-          if (n.type !== 'bid') return true;
+          if (n.type !== inferredType) return true;
           const prevMatch = n.description.match(/"([^"]+)"/);
           const prevTitle = prevMatch ? prevMatch[1] : null;
           return prevTitle !== auctionTitle;
@@ -2284,16 +2303,18 @@ const fetchIP = async () => {
     const plan = price === 1 ? 'monthly' : price === 3 ? 'quarterly' : 'annual';
 
     if (!currentUser) {
-      addNotification('❌ Error', 'User must be logged in.', 'alert');
+      const loginTitle = language === 'ar' ? '❌ خطأ' : '❌ Error';
+      const loginMsg = language === 'ar' ? 'يجب تسجيل الدخول أولاً.' : 'You must be logged in first.';
+      addNotification(loginTitle, loginMsg, 'alert');
+      showToast({ title: loginTitle, message: loginMsg, type: 'warn' });
       return false;
     }
 
     if (!featureFlags.enableSubscriptions) {
-      addNotification(
-        language === 'ar' ? '⚠️ الاشتراكات معطلة' : '⚠️ Subscriptions Disabled',
-        language === 'ar' ? 'عمليات ترقية الاشتراكات معطلة مؤقتاً للصيانة المجدولة.' : 'Subscription upgrades are temporarily disabled for system maintenance.',
-        'alert'
-      );
+      const disabledTitle = language === 'ar' ? '⚠️ الاشتراكات معطلة' : '⚠️ Subscriptions Disabled';
+      const disabledMsg = language === 'ar' ? 'عمليات ترقية الاشتراكات معطلة مؤقتاً للصيانة المجدولة.' : 'Subscription upgrades are temporarily disabled for system maintenance.';
+      addNotification(disabledTitle, disabledMsg, 'alert');
+      showToast({ title: disabledTitle, message: disabledMsg, type: 'warn' });
       return false;
     }
 
@@ -2312,11 +2333,10 @@ const fetchIP = async () => {
           downloadURL = await getDownloadURL(uploadResult.ref);
         } catch (storageErr: any) {
           console.error("Firebase Storage write failure during payment proof upload. Code:", storageErr.code, "Message:", storageErr.message);
-          addNotification(
-            language === 'ar' ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed',
-            language === 'ar' ? `لم نتمكن من رفع صورة إثبات الدفع. رمز الخطأ: ${storageErr.code || 'unknown'}` : `Failed to upload payment proof. Code: ${storageErr.code || 'unknown'}`,
-            'alert'
-          );
+          const proofFailTitle = language === 'ar' ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed';
+          const proofFailMsg = language === 'ar' ? `لم نتمكن من رفع صورة إثبات الدفع. رمز الخطأ: ${storageErr.code || 'unknown'}` : `Failed to upload payment proof. Code: ${storageErr.code || 'unknown'}`;
+          addNotification(proofFailTitle, proofFailMsg, 'alert');
+          showToast({ title: proofFailTitle, message: proofFailMsg, type: 'warn' });
           await logSystemHealth('payment_fail', 'Subscription Proof Upload Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${storageErr.message || String(storageErr)}`);
           return false;
         }
@@ -2389,16 +2409,15 @@ const fetchIP = async () => {
     } catch (error: any) {
       console.error("[requestSubscription] Overall process failure. Code:", error.code, "Message:", error.message, "error:", error);
       await logSystemHealth('payment_fail', 'Subscription Request Error', `Amount: ${price} JOD, Name: ${transferFullName || ''}, Error: ${error.message || String(error)}`);
-      addNotification(
-        language === 'ar' ? '❌ لم يتم إرسال الطلب' : '❌ Request Not Sent',
-        language === 'ar'
-          ? 'تعذّر إرسال طلب الاشتراك — تحقق من اتصالك وحاول مرة أخرى.'
-          : 'We could not submit your subscription request — check your connection and try again.',
-        'alert'
-      );
+      const subFailTitle = language === 'ar' ? '❌ لم يتم إرسال الطلب' : '❌ Request Not Sent';
+      const subFailMsg = language === 'ar'
+        ? 'تعذّر إرسال طلب الاشتراك — تحقق من اتصالك وحاول مرة أخرى.'
+        : 'We could not submit your subscription request — check your connection and try again.';
+      addNotification(subFailTitle, subFailMsg, 'alert');
+      showToast({ title: subFailTitle, message: subFailMsg, type: 'warn' });
       return false;
     }
-  }, [currentUser, addNotification, logSystemHealth, featureFlags, language]);
+  }, [currentUser, addNotification, showToast, logSystemHealth, featureFlags, language]);
 
   // BIDDING ENGINE BUSINESS LOGIC (CRITICAL RULES)
   const placeBid = useCallback(async (auctionId: string, amount: number): Promise<{ success: boolean; message: string }> => {
@@ -2551,11 +2570,10 @@ const fetchIP = async () => {
   // CliQ Jordanian instant receipt topup via Cloud Function
   const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
     if (!featureFlags.enableWallets) {
-      addNotification(
-        language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled',
-        language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.',
-        'alert'
-      );
+      const walletsOffTitle = language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled';
+      const walletsOffMsg = language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.';
+      addNotification(walletsOffTitle, walletsOffMsg, 'alert');
+      showToast({ title: walletsOffTitle, message: walletsOffMsg, type: 'warn' });
       return;
     }
 
@@ -2577,13 +2595,12 @@ const fetchIP = async () => {
     } catch (error: any) {
       console.error("Cloud function requestTopUp failed:", error);
       await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Error: ${error.message || String(error)}`);
-      addNotification(
-        language === 'ar' ? '❌ خطأ في تعبئة الرصيد' : '❌ Top-up Error',
-        error.message || (language === 'ar' ? 'فشل تقديم طلب التعبئة. الرجاء المحاولة مجدداً.' : 'Failed to request top-up.'),
-        'alert'
-      );
+      const topUpFailTitle = language === 'ar' ? '❌ خطأ في تعبئة الرصيد' : '❌ Top-up Error';
+      const topUpFailMsg = error.message || (language === 'ar' ? 'فشل تقديم طلب التعبئة. الرجاء المحاولة مجدداً.' : 'Failed to request top-up.');
+      addNotification(topUpFailTitle, topUpFailMsg, 'alert');
+      showToast({ title: topUpFailTitle, message: topUpFailMsg, type: 'warn' });
     }
-  }, [currentUser, addNotification, logSystemHealth, featureFlags, language]);
+  }, [currentUser, addNotification, showToast, logSystemHealth, featureFlags, language]);
 
   const requestWithdrawal = useCallback(async (amount: number, method: string, accountDetails: any) => {
     try {
@@ -2603,14 +2620,13 @@ const fetchIP = async () => {
       return { success: false, message: result.data.message || 'Failed to request withdrawal.' };
     } catch (error: any) {
       console.error("Cloud function requestWithdrawal failed:", error);
-      addNotification(
-        language === 'ar' ? '❌ خطأ في تقديم طلب السحب' : '❌ Withdrawal Error',
-        error.message || (language === 'ar' ? 'فشل تقديم طلب السحب.' : 'Failed to request withdrawal.'),
-        'alert'
-      );
+      const withdrawFailTitle = language === 'ar' ? '❌ خطأ في تقديم طلب السحب' : '❌ Withdrawal Error';
+      const withdrawFailMsg = error.message || (language === 'ar' ? 'فشل تقديم طلب السحب.' : 'Failed to request withdrawal.');
+      addNotification(withdrawFailTitle, withdrawFailMsg, 'alert');
+      showToast({ title: withdrawFailTitle, message: withdrawFailMsg, type: 'warn' });
       return { success: false, message: error.message || 'Failed to request withdrawal.' };
     }
-  }, [currentUser, addNotification, language]);
+  }, [currentUser, addNotification, showToast, language]);
 
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
@@ -2645,7 +2661,8 @@ const fetchIP = async () => {
   ) => {
     if (!currentUser) {
       const errMsg = language === 'ar' ? 'يجب تسجيل الدخول لرفع المزاد.' : 'User must be logged in to upload a listing.';
-      addNotification('❌ Error', errMsg, 'alert');
+      addNotification(language === 'ar' ? '❌ خطأ' : '❌ Error', errMsg, 'alert');
+      // No toast here: the thrown error is displayed by the listing UIs.
       throw new Error(errMsg);
     }
 
@@ -2831,11 +2848,10 @@ const fetchIP = async () => {
       });
     } catch (dbErr: any) {
       console.error("Direct auction write to Firestore failed. Code:", dbErr.code, "Message:", dbErr.message);
-      addNotification(
-        language === 'ar' ? '❌ فشل حفظ المزاد' : '❌ Firestore Write Failed',
-        language === 'ar' ? `فشل تسجيل المزاد الجديد بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to create auction. Code: ${dbErr.code || 'unknown'}`,
-        'alert'
-      );
+      const saveFailTitle = language === 'ar' ? '❌ فشل حفظ المزاد' : '❌ Auction Save Failed';
+      const saveFailMsg = language === 'ar' ? `فشل تسجيل المزاد الجديد بقاعدة البيانات. رمز الخطأ: ${dbErr.code || 'unknown'}` : `Failed to create auction. Code: ${dbErr.code || 'unknown'}`;
+      addNotification(saveFailTitle, saveFailMsg, 'alert');
+      showToast({ title: saveFailTitle, message: saveFailMsg, type: 'warn' });
       handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
     }
 
@@ -2856,7 +2872,7 @@ const fetchIP = async () => {
     }
 
     return newListingId;
-  }, [sellerProfile, currentUser, addNotification, language]);
+  }, [sellerProfile, currentUser, addNotification, showToast, language]);
 
   // --- ADMIN ACTIONS ---
   const approveListing = useCallback((id: string) => {
@@ -3265,12 +3281,15 @@ const fetchIP = async () => {
             const alertKey = `${id}-${Math.floor(item.endTime / 60000)}`;
             if (!notifiedEndingSoonRef.current.has(alertKey)) {
               notifiedEndingSoonRef.current.add(alertKey);
+              // Typed 'outbid' (not 'alert'): a followed drop needing action is
+              // one of the four bidder-relevant alert kinds (Wave D, spec §5) —
+              // 'alert' collapses into the hidden internal 'admin' bucket.
               addNotification(
                 language === 'ar' ? '⏳ الوقت يداهمك!' : '⏳ Watched Item Closing Soon!',
                 language === 'ar'
                   ? `المزاد المتابع "${item.title}" ينتهي في أقل من 5 دقائق! قدم عرضاً الآن لتضمن الصدارة.`
                   : `Your watched item "${item.title}" ends in less than 5 minutes! Place a bid quickly!`,
-                'alert'
+                'outbid'
               );
             }
           }
@@ -3585,17 +3604,17 @@ const fetchIP = async () => {
         status: 'disputed'
       });
 
-      addNotification(
-        language === 'ar' ? '⚠️ تم فتح نزاع' : '⚠️ Dispute Opened',
-        language === 'ar' ? 'تم تسجيل النزاع بنجاح. سيقوم المشرف بمراجعته والبت فيه.' : 'The dispute has been registered. An admin will review and resolve it.',
-        'alert'
-      );
+      const disputeTitle = language === 'ar' ? '⚠️ تم فتح نزاع' : '⚠️ Dispute Opened';
+      const disputeMsg = language === 'ar' ? 'تم تسجيل النزاع بنجاح. سيقوم المشرف بمراجعته والبت فيه.' : 'The dispute has been registered. An admin will review and resolve it.';
+      addNotification(disputeTitle, disputeMsg, 'alert');
+      // The 'alert' bucket is hidden from the user bell (Wave D) — confirm transiently.
+      showToast({ title: disputeTitle, message: disputeMsg, type: 'success' });
       return { success: true, message: 'Dispute opened' };
     } catch (err: any) {
       console.error("Dispute submit error:", err);
       return { success: false, message: err.message };
     }
-  }, [currentUser, orders, language, addNotification]);
+  }, [currentUser, orders, language, addNotification, showToast]);
 
   const respondToDispute = useCallback(async (disputeId: string, response: string) => {
     try {

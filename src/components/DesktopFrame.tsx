@@ -1,6 +1,8 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
-import { useSocialProof } from '../hooks/useSocialProof';
+import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
+import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
+import type { Notification } from '../types';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
@@ -25,8 +27,33 @@ import {
   Bell,
   Home,
   Store,
-  ShoppingBag
+  ShoppingBag,
+  Gavel,
+  Trophy,
+  XCircle,
+  Package,
+  Crown
 } from 'lucide-react';
+
+// Wave D (spec §5): per-type icon styling for the curated "Your activity"
+// rail — outbid / won / refund-loss / order-payment / subscription.
+const activityIconFor = (type: Notification['type']) => {
+  switch (type) {
+    case 'outbid':
+      return { Icon: Gavel, wrap: 'bg-[#E85D04]/10 text-[#E85D04]' };
+    case 'win':
+      return { Icon: Trophy, wrap: 'bg-emerald-500/10 text-emerald-600' };
+    case 'loss':
+    case 'refund':
+      return { Icon: XCircle, wrap: 'bg-rose-500/10 text-rose-500' };
+    case 'order':
+      return { Icon: Package, wrap: 'bg-indigo-500/10 text-indigo-600' };
+    case 'subscription':
+      return { Icon: Crown, wrap: 'bg-purple-500/10 text-purple-600' };
+    default:
+      return { Icon: Bell, wrap: 'bg-gray-500/10 text-gray-500' };
+  }
+};
 
 interface DesktopFrameProps {
   children: React.ReactNode;
@@ -42,14 +69,11 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     setLanguage,
     logout,
     setActiveAuctionId,
-    escrows,
     users,
     notifications,
     showNotifications,
     setShowNotifications
   } = useApp();
-
-  const unreadCount = notifications ? notifications.filter(n => !n.read).length : 0;
 
   // Real social proof for the new-user right rail (spec §4): live bidders
   // from the loaded auctions + recent wins (one-time cached query).
@@ -61,36 +85,17 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const t = translations[language];
   const isAr = language === 'ar';
   const isStrictAdmin = currentUser && (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
+
+  // Wave D: the bell badge counts only bidder-relevant notifications for
+  // regular users; admins keep the full unfiltered stream.
+  const unreadCount = isStrictAdmin
+    ? (notifications || []).filter(n => !n.read).length
+    : unreadUserFacingCount(notifications);
   const isSeller = currentUser && (currentUser.role === 'seller' || currentUser.role === 'admin' || currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true);
 
-  // Dynamic calculations for outer header
-  const activeEscrowSum = escrows
-    ? escrows.filter(e => e.status === 'locked').reduce((acc, curr) => acc + (curr.amount || 0), 0)
-    : 0;
-
-  // Recent Hot Ledger Stream events (dynamic + realistic fallback)
-  const baseEvents: any[] = [];
-
-  // Merge actual dynamic escrows into the ledger stream for real-time reactivity
-  const dynamicEvents = (escrows || []).slice(0, 10).map((escrow, index) => {
-    const amountStr = `${escrow.amount?.toLocaleString()} JOD`;
-    const actionText = escrow.status === 'released'
-      ? (isAr ? `أفرج عن الضمان بقيمة ${amountStr}` : `released ${amountStr} from escrow`)
-      : escrow.status === 'refunded'
-      ? (isAr ? `أعاد ضمان بقيمة ${amountStr}` : `refunded ${amountStr} from escrow`)
-      : (isAr ? `أغلق ضماناً بقيمة ${amountStr}` : `locked ${amountStr} in escrow`);
-
-    return {
-      id: `dyn-${escrow.id}-${index}`,
-      user: escrow.bidderName || escrow.buyerName || (isAr ? 'عضو' : 'Member'),
-      action: `${actionText} ${isAr ? 'للمزاد' : 'for'} ${escrow.auctionTitle || escrow.title || (isAr ? 'صفقة' : 'deal')}`,
-      extra: `(${escrow.bidderId?.slice(0, 5) || 'CliQ'})`,
-      time: isAr ? 'الآن' : 'Just now',
-      isAdmin: escrow.status === 'released' || escrow.status === 'refunded'
-    };
-  });
-
-  const allLedgerEvents = [...dynamicEvents, ...baseEvents].slice(0, 8);
+  // Wave D (spec §5): the right rail shows the user's OWN relevant alerts —
+  // outbid / won / payment / subscription — not the raw escrow ledger.
+  const activityFeed = userFacingNotifications(notifications).slice(0, 6);
 
   return (
     <div 
@@ -501,14 +506,15 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 </div>
               )}
 
-              {/* Rail body: active members WITH activity keep their alert/ledger
-                  stream; everyone else gets a compact How-it-works + trust card
-                  instead of an empty 'No recent transactions' ledger. */}
-              {allLedgerEvents.length > 0 ? (
-                <div className="flex flex-col gap-3">
+              {/* Rail body (Wave D, spec §5): members WITH relevant activity get
+                  a curated "Your activity" feed of their own allowlisted alerts
+                  (outbid / won / payment / subscription); everyone else gets the
+                  compact How-it-works + trust card. */}
+              {activityFeed.length > 0 ? (
+                <div className="flex flex-col gap-3" id="rail-your-activity">
                   <div className="flex items-center justify-between pb-1">
                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                      {isAr ? 'الطلبات والتنبيهات' : 'ORDERS & ALERTS'}
+                      {isAr ? 'نشاطك' : 'YOUR ACTIVITY'}
                     </h4>
                     <button
                       onClick={() => setShowNotifications(true)}
@@ -523,16 +529,27 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   </div>
 
                   <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                    {allLedgerEvents.map((event) => (
-                      <div
-                        key={event.id}
-                        className="text-[11px] leading-relaxed font-medium text-gray-600 border-b border-gray-50 pb-3 last:border-0 last:pb-0"
-                      >
-                        <span className="font-bold text-gray-950 block">{event.user}</span>
-                        <p className="text-gray-500 mt-0.5">{event.action}</p>
-                        <span className="text-[9px] text-gray-400 font-mono mt-1 block">{event.time}</span>
-                      </div>
-                    ))}
+                    {activityFeed.map((notif) => {
+                      const { Icon, wrap } = activityIconFor(notif.type);
+                      return (
+                        <div
+                          key={notif.id}
+                          className="flex items-start gap-2.5 border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+                        >
+                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${wrap}`}>
+                            <Icon className="w-3.5 h-3.5 stroke-[2]" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-gray-900 leading-snug truncate">
+                              {notif.title}
+                            </p>
+                            <span className="text-[9px] text-gray-400 font-mono mt-0.5 block">
+                              {formatRelativeTime(notif.timestamp, isAr)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
