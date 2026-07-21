@@ -106,8 +106,8 @@ interface AppContextProps {
   markAllAsRead: () => void;
   
   // Admin Operations
-  approveListing: (id: string) => void;
-  rejectListing: (id: string, reason?: string) => void;
+  approveListing: (id: string) => Promise<void>;
+  rejectListing: (id: string, reason?: string) => Promise<void>;
   verifySeller: (userId: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
@@ -1062,7 +1062,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     // 'about' now renders its own HowItWorksView (Wave C) — it no longer needs
     // the auctions subscription, so it's intentionally NOT in this list.
-    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder'];
+    // 'admin' IS required: the AdminDashboardView approval queue
+    // (pendingListingDrops) filters this context state — without the
+    // subscription the queue is always empty and the reject-with-reason
+    // gate UI never renders.
+    const viewsRequiringAuctions = ['discovery', 'live', 'seller-center', 'drop-builder', 'admin'];
     if (!viewsRequiringAuctions.includes(activeView)) {
       setAuctions([]);
       setAuctionsLoaded(false);
@@ -1071,8 +1075,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
-    if (activeView === 'seller-center' || activeView === 'drop-builder') {
-      // In Seller Center & Drop Builder, fetch auctions including ended but capped at 100
+    if (activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin') {
+      // In Seller Center, Drop Builder & Admin dashboard, fetch auctions of
+      // EVERY status (incl. 'processing'/'rejected'/'completed') capped at 100 —
+      // the admin approval queue and winners panel need the full set.
       q = query(auctionsRefCol, limit(100));
     } else {
       // On Discovery / Live views, subscribe ONLY to active/non-ended auctions
@@ -2998,9 +3004,17 @@ const fetchIP = async () => {
     });
   }, []);
 
-  const approveListing = useCallback((id: string) => {
+  const approveListing = useCallback(async (id: string) => {
     // Find the target auction to respect its duration (e.g. 6 hours / 10 minutes etc.)
-    const targetA = auctions.find(a => a.id === id);
+    // Fall back to a direct Firestore read for admin surfaces (e.g. AdminPanel)
+    // that render outside the context auctions subscription.
+    let targetA: any = auctions.find(a => a.id === id);
+    if (!targetA) {
+      try {
+        const snap = await getDoc(doc(db, 'auctions', id));
+        if (snap.exists()) targetA = { id: snap.id, ...snap.data() };
+      } catch { /* defaults below still apply */ }
+    }
     const durationSec = targetA?.duration ? Number(targetA.duration) : 600; // fallback to 10 minutes (600s)
     const freshEndTime = Date.now() + durationSec * 1000;
     const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
@@ -3014,6 +3028,15 @@ const fetchIP = async () => {
       approvedBy: currentUser?.id || 'admin-system',
       endTime: freshEndTime, // Respect the real duration (e.g. 6 hours)
       endsAt: endsAtTimestamp
+    }).then(() => {
+      // Tell the seller their listing passed the gate — ONLY once the status
+      // write actually settled (a failed write must not claim "now live").
+      notifySellerOfListingDecision(targetA?.sellerId || targetA?.createdById, id, {
+        titleAr: 'تمت الموافقة على مزادك ✅',
+        titleEn: 'Your auction is approved ✅',
+        descAr: `مزادك "${targetA?.title || ''}" صار مباشر الآن — بالتوفيق!`,
+        descEn: `Your auction "${targetA?.title || ''}" is now live — good luck!`
+      });
     }).catch(err => {
       console.error("Firestore approve write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
@@ -3029,14 +3052,6 @@ const fetchIP = async () => {
       }
       return a;
     }));
-    
-    // Tell the seller their listing passed the gate and is now live.
-    notifySellerOfListingDecision(targetA?.sellerId || (targetA as any)?.createdById, id, {
-      titleAr: 'تمت الموافقة على مزادك ✅',
-      titleEn: 'Your auction is approved ✅',
-      descAr: `مزادك "${targetA?.title || ''}" صار مباشر الآن — بالتوفيق!`,
-      descEn: `Your auction "${targetA?.title || ''}" is now live — good luck!`
-    });
 
     const action: AdminAction = {
       id: `admin-act-${Date.now()}-${Math.random()}`,
@@ -3050,8 +3065,18 @@ const fetchIP = async () => {
     setAdminActions(prev => [action, ...prev]);
   }, [auctions, currentUser, addNotification, language, notifySellerOfListingDecision]);
 
-  const rejectListing = useCallback((id: string, reason?: string) => {
+  const rejectListing = useCallback(async (id: string, reason?: string) => {
     const trimmedReason = (reason || '').trim();
+    // Resolve the target for the seller notification — direct read fallback
+    // for admin surfaces rendered outside the context auctions subscription.
+    let targetA: any = auctions.find(a => a.id === id);
+    if (!targetA) {
+      try {
+        const snap = await getDoc(doc(db, 'auctions', id));
+        if (snap.exists()) targetA = { id: snap.id, ...snap.data() };
+      } catch { /* notification falls back to empty title */ }
+    }
+
     // Write reject properties directly to Firestore database
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
@@ -3061,6 +3086,15 @@ const fetchIP = async () => {
       rejectionReason: trimmedReason,
       rejectedAt: serverTimestamp(),
       rejectedBy: currentUser?.id || 'admin-system'
+    }).then(() => {
+      // Tell the seller their listing was declined — including why — ONLY
+      // after the status write settled (no verdict on a failed write).
+      notifySellerOfListingDecision(targetA?.sellerId || targetA?.createdById, id, {
+        titleAr: 'مزادك ما تم قبوله',
+        titleEn: "Your listing wasn't approved",
+        descAr: `للأسف ما تمت الموافقة على "${targetA?.title || ''}".${trimmedReason ? ` السبب: ${trimmedReason}` : ''}`,
+        descEn: `Unfortunately "${targetA?.title || ''}" wasn't approved.${trimmedReason ? ` Reason: ${trimmedReason}` : ''}`
+      });
     }).catch(err => {
       console.error("Firestore reject write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
@@ -3076,16 +3110,6 @@ const fetchIP = async () => {
       }
       return a;
     }));
-
-    const targetA = auctions.find(a => a.id === id);
-
-    // Tell the seller their listing was declined — including why.
-    notifySellerOfListingDecision(targetA?.sellerId || (targetA as any)?.createdById, id, {
-      titleAr: 'مزادك ما تم قبوله',
-      titleEn: "Your listing wasn't approved",
-      descAr: `للأسف ما تمت الموافقة على "${targetA?.title || ''}".${trimmedReason ? ` السبب: ${trimmedReason}` : ''}`,
-      descEn: `Unfortunately "${targetA?.title || ''}" wasn't approved.${trimmedReason ? ` Reason: ${trimmedReason}` : ''}`
-    });
 
     const action: AdminAction = {
       id: `admin-act-${Date.now()}-${Math.random()}`,
