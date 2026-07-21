@@ -456,6 +456,15 @@ export const DiscoveryFeedView: React.FC = () => {
 
   const isMember = currentUser?.subscriptionStatus === 'active';
 
+  // Stagger only the first grid paint. Later mounts (filter/search changes)
+  // get a plain quick fade — no cascade replay on every keystroke.
+  const gridStaggerDone = React.useRef(false);
+  React.useEffect(() => {
+    if (!isLoading && filteredAuctions.length > 0) {
+      gridStaggerDone.current = true;
+    }
+  }, [isLoading, filteredAuctions.length]);
+
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
   const handleWatchLive = () => {
@@ -832,20 +841,31 @@ export const DiscoveryFeedView: React.FC = () => {
           </div>
         ) : filteredAuctions.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-            {filteredAuctions.map(item => (
-              <PremiumAuctionCard
+            {filteredAuctions.map((item, index) => (
+              <motion.div
                 key={item.id}
-                item={item}
-                currentUser={currentUser}
-                bids={bids}
-                orders={orders}
-                sellerProfiles={sellerProfiles}
-                isAr={isAr}
-                onJoinLive={handleJoinLive}
-                onSelectLot={setSelectedLotId}
-                setGlobalSelectedOrderId={setGlobalSelectedOrderId}
-                setActiveView={setActiveView}
-              />
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.25,
+                  ease: 'easeOut',
+                  delay: gridStaggerDone.current ? 0 : Math.min(index * 0.04, 0.32),
+                }}
+                className="h-full"
+              >
+                <PremiumAuctionCard
+                  item={item}
+                  currentUser={currentUser}
+                  bids={bids}
+                  orders={orders}
+                  sellerProfiles={sellerProfiles}
+                  isAr={isAr}
+                  onJoinLive={handleJoinLive}
+                  onSelectLot={setSelectedLotId}
+                  setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                  setActiveView={setActiveView}
+                />
+              </motion.div>
             ))}
           </div>
         ) : (
