@@ -118,6 +118,23 @@ export const translations = {
     joinToBid: "Join for 1 JD to bid",
     priceMovedTitle: "Price moved — new min is {amount} JD. Bid that?",
     priceMovedConfirm: "Bid {amount} JD",
+
+    // Profile Completion (Auth/KYC Wave 2)
+    profileCompleteTitle: "Before you start — tell us about you",
+    profileCompleteSubtitle: "Two quick details and you're in the auction room.",
+    profileNameLabel: "Name",
+    profileNamePlaceholder: "Your full name",
+    profileCityLabel: "City",
+    profileCityPlaceholder: "Choose your governorate",
+    profileEmailLabel: "Email",
+    profileEmailHint: "for receipts — optional",
+    profileEmailPlaceholder: "you@example.com",
+    profileSaveBtn: "Let's go",
+    profileSaving: "Saving...",
+    profileNameRequired: "Please enter your name",
+    profileCityRequired: "Please choose your city",
+    profileSaveFailedTitle: "Couldn't save your profile",
+    profileSaveFailedMsg: "Something went wrong — please try again.",
   },
   ar: {
     appName: "مزاد جو",
@@ -238,5 +255,22 @@ export const translations = {
     joinToBid: "انضم بـ ١ دينار للمزايدة",
     priceMovedTitle: "تغيّر السعر — الحد الأدنى الجديد {amount} د.أ. أزايد به؟",
     priceMovedConfirm: "زايد {amount} د.أ",
+
+    // Profile Completion (Auth/KYC Wave 2)
+    profileCompleteTitle: "قبل ما تبلّش — عرّفنا عليك 🌹",
+    profileCompleteSubtitle: "معلومتين سريعتين وبتصير جوّا غرفة المزاد.",
+    profileNameLabel: "الاسم",
+    profileNamePlaceholder: "اسمك الكامل",
+    profileCityLabel: "المدينة",
+    profileCityPlaceholder: "اختار محافظتك",
+    profileEmailLabel: "الإيميل",
+    profileEmailHint: "لإرسال الإيصالات — اختياري",
+    profileEmailPlaceholder: "you@example.com",
+    profileSaveBtn: "يلّا نبدأ",
+    profileSaving: "عم نحفظ...",
+    profileNameRequired: "اكتب اسمك لو سمحت",
+    profileCityRequired: "اختار مدينتك لو سمحت",
+    profileSaveFailedTitle: "ما زبط حفظ البيانات",
+    profileSaveFailedMsg: "صار خطأ بسيط — جرّب مرة ثانية.",
   }
 };
