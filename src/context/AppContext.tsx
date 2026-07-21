@@ -265,6 +265,9 @@ interface AppContextProps {
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
   
+  // Profile Completion (Auth/KYC Wave 2)
+  updateOwnProfile: (fields: { name?: string; city?: string; email?: string }) => Promise<{ success: boolean; message: string }>;
+
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
   resetOnboarding: (userId?: string) => Promise<void>;
@@ -3840,6 +3843,45 @@ const fetchIP = async () => {
     }
   }, [currentUser, addNotification, logSystemHealth]);
 
+  // Wave 2 (profile completion): partial self-profile update. Writes ONLY the
+  // provided keys to the user's Firestore doc and mirrors them into local
+  // currentUser + users. Email is write-once from the client (mirrors the
+  // Wave 3 server rule): it is included ONLY when the current email is empty.
+  const updateOwnProfile = useCallback(async (
+    fields: { name?: string; city?: string; email?: string }
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser || currentUser.id === 'unauthenticated') {
+      return { success: false, message: 'Not authenticated' };
+    }
+
+    const updates: { name?: string; city?: string; email?: string } = {};
+    if (typeof fields.name === 'string' && fields.name.trim()) {
+      updates.name = fields.name.trim();
+    }
+    if (typeof fields.city === 'string' && fields.city.trim()) {
+      updates.city = fields.city.trim();
+    }
+    // Email: only if the account has no email yet AND a non-empty one was passed.
+    if (!currentUser.email && typeof fields.email === 'string' && fields.email.trim()) {
+      updates.email = fields.email.trim();
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { success: true, message: 'Nothing to update' };
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', currentUser.id), updates);
+      setCurrentUser(prev => ({ ...prev, ...updates }));
+      setUsers(prev => prev.map(u => (u.id === currentUser.id ? { ...u, ...updates } : u)));
+      return { success: true, message: 'Profile updated' };
+    } catch (err: any) {
+      console.error('updateOwnProfile error:', err);
+      handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}`);
+      return { success: false, message: err?.message || 'Profile update failed' };
+    }
+  }, [currentUser]);
+
   const completeOnboarding = useCallback(async () => {
     if (currentUser && currentUser.id !== 'unauthenticated') {
       const userRef = doc(db, 'users', currentUser.id);
@@ -4347,6 +4389,7 @@ const fetchIP = async () => {
       logout,
       registerUser,
       subscribeUser,
+      updateOwnProfile,
       completeOnboarding,
       resetOnboarding,
       markHintAsShown,
