@@ -16,7 +16,8 @@ export type NavView =
   | 'seller-center'
   | 'profile'
   | 'drop-builder'
-  | 'auction-drop-builder';
+  | 'auction-drop-builder'
+  | 'prohibited-items';
 
 const KNOWN_VIEWS: readonly NavView[] = [
   'discovery',
@@ -30,6 +31,7 @@ const KNOWN_VIEWS: readonly NavView[] = [
   'profile',
   'drop-builder',
   'auction-drop-builder',
+  'prohibited-items',
 ];
 
 export interface NavModalParam {

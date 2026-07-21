@@ -22,6 +22,7 @@ const LandingView = lazy(() => import('./landing/LandingView'));
 const SellView = lazy(() => import('./components/SellView').then(m => ({ default: m.SellView })));
 const MyOrdersView = lazy(() => import('./components/MyOrdersView').then(m => ({ default: m.MyOrdersView })));
 const HowItWorksView = lazy(() => import('./components/HowItWorksView').then(m => ({ default: m.HowItWorksView })));
+const ProhibitedItemsView = lazy(() => import('./components/ProhibitedItemsView').then(m => ({ default: m.ProhibitedItemsView })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -37,6 +38,8 @@ function ActiveViewRenderer() {
       return <MyOrdersView />;
     case 'about':
       return <HowItWorksView />;
+    case 'prohibited-items':
+      return <ProhibitedItemsView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':

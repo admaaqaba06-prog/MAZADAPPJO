@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ShieldCheck,
   HelpCircle,
+  Ban,
 } from 'lucide-react';
 
 /**
@@ -202,6 +203,24 @@ export const HowItWorksView: React.FC = () => {
               ? 'كل المدفوعات عبر كليك إلى حساب مزاد جو في كابيتال بنك — مش للبائع مباشرة.'
               : "All payments go via CliQ to Mazad JO's Capital Bank account — never directly to the seller."}
           </p>
+        </motion.div>
+
+        {/* Prohibited-items policy link */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ ...easeOut, delay: 0.42 }}
+          className="text-center"
+        >
+          <button
+            type="button"
+            onClick={() => setActiveView('prohibited-items')}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+            id="how-it-works-prohibited-items-link"
+          >
+            <Ban className="w-3.5 h-3.5" />
+            {isAr ? 'شو الأغراض الممنوع بيعها على مزاد جو؟' : 'What items are prohibited on Mazad JO?'}
+          </button>
         </motion.div>
 
         {/* FAQ */}

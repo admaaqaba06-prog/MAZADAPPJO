@@ -13,7 +13,8 @@ import {
   ImagePlus,
   Loader2,
   X,
-  Phone
+  Phone,
+  Ban
 } from 'lucide-react';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
@@ -559,6 +560,24 @@ export const SellView: React.FC = () => {
                 <MessageCircle className="w-3.5 h-3.5" />
                 {isAr ? 'أو راسلنا على واتساب' : 'or message us on WhatsApp'}
               </a>
+            </motion.div>
+
+            {/* Prohibited-items policy link */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...easeOut, delay: 0.3 }}
+              className="text-center"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveView('prohibited-items')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                id="sell-prohibited-items-link"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {isAr ? 'شو الأغراض الممنوع بيعها؟' : 'What items are prohibited?'}
+              </button>
             </motion.div>
           </motion.div>
         )}
