@@ -520,7 +520,20 @@ export const AdminDashboardView: React.FC = () => {
         return;
       }
 
-      const docs = snapshot.docs;
+      // NEVER force-publish listings that haven't cleared the approval gate:
+      // 'processing' (+ legacy 'pending') are still under review and
+      // 'rejected' was explicitly declined — both stay out of this batch.
+      const docs = snapshot.docs.filter((docSnap) => {
+        const s = docSnap.data().status;
+        return s !== 'processing' && s !== 'pending' && s !== 'rejected';
+      });
+      const skippedCount = snapshot.size - docs.length;
+      if (docs.length === 0) {
+        alert(isAr
+          ? 'لا توجد مزادات مؤهلة لإعادة التفعيل — جميعها ما تزال قيد المراجعة أو مرفوضة.'
+          : 'No auctions eligible for reactivation — all are still under review or rejected.');
+        return;
+      }
       const futureTime = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
       const endsAtTimestamp = Timestamp.fromMillis(futureTime);
 
@@ -540,11 +553,11 @@ export const AdminDashboardView: React.FC = () => {
       }
 
       // Log activity to health logs
-      logSystemHealth('error', 'All Auctions Reactivated', `An administrator reactivated all ${snapshot.size} auctions, setting their status to "live" and extending duration by 24 hours.`);
+      logSystemHealth('error', 'All Auctions Reactivated', `An administrator reactivated ${docs.length} auctions (${skippedCount} under-review/rejected listings excluded), setting their status to "live" and extending duration by 24 hours.`);
 
-      alert(isAr 
-        ? `🎉 تم بنجاح إعادة تفعيل وتنشيط جميع المزادات (${snapshot.size}) وتمديدها لمدة 24 ساعة!` 
-        : `🎉 Successfully reactivated and extended all (${snapshot.size}) auctions for 24 hours!`
+      alert(isAr
+        ? `🎉 تم بنجاح إعادة تفعيل وتنشيط المزادات (${docs.length}) وتمديدها لمدة 24 ساعة!${skippedCount > 0 ? ` تم استثناء ${skippedCount} من المعروضات قيد المراجعة أو المرفوضة.` : ''}`
+        : `🎉 Successfully reactivated and extended (${docs.length}) auctions for 24 hours!${skippedCount > 0 ? ` Excluded ${skippedCount} under-review/rejected listings.` : ''}`
       );
     } catch (err: any) {
       console.error("Reactivation error:", err);
