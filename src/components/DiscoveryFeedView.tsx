@@ -283,9 +283,10 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
 };
 
 export const DiscoveryFeedView: React.FC = () => {
-  const { 
-    auctions, 
-    setActiveAuctionId, 
+  const {
+    auctions,
+    auctionsLoaded,
+    setActiveAuctionId,
     setActiveView, 
     language, 
     setLanguage, 
@@ -306,13 +307,11 @@ export const DiscoveryFeedView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  React.useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, activeTab, searchTerm]);
+  // Skeletons only while genuinely waiting on the first auctions snapshot —
+  // tab/category/search changes filter in-memory data and render instantly
+  // (the old synthetic 550ms delay is gone).
+  const isLoading = !auctionsLoaded;
 
   const t = translations[language];
   const isAr = language === 'ar';
