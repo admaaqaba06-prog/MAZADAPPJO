@@ -185,7 +185,20 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'العضوية' : 'Membership'}</span>
           </button>
 
-          <button 
+          <button
+            onClick={() => setActiveView('about')}
+            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+              activeView === 'about'
+                ? 'text-[#FF6B00]'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+            }`}
+            id="mobile-how-it-works-tab-btn"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span className="text-[9px] font-extrabold tracking-normal whitespace-nowrap">{isAr ? 'كيف يعمل' : 'How it works'}</span>
+          </button>
+
+          <button
             onClick={() => setActiveView('profile')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'profile'
@@ -288,6 +301,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             >
               <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
               <span>{isAr ? 'العضوية' : 'Membership'}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('about')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeView === 'about'
+                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+              }`}
+              id="top-nav-how-it-works-btn"
+            >
+              <HelpCircle className="w-4 h-4 shrink-0 stroke-[2]" />
+              <span>{isAr ? 'كيف يعمل' : 'How it works'}</span>
             </button>
 
             {isSeller && (
