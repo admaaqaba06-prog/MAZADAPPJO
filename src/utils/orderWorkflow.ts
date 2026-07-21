@@ -1,6 +1,7 @@
 import { db, handleFirestoreError, OperationType, getCallableFunction } from '../services/firebase';
 import { collection, doc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Order } from '../types';
+import { isAdminUser } from './adminAuth';
 
 export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
 
@@ -74,7 +75,7 @@ export async function executeOrderTransition(
 ): Promise<any> {
   // Determine role
   let role: 'buyer' | 'seller' | 'admin' = 'buyer';
-  if (currentUser.email === 'admaaqaba06@gmail.com' || currentUser.isAdmin === true || currentUser.role === 'admin') {
+  if (isAdminUser(currentUser)) {
     role = 'admin';
   } else if (currentUser.id === order.sellerId) {
     role = 'seller';
@@ -345,10 +346,10 @@ export async function executeOrderTransition(
       await addDoc(notificationsColRef, {
         id: notifId,
         userId: notif.userId,
-        title: currentUser.email === 'admaaqaba06@gmail.com' ? notif.titleEn : notif.titleAr, // Bilingual choice
+        title: isAdminUser(currentUser) ? notif.titleEn : notif.titleAr, // Bilingual choice
         titleAr: notif.titleAr,
         titleEn: notif.titleEn,
-        description: currentUser.email === 'admaaqaba06@gmail.com' ? notif.descEn : notif.descAr,
+        description: isAdminUser(currentUser) ? notif.descEn : notif.descAr,
         descriptionAr: notif.descAr,
         descriptionEn: notif.descEn,
         type: (toStatus as string) === 'completed' ? 'win' : 'info',
