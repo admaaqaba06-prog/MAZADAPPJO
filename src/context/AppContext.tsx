@@ -267,7 +267,7 @@ interface AppContextProps {
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
   
   // Profile Completion (Auth/KYC Wave 2)
-  updateOwnProfile: (fields: { name?: string; city?: string; email?: string }) => Promise<{ success: boolean; message: string }>;
+  updateOwnProfile: (fields: { name?: string; city?: string; email?: string }) => Promise<{ success: boolean; message: string; emailSaved?: boolean }>;
 
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
@@ -3854,7 +3854,7 @@ const fetchIP = async () => {
   // Wave 3 server rule): it is included ONLY when the current email is empty.
   const updateOwnProfile = useCallback(async (
     fields: { name?: string; city?: string; email?: string }
-  ): Promise<{ success: boolean; message: string }> => {
+  ): Promise<{ success: boolean; message: string; emailSaved?: boolean }> => {
     if (!currentUser || currentUser.id === 'unauthenticated') {
       return { success: false, message: 'Not authenticated' };
     }
@@ -3870,13 +3870,19 @@ const fetchIP = async () => {
       updates.city = fields.city.trim();
     }
     // Email: only if the account has no email yet AND a non-empty one was passed.
+    const emailRequested = typeof fields.email === 'string' && !!fields.email.trim();
     const emailUpdate =
-      !currentUser.email && typeof fields.email === 'string' && fields.email.trim()
-        ? fields.email.trim()
-        : null;
+      !currentUser.email && emailRequested ? fields.email!.trim() : null;
 
     if (Object.keys(updates).length === 0 && !emailUpdate) {
-      return { success: true, message: 'Nothing to update' };
+      // If a caller asked for an email write that couldn't even be attempted
+      // (account already has one), report emailSaved: false so the UI doesn't
+      // claim it persisted.
+      return {
+        success: true,
+        message: 'Nothing to update',
+        ...(emailRequested ? { emailSaved: false } : {}),
+      };
     }
 
     const userRef = doc(db, 'users', currentUser.id);
@@ -3895,13 +3901,19 @@ const fetchIP = async () => {
       return { success: false, message: err?.message || 'Profile update failed' };
     }
 
+    // Whether the optional email claim actually persisted. Undefined when no
+    // email write was requested; false when it was requested but not written
+    // (rules denial / offline); true only when the write resolved.
+    let emailSaved: boolean | undefined = emailRequested ? false : undefined;
     if (emailUpdate) {
-      // Best-effort, write-once: today's users rules still deny self-service
-      // email updates (the allow-when-empty rule ships with Wave 3), so a
-      // denial here is swallowed — name/city already landed above.
+      // Best-effort, write-once: a rules denial (or offline failure) here is
+      // swallowed so it can never block the profile-completion gate —
+      // name/city already landed above — but it IS reported via emailSaved so
+      // callers don't falsely confirm the email persisted.
       try {
         await updateDoc(userRef, { email: emailUpdate });
         mirrored.email = emailUpdate;
+        emailSaved = true;
       } catch (err) {
         console.warn('updateOwnProfile: optional email write skipped (rules):', err);
       }
@@ -3909,7 +3921,7 @@ const fetchIP = async () => {
 
     setCurrentUser(prev => ({ ...prev, ...mirrored }));
     setUsers(prev => prev.map(u => (u.id === currentUser.id ? { ...u, ...mirrored } : u)));
-    return { success: true, message: 'Profile updated' };
+    return { success: true, message: 'Profile updated', ...(emailSaved !== undefined ? { emailSaved } : {}) };
   }, [currentUser]);
 
   const completeOnboarding = useCallback(async () => {
