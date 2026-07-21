@@ -5,6 +5,7 @@ import { SellerProfileModal } from './SellerProfileModal';
 import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, markFirstBidDone } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { formatMoney } from '../utils/formatMoney';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { translations } from '../utils/translations';
@@ -859,7 +860,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                 <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
                   <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString()} />
                 </span>
-                <span className="text-[11px] font-bold text-white/70">JOD</span>
+                <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
               </div>
             </div>
 
@@ -878,8 +879,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         {auction?.marketPrice && auction.marketPrice > activePrice ? (
                           <span className="text-emerald-300/80 text-[10.5px] font-bold block">
                             {isAr
-                              ? `وفّرت ${auction.marketPrice - activePrice} دينار (السعر ${auction.marketPrice})`
-                              : `You saved ${auction.marketPrice - activePrice} JOD (worth ${auction.marketPrice})`}
+                              ? `وفّرت ${formatMoney(auction.marketPrice - activePrice, 'ar')} (السعر ${formatMoney(auction.marketPrice, 'ar')})`
+                              : `You saved ${formatMoney(auction.marketPrice - activePrice, 'en')} (worth ${formatMoney(auction.marketPrice, 'en')})`}
                           </span>
                         ) : null}
                         <button
@@ -956,7 +957,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                           className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-[10px] font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
-                          <span>{isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}</span>
+                          <span>{isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')} لاستعادة الصدارة` : `Bid ${formatMoney(nextBidAmount, 'en')} to retake the lead`}</span>
                         </Pressable>
                       )}
                     </motion.div>
@@ -990,15 +991,15 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         {getBidButtonText()}
                       </span>
                       <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
-                        {isAr ? `زايد ${nextBidAmount} د.أ` : `Bid ${nextBidAmount} JD`}
+                        {isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')}` : `Bid ${formatMoney(nextBidAmount, 'en')}`}
                       </span>
                     </>
                   )}
                 </Pressable>
                 <p className="text-[11px] text-gray-400 text-center mt-1">
                   {isAr
-                    ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                    : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                    ? `المجموع عند الفوز: ${formatMoney(totalWithPremium(nextBidAmount), 'ar')} (شامل عمولة المشتري ٥٪)`
+                    : `Total if you win: ${formatMoney(totalWithPremium(nextBidAmount), 'en')} (incl. 5% buyer's premium)`}
                 </p>
               </>
             )}

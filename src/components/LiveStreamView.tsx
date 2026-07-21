@@ -10,6 +10,7 @@ import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid } from '../utils/bidMath';
+import { formatMoney } from '../utils/formatMoney';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
@@ -164,13 +165,13 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                           {isAr ? 'السعر النهائي' : 'Winning Bid'}
                         </p>
                         <p className="text-2xl font-black text-emerald-400">
-                          {activePrice} JOD
+                          {formatMoney(activePrice, isAr ? 'ar' : 'en')}
                         </p>
                         {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
                           <p className="text-xs text-emerald-300/80 font-semibold mt-1">
                             {isAr
-                              ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
-                              : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                              ? `وفّرت ${formatMoney(activeAuction.marketPrice - activePrice, 'ar')} (السعر ${formatMoney(activeAuction.marketPrice, 'ar')})`
+                              : `You saved ${formatMoney(activeAuction.marketPrice - activePrice, 'en')} (worth ${formatMoney(activeAuction.marketPrice, 'en')})`}
                           </p>
                         ) : null}
                       </div>
@@ -243,7 +244,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                             {isAr ? 'السعر النهائي' : 'Winning Bid'}
                           </p>
                           <p className="text-xl font-black text-emerald-400">
-                            {activePrice} JOD
+                            {formatMoney(activePrice, isAr ? 'ar' : 'en')}
                           </p>
                         </div>
                       )}
