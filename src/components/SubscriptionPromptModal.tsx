@@ -15,6 +15,11 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
     onClose();
   };
 
+  const handleHowItWorks = () => {
+    setActiveView('about');
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
@@ -36,12 +41,12 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
             <ShieldCheck className="w-6 h-6 fill-current text-white stroke-[#FF6B00]" />
           </div>
           <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
-            {isAr ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط' : 'Membership required to bid — join for 1 JD'}
+            {isAr ? 'انضم عشان تزايد وتربح 🔨' : 'Join to bid & win 🔨'}
           </h2>
           <p className="text-xs text-gray-500 max-w-xs mx-auto leading-normal">
             {isAr
-              ? 'عضويتك تفتح المزايدة على جميع المزادات المباشرة. الدفع عبر كليك ويتم التفعيل خلال دقائق.'
-              : 'Your membership unlocks bidding on every live auction. Pay via CliQ — activated within minutes.'}
+              ? 'العضوية بتبدأ من دينار بالشهر عبر كليك — بتزايد مجاناً وما بتدفع إلا إذا فزت (+٥٪). بتتفعّل خلال دقائق.'
+              : 'Membership from 1 JD/month via CliQ — bid free, pay only if you win (+5%). Activated in minutes.'}
           </p>
         </div>
 
@@ -51,8 +56,17 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
           className="w-full bg-[#FF6B00] text-white font-black text-xs py-3.5 rounded-xl shadow-[0_4px_16px_rgba(255,107,0,0.25)] hover:brightness-105 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           id="membership-join-cta"
         >
-          <span>{isAr ? 'انضم الآن بـ ١ دينار' : 'Join now for 1 JD'}</span>
+          <span>{isAr ? 'انضم الآن' : 'Join now'}</span>
           {isAr ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+        </button>
+
+        {/* Secondary: how the whole loop works */}
+        <button
+          onClick={handleHowItWorks}
+          className="w-full mt-3 text-[11px] font-semibold text-gray-400 hover:text-gray-700 underline underline-offset-2 decoration-gray-200 hover:decoration-gray-400 transition-colors cursor-pointer"
+          id="membership-how-it-works-link"
+        >
+          {isAr ? 'كيف يعمل؟' : 'How it works'}
         </button>
       </div>
     </div>
