@@ -28,6 +28,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import { resolveConfirm } from '../hooks/useBidFlow';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -161,6 +162,36 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
       if (winPillTimer.current) clearTimeout(winPillTimer.current);
       winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
     }
+  };
+
+  // Same price-move protection as mobile (MobileLiveAuctionLayout/AuctionDetailsModal):
+  // if a rival outbids during the ≤10s confirm window, re-prompt at the fresh
+  // minimum instead of sending the stale amount (which the server would reject
+  // with a generic "minimum bid required").
+  const [priceMoved, setPriceMoved] = useState(false);
+
+  // Open a fresh confirm (resets any stale "price moved" flag).
+  const openConfirm = (amount: number) => {
+    setPriceMoved(false);
+    setPendingBid(amount);
+  };
+
+  // At confirm, recompute against the LATEST minimum (nextBidAmount is derived
+  // from live auction state every render): re-prompt if it moved, else send.
+  const handleConfirm = (amount: number) => {
+    const decision = resolveConfirm(amount, nextBidAmount);
+    if (decision.action === 'reprompt') {
+      setPriceMoved(true);
+      setPendingBid(decision.amount); // re-open confirm at the fresh minimum
+      return;
+    }
+    setPriceMoved(false);
+    runBid(decision.amount);
+  };
+
+  const handleCancel = () => {
+    setPriceMoved(false);
+    setPendingBid(null);
   };
 
   // --- Anti-snipe drama: red pulsing countdown under 10s ---
@@ -677,7 +708,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                           <span>{isAr ? 'تم تجاوز مزايدتك ⚠️' : "You've been outbid ⚠️"}</span>
                         </span>
                         <Pressable
-                          onClick={() => setPendingBid(nextBidAmount)}
+                          onClick={() => openConfirm(nextBidAmount)}
                           className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
                         >
                           {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
@@ -707,7 +738,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         <SwipeToBid
                           amount={nextBidAmount}
                           onSwipeSuccess={() => runBid(nextBidAmount)}
-                          onTap={() => setPendingBid(nextBidAmount)}
+                          onTap={() => openConfirm(nextBidAmount)}
                           disabled={currentUser?.isBlocked}
                           language={isAr ? 'ar' : 'en'}
                         />
@@ -726,8 +757,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               <BidConfirm
                 amount={pendingBid}
                 isAr={isAr}
-                onConfirm={runBid}
-                onCancel={() => setPendingBid(null)}
+                priceMoved={priceMoved}
+                onConfirm={handleConfirm}
+                onCancel={handleCancel}
               />
 
               {/* Winning pill: pops over the panel on a successful bid */}

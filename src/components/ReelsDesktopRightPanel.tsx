@@ -5,6 +5,7 @@ import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
+import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
@@ -30,9 +31,15 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   // through BidConfirm (same confirm UX as the live reel).
   const [pendingBid, setPendingBid] = React.useState<number | null>(null);
 
+  // Same price-move protection as mobile: if a rival outbids during the ≤10s
+  // confirm window, re-prompt at the fresh minimum instead of sending the stale
+  // amount (which the server would reject with a generic error).
+  const [priceMoved, setPriceMoved] = React.useState(false);
+
   // Never carry a staged confirm across auctions.
   React.useEffect(() => {
     setPendingBid(null);
+    setPriceMoved(false);
   }, [activeAuctionId]);
 
   React.useEffect(() => {
@@ -149,20 +156,36 @@ export const ReelsDesktopRightPanel: React.FC = () => {
               alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
               return;
             }
+            setPriceMoved(false); // fresh confirm: no stale "price moved" copy
             setPendingBid(nextBidAmount);
           }}
           disabled={currentUser.isBlocked || (currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
         />
-        {/* Inline confirm for the click fallback (anchored to this card) */}
+        {/* Inline confirm for the click fallback (anchored to this card).
+            At confirm, recompute against the LATEST minimum (nextBidAmount is
+            derived from live auction state every render): if a rival outbid us
+            during the confirm window, re-prompt at the new min instead of
+            sending the stale amount — same resolveConfirm pattern as mobile. */}
         <BidConfirm
           amount={pendingBid}
           isAr={isAr}
+          priceMoved={priceMoved}
           onConfirm={async (amt) => {
+            const decision = resolveConfirm(amt, nextBidAmount);
+            if (decision.action === 'reprompt') {
+              setPriceMoved(true);
+              setPendingBid(decision.amount); // re-open confirm at the fresh minimum
+              return;
+            }
+            setPriceMoved(false);
             setPendingBid(null);
-            await placeBid(currentItem.id, amt);
+            await placeBid(currentItem.id, decision.amount);
           }}
-          onCancel={() => setPendingBid(null)}
+          onCancel={() => {
+            setPriceMoved(false);
+            setPendingBid(null);
+          }}
         />
         {!isAuctionOpen(currentItem?.status) && (
           <p className="text-[9px] text-amber-400 font-bold text-center pt-1">
