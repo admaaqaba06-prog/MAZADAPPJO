@@ -420,18 +420,28 @@ export const LiveStreamView: React.FC = () => {
     />
   );
 
-  // NOTE (Wave 2 fix): video src/load/play/pause used to be driven imperatively
-  // from here on every lot swap. MediaGallery now OWNS playback for both mobile
-  // (per-reel, via its own internal video ref) and desktop (via the forwarded
-  // `videoRef` below) — it sets <video src> declaratively and plays/pauses based
-  // on (isActive && isPlaying && currentIsVideo). Because effects run child-first,
-  // this parent effect used to re-play the new lot's video (with audio, if
-  // unmuted) AFTER MediaGallery had already paused it on a lot switch, while a
-  // stale gallery index still showed an image slide. Removed entirely so there is
-  // exactly one video controller. Only the mute sync below remains, since it never
-  // touches .src/.load()/.play() — it only mirrors `isMuted` onto the DOM node
-  // that MediaGallery's own ref points at (desktop only; mobile reels are muted
-  // via their own MediaGallery instance and don't read this shared videoRef).
+  // Sync video source & playback when active lot swaps
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !activeAuction) return;
+
+    video.src = activeAuction.videoUrl;
+    video.load();
+    video.muted = isMuted;
+
+    if (isPlaying) {
+      video.play().catch(err => {
+        console.warn("Autoplay was blocked, muted instead:", err);
+        video.muted = true;
+        setIsMuted(true);
+        video.play().catch(e => console.warn("Playback failed entirely:", e));
+      });
+    } else {
+      video.pause();
+    }
+  }, [activeAuctionId, activeAuction?.videoUrl]);
+
+  // Manage mute state on video tag
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = isMuted;
@@ -491,13 +501,15 @@ export const LiveStreamView: React.FC = () => {
     // User gesture — unlock the shared AudioContext (iOS autoplay policy) so the
     // later programmatic countdown ticks are audible.
     resumeAudio();
-    // Just flip the flag — MediaGallery (desktop's forwarded ref AND every
-    // mobile reel's own internal ref) reacts to `isPlaying` itself and calls
-    // .play()/.pause() on whichever video element is actually active+visible.
-    // Driving `videoRef.current` here too would be a second controller (and on
-    // mobile the shared `videoRef` is never populated in the first place, since
-    // each reel owns its own local video ref).
-    setIsPlaying(!isPlaying);
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.pause();
+      setIsPlaying(false);
+    } else {
+      video.play().catch(() => {});
+      setIsPlaying(true);
+    }
   };
 
   const handleMuteToggle = (e: React.MouseEvent) => {
