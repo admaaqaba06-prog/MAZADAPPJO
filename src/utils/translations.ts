@@ -145,6 +145,16 @@ export const translations = {
     receiptEmailInvalid: "Please enter a valid email address",
     receiptEmailSavedTitle: "Receipt email saved",
     receiptEmailFailedTitle: "Couldn't save your email — try again",
+
+    // Post-win payment-first flow (Live-room UX Wave 1)
+    winEndedHeadline: "Congratulations — you won! 🎉",
+    winTotalDueLabel: "Total due",
+    winPremiumNote: "(incl. 5% buyer's premium)",
+    winPayWithin24h: "Pay within 24 hours",
+    winCompletePaymentCta: "Complete payment",
+    winBrowseOtherLink: "Browse other auctions",
+    ordersFinalizingTitle: "Finalizing your order…",
+    ordersFinalizingHint: "Your winning order will appear here within a minute.",
   },
   ar: {
     appName: "مزاد جو",
@@ -292,5 +302,15 @@ export const translations = {
     receiptEmailInvalid: "اكتب إيميل صحيح لو سمحت",
     receiptEmailSavedTitle: "تم حفظ إيميل الإيصالات",
     receiptEmailFailedTitle: "ما زبط حفظ الإيميل — جرّب مرة ثانية",
+
+    // Post-win payment-first flow (Live-room UX Wave 1)
+    winEndedHeadline: "مبروك! 🎉 ربحت المزاد",
+    winTotalDueLabel: "المجموع المستحق",
+    winPremiumNote: "(شامل عمولة المشتري ٥٪)",
+    winPayWithin24h: "ادفع خلال ٢٤ ساعة",
+    winCompletePaymentCta: "أكمل الدفع",
+    winBrowseOtherLink: "تصفح مزادات أخرى",
+    ordersFinalizingTitle: "جاري تجهيز طلبك…",
+    ordersFinalizingHint: "طلبك الرابح رح يظهر هون خلال دقيقة.",
   }
 };
