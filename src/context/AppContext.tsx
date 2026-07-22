@@ -7,6 +7,7 @@ import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBi
 import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
+import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
@@ -3100,21 +3101,30 @@ const fetchIP = async () => {
     ): Promise<string> => {
       const { ref, uploadBytesResumable, getDownloadURL, getStorage } = await import('firebase/storage');
       const { getFirebaseStorage } = await import('../services/firebase');
-      
+
+      // Thumbnails (never video) get shrunk to a card-friendly size before
+      // upload — raw 12MP phone photos as small-card thumbnails is pure
+      // waste, and every Discovery card downloads one of these.
+      // resizeImage() never throws and falls back to the original file
+      // whenever it isn't a clear win, so this is always safe to await.
+      const uploadFile: File | Blob = pathPrefix === 'auction-thumbnails'
+        ? await resizeImage(file)
+        : file;
+
       const storage = await getFirebaseStorage();
       const fileName = (file as any).name || defaultName;
       const cleanPath = `${pathPrefix}/${Date.now()}_${fileName}`;
       const metadata = {
-        contentType: (file as any).type && (file as any).type.trim() !== ''
-          ? (file as any).type
-          : contentTypeDefault
+        contentType: (uploadFile as any).type && (uploadFile as any).type.trim() !== ''
+          ? (uploadFile as any).type
+          : ((file as any).type && (file as any).type.trim() !== '' ? (file as any).type : contentTypeDefault)
       };
 
       // Try primary bucket first
       try {
         console.log(`Attempting upload to primary bucket at path: ${cleanPath}...`);
         const primaryRef = ref(storage, cleanPath);
-        const uploadTask = uploadBytesResumable(primaryRef, file, metadata);
+        const uploadTask = uploadBytesResumable(primaryRef, uploadFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -3134,7 +3144,7 @@ const fetchIP = async () => {
           // Initialize storage instance with fallback bucket
           const fallbackStorage = getStorage(storage.app, "gs://mazadjoapp.appspot.com");
           const fallbackRef = ref(fallbackStorage, cleanPath);
-          const uploadTaskFallback = uploadBytesResumable(fallbackRef, file, metadata);
+          const uploadTaskFallback = uploadBytesResumable(fallbackRef, uploadFile, metadata);
           
           if (onProgressLocal) onProgressLocal(0); // Reset progress for retry
           

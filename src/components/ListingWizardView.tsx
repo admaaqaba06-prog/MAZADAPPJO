@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
+import { resizeImage } from '../utils/resizeImage';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 interface ListingWizardViewProps {
@@ -107,9 +108,13 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
           const { getFirebaseStorage } = await import('../services/firebase');
           const storage = await getFirebaseStorage();
           for (const photo of extraPhotos) {
+            // Shrink to a card-friendly size before upload — same reasoning
+            // as the cover thumbnail (createListing's uploadWithFallback).
+            // Never throws; falls back to the original file untouched.
+            const resized = await resizeImage(photo.file);
             const path = `auction-thumbnails/${Date.now()}_gallery_${photo.file.name}`;
-            const snap = await uploadBytes(ref(storage, path), photo.file, {
-              contentType: photo.file.type || 'image/jpeg'
+            const snap = await uploadBytes(ref(storage, path), resized, {
+              contentType: resized.type || photo.file.type || 'image/jpeg'
             });
             extraPhotoUrls.push(await getDownloadURL(snap.ref));
           }
