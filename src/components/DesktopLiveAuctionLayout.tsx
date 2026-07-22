@@ -695,9 +695,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       </div>
                     ) : (
                       <>
-                        {/* One-time first-bid coach for active members who have never bid */}
+                        {/* One-time first-bid coach for active members who have never bid.
+                            Hidden while a bid confirm is open so it can never overlap or
+                            intercept clicks meant for the confirm dialog. */}
                         <FirstBidCoach
-                          show={currentUser?.subscriptionStatus === 'active'}
+                          show={currentUser?.subscriptionStatus === 'active' && pendingBid == null}
                           isAr={isAr}
                         />
                         <SwipeToBid

@@ -997,9 +997,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   );
                 })()}
 
-                {/* One-time first-bid coach for active members who have never bid */}
+                {/* One-time first-bid coach for active members who have never bid.
+                    Hidden while a bid confirm is open so it can never overlap or
+                    intercept clicks meant for the confirm dialog. */}
                 <FirstBidCoach
-                  show={isActive && currentUser?.subscriptionStatus === 'active'}
+                  show={isActive && currentUser?.subscriptionStatus === 'active' && pendingBid == null}
                   isAr={isAr}
                 />
 

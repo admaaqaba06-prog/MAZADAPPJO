@@ -53,7 +53,9 @@ export default function FirstBidCoach({ show, isAr }: FirstBidCoachProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 4, scale: 0.98 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative w-full mb-2"
+          // z-30 keeps the coach BELOW the BidConfirm overlay (z-40): if both are
+          // ever visible during exit animations, the confirm always wins clicks.
+          className="relative z-30 w-full mb-2"
           style={{ direction: isAr ? 'rtl' : 'ltr' }}
           id="first-bid-coach"
         >
