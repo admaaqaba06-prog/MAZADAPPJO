@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
-import { ShieldCheck, Check, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
+import { ShieldCheck, Check, Copy, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
 
 // Helper to compress base64 images to stay under the 1MB Firestore limit
 const compressBase64Image = (base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.65): Promise<string> => {
@@ -81,6 +81,7 @@ export const SubscriptionView: React.FC = () => {
   const [transferFullName, setTransferFullName] = useState('');
   const [transferPhone, setTransferPhone] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedAlias, setCopiedAlias] = useState(false);
   const isAr = language === 'ar';
 
   // Show the pending state after a successful submit AND on refresh while the
@@ -109,6 +110,12 @@ export const SubscriptionView: React.FC = () => {
     navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyAlias = () => {
+    navigator.clipboard.writeText(CLIQ_ALIAS);
+    setCopiedAlias(true);
+    setTimeout(() => setCopiedAlias(false), 2000);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,6 +273,25 @@ export const SubscriptionView: React.FC = () => {
             {isAr ? 'بيانات التحويل المصرفي / Bank Transfer Info' : 'Transfer Payment To:'}
           </div>
           <div className="space-y-1.5 text-xs text-gray-800">
+            {/* CliQ alias — PRIMARY transfer target (IBAN stays as fallback) */}
+            <div className="border-b border-orange-100 pb-1.5 space-y-0.5">
+              <div className="flex justify-between items-center gap-2">
+                <span className="font-bold text-gray-500">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono font-black text-gray-900 select-all">{CLIQ_ALIAS}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyAlias}
+                    className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                  >
+                    {copiedAlias ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[9.5px] text-gray-500 font-bold">
+                {isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias'}
+              </p>
+            </div>
             <div className="flex justify-between border-b border-orange-100 pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
               <span className="font-black text-gray-900 font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>

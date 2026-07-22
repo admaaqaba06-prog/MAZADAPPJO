@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_RECIPIENT_NAME_AR, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_AR, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
@@ -121,6 +121,8 @@ export const WalletView: React.FC = () => {
     bankDetails: isAr ? 'بيانات الإيداع الفوري عبر كليك' : 'CliQ Deposit Banking Details',
     recipientBank: isAr ? 'البنك المستقبل' : 'Recipient Bank',
     accountName: isAr ? 'اسم المستفيد' : 'Account Name',
+    cliqAliasLabel: isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias',
+    cliqAliasHelper: isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias',
     copied: isAr ? 'تم نسخ الحساب!' : 'Copied!',
     uploadReceipt: isAr ? 'اضغط لرفع لقطة شاشة لوصل كليك المالي' : 'Click to Upload CliQ Receipt Screenshot',
     supportedFormats: isAr ? 'صيغ المدعومة: PNG، JPEG' : 'Supports PNG, JPG',
@@ -276,6 +278,7 @@ export const WalletView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedProof, setSubmittedProof] = useState<boolean>(false);
   const [copiedIBAN, setCopiedIBAN] = useState<boolean>(false);
+  const [copiedAlias, setCopiedAlias] = useState<boolean>(false);
 
   // Wallet screens state: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'
   const [walletSubView, setWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
@@ -340,6 +343,17 @@ export const WalletView: React.FC = () => {
       'info'
     );
     setTimeout(() => setCopiedIBAN(false), 2000);
+  };
+
+  const handleCopyAlias = () => {
+    navigator.clipboard.writeText(CLIQ_ALIAS);
+    setCopiedAlias(true);
+    addNotification(
+      isAr ? '📋 تم النسخ' : '📋 Copied!',
+      isAr ? 'تم نسخ الاسم المستعار (CliQ Alias) إلى الحافظة.' : 'CliQ alias copied to clipboard.',
+      'info'
+    );
+    setTimeout(() => setCopiedAlias(false), 2000);
   };
 
   const handleTopUpSubmit = async (e: React.FormEvent) => {
@@ -1037,6 +1051,24 @@ export const WalletView: React.FC = () => {
                     </div>
 
                     <div className="space-y-3 font-sans text-xs">
+                      {/* CliQ alias — PRIMARY transfer target (IBAN below stays as fallback) */}
+                      <div className="border-b border-white/5 pb-2 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-zinc-400">{localT.cliqAliasLabel}:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-white select-all">{CLIQ_ALIAS}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyAlias}
+                              className="p-1 bg-[#18181B] rounded-lg hover:text-[#FF6B00] text-zinc-400 transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-bold">{localT.cliqAliasHelper}</p>
+                      </div>
+
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
                         <span className="text-zinc-400">{localT.recipientBank}:</span>
                         <span className="font-extrabold text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
