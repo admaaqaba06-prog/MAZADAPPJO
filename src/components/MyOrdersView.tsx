@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { OrderDetailsView } from './OrderDetailsView';
 import { winTotalDue } from './feedback';
+import { isViewerWinner } from '../utils/bidMath';
+import { isAuctionFinished, serverNow } from '../utils/serverTime';
+import { translations } from '../utils/translations';
 import { Order } from '../types';
 import { ShoppingBag, Clock, ChevronLeft, ChevronRight, Sparkles, Star } from 'lucide-react';
 
@@ -65,8 +68,9 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 };
 
 export const MyOrdersView: React.FC = () => {
-  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
+  const { orders, auctions, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
   const isAr = language === 'ar';
+  const t = translations[isAr ? 'ar' : 'en'];
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // Win CTAs deep-link straight into a specific order via the global id.
@@ -81,6 +85,23 @@ export const MyOrdersView: React.FC = () => {
   const myOrders = (orders || [])
     .filter((o: Order) => o.buyerId === currentUser?.id)
     .sort((a: Order, b: Order) => toMillis(b.createdAt) - toMillis(a.createdAt));
+
+  // Wave 1 settlement-lag hint: the closer cron creates the order up to ~60s
+  // after an auction ends, so a winner following "Complete payment" can land
+  // here before their order doc exists. Detect a RECENTLY finished auction
+  // this user won with no matching order yet — pure derivation from data
+  // already in context (no new listeners); the hint clears itself when the
+  // order lands. The 10-minute recency window keeps a legacy/edge auction
+  // that never settled into an order from pinning a stale hint forever.
+  const JUST_WON_WINDOW_MS = 10 * 60 * 1000;
+  const nowMs = serverNow();
+  const hasUnsettledWin = (auctions || []).some((a: any) =>
+    isViewerWinner(a, currentUser?.id) &&
+    isAuctionFinished(a, nowMs) &&
+    typeof a.endTime === 'number' &&
+    nowMs - a.endTime < JUST_WON_WINDOW_MS &&
+    !myOrders.some((o: Order) => o.auctionId === a.id)
+  );
 
   // Orders the buyer can still rate: completed/delivered with no buyer review yet.
   const reviewedOrderIds = new Set(
@@ -128,6 +149,21 @@ export const MyOrdersView: React.FC = () => {
             {myOrders.length} {isAr ? 'طلبات' : 'Orders'}
           </span>
         </div>
+
+        {/* Settlement-lag hint: just-won auction whose order the cron (≤60s)
+            hasn't created yet — the winner never dead-ends here. */}
+        {hasUnsettledWin && (
+          <div
+            className="flex items-center gap-3 bg-white border border-amber-200 rounded-3xl px-5 py-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+            id="order-finalizing-hint"
+          >
+            <Clock className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-xs font-black text-gray-950">{t.ordersFinalizingTitle}</p>
+              <p className="text-[10.5px] text-gray-400 font-semibold leading-relaxed">{t.ordersFinalizingHint}</p>
+            </div>
+          </div>
+        )}
 
         {myOrders.length === 0 ? (
           /* Empty state */
