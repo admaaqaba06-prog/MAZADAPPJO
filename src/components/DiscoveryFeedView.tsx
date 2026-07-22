@@ -50,7 +50,7 @@ interface PremiumAuctionCardProps {
   setActiveView: (view: string) => void;
 }
 
-export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
+const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   item,
   currentUser,
   bids,
@@ -295,6 +295,72 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
     </div>
   );
 };
+
+/* ----------------------------------------------------------------------
+   PERF (Wave 3a): memoize the card.
+
+   Discover renders up to ~80 of these. Without memo, every one re-renders
+   on ANY AppContext change (the provider value is a fresh object every
+   render), even for cards whose auction/seller/user data didn't change and
+   even off-screen ones.
+
+   This comparator re-renders a card ONLY when a value it actually renders
+   from changes. It deliberately IGNORES the unstable inline callback props
+   (onJoinLive/onSelectLot/setGlobalSelectedOrderId/setActiveView): each one
+   only closes over `item.id` (already a value-compared field below) and
+   stable context setters, so the card never runs a stale handler.
+   Return TRUE to SKIP re-render (props considered equal).
+   ---------------------------------------------------------------------- */
+const areCardPropsEqual = (
+  prev: Readonly<PremiumAuctionCardProps>,
+  next: Readonly<PremiumAuctionCardProps>
+): boolean => {
+  const a = prev.item;
+  const b = next.item;
+  // Auction fields the card actually renders (see the `item.*` reads above).
+  if (
+    a.id !== b.id ||
+    a.currentPrice !== b.currentPrice ||
+    a.endTime !== b.endTime ||
+    a.status !== b.status ||
+    a.currentBidderId !== b.currentBidderId ||
+    a.totalBids !== b.totalBids ||
+    a.title !== b.title ||
+    a.description !== b.description ||
+    a.thumbnailUrl !== b.thumbnailUrl ||
+    a.sellerId !== b.sellerId ||
+    a.sellerLogo !== b.sellerLogo ||
+    a.sellerName !== b.sellerName
+  ) {
+    return false;
+  }
+
+  // bids/orders/sellerProfiles are plain useState arrays in AppContext —
+  // their reference only changes when THAT collection's setter actually
+  // runs (a new bid/order/profile snapshot), not on unrelated context
+  // updates, so a reference check is correct here and avoids walking
+  // potentially large arrays on every one of the ~80 cards.
+  if (
+    prev.bids !== next.bids ||
+    prev.orders !== next.orders ||
+    prev.sellerProfiles !== next.sellerProfiles
+  ) {
+    return false;
+  }
+
+  if (prev.isAr !== next.isAr) return false;
+
+  // Only currentUser.id is read by the card (see hasUserBid/isUserWinner
+  // above); compare that instead of object identity, which can churn on
+  // unrelated profile-sync writes.
+  const puId = prev.currentUser?.id ?? null;
+  const nuId = next.currentUser?.id ?? null;
+  if (puId !== nuId) return false;
+
+  return true;
+};
+
+export const PremiumAuctionCard = React.memo(PremiumAuctionCardBase, areCardPropsEqual);
 
 export const DiscoveryFeedView: React.FC = () => {
   const {
