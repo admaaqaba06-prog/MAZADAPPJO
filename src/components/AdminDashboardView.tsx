@@ -425,16 +425,24 @@ export const AdminDashboardView: React.FC = () => {
     return () => { unsub(); clearInterval(tick); };
   }, []);
 
+  // Wave 3 metric hygiene: simulator test data must never inflate REAL
+  // numbers. Context `auctions` is deliberately unfiltered in admin mode and
+  // `orders` includes simulated orders while the toggle is ON, so every
+  // metric/health computation below reads these sim-free views instead.
+  const realAuctions = (auctions || []).filter((a: any) => a.isSimulated !== true);
+  const realOrders = (orders || []).filter((o: any) => o.isSimulated !== true);
+  const simOrdersCount = (orders || []).length - realOrders.length;
+
   // Auctions the settlement cron should already have closed: still live/active
   // but ended more than 2 minutes ago.
-  const stuckAuctions = (auctions || []).filter((a: any) => {
+  const stuckAuctions = realAuctions.filter((a: any) => {
     if (a.status !== 'live' && a.status !== 'active') return false;
     const endMs = tsToMillis(a.endTime) || tsToMillis(a.endsAt);
     return endMs > 0 && endMs < healthNow - 2 * 60 * 1000;
   });
 
   // Orders still unpaid more than 48h after creation.
-  const stuckOrders = (orders || []).filter((o: any) => {
+  const stuckOrders = realOrders.filter((o: any) => {
     if (o.status !== 'waiting_payment') return false;
     const createdMs = tsToMillis(o.createdAt);
     return createdMs > 0 && createdMs < healthNow - 48 * 60 * 60 * 1000;
@@ -443,12 +451,14 @@ export const AdminDashboardView: React.FC = () => {
   // Coarse "settlement cron is alive" signal: either nothing was due to close,
   // or the most recent settlement happened within the last ~10 minutes of an
   // auction actually ending (no stuck auctions means the closer is keeping up).
-  const anyAuctionsDue = (auctions || []).some((a: any) => {
+  const anyAuctionsDue = realAuctions.some((a: any) => {
     if (a.status !== 'live' && a.status !== 'active') return false;
     const endMs = tsToMillis(a.endTime) || tsToMillis(a.endsAt);
     return endMs > 0 && endMs < healthNow;
   });
-  const lastSettledMs = Math.max(0, ...(auctions || []).map((a: any) => tsToMillis(a.settledAt)));
+  // NOTE: a simulateSettleNow on a test lot must not fake closer-cron
+  // freshness (masking a real stall), so this also reads realAuctions.
+  const lastSettledMs = Math.max(0, ...realAuctions.map((a: any) => tsToMillis(a.settledAt)));
   const settlementFresh =
     (!anyAuctionsDue && stuckAuctions.length === 0) ||
     (lastSettledMs > 0 && lastSettledMs > healthNow - 10 * 60 * 1000);
@@ -938,9 +948,9 @@ export const AdminDashboardView: React.FC = () => {
     return isPending && !hasRequest;
   });
   
-  // Computations
-  const activeAuctionsNum = auctions.filter(a => a.status === 'live').length;
-  const totalBidsSum = auctions.reduce((sum, a) => sum + a.totalBids, 0);
+  // Computations (Wave 3: from realAuctions — sim lots never inflate metrics)
+  const activeAuctionsNum = realAuctions.filter(a => a.status === 'live').length;
+  const totalBidsSum = realAuctions.reduce((sum, a) => sum + a.totalBids, 0);
   const totalEscrowHeld = escrows
     .filter(e => e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
@@ -1042,20 +1052,28 @@ export const AdminDashboardView: React.FC = () => {
                 <p className="text-xs text-gray-500">{isAr ? 'عرض وتتبع جميع عمليات الفوز والطلبات المنبثقة من المزادات المغلقة.' : 'Audit and track all won listings, escrow transactions, and shipping states.'}</p>
               </div>
               <div className="flex gap-2.5">
+                {/* Wave 3: stat chips are REAL metrics — sim orders excluded;
+                    the ledger list below still shows them while the simulator
+                    is ON, so TOTAL notes how many are simulated. */}
                 <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl text-center min-w-[100px]">
                   <span className="text-[10px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'إجمالي الطلبات' : 'TOTAL'}</span>
-                  <span className="text-lg font-black text-gray-900 font-mono">{orders?.length || 0}</span>
+                  <span className="text-lg font-black text-gray-900 font-mono">{realOrders.length}</span>
+                  {simOrdersCount > 0 && (
+                    <span className="text-[9px] text-violet-500 font-mono block font-bold">
+                      +{simOrdersCount} 🧪 sim
+                    </span>
+                  )}
                 </div>
                 <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-center min-w-[100px]">
                   <span className="text-[10px] text-amber-500 font-mono uppercase block font-black">{isAr ? 'بانتظار الدفع' : 'UNPAID'}</span>
                   <span className="text-lg font-black text-amber-700 font-mono">
-                    {orders?.filter((o: any) => o.status === 'waiting_payment').length || 0}
+                    {realOrders.filter((o: any) => o.status === 'waiting_payment').length}
                   </span>
                 </div>
                 <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl text-center min-w-[100px]">
                   <span className="text-[10px] text-emerald-500 font-mono uppercase block font-black">{isAr ? 'مكتمل' : 'COMPLETED'}</span>
                   <span className="text-lg font-black text-emerald-700 font-mono">
-                    {orders?.filter((o: any) => o.status === 'completed').length || 0}
+                    {realOrders.filter((o: any) => o.status === 'completed').length}
                   </span>
                 </div>
               </div>

@@ -131,6 +131,12 @@ export interface AuctionItem {
   conciergeContact?: string;
   /** Extra concierge photos beyond the thumbnail (up to 2 more). */
   conciergePhotos?: string[];
+  /**
+   * Wave 3 (simulator): created by the admin auction simulator. NEVER shown to
+   * real users; admins see it only while the simulator toggle is ON. Enforced
+   * client-side by utils/simVisibility at the AppContext source.
+   */
+  isSimulated?: boolean;
 }
 
 export interface Bid {
@@ -142,6 +148,8 @@ export interface Bid {
   amount: number;
   timestamp: number; // Unix timestamp
   status: 'winning' | 'outbid' | 'escrowed' | 'completed' | 'refunded';
+  /** Simulator-created (bid bot) — see AuctionItem.isSimulated. */
+  isSimulated?: boolean;
 }
 
 export interface Wallet {
@@ -230,6 +238,8 @@ export interface Order {
   defaultedAt?: any;
   /** Internal vendor slug copied from the auction (never buyer-facing). */
   vendorId?: string | null;
+  /** Simulator-created (simulateSettleNow) — see AuctionItem.isSimulated. */
+  isSimulated?: boolean;
 }
 
 /**

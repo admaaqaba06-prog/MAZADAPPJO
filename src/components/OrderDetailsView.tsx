@@ -306,11 +306,15 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
       await executeOrderTransition(order, 'pay', currentUser);
 
-      // Funnel metric — fire-and-forget (service handles its own errors)
-      logAnalyticsEvent('payment_submitted', currentUser.id, currentUser.email, {
-        orderId: order.id,
-        totalDue
-      });
+      // Funnel metric — fire-and-forget (service handles its own errors).
+      // Wave 3 metric hygiene: paying a SIMULATED order (admin test run)
+      // must not count as a real funnel conversion.
+      if (order.isSimulated !== true) {
+        logAnalyticsEvent('payment_submitted', currentUser.id, currentUser.email, {
+          orderId: order.id,
+          totalDue
+        });
+      }
 
       showToast({
         type: 'success',

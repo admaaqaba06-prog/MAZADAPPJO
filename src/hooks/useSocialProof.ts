@@ -108,6 +108,11 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
         const wins: (Omit<RecentWin, 'when'> & { whenTs: number })[] = [];
         snap.forEach(docSnap => {
           const data = docSnap.data();
+          // Wave 3: simulated wins NEVER count as social proof — not even for
+          // admins with the simulator on. This is a real-user trust surface
+          // ("real social proof, never fabricated"), and this one-time query
+          // bypasses the AppContext source filter, so it filters here itself.
+          if (data.isSimulated === true) return;
           const title = typeof data.title === 'string' ? data.title.trim() : '';
           if (!title) return; // no title → skip gracefully
           if (!data.currentBidderId) return; // ended with no winner → not a win
@@ -152,7 +157,12 @@ export function useSocialProof(): SocialProof {
   }, []);
 
   const { liveCount, biddersNow } = useMemo(() => {
-    const live = getLiveAuctions<AuctionItem>(auctions ?? []);
+    // Context `auctions` is already source-filtered for non-admins (Wave 3),
+    // but an admin with the simulator ON still receives simulated lots there —
+    // social proof must stay honest even then, so exclude them unconditionally.
+    const live = getLiveAuctions<AuctionItem>(
+      (auctions ?? []).filter(a => a.isSimulated !== true)
+    );
     const distinctBidders = new Set(
       live.map(a => a.currentBidderId).filter((id): id is string => !!id)
     );
