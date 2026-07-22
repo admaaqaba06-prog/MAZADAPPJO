@@ -75,16 +75,17 @@ async function deleteRefsInBatches(refs) {
  * in-transaction read, and the completed/ended + order-exists guards make
  * this safe against double-settling.
  *
- * options.markOrderSimulated: when true, the created order carries
- * isSimulated: true (threaded through by simulateSettleNow for test
- * auctions). When false/absent the payload is byte-identical to before.
+ * Simulated auctions: when the FRESH in-transaction auction doc carries
+ * isSimulated: true, the created order carries isSimulated: true as well —
+ * derived here (not caller-supplied) so BOTH the closer cron and
+ * simulateSettleNow flag it, and simulateCleanup / metrics can find it.
+ * For real auctions the payload is byte-identical to before (no key added).
  *
  * Returns { settled, orderId }: settled=true when THIS call transitioned the
  * auction (completed with order, or ended unsold); orderId set only on the
  * completed-with-winner path.
  */
-async function settleAuctionTxn(auctionRef, auctionData, options = {}) {
-  const markOrderSimulated = options.markOrderSimulated === true;
+async function settleAuctionTxn(auctionRef, auctionData) {
   const auctionId = auctionRef.id;
 
   // NOTE: these are computed from the caller's snapshot and may be STALE
@@ -190,7 +191,9 @@ async function settleAuctionTxn(auctionRef, auctionData, options = {}) {
           orderPayload.escrowId = escrowId;
         }
 
-        if (markOrderSimulated) {
+        // Derive from the fresh in-txn doc (NOT a caller option): a simulated
+        // auction settled by the cron must still produce a flagged order.
+        if (freshData.isSimulated === true) {
           orderPayload.isSimulated = true;
         }
 
@@ -2972,12 +2975,11 @@ exports.simulateSettleNow = functions.runWith({ cors: true }).https.onCall(async
       return { settled: false, reason: `status_${auctionData.status || 'unknown'}` };
     }
 
-    // Same settle path as scheduledAuctionCloser. The order is flagged
-    // isSimulated only when the auction itself is simulated — force-settling
-    // a REAL auction must still produce a real (metric-visible) order.
-    const result = await settleAuctionTxn(auctionRef, auctionData, {
-      markOrderSimulated: auctionData.isSimulated === true
-    });
+    // Same settle path as scheduledAuctionCloser. settleAuctionTxn derives
+    // the order's isSimulated flag from the fresh in-txn auction doc, so a
+    // simulated auction yields a flagged order and force-settling a REAL
+    // auction still produces a real (metric-visible) order.
+    const result = await settleAuctionTxn(auctionRef, auctionData);
 
     const response = { settled: result.settled };
     if (result.orderId) {
