@@ -14,3 +14,18 @@ export function totalWithPremium(priceJod: number): number {
   const fils = Math.round(priceJod * 1000);
   return (fils + Math.round(fils * 0.05)) / 1000;
 }
+
+/**
+ * Did this viewer win the auction? Server-authoritative check: the highest
+ * bidder recorded ON THE AUCTION DOC (`currentBidderId`) is the winner.
+ * Deliberately does NOT consult the local `bids` cache — that list is
+ * localStorage-backed and can be empty for a real winner (another device,
+ * cleared storage), which previously dropped winners into the spectator
+ * "browse other auctions" card.
+ */
+export function isViewerWinner(
+  auction: { currentBidderId?: string | null } | null | undefined,
+  userId: string | null | undefined,
+): boolean {
+  return !!userId && !!auction?.currentBidderId && auction.currentBidderId === userId;
+}
