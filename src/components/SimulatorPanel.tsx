@@ -1,9 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import { useApp } from '../context/AppContext';
 import { isAdminUser } from '../utils/adminAuth';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
+import {
+  startBot,
+  stopBot,
+  stopAllBots,
+  subscribeBots,
+  getBotsSnapshot,
+  type Pace,
+} from '../utils/simBotManager';
 import {
   FlaskConical,
   Play,
@@ -24,13 +32,13 @@ import {
  * simulateBid / simulateSettleNow / simulateCleanup) and its own live
  * `isSimulated == true` auctions query. English-only — internal tool.
  *
- * Interval-leak safety: ONE bid-bot interval per auction, tracked in a
- * ref-held Map, cleared on Stop, on {noop} responses, when the auction
- * leaves live status, on master-toggle-off, before cleanup, and on unmount.
+ * Bid bots live in the module-scope simBotManager (src/utils/simBotManager.ts),
+ * NOT in this component — they deliberately SURVIVE unmount so an admin can
+ * switch tabs or watch the live room while the bot keeps bidding. Bots still
+ * stop on Stop, on {noop} responses, when the auction leaves live status, on
+ * master-toggle-off (manager-level subscription), before cleanup, and via the
+ * manager's safety cap (200 ticks / 30 min).
  */
-
-type Pace = 'slow' | 'fast';
-const PACE_MS: Record<Pace, number> = { slow: 12000, fast: 4000 };
 
 interface SpawnParams {
   title?: string;
@@ -39,13 +47,6 @@ interface SpawnParams {
   category?: string;
   channel?: string;
   status?: 'live' | 'upcoming';
-}
-
-interface BidResponse {
-  currentPrice?: number;
-  endTime?: number;
-  noop?: boolean;
-  reason?: string;
 }
 
 interface SettleResponse {
@@ -115,12 +116,6 @@ const fmtCountdown = (ms: number): string => {
 
 const isLiveStatus = (status: any): boolean => status === 'live' || status === 'active';
 
-interface BotEntry {
-  intervalId: number;
-  /** True while a simulateBid call is in flight — ticks skip instead of stacking. */
-  pending: boolean;
-}
-
 export const SimulatorPanel: React.FC = () => {
   const { currentUser } = useApp();
   const isAdmin = isAdminUser(currentUser);
@@ -135,10 +130,9 @@ export const SimulatorPanel: React.FC = () => {
   const [panelMsg, setPanelMsg] = useState<string>('');
   const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
 
-  // Bid bots — the Map ref is the source of truth for interval ownership;
-  // runningBots mirrors it for rendering.
-  const botsRef = useRef<Map<string, BotEntry>>(new Map());
-  const [runningBots, setRunningBots] = useState<Record<string, Pace>>({});
+  // Bid bots — owned by the module-scope simBotManager so they survive
+  // unmount; this is a live read-only mirror (auctionId → pace) for rendering.
+  const runningBots = useSyncExternalStore(subscribeBots, getBotsSnapshot);
   const [pace, setPace] = useState<Pace>('slow');
 
   // Two-click inline confirms (no window.confirm — it blocks automation).
@@ -175,86 +169,28 @@ export const SimulatorPanel: React.FC = () => {
     return () => window.clearInterval(tick);
   }, []);
 
-  // ── Bid bots ──────────────────────────────────────────────────────────────
-  const stopBot = (auctionId: string, reason?: string) => {
-    const entry = botsRef.current.get(auctionId);
-    if (entry) {
-      window.clearInterval(entry.intervalId);
-      botsRef.current.delete(auctionId);
-    }
-    setRunningBots((prev) => {
-      if (!(auctionId in prev)) return prev;
-      const next = { ...prev };
-      delete next[auctionId];
-      return next;
-    });
-    if (reason) setRowMsgFor(auctionId, reason);
-  };
-
-  const stopAllBots = (reason?: string) => {
-    // Map.forEach visits each entry once even when entries are deleted
-    // mid-iteration (stopBot deletes as it goes) — spec-safe.
-    botsRef.current.forEach((_entry, auctionId) => stopBot(auctionId, reason));
-  };
-
-  const startBot = (auctionId: string) => {
-    if (botsRef.current.has(auctionId)) return; // one interval per auction, ever
-    const entry: BotEntry = { intervalId: 0, pending: false };
-
-    const tick = async () => {
-      // If the bot was stopped between scheduling and firing, do nothing.
-      if (botsRef.current.get(auctionId) !== entry) return;
-      if (entry.pending) return; // previous call still in flight — never stack
-      entry.pending = true;
-      try {
-        const call = await getCallableFunction<{ auctionId: string }, BidResponse>('simulateBid');
-        const res = (await call({ auctionId })).data;
-        if (res?.noop) {
-          stopBot(auctionId, `Bot stopped (${res.reason || 'noop'})`);
-        } else if (typeof res?.currentPrice === 'number') {
-          setRowMsgFor(auctionId, `Bot bid → ${res.currentPrice} JOD`);
-        }
-      } catch (err: any) {
-        stopBot(auctionId, `Bot stopped (error: ${err?.message || err})`);
-      } finally {
-        entry.pending = false;
-      }
-    };
-
-    entry.intervalId = window.setInterval(tick, PACE_MS[pace]);
-    botsRef.current.set(auctionId, entry);
-    setRunningBots((prev) => ({ ...prev, [auctionId]: pace }));
-    setRowMsgFor(auctionId, `Bot running (${pace})`);
-    void tick(); // first bid immediately
-  };
-
+  // ── Bid bots (module-scope manager — survive tab switches) ────────────────
   // Auto-stop bots whose auction left live status (settled, ended, deleted).
+  // Row messages are set here (not just inside the manager) so the CURRENT
+  // mount always sees why a bot stopped, even for bots started by an earlier
+  // mount of this panel.
   useEffect(() => {
-    botsRef.current.forEach((_entry, auctionId) => {
+    Object.keys(runningBots).forEach((auctionId) => {
       const auction = simAuctions.find((a: any) => a.id === auctionId);
       if (!auction) {
-        stopBot(auctionId, 'Bot stopped (auction removed)');
+        stopBot(auctionId);
+        setRowMsgFor(auctionId, 'Bot stopped (auction removed)');
       } else if (!isLiveStatus(auction.status)) {
-        stopBot(auctionId, `Bot stopped (status ${auction.status})`);
+        stopBot(auctionId);
+        setRowMsgFor(auctionId, `Bot stopped (status ${auction.status})`);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simAuctions]);
+  }, [simAuctions, runningBots]);
 
-  // Master toggle off → all bots stop.
-  useEffect(() => {
-    if (!enabled) stopAllBots();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
-
-  // Unmount → clear every interval (ref cleared directly; no state updates).
-  useEffect(() => {
-    const bots = botsRef.current;
-    return () => {
-      for (const entry of bots.values()) window.clearInterval(entry.intervalId);
-      bots.clear();
-    };
-  }, []);
+  // Master toggle off → all bots stop. Handled INSIDE simBotManager via its
+  // own useSimulatorEnabled subscription, so it works even with no panel
+  // mounted. No unmount teardown here — bots surviving unmount is the point.
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const spawn = async (key: string, params: SpawnParams) => {
@@ -552,14 +488,17 @@ export const SimulatorPanel: React.FC = () => {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {botPace ? (
                       <button
-                        onClick={() => stopBot(a.id, 'Bot stopped')}
+                        onClick={() => {
+                          stopBot(a.id);
+                          setRowMsgFor(a.id, 'Bot stopped');
+                        }}
                         className={`${btnBase} bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100`}
                       >
                         <Square className="w-3 h-3" /> Stop bot
                       </button>
                     ) : (
                       <button
-                        onClick={() => startBot(a.id)}
+                        onClick={() => startBot(a.id, pace, { onMessage: setRowMsgFor })}
                         disabled={!enabled || !live}
                         className={`${btnBase} bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100`}
                       >
