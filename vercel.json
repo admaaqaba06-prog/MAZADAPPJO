@@ -1,4 +1,12 @@
 {
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "mazadappjo.vercel.app" }],
+      "destination": "https://www.mazad-jo.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/__/auth/:path*", "destination": "https://mazadjoapp.firebaseapp.com/__/auth/:path*" },
     { "source": "/__/firebase/:path*", "destination": "https://mazadjoapp.firebaseapp.com/__/firebase/:path*" },
