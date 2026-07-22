@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import { BidConfirm } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -23,6 +24,16 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   const currentItem = auctions.find(a => a.id === activeAuctionId) || auctions[0];
 
   const [timeLeftStr, setTimeLeftStr] = React.useState<string>('00:00:00');
+
+  // Click-fallback confirm for SwipeToBid: a completed swipe gesture still
+  // bids directly; a plain click/Enter stages the amount here and goes
+  // through BidConfirm (same confirm UX as the live reel).
+  const [pendingBid, setPendingBid] = React.useState<number | null>(null);
+
+  // Never carry a staged confirm across auctions.
+  React.useEffect(() => {
+    setPendingBid(null);
+  }, [activeAuctionId]);
 
   React.useEffect(() => {
     if (!currentItem) return;
@@ -120,7 +131,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
       </div>
 
       {/* 2. SLIDE TO BID */}
-      <div className="space-y-2 bg-zinc-900/60 border border-white/5 p-4 rounded-2xl">
+      <div className="relative space-y-2 bg-zinc-900/60 border border-white/5 p-4 rounded-2xl">
         <span className="text-[8px] text-zinc-500 font-bold block uppercase mb-1.5">
           {isAr ? 'المزايدة السريعة' : 'QUICK BIDDING'}
         </span>
@@ -133,8 +144,25 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             }
             await placeBid(currentItem.id, nextBidAmount);
           }}
+          onTap={() => {
+            if (currentUser.isBlocked) {
+              alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
+              return;
+            }
+            setPendingBid(nextBidAmount);
+          }}
           disabled={currentUser.isBlocked || (currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
+        />
+        {/* Inline confirm for the click fallback (anchored to this card) */}
+        <BidConfirm
+          amount={pendingBid}
+          isAr={isAr}
+          onConfirm={async (amt) => {
+            setPendingBid(null);
+            await placeBid(currentItem.id, amt);
+          }}
+          onCancel={() => setPendingBid(null)}
         />
         {!isAuctionOpen(currentItem?.status) && (
           <p className="text-[9px] text-amber-400 font-bold text-center pt-1">

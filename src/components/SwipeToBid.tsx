@@ -4,13 +4,24 @@ import { Check, ChevronsRight } from 'lucide-react';
 interface SwipeToBidProps {
   amount: number;
   onSwipeSuccess: () => void;
+  /**
+   * Click/keyboard fallback: fired on a plain CLICK on the track (pointerup
+   * with <5px movement — never during a drag) and on Enter/Space. Consumers
+   * wire this to their bid-CONFIRM flow (not a direct bid), so tapping is the
+   * accessible equivalent of the quick-bid tier buttons.
+   */
+  onTap?: () => void;
   disabled?: boolean;
   language?: 'en' | 'ar';
 }
 
+/** Pointer travel below this is a tap; at/above it is a drag. */
+const TAP_MAX_MOVEMENT_PX = 5;
+
 export const SwipeToBid: React.FC<SwipeToBidProps> = ({
   amount,
   onSwipeSuccess,
+  onTap,
   disabled = false,
   language = 'en',
 }) => {
@@ -83,10 +94,52 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
 
   const progressPercent = maxDrag > 0 ? (dragX / maxDrag) * 100 : 0;
 
+  // ── Click fallback (a11y + non-drag input) ────────────────────────────────
+  // A plain click anywhere on the track opens the confirm flow via onTap.
+  // Tap vs drag is decided by pointer travel between down and up: a drag that
+  // moved the handle (or completed the swipe) can therefore NEVER also fire
+  // the tap — no double-fire with onSwipeSuccess.
+  const downPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const fireTap = () => {
+    if (disabled || isSwiped) return;
+    onTap?.();
+  };
+
+  const onTrackPointerDown = (e: React.PointerEvent) => {
+    downPosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const onTrackPointerUp = (e: React.PointerEvent) => {
+    const down = downPosRef.current;
+    downPosRef.current = null;
+    if (!down) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    if (moved < TAP_MAX_MOVEMENT_PX) fireTap();
+  };
+
+  const onTrackKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Space must not scroll the page
+      fireTap();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`w-full h-12 bg-gradient-to-r from-[#E85D04] to-[#F37021] rounded-full relative flex items-center p-1 overflow-hidden select-none touch-none shadow-md ${
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label={
+        isAr
+          ? `زايد ${amount.toLocaleString()} دينار — اسحب أو اضغط للتأكيد`
+          : `Bid ${amount.toLocaleString()} JOD — swipe or press to confirm`
+      }
+      onPointerDown={onTrackPointerDown}
+      onPointerUp={onTrackPointerUp}
+      onKeyDown={onTrackKeyDown}
+      className={`w-full h-12 bg-gradient-to-r from-[#E85D04] to-[#F37021] rounded-full relative flex items-center p-1 overflow-hidden select-none touch-none shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E85D04] ${
         disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
       }`}
       style={{ direction: isAr ? 'rtl' : 'ltr' }}

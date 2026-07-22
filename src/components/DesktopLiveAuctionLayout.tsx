@@ -148,7 +148,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     if (winPillTimer.current) clearTimeout(winPillTimer.current);
   }, []);
 
-  // Executes the bid (used by the confirm flow and by SwipeToBid, which stays no-confirm)
+  // Executes the bid (used by the confirm flow and by a completed SwipeToBid
+  // gesture, which stays no-confirm; a plain CLICK on the swipe track routes
+  // through the BidConfirm dialog via onTap instead)
   const runBid = async (amount: number) => {
     setPendingBid(null);
     const res = await onBidExecute(amount);
@@ -705,6 +707,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         <SwipeToBid
                           amount={nextBidAmount}
                           onSwipeSuccess={() => runBid(nextBidAmount)}
+                          onTap={() => setPendingBid(nextBidAmount)}
                           disabled={currentUser?.isBlocked}
                           language={isAr ? 'ar' : 'en'}
                         />
