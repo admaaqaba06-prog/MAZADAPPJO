@@ -2841,6 +2841,13 @@ exports.rejectWithdrawal = functions.runWith({ cors: true }).https.onCall(async 
  * ========================================================================= */
 
 const SIM_PLACEHOLDER_IMG = 'https://placehold.co/600x400/1a1a2e/f5b301?text=TEST+AUCTION';
+// Wave 2 (media gallery): stable extra gallery images so simulated auctions
+// exercise the swipeable MediaGallery end-to-end (video-less: image-only path).
+const SIM_PLACEHOLDER_MEDIA_URLS = [
+  'https://picsum.photos/id/1060/800/1200',
+  'https://picsum.photos/id/201/800/1200',
+  'https://picsum.photos/id/119/800/1200'
+];
 const SIM_BOT_ID = 'sim-bot';
 
 exports.simulateSpawnAuction = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
@@ -2879,6 +2886,7 @@ exports.simulateSpawnAuction = functions.runWith({ cors: true }).https.onCall(as
       sellerName: 'Simulator',
       thumbnailUrl: SIM_PLACEHOLDER_IMG,
       imageUrl: SIM_PLACEHOLDER_IMG,
+      mediaUrls: SIM_PLACEHOLDER_MEDIA_URLS,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
