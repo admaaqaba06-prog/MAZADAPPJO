@@ -11,6 +11,7 @@ import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
+import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
@@ -479,34 +480,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_deleted_auctions', JSON.stringify(deletedAuctionIds));
   }, [deletedAuctionIds]);
 
-  // Sync state changes with localStorage
-  useEffect(() => {
-    localStorage.setItem('mazad_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_seller_profiles', JSON.stringify(sellerProfiles));
-  }, [sellerProfiles]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_auctions', JSON.stringify(auctions));
-  }, [auctions]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_bids', JSON.stringify(bids));
-  }, [bids]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_wallet', JSON.stringify(wallet));
-  }, [wallet]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_escrows', JSON.stringify(escrows));
-  }, [escrows]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_chat_messages', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+  // Sync state changes with localStorage.
+  //
+  // `users`, `auctions` and `adminActions` are write-only here (nothing
+  // reads `mazad_users` / `mazad_auctions` / `mazad_admin_actions` back —
+  // they're populated straight from Firestore snapshots on boot), so
+  // per-delta persistence was pure overhead: a synchronous JSON.stringify of
+  // an 80-doc auctions array on every bid, on every lot. Firestore's own
+  // client cache already survives reloads, so these writes were removed
+  // outright rather than throttled.
+  //
+  // `sellerProfiles`, `bids`, `wallet`, `escrows` and `chatMessages` ARE read
+  // back from localStorage as an instant-paint seed on init, so they still
+  // need to persist — just not synchronously on every delta. Throttled to
+  // at most once every few seconds (flushed on tab-hide/unmount too).
+  useThrottledLocalStorageSync('mazad_seller_profiles', sellerProfiles);
+  useThrottledLocalStorageSync('mazad_bids', bids);
+  useThrottledLocalStorageSync('mazad_wallet', wallet);
+  useThrottledLocalStorageSync('mazad_escrows', escrows);
+  useThrottledLocalStorageSync('mazad_chat_messages', chatMessages);
 
   // One-time purge of the pre-fix SHARED bell keys: they leaked one user's
   // private verdicts (incl. rejection reasons) to the next account on the
@@ -517,10 +509,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(LEGACY_DISMISSED_KEY);
     } catch { /* storage unavailable — nothing leaked then */ }
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_admin_actions', JSON.stringify(adminActions));
-  }, [adminActions]);
 
   // Revive custom blob videos on load from IndexedDB (Disabled as we use permanent Firebase Storage uploads now)
   /*
