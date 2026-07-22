@@ -8,7 +8,7 @@ import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
-import { isAdminUser } from '../utils/adminAuth';
+import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
@@ -1483,7 +1483,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to escrows where bidderId == userId or sellerId == userId (limit 100)
       const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id), limit(100));
-      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
 
       let bidderEscrows: EscrowTransaction[] = [];
       let sellerEscrows: EscrowTransaction[] = [];
@@ -1514,39 +1513,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'escrows' (bidder) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
-        const list: EscrowTransaction[] = [];
-        snap.forEach((docSnap) => {
-          const rawData = docSnap.data();
-          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
-          list.push({
-            id: docSnap.id,
-            ...rawData,
-            amount
-          } as EscrowTransaction);
+      // Pure buyers have no seller-side escrow rows — skip opening this
+      // subscription for them entirely (one fewer live listener for the
+      // majority of sessions, which are buyers, not sellers).
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
+          const list: EscrowTransaction[] = [];
+          snap.forEach((docSnap) => {
+            const rawData = docSnap.data();
+            const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
+            list.push({
+              id: docSnap.id,
+              ...rawData,
+              amount
+            } as EscrowTransaction);
+          });
+          sellerEscrows = list;
+          updateMergedEscrows();
+        }, (err) => {
+          console.warn("Firestore 'escrows' (seller) sync error:", err);
         });
-        sellerEscrows = list;
-        updateMergedEscrows();
-      }, (err) => {
-        console.warn("Firestore 'escrows' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBidder();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.isSeller, isDeferredReady]);
 
-  // Real-time chats synchronization with Firestore
+  // Real-time chats synchronization with Firestore.
+  //
+  // Gated on activeView === 'live': chatMessages is only ever read by
+  // LiveStreamView / ReelsDesktopRightPanel, both of which only mount for
+  // activeView === 'live' (see App.tsx's ActiveViewRenderer) — so there's
+  // no other screen depending on this being populated. Previously this
+  // subscription stayed open on every view, pinned to a default auction.
+  //
+  // Also drops the `limit(100)` cap: it was combined with a Firestore
+  // `where('auctionId','==',...)` filter and NO `orderBy`, so once a room
+  // passed 100 messages the 100 returned were an arbitrary (non-chronological)
+  // subset — new messages could silently stop arriving. Fixing that properly
+  // with `orderBy('timestamp','asc').limit(100)` needs a NEW composite index
+  // on (auctionId, timestamp), which requires an out-of-band `firebase
+  // deploy --only firestore:indexes` and would hard-fail this listener for
+  // every room until that index finishes building — a server-side change,
+  // out of scope for this client-only pass. Removing the cap instead keeps
+  // the existing index-free where-only query (client-sorted, as before) and
+  // is now scoped to a single room, open only while the user is actually in
+  // it, so the unbounded read is bounded in practice by that.
   useEffect(() => {
-    if (!isAuthenticated || !isDeferredReady) {
+    if (!isAuthenticated || !isDeferredReady || activeView !== 'live') {
       return;
     }
     const targetAuctionId = activeAuctionId || 'auction-rolex';
     const chatsRefCol = collection(db, 'chats');
-    // Query chats filtered by the active auction ID, limiting to 100
-    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId), limit(100));
+    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId));
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
@@ -1566,7 +1590,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated, isDeferredReady, activeAuctionId]);
+  }, [isAuthenticated, isDeferredReady, activeAuctionId, activeView]);
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
@@ -1806,7 +1830,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to orders where buyerId == userId or sellerId == userId (limit 100)
       const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id), limit(100));
-      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
 
       let buyerOrders: Order[] = [];
       let sellerOrders: Order[] = [];
@@ -1838,26 +1861,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'orders' (buyer) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerQuery, (snap) => {
-        const list: Order[] = [];
-        snap.forEach((docSnap) => {
-          list.push({
-            id: docSnap.id,
-            ...docSnap.data()
-          } as Order);
+      // Pure buyers have no seller-side orders — skip opening this
+      // subscription for them entirely.
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerQuery, (snap) => {
+          const list: Order[] = [];
+          snap.forEach((docSnap) => {
+            list.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as Order);
+          });
+          sellerOrders = list;
+          updateMergedOrders();
+        }, (err) => {
+          console.warn("Firestore 'orders' (seller) sync error:", err);
         });
-        sellerOrders = list;
-        updateMergedOrders();
-      }, (err) => {
-        console.warn("Firestore 'orders' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBuyer();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
   // Real-time synchronization for trust system collections
   useEffect(() => {
@@ -1923,11 +1952,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id (limit 50)
       const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id), limit(50));
-      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
-      
+
       let bDisps: Dispute[] = [];
       let sDisps: Dispute[] = [];
-      
+
       const updateDisputes = () => {
         const merged = new Map<string, Dispute>();
         bDisps.forEach(d => merged.set(d.id, d));
@@ -1942,12 +1970,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateDisputes();
       }, (err) => console.warn("Buyer disputes sync error:", err));
 
-      const unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
-        const list: Dispute[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
-        sDisps = list;
-        updateDisputes();
-      }, (err) => console.warn("Seller disputes sync error:", err));
+      // Pure buyers have no seller-side disputes — skip opening this
+      // subscription for them entirely.
+      let unsubSellerDisp = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
+        unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
+          const list: Dispute[] = [];
+          snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
+          sDisps = list;
+          updateDisputes();
+        }, (err) => console.warn("Seller disputes sync error:", err));
+      }
 
       unsubDisputes = () => {
         unsubBuyerDisp();
@@ -1961,7 +1995,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReports();
       unsubDisputes();
     };
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -2621,7 +2655,16 @@ const fetchIP = async () => {
       setNotifications(prev => {
         const incomingIds = new Set(incoming.map(n => n.id));
         const rest = prev.filter(n => !incomingIds.has(n.id));
-        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp);
+        // Bound the bell to the newest 50. NOTE: the query itself stays
+        // where-only (no orderBy/limit) — this collection can't be ordered
+        // server-side without a NEW composite index on (userId, timestamp),
+        // which would require an out-of-band `firebase deploy
+        // --only firestore:indexes` and would hard-fail the listener for
+        // every user until that index finishes building. That's a
+        // server-side change, out of scope for this client-only pass, so
+        // the cap is applied client-side after the existing sort instead —
+        // same end state (newest-first, bounded), zero index risk.
+        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
       });
     }, (err: any) => {
       console.warn('Bell notifications subscription failed:', err?.code, err?.message);
