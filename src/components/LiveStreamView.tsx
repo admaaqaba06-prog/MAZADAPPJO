@@ -9,7 +9,8 @@ import {
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
-import { minNextBid } from '../utils/bidMath';
+import { minNextBid, totalWithPremium, isViewerWinner } from '../utils/bidMath';
+import { translations } from '../utils/translations';
 import { formatMoney } from '../utils/formatMoney';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
@@ -144,28 +145,46 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
               className="bg-zinc-950/95 backdrop-blur-md rounded-3xl p-8 border border-white/10 max-w-sm w-full mx-4 text-center shadow-2xl flex flex-col items-center gap-4"
             >
               {(() => {
+                // Winner check is server-authoritative (auction.currentBidderId).
+                // It must NOT be gated on the localStorage `bids` cache — a real
+                // winner with an empty local cache (other device, cleared
+                // storage) used to fall into the spectator browse-only card.
+                const isUserWinner = isViewerWinner(activeAuction, currentUser?.id);
                 const hasUserBid = activeAuction?.id && bids ? bids.some((b: any) => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
-                const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+                const t = translations[isAr ? 'ar' : 'en'];
 
                 if (isUserWinner) {
+                  const totalDue = totalWithPremium(activePrice);
+                  const goToOrder = () => {
+                    onDismiss();
+                    // Deep-open the order when it's already settled; if the
+                    // closer cron (≤60s) hasn't created it yet, still land on
+                    // My Orders — it shows a "finalizing your order…" hint
+                    // until the order doc arrives. Never a dead end.
+                    const matchingOrder = orders?.find((o: any) => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
+                    if (matchingOrder) {
+                      setGlobalSelectedOrderId(matchingOrder.id);
+                    }
+                    setActiveView('orders');
+                  };
                   return (
                     <>
                       <div className="bg-emerald-500/15 text-emerald-400 p-4 rounded-full mb-1 animate-bounce">
                         <Trophy className="w-12 h-12" />
                       </div>
                       <h2 className="text-2xl md:text-3xl font-black text-white">
-                        {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won'}
+                        {t.winEndedHeadline}
                       </h2>
-                      <p className="text-zinc-300 text-sm font-semibold">
-                        {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment or confirmation'}
-                      </p>
 
                       <div className="w-full bg-emerald-500/10 rounded-2xl py-3 px-6 border border-emerald-500/20 mt-2">
                         <p className="text-xs text-emerald-400 uppercase tracking-wider mb-0.5">
-                          {isAr ? 'السعر النهائي' : 'Winning Bid'}
+                          {t.winTotalDueLabel}
                         </p>
                         <p className="text-2xl font-black text-emerald-400">
-                          {formatMoney(activePrice, isAr ? 'ar' : 'en')}
+                          {formatMoney(totalDue, isAr ? 'ar' : 'en')}
+                        </p>
+                        <p className="text-[11px] text-emerald-300/70 font-semibold mt-0.5">
+                          {t.winPremiumNote}
                         </p>
                         {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
                           <p className="text-xs text-emerald-300/80 font-semibold mt-1">
@@ -176,18 +195,27 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                         ) : null}
                       </div>
 
+                      <p className="text-amber-400 text-xs font-black tracking-wide">
+                        ⏳ {t.winPayWithin24h}
+                      </p>
+
+                      <button
+                        onClick={goToOrder}
+                        className="mt-2 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        id="ended-card-complete-payment"
+                      >
+                        {t.winCompletePaymentCta}
+                      </button>
+
                       <button
                         onClick={() => {
                           onDismiss();
-                          const matchingOrder = orders?.find((o: any) => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
-                          if (matchingOrder) {
-                            setGlobalSelectedOrderId(matchingOrder.id);
-                          }
-                          setActiveView('orders');
+                          setActiveView('discovery');
                         }}
-                        className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        className="w-full py-2 text-zinc-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                        id="ended-card-browse-secondary"
                       >
-                        {isAr ? 'عرض الطلب' : 'View Order'}
+                        {t.winBrowseOtherLink}
                       </button>
                     </>
                   );
@@ -359,8 +387,12 @@ export const LiveStreamView: React.FC = () => {
   // lot would miss the winning edge whenever another live lot exists.
   const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
 
-  // When the celebration takes over, stand down the countdown/winner overlay
-  // so the two full-screen layers never stack.
+  // De-dup rule (Wave 1): WinCelebration is THE payment-first surface for the
+  // winner the moment the win transition fires — the ended card defers to it.
+  // Suppression is render-synchronous below (`isOverlayDismissed || win !== null`
+  // passed to <AuctionCountdownLayer>) so the two full-screen layers can never
+  // stack, not even for a frame; this effect additionally LATCHES the dismissal
+  // so the ended card doesn't pop back up after the celebration is closed.
   useEffect(() => {
     if (win) setIsOverlayDismissed(true);
   }, [win]);
@@ -682,7 +714,7 @@ export const LiveStreamView: React.FC = () => {
         activeAuction={activeAuction}
         activePrice={activePrice}
         isAr={isAr}
-        isOverlayDismissed={isOverlayDismissed}
+        isOverlayDismissed={isOverlayDismissed || win !== null}
         onDismiss={() => setIsOverlayDismissed(true)}
       />
 
