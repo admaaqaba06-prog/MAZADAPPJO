@@ -476,7 +476,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   // confirm step + in-flight submitting guard. Same handler the details modal uses.
   const { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
 
-  // Was the staged amount bumped by a rival bid during the ≤5s confirm window?
+  // Was the staged amount bumped by a rival bid during the ≤10s confirm window?
   const [priceMoved, setPriceMoved] = useState(false);
 
   // Open a fresh confirm (resets any stale "price moved" flag).

@@ -10,7 +10,7 @@ export type ConfirmDecision =
 
 /**
  * Decide what a confirm tap should do, given the amount the user staged and the
- * LATEST minimum next bid for that auction. If a rival outbid during the (≤5s)
+ * LATEST minimum next bid for that auction. If a rival outbid during the (≤10s)
  * confirm window the latest minimum rises above the staged amount, so the
  * surface must re-prompt at the new minimum ("price moved") instead of sending
  * a stale amount the server would reject with a generic "minimum bid required".
