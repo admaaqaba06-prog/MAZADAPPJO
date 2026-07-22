@@ -9,8 +9,12 @@ import type { AuctionMediaItem } from '../../utils/auctionMedia';
    - Items come pre-ordered from getAuctionMedia (video first, then images).
    - Horizontal swipe (touch + pointer drag) and, on desktop, arrow buttons
      and an optional thumbnail strip. Dots indicator + "2/4" counter chip.
-   - RTL-aware: the track inherits the document direction, so in Arabic the
-     next item slides in from the LEFT and the finger swipes RIGHT — the
+   - RTL-aware and self-sufficient: the root sets its own `dir` from the
+     `isAr` prop (rather than inheriting `document.dir`, which is only ever
+     set by LandingView and can be stale/unset on a deep link into the live
+     room or a language toggle while inside it). That keeps the actual flex
+     flow direction in sync with the `dirSign` swipe math below — in Arabic
+     the next item slides in from the LEFT and the finger swipes RIGHT, the
      natural RTL carousel direction.
 
    CRITICAL gesture rule (mobile): the horizontal gallery swipe must never
@@ -211,7 +215,11 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
   const canGoVisualRight = isAr ? index > 0 : index < count - 1;
 
   return (
-    <div className={`flex flex-col min-h-0 ${className}`} id="media-gallery-root">
+    <div
+      className={`flex flex-col min-h-0 ${className}`}
+      dir={isAr ? 'rtl' : 'ltr'}
+      id="media-gallery-root"
+    >
       {/* Viewport — touch-action pan-y hands vertical panning to the browser */}
       <div
         ref={viewportRef}

@@ -451,6 +451,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 the lot's other images, without duplicating gallery/swipe
                 logic (MediaGallery owns it, shared with the mobile reel). */}
             <MediaGallery
+              key={activeAuction?.id}
               items={mediaItems}
               isActive
               isPlaying={isPlaying}
