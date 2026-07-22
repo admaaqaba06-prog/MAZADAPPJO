@@ -69,16 +69,24 @@ export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
   });
 
   React.useEffect(() => {
-    if (!item.endTime || secondsLeft <= 0) return;
+    if (!item.endTime) return;
+    const computeLeft = () => Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
+    // Already ended by the time we mount — nothing to tick.
+    if (computeLeft() <= 0) return;
+    // NOTE: deps are `[item.endTime]` only (not `secondsLeft`) so this
+    // interval is created ONCE per mount instead of torn down/recreated
+    // every second — with ~80 cards on screen that per-second churn was a
+    // major jank source. `left` is derived fresh from Date.now() on each
+    // tick, so it stays correct without needing `secondsLeft` as a dep.
     const interval = setInterval(() => {
-      const left = Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
+      const left = computeLeft();
       setSecondsLeft(left);
       if (left <= 0) {
         clearInterval(interval);
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [item.endTime, secondsLeft]);
+  }, [item.endTime]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
