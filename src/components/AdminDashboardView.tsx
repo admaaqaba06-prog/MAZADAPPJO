@@ -324,6 +324,37 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
   );
 };
 
+// ── Active-tab persistence ───────────────────────────────────────────────
+// The dashboard occasionally remounts mid-session (live E2E finding), which
+// reset the useState tab back to GENERAL METRICS. The active tab is therefore
+// mirrored into sessionStorage and restored (validated) on mount.
+const ADMIN_TABS = [
+  'metrics',
+  'orders',
+  'payments',
+  'listings',
+  'users',
+  'subscriptions',
+  'sessions',
+  'health',
+  'withdrawals',
+  'simulator',
+] as const;
+type AdminTab = (typeof ADMIN_TABS)[number];
+const ADMIN_TAB_DEFAULT: AdminTab = 'metrics';
+const ADMIN_TAB_STORAGE_KEY = 'mazad_admin_tab';
+
+function readStoredAdminTab(): AdminTab {
+  try {
+    const stored = sessionStorage.getItem(ADMIN_TAB_STORAGE_KEY);
+    return (ADMIN_TABS as readonly string[]).includes(stored ?? '')
+      ? (stored as AdminTab)
+      : ADMIN_TAB_DEFAULT;
+  } catch {
+    return ADMIN_TAB_DEFAULT; // storage unavailable — session-local only
+  }
+}
+
 export const AdminDashboardView: React.FC = () => {
   const { 
     currentUser,
@@ -378,7 +409,16 @@ export const AdminDashboardView: React.FC = () => {
     return `data:image/png;base64,${clean}`;
   };
 
-  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'sessions' | 'health' | 'withdrawals' | 'simulator'>('metrics');
+  const [activeTab, setActiveTab] = useState<AdminTab>(readStoredAdminTab);
+  // Every tab selection goes through here so it survives remounts.
+  const selectTab = (tab: AdminTab) => {
+    setActiveTab(tab);
+    try {
+      sessionStorage.setItem(ADMIN_TAB_STORAGE_KEY, tab);
+    } catch {
+      /* storage unavailable — selection stays session-local */
+    }
+  };
   const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
   const [historyWithdrawals, setHistoryWithdrawals] = useState<any[]>([]);
   const allWithdrawals = [
@@ -1011,7 +1051,7 @@ export const AdminDashboardView: React.FC = () => {
           return (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => selectTab(tab)}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
                 isActive 
                   ? 'bg-gray-900 text-white shadow-sm' 
@@ -1273,7 +1313,7 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => setActiveTab('subscriptions')}
+                  onClick={() => selectTab('subscriptions')}
                   className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap self-end sm:self-auto"
                 >
                   {isAr ? 'عرض الطلبات والمراجعة' : 'REVIEW NOW'}

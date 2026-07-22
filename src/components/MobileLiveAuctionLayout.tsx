@@ -476,7 +476,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   // confirm step + in-flight submitting guard. Same handler the details modal uses.
   const { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
 
-  // Was the staged amount bumped by a rival bid during the ≤5s confirm window?
+  // Was the staged amount bumped by a rival bid during the ≤10s confirm window?
   const [priceMoved, setPriceMoved] = useState(false);
 
   // Open a fresh confirm (resets any stale "price moved" flag).
@@ -997,9 +997,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   );
                 })()}
 
-                {/* One-time first-bid coach for active members who have never bid */}
+                {/* One-time first-bid coach for active members who have never bid.
+                    Hidden while a bid confirm is open so it can never overlap or
+                    intercept clicks meant for the confirm dialog. */}
                 <FirstBidCoach
-                  show={isActive && currentUser?.subscriptionStatus === 'active'}
+                  show={isActive && currentUser?.subscriptionStatus === 'active' && pendingBid == null}
                   isAr={isAr}
                 />
 

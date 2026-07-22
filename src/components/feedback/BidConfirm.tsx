@@ -20,12 +20,16 @@ type BidConfirmProps = {
   priceMoved?: boolean;
 };
 
-const AUTO_DISMISS_MS = 5000;
+const AUTO_DISMISS_MS = 10000;
+/** Countdown granularity for the pause-aware auto-dismiss timer. */
+const TICK_MS = 100;
 
 /**
  * Compact inline bid confirmation, anchored to the bid panel (not a modal).
  * Shows the bid amount + total incl. 5% premium, confirm/cancel Pressables,
- * and auto-dismisses after 5s of inaction. Ease-out motion only.
+ * and auto-dismisses after 10s of inaction. The countdown PAUSES while the
+ * pointer hovers the dialog (resumes where it left off on leave), so a user
+ * reading the copy never has it vanish under their cursor. Ease-out motion only.
  */
 export default function BidConfirm({
   amount,
@@ -39,15 +43,31 @@ export default function BidConfirm({
   const t = translations[isAr ? 'ar' : 'en'];
   const firedRef = React.useRef(false);
   React.useEffect(() => { firedRef.current = false; }, [amount]);
-  // Keep the latest onCancel in a ref so the 5s timer isn't reset by
+  // Keep the latest onCancel in a ref so the auto-dismiss timer isn't reset by
   // parent re-renders (live rooms re-render every second).
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
+  // Hover pause: while the pointer is over the dialog the countdown stops
+  // ticking (it is NOT reset). Held in a ref so re-renders don't restart the
+  // interval. The dialog remounts per amount (key={amount}), so a stale
+  // hovered=true from a departing element is cleared when the amount changes —
+  // the countdown can never wedge in a permanently-paused state.
+  const hoveredRef = useRef(false);
+
   useEffect(() => {
     if (amount == null) return;
-    const timer = setTimeout(() => onCancelRef.current(), AUTO_DISMISS_MS);
-    return () => clearTimeout(timer);
+    hoveredRef.current = false; // fresh confirm: never inherit a stale pause
+    let remaining = AUTO_DISMISS_MS;
+    const interval = setInterval(() => {
+      if (hoveredRef.current) return; // paused — hold remaining time as-is
+      remaining -= TICK_MS;
+      if (remaining <= 0) {
+        clearInterval(interval);
+        onCancelRef.current();
+      }
+    }, TICK_MS);
+    return () => clearInterval(interval);
   }, [amount]);
 
   return (
@@ -59,6 +79,8 @@ export default function BidConfirm({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 6, scale: 0.98 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
+          onMouseEnter={() => { hoveredRef.current = true; }}
+          onMouseLeave={() => { hoveredRef.current = false; }}
           className={
             className ??
             'absolute inset-0 z-40 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/15 shadow-2xl flex flex-col items-center justify-center gap-2 p-3'

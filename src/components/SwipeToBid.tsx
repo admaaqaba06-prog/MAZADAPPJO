@@ -4,13 +4,49 @@ import { Check, ChevronsRight } from 'lucide-react';
 interface SwipeToBidProps {
   amount: number;
   onSwipeSuccess: () => void;
+  /**
+   * Click/keyboard fallback: fired on a plain CLICK on the track (a gesture
+   * whose pointer never strayed past the tap threshold — never during a drag,
+   * including a drag returned to its origin) and on Enter/Space. Consumers
+   * wire this to their bid-CONFIRM flow (not a direct bid), so tapping is the
+   * accessible equivalent of the quick-bid tier buttons.
+   */
+  onTap?: () => void;
   disabled?: boolean;
   language?: 'en' | 'ar';
 }
 
+/** Peak pointer travel below this is a tap; at/above it is a drag. */
+export const TAP_MAX_TRAVEL_PX = 10;
+
+/**
+ * Tap-vs-drag tracking for one pointer gesture. Classification uses the MAX
+ * travel from the down point at any moment — not the net down→up distance —
+ * so a cancelled swipe (drag the handle out, drag back, release at the origin)
+ * is a drag, never a tap, even though it ends with ~0 net travel.
+ */
+export type TapGesture = { x: number; y: number; maxTravel: number };
+
+export const beginTapGesture = (x: number, y: number): TapGesture => ({
+  x,
+  y,
+  maxTravel: 0,
+});
+
+/** Fold a pointer position into the gesture's peak travel. */
+export const trackTapGesture = (g: TapGesture, x: number, y: number): void => {
+  const travel = Math.hypot(x - g.x, y - g.y);
+  if (travel > g.maxTravel) g.maxTravel = travel;
+};
+
+/** True only if the pointer NEVER strayed ≥ TAP_MAX_TRAVEL_PX during the gesture. */
+export const isTapGesture = (g: TapGesture): boolean =>
+  g.maxTravel < TAP_MAX_TRAVEL_PX;
+
 export const SwipeToBid: React.FC<SwipeToBidProps> = ({
   amount,
   onSwipeSuccess,
+  onTap,
   disabled = false,
   language = 'en',
 }) => {
@@ -33,8 +69,17 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
     }
   }, [containerRef.current, handleRef.current, amount]);
 
+  // Tap-vs-drag tracking for the click fallback (armed in onTrackPointerDown,
+  // resolved in onTrackPointerUp below).
+  const tapGestureRef = useRef<TapGesture | null>(null);
+
   const startDrag = (e: React.PointerEvent) => {
     if (disabled || isSwiped) return;
+    // Drop any stale tap tracking from a previous gesture (e.g. a pointerup
+    // the track never saw). This same pointerdown then bubbles to the track,
+    // which arms a FRESH tracker for this gesture — classified by max travel,
+    // so once the handle is dragged past the threshold it can never end as a tap.
+    tapGestureRef.current = null;
     setIsDragging(true);
     if (handleRef.current) {
       handleRef.current.setPointerCapture(e.pointerId);
@@ -83,10 +128,62 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
 
   const progressPercent = maxDrag > 0 ? (dragX / maxDrag) * 100 : 0;
 
+  // ── Click fallback (a11y + non-drag input) ────────────────────────────────
+  // A plain click anywhere on the track opens the confirm flow via onTap.
+  // Tap vs drag is decided by the MAX pointer travel during the gesture (see
+  // TapGesture): a drag that ever moved the pointer past the threshold — even
+  // one dragged back and released at its origin (a cancelled swipe) — can
+  // therefore NEVER also fire the tap. No double-fire with onSwipeSuccess, no
+  // spurious confirm after an intentionally aborted swipe.
+  //
+  // The handle's pointer events (incl. while pointer-captured during a drag)
+  // bubble to the track, so the tracker (tapGestureRef, declared above) observes
+  // the whole handle drag too.
+  const fireTap = () => {
+    if (disabled || isSwiped) return;
+    onTap?.();
+  };
+
+  const onTrackPointerDown = (e: React.PointerEvent) => {
+    tapGestureRef.current = beginTapGesture(e.clientX, e.clientY);
+  };
+
+  const onTrackPointerMove = (e: React.PointerEvent) => {
+    const g = tapGestureRef.current;
+    if (g) trackTapGesture(g, e.clientX, e.clientY);
+  };
+
+  const onTrackPointerUp = (e: React.PointerEvent) => {
+    const g = tapGestureRef.current;
+    tapGestureRef.current = null;
+    if (!g) return;
+    trackTapGesture(g, e.clientX, e.clientY);
+    if (isTapGesture(g)) fireTap();
+  };
+
+  const onTrackKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Space must not scroll the page
+      fireTap();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`w-full h-12 bg-gradient-to-r from-[#E85D04] to-[#F37021] rounded-full relative flex items-center p-1 overflow-hidden select-none touch-none shadow-md ${
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label={
+        isAr
+          ? `زايد ${amount.toLocaleString()} دينار — اسحب أو اضغط للتأكيد`
+          : `Bid ${amount.toLocaleString()} JOD — swipe or press to confirm`
+      }
+      onPointerDown={onTrackPointerDown}
+      onPointerMove={onTrackPointerMove}
+      onPointerUp={onTrackPointerUp}
+      onKeyDown={onTrackKeyDown}
+      className={`w-full h-12 bg-gradient-to-r from-[#E85D04] to-[#F37021] rounded-full relative flex items-center p-1 overflow-hidden select-none touch-none shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E85D04] ${
         disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
       }`}
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
