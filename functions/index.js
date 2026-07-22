@@ -26,6 +26,236 @@ async function postToN8n(event, payload) {
 }
 
 /**
+ * assertAdmin — shared admin gate for admin-only callables.
+ * Mirrors the inline check used across the existing admin callables
+ * (releaseOrderEscrow / refundOrderEscrow / approveWithdrawal etc.):
+ * users/{uid}.role === 'admin' || users/{uid}.isAdmin === true || root admin email.
+ * Throws HttpsError('permission-denied') otherwise; returns the caller uid.
+ */
+async function assertAdmin(context) {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const tokenEmail = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
+  if (tokenEmail === 'admaaqaba06@gmail.com') {
+    return context.auth.uid;
+  }
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerData = callerSnap.exists ? callerSnap.data() : {};
+  const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true;
+  if (!isCallerAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
+  }
+  return context.auth.uid;
+}
+
+// Delete a list of document refs in chunks (Firestore batches cap at 500 writes).
+async function deleteRefsInBatches(refs) {
+  let count = 0;
+  for (let i = 0; i < refs.length; i += 450) {
+    const chunk = refs.slice(i, i + 450);
+    const batch = db.batch();
+    chunk.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+    count += chunk.length;
+  }
+  return count;
+}
+
+/**
+ * settleAuctionTxn — the per-auction settlement, extracted verbatim from the
+ * body of scheduledAuctionCloser so the cron and simulateSettleNow run the
+ * EXACT same settle path: transactional status flip, order creation with
+ * buyer's premium + 24h payment deadline, winner wonCount increment, FCM,
+ * and post-commit auction_won / payment_due webhooks.
+ *
+ * `auctionData` is the caller's pre-transaction snapshot; like the original
+ * closer code it is only used for the vestigial escrow lookup, logging, and
+ * order display fields — winner/price/bids are re-derived from the FRESH
+ * in-transaction read, and the completed/ended + order-exists guards make
+ * this safe against double-settling.
+ *
+ * options.markOrderSimulated: when true, the created order carries
+ * isSimulated: true (threaded through by simulateSettleNow for test
+ * auctions). When false/absent the payload is byte-identical to before.
+ *
+ * Returns { settled, orderId }: settled=true when THIS call transitioned the
+ * auction (completed with order, or ended unsold); orderId set only on the
+ * completed-with-winner path.
+ */
+async function settleAuctionTxn(auctionRef, auctionData, options = {}) {
+  const markOrderSimulated = options.markOrderSimulated === true;
+  const auctionId = auctionRef.id;
+
+  // NOTE: these are computed from the caller's snapshot and may be STALE
+  // (a bid can land between that read and the transaction below). They are
+  // only used for the vestigial escrow lookup + logging; the settlement
+  // itself derives winner/price from the fresh in-txn read.
+  const sweepWinnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
+  const sweepFinalPrice = auctionData.currentPrice || auctionData.startingPrice;
+
+  console.log("Checking ended auction:", auctionId);
+  console.log("Winner (sweep snapshot):", sweepWinnerId);
+  console.log("Final price (sweep snapshot):", sweepFinalPrice);
+
+  let escrowId = null;
+  if (sweepWinnerId) {
+    console.log("Creating order:", auctionId);
+    try {
+      const escrowSnap = await db.collection('escrows')
+        .where('auctionId', '==', auctionId)
+        .where('bidderId', '==', sweepWinnerId)
+        .where('status', '==', 'locked')
+        .limit(1)
+        .get();
+      if (!escrowSnap.empty) {
+        escrowId = escrowSnap.docs[0].id;
+      }
+    } catch (escErr) {
+      console.warn(`[settleAuctionTxn] Escrow fetch failed for ${auctionId}:`, escErr);
+    }
+  }
+
+  // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
+  let notifyData = null;
+  let settled = false;
+  let settledOrderId = null;
+  await db.runTransaction(async (transaction) => {
+    notifyData = null; // reset each attempt — transactions retry on contention
+    settled = false;
+    settledOrderId = null;
+    const freshDoc = await transaction.get(auctionRef);
+    const freshData = freshDoc.data();
+
+    if (freshData.status === 'completed' || freshData.status === 'ended') {
+      return;
+    }
+
+    // Derive winner/price/bids from the FRESH in-txn snapshot. A bid
+    // landing between the sweep query and this transaction would make
+    // the sweep values settle the wrong bidder at the wrong price.
+    const winnerId = freshData.currentBidderId || freshData.highestBidderId || freshData.winnerId;
+    const winnerName = freshData.currentBidderName || freshData.highestBidderName || freshData.winnerName || 'Buyer';
+    const finalPrice = freshData.currentPrice || freshData.startingPrice;
+    const totalBids = freshData.totalBids || 0;
+
+    const orderRef = db.collection('orders').doc(auctionId);
+    const orderSnap = await transaction.get(orderRef);
+
+    // Firestore requires ALL reads before ANY writes. Read the winner doc
+    // HERE (before the settlement writes below). Previously this read ran
+    // AFTER the writes, throwing on every settlement so no auction ever
+    // completed and no order was ever created.
+    const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
+    const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
+
+    if (totalBids > 0 && winnerId) {
+      // Mark completed
+      transaction.update(auctionRef, {
+        status: 'completed',
+        settledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      settled = true;
+      settledOrderId = orderRef.id;
+
+      // Increment win count (winnerRef was read above, before any writes)
+      transaction.set(winnerRef, {
+        wonCount: admin.firestore.FieldValue.increment(1)
+      }, { merge: true });
+
+      // Create Order System (Phase 1)
+      if (!orderSnap.exists) {
+        const orderPayload = {
+          id: auctionId,
+          auctionId: auctionId,
+          auctionTitle: auctionData.title || '',
+          auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
+          sellerId: auctionData.sellerId || '',
+          sellerName: auctionData.sellerName || 'Seller',
+          buyerId: winnerId,
+          buyerName: winnerName,
+          winningBidAmount: finalPrice,
+          buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
+          totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+          paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
+          status: "waiting_payment",
+          paymentStatus: "unpaid",
+          shippingStatus: "not_started",
+          escrowStatus: "locked",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (escrowId) {
+          orderPayload.escrowId = escrowId;
+        }
+
+        if (markOrderSimulated) {
+          orderPayload.isSimulated = true;
+        }
+
+        transaction.set(orderRef, orderPayload);
+        console.log(`[settleAuctionTxn] Created order for auction ${auctionId}`);
+      } else {
+        console.log(`[settleAuctionTxn] Order for auction ${auctionId} already exists, skipping creation.`);
+      }
+
+      console.log(`[settleAuctionTxn] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
+
+      // Notify winner via FCM (winnerSnap was read above, before writes)
+      // (notify) capture for post-commit webhook
+      notifyData = {
+        phone: (winnerSnap && winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
+        winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+      };
+      if (winnerSnap && winnerSnap.exists && winnerSnap.data().fcmToken) {
+        const token = winnerSnap.data().fcmToken;
+        await admin.messaging().send({
+          token: token,
+          notification: {
+            title: 'تهانينا! لقد فزت بالمزاد 🎉',
+            body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
+          }
+        }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
+      }
+    } else {
+      // Close without bidder
+      transaction.update(auctionRef, {
+        status: 'ended',
+        settledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      settled = true;
+      console.log(`[settleAuctionTxn] Closed unsold auction ${auctionId}`);
+    }
+  });
+
+  // (notify) post-commit: fire ONLY when this run actually settled a winner.
+  // Outside the transaction so retries never double-send; postToN8n never throws.
+  if (notifyData) {
+    await postToN8n('auction_won', {
+      phone: notifyData.phone, name: notifyData.winnerName,
+      auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+      amount: notifyData.finalPrice,
+      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
+      idempotencyKey: `${notifyData.auctionId}_auction_won`,
+    });
+    await postToN8n('payment_due', {
+      phone: notifyData.phone, name: notifyData.winnerName,
+      auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
+      amount: notifyData.finalPrice,
+      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
+      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      paymentHours: 24,
+      idempotencyKey: `${notifyData.auctionId}_payment_due`,
+    });
+  }
+
+  return { settled, orderId: settledOrderId };
+}
+
+/**
  * 1. scheduledAuctionCloser (BUG #2 & BUG #6 Compliance)
  * Runs every minute to sweep, settle & close expired auctions with transactional consistency.
  * Prevents client-reliant closing so that auctions always conclude on server-set time.
@@ -91,159 +321,8 @@ exports.scheduledAuctionCloser = functions.pubsub
 
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
-          // NOTE: these are computed from the sweep-query snapshot and may be
-          // STALE (a bid can land between the sweep and the transaction below).
-          // They are only used for the vestigial escrow lookup + logging; the
-          // settlement itself derives winner/price from the fresh in-txn read.
-          const sweepWinnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId;
-          const sweepFinalPrice = auctionData.currentPrice || auctionData.startingPrice;
-
-          console.log("Checking ended auction:", auctionId);
-          console.log("Winner (sweep snapshot):", sweepWinnerId);
-          console.log("Final price (sweep snapshot):", sweepFinalPrice);
-
-          let escrowId = null;
-          if (sweepWinnerId) {
-            console.log("Creating order:", auctionId);
-            try {
-              const escrowSnap = await db.collection('escrows')
-                .where('auctionId', '==', auctionId)
-                .where('bidderId', '==', sweepWinnerId)
-                .where('status', '==', 'locked')
-                .limit(1)
-                .get();
-              if (!escrowSnap.empty) {
-                escrowId = escrowSnap.docs[0].id;
-              }
-            } catch (escErr) {
-              console.warn(`[scheduledAuctionCloser] Escrow fetch failed for ${auctionId}:`, escErr);
-            }
-          }
-
-          // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
-          let notifyData = null;
-          await db.runTransaction(async (transaction) => {
-            notifyData = null; // reset each attempt — transactions retry on contention
-            const freshDoc = await transaction.get(auctionDoc.ref);
-            const freshData = freshDoc.data();
-
-            if (freshData.status === 'completed' || freshData.status === 'ended') {
-              return;
-            }
-
-            // Derive winner/price/bids from the FRESH in-txn snapshot. A bid
-            // landing between the sweep query and this transaction would make
-            // the sweep values settle the wrong bidder at the wrong price.
-            const winnerId = freshData.currentBidderId || freshData.highestBidderId || freshData.winnerId;
-            const winnerName = freshData.currentBidderName || freshData.highestBidderName || freshData.winnerName || 'Buyer';
-            const finalPrice = freshData.currentPrice || freshData.startingPrice;
-            const totalBids = freshData.totalBids || 0;
-
-            const orderRef = db.collection('orders').doc(auctionId);
-            const orderSnap = await transaction.get(orderRef);
-
-            // Firestore requires ALL reads before ANY writes. Read the winner doc
-            // HERE (before the settlement writes below). Previously this read ran
-            // AFTER the writes, throwing on every settlement so no auction ever
-            // completed and no order was ever created.
-            const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
-            const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
-
-            if (totalBids > 0 && winnerId) {
-              // Mark completed
-              transaction.update(auctionDoc.ref, {
-                status: 'completed',
-                settledAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              // Increment win count (winnerRef was read above, before any writes)
-              transaction.set(winnerRef, {
-                wonCount: admin.firestore.FieldValue.increment(1)
-              }, { merge: true });
-
-              // Create Order System (Phase 1)
-              if (!orderSnap.exists) {
-                const orderPayload = {
-                  id: auctionId,
-                  auctionId: auctionId,
-                  auctionTitle: auctionData.title || '',
-                  auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
-                  sellerId: auctionData.sellerId || '',
-                  sellerName: auctionData.sellerName || 'Seller',
-                  buyerId: winnerId,
-                  buyerName: winnerName,
-                  winningBidAmount: finalPrice,
-                  buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-                  totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-                  paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
-                  status: "waiting_payment",
-                  paymentStatus: "unpaid",
-                  shippingStatus: "not_started",
-                  escrowStatus: "locked",
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-
-                if (escrowId) {
-                  orderPayload.escrowId = escrowId;
-                }
-
-                transaction.set(orderRef, orderPayload);
-                console.log(`[scheduledAuctionCloser] Created order for auction ${auctionId}`);
-              } else {
-                console.log(`[scheduledAuctionCloser] Order for auction ${auctionId} already exists, skipping creation.`);
-              }
-
-              console.log(`[scheduledAuctionCloser] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
-
-              // Notify winner via FCM (winnerSnap was read above, before writes)
-              // (notify) capture for post-commit webhook
-              notifyData = {
-                phone: (winnerSnap && winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
-                winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
-              };
-              if (winnerSnap && winnerSnap.exists && winnerSnap.data().fcmToken) {
-                const token = winnerSnap.data().fcmToken;
-                await admin.messaging().send({
-                  token: token,
-                  notification: {
-                    title: 'تهانينا! لقد فزت بالمزاد 🎉',
-                    body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
-                  }
-                }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
-              }
-            } else {
-              // Close without bidder
-              transaction.update(auctionDoc.ref, {
-                status: 'ended',
-                settledAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-              console.log(`[scheduledAuctionCloser] Closed unsold auction ${auctionId}`);
-            }
-          });
-
-          // (notify) post-commit: fire ONLY when this run actually settled a winner.
-          // Outside the transaction so retries never double-send; postToN8n never throws.
-          if (notifyData) {
-            await postToN8n('auction_won', {
-              phone: notifyData.phone, name: notifyData.winnerName,
-              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
-              amount: notifyData.finalPrice,
-              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-              paymentHours: 24,
-              idempotencyKey: `${notifyData.auctionId}_auction_won`,
-            });
-            await postToN8n('payment_due', {
-              phone: notifyData.phone, name: notifyData.winnerName,
-              auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
-              amount: notifyData.finalPrice,
-              buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-              totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-              paymentHours: 24,
-              idempotencyKey: `${notifyData.auctionId}_payment_due`,
-            });
-          }
+          // Full settle logic lives in settleAuctionTxn (shared with simulateSettleNow).
+          await settleAuctionTxn(auctionDoc.ref, auctionData);
         }
       });
 
@@ -561,6 +640,79 @@ exports.onOrderStatusChanged = functions.firestore
   });
 
 /**
+ * Shared bid helpers — extracted from placeBid so simulateBid applies the
+ * EXACT same end-time resolution, min-next-bid pricing, and anti-snipe rules.
+ */
+
+// Resolve an auction's end time to epoch ms, prioritizing endsAt Timestamp
+// over the legacy endTime field (extracted from placeBid).
+function resolveAuctionEndMs(auctionData) {
+  let endTime = auctionData.endsAt || auctionData.endTime;
+  if (typeof endTime === 'object' && endTime.seconds) {
+    endTime = endTime.seconds * 1000;
+  } else if (typeof endTime === 'string') {
+    endTime = Date.parse(endTime);
+  }
+  return endTime;
+}
+
+// Min-next-bid rule (extracted from placeBid): the FIRST bid may equal the
+// asking price; every later bid must clear currentPrice + minIncrement.
+// All math in integer fils to avoid float loss.
+function bidPricing(auctionData) {
+  const currentPriceFils = Math.round((auctionData.currentPrice || auctionData.startingPrice || 0) * 1000);
+  const minIncrementFils = Math.round((auctionData.minIncrement || 10) * 1000);
+  const totalBids = auctionData.totalBids || 0;
+  const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
+  return { currentPriceFils, minIncrementFils, totalBids, minRequiredFils };
+}
+
+// Buffered transaction writes for ONE accepted bid (extracted from placeBid):
+// bid doc under auctions/{id}/bids + auction pricing fields + anti-snipe
+// extension (+15s when 0 < timeRemaining < 10s). Caller has already validated
+// auction state and bid amount. bid.isSimulated adds the flag to the bid doc
+// ONLY when true — real bids keep the exact same shape as before.
+function applyBidWrites(transaction, auctionRef, auctionData, bid) {
+  const totalBids = auctionData.totalBids || 0;
+
+  const bidRef = auctionRef.collection('bids').doc();
+  const bidDoc = {
+    id: bidRef.id,
+    auctionId: auctionRef.id,
+    amount: bid.amountJod,
+    amountFils: bid.amountFils,
+    bidderId: bid.bidderId,
+    bidderName: bid.bidderName,
+    bidderAvatar: bid.bidderAvatar || '',
+    timestamp: Date.now()
+  };
+  if (bid.isSimulated) {
+    bidDoc.isSimulated = true;
+  }
+  transaction.set(bidRef, bidDoc);
+
+  // Anti-sniping and pricing
+  let finalEndTime = bid.endTimeMs || Date.now();
+  const timeRemaining = finalEndTime - Date.now();
+  if (timeRemaining > 0 && timeRemaining < 10000) {
+    finalEndTime += 15000;
+  }
+
+  transaction.update(auctionRef, {
+    currentPrice: bid.amountJod,
+    currentPriceFils: bid.amountFils,
+    currentBidderId: bid.bidderId,
+    currentBidderName: bid.bidderName,
+    totalBids: totalBids + 1,
+    endTime: finalEndTime,
+    endsAt: admin.firestore.Timestamp.fromMillis(finalEndTime),
+    previousBidderId: auctionData.currentBidderId || null
+  });
+
+  return { finalEndTime, bidId: bidRef.id };
+}
+
+/**
  * 3. placeBid Callable Cloud Function
  * Handles the high-frequency and critical bidding business rules transactionally in a single Firestore runTransaction block.
  * Ensures subscription checking, blocking, pricing thresholds, sniper extensions, wallet deductively atomic locking,
@@ -617,67 +769,35 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
 
       // Idempotency: Prevent rapid double-click bid of the exact same amount on the same auction by same user
       const amountFils = Math.round(amount * 1000);
-      const currentPriceFils = Math.round((auctionData.currentPrice || auctionData.startingPrice || 0) * 1000);
+      const { currentPriceFils, minRequiredFils } = bidPricing(auctionData);
       if (auctionData.currentBidderId === userId && currentPriceFils === amountFils) {
         return { success: false, message: 'لقد قمت بتقديم هذا العرض بالفعل.' };
       }
 
       // Determine end time, prioritizing endsAt Timestamp over old endTime
-      let endTime = auctionData.endsAt || auctionData.endTime;
-      if (typeof endTime === 'object' && endTime.seconds) {
-        endTime = endTime.seconds * 1000;
-      } else if (typeof endTime === 'string') {
-        endTime = Date.parse(endTime);
-      }
+      const endTime = resolveAuctionEndMs(auctionData);
       if (endTime && endTime <= Date.now()) {
         return { success: false, message: 'This auction has already ended.' };
       }
 
-      const minIncrementFils = Math.round((auctionData.minIncrement || 10) * 1000);
-      const totalBids = auctionData.totalBids || 0;
-      const minRequiredFils = totalBids > 0 ? (currentPriceFils + minIncrementFils) : currentPriceFils;
-
       if (amountFils < minRequiredFils) {
         return { success: false, message: `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.` };
       }
-
-      // Track the previous highest bidder for the auction update below
-      const outbidUserId = auctionData.currentBidderId;
 
       // 5. Update user profile with rate limit timestamp
       transaction.update(userRef, {
         lastBidAt: now
       });
 
-      // 7. Write new bid document
-      const bidRef = db.collection('auctions').doc(auctionId).collection('bids').doc();
-      transaction.set(bidRef, {
-        id: bidRef.id,
-        auctionId,
-        amount: amount, 
-        amountFils: amountFils, 
+      // 7. + 10. Write new bid document and update the auction details
+      // (anti-sniping and pricing) via the shared helper.
+      const { finalEndTime } = applyBidWrites(transaction, auctionRef, auctionData, {
+        amountJod: amount,
+        amountFils: amountFils,
         bidderId: userId,
         bidderName: userData.name || 'User',
         bidderAvatar: userData.avatar || '',
-        timestamp: Date.now()
-      });
-
-      // 10. Update the auction details (anti-sniping and pricing)
-      let finalEndTime = endTime || Date.now();
-      const timeRemaining = finalEndTime - Date.now();
-      if (timeRemaining > 0 && timeRemaining < 10000) {
-        finalEndTime += 15000;
-      }
-
-      transaction.update(auctionRef, {
-        currentPrice: amount,
-        currentPriceFils: amountFils,
-        currentBidderId: userId,
-        currentBidderName: userData.name || 'User',
-        totalBids: totalBids + 1,
-        endTime: finalEndTime,
-        endsAt: admin.firestore.Timestamp.fromMillis(finalEndTime),
-        previousBidderId: outbidUserId || null
+        endTimeMs: endTime
       });
 
       // 11. Create a beautiful system Chat bid indicator
