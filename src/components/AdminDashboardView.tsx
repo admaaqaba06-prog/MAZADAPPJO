@@ -36,6 +36,10 @@ import {
   RotateCcw
 } from 'lucide-react';
 
+// Lazy: the simulator console (bots, spawn presets) is admin-only tooling —
+// keep it out of the main dashboard chunk.
+const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
+
 /**
  * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
  * .toDate()), an ISO string, or an epoch-ms number. Server-created requests
@@ -374,7 +378,7 @@ export const AdminDashboardView: React.FC = () => {
     return `data:image/png;base64,${clean}`;
   };
 
-  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'sessions' | 'health' | 'withdrawals'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'payments' | 'listings' | 'users' | 'subscriptions' | 'sessions' | 'health' | 'withdrawals' | 'simulator'>('metrics');
   const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
   const [historyWithdrawals, setHistoryWithdrawals] = useState<any[]>([]);
   const allWithdrawals = [
@@ -984,10 +988,10 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health'] as const).map((tab) => {
-          const tabLabel = isAr 
-            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : 'الصحة والتشغيل')
-            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : 'HEALTH & OPS');
+        {(['metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
+          const tabLabel = isAr
+            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
+            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
           
           const isActive = activeTab === tab;
           const hasPendingRequests = 
@@ -2844,6 +2848,21 @@ export const AdminDashboardView: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ==========================================
+            TAB: SIMULATOR (admin-only engine test console)
+            ========================================== */}
+        {activeTab === 'simulator' && isAdminUser(currentUser) && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+                Loading simulator…
+              </div>
+            }
+          >
+            <SimulatorPanel />
+          </React.Suspense>
         )}
 
       </div>
