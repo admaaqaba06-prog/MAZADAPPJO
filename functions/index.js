@@ -2906,6 +2906,8 @@ exports.simulateSpawnAuction = functions.runWith({ cors: true }).https.onCall(as
   }
 });
 
+// Intentionally skips placeBid's 1.5s rate limit + membership checks: sim-bot
+// has no user doc, and the client bot paces bids at 4-12s anyway.
 exports.simulateBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   await assertAdmin(context);
   const { auctionId, bidderLabel } = data || {};
@@ -2923,6 +2925,12 @@ exports.simulateBid = functions.runWith({ cors: true }).https.onCall(async (data
         return { noop: true, reason: 'not_found' };
       }
       const auctionData = auctionSnap.data();
+      // Never bid on a REAL auction: sim-bot would take currentBidderId,
+      // onBidCreated would fire real outbid notifications, anti-snipe would
+      // extend a live drop, and a sim-bot win would create a real order.
+      if (auctionData.isSimulated !== true) {
+        return { noop: true, reason: 'not_simulated' };
+      }
       if (auctionData.status !== 'live' && auctionData.status !== 'active') {
         return { noop: true, reason: 'not_live' };
       }
@@ -3019,7 +3027,7 @@ exports.simulateCleanup = functions.runWith({ cors: true }).https.onCall(async (
       const straySnap = await db.collectionGroup('bids').where('isSimulated', '==', true).get();
       deleted.bids += await deleteRefsInBatches(straySnap.docs.map((b) => b.ref));
     } catch (cgErr) {
-      console.warn('[simulateCleanup] collection-group bids sweep skipped:', cgErr && cgErr.message);
+      console.warn('[simulateCleanup] stray-bid sweep skipped — create a Firestore collection-group index on bids.isSimulated for this sweep to work:', cgErr && cgErr.message);
     }
 
     // 4. Drop the sim-bot user doc so its settle-time wonCount increment
