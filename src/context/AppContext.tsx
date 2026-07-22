@@ -9,6 +9,8 @@ import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser } from '../utils/adminAuth';
+import { filterSimulated } from '../utils/simVisibility';
+import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
@@ -400,6 +402,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Real loading signal for the first auctions fetch — replaces the old
   // synthetic 550ms skeleton delay in the Discover feed.
   const [auctionsLoaded, setAuctionsLoaded] = useState(false);
+  // Wave 3 (simulator visibility): master toggle, read reactively so the
+  // filters below re-run the instant an admin flips it — no resubscribe needed.
+  const [simEnabled] = useSimulatorEnabled();
   const [bids, setBids] = useState<Bid[]>(() => {
     const saved = localStorage.getItem('mazad_bids');
     return saved ? JSON.parse(saved) : [];
@@ -4372,14 +4377,39 @@ const fetchIP = async () => {
 
   const visibleAuctions = useMemo(() => {
     const base = auctions.filter(a => !deletedAuctionIds.includes(a.id));
-    if (ownPendingAuctions.length === 0) return base;
     // Merge the seller's own pending lots, de-duped by id (the optimistic
     // insert on createListing can already have it in `auctions`), so the
     // seller's under-review lot renders exactly once.
-    const seen = new Set(base.map(a => a.id));
-    const extras = ownPendingAuctions.filter(a => !seen.has(a.id) && !deletedAuctionIds.includes(a.id));
-    return extras.length > 0 ? [...base, ...extras] : base;
-  }, [auctions, ownPendingAuctions, deletedAuctionIds]);
+    let merged = base;
+    if (ownPendingAuctions.length > 0) {
+      const seen = new Set(base.map(a => a.id));
+      const extras = ownPendingAuctions.filter(a => !seen.has(a.id) && !deletedAuctionIds.includes(a.id));
+      if (extras.length > 0) merged = [...base, ...extras];
+    }
+    // Wave 3 (simulator visibility) — THE choke point for every surface that
+    // consumes context `auctions` (Discovery grid/tabs, LiveStreamView,
+    // auctionPhase helpers, social-proof live counts, win detection…):
+    // simulated lots are dropped for everyone except an admin with the
+    // simulator toggle ON. Exception: ADMIN mode (Admin dashboard / Seller
+    // Center / Drop Builder subscription) for a real admin stays UNFILTERED —
+    // the approval queue and admin management lists must show everything
+    // regardless of the toggle (hiding is for buyer surfaces, not admin
+    // tooling; admin metric cards exclude isSimulated themselves). Non-admins
+    // in admin mode (sellers in Seller Center) still get the filter —
+    // real users must never see simulated data through ANY path.
+    if (auctionSubMode === 'admin' && isAdminUser(currentUser)) return merged;
+    return filterSimulated(merged, currentUser, simEnabled);
+  }, [auctions, ownPendingAuctions, deletedAuctionIds, auctionSubMode, currentUser, simEnabled]);
+
+  // Wave 3 (simulator visibility + metric hygiene): simulated orders are
+  // dropped at the source for everyone except an admin with the toggle ON —
+  // a real user must never see a simulated order in My Orders / wallet /
+  // review prompts, and the admin Orders tab only shows test orders while
+  // the simulator is actually on (flip it off → clean real book).
+  const visibleOrders = useMemo(
+    () => filterSimulated(orders, currentUser, simEnabled),
+    [orders, currentUser, simEnabled]
+  );
 
   return (
     <AppContext.Provider value={{
@@ -4392,7 +4422,7 @@ const fetchIP = async () => {
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,
-      orders, setOrders,
+      orders: visibleOrders, setOrders,
       chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,

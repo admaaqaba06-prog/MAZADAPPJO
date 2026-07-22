@@ -6,9 +6,10 @@ const adminByFlag = { id: 'a2', isAdmin: true } as const;
 const buyer = { id: 'u1', role: 'user' } as const;
 const seller = { id: 's1', role: 'seller', isSeller: true } as const;
 
-const simLot = { id: 'sim-1', isSimulated: true };
-const realLot = { id: 'real-1', isSimulated: false };
-const unflaggedLot = { id: 'real-2' }; // pre-simulator docs have no flag at all
+type Lot = { id: string; isSimulated?: boolean };
+const simLot: Lot = { id: 'sim-1', isSimulated: true };
+const realLot: Lot = { id: 'real-1', isSimulated: false };
+const unflaggedLot: Lot = { id: 'real-2' }; // pre-simulator docs have no flag at all
 
 describe('canSeeSimulated', () => {
   it('is true ONLY for an admin with the simulator toggle ON', () => {
