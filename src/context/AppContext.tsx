@@ -381,6 +381,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sliding window rate limiters for fraud prevention
   const lastBidTimestampRef = useRef<number>(0);
   const bidTimestampsRef = useRef<number[]>([]);
+  // Live mirror of the auctions array for stable callbacks (placeBid) that
+  // must read CURRENT auction flags (isSimulated) without taking `auctions`
+  // as a dep — which would re-memoize on every snapshot. Synced below.
+  const auctionsStateRef = useRef<AuctionItem[]>([]);
   
   // Single Session check tracking refs
   const sessionCheckInProgressRef = useRef<boolean>(false);
@@ -405,6 +409,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Wave 3 (simulator visibility): master toggle, read reactively so the
   // filters below re-run the instant an admin flips it — no resubscribe needed.
   const [simEnabled] = useSimulatorEnabled();
+  useEffect(() => {
+    auctionsStateRef.current = auctions;
+  }, [auctions]);
   const [bids, setBids] = useState<Bid[]>(() => {
     const saved = localStorage.getItem('mazad_bids');
     return saved ? JSON.parse(saved) : [];
@@ -2881,18 +2888,25 @@ const fetchIP = async () => {
         lastBidTimestampRef.current = Date.now();
         bidTimestampsRef.current = [...updatedWindow, Date.now()];
 
-        // Record analytical conversion metrics — fire-and-forget (service handles its own errors)
-        logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
-          auctionId,
-          amount
-        });
-        if (!isFirstBidDone()) {
-          logAnalyticsEvent('first_bid', currentUser.id, currentUser.email, {
+        // Record analytical conversion metrics — fire-and-forget (service
+        // handles its own errors). Wave 3 metric hygiene: an admin bidding on
+        // a SIMULATED lot must not write funnel events (analytics_events has
+        // no isSimulated flag, so hygiene here is skip-at-write, not
+        // filter-at-read).
+        const isSimTarget = auctionsStateRef.current.find(a => a.id === auctionId)?.isSimulated === true;
+        if (!isSimTarget) {
+          logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
             auctionId,
             amount
           });
-          markFirstBidDone(); // idempotent — layouts also call this after a successful bid
+          if (!isFirstBidDone()) {
+            logAnalyticsEvent('first_bid', currentUser.id, currentUser.email, {
+              auctionId,
+              amount
+            });
+          }
         }
+        markFirstBidDone(); // idempotent — layouts also call this after a successful bid
 
         addNotification(
           '🏆 Winning Bid Placed',

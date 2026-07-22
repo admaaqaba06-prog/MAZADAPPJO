@@ -19,6 +19,8 @@ type WinnableAuction = {
   status: string;
   currentBidderId: string | null;
   currentPrice: number;
+  /** Wave 3: simulator lots still celebrate, but never log funnel events. */
+  isSimulated?: boolean;
 };
 
 export type WinInfo = {
@@ -63,11 +65,15 @@ export function useWinDetection(
           auctionTitle: a.title,
           totalDue,
         });
-        // Funnel metric — fire-and-forget (service handles its own errors)
-        logAnalyticsEvent('auction_won_seen', currentUserId, currentUserEmail ?? null, {
-          auctionId: a.id,
-          totalDue,
-        });
+        // Funnel metric — fire-and-forget (service handles its own errors).
+        // Wave 3 metric hygiene: an admin winning a SIMULATED lot still gets
+        // the celebration/pay-panel (that's the test), but no funnel event.
+        if (a.isSimulated !== true) {
+          logAnalyticsEvent('auction_won_seen', currentUserId, currentUserEmail ?? null, {
+            auctionId: a.id,
+            totalDue,
+          });
+        }
       }
       prevStatuses.current.set(a.id, a.status);
     }

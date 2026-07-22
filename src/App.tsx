@@ -2,6 +2,8 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { isAdminUser } from './utils/adminAuth';
+import { canSeeSimulated } from './utils/simVisibility';
+import { useSimulatorEnabled } from './hooks/useSimulatorEnabled';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -150,6 +152,27 @@ function ReviewPromptHost() {
   );
 }
 
+/**
+ * Wave 3: app-wide "simulator is ON" strip. Rendered ONLY while simulated
+ * data is actually visible (admin + master toggle ON — the same
+ * canSeeSimulated gate the AppContext source filter uses), so an admin can
+ * never mistake a feed with test lots for the real one. Real users never
+ * satisfy the gate, so they never see it. pointer-events-none: it must never
+ * block a tap, on any view. English-only — internal tool.
+ */
+function SimulatorOnBanner() {
+  const { currentUser } = useApp();
+  const [simEnabled] = useSimulatorEnabled();
+  if (!canSeeSimulated(currentUser, simEnabled)) return null;
+  return (
+    <div className="fixed bottom-0 inset-x-0 z-[200] pointer-events-none flex justify-center pb-2">
+      <div className="bg-violet-600/95 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg font-mono">
+        🧪 Simulator ON — test data visible
+      </div>
+    </div>
+  );
+}
+
 function MainAppShell() {
   const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
 
@@ -254,6 +277,9 @@ function MainAppShell() {
 
       {/* Onboarding Flow Overlay */}
       <OnboardingModal />
+
+      {/* Wave 3: admin-only "simulator is ON" strip across the whole app */}
+      <SimulatorOnBanner />
     </div>
   );
 }
