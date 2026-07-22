@@ -2822,6 +2822,216 @@ exports.rejectWithdrawal = functions.runWith({ cors: true }).https.onCall(async 
   }
 });
 
+/* =========================================================================
+ * AUCTION SIMULATOR — Wave 1 (server callables, admin-only)
+ *
+ * Test harness for exercising the real auction engine end-to-end:
+ *   simulateSpawnAuction — create a flagged (isSimulated) test auction
+ *   simulateBid          — apply one rival bid via the SAME pricing +
+ *                          anti-snipe rules as placeBid (shared helpers)
+ *   simulateSettleNow    — force-settle via the SAME settleAuctionTxn the
+ *                          closer cron uses (order + wonCount + webhooks)
+ *   simulateCleanup      — wipe everything flagged isSimulated
+ *
+ * Every doc the simulator creates carries isSimulated: true so real metrics
+ * can filter it out and cleanup can find it.
+ * ========================================================================= */
+
+const SIM_PLACEHOLDER_IMG = 'https://placehold.co/600x400/1a1a2e/f5b301?text=TEST+AUCTION';
+const SIM_BOT_ID = 'sim-bot';
+
+exports.simulateSpawnAuction = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const callerUid = await assertAdmin(context);
+  const d = data || {};
+
+  const category = (typeof d.category === 'string' && d.category.trim()) ? d.category.trim() : 'Electronics';
+  const title = (typeof d.title === 'string' && d.title.trim()) ? d.title.trim() : `TEST — ${category}`;
+  const startingPrice = (typeof d.startingPrice === 'number' && d.startingPrice > 0) ? d.startingPrice : 10;
+  const durationSec = (typeof d.durationSec === 'number' && d.durationSec > 0) ? Math.round(d.durationSec) : 120;
+  const channel = (typeof d.channel === 'string' && d.channel.trim()) ? d.channel.trim() : 'misc';
+  const status = d.status === 'upcoming' ? 'upcoming' : 'live';
+
+  try {
+    const auctionRef = db.collection('auctions').doc();
+    const doc = {
+      id: auctionRef.id,
+      isSimulated: true,
+      title,
+      description: 'Simulated auction (engine test) — removed by simulateCleanup.',
+      category,
+      channel,
+      status,
+      startingPrice,
+      currentPrice: startingPrice,
+      currentPriceFils: Math.round(startingPrice * 1000),
+      minIncrement: Math.max(5, Math.round(startingPrice * 0.05)),
+      totalBids: 0,
+      duration: durationSec, // scheduledAuctionOpener uses this when opening an upcoming drop
+      isApproved: true,
+      approvalStatus: 'approved',
+      ownershipAttested: true,
+      attestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdById: callerUid,
+      sellerId: callerUid,
+      sellerName: 'Simulator',
+      thumbnailUrl: SIM_PLACEHOLDER_IMG,
+      imageUrl: SIM_PLACEHOLDER_IMG,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (status === 'live') {
+      const endMs = Date.now() + durationSec * 1000;
+      doc.endTime = endMs;
+      doc.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
+      // Mirror the opener's go-live fields so the test auction is not counted
+      // as a pending approval and sorts correctly in LiveStreamView.
+      doc.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+      doc.approvedBy = 'simulateSpawnAuction';
+      doc.openedAt = admin.firestore.FieldValue.serverTimestamp();
+    } else {
+      // scheduledAuctionOpener flips it live once scheduledStartAt arrives,
+      // setting endTime = openedAt + duration (same as a real scheduled drop).
+      doc.scheduledStartAt = Date.now() + 60 * 1000;
+    }
+
+    await auctionRef.set(doc);
+    console.log(`[simulateSpawnAuction] Spawned ${status} test auction ${auctionRef.id} (${durationSec}s @ ${startingPrice} JOD) by ${callerUid}`);
+    return { auctionId: auctionRef.id };
+  } catch (error) {
+    console.error('[simulateSpawnAuction]', error);
+    throw new functions.https.HttpsError('internal', error.message || 'simulateSpawnAuction failed.');
+  }
+});
+
+exports.simulateBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { auctionId, bidderLabel } = data || {};
+  if (!auctionId || typeof auctionId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'auctionId is required.');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const auctionSnap = await transaction.get(auctionRef);
+      // Soft no-ops (never throw): the client bid bot loops until the
+      // auction ends, so a missing/ended auction just stops the loop.
+      if (!auctionSnap.exists) {
+        return { noop: true, reason: 'not_found' };
+      }
+      const auctionData = auctionSnap.data();
+      if (auctionData.status !== 'live' && auctionData.status !== 'active') {
+        return { noop: true, reason: 'not_live' };
+      }
+      const endTimeMs = resolveAuctionEndMs(auctionData);
+      if (endTimeMs && endTimeMs <= Date.now()) {
+        return { noop: true, reason: 'ended' };
+      }
+
+      // Next valid bid per placeBid's rule (first bid = asking price,
+      // afterwards currentPrice + minIncrement), then the shared write path
+      // (bid doc + pricing fields + anti-snipe +15s under 10s).
+      const { minRequiredFils } = bidPricing(auctionData);
+      const { finalEndTime } = applyBidWrites(transaction, auctionRef, auctionData, {
+        amountJod: minRequiredFils / 1000,
+        amountFils: minRequiredFils,
+        bidderId: SIM_BOT_ID,
+        bidderName: (typeof bidderLabel === 'string' && bidderLabel.trim()) ? bidderLabel.trim() : 'Test Bidder',
+        endTimeMs: endTimeMs,
+        isSimulated: true
+      });
+
+      return { currentPrice: minRequiredFils / 1000, endTime: finalEndTime };
+    });
+  } catch (error) {
+    console.error('[simulateBid]', error);
+    throw new functions.https.HttpsError('internal', error.message || 'simulateBid failed.');
+  }
+});
+
+exports.simulateSettleNow = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { auctionId } = data || {};
+  if (!auctionId || typeof auctionId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'auctionId is required.');
+  }
+
+  try {
+    const auctionRef = db.collection('auctions').doc(auctionId);
+    const auctionSnap = await auctionRef.get();
+    if (!auctionSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Auction not found.');
+    }
+    const auctionData = auctionSnap.data();
+
+    // Mirror the closer's gate: it only settles live/active auctions. This
+    // also short-circuits already-settled (completed/ended) auctions, and
+    // settleAuctionTxn's fresh in-txn status + order-exists guards make the
+    // settle race-safe against the cron (no double order, no double webhook).
+    if (auctionData.status !== 'live' && auctionData.status !== 'active') {
+      return { settled: false, reason: `status_${auctionData.status || 'unknown'}` };
+    }
+
+    // Same settle path as scheduledAuctionCloser. The order is flagged
+    // isSimulated only when the auction itself is simulated — force-settling
+    // a REAL auction must still produce a real (metric-visible) order.
+    const result = await settleAuctionTxn(auctionRef, auctionData, {
+      markOrderSimulated: auctionData.isSimulated === true
+    });
+
+    const response = { settled: result.settled };
+    if (result.orderId) {
+      response.orderId = result.orderId;
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('[simulateSettleNow]', error);
+    throw new functions.https.HttpsError('internal', error.message || 'simulateSettleNow failed.');
+  }
+});
+
+exports.simulateCleanup = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const deleted = { auctions: 0, bids: 0, orders: 0 };
+
+  try {
+    // 1. Simulated auctions — delete each auction's bids subcollection FIRST
+    //    (bids live under auctions/{id}/bids; deleting the parent doc alone
+    //    would orphan them). Everything under a simulated auction is test data.
+    const auctionsSnap = await db.collection('auctions').where('isSimulated', '==', true).get();
+    for (const auctionDoc of auctionsSnap.docs) {
+      const bidsSnap = await auctionDoc.ref.collection('bids').get();
+      deleted.bids += await deleteRefsInBatches(bidsSnap.docs.map((b) => b.ref));
+    }
+    deleted.auctions += await deleteRefsInBatches(auctionsSnap.docs.map((a) => a.ref));
+
+    // 2. Simulated orders (created by simulateSettleNow via settleAuctionTxn).
+    const ordersSnap = await db.collection('orders').where('isSimulated', '==', true).get();
+    deleted.orders += await deleteRefsInBatches(ordersSnap.docs.map((o) => o.ref));
+
+    // 3. Best-effort: stray simulated bids under NON-simulated auctions
+    //    (simulateBid pointed at a real auction). Requires a collection-group
+    //    index on bids.isSimulated — if it doesn't exist, log and move on.
+    try {
+      const straySnap = await db.collectionGroup('bids').where('isSimulated', '==', true).get();
+      deleted.bids += await deleteRefsInBatches(straySnap.docs.map((b) => b.ref));
+    } catch (cgErr) {
+      console.warn('[simulateCleanup] collection-group bids sweep skipped:', cgErr && cgErr.message);
+    }
+
+    // 4. Drop the sim-bot user doc so its settle-time wonCount increment
+    //    never leaks into real user metrics. No-op if it doesn't exist.
+    await db.collection('users').doc(SIM_BOT_ID).delete().catch(() => {});
+
+    console.log('[simulateCleanup] deleted:', JSON.stringify(deleted));
+    return { deleted };
+  } catch (error) {
+    console.error('[simulateCleanup]', error);
+    throw new functions.https.HttpsError('internal', error.message || 'simulateCleanup failed.');
+  }
+});
+
 
 
 
