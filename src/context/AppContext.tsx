@@ -1553,25 +1553,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // no other screen depending on this being populated. Previously this
   // subscription stayed open on every view, pinned to a default auction.
   //
-  // Also drops the `limit(100)` cap: it was combined with a Firestore
-  // `where('auctionId','==',...)` filter and NO `orderBy`, so once a room
-  // passed 100 messages the 100 returned were an arbitrary (non-chronological)
-  // subset — new messages could silently stop arriving. Fixing that properly
-  // with `orderBy('timestamp','asc').limit(100)` needs a NEW composite index
-  // on (auctionId, timestamp), which requires an out-of-band `firebase
-  // deploy --only firestore:indexes` and would hard-fail this listener for
-  // every room until that index finishes building — a server-side change,
-  // out of scope for this client-only pass. Removing the cap instead keeps
-  // the existing index-free where-only query (client-sorted, as before) and
-  // is now scoped to a single room, open only while the user is actually in
-  // it, so the unbounded read is bounded in practice by that.
+  // NOTE (corrected): an earlier version of this fix removed the `limit(100)`
+  // cap and argued the read was "bounded in practice" because only one
+  // room's listener is open at a time. That conflates listener COUNT (always
+  // 1, thanks to the activeView gate) with per-listener DOC count — a single
+  // listener on a busy room with zero limit still reads every message in
+  // that room's entire history on every snapshot, which is an unbounded and
+  // growing read cost, not a bounded one. The actual fix is a server-side
+  // `orderBy('timestamp','desc').limit(100)`, backed by the (auctionId,
+  // timestamp) composite index in firestore.indexes.json — newest 100 only,
+  // then reversed below to the ascending order the UI expects.
   useEffect(() => {
     if (!isAuthenticated || !isDeferredReady || activeView !== 'live') {
       return;
     }
     const targetAuctionId = activeAuctionId || 'auction-rolex';
     const chatsRefCol = collection(db, 'chats');
-    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId));
+    const q = query(
+      chatsRefCol,
+      where('auctionId', '==', targetAuctionId),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
@@ -1581,8 +1584,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...docSnap.data()
           } as ChatMessage);
         });
-        // Sort in-memory to prevent requiring compound indexes
-        fetchedChats.sort((a, b) => a.timestamp - b.timestamp);
+        // Query returns newest-first (desc); LiveStreamView/ReelsDesktopRightPanel
+        // render chatMessages oldest→newest (they treat the last array element
+        // as "latest"), so reverse to ascending order before publishing.
+        fetchedChats.reverse();
         setChatMessages(fetchedChats);
       } else {
         setChatMessages([]);
