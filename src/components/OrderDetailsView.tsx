@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { db } from '../services/firebase';
 import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
@@ -56,6 +56,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [isUpdating, setIsUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedIban, setCopiedIban] = useState(false);
+  const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>('');
@@ -221,6 +222,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     navigator.clipboard.writeText(CLIQ_IBAN);
     setCopiedIban(true);
     setTimeout(() => setCopiedIban(false), 2000);
+  };
+
+  const handleCopyAlias = () => {
+    navigator.clipboard.writeText(CLIQ_ALIAS);
+    setCopiedAlias(true);
+    setTimeout(() => setCopiedAlias(false), 2000);
   };
 
   // Copy the exact amount to the fil (3 dp) so the buyer transfers a value that
@@ -1048,6 +1055,25 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <div className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5">
                           <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
                           <span>{isAr ? 'حوّل عبر كليك (CliQ) إلى:' : 'Transfer via CliQ to:'}</span>
+                        </div>
+                        {/* CliQ alias — PRIMARY transfer target (IBAN below stays as fallback) */}
+                        <div className="border-b border-orange-100 pb-1.5 space-y-0.5">
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="font-bold text-gray-500">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono font-black text-gray-900 select-all">{CLIQ_ALIAS}</span>
+                              <button
+                                type="button"
+                                onClick={handleCopyAlias}
+                                className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                              >
+                                {copiedAlias ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[9.5px] text-gray-500 font-bold">
+                            {isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias'}
+                          </p>
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
                           <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
