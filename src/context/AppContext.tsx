@@ -15,9 +15,21 @@ import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
+import { computeServerOffset, setServerOffset } from '../utils/serverTime';
+import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
+import { isExpectedBidFailure } from '../utils/bidErrors';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
+
+// Negative cache for the seller-profile prefetch (PF1). Holds sellerIds whose
+// fetch came back a GENUINE miss (no profile doc existed at read time) so a
+// profile-less seller — including the `seller-system` sentinel — is never
+// re-fetched on every auctions snapshot. Module-level so it survives re-renders
+// and never becomes an effect dependency. Tradeoff: a profile created AFTER a
+// cached miss won't be re-prefetched here, but the authoritative sellerProfiles
+// listener still delivers it — the cache only suppresses the redundant prefetch.
+const attemptedSellerIds = new Set<string>();
 
 const getFallbackVideoUrl = (category?: string): string => {
   const cat = (category || '').toLowerCase();
@@ -1340,6 +1352,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // (pendingListingDrops) filters this context state — without the
   // subscription the queue is always empty and the reject-with-reason
   // gate UI never renders.
+  // CORR1: derive the client↔server clock offset once (early) and re-sync on
+  // reconnect / tab-foreground, so every serverNow() consumer — countdowns,
+  // finish checks, and the LiveStreamView bid gate — reads a latency-compensated
+  // server clock instead of a possibly-skewed device clock. SAFETY: on any
+  // failure the offset stays at its prior value (0 by default → identical to raw
+  // Date.now()), and computeServerOffset rejects non-finite/absurd samples, so a
+  // failed or noisy probe can never make a live lot show "ended" early or block a
+  // legitimate final bid. The client gate is advisory anyway — placeBid re-checks
+  // endTime with the real server clock inside its transaction.
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const sentAtMs = Date.now();
+        const getServerTime = await getCallableFunction<Record<string, never>, { now: number }>('getServerTime');
+        const res = await getServerTime({});
+        const receivedAtMs = Date.now();
+        if (cancelled) return;
+        const offset = computeServerOffset({
+          serverEpochMs: res.data?.now ?? NaN,
+          sentAtMs,
+          receivedAtMs,
+        });
+        if (offset !== null) setServerOffset(offset);
+      } catch {
+        // Probe failed (offline, or callable not yet deployed) — keep the prior
+        // offset. Never poison the clock on a failed fetch.
+      }
+    };
+    sync();
+    const onOnline = () => { void sync(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void sync(); };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   const auctionSubMode: 'buyer' | 'admin' | 'none' =
     activeView === 'discovery' || activeView === 'live'
       ? 'buyer'
@@ -1370,9 +1423,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // approved, active lots. 'processing' is deliberately excluded here —
       // a seller's own under-review listing is surfaced separately via the
       // targeted own-pending subscription below (never leaked to buyers).
+      // PF10: order newest-first BEFORE the cap so a fresh drop always lands
+      // inside the 80-lot window instead of being stranded outside an arbitrary
+      // (unordered) slice. Backed by the existing composite index
+      // (auctions: status ASC, createdAt DESC) in firestore.indexes.json — the
+      // admin query above relies on the same ordering, so this is established-safe.
       q = query(
         auctionsRefCol,
         where('status', 'in', ['live', 'upcoming']),
+        orderBy('createdAt', 'desc'),
         limit(80)
       );
     }
@@ -1760,18 +1819,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [...candidates].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt))[0];
   }, [orders, myReviews, myReviewsLoaded, currentUser?.id]);
 
-  // Automated pre-fetching of seller profiles of all active/upcoming auctions
+  // Distinct, non-sentinel seller ids across the current auctions. Memoized on
+  // a stable STRING key so the prefetch effect below runs when the SET of
+  // sellers changes — not on every auctions-snapshot object churn (PF1).
+  const distinctAuctionSellerIds = useMemo(
+    () => distinctSellerIds(auctions.map(a => a.sellerId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auctions.map(a => a.sellerId).join('|')]
+  );
+
+  // Latest sellerProfiles read via a ref so the prefetch effect can check
+  // "already loaded?" without taking sellerProfiles as a dependency (which would
+  // re-fire it on every profile merge).
+  const sellerProfilesRef = useRef(sellerProfiles);
+  sellerProfilesRef.current = sellerProfiles;
+
+  // Automated pre-fetching of seller profiles for all active/upcoming auctions.
+  // PF1: a module-level negative cache (attemptedSellerIds) records GENUINE
+  // misses so a profile-less seller is never re-fetched, collapsing what used to
+  // be an unbounded read loop firing on every bid/snapshot into a single pass
+  // per newly-seen seller.
   useEffect(() => {
-    if (auctions.length === 0) return;
-    
-    // Get unique seller IDs from current auctions
-    const sellerIds = Array.from(new Set(auctions.map(a => a.sellerId).filter(Boolean)));
-    
-    // Find which ones we don't have yet
-    const missingIds = sellerIds.filter(id => !sellerProfiles.some(p => p.userId === id || p.id === id));
-    
+    if (distinctAuctionSellerIds.length === 0) return;
+
+    const hasProfile = (id: string) =>
+      sellerProfilesRef.current.some(p => p.userId === id || p.id === id);
+    const missingIds = nextMissingSellerIds(distinctAuctionSellerIds, attemptedSellerIds, hasProfile);
     if (missingIds.length === 0) return;
-    
+
     const fetchMissing = async () => {
       const fetched: SellerProfile[] = [];
       for (const id of missingIds) {
@@ -1781,12 +1856,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!snap.empty) {
             fetched.push({ id: snap.docs[0].id, ...snap.docs[0].data() } as SellerProfile);
           } else {
-            const docSnap = await getDoc(doc(db, 'sellerProfiles', id as string));
+            const docSnap = await getDoc(doc(db, 'sellerProfiles', id));
             if (docSnap.exists()) {
               fetched.push({ id: docSnap.id, ...docSnap.data() } as SellerProfile);
+            } else {
+              // Genuine miss: no profile doc existed at read time. Cache it so we
+              // never re-fetch. If this seller creates a profile LATER, the
+              // authoritative sellerProfiles listener still surfaces it — we only
+              // suppress the redundant prefetch, accepting eventual-consistency
+              // staleness for the prefetch path (documented tradeoff).
+              attemptedSellerIds.add(id);
             }
           }
         } catch (e) {
+          // Do NOT cache on error — the miss is unconfirmed, so allow a retry.
           console.warn(`Error pre-fetching profile for seller ${id}:`, e);
         }
       }
@@ -1802,9 +1885,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     };
-    
+
     fetchMissing();
-  }, [auctions]);
+  }, [distinctAuctionSellerIds]);
 
   // Sync singular current user's sellerProfile whenever sellerProfiles list or current user changes
   useEffect(() => {
@@ -2900,12 +2983,14 @@ const fetchIP = async () => {
     // 2. Bid Spam & Timing Protection (Min 1.5 seconds cooldown between bids)
     const lastBidTime = lastBidTimestampRef.current;
     if (now - lastBidTime < 1500) {
-      await logAnalyticsEvent('bid_spam_blocked', currentUser.id, currentUser.email, {
+      // PF6: fire-and-forget — an observability write must never add a round-trip
+      // to the user's rejection. Expected outcome, so it is NOT a health incident.
+      void logAnalyticsEvent('bid_spam_blocked', currentUser.id, currentUser.email, {
         auctionId,
         bidAmount: amount,
         timeSinceLastBidMs: now - lastBidTime,
         type: 'bot_spam_protection'
-      });
+      }).catch(() => {});
       return {
         success: false,
         message: language === 'ar'
@@ -2917,12 +3002,13 @@ const fetchIP = async () => {
     // 3. Sliding Window Rate Limiting (Max 10 bids per 60 seconds)
     const updatedWindow = bidTimestampsRef.current.filter(ts => now - ts < 60000);
     if (updatedWindow.length >= 10) {
-      await logAnalyticsEvent('rate_limit_triggered', currentUser.id, currentUser.email, {
+      // PF6: fire-and-forget — see spam-block note above. Expected outcome.
+      void logAnalyticsEvent('rate_limit_triggered', currentUser.id, currentUser.email, {
         auctionId,
         windowSizeSec: 60,
         requestCount: updatedWindow.length,
         type: 'bidding_rate_limit'
-      });
+      }).catch(() => {});
       return {
         success: false,
         message: language === 'ar'
@@ -2967,7 +3053,11 @@ const fetchIP = async () => {
           'win'
         );
       } else {
-        await logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`);
+        // PF6: only genuinely-unexpected rejections are health incidents; routine
+        // "no" answers (below-min, membership, funds…) are not. Fire-and-forget.
+        if (!isExpectedBidFailure(result.data.message)) {
+          void logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`).catch(() => {});
+        }
         if (result.data.message === 'MEMBERSHIP_REQUIRED') {
           setShowSubscriptionPrompt(true);
           return {
@@ -3006,20 +3096,20 @@ const fetchIP = async () => {
         };
       }
 
-      const isExpectedError =
-        errorMsg.includes('ended') || 
-        errorMsg.includes('Minimum') || 
-        errorMsg.includes('Funds') || 
-        errorMsg.includes('subscription') || 
-        errorMsg.includes('restricted') || 
-        errorMsg.includes('not accepting');
-        
+      const isExpectedError = isExpectedBidFailure(errorMsg);
+
       if (isExpectedError) {
         console.warn("Cloud function placeBid expected warning:", errorMsg);
       } else {
         console.error("Cloud function placeBid error:", error);
       }
-      await logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${errorMsg}`);
+      // PF6: don't log EXPECTED rejections (ended/Minimum/Funds/subscription…) as
+      // health incidents — a normal bid war would flood system_health. Only
+      // genuinely-unexpected errors are logged, fire-and-forget so the rejection
+      // returns without an extra round-trip.
+      if (!isExpectedError) {
+        void logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${errorMsg}`).catch(() => {});
+      }
       return {
         success: false,
         message: errorMsg || 'Bidding failed.'
