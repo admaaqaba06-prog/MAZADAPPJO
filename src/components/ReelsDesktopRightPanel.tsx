@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
@@ -13,13 +13,13 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     activeAuctionId, 
     auctions, 
     bids, 
-    sellerProfiles, 
-    language, 
-    chatMessages, 
-    sendChatMessage, 
-    currentUser, 
-    placeBid 
+    sellerProfiles,
+    language,
+    sendChatMessage,
+    currentUser,
+    placeBid
   } = useApp();
+  const { chatMessages } = useChat();
   const isAr = language === 'ar';
 
   const currentItem = auctions.find(a => a.id === activeAuctionId) || auctions[0];

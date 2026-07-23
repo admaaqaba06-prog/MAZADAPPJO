@@ -175,8 +175,6 @@ interface AppContextProps {
   setEscrows: React.Dispatch<React.SetStateAction<EscrowTransaction[]>>;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  chatMessages: ChatMessage[];
-  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   notifications: Notification[];
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   adminActions: AdminAction[];
@@ -313,6 +311,22 @@ interface AppContextProps {
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
+
+// Perf (Wave 3c / P0-1): `chatMessages` lives in its OWN context, split out of
+// the main AppContext value object. A chat doc is written on every bid, so a
+// bidding war spams setChatMessages; when chatMessages was a field on the giant
+// AppContext value, each write recreated that value object and re-rendered ALL
+// ~39 useApp() consumers (incl. every Discovery card). Isolating it here means
+// a chat write only re-renders the two in-room components that read it
+// (LiveStreamView / ReelsDesktopRightPanel) via useChat(). The state itself
+// still lives in AppProvider (so the chats onSnapshot effect can setChatMessages);
+// it's merely PROVIDED through a separate, independently-memoized Context below.
+interface ChatContextProps {
+  chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+}
+
+const ChatContext = createContext<ChatContextProps | undefined>(undefined);
 
 // Clean Initial Production States (No Demo/Mock Data)
 const DEFAULT_UNAUTHENTICATED_USER: User = {
@@ -4493,8 +4507,24 @@ const fetchIP = async () => {
     [orders, currentUser, simEnabled]
   );
 
-  return (
-    <AppContext.Provider value={{
+  // Separate, chatMessages-only context value (see ChatContext above).
+  // Memoized on [chatMessages] alone (setChatMessages is a stable useState
+  // setter) so it only changes identity when the chat list actually changes.
+  const chatValue = useMemo<ChatContextProps>(
+    () => ({ chatMessages, setChatMessages }),
+    [chatMessages]
+  );
+
+  // Perf (Wave 3c / P0-1): memoize the main context value. Previously this
+  // ~100-field object literal was recreated on EVERY AppProvider render, so
+  // any state change (or a parent re-render) gave the value a new identity and
+  // re-rendered all ~39 useApp() consumers even when nothing they read changed.
+  // The dep array below lists every NON-stable field: all state/memo values
+  // plus every useCallback. Raw useState setters are intentionally omitted —
+  // React guarantees their identity is stable, so listing them adds nothing.
+  // Now that chatMessages lives in its own ChatContext, a chat write touches
+  // none of these deps, so the value identity is preserved across chat churn.
+  const appValue = useMemo<AppContextProps>(() => ({
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
@@ -4505,7 +4535,6 @@ const fetchIP = async () => {
       wallet, setWallet,
       escrows, setEscrows,
       orders: visibleOrders, setOrders,
-      chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,
       adminActionsError,
@@ -4583,8 +4612,37 @@ const fetchIP = async () => {
       suspendSeller,
       removeSellerBadge,
       resetSellerTrustScore
-    }}>
-      {children}
+  }), [
+    // State / memo values
+    currentUser, sellerProfile, users, sellerProfiles, visibleAuctions,
+    auctionsLoaded, bids, wallet, escrows, visibleOrders, notifications,
+    adminActions, adminActionsError, reviews, verificationRequests,
+    sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
+    activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
+    language, isAuthenticated, authReady, watchlist, autoBids,
+    showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
+    systemHealthLogs,
+    // Callbacks (all useCallback — stable unless their own deps change)
+    placeBid, triggerCliQTopUp, requestWithdrawal, addNotification, markAsRead,
+    markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
+    unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
+    repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
+    createListing, setLanguage, login, loginWithGoogle, loginWithPhone,
+    confirmPhoneCode, logout, registerUser, subscribeUser, updateOwnProfile,
+    completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
+    setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
+    updateFeatureFlag, logSystemHealth, submitVerificationRequest,
+    submitSellerReview, submitSellerReport, submitDispute, respondToDispute,
+    respondToReview, resolveDispute, approveVerificationRequest,
+    rejectVerificationRequest, suspendSeller, removeSellerBadge,
+    resetSellerTrustScore,
+  ]);
+
+  return (
+    <AppContext.Provider value={appValue}>
+      <ChatContext.Provider value={chatValue}>
+        {children}
+      </ChatContext.Provider>
     </AppContext.Provider>
   );
 };
@@ -4593,6 +4651,18 @@ export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
     throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
+
+// Perf (Wave 3c): read the high-churn chat list from its own context so a chat
+// write only re-renders the in-room components (LiveStreamView /
+// ReelsDesktopRightPanel), not every useApp() consumer. Provided from inside
+// AppProvider, so the same "must be used within an AppProvider" contract holds.
+export const useChat = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat must be used within an AppProvider');
   }
   return context;
 };
