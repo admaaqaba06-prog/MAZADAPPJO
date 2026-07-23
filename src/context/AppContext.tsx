@@ -33,17 +33,12 @@ const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>()
 // listener still delivers it — the cache only suppresses the redundant prefetch.
 const attemptedSellerIds = new Set<string>();
 
-const getFallbackVideoUrl = (category?: string): string => {
-  const cat = (category || '').toLowerCase();
-  if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
-  } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-  } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
-  }
-  return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
-};
+// Local, bundled "media unavailable" poster. Used as the thumbnail fallback for
+// auctions with no image. Previously these fallbacks pointed at third-party hosts
+// (Unsplash images / Google `gtv-videos` sample MP4s) which added uncontrolled
+// per-render bandwidth and latency (bad for load and for a load test). A single
+// local asset is cached after first paint and never leaves the origin.
+const PLACEHOLDER_MEDIA = '/placeholder-media.svg';
 
 import { 
   GoogleAuthProvider, 
@@ -102,19 +97,8 @@ const mapAuctionDoc = (
   let finalThumbnail = rawThumbnail;
 
   if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
-    const cat = (data.category || '').toLowerCase();
-    const tit = (data.title || '').toLowerCase();
-    if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=400&q=80';
-    } else {
-      finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=400&q=80';
-    }
+    // Local bundled poster instead of per-category third-party (Unsplash) images.
+    finalThumbnail = PLACEHOLDER_MEDIA;
   }
 
   const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
@@ -133,8 +117,10 @@ const mapAuctionDoc = (
     finalVideoUrl = rawVideoUrl;
     videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
   } else {
-    // Use instant synchronous fallback while loading
-    finalVideoUrl = getFallbackVideoUrl(data.category || 'Luxury');
+    // No resolvable network URL yet. Keep it empty (no remote video element) so
+    // the UI paints the local thumbnail fallback instead of streaming a
+    // third-party sample clip. The blob resolver may still fill this in async.
+    finalVideoUrl = '';
     itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
   }
 
@@ -153,7 +139,7 @@ const mapAuctionDoc = (
     duration: data.duration ?? 3600,
     sellerId: data.sellerId || 'seller-system',
     sellerName: data.sellerName || data.createdByName || 'Seller JO',
-    sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+    sellerLogo: data.sellerLogo || PLACEHOLDER_MEDIA,
     status: data.status || 'live',
     isFeatured: data.isFeatured ?? false,
     totalBids: data.totalBids ?? 0,
