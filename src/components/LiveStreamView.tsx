@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useChat } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FolderLock,
@@ -309,11 +309,11 @@ export const LiveStreamView: React.FC = () => {
     language,
     watchlist,
     toggleWatchlist,
-    chatMessages,
     sendChatMessage,
     orders,
     setGlobalSelectedOrderId
   } = useApp();
+  const { chatMessages } = useChat();
 
   const isAr = language === 'ar';
   const videoRef = useRef<HTMLVideoElement | null>(null);

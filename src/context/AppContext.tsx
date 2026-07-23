@@ -175,8 +175,6 @@ interface AppContextProps {
   setEscrows: React.Dispatch<React.SetStateAction<EscrowTransaction[]>>;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  chatMessages: ChatMessage[];
-  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   notifications: Notification[];
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   adminActions: AdminAction[];
@@ -313,6 +311,22 @@ interface AppContextProps {
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
+
+// Perf (Wave 3c / P0-1): `chatMessages` lives in its OWN context, split out of
+// the main AppContext value object. A chat doc is written on every bid, so a
+// bidding war spams setChatMessages; when chatMessages was a field on the giant
+// AppContext value, each write recreated that value object and re-rendered ALL
+// ~39 useApp() consumers (incl. every Discovery card). Isolating it here means
+// a chat write only re-renders the two in-room components that read it
+// (LiveStreamView / ReelsDesktopRightPanel) via useChat(). The state itself
+// still lives in AppProvider (so the chats onSnapshot effect can setChatMessages);
+// it's merely PROVIDED through a separate, independently-memoized Context below.
+interface ChatContextProps {
+  chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+}
+
+const ChatContext = createContext<ChatContextProps | undefined>(undefined);
 
 // Clean Initial Production States (No Demo/Mock Data)
 const DEFAULT_UNAUTHENTICATED_USER: User = {
@@ -4493,6 +4507,14 @@ const fetchIP = async () => {
     [orders, currentUser, simEnabled]
   );
 
+  // Separate, chatMessages-only context value (see ChatContext above).
+  // Memoized on [chatMessages] alone (setChatMessages is a stable useState
+  // setter) so it only changes identity when the chat list actually changes.
+  const chatValue = useMemo<ChatContextProps>(
+    () => ({ chatMessages, setChatMessages }),
+    [chatMessages]
+  );
+
   return (
     <AppContext.Provider value={{
       currentUser, setCurrentUser,
@@ -4505,7 +4527,6 @@ const fetchIP = async () => {
       wallet, setWallet,
       escrows, setEscrows,
       orders: visibleOrders, setOrders,
-      chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,
       adminActionsError,
@@ -4584,7 +4605,9 @@ const fetchIP = async () => {
       removeSellerBadge,
       resetSellerTrustScore
     }}>
-      {children}
+      <ChatContext.Provider value={chatValue}>
+        {children}
+      </ChatContext.Provider>
     </AppContext.Provider>
   );
 };
@@ -4593,6 +4616,18 @@ export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
     throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
+
+// Perf (Wave 3c): read the high-churn chat list from its own context so a chat
+// write only re-renders the in-room components (LiveStreamView /
+// ReelsDesktopRightPanel), not every useApp() consumer. Provided from inside
+// AppProvider, so the same "must be used within an AppProvider" contract holds.
+export const useChat = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat must be used within an AppProvider');
   }
   return context;
 };
