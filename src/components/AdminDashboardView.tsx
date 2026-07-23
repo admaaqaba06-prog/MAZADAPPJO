@@ -364,6 +364,7 @@ export const AdminDashboardView: React.FC = () => {
   const {
     currentUser,
     users,
+    usersTotalCount,
     escrows,
     orders,
     adminActions, 
@@ -1433,7 +1434,7 @@ export const AdminDashboardView: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {users.length} <span className="text-xs font-bold text-gray-400">{isAr ? 'عضو' : 'Users'}</span>
+                  {usersTotalCount ?? users.length} <span className="text-xs font-bold text-gray-400">{isAr ? 'عضو' : 'Users'}</span>
                 </p>
                 <div className="text-[9px] text-gray-400 mt-1">
                   {isAr ? 'إجمالي الحسابات المسجلة بالمنصة' : 'Total accounts in database'}
