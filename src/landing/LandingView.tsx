@@ -1968,10 +1968,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد جو تحجز المبلغ بالضمان",
-                        enTitle: "MazadJo holds the funds in escrow",
-                        arDesc: "يتم حجز وتحصين المبلغ في حساب بنكي وسيط مستقل وآمن.",
-                        enDesc: "Funds are fully secured and held in a dedicated third-party escrow account."
+                        arTitle: "مزاد بتحتفظ بالمبلغ",
+                        enTitle: "Mazad holds the payment",
+                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,

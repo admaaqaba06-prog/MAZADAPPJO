@@ -245,13 +245,13 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         <div className="flex items-center gap-1.5 border-b border-white/5 pb-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
           <h3 className="text-[11px] font-black tracking-wider uppercase">
-            {isAr ? 'تفاصيل الشحن والضمان' : 'SHIPPING & ESCROW TERMS'}
+            {isAr ? 'الشحن وحماية المشتري' : 'SHIPPING & BUYER PROTECTION'}
           </h3>
         </div>
         <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
-          {isAr 
-            ? 'شحن مجاني مؤمن بالكامل لجميع محافظات المملكة عبر ناقل كليك المعتمد. يتم حجز القيمة في الضمان ولا يتم تسليمها للبائع إلا بعد معاينة المشتري وتأكيد الاستلام خلال ٢٤ ساعة.'
-            : 'Free, fully insured courier shipping inside Jordan. Funds are securely held in escrow and only released to the seller after your physical inspection and receipt confirmation.'}
+          {isAr
+            ? 'الشحن داخل الأردن ينسّق مع البائع بعد الدفع. مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تعاين القطعة وتأكّد الاستلام.'
+            : 'Shipping inside Jordan is arranged with the seller after payment. Mazad holds your payment and only releases it to the seller after you inspect the item and confirm receipt.'}
         </p>
       </div>
 
