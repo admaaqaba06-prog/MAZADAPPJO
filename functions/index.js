@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const { resolveSettlement } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -117,6 +118,17 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     }
   }
 
+  // Reserve lives in an admin/server-only doc (never on the world-readable
+  // auction). Read it here; the authoritative sale decision re-derives price
+  // from the in-txn snapshot below.
+  let reservePrice = null;
+  try {
+    const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+    if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+  } catch (secErr) {
+    console.warn(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId}:`, secErr);
+  }
+
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
   let settled = false;
@@ -128,7 +140,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const freshDoc = await transaction.get(auctionRef);
     const freshData = freshDoc.data();
 
-    if (freshData.status === 'completed' || freshData.status === 'ended') {
+    if (['completed', 'ended', 'reserve_not_met'].includes(freshData.status)) {
       return;
     }
 
@@ -150,7 +162,9 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
-    if (totalBids > 0 && winnerId) {
+    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice });
+
+    if (decision.outcome === 'sold') {
       // Mark completed
       transaction.update(auctionRef, {
         status: 'completed',
@@ -221,6 +235,15 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           }
         }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
       }
+    } else if (decision.outcome === 'reserve_not_met') {
+      // A winner exists but the top bid never cleared the hidden reserve.
+      // Per spec: NO sale, NO order, NO wonCount. Relist-able.
+      transaction.update(auctionRef, {
+        status: 'reserve_not_met',
+        settledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      settled = true;
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
     } else {
       // Close without bidder
       transaction.update(auctionRef, {
