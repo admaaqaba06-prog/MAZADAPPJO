@@ -165,7 +165,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "توثيق البائعين",
-          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لضمان المصداقية.",
+          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لتعزيز المصداقية والثقة.",
         },
         {
           icon: "📸",
@@ -187,7 +187,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "لماذا MazadJo؟",
       subtitle: "بدل ما تفاوض عشرات الناس… خليهم ينافسوا عليك.",
-      traditionalTitle: "السوق التقليدي",
+      traditionalTitle: "السوق المفتوح - تقليدي",
       traditionalPoints: [
         "مفاوضات متعبة وتكرار عبارة 'آخر سعر؟'",
         "تضييع وقت مع مشترين غير جادين وهواة بخس السلع",
@@ -197,14 +197,14 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       smartTitle: "MazadJo - ذكي",
       smartPoints: [
         "منافسة منظمة وعادلة ترفع السعر تلقائياً لصالحك",
-        "مزايدون موثوقون ورسوم تأمين تضمن جدية الجميع",
+        "مزايدون موثوقون وعضوية مدفوعة تضمن جدية الجميع",
         "اكتشاف السعر الحقيقي للمنتج بدقة حسب حجم الطلب",
         "وقت بيع محدد بدقة مع إشعارات ذكية وشفافية مطلقة",
       ],
     },
     interactive: {
       title: "تجربة تفاعلية",
-      subtitle: "بتقدر تشاهد المزاد قبل الاشتراك وتشوف الحماس",
+      subtitle: "جرّب المزاد الحي الآن.",
       stats: [
         { value: "%98", label: "تركيز على الثقة" },
         { value: "3≤", label: "خطوات للمزايدة" },
@@ -315,7 +315,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "ماذا لو كانت القطعة مختلفة عن الوصف؟",
-          a: "أنت محمي بضمان الـ٣٠ يوماً. تواصل معنا وسنصحح الأمر — دفعتك تبقى في حساب الضمان حتى تتأكد من رضاك."
+          a: "دفعتك تبقى محجوزة لدى مزاد ولا تُحوَّل للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة. إذا صار أي إشكال، تواصل معنا وبنتوسّط لحلّه."
         },
         {
           q: "كم تكلفة البيع؟",
@@ -377,7 +377,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "Seller Verification",
-          desc: "Full identity and document checking of all sellers before any auction begins to guarantee maximum credibility.",
+          desc: "Full identity and document checking of all sellers before any auction begins to strengthen credibility and trust.",
         },
         {
           icon: "📸",
@@ -399,7 +399,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "Why MazadJo?",
       subtitle: "Instead of negotiating with dozens... let them compete for you.",
-      traditionalTitle: "Traditional Market",
+      traditionalTitle: "Open Market - Traditional",
       traditionalPoints: [
         "Exhausting negotiations and constant 'what's your final price?'",
         "Wasted time with unserious buyers and low-ball offers",
@@ -409,14 +409,14 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       smartTitle: "MazadJo - Smart",
       smartPoints: [
         "Organized, fair competition driving prices up automatically",
-        "Verified bidders and deposit fees to ensure serious participation",
+        "Verified, members-only bidders to ensure serious participation",
         "Accurate price discovery based purely on actual demand",
         "Strictly set sale window, smart notifications, and full transparency",
       ],
     },
     interactive: {
       title: "Interactive Experience",
-      subtitle: "You can watch the auction before joining and experience the excitement",
+      subtitle: "The feel of a live auction — try it right now.",
       stats: [
         { value: "98%", label: "Focus on Trust" },
         { value: "≤3", label: "Steps to Bid" },
@@ -527,7 +527,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "What if the item is different from the description?",
-          a: "You are protected by our 30-day guarantee. Contact us and we will make it right — your payment remains in the escrow account until you are satisfied."
+          a: "Your payment stays held by Mazad and is only released to the seller after you receive the item and confirm it matches. If anything goes wrong, contact us and we'll mediate."
         },
         {
           q: "How much does it cost to sell?",

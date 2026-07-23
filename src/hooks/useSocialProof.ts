@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { getLiveAuctions } from '../utils/auctionPhase';
 import type { AuctionItem } from '../types';
 
@@ -141,7 +141,8 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
 // ---------------------------------------------------------------------------
 
 export function useSocialProof(): SocialProof {
-  const { auctions, language } = useApp();
+  const { language } = useApp();
+  const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
   const [rawWins, setRawWins] = useState<Omit<RecentWin, 'when'>[]>([]);

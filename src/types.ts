@@ -91,12 +91,17 @@ export interface AuctionItem {
   currentBidderName: string | null;
   videoUrl: string;
   thumbnailUrl: string;
+  /**
+   * Wave 2 (media gallery): ordered extra gallery images (excludes the video).
+   * Rendered after videoUrl + thumbnailUrl — see utils/auctionMedia.ts.
+   */
+  mediaUrls?: string[];
   endTime: number; // Unix timestamp
   duration: number; // in seconds
   sellerId: string;
   sellerName: string;
   sellerLogo: string;
-  status: 'upcoming' | 'live' | 'processing' | 'rejected' | 'completed';
+  status: 'upcoming' | 'live' | 'processing' | 'rejected' | 'completed' | 'ended' | 'reserve_not_met';
   /** Mazad review gate verdict ('processing' listings are 'pending'). */
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   /** Admin-entered reason shown to the seller when a listing is rejected. */
@@ -106,6 +111,14 @@ export interface AuctionItem {
   viewersCount: number;
   caption?: string;
   marketPrice?: number; // retail/market reference for the "you saved X" reveal
+  /** Sequential internal auction number assigned at create from the atomic counter. */
+  auctionNumber?: number;
+  /**
+   * Reserve gate: true when there is no reserve OR the price has reached it.
+   * The reserve AMOUNT never lives on this (world-readable) doc — only this boolean.
+   * Maintained by onBidCreated; authoritative sale decision re-checks in settleAuctionTxn.
+   */
+  reserveMet?: boolean;
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
@@ -235,6 +248,19 @@ export interface Order {
   paymentDeadlineAt?: any;
   paymentProofUrl?: string;
   trackingNumber?: string;
+  /**
+   * Wave 2 (W4): per-order delivery address + phone the winner provides at the
+   * post-win payment step (an address can differ per win). Written by the buyer
+   * on the 'pay' transition; surfaced to the seller/admin ONLY after payment.
+   * See utils/deliveryAddress.ts (validation) + firestore.rules orders S2.
+   */
+  deliveryAddress?: {
+    governorate: string;
+    area: string;
+    building?: string;
+    notes?: string;
+  };
+  deliveryPhone?: string;
   defaultedAt?: any;
   /** Internal vendor slug copied from the auction (never buyer-facing). */
   vendorId?: string | null;

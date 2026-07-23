@@ -1,53 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_AR, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
-import { ContextualHint } from './ContextualHint';
 import { db } from '../services/firebase';
 import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { OrderDetailsView } from './OrderDetailsView';
 import { AdminWalletConsole } from './AdminWalletConsole';
 import { MyOrdersList } from './MyOrdersList';
 import { SoldOrdersList } from './SoldOrdersList';
-import { 
-  User as UserIcon, 
-  HelpCircle, 
-  ArrowUpRight, 
-  BookOpen, 
-  Clock, 
-  CheckCircle, 
-  ShieldCheck, 
-  XCircle, 
-  DollarSign, 
-  UploadCloud, 
-  Check, 
+import {
+  HelpCircle,
+  ArrowUpRight,
+  BookOpen,
+  Clock,
+  ShieldCheck,
+  XCircle,
+  DollarSign,
+  UploadCloud,
   Sparkles,
-  RefreshCw,
-  Building2,
   Lock,
   LogOut,
-  Camera,
   Wallet,
-  ArrowDownLeft,
   ChevronRight,
   ShieldAlert,
-  Info,
-  Copy,
   CreditCard,
   History,
   X,
   Eye,
   ArrowRight,
   UserCheck,
-  CheckCircle2,
   ShoppingBag,
   Package,
   Truck,
   AlertTriangle,
-  Plus,
   TrendingUp,
   TrendingDown,
   ChevronLeft
@@ -60,9 +47,7 @@ export const WalletView: React.FC = () => {
     escrows, 
     orders,
     setEscrows,
-    triggerCliQTopUp, 
-    requestWithdrawal,
-    addNotification, 
+    addNotification,
     language, 
     logout, 
     currentUser, 
@@ -101,62 +86,28 @@ export const WalletView: React.FC = () => {
 
   const localT = {
     totalBalance: isAr ? 'إجمالي رصيد المحفظة' : 'Total Wallet Balance',
-    availableBalance: isAr ? 'الرصيد المتاح للمزايدة' : 'Available to Bid',
-    availableToWithdraw: isAr ? 'المتاح للسحب' : 'Available to Withdraw',
+    availableBalance: isAr ? 'الرصيد المتاح' : 'Available Balance',
     pendingBalance: isAr ? 'قيد المراجعة' : 'Pending Verification',
-    escrowBalance: isAr ? 'المبلغ المحجوز' : 'Locked Amount',
-    addFunds: isAr ? 'شحن رصيد المحفظة' : 'Add Funds',
-    withdraw: isAr ? 'سحب الرصيد البنكي' : 'Withdraw Funds',
+    escrowBalance: isAr ? 'مبالغ محفوظة بالضمان' : 'Held in Escrow',
     transactions: isAr ? 'سجل العمليات' : 'Transactions Ledger',
     orders: isAr ? 'المشتريات والمبيعات' : 'My Orders & Sales',
     myWallet: isAr ? 'رصيدي ومحفظتي' : 'My Wallet',
     recentActivity: isAr ? 'النشاطات المالية الأخيرة' : 'Recent Wallet Activity',
     back: isAr ? 'رجوع للمحفظة' : 'Back to Wallet',
-    customAmount: isAr ? 'قيمة إيداع مخصصة' : 'Custom Amount Input',
-    submit: isAr ? 'إرسال طلب الإيداع للتدقيق' : 'Submit Deposit Proof',
-    cliqAlias: isAr ? 'اسم مستعار كليك (المرسل)' : 'Sender CliQ Alias',
-    chooseAmount: isAr ? 'حدد أو اكتب قيمة الشحن (JOD)' : 'Choose JOD Deposit Amount',
-    receiptAttachment: isAr ? 'لقطة شاشة لوصل التحويل (إلزامي)' : 'CliQ Receipt Screenshot',
-    aliasPlaceholder: isAr ? 'مثال: name@cliq' : 'e.g. name@cliq',
-    bankDetails: isAr ? 'بيانات الإيداع الفوري عبر كليك' : 'CliQ Deposit Banking Details',
-    recipientBank: isAr ? 'البنك المستقبل' : 'Recipient Bank',
-    accountName: isAr ? 'اسم المستفيد' : 'Account Name',
-    cliqAliasLabel: isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias',
-    cliqAliasHelper: isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias',
-    copied: isAr ? 'تم نسخ الحساب!' : 'Copied!',
-    uploadReceipt: isAr ? 'اضغط لرفع لقطة شاشة لوصل كليك المالي' : 'Click to Upload CliQ Receipt Screenshot',
-    supportedFormats: isAr ? 'صيغ المدعومة: PNG، JPEG' : 'Supports PNG, JPG',
     all: isAr ? 'الكل' : 'All',
     moneyIn: isAr ? 'المبالغ الواردة' : 'Money In',
     moneyOut: isAr ? 'المبالغ الصادرة' : 'Money Out',
     buying: isAr ? 'مشترياتي وعقودي' : 'My Purchases',
     selling: isAr ? 'مبيعاتي المعلقة' : 'My Sales',
-    recentDesc: isAr ? 'العمليات المعلقة ودفعات المزادات الأخيرة' : 'Your pending cliq deposits & active auction payments.',
     emptyActivity: isAr ? 'لا يوجد حركات مسجلة حالياً' : 'No recorded operations yet.',
-    emptyActivityDesc: isAr ? 'ستظهر هنا حركات شحن رصيدك أو تجميد ضمانات بيدك مباشرة.' : 'Deposits and escrow updates will appear here instantly.',
-    howMuchYouHave: isAr ? 'كم تملك من المال' : 'How much money you have',
-    whereToAdd: isAr ? 'كيفية شحن رصيدك' : 'Where to add funds',
+    emptyActivityDesc: isAr ? 'ستظهر هنا دفعات مزاداتك الفائزة وسجل عملياتك المالية.' : 'Payments for auctions you win will appear here as your financial record.',
+    howMuchYouHave: isAr ? 'سجل أرصدتك ودفعاتك' : 'Your balances & payments record',
     secureSummary: isAr ? 'حماية وأمان المعاملات' : 'Secure Trust Assurance',
-    pendingDeposits: isAr ? 'الإيداعات قيد التحقق' : 'Pending Verification Desk',
     helpSupport: isAr ? 'الدعم المالي المباشر' : 'Finance Support Desk',
     helpDesc: isAr ? 'فريق الدعم في عمّان متاح يومياً من ٩ صباحاً حتى ١١ مساءً.' : 'Our Amman support team is available daily 9:00–23:00.',
-    bankName: isAr ? 'اسم البنك المستقبل' : 'Bank Name',
-    accountHolder: isAr ? 'اسم صاحب الحساب' : 'Account Holder Name',
-    withdrawMethod: isAr ? 'طريقة السحب المفضلة' : 'Withdrawal Method',
-    cliqInstant: isAr ? 'طلب سحب عبر كليك' : 'CliQ Withdrawal Request',
-    bankTransfer: isAr ? 'طلب سحب عبر التحويل البنكي' : 'Bank Transfer Request',
-    withdrawSuccess: isAr ? 'طلب السحب قيد المراجعة' : 'Withdrawal Request Under Review',
-    withdrawSuccessDesc: isAr ? 'سيتم التواصل معك بعد مراجعة الطلب.' : 'We will contact you after reviewing the request.',
-    withdrawBtn: isAr ? 'تأكيد تقديم طلب السحب' : 'Submit Withdrawal',
-    amountLabel: isAr ? 'المبلغ المطلوب سحبه (JOD)' : 'Withdraw Amount (JOD)',
-    bankInputLabel: isAr ? 'اسم البنك المستهدف' : 'Target Bank Name',
-    ibanInputLabel: isAr ? 'رقم الحساب أو الآيبان (IBAN)' : 'IBAN / Account Number',
-    holderInputLabel: isAr ? 'اسم صاحب الحساب المستفيد' : 'Beneficiary Holder Name',
-    phoneLabel: isAr ? 'رقم الهاتف المرتبط بالتحويل' : 'Phone Number',
-    withdrawDetailsTitle: isAr ? 'حدد بيانات الحساب البنكي للسحب' : 'Enter Withdrawal Bank Account Details',
     allTx: isAr ? 'كل العمليات' : 'All Transactions',
-    moneyInTx: isAr ? 'الوارد والتمويل' : 'Deposits & In',
-    moneyOutTx: isAr ? 'الصادر والضمان' : 'Withdrawals & Escrow',
+    moneyInTx: isAr ? 'الوارد' : 'Money In',
+    moneyOutTx: isAr ? 'الصادر والضمان' : 'Payments & Escrow',
   };
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -262,7 +213,6 @@ export const WalletView: React.FC = () => {
   const myBuyerOrders = currentUser ? orders.filter(o => o.buyerId === currentUser.id) : [];
   const mySellerOrders = currentUser ? orders.filter(o => o.sellerId === currentUser.id) : [];
   
-  const [amount, setAmount] = useState<string>('500');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -270,33 +220,15 @@ export const WalletView: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const [alias, setAlias] = useState<string>('');
-  const [fileUploaded, setFileUploaded] = useState<boolean>(false);
-  const [fileName, setFileName] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [submittedProof, setSubmittedProof] = useState<boolean>(false);
-  const [copiedIBAN, setCopiedIBAN] = useState<boolean>(false);
-  const [copiedAlias, setCopiedAlias] = useState<boolean>(false);
-
-  // Wallet screens state: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'
-  const [walletSubView, setWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  // Wallet screens state: read-only record — balances, ledger, orders.
+  // Top-up and withdrawal flows were removed (Wave 2b): bidding is free
+  // (pay-after-win) and seller payouts happen off-platform via CliQ.
+  const [walletSubView, setWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [txFilter, setTxFilter] = useState<'all' | 'in' | 'out'>('all');
   const [ordersTab, setOrdersTab] = useState<'buying' | 'selling'>('buying');
 
-  // New withdrawal states using a simple form style
-  const [withdrawType, setWithdrawType] = useState<'bank' | 'cliq'>('cliq');
-  const [wAmount, setWAmount] = useState<string>('');
-  const [wBankName, setWBankName] = useState<string>('');
-  const [wIban, setWIban] = useState<string>('');
-  const [wHolderName, setWHolderName] = useState<string>('');
-  const [wCliqAlias, setWCliqAlias] = useState<string>('');
-  const [wPhone, setWPhone] = useState<string>('');
-  const [isWithdrawing, setIsWithdrawing] = useState<boolean>(false);
-  const [withdrawSuccess, setWithdrawSuccess] = useState<boolean>(false);
-
-  // Fetch real-time withdrawals ledger
+  // Fetch real-time withdrawals ledger (historic record only — no new
+  // withdrawal requests can be created from this view)
   const [myWithdrawals, setMyWithdrawals] = useState<any[]>([]);
   useEffect(() => {
     if (!currentUser) return;
@@ -313,153 +245,6 @@ export const WalletView: React.FC = () => {
   // Admin Ledger States
   const [adminFilter, setAdminFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedProofEscrow, setSelectedProofEscrow] = useState<EscrowTransaction | null>(null);
-
-  const presets = [100, 250, 500, 1000, 2500];
-
-  const handleTriggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleRealFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setFileName(file.name);
-      setFileUploaded(true);
-      addNotification(
-        isAr ? '📎 تم إرفاق الوصل البنكي' : '📎 Receipt Attached', 
-        isAr ? `تم إرفاق الملف "${file.name}" بنجاح.` : `File "${file.name}" attached successfully.`, 
-        'info'
-      );
-    }
-  };
-
-  const handleCopyIBAN = () => {
-    navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
-    setCopiedIBAN(true);
-    addNotification(
-      isAr ? '📋 تم النسخ' : '📋 Copied!',
-      isAr ? 'تم نسخ رمز الآيبان (IBAN) إلى الحافظة.' : 'IBAN code copied to clipboard.',
-      'info'
-    );
-    setTimeout(() => setCopiedIBAN(false), 2000);
-  };
-
-  const handleCopyAlias = () => {
-    navigator.clipboard.writeText(CLIQ_ALIAS);
-    setCopiedAlias(true);
-    addNotification(
-      isAr ? '📋 تم النسخ' : '📋 Copied!',
-      isAr ? 'تم نسخ الاسم المستعار (CliQ Alias) إلى الحافظة.' : 'CliQ alias copied to clipboard.',
-      'info'
-    );
-    setTimeout(() => setCopiedAlias(false), 2000);
-  };
-
-  const handleTopUpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      alert(isAr ? 'الرجاء إدخال قيمة مالية صحيحة بالدينار.' : 'Please enter a valid amount in JOD.');
-      return;
-    }
-    if (!alias.trim()) {
-      alert(isAr ? 'اسم مستعار كليك مطلوب لتأشير الحوالة.' : 'Your bank CliQ alias is required.');
-      return;
-    }
-    if (!fileUploaded || !selectedFile) {
-      alert(isAr ? 'الرجاء إرفاق لقطة شاشة لوصل حوالة كليك للتحقق.' : 'Please upload your CliQ receipt screenshot to proceed.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { getFirebaseStorage } = await import('../services/firebase');
-      const storageInstance = await getFirebaseStorage();
-      
-      const storagePath = `payment-proofs/${currentUser?.id || 'anonymous'}/${Date.now()}_${selectedFile.name}`;
-      const fileRef = ref(storageInstance, storagePath);
-      await uploadBytes(fileRef, selectedFile);
-      const downloadURL = await getDownloadURL(fileRef);
-
-      await triggerCliQTopUp(Number(amount), alias, downloadURL);
-      
-      setIsSubmitting(false);
-      setSubmittedProof(true);
-      setAmount('500');
-      setFileUploaded(false);
-      setFileName('');
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error: any) {
-      console.error("Firebase Storage write failure during CliQ receipt upload:", error);
-      const uploadFailTitle = isAr ? '❌ فشل رفع الإثبات' : '❌ Storage Upload Failed';
-      const uploadFailMsg = isAr ? 'تعذر رفع صورة إيصال التحويل. الرجاء المحاولة مرة أخرى.' : 'Failed to upload payment receipt. Please try again.';
-      addNotification(uploadFailTitle, uploadFailMsg, 'alert');
-      // 'alert' errors are hidden from the user bell (Wave D) — toast instead.
-      showToast({ title: uploadFailTitle, message: uploadFailMsg, type: 'warn' });
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleWithdrawSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
-    const amountNum = Number(wAmount);
-    if (!wAmount || isNaN(amountNum) || amountNum <= 0) {
-      alert(isAr ? 'الرجاء إدخال مبلغ صحيح للسحب.' : 'Please enter a valid amount.');
-      return;
-    }
-    if (amountNum > wallet.availableBalance) {
-      alert(isAr ? 'المبلغ المطلوب يتجاوز الرصيد المتاح للسحب.' : 'Amount exceeds available balance.');
-      return;
-    }
-
-    if (withdrawType === 'bank') {
-      if (!wBankName.trim() || !wIban.trim() || !wHolderName.trim()) {
-        alert(isAr ? 'الرجاء تعبئة كافة حقول الحساب البنكي.' : 'Please enter all bank account credentials.');
-        return;
-      }
-    } else {
-      if (!wCliqAlias.trim()) {
-        alert(isAr ? 'الرجاء إدخال الاسم المستعار في كليك.' : 'Please enter your CliQ alias.');
-        return;
-      }
-    }
-
-    setIsWithdrawing(true);
-    try {
-      const details = withdrawType === 'bank' ? {
-        bankName: wBankName,
-        iban: wIban,
-        accountHolderName: wHolderName
-      } : {
-        cliqAlias: wCliqAlias,
-        phone: wPhone || currentUser.phone || '0791234567'
-      };
-
-      const result = await requestWithdrawal(amountNum, withdrawType, details);
-
-      if (result.success) {
-        setWithdrawSuccess(true);
-        setWAmount('');
-        setWBankName('');
-        setWIban('');
-        setWHolderName('');
-        setWCliqAlias('');
-        setWPhone('');
-      } else {
-        alert(result.message);
-      }
-    } catch (err: any) {
-      console.error("Failed to submit withdrawal request:", err);
-      alert(isAr ? 'عذراً، فشل تسجيل العملية البنكية في هذا الخادم.' : 'Failed to register the withdrawal transaction.');
-    } finally {
-      setIsWithdrawing(false);
-    }
-  };
 
   const handleAdminApproveDeposit = (escrowId: string) => {
     releaseEscrow(escrowId);
@@ -684,50 +469,7 @@ export const WalletView: React.FC = () => {
               </div>
             </div>
 
-            <ContextualHint
-              hintKey="wallet_balance"
-              titleAr="رصيد محفظتك المتاح 💳"
-              titleEn="Your Available Wallet Balance 💳"
-              descAr="رصيدك المتاح هو المبلغ الفعلي الذي يمكنك استخدامه لتقديم العطاءات والمزايدة على المنتجات في الوقت الفعلي."
-              descEn="Your available balance is the actual amount you can use to place bids and participate in real-time auctions."
-              className="mt-4"
-            />
-
-            <ContextualHint
-              hintKey="first_loss"
-              titleAr="ضمان استرجاع رصيدك تلقائياً 🔄"
-              titleEn="Instant Automated Refunds 🔄"
-              descAr="إذا زايد شخص آخر عليك وخسرت المزاد، يتم تحرير رصيدك المحجوز تلقائياً وفوراً ليعود إلى رصيدك المتاح دون أي خصومات أو رسوم."
-              descEn="If another user outbids you, your temporarily reserved bid deposit is instantly and automatically released back to your available balance without any deductions or fees."
-              className="mt-4 bg-amber-50/50 border-amber-100"
-            />
-
-            {/* Empty Balance State Alert Card */}
-            {wallet.totalBalance === 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in" id="empty-balance-state-alert">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                    <Info className="w-5 h-5" />
-                  </div>
-                  <div className="space-y-0.5 text-center md:text-left rtl:text-right">
-                    <h4 className="font-black text-sm text-amber-500">
-                      {isAr ? 'محفظتك فارغة حالياً!' : 'Your Wallet is Empty!'}
-                    </h4>
-                    <p className="text-xs text-zinc-400">
-                      {isAr ? 'اشحن محفظتك الآن للبدء بالمزايدة فوراً والمشاركة بالمزادات الحية.' : 'Top up your wallet now to place bids and join live auctions.'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setWalletSubView('add-funds')}
-                  className="bg-amber-500 hover:bg-amber-600 text-black font-black text-xs py-2.5 px-5 rounded-2xl tracking-wider uppercase shrink-0 transition-all active:scale-95 cursor-pointer"
-                >
-                  {isAr ? 'اشحن رصيدك الآن 💳' : 'Deposit Now 💳'}
-                </button>
-              </div>
-            )}
-
-            {/* Detailed Locked Amount Explanation Card (المبلغ المحجوز بالتفصيل) */}
+            {/* Detailed Held-in-Escrow Explanation Card */}
             <div className="bg-[#18181B] border border-white/5 rounded-3xl p-5 md:p-6 space-y-4" id="locked-amount-details-card">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
@@ -735,10 +477,10 @@ export const WalletView: React.FC = () => {
                 </div>
                 <div className="text-left rtl:text-right">
                   <h3 className="font-extrabold text-sm text-white">
-                    {isAr ? 'تفاصيل المبالغ المحجوزة' : 'Locked Amounts Details'}
+                    {isAr ? 'تفاصيل المبالغ المحفوظة بالضمان' : 'Held-in-Escrow Details'}
                   </h3>
                   <p className="text-[10px] text-zinc-500 mt-0.5">
-                    {isAr ? 'لماذا وبأي وقت يسترجع مبلغي المحجوز' : 'Understand where and when locked funds return'}
+                    {isAr ? 'دفعات مزاداتك الفائزة المحفوظة حتى تأكيد الاستلام' : 'Payments for won auctions, held until you confirm delivery'}
                   </p>
                 </div>
               </div>
@@ -746,9 +488,9 @@ export const WalletView: React.FC = () => {
               {wallet.escrowBalance > 0 ? (
                 <div className="space-y-4 text-left rtl:text-right">
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    {isAr 
-                      ? 'يتم حجز هذا المبلغ مؤقتاً لضمان جديّتك كأعلى مزايد في المزادات المفتوحة المذكورة أدناه. هذه العملية تحمي البائعين وتضمن سلامة المزايدات للجميع.'
-                      : 'This amount is temporarily held to guarantee you are the highest bidder. This protects sellers and ensures auction integrity.'}
+                    {isAr
+                      ? 'هذه دفعاتك عن مزادات فزت بها. يحتفظ مزاد بالمبلغ ولا يحوّله للبائع إلا بعد استلامك القطعة وتأكيدك أنها مطابقة.'
+                      : 'These are your payments for auctions you won. Mazad holds each amount and only releases it to the seller after you receive the item and confirm it matches.'}
                   </p>
 
                   <div className="space-y-2.5">
@@ -764,16 +506,16 @@ export const WalletView: React.FC = () => {
                         </div>
                         <div className="text-[11px] text-zinc-400 space-y-1.5 pt-2 border-t border-white/5 text-left rtl:text-right">
                           <div>
-                            <span className="text-[#FF6B00] font-bold">● {isAr ? 'سبب الحجز:' : 'Why Locked:'}</span>{' '}
-                            {isAr 
-                              ? `مشاركتك كأعلى مزايد حالي بقيمة ${escrow.amount} د.أ في مزاد "${escrow.auctionTitle}".` 
-                              : `You are currently the highest bidder with ${escrow.amount} JOD on lot "${escrow.auctionTitle}".`}
+                            <span className="text-[#FF6B00] font-bold">● {isAr ? 'سبب الحفظ:' : 'Why Held:'}</span>{' '}
+                            {isAr
+                              ? `دفعتك بقيمة ${escrow.amount} د.أ عن فوزك بمزاد "${escrow.auctionTitle}".`
+                              : `Your ${escrow.amount} JOD payment for winning lot "${escrow.auctionTitle}".`}
                           </div>
                           <div>
-                            <span className="text-[#10B981] font-bold">● {isAr ? 'متى يسترجع؟' : 'When it returns?'}</span>{' '}
-                            {isAr 
-                              ? 'يسترجع فوراً وتلقائياً لمحفظتك إذا قام شخص آخر بالمزايدة بسعر أعلى منك. أما إذا فزت بالمزاد، فيُسلّم للبائع بعد استلامك ومعاينة المنتج وتأكيد رضاك.' 
-                              : 'Refunded instantly to your wallet if you are outbid. If you win, it goes to the seller only after your delivery confirmation.'}
+                            <span className="text-[#10B981] font-bold">● {isAr ? 'متى يُحرَّر؟' : 'When is it released?'}</span>{' '}
+                            {isAr
+                              ? 'يُحوَّل للبائع بعد استلامك القطعة ومعاينتها وتأكيد رضاك. وإذا أُلغي الطلب، يُعاد المبلغ إليك.'
+                              : 'Released to the seller after you receive, inspect, and confirm the item. If the order is cancelled, it is returned to you.'}
                           </div>
                         </div>
                       </div>
@@ -783,70 +525,22 @@ export const WalletView: React.FC = () => {
               ) : (
                 <div className="text-center py-5 bg-[#202024] rounded-2xl border border-dashed border-white/5 p-4">
                   <p className="text-xs text-zinc-300 font-extrabold">
-                    {isAr ? 'لا يوجد أي مبالغ محجوزة حالياً' : 'No locked amounts currently'}
+                    {isAr ? 'لا يوجد أي مبالغ محفوظة بالضمان حالياً' : 'No payments held in escrow currently'}
                   </p>
                   <p className="text-[10px] text-zinc-500 mt-1 px-4 leading-relaxed max-w-sm mx-auto">
-                    {isAr 
-                      ? 'رصيدك المتاح بالكامل جاهز للبدء بالمزايدة فوراً. عند المزايدة على أي معروض، سيتم حجز قيمة عرضك مؤقتاً لضمان جدية المزايدة.' 
-                      : 'Your available balance is fully ready for bidding. Placing a bid will temporarily lock the bid amount to secure your bid slot.'}
+                    {isAr
+                      ? 'المزايدة مجانية — تدفع فقط عند الفوز. عند فوزك بمزاد ودفعك عبر كليك، يظهر المبلغ هنا محفوظاً حتى تأكيد الاستلام.'
+                      : 'Bidding is free — you only pay when you win. When you win and pay via CliQ, your payment appears here, held until you confirm delivery.'}
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* Mobile Only Quick Actions Stack */}
-            <div className="block lg:hidden grid grid-cols-2 gap-3.5">
-              <button 
-                onClick={() => setWalletSubView('add-funds')}
-                className="w-full bg-[#FF6B00] hover:bg-orange-600 active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all"
-                id="mob-btn-add-funds"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>{localT.addFunds}</span>
-              </button>
-              <button 
-                onClick={() => setWalletSubView('withdraw')}
-                className="w-full bg-[#202024] border border-white/10 hover:bg-[#2c2c32] active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer text-white transition-all"
-                id="mob-btn-withdraw"
-              >
-                <ArrowDownLeft className="w-4 h-4 text-zinc-400 stroke-[3]" />
-                <span>{localT.withdraw}</span>
-              </button>
             </div>
 
             {/* Quick Navigation grid */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-mono font-black tracking-widest text-zinc-400">{isAr ? 'الوصول السريع للمهام' : 'Quick Actions'}</h3>
               <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={() => setWalletSubView('add-funds')}
-                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
-                  id="action-add-funds-home"
-                >
-                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-[#FF6B00] group-hover:scale-105 transition-transform">
-                    <Plus className="w-5 h-5 stroke-[2.5]" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-sm text-white">{localT.addFunds}</h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'شحن فوري بالآيبان وكليك' : 'Deposit instantly via CliQ'}</p>
-                  </div>
-                </button>
-
-                <button 
-                  onClick={() => setWalletSubView('withdraw')}
-                  className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
-                  id="action-withdraw-home"
-                >
-                  <div className="w-10 h-10 rounded-2xl bg-[#202024] flex items-center justify-center text-[#10B981] group-hover:scale-105 transition-transform">
-                    <ArrowDownLeft className="w-5 h-5 stroke-[2.5]" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-sm text-white">{localT.withdraw}</h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'سحب رصيدك لحسابك البنكي الأردني' : 'Transfer JOD to bank account'}</p>
-                  </div>
-                </button>
-
-                <button 
+                <button
                   onClick={() => setWalletSubView('transactions')}
                   className="bg-[#18181B] border border-white/5 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
                   id="action-transactions-home"
@@ -856,7 +550,7 @@ export const WalletView: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-extrabold text-sm text-white">{localT.transactions}</h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'عرض الإيداعات والمكاسب بالتفصيل' : 'View financial entries log'}</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{isAr ? 'عرض عملياتك المالية بالتفصيل' : 'View financial entries log'}</p>
                   </div>
                 </button>
 
@@ -933,431 +627,6 @@ export const WalletView: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        );
-
-      case 'add-funds':
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setWalletSubView('wallet-home')}
-                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
-              >
-                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
-              </button>
-              <div>
-                <h1 className="text-xl font-black">{localT.addFunds}</h1>
-                <p className="text-xs text-zinc-400">{isAr ? 'تمويل فوري وآمن لرصيدك' : 'Top up your bidding wallet'}</p>
-              </div>
-            </div>
-
-            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6">
-              {submittedProof ? (
-                <div className="text-center space-y-6 py-6" id="submitted-slip-alert-rebuilt">
-                  <div className="w-16 h-16 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center mx-auto border border-[#10B981]/20 shadow-md">
-                    <Check className="w-8 h-8 stroke-[3]" />
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="text-lg font-black text-white">{isAr ? 'تم رفع طلب الشحن بنجاح!' : 'DEPOSIT REQUEST SUBMITTED'}</h4>
-                    <p className="text-sm text-zinc-400 leading-relaxed max-w-md mx-auto">
-                      {isAr 
-                        ? 'تم رفع إشعار الحوالة والبيانات للقسم المالي. لاعتماده فورا والبدء بالمزايدة، تفضل بزيارة لوحة تحكم المدير ومراجعة الحوالات الواردة لاعتماده في ثوانٍ معدودة!' 
-                        : 'Your receipt document was loaded successfully. In this sandbox environment, please navigate to the Admin Dashboard (top segment) to approve it instantly!'}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => setSubmittedProof(false)}
-                    className="px-6 py-3 bg-[#FF6B00] text-white font-black text-xs rounded-2xl tracking-wider hover:bg-orange-600 transition-all cursor-pointer shadow-md uppercase font-mono"
-                  >
-                    {isAr ? 'إرسال حوالة أخرى 💳' : 'TRIGGER ANOTHER CLIQ DEPOSIT'}
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleTopUpSubmit} className="space-y-6" id="topup-compliance-form-rebuilt">
-                  
-                  {/* Step 1: Input amount with quick presets */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
-                      {localT.chooseAmount} <span className="text-[#FF6B00]">*</span>
-                    </label>
-                    
-                    {/* Amount Large Input */}
-                    <div className="relative flex items-center">
-                      <input 
-                        type="number" 
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder="500"
-                        className="w-full bg-[#202024] border border-white/5 rounded-3xl py-5 px-6 font-black font-mono text-4xl text-center text-white focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] transition-all"
-                      />
-                      <span className={`absolute ${isAr ? 'left-6' : 'right-6'} text-sm font-black text-[#FF6B00] tracking-widest font-mono`}>JOD</span>
-                    </div>
-
-                    {/* Presets Grid */}
-                    <div className="grid grid-cols-5 gap-2">
-                      {presets.map((val) => {
-                        const isActive = parseInt(amount, 10) === val;
-                        return (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => setAmount(val.toString())}
-                            className={`py-2 px-1 rounded-2xl text-xs font-black tracking-tight transition-all active:scale-95 text-center cursor-pointer font-mono border ${
-                              isActive
-                                ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-sm'
-                                : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32] hover:text-white'
-                            }`}
-                          >
-                            +{val.toLocaleString()}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Step 2: CliQ Alias */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
-                      {localT.cliqAlias} <span className="text-[#FF6B00]">*</span>
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={alias}
-                        onChange={(e) => setAlias(e.target.value)}
-                        placeholder={localT.aliasPlaceholder}
-                        className="w-full bg-[#202024] border border-white/5 rounded-2xl py-4 px-5 text-white text-sm font-bold focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
-                      />
-                      <div className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} text-zinc-500`}>
-                        <UserIcon className="w-5 h-5" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* CliQ Bank details card */}
-                  <div className="bg-[#202024] border border-white/5 rounded-3xl p-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-[#FF6B00]" />
-                        <span className="text-xs font-black text-white uppercase tracking-wider font-mono">
-                          {localT.bankDetails}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-black bg-[#FF6B00]/10 text-[#FF6B00] px-2 py-0.5 rounded-full font-mono uppercase">
-                        {isAr ? 'فوري' : 'INSTANT'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 font-sans text-xs">
-                      {/* CliQ alias — PRIMARY transfer target (IBAN below stays as fallback) */}
-                      <div className="border-b border-white/5 pb-2 space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">{localT.cliqAliasLabel}:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-black text-white select-all">{CLIQ_ALIAS}</span>
-                            <button
-                              type="button"
-                              onClick={handleCopyAlias}
-                              className="p-1 bg-[#18181B] rounded-lg hover:text-[#FF6B00] text-zinc-400 transition-colors cursor-pointer"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-zinc-500 font-bold">{localT.cliqAliasHelper}</p>
-                      </div>
-
-                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                        <span className="text-zinc-400">{localT.recipientBank}:</span>
-                        <span className="font-extrabold text-[#FF6B00] uppercase font-mono">{isAr ? 'البنك العربي' : 'ARAB BANK'}</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                        <span className="text-zinc-400">{localT.accountName}:</span>
-                        <span className="font-black text-white">{isAr ? CLIQ_RECIPIENT_NAME_AR : CLIQ_RECIPIENT_NAME_EN}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-400">IBAN:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-white select-all">JO83 CAPS 1020 0085 4100 00</span>
-                          <button 
-                            type="button" 
-                            onClick={handleCopyIBAN}
-                            className="p-1 bg-[#18181B] rounded-lg hover:text-[#FF6B00] text-zinc-400 transition-colors cursor-pointer"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 3: Screenshot Box */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
-                      {localT.receiptAttachment} <span className="text-[#FF6B00]">*</span>
-                    </label>
-                    
-                    <input 
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleRealFileUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                    
-                    <div 
-                      onClick={handleTriggerFileInput}
-                      className="border-2 border-dashed border-white/10 hover:border-[#FF6B00] rounded-3xl p-6 text-center cursor-pointer transition-all space-y-3 bg-[#202024] group"
-                      id="screenshot-uploader-box-rebuilt"
-                    >
-                      {fileUploaded && selectedFile ? (
-                        <div className="flex flex-col items-center justify-center gap-2 text-[#10B981]">
-                          <div className="w-10 h-10 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center border border-[#10B981]/20">
-                            <CheckCircle className="w-6 h-6 stroke-[3]" />
-                          </div>
-                          <span className="font-mono text-xs text-white font-extrabold max-w-full truncate px-3 bg-[#18181B] py-1.5 rounded-xl border border-white/5">
-                            {fileName}
-                          </span>
-                          <span className="text-[10px] text-[#FF6B00] font-black uppercase">
-                            {isAr ? 'انقر لاستبدال الإيصال المرفق' : 'Click to replace document'}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-zinc-400 space-y-3">
-                          <Camera className="w-10 h-10 mx-auto text-zinc-500 group-hover:text-[#FF6B00] transition-colors" />
-                          <div>
-                            <p className="font-extrabold text-xs text-[#FF6B00] uppercase tracking-wider">
-                              {localT.uploadReceipt}
-                            </p>
-                            <p className="text-[10px] text-zinc-500 uppercase tracking-tight mt-1">
-                              {localT.supportedFormats}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting || !fileUploaded || !selectedFile}
-                    className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
-                      isSubmitting || !fileUploaded || !selectedFile
-                        ? 'bg-[#202024] text-zinc-600 border border-white/5 cursor-not-allowed shadow-none' 
-                        : 'bg-[#FF6B00] hover:bg-orange-600 text-white hover:shadow-lg active:scale-[0.99]'
-                    }`}
-                    id="submit-deposit-proof-btn-rebuilt"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>{isAr ? 'جاري التحقق وتسجيل المستند...' : 'TRANSMITTING RECEIPT FOR AUDIT...'}</span>
-                      </>
-                    ) : (
-                      <span>{localT.submit}</span>
-                    )}
-                  </button>
-
-                </form>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'withdraw':
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setWalletSubView('wallet-home')}
-                className="w-10 h-10 rounded-2xl bg-[#18181B] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer active:scale-95"
-              >
-                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
-              </button>
-              <div>
-                <h1 className="text-xl font-black">{localT.withdraw}</h1>
-                <p className="text-xs text-zinc-400">{isAr ? 'سحب المبالغ المتاحة لحسابك البنكي' : 'Cash out your available JOD'}</p>
-              </div>
-            </div>
-
-            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6">
-              {withdrawSuccess ? (
-                <div className="text-center space-y-6 py-6" id="withdraw-success-card">
-                  <div className="w-16 h-16 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center mx-auto border border-[#10B981]/20 shadow-md">
-                    <CheckCircle2 className="w-8 h-8 stroke-[3]" />
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="text-lg font-black text-white">{localT.withdrawSuccess}</h4>
-                    <p className="text-sm text-zinc-400 leading-relaxed max-w-md mx-auto">
-                      {localT.withdrawSuccessDesc}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setWithdrawSuccess(false);
-                      setWalletSubView('wallet-home');
-                    }}
-                    className="px-6 py-3 bg-[#FF6B00] text-white font-black text-xs rounded-2xl tracking-wider hover:bg-orange-600 transition-all cursor-pointer shadow-md uppercase font-mono"
-                  >
-                    {isAr ? 'العودة للمحفظة الرئيسة' : 'RETURN TO WALLET'}
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleWithdrawSubmit} className="space-y-6">
-                  
-                  {/* Show available balance */}
-                  <div className="bg-[#202024] border border-white/5 p-5 rounded-3xl flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] uppercase font-mono font-black text-zinc-400 block">{localT.availableToWithdraw}</span>
-                      <p className="text-2xl font-black font-mono text-[#10B981] mt-1">
-                        {wallet.availableBalance.toLocaleString()} <span className="text-xs">JOD</span>
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 rounded-2xl bg-[#18181B] flex items-center justify-center text-zinc-400">
-                      <Wallet className="w-5 h-5" />
-                    </div>
-                  </div>
-
-                  {/* Choose withdraw method */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
-                      {localT.withdrawMethod}
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        type="button" 
-                        onClick={() => setWithdrawType('cliq')}
-                        className={`py-3.5 px-4 rounded-2xl text-xs font-black transition-all border cursor-pointer uppercase ${
-                          withdrawType === 'cliq'
-                            ? 'bg-[#FF6B00] border-[#FF6B00] text-white'
-                            : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32]'
-                        }`}
-                      >
-                        {localT.cliqInstant}
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setWithdrawType('bank')}
-                        className={`py-3.5 px-4 rounded-2xl text-xs font-black transition-all border cursor-pointer uppercase ${
-                          withdrawType === 'bank'
-                            ? 'bg-[#FF6B00] border-[#FF6B00] text-white'
-                            : 'bg-[#202024] border-white/5 text-zinc-400 hover:bg-[#2c2c32]'
-                        }`}
-                      >
-                        {localT.bankTransfer}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Input amount */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-zinc-400 tracking-wider block">
-                      {localT.amountLabel} <span className="text-[#FF6B00]">*</span>
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type="number" 
-                        value={wAmount}
-                        onChange={(e) => setWAmount(e.target.value)}
-                        placeholder="150"
-                        className="w-full bg-[#202024] border border-white/5 rounded-2xl py-4 px-5 text-white font-black font-mono text-lg focus:outline-none focus:border-[#FF6B00]"
-                      />
-                      <span className="absolute right-5 top-4 text-xs font-black text-[#FF6B00] font-mono">JOD</span>
-                    </div>
-                  </div>
-
-                  {/* Conditional inputs */}
-                  <div className="space-y-4">
-                    <h3 className="text-xs uppercase font-mono font-black text-zinc-400 tracking-wider">
-                      {localT.withdrawDetailsTitle}
-                    </h3>
-                    
-                    {withdrawType === 'bank' ? (
-                      <div className="space-y-3.5">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.bankInputLabel}</label>
-                          <input 
-                            type="text" 
-                            value={wBankName}
-                            onChange={(e) => setWBankName(e.target.value)}
-                            placeholder={isAr ? "مثال: البنك العربي" : "e.g. Arab Bank"}
-                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.ibanInputLabel}</label>
-                          <input 
-                            type="text" 
-                            value={wIban}
-                            onChange={(e) => setWIban(e.target.value)}
-                            placeholder="JO..."
-                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.holderInputLabel}</label>
-                          <input 
-                            type="text" 
-                            value={wHolderName}
-                            onChange={(e) => setWHolderName(e.target.value)}
-                            placeholder={currentUser?.name}
-                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3.5">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-mono text-zinc-400">{isAr ? 'اسم مستعار كليك (المرسل إليه)' : 'Target CliQ Alias'}</label>
-                          <input 
-                            type="text" 
-                            value={wCliqAlias}
-                            onChange={(e) => setWCliqAlias(e.target.value)}
-                            placeholder="alias@cliq"
-                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-mono text-zinc-400">{localT.phoneLabel}</label>
-                          <input 
-                            type="text" 
-                            value={wPhone}
-                            onChange={(e) => setWPhone(e.target.value)}
-                            placeholder={currentUser?.phoneNumber || "079..."}
-                            className="w-full bg-[#202024] border border-white/5 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none font-mono"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Submit Button */}
-                  <button 
-                    type="submit" 
-                    disabled={isWithdrawing || !wAmount}
-                    className={`w-full font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md uppercase text-xs cursor-pointer select-none ${
-                      isWithdrawing || !wAmount
-                        ? 'bg-[#202024] text-zinc-600 border border-white/5 cursor-not-allowed shadow-none' 
-                        : 'bg-[#FF6B00] hover:bg-orange-600 text-white hover:shadow-lg active:scale-[0.99]'
-                    }`}
-                  >
-                    {isWithdrawing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>{isAr ? 'جاري تسجيل طلب السحب البنكي...' : 'TRANSMITTING REQUEST...'}</span>
-                      </>
-                    ) : (
-                      <span>{localT.withdrawBtn}</span>
-                    )}
-                  </button>
-
-                </form>
-              )}
             </div>
           </div>
         );
@@ -1445,7 +714,7 @@ export const WalletView: React.FC = () => {
                 <div className="text-center py-12 bg-[#18181B] border border-white/5 rounded-3xl p-6">
                   <History className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
                   <p className="font-extrabold text-sm text-zinc-400 uppercase tracking-wider">{isAr ? 'لا يوجد عمليات ضمن هذا الفلتر' : 'No transactions found'}</p>
-                  <p className="text-xs text-zinc-500 mt-1">{isAr ? 'جرب تغيير خيار التصفية أو قم بتمويل محفظتك الآن.' : 'Try changing your filter settings or top up your wallet.'}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{isAr ? 'جرب تغيير خيار التصفية — دفعات مزاداتك الفائزة ستظهر هنا.' : 'Try changing your filter — payments for auctions you win will appear here.'}</p>
                 </div>
               )}
             </div>
@@ -1556,32 +825,6 @@ export const WalletView: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setWalletSubView('add-funds')}
-                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
-                    walletSubView === 'add-funds'
-                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  id="side-nav-add"
-                >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span>{localT.addFunds}</span>
-                </button>
-
-                <button
-                  onClick={() => setWalletSubView('withdraw')}
-                  className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
-                    walletSubView === 'withdraw'
-                      ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  id="side-nav-withdraw"
-                >
-                  <ArrowDownLeft className="w-4 h-4 shrink-0" />
-                  <span>{localT.withdraw}</span>
-                </button>
-
-                <button
                   onClick={() => setWalletSubView('transactions')}
                   className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
                     walletSubView === 'transactions'
@@ -1626,8 +869,8 @@ export const WalletView: React.FC = () => {
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {isAr
-                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
-                  : "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes."}
+                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.'
+                  : "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes."}
               </p>
             </div>
 
@@ -1690,26 +933,6 @@ export const WalletView: React.FC = () => {
                     <p className="text-sm font-mono font-black text-rose-500">{wallet.escrowBalance.toLocaleString()} <span className="text-[8px]">JOD</span></p>
                   </div>
                 </div>
-              </div>
-
-              {/* Add & Withdraw Buttons */}
-              <div className="grid grid-cols-2 gap-3.5">
-                <button 
-                  onClick={() => setWalletSubView('add-funds')}
-                  className="w-full bg-[#FF6B00] hover:bg-orange-600 active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all"
-                  id="mob-btn-add-funds-alt"
-                >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>{localT.addFunds}</span>
-                </button>
-                <button 
-                  onClick={() => setWalletSubView('withdraw')}
-                  className="w-full bg-[#202024] border border-white/10 hover:bg-[#2c2c32] active:scale-98 font-mono font-black py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer text-white transition-all"
-                  id="mob-btn-withdraw-alt"
-                >
-                  <ArrowDownLeft className="w-4 h-4 text-zinc-400 stroke-[3]" />
-                  <span>{localT.withdraw}</span>
-                </button>
               </div>
 
               {/* Quick Actions List (Compact) */}
