@@ -25,12 +25,28 @@ service cloud.firestore {
       );
     }
 
+    // S3 — subscription-grant fields are written ONLY by Cloud Functions
+    // (requestSubscription / approveSubscription / rejectSubscription via the
+    // Admin SDK, which bypasses rules). NO client may write them — including
+    // the admin client — so a compromised admin browser session can never
+    // hand-craft a grant.
+    function touchesSubscriptionGrantFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'subscriptionStatus', 'subscriptionExpiry', 'subscriptionPlan',
+        'subscriptionTier', 'subscriptionApprovedAt', 'subscriptionExpiresAt'
+      ]);
+    }
+
     // 1. Users block
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
       allow create: if request.auth != null && request.auth.uid == userId &&
-        !request.resource.data.keys().hasAny(['isAdmin','isBlocked','isVerified','isSeller','subscriptionStatus','subscriptionExpiry','wonCount']) &&
+        !request.resource.data.keys().hasAny([
+          'isAdmin','isBlocked','isVerified','isSeller','wonCount',
+          'subscriptionStatus','subscriptionExpiry','subscriptionPlan',
+          'subscriptionTier','subscriptionApprovedAt','subscriptionExpiresAt'
+        ]) &&
         request.auth.token != null &&
         (
           ('email' in request.auth.token && request.resource.data.email == request.auth.token.email) ||
@@ -42,13 +58,16 @@ service cloud.firestore {
           request.resource.data.role == 'user' ||
           (request.resource.data.role == 'admin' && 'email' in request.auth.token && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
         );
-      allow update: if request.auth != null && (
-        isAdmin() || 
-        (request.auth.token != null && 'email' in request.auth.token && 
+      allow update: if request.auth != null &&
+        // S3 — subscription grants are server-only for EVERY client, admin
+        // included (see touchesSubscriptionGrantFields above).
+        !touchesSubscriptionGrantFields() && (
+        isAdmin() ||
+        (request.auth.token != null && 'email' in request.auth.token &&
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'subscriptionStatus', 'subscriptionExpiry', 'wonCount'
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'wonCount'
           ]) &&
           // Owner may CLAIM an email once (empty -> string) but can never CHANGE
           // a non-empty email (it's the receipt/contact identity). "Empty" covers
@@ -121,6 +140,22 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isAdmin() || (resource.data.createdById == request.auth.uid && (resource.data.totalBids == 0 || resource.data.totalBids == null) && resource.data.status == 'upcoming'));
     }
 
+    // Atomic sequence for internal auction numbers. Admin-gated: only the
+    // drop builder (admin) reads + increments it in a transaction. Cosmetic
+    // value — no money state — so a client transaction is acceptable here.
+    match /counters/{counterId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Reserve prices (and any future per-auction secrets). NEVER world-readable:
+    // auctions/{id} is `allow read: if true`, so the reserve amount must live
+    // here, admin-only. Cloud Functions (settleAuctionTxn) bypass rules entirely.
+    match /auctionSecrets/{auctionId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
     // 3. Bids subcollection (writable ONLY by Cloud Functions)
     match /auctions/{auctionId}/bids/{bidId} {
       allow read: if true;
@@ -142,9 +177,21 @@ service cloud.firestore {
     // 6. Subscription Requests
     match /subscriptionRequests/{reqId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && 
-                    request.resource.data.userId == request.auth.uid && 
-                    request.resource.data.status == 'pending';
+      // S3 defense-in-depth: grant-control fields may NEVER be client-set. The
+      // real flow (the requestSubscription callable) writes via the Admin SDK
+      // and bypasses rules; a direct client create with a forged `tier` (e.g.
+      // { price: 1, tier: 'annual' }) — or a price-less `plan: 'annual'` that
+      // would ride the resolver's legacy-plan fallback — would otherwise turn
+      // a genuine 1 JD proof into a 365-day grant. approveSubscription also
+      // cross-checks tier-vs-price server-side; this rule kills the forgery
+      // earlier. `plan`'s legacy fallback stays resolver-side for old
+      // Admin-SDK-created docs only.
+      allow create: if isSignedIn() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
+                    !request.resource.data.keys().hasAny([
+                      'tier', 'durationDays', 'approvedTier', 'approvedDurationDays', 'plan'
+                    ]);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -207,18 +254,55 @@ service cloud.firestore {
     // 12. Orders
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /
+      // repairEndedAuctionOrder via Admin SDK, which bypasses rules). The doc
+      // id is the auction id, so a client-created order would pre-empt the
+      // settler's !orderSnap.exists guard and forge the buyer/price.
+      allow create: if false;
+      // S2 — buyer/seller may update their order, but every financial +
+      // identity field is server-only (denylist, because
+      // executeOrderTransition writes an open-ended field set).
       allow update: if isSignedIn() && (
-        resource.data.buyerId == request.auth.uid || 
-        resource.data.sellerId == request.auth.uid || 
-        isAdmin()
-      ) && (
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||
+        isAdmin() ||
         (
-          request.resource.data.status != 'completed' && 
-          request.resource.data.escrowStatus != 'released' &&
-          request.resource.data.status != 'refunded' &&
-          request.resource.data.escrowStatus != 'refunded'
+          (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid) &&
+          // financial + identity fields are server-only
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'buyerId', 'sellerId', 'auctionId', 'winningBidAmount', 'totalDue',
+            'buyersPremium', 'escrowId', 'isSimulated', 'createdAt',
+            'id', 'buyerName', 'sellerName', 'paymentDeadlineAt'
+          ]) &&
+          // paymentStatus: the ONLY client transition is the buyer's own
+          // unpaid -> paid claim (the CliQ 'pay' workflow step, which also
+          // sets status:'paid'; admin verifies the proof before any escrow
+          // release). Everything else — incl. seller writes and paid -> unpaid
+          // resets — is server/admin-only.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paymentStatus']) ||
+            (
+              resource.data.buyerId == request.auth.uid &&
+              resource.data.paymentStatus == 'unpaid' &&
+              request.resource.data.paymentStatus == 'paid' &&
+              request.resource.data.status == 'paid'
+            )
+          ) &&
+          // delivery address/phone are the BUYER's to set (given at the pay
+          // step) — a seller must never write or alter where the buyer's item
+          // ships. Only the buyer may touch these two fields.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deliveryAddress', 'deliveryPhone']) ||
+            resource.data.buyerId == request.auth.uid
+          ) &&
+          // keep the existing terminal-transition guard (settlement is server-only)
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||
+            (
+              request.resource.data.status != 'completed' &&
+              request.resource.data.escrowStatus != 'released' &&
+              request.resource.data.status != 'refunded' &&
+              request.resource.data.escrowStatus != 'refunded'
+            )
+          )
         )
       );
       allow delete: if isAdmin();
