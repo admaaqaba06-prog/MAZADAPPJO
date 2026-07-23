@@ -121,12 +121,16 @@ async function settleAuctionTxn(auctionRef, auctionData) {
   // Reserve lives in an admin/server-only doc (never on the world-readable
   // auction). Read it here; the authoritative sale decision re-derives price
   // from the in-txn snapshot below.
+  // FAIL CLOSED: if this read errors we must NOT settle — defaulting to
+  // "no reserve" could irreversibly sell below reserve. Abort this auction's
+  // settlement for this run; the per-minute cron retries next sweep.
   let reservePrice = null;
   try {
     const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
     if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
   } catch (secErr) {
-    console.warn(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId}:`, secErr);
+    console.error(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId} — aborting settlement this run (fail closed):`, secErr);
+    throw secErr;
   }
 
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
@@ -348,7 +352,14 @@ exports.scheduledAuctionCloser = functions.pubsub
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
           // Full settle logic lives in settleAuctionTxn (shared with simulateSettleNow).
-          await settleAuctionTxn(auctionDoc.ref, auctionData);
+          // Per-auction guard: a throw here (e.g. fail-closed reserve read) must
+          // abort only THIS auction's settle this sweep — log and let the other
+          // auctions settle; the per-minute cron retries this one next run.
+          try {
+            await settleAuctionTxn(auctionDoc.ref, auctionData);
+          } catch (settleErr) {
+            console.error(`[scheduledAuctionCloser] Settle failed for ${auctionId} — will retry next sweep:`, settleErr);
+          }
         }
       });
 
