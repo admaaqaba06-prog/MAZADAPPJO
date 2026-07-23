@@ -105,22 +105,33 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // receiving `timeLeftStr` from LiveStreamView. That way the per-second tick
   // stays confined to this component and never re-renders the parent room.
   const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
+  // PF7: depend on the primitives the timer actually reads, NOT the
+  // activeAuction object identity — before PF5, every bid on ANY lot handed
+  // this component a fresh object and tore down/rebuilt the interval
+  // mid-snipe-window. ⚠️TIMING: `endTime` MUST stay in the deps (anti-snipe
+  // +15s extension must restart the countdown), `status` for the
+  // live→completed flip, and `scheduledStartAt` because the pre-open branch
+  // counts down to it (a reschedule must retarget the timer).
+  const activeAuctionId = activeAuction?.id;
+  const activeAuctionEndTime = activeAuction?.endTime;
+  const activeAuctionStatus = activeAuction?.status;
+  const activeAuctionScheduledStartAt = activeAuction?.scheduledStartAt;
   useEffect(() => {
-    if (!activeAuction) {
+    if (!activeAuctionId) {
       setTimeLeftStr('00:00:00');
       return;
     }
     const updateTimer = () => {
       // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
-      const open = isAuctionOpen(activeAuction?.status);
-      const target = !open && activeAuction?.scheduledStartAt
-        ? activeAuction.scheduledStartAt
-        : activeAuction?.endTime;
+      const open = isAuctionOpen(activeAuctionStatus);
+      const target = !open && activeAuctionScheduledStartAt
+        ? activeAuctionScheduledStartAt
+        : activeAuctionEndTime;
       const remainingMs = (target ?? 0) - serverNow();
       const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
 
       // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
-      if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+      if (!open && (activeAuctionScheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
         setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
         return;
       }
@@ -140,7 +151,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [activeAuction, isAr]);
+  }, [activeAuctionId, activeAuctionEndTime, activeAuctionStatus, activeAuctionScheduledStartAt, isAr]);
 
   // --- The bid moment: confirm-then-bid + success rush ---
   const [pendingBid, setPendingBid] = useState<number | null>(null);
