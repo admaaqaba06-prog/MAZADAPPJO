@@ -802,6 +802,16 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <span className="text-[9px] text-emerald-600 font-semibold mt-1 block leading-none">
                     +{(activeAuction.minIncrement || 10)} JOD
                   </span>
+                  {activeAuction.reserveMet === false && (
+                    <span className="text-xs font-semibold text-amber-600 mt-1 block leading-none">
+                      {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
+                    </span>
+                  )}
+                  {activeAuction.reserveMet === true && (
+                    <span className="text-xs font-semibold text-emerald-600 mt-1 block leading-none">
+                      {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
+                    </span>
+                  )}
                 </div>
 
                 {/* Time Remaining */}

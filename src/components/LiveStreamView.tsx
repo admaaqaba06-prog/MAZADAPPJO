@@ -357,7 +357,7 @@ export const LiveStreamView: React.FC = () => {
     // dead auction as if it were watchable.
     const approvedOnly = auctions.filter(a =>
       a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
-      a.status !== 'completed' && a.status !== 'ended'
+      a.status !== 'completed' && a.status !== 'ended' && a.status !== 'reserve_not_met'
     );
     const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {

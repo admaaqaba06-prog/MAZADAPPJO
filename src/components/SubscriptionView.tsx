@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { SUBSCRIPTION_TIERS } from '../constants/subscriptionTiers';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
 import { ShieldCheck, Check, Copy, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
@@ -51,7 +52,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'monthly',
       name: language === 'en' ? 'Starter Bidder' : 'المزايد المبتدئ',
-      price: 1,
+      price: SUBSCRIPTION_TIERS.monthly.price,
       period: t.planMonthlyUnit,
       badge: null,
       color: 'border-gray-200'
@@ -59,7 +60,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'semiannual', // 4 JD / 6 months (see translations planQuarterlyUnit) — was mislabeled 'quarterly'
       name: language === 'en' ? 'Professional Elite' : 'النخبة الاحترافية',
-      price: 4,
+      price: SUBSCRIPTION_TIERS.semiannual.price,
       period: t.planQuarterlyUnit,
       badge: t.mostPopular,
       color: 'border-[#FF6B00] shadow-[0_8px_20px_rgba(255,107,0,0.08)]'
@@ -67,7 +68,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'annual',
       name: language === 'en' ? 'Supreme Investor' : 'المستثمر السيادي',
-      price: 7,
+      price: SUBSCRIPTION_TIERS.annual.price,
       period: t.planAnnualUnit,
       badge: t.bestValue,
       color: 'border-black'
@@ -423,7 +424,7 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Footer */}
       <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto">
-        CENTRAL BANK OF JORDAN AUDITED GATEWAYS
+        {isAr ? 'الدفع عبر كليك • حماية المشتري من مزاد' : 'PAY VIA CLIQ • BUYER PROTECTION BY MAZAD'}
       </footer>
     </div>
   );

@@ -165,7 +165,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "توثيق البائعين",
-          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لضمان المصداقية.",
+          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لتعزيز المصداقية والثقة.",
         },
         {
           icon: "📸",
@@ -315,7 +315,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "ماذا لو كانت القطعة مختلفة عن الوصف؟",
-          a: "أنت محمي بضمان الـ٣٠ يوماً. تواصل معنا وسنصحح الأمر — دفعتك تبقى في حساب الضمان حتى تتأكد من رضاك."
+          a: "دفعتك تبقى محجوزة لدى مزاد ولا تُحوَّل للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة. إذا صار أي إشكال، تواصل معنا وبنتوسّط لحلّه."
         },
         {
           q: "كم تكلفة البيع؟",
@@ -377,7 +377,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "Seller Verification",
-          desc: "Full identity and document checking of all sellers before any auction begins to guarantee maximum credibility.",
+          desc: "Full identity and document checking of all sellers before any auction begins to strengthen credibility and trust.",
         },
         {
           icon: "📸",
@@ -527,7 +527,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "What if the item is different from the description?",
-          a: "You are protected by our 30-day guarantee. Contact us and we will make it right — your payment remains in the escrow account until you are satisfied."
+          a: "Your payment stays held by Mazad and is only released to the seller after you receive the item and confirm it matches. If anything goes wrong, contact us and we'll mediate."
         },
         {
           q: "How much does it cost to sell?",

@@ -663,9 +663,9 @@ export const DiscoveryFeedView: React.FC = () => {
             {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
           </h1>
           <p className="text-xs text-gray-500 font-medium">
-            {isAr 
-              ? 'تصفح وشارك في مزادات الفيديو الفورية والمؤمنة بالكامل لحمايتك وضمان أموالك.' 
-              : 'Browse and bid in real-time verified video stream drops with secure Jordan CliQ escrow.'}
+            {isAr
+              ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
+              : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
           </p>
         </div>
         <div>
