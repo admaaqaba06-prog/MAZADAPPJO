@@ -140,6 +140,22 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isAdmin() || (resource.data.createdById == request.auth.uid && (resource.data.totalBids == 0 || resource.data.totalBids == null) && resource.data.status == 'upcoming'));
     }
 
+    // Atomic sequence for internal auction numbers. Admin-gated: only the
+    // drop builder (admin) reads + increments it in a transaction. Cosmetic
+    // value — no money state — so a client transaction is acceptable here.
+    match /counters/{counterId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Reserve prices (and any future per-auction secrets). NEVER world-readable:
+    // auctions/{id} is `allow read: if true`, so the reserve amount must live
+    // here, admin-only. Cloud Functions (settleAuctionTxn) bypass rules entirely.
+    match /auctionSecrets/{auctionId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
     // 3. Bids subcollection (writable ONLY by Cloud Functions)
     match /auctions/{auctionId}/bids/{bidId} {
       allow read: if true;

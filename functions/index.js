@@ -7,6 +7,7 @@ const {
   grantSubscriptionDirect,
   rejectSubscriptionRequest,
 } = require('./subscriptionApproval');
+const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -123,6 +124,21 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     }
   }
 
+  // Reserve lives in an admin/server-only doc (never on the world-readable
+  // auction). Read it here; the authoritative sale decision re-derives price
+  // from the in-txn snapshot below.
+  // FAIL CLOSED: if this read errors we must NOT settle — defaulting to
+  // "no reserve" could irreversibly sell below reserve. Abort this auction's
+  // settlement for this run; the per-minute cron retries next sweep.
+  let reservePrice = null;
+  try {
+    const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+    if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+  } catch (secErr) {
+    console.error(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId} — aborting settlement this run (fail closed):`, secErr);
+    throw secErr;
+  }
+
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
   let settled = false;
@@ -134,7 +150,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const freshDoc = await transaction.get(auctionRef);
     const freshData = freshDoc.data();
 
-    if (freshData.status === 'completed' || freshData.status === 'ended') {
+    if (['completed', 'ended', 'reserve_not_met'].includes(freshData.status)) {
       return;
     }
 
@@ -156,7 +172,9 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
-    if (totalBids > 0 && winnerId) {
+    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice });
+
+    if (decision.outcome === 'sold') {
       // Mark completed
       transaction.update(auctionRef, {
         status: 'completed',
@@ -227,6 +245,15 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           }
         }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
       }
+    } else if (decision.outcome === 'reserve_not_met') {
+      // A winner exists but the top bid never cleared the hidden reserve.
+      // Per spec: NO sale, NO order, NO wonCount. Relist-able.
+      transaction.update(auctionRef, {
+        status: 'reserve_not_met',
+        settledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      settled = true;
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
     } else {
       // Close without bidder
       transaction.update(auctionRef, {
@@ -331,7 +358,14 @@ exports.scheduledAuctionCloser = functions.pubsub
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
           // Full settle logic lives in settleAuctionTxn (shared with simulateSettleNow).
-          await settleAuctionTxn(auctionDoc.ref, auctionData);
+          // Per-auction guard: a throw here (e.g. fail-closed reserve read) must
+          // abort only THIS auction's settle this sweep — log and let the other
+          // auctions settle; the per-minute cron retries this one next run.
+          try {
+            await settleAuctionTxn(auctionDoc.ref, auctionData);
+          } catch (settleErr) {
+            console.error(`[scheduledAuctionCloser] Settle failed for ${auctionId} — will retry next sweep:`, settleErr);
+          }
         }
       });
 
@@ -561,6 +595,22 @@ exports.onBidCreated = functions.firestore
       }
 
       const auctionData = auctionSnap.data();
+
+      // Maintain the room's reserve-met label without leaking the amount.
+      // Only flip false -> true (once), and only when a reserve actually exists.
+      try {
+        const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+        const rp = secretSnap.exists ? (secretSnap.data().reservePrice ?? null) : null;
+        if (rp) {
+          const met = reserveMet(auctionData.currentPrice ?? amount, rp);
+          if (met && auctionData.reserveMet !== true) {
+            await db.collection('auctions').doc(auctionId).update({ reserveMet: true });
+          }
+        }
+      } catch (rmErr) {
+        console.warn(`[onBidCreated] reserveMet update failed for ${auctionId}:`, rmErr);
+      }
+
       const previousBidderId = auctionData.previousBidderId;
 
       // Only notify if there is an active previous bidder and they are not the person who just bid
