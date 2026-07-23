@@ -2621,8 +2621,15 @@ const fetchIP = async () => {
       } catch { /* storage full/unavailable — resurrection is tolerable */ }
     };
 
-    // Same index-free pattern as SellerCenterView: where-only + client sort.
-    const q = query(collection(db, 'notifications'), where('userId', '==', currentUser.id));
+    // Bounded server-side to the newest 50 (backed by the composite index on
+    // (userId ASC, timestamp DESC) in firestore.indexes.json) so a long-lived
+    // account never re-reads its entire notification history on every app open.
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', currentUser.id),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
     const unsub = onSnapshot(q, (snap) => {
       const dismissed = readDismissed();
       const currentIds = new Set(notificationsStateRef.current.map(n => n.id));
@@ -2661,15 +2668,8 @@ const fetchIP = async () => {
       setNotifications(prev => {
         const incomingIds = new Set(incoming.map(n => n.id));
         const rest = prev.filter(n => !incomingIds.has(n.id));
-        // Bound the bell to the newest 50. NOTE: the query itself stays
-        // where-only (no orderBy/limit) — this collection can't be ordered
-        // server-side without a NEW composite index on (userId, timestamp),
-        // which would require an out-of-band `firebase deploy
-        // --only firestore:indexes` and would hard-fail the listener for
-        // every user until that index finishes building. That's a
-        // server-side change, out of scope for this client-only pass, so
-        // the cap is applied client-side after the existing sort instead —
-        // same end state (newest-first, bounded), zero index risk.
+        // Query is already bounded to the newest 50 server-side; the sort +
+        // slice here are belt-and-suspenders across the merge with prior state.
         return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
       });
     }, (err: any) => {
