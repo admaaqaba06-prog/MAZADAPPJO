@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-label="Media unavailable">
+  <rect width="800" height="800" fill="#141414"/>
+  <g fill="none" stroke="#3a3a3a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="300" y="320" width="200" height="150" rx="14"/>
+    <path d="M500 360 L560 330 L560 460 L500 430 Z"/>
+  </g>
+  <text x="400" y="560" fill="#6b6b6b" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="34" font-weight="700" text-anchor="middle">Media unavailable</text>
+  <text x="400" y="606" fill="#4a4a4a" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="24" text-anchor="middle">MAZAD JO</text>
+</svg>
