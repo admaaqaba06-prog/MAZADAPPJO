@@ -855,7 +855,22 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
     return txnResult;
   } catch (error) {
     console.error('Error during transaction:', error);
-    throw new functions.https.HttpsError('internal', error.message || 'Transaction failed.');
+    // Transaction contention / deadline / unavailable is a RETRIABLE infra
+    // condition on the hot auction doc — NOT a real bid rejection. Genuine
+    // validation errors never reach here (they return {success:false} inside
+    // the txn). Surface a distinct, retriable 'aborted' code so the client can
+    // offer a friendly "try again" instead of a scary generic 'internal'.
+    const code = error && (error.code !== undefined ? error.code : error.status);
+    const msg = (error && error.message) || '';
+    const isContention =
+      code === 10 || code === 4 || code === 14 || // gRPC ABORTED / DEADLINE_EXCEEDED / UNAVAILABLE
+      code === 'aborted' || code === 'deadline-exceeded' || code === 'unavailable' ||
+      code === 'ABORTED' || code === 'DEADLINE_EXCEEDED' || code === 'UNAVAILABLE' ||
+      /aborted|deadline exceeded|too much contention|contention|unavailable/i.test(msg);
+    if (isContention) {
+      throw new functions.https.HttpsError('aborted', 'PRICE_MOVED_RETRY');
+    }
+    throw new functions.https.HttpsError('internal', msg || 'Transaction failed.');
   }
 });
 

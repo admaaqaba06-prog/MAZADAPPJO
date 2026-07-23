@@ -2970,7 +2970,29 @@ const fetchIP = async () => {
       };
     } catch (error: any) {
       const errorMsg = error.message || String(error);
-      const isExpectedError = 
+      const errorCode = error.code || '';
+
+      // Server-side transaction contention/deadline on the hot auction doc →
+      // the bid didn't fail on the merits, the price just moved or the room is
+      // busy. Surface a FRIENDLY, retriable message (not a scary generic error)
+      // and let the user immediately re-bid — the next confirm recomputes the
+      // min from live state. Distinct from the client-side "price moved" confirm
+      // reprompt, which handles a rival outbid DURING the confirm window.
+      const isContention =
+        errorCode === 'functions/aborted' ||
+        errorCode === 'aborted' ||
+        errorMsg.includes('PRICE_MOVED_RETRY');
+      if (isContention) {
+        console.warn("Cloud function placeBid contention — retriable:", errorMsg);
+        return {
+          success: false,
+          message: language === 'ar'
+            ? 'السعر تغيّر أو الضغط عالي — حاول مرة أخرى'
+            : 'Price moved or high demand — try again'
+        };
+      }
+
+      const isExpectedError =
         errorMsg.includes('ended') || 
         errorMsg.includes('Minimum') || 
         errorMsg.includes('Funds') || 
