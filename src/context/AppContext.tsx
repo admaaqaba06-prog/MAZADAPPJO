@@ -200,14 +200,15 @@ interface AppContextProps {
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
-  globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
-  setGlobalWalletSubView: (subView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders') => void;
+  // Wave 2b: 'add-funds' and 'withdraw' sub-views were removed — the wallet
+  // is a read-only record (bidding is free; seller payouts are off-platform).
+  globalWalletSubView: 'wallet-home' | 'transactions' | 'orders';
+  setGlobalWalletSubView: (subView: 'wallet-home' | 'transactions' | 'orders') => void;
   globalSelectedOrderId: string | null;
   setGlobalSelectedOrderId: (id: string | null) => void;
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
-  triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
@@ -570,7 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -3027,40 +3028,9 @@ const fetchIP = async () => {
     }
   }, [currentUser, language, addNotification, logSystemHealth, featureFlags, pendingReviewOrder]);
 
-  // CliQ Jordanian instant receipt topup via Cloud Function
-  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
-    if (!featureFlags.enableWallets) {
-      const walletsOffTitle = language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled';
-      const walletsOffMsg = language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.';
-      addNotification(walletsOffTitle, walletsOffMsg, 'alert');
-      showToast({ title: walletsOffTitle, message: walletsOffMsg, type: 'warn' });
-      return;
-    }
-
-    try {
-      const topUpCallable = await getCallableFunction<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>('requestTopUp');
-      const result = await topUpCallable({ amount, alias, paymentProofUrl });
-
-      if (result.data.success) {
-        addNotification(
-          language === 'ar' ? '💸 تم استلام طلب التعبئة' : '💸 CliQ Transfer Received',
-          language === 'ar' 
-            ? 'تم رفع الإيصال بنجاح! سيقوم فريق العمليات بمراجعة وتدقيق حوالتك خلال دقيقة.' 
-            : 'Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.',
-          'verify'
-        );
-      } else {
-        throw new Error(result.data.message || 'Operation failed on server.');
-      }
-    } catch (error: any) {
-      console.error("Cloud function requestTopUp failed:", error);
-      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Error: ${error.message || String(error)}`);
-      const topUpFailTitle = language === 'ar' ? '❌ خطأ في تعبئة الرصيد' : '❌ Top-up Error';
-      const topUpFailMsg = error.message || (language === 'ar' ? 'فشل تقديم طلب التعبئة. الرجاء المحاولة مجدداً.' : 'Failed to request top-up.');
-      addNotification(topUpFailTitle, topUpFailMsg, 'alert');
-      showToast({ title: topUpFailTitle, message: topUpFailMsg, type: 'warn' });
-    }
-  }, [currentUser, addNotification, showToast, logSystemHealth, featureFlags, language]);
+  // Wave 2b: customer CliQ top-up entry (triggerCliQTopUp -> requestTopUp)
+  // was removed from the client — bidding is free (pay-after-win), so there
+  // is nothing to pre-fund. The `requestTopUp` Cloud Function itself stays.
 
   const requestWithdrawal = useCallback(async (amount: number, method: string, accountDetails: any) => {
     try {
@@ -3767,48 +3737,11 @@ const fetchIP = async () => {
   }, [auctions, currentUser, language, addNotification, setDeletedAuctionIds]);
 
 
-  // =========================================================
-  // AUTOMATIC OUTBID REFUND CHECKER (GUARANTEES WALLET RETURN)
-  // Whenever any live auction is outbid, we refund the user's locked escrow
-  // =========================================================
-  useEffect(() => {
-    const activeUserId = currentUser?.id || 'user-current';
-    auctions.forEach(auction => {
-      if (auction.status === 'live' && auction.currentBidderId && auction.currentBidderId !== activeUserId) {
-        // Look for the user's locked escrow for this specific auction
-        const clientCommittedEscrow = escrows.find(
-          e => e.auctionId === auction.id && e.bidderId === activeUserId && e.status === 'locked'
-        );
-        if (clientCommittedEscrow) {
-          const refundAmount = clientCommittedEscrow.amount;
-
-          // 1. Mark escrow as refunded instantly
-          setEscrows(prev => prev.map(e => (e.id === clientCommittedEscrow.id ? { ...e, status: 'refunded' as const } : e)));
-
-          // 2. Refund client user's wallet
-          setWallet(prev => {
-            const newEsc = Math.max(0, prev.escrowBalance - refundAmount);
-            const newAvail = prev.availableBalance + refundAmount;
-            return {
-              ...prev,
-              availableBalance: newAvail,
-              escrowBalance: newEsc,
-              totalBalance: newAvail + newEsc
-            };
-          });
-
-          // 3. Show a friendly notification about transaction safety
-          addNotification(
-            language === 'ar' ? '🚨 تم تجاوز عرضك! تم إرجاع المبلغ' : '🚨 Outbid! Funds Returned Secured',
-            language === 'ar'
-              ? `تم تجاوز عرضك على "${auction.title}" بقيمة ${auction.currentPrice.toLocaleString()} دينار. تم إرجاع مبلغك ${refundAmount.toLocaleString()} دينار فوراً إلى محفظتك.`
-              : `You have been outbid on "${auction.title}" at ${auction.currentPrice.toLocaleString()} JOD. Your escrow locked funds of ${refundAmount.toLocaleString()} JOD have been instantly returned to your available wallet balance.`,
-            'outbid'
-          );
-        }
-      }
-    });
-  }, [auctions, escrows, language, addNotification]);
+  // Wave 2b: the legacy "outbid refund checker" (client-side bid-deposit
+  // escrow release simulation) was removed. Bids never lock wallet funds —
+  // bidding is free and you only pay after winning — so there is nothing to
+  // "release when outbid". Real outbid alerts come from the notifications
+  // pipeline; real escrows (order payments) are settled server-side.
 
 
   // 1. Watchlist and Auto-bid callback handles
@@ -4551,7 +4484,6 @@ const fetchIP = async () => {
       globalWalletSubView, setGlobalWalletSubView,
       globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
-      triggerCliQTopUp,
       requestWithdrawal,
       addNotification,
       markAsRead,
@@ -4623,7 +4555,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, triggerCliQTopUp, requestWithdrawal, addNotification, markAsRead,
+    placeBid, requestWithdrawal, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

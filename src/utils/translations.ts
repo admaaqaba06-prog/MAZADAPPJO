@@ -39,7 +39,7 @@ export const translations = {
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live streams",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
-      "Instant CliQ wallet balance ledger deposits",
+      "Bid free — pay via CliQ only when you win",
       "Buyer protection: Mazad holds your payment until you confirm receipt"
     ],
 
@@ -89,23 +89,6 @@ export const translations = {
     selectDemoVideo: "SELECT DEMO STREAMING VIDEO",
     submitDraft: "SUBMIT LOT FOR ADMINISTRATIVE REVIEW",
     approvedNotify: "Approval pending. Visit Admin Executive Dashboard (Listings tab) to instantly release live!",
-
-    // Wallet
-    myWallet: "MY WALLET LEDGER",
-    portfolioVolume: "TOTAL PORTFOLIO ESCROW VOLUME",
-    availableBid: "Available cash to bid",
-    escrowMargin: "Locked Escrow Margin",
-    cliqDepositForm: "CLIQ INSTANT CASH DEPOSIT",
-    transferAmt: "TRANSFER CAPITAL AMOUNT (JOD)",
-    cliqAliasLabel: "YOUR BANK'S CLIQ ALIAS IDENTIFIER",
-    attachSlip: "ATTACH TRANSACTION RECEIPT SCREENSHOT",
-    attachSlipTip: "CLICK TO ATTACH SCREENSHOT",
-    attachSlipSubtext: "Simulates picking local receipt from mobile gallery",
-    submitDeposit: "Transmit CliQ Deposit Slip",
-    activeEscrows: "ACTIVE ESCROW LANDERS",
-    noEscrows: "No capital locked in active bids.",
-    ledgerHistorics: "LEDGER ROW HISTORICALS",
-    noLedger: "No finalized transactions found.",
 
     // Admin
     adminTitle: "ADMIN EXECUTIVE CORE",
@@ -196,8 +179,8 @@ export const translations = {
     plansFeatures: [
       "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",
       "تفعيل أزرار المزايدة الفورية (+10، +25، +50، +100 دينار)",
-      "إيداع فوري للأموال بمحفظتك عبر إرفاق وصلات كليك",
-      "حماية وضمان كامل للأموال وحقوق المزايدات المودعة بالضمان"
+      "المزايدة مجانية — تدفع عبر كليك فقط عند الفوز",
+      "حماية المشتري: مزاد يحتفظ بدفعتك حتى تستلم القطعة وتتأكد منها"
     ],
 
     // Global
@@ -246,23 +229,6 @@ export const translations = {
     selectDemoVideo: "اختر فيديو العرض التجريبي",
     submitDraft: "إرسال المزاد للمراجعة والاعتماد",
     approvedNotify: "تم إرسال مزادك بنجاح. اذهب للوحة إدارة النظام (قسم المزادات) للموافقة الفورية والنشاط!",
-
-    // Wallet
-    myWallet: "سجل العمليات ومحفظتي",
-    portfolioVolume: "إجمالي المبالغ المحجوزة",
-    availableBid: "الرصيد المتاح للمزايدة",
-    escrowMargin: "المبلغ المحجوز",
-    cliqDepositForm: "شحن رصيد المحفظة عبر كليك",
-    transferAmt: "مبلغ الشحن (دينار)",
-    cliqAliasLabel: "اسم المستعار (Alias) لحساب كليك الخاص بك",
-    attachSlip: "إرفاق صورة إثبات التحويل البنكي",
-    attachSlipTip: "سحب وإفلات أو نقر لإرفاق صورة الوصل",
-    attachSlipSubtext: "يحاكي إرفاق مستند كليك من معرض هاتفك",
-    submitDeposit: "إرسال إثبات التحويل للاعتماد",
-    activeEscrows: "تفاصيل المبالغ المحجوزة",
-    noEscrows: "لا توجد مبالغ محجوزة حالياً.",
-    ledgerHistorics: "سجل العمليات",
-    noLedger: "لا يوجد عمليات مالية مسجلة بعد.",
 
     // Admin
     adminTitle: "مركز القيادة المالي والإداري",
