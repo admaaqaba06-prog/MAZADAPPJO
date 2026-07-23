@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { 
   Smartphone, 
   Laptop, 
@@ -9,8 +9,7 @@ import {
 } from 'lucide-react';
 
 export const CountdownStoriesBar: React.FC = () => {
-  const { setActiveAuctionId, setActiveView, language } = useApp();
-  const { auctions } = useAuctions();
+  const { auctions, setActiveAuctionId, setActiveView, language } = useApp();
   const [ticks, setTicks] = useState(Date.now());
   const isAr = language === 'ar';
 

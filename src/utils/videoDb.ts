@@ -106,11 +106,17 @@ export async function resolveVideoUrl(id: string, fbVideoUrl: string, category?:
     return '';
   }
 
-  // Blob URL that isn't in THIS browser's IndexedDB (e.g. uploaded on another
-  // device). No recoverable source → keep it empty so the UI renders the local
-  // thumbnail fallback rather than streaming a third-party sample clip.
+  // Fallback map if the blob starts with 'blob:' but isn't in this browser's IndexedDB
   if (fbVideoUrl.startsWith('blob:')) {
-    return '';
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+    } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+    } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
+      return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
+    }
+    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
   }
 
   return fbVideoUrl;

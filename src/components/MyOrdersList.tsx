@@ -29,8 +29,8 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
           hintKey="first_winning"
           titleAr="مبروك الفوز بمزادك الأول! 🏆"
           titleEn="Congratulations on Your First Win! 🏆"
-          descAr="مبروك الفوز بمزادك الأول! أكمل الدفع عبر كليك، ومزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة."
-          descEn="Congratulations on your first win! Complete your payment via CliQ — Mazad holds it and only releases it to the seller after you receive the item and confirm it matches."
+          descAr="تهانينا بالفوز بمزادك الأول! رصيدك المحجوز كضمان مؤقت تم تحويله الآن لدفع ثمن السلعة للبائع بأمان كامل تحت حماية منصة مزاد جو."
+          descEn="Congratulations on your first win! Your escrowed guarantee deposit is now safely applied as your direct payment to the seller under the protection of MAZAD JO."
           className="bg-zinc-900 border-zinc-800 text-zinc-300"
         />
       )}

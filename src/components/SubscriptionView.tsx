@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
-import { SUBSCRIPTION_TIERS } from '../constants/subscriptionTiers';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
 import { ShieldCheck, Check, Copy, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
@@ -52,7 +51,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'monthly',
       name: language === 'en' ? 'Starter Bidder' : 'المزايد المبتدئ',
-      price: SUBSCRIPTION_TIERS.monthly.price,
+      price: 1,
       period: t.planMonthlyUnit,
       badge: null,
       color: 'border-gray-200'
@@ -60,7 +59,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'semiannual', // 4 JD / 6 months (see translations planQuarterlyUnit) — was mislabeled 'quarterly'
       name: language === 'en' ? 'Professional Elite' : 'النخبة الاحترافية',
-      price: SUBSCRIPTION_TIERS.semiannual.price,
+      price: 4,
       period: t.planQuarterlyUnit,
       badge: t.mostPopular,
       color: 'border-[#FF6B00] shadow-[0_8px_20px_rgba(255,107,0,0.08)]'
@@ -68,7 +67,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'annual',
       name: language === 'en' ? 'Supreme Investor' : 'المستثمر السيادي',
-      price: SUBSCRIPTION_TIERS.annual.price,
+      price: 7,
       period: t.planAnnualUnit,
       badge: t.bestValue,
       color: 'border-black'
@@ -299,7 +298,7 @@ export const SubscriptionView: React.FC = () => {
             </div>
             <div className="flex justify-between pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
-              <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
+              <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? 'البنك العربي' : 'ARAB BANK'}</span>
             </div>
           </div>
         </div>
@@ -424,7 +423,7 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Footer */}
       <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto">
-        {isAr ? 'الدفع عبر كليك • حماية المشتري من مزاد' : 'PAY VIA CLIQ • BUYER PROTECTION BY MAZAD'}
+        CENTRAL BANK OF JORDAN AUDITED GATEWAYS
       </footer>
     </div>
   );

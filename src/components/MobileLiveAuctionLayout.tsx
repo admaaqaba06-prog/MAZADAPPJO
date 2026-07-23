@@ -8,19 +8,16 @@ import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatMoney } from '../utils/formatMoney';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
-import { clampActiveIndex, isReelMounted } from '../utils/reelWindow';
 import { translations } from '../utils/translations';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
-import { getAuctionMedia } from '../utils/auctionMedia';
-import { MediaGallery } from './feedback/MediaGallery';
-import {
-  Volume2,
-  VolumeX,
-  Bookmark,
-  Share2,
-  Sparkles,
-  Eye,
-  Send,
+import { 
+  Volume2, 
+  VolumeX, 
+  Bookmark, 
+  Share2, 
+  Sparkles, 
+  Eye, 
+  Send, 
   Award,
   X,
   Heart,
@@ -90,12 +87,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
   onClose,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Perf Wave 3c (PF2 part 1): ALL AppContext reads the reels need are hoisted
-  // HERE (the un-memoized list parent) and passed down as per-reel derived
-  // props, so the memo comparator below governs every reel re-render. The reel
-  // itself no longer calls useApp() — a context commit that used to bypass the
-  // memo and re-render all mounted reels now stops at this parent.
-  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
+  const { sellerProfiles } = useApp();
   const { showToast: pushToast } = useToast();
 
   // Anti-snipe drama: toast when the end time extends (a late bid pushed the clock)
@@ -169,92 +161,44 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
         className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar"
         id="mobile-reels-snap-container"
       >
-        {(() => {
-          // Computed ONCE per render (was a findIndex per reel = O(n²)).
-          // `rawActiveIndex` keeps the historical shouldLoad semantics
-          // (-1 allowed → only index 0 preloads); `anchorIndex` clamps it for
-          // the mounted window so {active, active+1} is always a subset of
-          // the mounted reels (guarded by reelWindow tests).
-          const rawActiveIndex = liveAuctions.findIndex(a => a.id === activeAuctionId);
-          const anchorIndex = clampActiveIndex(rawActiveIndex, liveAuctions.length);
-
-          return liveAuctions.map((auction, index) => {
-            // Perf Wave 3c (PF2 part 3) — reel virtualization: only
-            // anchorIndex ±1 mount as real components. Every other slot is an
-            // inert spacer with IDENTICAL geometry (h-full + snap-start) and
-            // the same spinner visuals the unloaded skeleton always had, so
-            // scroll-snap positions, the handleScroll index math above and
-            // deep-link scrollTo(activeIndex * height) are unchanged. The
-            // active reel and both neighbours can never unmount mid-swipe:
-            // a one-step swipe keeps the previous active inside the window.
-            if (!isReelMounted(index, anchorIndex, liveAuctions.length)) {
-              return (
-                <div
-                  key={auction.id}
-                  className="w-full h-full snap-start snap-always shrink-0 relative flex flex-col items-center justify-center bg-zinc-950"
-                  style={{ height: '100%' }}
-                  aria-hidden="true"
-                  id={`reel-spacer-${auction.id}`}
-                >
-                  <div className="w-10 h-10 border-4 border-t-orange-500 border-zinc-800 rounded-full animate-spin"></div>
-                </div>
-              );
-            }
-
-            const isActive = auction.id === activeAuctionId;
-            // Performance protection: load only current and next auction to preserve memory & networking
-            const shouldLoad = index === rawActiveIndex || index === rawActiveIndex + 1;
-            const currentReelPrice = isActive ? activePrice : (auction.currentPrice || 0);
-
-            // PF2 part 1 — per-reel derived values, computed here so the reel
-            // has no context subscription of its own and the memo comparator
-            // sees plain value props (cheap: at most 3 reels are mounted).
-            const sellerProfile = sellerProfiles?.find(
-              p => p.userId === auction.sellerId || p.id === auction.sellerId
-            ) ?? null;
-            const hasUserBid = bids
-              ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id)
-              : false;
-            const winnerOrderId = orders?.find(
-              o => o.auctionId === auction.id && o.buyerId === currentUser?.id
-            )?.id ?? null;
-
-            return (
-              <MobileAuctionReel
-                key={auction.id}
-                auction={auction}
-                isActive={isActive}
-                shouldLoad={shouldLoad}
-                isMuted={isMuted}
-                isPlaying={isPlaying}
-                onPlayPauseToggle={onPlayPauseToggle}
-                activePrice={currentReelPrice}
-                isSaved={isSaved}
-                activeComments={activeComments}
-                activeActivities={activeActivities}
-                commentText={commentText}
-                setCommentText={setCommentText}
-                onCommentSubmit={onCommentSubmit}
-                nextBidAmount={isActive ? nextBidAmount : minNextBid(currentReelPrice, auction.minIncrement, auction.totalBids || 0)}
-                onBidExecute={onBidExecute}
-                currentUser={currentUser}
-                language={language}
-                isAr={isAr}
-                onOpenDetails={onOpenDetails}
-                onMuteToggle={onMuteToggle}
-                onShareClick={onShareClick}
-                onSaveToggle={onSaveToggle}
-                onLikeToggle={onLikeToggle}
-                onClose={onClose}
-                sellerProfile={sellerProfile}
-                hasUserBid={hasUserBid}
-                winnerOrderId={winnerOrderId}
-                setActiveView={setActiveView}
-                setGlobalSelectedOrderId={setGlobalSelectedOrderId}
-              />
-            );
-          });
-        })()}
+        {liveAuctions.map((auction, index) => {
+          const isActive = auction.id === activeAuctionId;
+          const activeIndex = liveAuctions.findIndex(a => a.id === activeAuctionId);
+          
+          // Performance protection: load only current and next auction to preserve memory & networking
+          const shouldLoad = index === activeIndex || index === activeIndex + 1;
+          const currentReelPrice = isActive ? activePrice : (auction.currentPrice || 0);
+          
+          return (
+            <MobileAuctionReel
+              key={auction.id}
+              auction={auction}
+              isActive={isActive}
+              shouldLoad={shouldLoad}
+              isMuted={isMuted}
+              isPlaying={isPlaying}
+              onPlayPauseToggle={onPlayPauseToggle}
+              activePrice={currentReelPrice}
+              isSaved={isSaved}
+              activeComments={activeComments}
+              activeActivities={activeActivities}
+              commentText={commentText}
+              setCommentText={setCommentText}
+              onCommentSubmit={onCommentSubmit}
+              nextBidAmount={isActive ? nextBidAmount : minNextBid(currentReelPrice, auction.minIncrement, auction.totalBids || 0)}
+              onBidExecute={onBidExecute}
+              currentUser={currentUser}
+              language={language}
+              isAr={isAr}
+              onOpenDetails={onOpenDetails}
+              onMuteToggle={onMuteToggle}
+              onShareClick={onShareClick}
+              onSaveToggle={onSaveToggle}
+              onLikeToggle={onLikeToggle}
+              onClose={onClose}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -288,15 +232,6 @@ interface MobileAuctionReelProps {
   onSaveToggle: (e: React.MouseEvent) => void;
   onLikeToggle: (e: React.MouseEvent) => void;
   onClose: () => void;
-  // Perf Wave 3c (PF2 part 1): context reads hoisted to the list parent.
-  // These are per-reel DERIVED values (this lot's seller profile, whether THIS
-  // user bid on THIS lot, this user's order id for THIS lot) — never the raw
-  // context arrays, whose identity churns on every snapshot.
-  sellerProfile: any | null;
-  hasUserBid: boolean;
-  winnerOrderId: string | null;
-  setActiveView: (view: any) => void;
-  setGlobalSelectedOrderId: (id: string | null) => void;
 }
 
 const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
@@ -324,23 +259,14 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   onSaveToggle,
   onLikeToggle,
   onClose,
-  sellerProfile,
-  hasUserBid,
-  winnerOrderId,
-  setActiveView,
-  setGlobalSelectedOrderId,
 }) => {
-  // Perf Wave 3c (PF2 part 1): NO useApp() here anymore. Every context-sourced
-  // value arrives as a derived prop from the list parent, so re-renders are
-  // fully governed by the memo comparator (areReelPropsEqual). The only
-  // context-shaped subscription left is useBidFlow's useApp (currentUser
-  // membership + subscription-prompt setter) — and after the Wave 3c
-  // AuctionsContext split, the main AppContext value no longer changes on a
-  // bid, so that subscription stays quiet during bid wars.
+  const { sellerProfiles, bids, orders, setActiveView, setGlobalSelectedOrderId } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const t = translations[language as 'en' | 'ar'];
 
-  const activeSellerProfile = sellerProfile;
+  const activeSellerProfile = sellerProfiles?.find(
+    p => p.userId === auction?.sellerId || p.id === auction?.sellerId
+  );
 
   const isPremium = activeSellerProfile?.verificationStatus === 'premium_verified';
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
@@ -486,12 +412,29 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
     );
   }, [activeComments]);
 
-  // Gallery source items (video first, then thumbnail/mediaUrls/concierge photos,
-  // de-duped) — MediaGallery below owns play/pause + muted sync internally
-  // (it knows which slide is actually visible), so no manual video effects here.
-  const mediaItems = useMemo(() => getAuctionMedia(auction), [auction]);
+  // Sync html5 video playback based on active reel, performance limits, and global isPlaying state
+  useEffect(() => {
+    const video = localVideoRef.current;
+    if (!video) return;
 
-  // Bid logic status selectors (`hasUserBid` is a hoisted prop — PF2 part 1)
+    if (isActive && isPlaying && shouldLoad) {
+      video.play().catch((err) => {
+        console.warn("Playback prevented or interrupted:", err);
+      });
+    } else {
+      video.pause();
+    }
+  }, [isActive, isPlaying, shouldLoad, auction.videoUrl]);
+
+  // Sync muted property directly on element
+  useEffect(() => {
+    if (localVideoRef.current) {
+      localVideoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  // Bid logic status selectors
+  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
   const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
 
   // --- The bid moment: confirm-then-bid + success rush ---
@@ -641,34 +584,35 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
         }
       `}</style>
 
-      {/* ======================================================================
-          MEDIA PANE — the swipeable gallery + small status chips only.
-          Sized ~58% of the reel while active (bid panel owns the rest below);
-          full-bleed for the preloaded-but-not-active neighbour reel (no bid
-          panel renders for it, same as before this restructure).
-          ====================================================================== */}
-      <div
-        className="relative w-full shrink-0 overflow-hidden bg-black"
-        style={{ height: isActive ? '58%' : '100%' }}
-        id={`reel-media-pane-${auction.id}`}
-      >
-        <MediaGallery
-          items={mediaItems}
-          isActive={isActive}
-          isPlaying={isPlaying}
-          isMuted={isMuted}
-          isAr={isAr}
-          onVideoClick={onPlayPauseToggle}
-          videoRef={localVideoRef}
-          className="absolute inset-0"
+      {/* HTML5 Live Video Element — falls back to the auction image when no video exists */}
+      {auction.videoUrl ? (
+        <video
+          ref={localVideoRef}
+          src={auction.videoUrl}
+          loop
+          muted={isMuted}
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          onClick={onPlayPauseToggle}
         />
+      ) : (
+        <img
+          src={auction.thumbnailUrl || (auction as any).imageUrl || ''}
+          alt={auction.title}
+          width={1080}
+          height={1920}
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+      )}
 
       {/* Gradient overlays for contrast */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none z-10" />
 
       {/* Play/Pause standby overlay */}
       {!isPlaying && isActive && (
-        <div
+        <div 
           onClick={onPlayPauseToggle}
           className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer z-10 backdrop-blur-[1px]"
         >
@@ -785,8 +729,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
           {/* ======================================================================
               3. FLOATING ACTION PANEL (TikTok Side Actions)
               ====================================================================== */}
-          <div
-            style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+          <div 
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
             className="absolute right-4 z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
           >
             {/* Like appreciation button */}
@@ -835,8 +779,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               4. COMPACT CHAT FEED (Tucked at bottom-left, avoids covering product)
               ====================================================================== */}
           {!isChatHidden && (
-            <div
-              style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
               className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
             >
               <div className="space-y-1 p-1 flex flex-col justify-end">
@@ -869,8 +813,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* Chat text box trigger */}
-          <div
-            style={{ bottom: '16px' }}
+          <div 
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
             className="absolute left-4 z-20"
           >
             <button
@@ -883,8 +827,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
 
           {/* Floating Chat Input form */}
           {showChatInput && (
-            <div
-              style={{ bottom: '16px' }}
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
               className="absolute left-4 right-4 z-30 animate-fade-in"
             >
               <form 
@@ -903,7 +847,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   className="flex-grow h-8 px-2.5 bg-white/5 border border-white/10 rounded-lg text-zinc-100 text-[11px] placeholder-zinc-500 outline-none focus:border-[#FF6B00]/40 transition-colors"
                   autoFocus
                 />
-                <button
+                <button 
                   type="submit"
                   className="h-8 w-8 bg-[#FF6B00] hover:bg-orange-600 text-white rounded-lg transition-all flex items-center justify-center shrink-0 shadow-md cursor-pointer"
                 >
@@ -912,27 +856,16 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </form>
             </div>
           )}
-        </>
-      )}
-      </div>
-      {/* END MEDIA PANE */}
 
-      {/* ======================================================================
-          BID PANEL — opaque region below the media pane. Everything that used
-          to float on top of the video (price/timer/top-bidder row, tap-to-bid
-          button, price-moved confirm, first-bid coach) now lives here so it
-          never obscures the item photos/video (founder feedback from Wave 1).
-          Bid-flow wiring (useBidFlow/executeWithOptimism/confirm/cancel) is
-          untouched — only JSX position moved.
-          ====================================================================== */}
-      {isActive && (
-        <div
-          className="relative flex-1 min-h-0 z-20 bg-zinc-950 border-t border-white/5 overflow-y-auto"
-          id={`reel-bid-panel-${auction.id}`}
-        >
-          <div
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
-            className="w-full p-4 flex flex-col gap-3.5 select-none animate-fade-in"
+          {/* ======================================================================
+              5. THE MAZAD LIVE-BIDDING CARD (Strictly 5 Required Elements)
+              ====================================================================== */}
+          <div 
+            style={{ 
+              bottom: 'calc(env(safe-area-inset-bottom, 16px) + 8px)',
+              direction: isAr ? 'rtl' : 'ltr'
+            }}
+            className="absolute left-4 right-4 z-20 bg-black/45 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col gap-3.5 overflow-hidden select-none animate-fade-in"
             id={`bidding-card-${auction.id}`}
           >
             {/* Row 1: Product Title & Time Left (aligned nicely) */}
@@ -964,23 +897,12 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </div>
             </div>
 
-            {auction.reserveMet === false && (
-              <span className="text-xs font-semibold text-amber-500 -mt-2 text-right rtl:text-left">
-                {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
-              </span>
-            )}
-            {auction.reserveMet === true && (
-              <span className="text-xs font-semibold text-emerald-500 -mt-2 text-right rtl:text-left">
-                {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
-              </span>
-            )}
-
             {isEnded ? (
               <div className="w-full bg-black/75 border border-amber-500/30 rounded-xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
                 {(() => {
-                  // hasUserBid / isUserWinner come from the component scope
-                  // (hoisted prop + derivation above) — the old inline
-                  // recomputation from context `bids` was byte-identical.
+                  const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
+                  const isUserWinner = hasUserBid && auction?.currentBidderId === currentUser?.id;
+                  
                   if (isUserWinner) {
                     return (
                       <>
@@ -996,8 +918,9 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         ) : null}
                         <button
                           onClick={() => {
-                            if (winnerOrderId) {
-                              setGlobalSelectedOrderId(winnerOrderId);
+                            const matchingOrder = orders?.find(o => o.auctionId === auction?.id && o.buyerId === currentUser?.id);
+                            if (matchingOrder) {
+                              setGlobalSelectedOrderId(matchingOrder.id);
                             }
                             setActiveView('orders');
                           }}
@@ -1128,9 +1051,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
             {/* Winning pill: pops over the bidding card on a successful bid */}
             <WinningPill show={showWinPill} isAr={isAr} />
           </div>
-        </div>
+        </>
       )}
-      {/* END BID PANEL */}
 
       {/* Complete Seller Profile Modal */}
       {selectedProfileId && (
@@ -1157,28 +1079,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
    changes. It deliberately IGNORES the unstable inline callback props
    (onBidExecute, onMuteToggle, onCommentSubmit, …): whenever a value one of them
    closes over matters, a corresponding scalar prop below also changes and forces
-   the re-render, so the reel never runs a stale handler. Perf Wave 3c hoisted
-   sellerProfile/hasUserBid/winnerOrderId out of the reel's own useApp() reads
-   into derived props from the list parent — this comparator MUST compare all
-   three explicitly below, or a change (e.g. the winner's order arriving after
-   the reel goes quiescent) is silently dropped by memo.
+   the re-render, so the reel never runs a stale handler. Context-sourced data
+   (bids/orders/sellerProfiles via useApp) bypasses memo and re-renders anyway.
    Return TRUE to SKIP re-render (props considered equal).
    ---------------------------------------------------------------------- */
-// Shallow string-array compare — mediaUrls/conciergePhotos get a fresh array
-// reference on every snapshot rebuild even when the contents didn't change,
-// so a reference check would always force a re-render; compare by value instead.
-const sameStringArray = (
-  x: (string | null | undefined)[] | null | undefined,
-  y: (string | null | undefined)[] | null | undefined
-): boolean => {
-  if (x === y) return true;
-  const xa = x ?? [];
-  const ya = y ?? [];
-  if (xa.length !== ya.length) return false;
-  return xa.every((v, i) => v === ya[i]);
-};
-
-export const areReelPropsEqual = (
+const areReelPropsEqual = (
   prev: Readonly<MobileAuctionReelProps>,
   next: Readonly<MobileAuctionReelProps>
 ): boolean => {
@@ -1186,8 +1091,6 @@ export const areReelPropsEqual = (
   const b = next.auction ?? {};
   // Auction fields the reel renders from (compared by value, since the object
   // ref changes on every snapshot even when the content is identical).
-  // Includes every field getAuctionMedia() reads (mediaUrls/conciergePhotos
-  // added for Wave 2) so a gallery update always triggers a re-render.
   if (
     a.id !== b.id ||
     a.currentPrice !== b.currentPrice ||
@@ -1202,9 +1105,7 @@ export const areReelPropsEqual = (
     a.imageUrl !== b.imageUrl ||
     a.marketPrice !== b.marketPrice ||
     a.minIncrement !== b.minIncrement ||
-    a.sellerId !== b.sellerId ||
-    !sameStringArray(a.mediaUrls, b.mediaUrls) ||
-    !sameStringArray(a.conciergePhotos, b.conciergePhotos)
+    a.sellerId !== b.sellerId
   ) {
     return false;
   }
@@ -1219,23 +1120,7 @@ export const areReelPropsEqual = (
     prev.isSaved !== next.isSaved ||
     prev.nextBidAmount !== next.nextBidAmount ||
     prev.language !== next.language ||
-    prev.isAr !== next.isAr ||
-    prev.hasUserBid !== next.hasUserBid ||
-    prev.winnerOrderId !== next.winnerOrderId
-  ) {
-    return false;
-  }
-
-  // sellerProfile is a derived prop (list parent looks it up per-render), so
-  // its object reference churns even when nothing the reel actually shows
-  // (verification badge, store logo, seller id for the tap target) changed.
-  // Compare by the fields read, not by reference.
-  const ps = prev.sellerProfile ?? null;
-  const ns = next.sellerProfile ?? null;
-  if (
-    ps?.verificationStatus !== ns?.verificationStatus ||
-    ps?.storeLogo !== ns?.storeLogo ||
-    ps?.userId !== ns?.userId
+    prev.isAr !== next.isAr
   ) {
     return false;
   }

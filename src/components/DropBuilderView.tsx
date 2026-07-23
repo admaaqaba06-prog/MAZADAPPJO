@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { isAdminUser } from '../utils/adminAuth';
 import { 
   Calendar, 
@@ -52,8 +52,7 @@ const PRESET_BANNERS = [
 ];
 
 export const DropBuilderView: React.FC = () => {
-  const { currentUser, language, setActiveView } = useApp();
-  const { auctions } = useAuctions();
+  const { auctions, currentUser, language, setActiveView } = useApp();
   const isAr = language === 'ar';
 
   const [drops, setDrops] = useState<CuratedDrop[]>(() => {

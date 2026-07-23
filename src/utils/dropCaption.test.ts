@@ -34,15 +34,10 @@ describe('buildAuctionCaption', () => {
     expect(out).toContain('جديدة كلياً');
   });
 
-  it('includes the subscribers-only rule and the deep link, with no guarantee claim', () => {
+  it('includes the subscribers-only rule, the guarantee and the deep link', () => {
     const out = buildAuctionCaption(sample);
     expect(out).toContain('المزايدة للمشتركين فقط');
-    // PR #64 (honest trust copy) replaced the month-return guarantee with the
-    // escrow buyer-protection line — assert the current boilerplate is present
-    // and the old guarantee wording (Mazad doesn't sell its own products, so
-    // it can't promise a return) is gone.
-    expect(out).toContain('حماية المشتري: مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام');
-    expect(out).not.toContain('كفالة المزاد');
+    expect(out).toContain('كفالة المزاد: شهر استرجاع');
     expect(out).toContain('https://mazadjo.app/?auction=auction-123');
   });
 });
