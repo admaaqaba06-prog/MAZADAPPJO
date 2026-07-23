@@ -869,8 +869,8 @@ export const WalletView: React.FC = () => {
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {isAr
-                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.'
-                  : "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes."}
+                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
+                  : "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes."}
               </p>
             </div>
 

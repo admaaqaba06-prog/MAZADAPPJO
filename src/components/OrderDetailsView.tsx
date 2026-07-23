@@ -1090,7 +1090,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
                           <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
-                          <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+                          <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
                         </div>
                         <div className="flex justify-between items-center gap-2">
                           <span className="font-bold text-gray-500">IBAN:</span>
