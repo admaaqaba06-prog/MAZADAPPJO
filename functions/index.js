@@ -1,7 +1,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
-const { resolveSettlement } = require('./settlement');
+const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -589,6 +589,22 @@ exports.onBidCreated = functions.firestore
       }
 
       const auctionData = auctionSnap.data();
+
+      // Maintain the room's reserve-met label without leaking the amount.
+      // Only flip false -> true (once), and only when a reserve actually exists.
+      try {
+        const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+        const rp = secretSnap.exists ? (secretSnap.data().reservePrice ?? null) : null;
+        if (rp) {
+          const met = reserveMet(auctionData.currentPrice ?? amount, rp);
+          if (met && auctionData.reserveMet !== true) {
+            await db.collection('auctions').doc(auctionId).update({ reserveMet: true });
+          }
+        }
+      } catch (rmErr) {
+        console.warn(`[onBidCreated] reserveMet update failed for ${auctionId}:`, rmErr);
+      }
+
       const previousBidderId = auctionData.previousBidderId;
 
       // Only notify if there is an active previous bidder and they are not the person who just bid
