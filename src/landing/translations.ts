@@ -165,7 +165,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "توثيق البائعين",
-          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لضمان المصداقية.",
+          desc: "التحقق القانوني الكامل من الهوية والأوراق الرسمية قبل بدء أي مزاد لتعزيز المصداقية والثقة.",
         },
         {
           icon: "📸",
@@ -377,7 +377,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🛡️",
           title: "Seller Verification",
-          desc: "Full identity and document checking of all sellers before any auction begins to guarantee maximum credibility.",
+          desc: "Full identity and document checking of all sellers before any auction begins to strengthen credibility and trust.",
         },
         {
           icon: "📸",

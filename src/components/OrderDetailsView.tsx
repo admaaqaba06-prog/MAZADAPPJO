@@ -524,7 +524,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         await executeOrderTransition(order, 'open_dispute', currentUser);
         addNotification(
           isAr ? 'تم فتح نزاع رسمي' : 'Dispute Opened',
-          isAr ? 'تم فتح نزاع رسمي وتجميد حساب الضمان لحين مراجعة المشرفين.' : 'Formal dispute logged. Escrow assets frozen pending admin mediation.',
+          isAr ? 'تم فتح نزاع رسمي. مزاد أوقف تحويل المبلغ للبائع لحين مراجعة الفريق.' : 'Formal dispute logged. Mazad has paused the payout to the seller pending review.',
           'info'
         );
       } catch (err: any) {
@@ -689,8 +689,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
             </h4>
             <p className="text-[11px] text-red-800 leading-relaxed">
               {isAr 
-                ? 'تم حجز أموال الضمان المالي بالكامل. فريق النزاعات والتحكيم يراجع المستندات ومستندات الإثبات حالياً لحل القضية.'
-                : 'Escrow holdings have been frozen. Audit officials are verifying documentation, shipping metrics, and buyer/seller activity logs.'}
+                ? 'مبلغك محجوز لدى مزاد حالياً. فريق النزاعات في مزاد يراجع الحالة والمستندات ويتوسّط لحلّها.'
+                : 'Your payment is on hold with Mazad. Mazad\'s disputes team is reviewing the case and documents and will mediate.'}
             </p>
           </div>
         </div>

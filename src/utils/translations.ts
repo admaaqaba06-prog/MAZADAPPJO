@@ -40,7 +40,7 @@ export const translations = {
       "Access all high-ticket watch, vehicle & fashion live streams",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
       "Instant CliQ wallet balance ledger deposits",
-      "Full administrative active protection and deposit coverage"
+      "Buyer protection: Mazad holds your payment until you confirm receipt"
     ],
 
     // Global
