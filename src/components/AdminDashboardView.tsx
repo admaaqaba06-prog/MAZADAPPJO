@@ -3,6 +3,7 @@ import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { isPendingOrderPayment } from '../utils/paymentReceipt';
+import { isOverdue } from '../utils/fulfillmentQueues';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
@@ -43,6 +44,7 @@ const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
 // simulator. The pending-count badge only needs the tiny paymentReceipt util,
 // so the heavy section stays out of the main chunk until the tab opens.
 const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
+const FulfillmentSection = React.lazy(() => import('./admin/FulfillmentSection'));
 
 /**
  * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
@@ -334,6 +336,7 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
 // mirrored into sessionStorage and restored (validated) on mount.
 const ADMIN_TABS = [
   'verify',
+  'fulfillment',
   'metrics',
   'orders',
   'payments',
@@ -487,6 +490,17 @@ export const AdminDashboardView: React.FC = () => {
     () => realOrders.filter(isPendingOrderPayment).length,
     [realOrders]
   );
+
+  // Fulfillment (Slice C): orders sitting past their stage's overdue threshold,
+  // across all three buckets. Sourced from realOrders (sim-excluded), matching
+  // the Slice B fix for the Verify badge.
+  const overdueFulfillmentCount = useMemo(() => {
+    const now = Date.now();
+    return realOrders.filter((o: any) => {
+      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
+      return isOverdue({ status: o.status, paymentVerified: o.paymentVerified, updatedAtMs }, now);
+    }).length;
+  }, [realOrders]);
 
   // Auctions the settlement cron should already have closed: still live/active
   // but ended more than 2 minutes ago.
@@ -953,6 +967,34 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  const handleSendFulfillmentNudge = async (orderId: string, kind: 'ship' | 'confirm_delivery') => {
+    try {
+      const nudgeCallable = await getCallableFunction<
+        { orderId: string; kind: 'ship' | 'confirm_delivery' },
+        { success: boolean; targetUserName?: string }
+      >('sendFulfillmentNudge');
+      await nudgeCallable({ orderId, kind });
+      alert(isAr ? '✅ تم إرسال التذكير.' : '✅ Nudge sent.');
+    } catch (err: any) {
+      console.error('Error sending fulfillment nudge:', err);
+      alert(isAr ? `❌ فشل إرسال التذكير: ${err.message || String(err)}` : `❌ Failed to send nudge: ${err.message || String(err)}`);
+    }
+  };
+
+  const handleFulfillmentReleaseEscrow = async (orderId: string) => {
+    try {
+      const releaseCallable = await getCallableFunction<
+        { orderId: string; action: 'admin_release' },
+        { success: boolean; message?: string }
+      >('releaseOrderEscrow');
+      await releaseCallable({ orderId, action: 'admin_release' });
+      alert(isAr ? '✅ تم تحرير المبلغ.' : '✅ Escrow released.');
+    } catch (err: any) {
+      console.error('Error releasing escrow:', err);
+      alert(isAr ? `❌ فشل تحرير المبلغ: ${err.message || String(err)}` : `❌ Failed to release escrow: ${err.message || String(err)}`);
+    }
+  };
+
   const handleApproveWithdrawal = async (withdrawalId: string) => {
     if (isProcessingAction[withdrawalId]) return;
     setIsProcessingAction(prev => ({ ...prev, [withdrawalId]: true }));
@@ -1057,14 +1099,15 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['verify', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
+        {(['verify', 'fulfillment', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
           const tabLabel = isAr
-            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
-            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
+            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'fulfillment' ? 'المتابعة والتنفيذ' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
+            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'fulfillment' ? 'FULFILLMENT' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
 
           const isActive = activeTab === tab;
           const hasPendingRequests =
             (tab === 'verify' && (subscriptionRequests.length > 0 || pendingOrderPaymentsCount > 0)) ||
+            (tab === 'fulfillment' && overdueFulfillmentCount > 0) ||
             (tab === 'subscriptions' && subscriptionRequests.length > 0) ||
             (tab === 'withdrawals' && allWithdrawals.filter((w: any) => w.status === 'pending_review').length > 0);
           
@@ -1083,6 +1126,8 @@ export const AdminDashboardView: React.FC = () => {
                 <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
                   {tab === 'verify'
                     ? subscriptionRequests.length + pendingOrderPaymentsCount
+                    : tab === 'fulfillment'
+                      ? overdueFulfillmentCount
                     : tab === 'subscriptions'
                       ? subscriptionRequests.length
                       : allWithdrawals.filter((w: any) => w.status === 'pending_review').length}
@@ -1121,6 +1166,26 @@ export const AdminDashboardView: React.FC = () => {
               onRejectSubscription={rejectSubscription}
               onVerifyOrderPayment={handleVerifyOrderPayment}
               onRejectOrderPayment={handleRejectOrderPayment}
+            />
+          </React.Suspense>
+        )}
+
+        {/* ==========================================
+            TAB: FULFILLMENT (Slice C — keep orders moving)
+            ========================================== */}
+        {activeTab === 'fulfillment' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <FulfillmentSection
+              isAr={isAr}
+              orders={realOrders}
+              onNudge={handleSendFulfillmentNudge}
+              onReleaseEscrow={handleFulfillmentReleaseEscrow}
             />
           </React.Suspense>
         )}
