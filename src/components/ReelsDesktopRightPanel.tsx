@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
@@ -9,17 +9,17 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
-  const { 
-    activeAuctionId, 
-    auctions, 
-    bids, 
-    sellerProfiles, 
-    language, 
-    chatMessages, 
-    sendChatMessage, 
-    currentUser, 
-    placeBid 
+  const {
+    activeAuctionId,
+    bids,
+    sellerProfiles,
+    language,
+    sendChatMessage,
+    currentUser,
+    placeBid
   } = useApp();
+  const { auctions } = useAuctions();
+  const { chatMessages } = useChat();
   const isAr = language === 'ar';
 
   const currentItem = auctions.find(a => a.id === activeAuctionId) || auctions[0];
@@ -88,21 +88,19 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     .filter(b => b.auctionId === currentItem.id)
     .sort((a, b) => b.amount - a.amount);
 
-  // Seller Lookup
+  // Seller Lookup — real profile only; no synthesized name/company/verification.
   const seller = sellerProfiles.find(s => s.userId === currentItem.sellerId) || {
-    name: currentItem.sellerName || (isAr ? 'شريك رسمي معتمد' : 'Official Verified Partner'),
-    companyName: isAr ? 'مجموعة عمان الفاخرة' : 'Amman Luxury Group',
-    isVerified: true
+    name: currentItem.sellerName || (isAr ? 'بائع مزاد' : 'Mazad Seller'),
+    companyName: '',
+    isVerified: false
   };
 
-  const isRolex = currentItem.id?.includes('rolex');
-  const isPorsche = currentItem.id?.includes('porsche');
-
-  const formattedSubtitle = isRolex
-    ? (isAr ? 'اصدار ذهبي عيار ١٨ مع كامل الملحقات المعتمدة والعلبة والشهادات • غير مستخدم' : '18ct Gold Edition • Complete set with warranty papers • Brand New')
-    : isPorsche
-    ? (isAr ? 'تخصيص كامل للنخبة PTS • لون رمادي مميز مع باقة السباقات الحصرية • جديد كلياً' : 'Elite allocation PTS clearance • Stealth GT3 Gray with track packages • Brand New')
-    : (isAr ? 'جديد (غير مستخدم) • مع الضمان الرسمي والعلبة والكتيبات • تيتانيوم طبيعي' : 'Brand New (Unused) • Titanium Natural • Agent Warranty Covered');
+  // Condition subtitle from the REAL auction field only; hidden when absent.
+  const formattedSubtitle = currentItem.condition === 'new'
+    ? (isAr ? 'جديد (غير مستخدم)' : 'Brand New (Unused)')
+    : currentItem.condition === 'used'
+    ? (isAr ? 'مستعمل' : 'Used')
+    : '';
 
   const formatBidTime = (timestamp: number) => {
     if (!timestamp) return isAr ? 'الآن' : 'Just now';
@@ -208,7 +206,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         <div className="space-y-2">
           <div>
             <h4 className="text-xs font-black text-white leading-tight">
-              {isRolex ? 'Rolex Cosmograph Daytona' : isPorsche ? 'Porsche 911 GT3 RS (992)' : currentItem.title}
+              {currentItem.title}
             </h4>
             <span className="inline-flex items-center gap-1 mt-1 bg-zinc-800 border border-white/10 text-zinc-400 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider">
               {currentItem.category || (isAr ? 'فاخر' : 'Luxury')}
@@ -219,9 +217,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             {currentItem.description}
           </p>
 
-          <p className="text-[9px] text-[#FF6B00] leading-relaxed font-sans font-medium italic">
-            {formattedSubtitle}
-          </p>
+          {formattedSubtitle && (
+            <p className="text-[9px] text-[#FF6B00] leading-relaxed font-sans font-medium italic">
+              {formattedSubtitle}
+            </p>
+          )}
         </div>
       </div>
 
@@ -245,13 +245,13 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         <div className="flex items-center gap-1.5 border-b border-white/5 pb-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
           <h3 className="text-[11px] font-black tracking-wider uppercase">
-            {isAr ? 'تفاصيل الشحن والضمان' : 'SHIPPING & ESCROW TERMS'}
+            {isAr ? 'الشحن وحماية المشتري' : 'SHIPPING & BUYER PROTECTION'}
           </h3>
         </div>
         <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
-          {isAr 
-            ? 'شحن مجاني مؤمن بالكامل لجميع محافظات المملكة عبر ناقل كليك المعتمد. يتم حجز القيمة في الضمان ولا يتم تسليمها للبائع إلا بعد معاينة المشتري وتأكيد الاستلام خلال ٢٤ ساعة.'
-            : 'Free, fully insured courier shipping inside Jordan. Funds are securely held in escrow and only released to the seller after your physical inspection and receipt confirmation.'}
+          {isAr
+            ? 'الشحن داخل الأردن ينسّق مع البائع بعد الدفع. مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تعاين القطعة وتأكّد الاستلام.'
+            : 'Shipping inside Jordan is arranged with the seller after payment. Mazad holds your payment and only releases it to the seller after you inspect the item and confirm receipt.'}
         </p>
       </div>
 

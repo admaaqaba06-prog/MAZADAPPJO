@@ -107,6 +107,16 @@ function Counter({ target, prefix = "", suffix = "" }: { target: number; prefix?
   );
 }
 
+const marqueeBids = [
+  { name: "أحمد العبادي", item: "تويوتا كامري", amount: "14,500 د.أ", time: "منذ دقيقة", nameEn: "Ahmad Al-Abadi", itemEn: "Toyota Camry", amountEn: "14,500 JOD", timeEn: "1m ago" },
+  { name: "سارة حداد", item: "آيفون 15 برو ماكس", amount: "875 د.أ", time: "منذ ثوانٍ", nameEn: "Sarah Haddad", itemEn: "iPhone 15 Pro Max", amountEn: "875 JOD", timeEn: "Seconds ago" },
+  { name: "خالد الشوابكة", item: "فيلا في دابوق", amount: "325,000 د.أ", time: "منذ 5 دقائق", nameEn: "Khalid Shawabkeh", itemEn: "Villa in Dabouq", amountEn: "325,000 JOD", timeEn: "5m ago" },
+  { name: "حمزة المصري", item: "تويوتا كامري", amount: "14,250 د.أ", time: "منذ 10 دقائق", nameEn: "Hamzah Al-Masri", itemEn: "Toyota Camry", amountEn: "14,250 JOD", timeEn: "10m ago" },
+  { name: "هديل الخلايلة", item: "آيفون 15 برو ماكس", amount: "850 د.أ", time: "منذ دقيقة", nameEn: "Hadeel Al-Khalayleh", itemEn: "iPhone 15 Pro Max", amountEn: "850 JOD", timeEn: "1m ago" },
+  { name: "عمر الزعبي", item: "فيلا في دابوق", amount: "320,000 د.أ", time: "منذ ساعة", nameEn: "Omar Al-Zoubi", itemEn: "Villa in Dabouq", amountEn: "320,000 JOD", timeEn: "1h ago" }
+];
+
+
 const translateLogTime = (timeStr: string, isAr: boolean): string => {
   if (isAr) {
     if (timeStr === "Just now" || timeStr === "الآن") return "الآن";
@@ -157,6 +167,37 @@ const renderMixedText = (text: string, isAr: boolean) => {
     }
   });
 };
+
+const renderTickerAmount = (amountStr: string, isAr: boolean) => {
+  const parts = amountStr.split(" ");
+  const numPart = parts[0];
+  const unitPart = parts.slice(1).join(" ");
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <span className="font-mono" dir="ltr">{numPart}</span>
+      <span className={isAr ? "font-ibmarabic text-[11px]" : "font-sans text-[11px]"}>{unitPart}</span>
+    </span>
+  );
+};
+
+const renderTickerTime = (timeStr: string, isAr: boolean) => {
+  const segments = timeStr.split(/(\d+)/g);
+  return segments.map((seg, idx) => {
+    if (/^\d+$/.test(seg)) {
+      return (
+        <span key={idx} className="font-mono mx-0.5" dir="ltr">
+          {seg}
+        </span>
+      );
+    }
+    return (
+      <span key={idx} className={isAr ? "font-ibmarabic" : "font-sans"}>
+        {seg}
+      </span>
+    );
+  });
+};
+
 
 // Simulated Jordanian names for the interactive feed
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
@@ -1233,7 +1274,68 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-
+        {/* 3. شريط الثقة (Ticker tape / Infinite Marquee) */}
+        <section id="trust-bar" className="bg-white border-b border-[#F0F0EE] py-8 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="marquee-container py-3.5 bg-white border border-[#ECECEA] rounded-[10px] overflow-hidden relative shadow-sm">
+              <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+              
+              <div className="flex w-full overflow-hidden">
+                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"}>
+                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
+                    <div key={i} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
+                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
+                        {lang === "ar" ? bid.name : bid.nameEn}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "زايد بـ" : "bid"}
+                      </span>
+                      <span className="font-bold text-[#F05123]">
+                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "على" : "on"}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
+                        {lang === "ar" ? bid.item : bid.itemEn}
+                      </span>
+                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
+                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
+                      </span>
+                      <span className="text-gray-300">·</span>
+                    </div>
+                  ))}
+                </div>
+                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"} aria-hidden="true">
+                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
+                    <div key={`dup-${i}`} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
+                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
+                        {lang === "ar" ? bid.name : bid.nameEn}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "زايد بـ" : "bid"}
+                      </span>
+                      <span className="font-bold text-[#F05123]">
+                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "على" : "on"}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
+                        {lang === "ar" ? bid.item : bid.itemEn}
+                      </span>
+                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
+                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
+                      </span>
+                      <span className="text-gray-300">·</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
         <section id="how-it-works" className="py-[96px] bg-[#FFFFFF] border-b border-[#F0F0EE] relative overflow-hidden">
@@ -1247,7 +1349,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   {lang === "ar" ? "كيف بيشتغل مزاد جو؟" : "How does MazadJo work?"}
                 </h2>
                 <p className="text-lg text-gray-600 font-ibmarabic">
-                  {lang === "ar" ? "أربع خطوات بسيطة، وكل خطوة مضمونة." : "Four simple steps, and every step is guaranteed."}
+                  {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
                 </p>
               </div>
             </Reveal>
@@ -1701,8 +1803,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     {
                       arVal: "١٠٠٪",
                       enVal: "100%",
-                      arLabel: "ضمان مالي",
-                      enLabel: "Financial Guarantee"
+                      arLabel: "محجوز حتى الاستلام",
+                      enLabel: "Held until you confirm"
                     }
                   ].map((stat, idx) => (
                     <div key={idx} className="space-y-2 flex flex-col items-center justify-center">
@@ -1737,8 +1839,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </h2>
                   <p className="text-gray-700 text-sm sm:text-base leading-relaxed font-ibmarabic">
                     {lang === "ar" 
-                      ? "بتقدر تشاهد المزاد قبل الاشتراك وتشوف الحماس"
-                      : "You can watch the auction before joining and experience the excitement"}
+                      ? "جرب بنفسك حماس المزايدة في الوقت الفعلي. انظر كيف تتنافس الأطراف المختلفة وتتفاعل ديناميكياً لترفع القيمة الحقيقية للسلعة خلال ثوانٍ معدودة."
+                      : "Try the bidding excitement yourself in real-time. Experience how participants battle dynamically to raise the real value of the item in seconds."}
                   </p>
                 </div>
 
@@ -1910,7 +2012,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       {lang === "ar" ? "الأمان المالي" : "Financial Security"}
                     </span>
                     <h2 className="text-4xl md:text-5xl font-bold text-[#0A0A0A] font-ibmarabic leading-tight">
-                      {lang === "ar" ? "فلوسك بأمان لحد ما تتأكد من المنتج" : "Your money is safe until you inspect the item"}
+                      {lang === "ar" ? "فلوسك بأمان لحد ما توافق إنت — مش قبل." : "Your money is safe until you approve — never before."}
                     </h2>
                   </div>
                   
@@ -1924,8 +2026,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="space-y-4 pt-2">
                     {[
                       {
-                        ar: "حماية كاملة بنسبة 100% لكلا الطرفين (البائع والمشتري).",
-                        en: "100% complete guaranteed protection for both buyers and sellers."
+                        ar: "مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        en: "Mazad holds your payment and releases it to the seller only after you receive the item and confirm it matches."
                       },
                       {
                         ar: "الدفع لا يكتمل إلا بعد معاينة السلعة فعلياً ومطابقتها للمواصفات.",
@@ -1978,10 +2080,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد جو تحجز المبلغ بالضمان",
-                        enTitle: "MazadJo holds the funds in escrow",
-                        arDesc: "يتم حجز وتحصين المبلغ في حساب بنكي وسيط مستقل وآمن.",
-                        enDesc: "Funds are fully secured and held in a dedicated third-party escrow account."
+                        arTitle: "مزاد بتحتفظ بالمبلغ",
+                        enTitle: "Mazad holds the payment",
+                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,
@@ -2226,7 +2328,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                           </li>
                           <li className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-[#F05123] shrink-0" />
-                            <span>{lang === "ar" ? "توفير مضمون ومستمر" : "Guaranteed savings"}</span>
+                            <span>{lang === "ar" ? "توفير مستمر" : "Ongoing savings"}</span>
                           </li>
                         </ul>
                       </div>
@@ -2322,21 +2424,20 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="absolute top-0 right-0 -translate-x-1/4 -translate-y-1/4 w-[200px] h-[200px] rounded-full bg-[#F05123]/10 blur-2xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 translate-x-1/4 translate-y-1/4 w-[150px] h-[150px] rounded-full bg-white/5 blur-2xl pointer-events-none" />
 
-                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-                    <div className="space-y-3 max-w-2xl">
-                      {/* Badge in flow */}
-                      <div>
-                        <span className="inline-flex items-center bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[11px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
-                          {lang === "ar" ? "رسوم الإدراج مجاناً — لفترة محدودة" : "Free listing fees — Limited time"}
-                        </span>
-                      </div>
+                  {/* Corner Badge - Orange Gradient */}
+                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
+                    {lang === "ar" ? "رسوم إدراج ٠ دينار — لفترة محدودة" : "Listing fee 0 JOD — Limited time"}
+                  </div>
+
+                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
+                    <div className="space-y-4 max-w-2xl">
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
                         {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "رسوم الإدراج مجاناً حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
-                          : "Free listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
+                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
+                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
                       </p>
                     </div>
 
@@ -2773,7 +2874,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             {/* Tiny secure seal */}
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#ECECEA] text-[10px] text-gray-600 font-ibmarabic shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <Lock className="w-3 h-3 text-[#F05123]" />
-              <span>{lang === "ar" ? "مزادات رسمية خاضعة للقوانين الأردنية" : "Official auctions regulated by Jordanian laws"}</span>
+              <span>{lang === "ar" ? "مزادات تعمل في الأردن" : "Auctions operating in Jordan"}</span>
             </div>
           </div>
 

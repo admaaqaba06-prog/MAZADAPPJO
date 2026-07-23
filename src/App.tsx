@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider, useApp, useAuctions } from './context/AppContext';
 import { parseAuctionIdFromSearch } from './utils/deepLink';
 import { isAdminUser } from './utils/adminAuth';
 import { canSeeSimulated } from './utils/simVisibility';
@@ -134,7 +134,8 @@ function MaintenanceView() {
  * it by setting reviewPromptOrderId in context — e.g. the unreviewed-order bid gate.
  */
 function ReviewPromptHost() {
-  const { reviewPromptOrderId, setReviewPromptOrderId, orders, auctions, currentUser, language } = useApp();
+  const { reviewPromptOrderId, setReviewPromptOrderId, orders, currentUser, language } = useApp();
+  const { auctions } = useAuctions();
 
   const order = reviewPromptOrderId ? orders.find(o => o.id === reviewPromptOrderId) : undefined;
   if (!order || !currentUser?.id || order.buyerId !== currentUser.id) return null;
