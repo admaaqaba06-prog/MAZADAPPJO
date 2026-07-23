@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
 import { OrderDetailsView } from './OrderDetailsView';
@@ -207,19 +207,18 @@ const sellerTranslations: Record<string, Record<string, string>> = {
 };
 
 export const SellerCenterView: React.FC = () => {
-  const { 
-    currentUser, 
-    language, 
-    auctions, 
-    orders, 
+  const {
+    currentUser,
+    language,
+    orders,
     wallet,
-    addNotification, 
-    setAuctions,
+    addNotification,
     sellerProfiles,
     submitVerificationRequest,
     requestWithdrawal,
     setActiveView
   } = useApp();
+  const { auctions, setAuctions } = useAuctions();
 
   const isAr = language === 'ar';
   const st = isAr ? sellerTranslations.ar : sellerTranslations.en;
