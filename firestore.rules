@@ -272,7 +272,8 @@ service cloud.firestore {
             'buyersPremium', 'escrowId', 'isSimulated', 'createdAt',
             'id', 'buyerName', 'sellerName', 'paymentDeadlineAt',
             'paymentVerified', 'paymentVerifiedBy', 'paymentVerifiedAt',
-            'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt'
+            'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt',
+            'lastNudgedAt', 'nudgeCount'
           ]) &&
           // paymentStatus: the ONLY client transition is the buyer's own
           // unpaid -> paid claim (the CliQ 'pay' workflow step, which also
