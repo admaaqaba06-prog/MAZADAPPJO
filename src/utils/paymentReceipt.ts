@@ -26,6 +26,23 @@ export function receiptFingerprint(url: string | null): string | null {
   return q === -1 ? url : url.slice(0, q);
 }
 
+/**
+ * The Verify & Approve order-payments queue predicate: receipt attached, not
+ * yet admin-verified, and in a reviewable status ('waiting_payment' covers the
+ * buyer's self-claim flow, 'paid' covers legacy/manual-marked orders). Shared
+ * by the section's queue and the dashboard's pending-count badge so the two
+ * can never diverge.
+ */
+const ORDER_PAYMENT_REVIEW_STATUSES: readonly string[] = ['waiting_payment', 'paid'];
+
+export function isPendingOrderPayment(order: Record<string, any>): boolean {
+  return (
+    !!normalizeReceiptUrl(order) &&
+    order?.paymentVerified !== true &&
+    ORDER_PAYMENT_REVIEW_STATUSES.includes(order?.status)
+  );
+}
+
 export function findDuplicateFingerprints(records: { id: string; url: string | null }[]): Set<string> {
   const seen = new Map<string, Set<string>>(); // fingerprint -> record ids
   for (const r of records) {
