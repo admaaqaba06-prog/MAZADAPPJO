@@ -3112,6 +3112,9 @@ const fetchIP = async () => {
       throw new Error(errMsg);
     }
 
+    // Reserve must NOT be written to the world-readable auction doc.
+    const { reservePrice, ...auctionInput } = listingData as typeof listingData & { reservePrice?: number };
+
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
     // رفع الفيديو لـ Firebase Storage أولاً
@@ -3265,8 +3268,22 @@ const fetchIP = async () => {
     if (onProgress) onProgress(100, 'saving');
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
+
+    // Admin drop-builder auctions get a sequential number from the atomic counter.
+    // (Seller-wizard 'processing' submissions don't — they're numbered at approval time, later slice.)
+    let assignedAuctionNumber: number | undefined;
+    if (initialStatus === 'upcoming') {
+      try {
+        const { allocateAuctionNumber } = await import('../utils/auctionNumber');
+        assignedAuctionNumber = await allocateAuctionNumber(db);
+      } catch (numErr) {
+        console.warn('[createListing] auction number allocation failed (continuing without):', numErr);
+      }
+    }
+
     const newListing: any = {
-      ...listingData,
+      ...auctionInput,
+      ...(assignedAuctionNumber != null ? { auctionNumber: assignedAuctionNumber } : {}),
       id: newListingId,
       currentPrice: listingData.startingPrice,
       sellerId: currentUser.id,
@@ -3319,6 +3336,15 @@ const fetchIP = async () => {
       addNotification(saveFailTitle, saveFailMsg, 'alert');
       showToast({ title: saveFailTitle, message: saveFailMsg, type: 'warn' });
       handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
+    }
+
+    // Reserve is stored server-side only (admin/CF-readable), never on the auction doc.
+    if (reservePrice && reservePrice > 0) {
+      try {
+        await setDoc(doc(db, 'auctionSecrets', newListingId), { reservePrice });
+      } catch (resErr) {
+        console.warn('[createListing] reserve secret write failed:', resErr);
+      }
     }
 
     setAuctions(prev => [newListing, ...prev]);
