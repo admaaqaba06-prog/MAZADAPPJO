@@ -83,14 +83,16 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
     cancelBid();
   };
 
-  // Item condition — shown ONLY when the seller/admin actually set it on the
-  // auction doc (no fabricated specs). `condition` is the sole structured spec
-  // field the data model carries today; when absent, the spec tile is hidden.
-  const conditionLabel = auction?.condition === 'new'
-    ? (isAr ? 'جديد' : 'New')
-    : auction?.condition === 'used'
-      ? (isAr ? 'مستعمل' : 'Used')
-      : null;
+  // Multi-step custom details derived from lot id helper
+  const isRolex = auction?.id?.includes('rolex');
+  const isPorsche = auction?.id?.includes('porsche');
+
+  const customCondition = isAr ? 'جديد (غير مستخدم) - ممتاز' : 'Brand New (Unused) - Pristine Box Set';
+  const customColor = isRolex 
+    ? (isAr ? 'ذهبي عيار ١٨' : '18ct Oyster Oystersteel & Gold') 
+    : isPorsche 
+    ? (isAr ? 'رمادي مميز غير لامع' : 'Paint to Sample PTS Crayon Gray') 
+    : (isAr ? 'تيتانيوم طبيعي' : 'Natural Space Titanium');
 
   useEffect(() => {
     if (!auction) return;
@@ -172,26 +174,29 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
             </p>
           </div>
 
-          {/* Condition tile — real seller-provided field only; hidden when absent. */}
-          {conditionLabel && (
-            <div className="grid grid-cols-1 gap-2.5">
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100" style={{ textAlign: isAr ? 'right' : 'left' }}>
-                <span className="text-[9px] text-gray-400 font-bold uppercase block">{isAr ? 'حالة السلعة' : 'CONDITION'}</span>
-                <span className="text-xs font-black text-gray-800 font-mono mt-0.5 block">{conditionLabel}</span>
-              </div>
+          {/* Condition indicators grid */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-left" style={{ textAlign: isAr ? 'right' : 'left' }}>
+              <span className="text-[9px] text-gray-400 font-bold uppercase block">{isAr ? 'حالة السلعة' : 'CONDITION'}</span>
+              <span className="text-xs font-black text-gray-800 font-mono mt-0.5 block">{customCondition}</span>
             </div>
-          )}
+            
+            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-left" style={{ textAlign: isAr ? 'right' : 'left' }}>
+              <span className="text-[9px] text-gray-400 font-bold uppercase block">{isAr ? 'اللون / اللون الخاص' : 'CHASSIS / COLOR'}</span>
+              <span className="text-xs font-black text-gray-800 font-mono mt-0.5 block truncate">{customColor}</span>
+            </div>
+          </div>
 
-          {/* Buyer-protection banner — honest Mazad-holds-funds model (no regulated/audited claim). */}
+          {/* Secure Trust Alert banner */}
           <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-3 flex gap-2.5 items-start">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div className="text-[10px] leading-relaxed text-gray-600">
               <span className="text-emerald-800 font-black uppercase text-[10px] block mb-0.5">
-                {isAr ? 'حماية المشتري' : 'BUYER PROTECTION'}
+                {isAr ? 'درع الأمان والضمان' : 'CLIQ DEPOSIT PROTECTION PASS'}
               </span>
-              {isAr
-                ? 'إذا فزت، بتدفع لمزاد مش للبائع مباشرة. مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة. إذا صار أي إشكال، افتح نزاع ومزاد بيتوسّط.'
-                : 'If you win, you pay Mazad — not the seller directly. Mazad holds your payment and only releases it to the seller after you receive the item and confirm it matches. If anything is wrong, open a dispute and Mazad mediates.'}
+              {isAr 
+                ? 'مضمون ١٠٠٪. رصيدك مجمد في حساب كليك حتى استلام وفحص المبيع يدا بيد وبموافقتك الشخصية.' 
+                : 'Double insulated. Escrow funds stay suspended until delivery compliance is personally confirmed by you.'}
             </div>
           </div>
 

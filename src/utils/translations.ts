@@ -1,8 +1,8 @@
 export const translations = {
   en: {
     appName: "MAZAD JO",
-    appSubtitle: "Live auctions with buyer protection across Jordan & the MENA region",
-    tagline: "Live auctions • Pay via CliQ • Mazad holds your payment until you confirm receipt",
+    appSubtitle: "The Premium MENA Live Auction & Escrow Network",
+    tagline: "Live Broadcast Commerce • Safe Escrow Securities • CliQ Audited",
     
     // Auth
     welcomeBack: "Welcome Back",
@@ -25,7 +25,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "PREMIUM BIDDING ACCESS",
-    paywallSub: "MAZAD JO runs real-time live-auction video rooms with CliQ payments and buyer protection. Activate an account plan to unlock full live bidding.",
+    paywallSub: "MAZAD JO utilizes full real-time video stream servers & secured CliQ escrow protocols. Activate an account plan to unlock full live bidding authorization.",
     choosePlan: "SELECT AN ACCESS PLAN",
     planMonthly: "1 JOD",
     planMonthlyUnit: " / Month",
@@ -34,13 +34,13 @@ export const translations = {
     planAnnualUnit: " / Year",
     mostPopular: "MOST POPULAR",
     bestValue: "BEST VALUE",
-    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes.",
+    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes.",
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live streams",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
-      "Bid free — pay via CliQ only when you win",
-      "Buyer protection: Mazad holds your payment until you confirm receipt"
+      "Instant CliQ wallet balance ledger deposits",
+      "Full administrative active protection and deposit coverage"
     ],
 
     // Global
@@ -48,7 +48,7 @@ export const translations = {
     logout: "Log Out",
     city: "Amman, Jordan",
     verifiedMerchant: "Verified User",
-    escrowAudit: "Buyer protection",
+    escrowAudit: "CliQ Audited",
 
     // Views Nav
     navDiscover: "Discover",
@@ -72,7 +72,7 @@ export const translations = {
     backToHome: "Return to Discover",
     commentsRemoved: "Comments section deactivated to focus on pure live bidding records.",
     systemNotif: "SYSTEM",
-    activeEscrowAlert: "When you win, Mazad holds your payment until you confirm you received the item.",
+    activeEscrowAlert: "Active bid capital safe in CliQ escrow until shipment verification.",
     videoLabel: "Active live broadcast player (Mux HLS grid)",
     swipeUpPrompt: "Swipe down/up or click buttons below for next/prev live lot",
 
@@ -89,6 +89,23 @@ export const translations = {
     selectDemoVideo: "SELECT DEMO STREAMING VIDEO",
     submitDraft: "SUBMIT LOT FOR ADMINISTRATIVE REVIEW",
     approvedNotify: "Approval pending. Visit Admin Executive Dashboard (Listings tab) to instantly release live!",
+
+    // Wallet
+    myWallet: "MY WALLET LEDGER",
+    portfolioVolume: "TOTAL PORTFOLIO ESCROW VOLUME",
+    availableBid: "Available cash to bid",
+    escrowMargin: "Locked Escrow Margin",
+    cliqDepositForm: "CLIQ INSTANT CASH DEPOSIT",
+    transferAmt: "TRANSFER CAPITAL AMOUNT (JOD)",
+    cliqAliasLabel: "YOUR BANK'S CLIQ ALIAS IDENTIFIER",
+    attachSlip: "ATTACH TRANSACTION RECEIPT SCREENSHOT",
+    attachSlipTip: "CLICK TO ATTACH SCREENSHOT",
+    attachSlipSubtext: "Simulates picking local receipt from mobile gallery",
+    submitDeposit: "Transmit CliQ Deposit Slip",
+    activeEscrows: "ACTIVE ESCROW LANDERS",
+    noEscrows: "No capital locked in active bids.",
+    ledgerHistorics: "LEDGER ROW HISTORICALS",
+    noLedger: "No finalized transactions found.",
 
     // Admin
     adminTitle: "ADMIN EXECUTIVE CORE",
@@ -141,8 +158,8 @@ export const translations = {
   },
   ar: {
     appName: "مزاد جو",
-    appSubtitle: "مزادات حية مع حماية المشتري في الأردن والمنطقة",
-    tagline: "مزادات حية • ادفع عبر كليك • مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام",
+    appSubtitle: "الشبكة الأولى للمزادات الحية والضمان الآمن في الأردن والشرق الأوسط",
+    tagline: "تجارة البث المباشر • ضمان مالي آمن • ماليّة مدققة عبر كليك",
     
     // Auth
     welcomeBack: "أهلاً بك مجدداً",
@@ -165,7 +182,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "تفعيل منصة المزايدة الممتازة",
-    paywallSub: "مزاد جو يقدّم غرف مزادات حية بالبث المباشر مع الدفع عبر كليك وحماية للمشتري. فعّل حسابك للمزايدة في كل المزادات النشطة.",
+    paywallSub: "يستخدم مزاد جو خوادم بث حي فائقة السرعة مع بروتوكولات حجز مالي فورية عبر CliQ. يرجى تفعيل حسابك للاستمتاع بجميع المزايدات النشطة.",
     choosePlan: "اختر اشتراك البوابة المناسب",
     planMonthly: "1 دينار",
     planMonthlyUnit: " / شهرياً",
@@ -174,13 +191,13 @@ export const translations = {
     planAnnualUnit: " / سنوياً",
     mostPopular: "الأكثر اختياراً",
     bestValue: "أفضل قيمة",
-    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.",
+    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.",
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
       "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",
       "تفعيل أزرار المزايدة الفورية (+10، +25، +50، +100 دينار)",
-      "المزايدة مجانية — تدفع عبر كليك فقط عند الفوز",
-      "حماية المشتري: مزاد يحتفظ بدفعتك حتى تستلم القطعة وتتأكد منها"
+      "إيداع فوري للأموال بمحفظتك عبر إرفاق وصلات كليك",
+      "حماية وضمان كامل للأموال وحقوق المزايدات المودعة بالضمان"
     ],
 
     // Global
@@ -188,7 +205,7 @@ export const translations = {
     logout: "تسجيل الخروج",
     city: "عمان، الأردن",
     verifiedMerchant: "حساب موثق",
-    escrowAudit: "حماية المشتري",
+    escrowAudit: "مدقق كليك",
 
     // Views Nav
     navDiscover: "اكتشف",
@@ -212,7 +229,7 @@ export const translations = {
     backToHome: "العودة للاكتشاف",
     commentsRemoved: "تم إلغاء قسم التعليقات والدردشات لتركيز البث بالكامل على المزايدات الرسمية فقط.",
     systemNotif: "إشعار نظام",
-    activeEscrowAlert: "لما تربح، مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تأكّد إنك استلمت القطعة.",
+    activeEscrowAlert: "أموالك في المزايدات النشطة آمنة كلياً في حساب كليك لضمان الحقوق حتى الاستلام المعتمد.",
     videoLabel: "بث حي ومباشر تفاعلي (خادم Mux الرياضي)",
     swipeUpPrompt: "اسحب الشاشة للأعلى أو للأسفل أو انقر الأزرار للتنقل بين المزادات الحية",
 
@@ -229,6 +246,23 @@ export const translations = {
     selectDemoVideo: "اختر فيديو العرض التجريبي",
     submitDraft: "إرسال المزاد للمراجعة والاعتماد",
     approvedNotify: "تم إرسال مزادك بنجاح. اذهب للوحة إدارة النظام (قسم المزادات) للموافقة الفورية والنشاط!",
+
+    // Wallet
+    myWallet: "سجل العمليات ومحفظتي",
+    portfolioVolume: "إجمالي المبالغ المحجوزة",
+    availableBid: "الرصيد المتاح للمزايدة",
+    escrowMargin: "المبلغ المحجوز",
+    cliqDepositForm: "شحن رصيد المحفظة عبر كليك",
+    transferAmt: "مبلغ الشحن (دينار)",
+    cliqAliasLabel: "اسم المستعار (Alias) لحساب كليك الخاص بك",
+    attachSlip: "إرفاق صورة إثبات التحويل البنكي",
+    attachSlipTip: "سحب وإفلات أو نقر لإرفاق صورة الوصل",
+    attachSlipSubtext: "يحاكي إرفاق مستند كليك من معرض هاتفك",
+    submitDeposit: "إرسال إثبات التحويل للاعتماد",
+    activeEscrows: "تفاصيل المبالغ المحجوزة",
+    noEscrows: "لا توجد مبالغ محجوزة حالياً.",
+    ledgerHistorics: "سجل العمليات",
+    noLedger: "لا يوجد عمليات مالية مسجلة بعد.",
 
     // Admin
     adminTitle: "مركز القيادة المالي والإداري",

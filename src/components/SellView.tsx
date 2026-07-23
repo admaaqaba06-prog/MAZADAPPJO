@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ListingWizardView } from './ListingWizardView';
 import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
-import { resizeImage } from '../utils/resizeImage';
 import {
   Store,
   Handshake,
@@ -116,13 +115,9 @@ export const SellView: React.FC = () => {
           const { getFirebaseStorage } = await import('../services/firebase');
           const storage = await getFirebaseStorage();
           for (const photo of cPhotos.slice(1)) {
-            // Shrink to a card-friendly size before upload — same reasoning
-            // as the cover photo (createListing's uploadWithFallback).
-            // Never throws; falls back to the original file untouched.
-            const resized = await resizeImage(photo.file);
             const path = `auction-thumbnails/${Date.now()}_concierge_${photo.file.name}`;
-            const snap = await uploadBytes(ref(storage, path), resized, {
-              contentType: resized.type || photo.file.type || 'image/jpeg'
+            const snap = await uploadBytes(ref(storage, path), photo.file, {
+              contentType: photo.file.type || 'image/jpeg'
             });
             extraPhotoUrls.push(await getDownloadURL(snap.ref));
           }
@@ -150,10 +145,7 @@ export const SellView: React.FC = () => {
           isConcierge: true,
           condition: cCondition,
           conciergeContact: cContact.trim(),
-          // Admin concierge queue keeps reading conciergePhotos; the live-room
-          // media gallery reads mediaUrls (Wave 2) — write both.
-          conciergePhotos: extraPhotoUrls,
-          mediaUrls: extraPhotoUrls
+          conciergePhotos: extraPhotoUrls
         } as any,
         null,
         cPhotos[0].file,

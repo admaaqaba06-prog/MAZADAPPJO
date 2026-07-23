@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
-import { resizeImage } from '../utils/resizeImage';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 interface ListingWizardViewProps {
@@ -29,21 +28,6 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   // Thumbnail assets references
   const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
   const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
-
-  // Wave 2 (media gallery): up to 3 EXTRA photos beyond the cover → mediaUrls
-  const [extraPhotos, setExtraPhotos] = useState<{ file: File; url: string }[]>([]);
-
-  const addExtraPhotos = (files: FileList | null) => {
-    if (!files) return;
-    const incoming = Array.from(files).filter(f => f.type.startsWith('image/'));
-    setExtraPhotos(prev =>
-      [...prev, ...incoming.map(file => ({ file, url: URL.createObjectURL(file) }))].slice(0, 3)
-    );
-  };
-
-  const removeExtraPhoto = (idx: number) => {
-    setExtraPhotos(prev => prev.filter((_, i) => i !== idx));
-  };
 
   // Wave 4: required listing-time ownership + legality attestation
   const [ownershipAttested, setOwnershipAttested] = useState(false);
@@ -98,31 +82,6 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
     setUploadStage('video');
 
     try {
-      // Wave 2 (media gallery): upload the extra gallery photos first (same
-      // storage path pattern SellView's concierge extras use). Non-fatal on
-      // failure — the listing still publishes with the cover + video.
-      const extraPhotoUrls: string[] = [];
-      if (extraPhotos.length > 0) {
-        try {
-          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-          const { getFirebaseStorage } = await import('../services/firebase');
-          const storage = await getFirebaseStorage();
-          for (const photo of extraPhotos) {
-            // Shrink to a card-friendly size before upload — same reasoning
-            // as the cover thumbnail (createListing's uploadWithFallback).
-            // Never throws; falls back to the original file untouched.
-            const resized = await resizeImage(photo.file);
-            const path = `auction-thumbnails/${Date.now()}_gallery_${photo.file.name}`;
-            const snap = await uploadBytes(ref(storage, path), resized, {
-              contentType: resized.type || photo.file.type || 'image/jpeg'
-            });
-            extraPhotoUrls.push(await getDownloadURL(snap.ref));
-          }
-        } catch (photoErr) {
-          console.warn('Extra gallery photo upload failed (continuing):', photoErr);
-        }
-      }
-
       // Save under 'processing' state so Admin can click and instantly release
       await createListing({
         title,
@@ -132,7 +91,6 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
         minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
         videoUrl: customVideoUrl || '',
         thumbnailUrl: customThumbnailUrl || '',
-        mediaUrls: extraPhotoUrls,
         endTime: Date.now() + Number(duration) * 1000,
         duration: Number(duration),
         isFeatured: false
@@ -306,54 +264,6 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       />
                     </label>
                   )}
-                </div>
-              </div>
-
-              {/* STEP 1.6 — Extra gallery photos (Wave 2 media gallery) */}
-              <div className="space-y-2.5">
-                <label className="text-xs lg:text-sm font-extrabold text-[#111827] flex items-center gap-1.5">
-                  <span className="text-[#FF6B00]">①.⑥</span>
-                  {isAr ? 'صور إضافية للمعرض (حتى ٣ — اختياري)' : 'Extra Gallery Photos (up to 3 — Optional)'}
-                </label>
-
-                <div className="bg-white rounded-2xl border border-gray-200 p-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    {extraPhotos.map((photo, idx) => (
-                      <div key={photo.url} className="relative rounded-xl overflow-hidden bg-black aspect-square">
-                        <img src={photo.url} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeExtraPhoto(idx)}
-                          className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer"
-                        >
-                          {isAr ? 'حذف' : 'Remove'}
-                        </button>
-                      </div>
-                    ))}
-                    {extraPhotos.length < 3 && (
-                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl aspect-square cursor-pointer hover:bg-gray-50 transition-colors">
-                        <span className="text-xl">📸</span>
-                        <span className="text-[10px] font-bold text-gray-500 mt-1 text-center px-1">
-                          {isAr ? 'إضافة صورة' : 'Add photo'}
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => {
-                            addExtraPhotos(e.target.files);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-2 font-medium">
-                    {isAr
-                      ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد.'
-                      : 'Bidders can swipe through these photos inside the live room.'}
-                  </p>
                 </div>
               </div>
             </div>

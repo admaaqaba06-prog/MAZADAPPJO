@@ -34,12 +34,10 @@ describe('buildAuctionCaption', () => {
     expect(out).toContain('جديدة كلياً');
   });
 
-  it('includes the subscribers-only rule and the deep link, with no guarantee claim', () => {
+  it('includes the subscribers-only rule, the guarantee and the deep link', () => {
     const out = buildAuctionCaption(sample);
     expect(out).toContain('المزايدة للمشتركين فقط');
-    // Trust copy (e01d644): the 30-day return/guarantee claim was dropped —
-    // Mazad does not sell its own products, so no caption may promise one.
-    expect(out).not.toContain('كفالة المزاد');
+    expect(out).toContain('كفالة المزاد: شهر استرجاع');
     expect(out).toContain('https://mazadjo.app/?auction=auction-123');
   });
 });

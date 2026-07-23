@@ -32,7 +32,10 @@ import {
   MapPin,
   Building2,
   Quote,
-  Star
+  Star,
+  Heart,
+  Share2,
+  Flame
 } from "lucide-react";
 import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { translations, TranslationType } from "./translations";
@@ -265,6 +268,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   // Active item switching states
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [isAutoCycling, setIsAutoCycling] = useState<boolean>(true);
+  const [likesCount, setLikesCount] = useState<number>(1428);
+  const [hasLiked, setHasLiked] = useState<boolean>(false);
   const [prices, setPrices] = useState<number[]>([14250, 850, 320000]);
   const [timers, setTimers] = useState<number[]>([138, 180, 3600]);
   const [bidLogsList, setBidLogsList] = useState<BidLog[][]>(() => [
@@ -872,12 +877,12 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.35] text-[#0A0A0A] font-alexandria"
+                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.65] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-2"
                 >
-                  <span className="inline-block">{t.hero.titleFirst}</span>{" "}
-                  <span className="text-[#F05123] inline-block relative mx-2">
+                  <span className="block">{t.hero.titleFirst}</span>
+                  <span className="text-[#F05123] block relative pb-1">
                     {t.hero.titleGradient}
-                    <svg className="absolute left-0 bottom-[-4px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
+                    <svg className="absolute left-0 bottom-[-2px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
                       <motion.path
                         d="M0,5 Q50,0 100,5"
                         fill="none"
@@ -889,8 +894,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         transition={{ delay: 0.9, duration: 1, ease: "easeInOut" }}
                       />
                     </svg>
-                  </span>{" "}
-                  <span className="inline-block">{t.hero.titleLast}</span>
+                  </span>
+                  <span className="block">{t.hero.titleLast}</span>
                 </motion.h1>
 
                 {/* Paragraph */}
@@ -899,7 +904,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-gray-700 text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-ibmarabic font-medium"
+                  className="text-gray-700 text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-ibmarabic font-medium pt-3"
                 >
                   {t.hero.desc}
                 </motion.p>
@@ -976,40 +981,36 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               </motion.div>
 
               {/* Right Column (Interactive Live Auction Card) enters last */}
-              <div className="lg:col-span-5 flex justify-center lg:justify-end relative">
+              <div className="lg:col-span-5 flex justify-center lg:justify-end relative my-auto py-4 w-full">
                 
-                {/* Large circular halo backdrop in warm grey #FAFAF8 to separate from white background */}
-                <div className="absolute inset-0 m-auto w-[450px] h-[450px] max-w-full rounded-full bg-[#F7F7F7] filter blur-3xl pointer-events-none -z-10 opacity-100" />
+                {/* Soft blurred orange gradient blob behind the card */}
+                <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
 
-                {/* Premium Floating Card Container with fade and scale */}
+                {/* Premium Floating Reels Card Container with Phone Bezel */}
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.96, x: -50 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.8 }}
-                  className="w-full max-w-[390px] rounded-[10px] bg-white border border-[#ECECEA] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] relative transition-all duration-300"
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
+                  className="w-full max-w-[400px] h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
                   id="hero-live-card"
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
-                  
-                  {/* Official Lot System Top Bar */}
-                  <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-[#ECECEA]">
-                    <span className={`font-alexandria font-extrabold text-xs text-[#F05123] uppercase ${lang === "en" ? "tracking-wider" : ""}`}>
-                      {lang === "ar" ? "لوت ٠٠١" : "LOT 001"}
-                    </span>
+                  {/* Glowing warm orange aura behind card */}
+                  <div className="absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 animate-pulse -z-10 pointer-events-none" />
 
-                    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold font-ibmarabic ${lang === "en" ? "tracking-wide" : ""}`}>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                      <span>{t.hero.liveBadge}</span>
-                    </span>
+                  {/* Phone Bezel Top Notch */}
+                  <div className="w-20 h-4 bg-gray-900 rounded-b-xl mx-auto absolute top-0 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center gap-1.5 shadow-inner">
+                    <span className="w-2.5 h-2.5 rounded-full bg-black border border-gray-800" />
+                    <span className="w-4 h-1 rounded-full bg-gray-800" />
                   </div>
 
-                  {/* Product Image Frame on Sand Backdrop */}
-                  <div className="w-full aspect-[4/3] rounded-[10px] overflow-hidden relative group bg-[#F7F7F7] border border-[#ECECEA] shadow-inner transition-all duration-500">
+                  {/* FULL-BLEED REELS MEDIA BACKGROUND */}
+                  <div className="absolute inset-0 z-0 overflow-hidden bg-gray-900">
                     <img
                       src={currentItem.image}
                       alt={lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-1000 opacity-90"
                       key={currentItem.id}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
@@ -1024,133 +1025,244 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         }
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-                    
-                    {/* Dynamic Time Extension Banner */}
-                    {showExtensionAlert && (
-                      <div className="absolute top-3 inset-x-3 bg-white border border-[#ECECEA] text-[#F05123] text-center py-2 rounded-[10px] text-xs font-bold font-ibmarabic shadow-sm flex items-center justify-center gap-1.5 animate-bounce z-10">
-                        <Bell className="w-3.5 h-3.5 animate-ring text-[#F05123]" />
-                        <span>{lang === "ar" ? "⏱ تم تمديد الوقت تلقائياً!" : "⏱ Auto-Time Extended!"}</span>
+                    {/* Top and Bottom Reels Vignette Gradients */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/25 to-black/95 pointer-events-none" />
+                  </div>
+
+                  {/* Z-10 TOP OVERLAY: REELS HEADER & TABS */}
+                  <div className="relative z-10 pt-3 space-y-2.5">
+                    {/* Top Story Progress Bars */}
+                    <div className="flex gap-1.5 w-full px-1">
+                      {ACTIVE_ITEMS.map((item, idx) => (
+                        <div key={item.id} className="h-1 flex-1 rounded-full bg-white/30 overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r from-[#F05123] to-amber-400 transition-all duration-500 ${
+                              idx === activeItemIndex ? "w-full" : idx < activeItemIndex ? "w-full opacity-60" : "w-0"
+                            }`} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Reels Streamer Profile & Live Badge Row */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/15">
+                        <div className="relative flex shrink-0">
+                          <img 
+                            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
+                            alt="MazadJo Streamer" 
+                            className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
+                          />
+                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black animate-pulse" />
+                        </div>
+                        <div className="flex flex-col text-right">
+                          <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
+                            مزاد جو مباشر
+                            <Sparkles className="w-3 h-3 text-amber-400" />
+                          </span>
+                          <span className="text-[9px] text-gray-300 font-ibmarabic flex items-center gap-1 mt-0.5">
+                            <Eye className="w-2.5 h-2.5 text-emerald-400" />
+                            ١,٤٢٠ يشاهدون
+                          </span>
+                        </div>
                       </div>
+
+                      {/* Live Badge Pill */}
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                        <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
+                      </div>
+                    </div>
+
+                    {/* Reels Item Switcher Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                      {ACTIVE_ITEMS.map((item, idx) => {
+                        const isActive = idx === activeItemIndex;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setActiveItemIndex(idx);
+                              setIsAutoCycling(false);
+                            }}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold font-ibmarabic backdrop-blur-md transition-all duration-300 shrink-0 border ${
+                              isActive
+                                ? "bg-[#F05123] text-white border-white/30 shadow-md scale-105"
+                                : "bg-black/40 text-white/80 hover:bg-black/60 border-white/10"
+                            }`}
+                          >
+                            <span>{item.icon}</span>
+                            <span>
+                              {lang === "ar" 
+                                ? (item.id === "car" ? "سيارات" : item.id === "phone" ? "هواتف" : "عقارات")
+                                : (item.id === "car" ? "Cars" : item.id === "phone" ? "Phones" : "Realty")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* FLOATING RIGHT SIDE REELS ACTIONS BAR */}
+                  <div className={`absolute top-1/2 -translate-y-1/2 ${lang === "ar" ? "left-3" : "right-3"} z-20 flex flex-col items-center gap-4`}>
+                    {/* Like Heart Action */}
+                    <button 
+                      onClick={() => {
+                        setHasLiked(!hasLiked);
+                        setLikesCount(prev => hasLiked ? prev - 1 : prev + 1);
+                      }}
+                      className="flex flex-col items-center gap-1 group/btn"
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-300 ${
+                        hasLiked ? "bg-rose-500 text-white shadow-lg shadow-rose-500/50 scale-110" : "bg-black/40 text-white border border-white/15 hover:bg-black/60"
+                      }`}>
+                        <Heart className={`w-5 h-5 ${hasLiked ? "fill-white" : ""}`} />
+                      </div>
+                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
+                        {likesCount.toLocaleString()}
+                      </span>
+                    </button>
+
+                    {/* Bids Chat Action */}
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
+                        <MessageCircle className="w-5 h-5 text-amber-300" />
+                      </div>
+                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
+                        {lang === "ar" ? "١٢ مزايدة" : "12 bids"}
+                      </span>
+                    </div>
+
+                    {/* Share Action */}
+                    <button className="flex flex-col items-center gap-1 hover:scale-110 transition-transform">
+                      <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
+                        <Share2 className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
+                        {lang === "ar" ? "مشاركة" : "Share"}
+                      </span>
+                    </button>
+
+                    {/* Inspected Badge Icon */}
+                    <div className="w-10 h-10 rounded-full bg-emerald-600/90 backdrop-blur-md border border-emerald-400/40 flex items-center justify-center text-white shadow-md" title={lang === "ar" ? "مفحوص من مزاد جو" : "Inspected"}>
+                      <ShieldCheck className="w-5 h-5 text-white" />
+                    </div>
+                  </div>
+
+                  {/* Z-10 BOTTOM OVERLAY: REELS DETAILS & INSTANT BID */}
+                  <div className="relative z-10 space-y-2.5 pb-1">
+                    {/* Dynamic Auto-Extension Alert Banner */}
+                    {showExtensionAlert && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-amber-500/90 text-black backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold font-ibmarabic shadow-lg flex items-center gap-1.5 border border-amber-300"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-black animate-ring shrink-0" />
+                        <span>{lang === "ar" ? "⏱ تم تمديد الوقت دقيقة إضافية للمنافسة!" : "⏱ Extended +1 min for live bids!"}</span>
+                      </motion.div>
                     )}
 
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                      <span className="text-white text-xs font-ibmarabic font-semibold opacity-95 flex items-center gap-1">
-                        {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
-                      </span>
-                      <span className="text-[#F05123] text-xs font-semibold bg-[#FAFAFA] border border-[#ECECEA] px-2.5 py-0.5 rounded-[10px]">
-                        {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Elegant interactive item selection tabs below the image */}
-                  <div className="flex items-center justify-center gap-1.5 mt-3 mb-2.5">
-                    {ACTIVE_ITEMS.map((item, idx) => {
-                      const isActive = idx === activeItemIndex;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setActiveItemIndex(idx);
-                            setIsAutoCycling(false);
-                          }}
-                          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-[12px] text-xs font-bold font-ibmarabic border transition-all duration-300 ${
-                            isActive
-                              ? "bg-[#F05123]/10 border-[#F05123] text-[#F05123] shadow-sm"
-                              : "bg-[#FAFAFA] border-[#ECECEA] text-[#0A0A0A]/70 hover:text-[#0A0A0A] hover:border-[#0A0A0A]/30"
-                          }`}
-                        >
-                          <span className="text-sm shrink-0">
-                            {getLineIcon(`item-${item.id}`, "w-3.5 h-3.5 " + (isActive ? "text-[#F05123]" : "text-[#0A0A0A]/50"))}
-                          </span>
-                          <span className="text-[10px] sm:text-xs">
-                            {lang === "ar" 
-                              ? (item.id === "car" ? "سيارة" : item.id === "phone" ? "هاتف" : "بيت")
-                              : (item.id === "car" ? "Car" : item.id === "phone" ? "Phone" : "House")}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Specifications */}
-                  <div className="my-4 min-h-[56px] flex flex-col justify-center border-t border-[#ECECEA] pt-2">
-                    <h3 className="text-lg font-bold text-[#0A0A0A] font-alexandria leading-tight transition-all duration-300">
-                      {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
-                    </h3>
-                    <p className="text-xs text-gray-600 font-ibmarabic mt-1 transition-all duration-300">
-                      {lang === "ar" ? currentItem.detailsAr : currentItem.detailsEn}
-                    </p>
-                  </div>
-
-                  {/* Real-time Bid Info Block with gold flash on background and numerical Price Roll */}
-                  <div className="bg-[#FAFAFA] rounded-[10px] p-3.5 border border-[#ECECEA] flex items-center justify-between mb-4 relative overflow-hidden">
-                    <AnimatePresence>
-                      <motion.div
-                        key={currentPrice}
-                        initial={{ opacity: 0.15 }}
-                        animate={{ opacity: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.6 }}
-                        className="absolute inset-0 bg-[#F05123]/10 pointer-events-none"
-                      />
-                    </AnimatePresence>
-                    <div>
-                      <span className={`text-[10px] text-gray-600 uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>{t.hero.currentPrice}</span>
-                      <div className="overflow-hidden relative h-7">
-                        <AnimatePresence mode="popLayout">
-                          <motion.span
-                            key={currentPrice}
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: -20, opacity: 0 }}
-                            transition={{ duration: 0.35, ease: "easeOut" }}
-                            className="text-xl font-bold text-[#F05123] block"
-                          >
-                            {formatPrice(currentPrice)}
-                          </motion.span>
-                        </AnimatePresence>
+                    {/* Live Comment Stream Bubble (Floating Reel Bid Comment) */}
+                    <div className="max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl p-2.5 border border-white/15 shadow-xl space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-ibmarabic">
+                        <Flame className="w-3 h-3 text-[#F05123] animate-pulse" />
+                        <span>{lang === "ar" ? "آخر مزايدة حية الآن 🔥" : "Latest Live Bid 🔥"}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs font-bold text-white font-ibmarabic">
+                        <span className="text-emerald-400 font-semibold truncate max-w-[140px]">
+                          {bidLogsList[activeItemIndex]?.[0]?.name || "أحمد العبادي"}
+                        </span>
+                        <span className="text-[#F05123] font-black font-mono dir-ltr">
+                          {formatPrice(currentPrice)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="text-end">
-                      <span className={`text-[10px] text-gray-600 uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>
-                        {lang === "ar" ? "الوقت المتبقي" : "Time Left"}
+                    {/* Product Title & Badge */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-[#F05123]/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md font-ibmarabic">
+                          {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
+                        </span>
+                        <span className="text-[10px] text-gray-300 font-ibmarabic">
+                          {lang === "ar" ? "الرقم المرجعي: #JO-22419" : "Ref: #JO-22419"}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white font-alexandria leading-snug drop-shadow-md">
+                        {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
+                      </h3>
+                      <p className="text-xs text-gray-300 font-ibmarabic line-clamp-1 drop-shadow-sm">
+                        {lang === "ar" ? currentItem.detailsAr : currentItem.detailsEn}
+                      </p>
+                    </div>
+
+                    {/* Price & Countdown Timer Bar */}
+                    <div className="bg-black/60 backdrop-blur-md rounded-2xl p-3 border border-white/15 flex items-center justify-between shadow-xl">
+                      <div>
+                        <span className="text-[10px] text-gray-300 font-bold uppercase font-ibmarabic block">
+                          {lang === "ar" ? "السعر الحالي" : "Current Bid"}
+                        </span>
+                        <div className="overflow-hidden relative h-6">
+                          <AnimatePresence mode="popLayout">
+                            <motion.span
+                              key={currentPrice}
+                              initial={{ y: 15, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              exit={{ y: -15, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className="text-lg sm:text-xl font-black text-amber-400 block font-mono"
+                            >
+                              {formatPrice(currentPrice)}
+                            </motion.span>
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      <div className="text-end">
+                        <span className="text-[10px] text-gray-300 font-bold uppercase font-ibmarabic block">
+                          {lang === "ar" ? "الوقت المتبقي" : "Ends In"}
+                        </span>
+                        <span className="text-xs font-mono font-extrabold text-[#F05123] flex items-center gap-1 justify-end bg-black/80 border border-[#F05123]/40 px-2.5 py-1 rounded-lg mt-0.5 shadow-inner">
+                          <Clock className="w-3.5 h-3.5 text-[#F05123] animate-pulse" />
+                          {formatTimer(carTimer)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Main Reels Instant Bid Button */}
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={handleUserBid}
+                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#F05123] via-[#FF6B35] to-[#F05123] hover:brightness-110 text-white font-extrabold text-sm shadow-[0_10px_25px_-5px_rgba(240,81,35,0.6)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 border border-white/20 relative overflow-hidden group/bid"
+                    >
+                      <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/bid:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
+                      <Hammer className="w-4 h-4 text-white animate-bounce" />
+                      <span className="font-ibmarabic tracking-wide text-sm">
+                        {lang === "ar" 
+                          ? `زايد الآن (+${currentItem.stepPrice.toLocaleString("ar-JO")} د.أ)` 
+                          : `Bid Now (+${currentItem.stepPrice.toLocaleString("en-US")} JOD)`}
                       </span>
-                      <span className="text-sm font-mono font-bold text-[#F05123] flex items-center gap-1.5 justify-end bg-white border border-[#ECECEA] px-2.5 py-1 rounded-[10px] mt-0.5">
-                        <Clock className="w-3.5 h-3.5 text-[#F05123]" />
-                        {formatTimer(carTimer)}
+                    </motion.button>
+
+                    {/* Active Bidders Footer Row */}
+                    <div className="flex items-center justify-between text-[11px] text-gray-300 font-ibmarabic px-1 pt-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex -space-x-1.5 rtl:space-x-reverse">
+                          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
+                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
+                          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
+                        </div>
+                        <span className="text-[10px] text-gray-300 font-bold">
+                          {lang === "ar" ? "١٢ مزايد نشط" : "12 bidders active"}
+                        </span>
+                      </div>
+
+                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        {lang === "ar" ? "متواجدين الآن" : "Live Now"}
                       </span>
                     </div>
-                  </div>
-
-                  {/* Instant Bid Button */}
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleUserBid}
-                    className={`w-full py-3.5 rounded-[10px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-sm shadow-sm transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${lang === "en" ? "tracking-wide" : ""}`}
-                  >
-                    <Hammer className="w-4 h-4 text-white" />
-                    <span className="font-ibmarabic">
-                      {lang === "ar" 
-                        ? `زايد الآن (+${currentItem.stepPrice.toLocaleString("ar-JO")} د.أ)` 
-                        : `Bid Now (+${currentItem.stepPrice.toLocaleString("en-US")} JOD)`}
-                    </span>
-                  </motion.button>
-
-                  {/* Footnotes */}
-                  <div className="mt-4 pt-3.5 border-t border-[#ECECEA] flex items-center justify-between text-[10px] text-gray-500 font-ibmarabic">
-                    {t.hero.features.map((feat, idx) => {
-                      // Remove emoji character prefixes if any
-                      const featClean = feat.replace(/^[🚗🛡📸⚡️⚖️✔️👑🔒⏱️🚀]+/, "").trim();
-                      return (
-                        <span key={idx} className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-[#F05123]" />
-                          <span>{featClean}</span>
-                        </span>
-                      );
-                    })}
                   </div>
 
                 </motion.div>
@@ -1162,68 +1274,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 3. شريط الثقة (Ticker tape / Infinite Marquee) */}
-        <section id="trust-bar" className="bg-white border-b border-[#F0F0EE] py-8 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="marquee-container py-3.5 bg-white border border-[#ECECEA] rounded-[10px] overflow-hidden relative shadow-sm">
-              <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-              <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-              
-              <div className="flex w-full overflow-hidden">
-                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"}>
-                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
-                    <div key={i} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
-                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
-                        {lang === "ar" ? bid.name : bid.nameEn}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "زايد بـ" : "bid"}
-                      </span>
-                      <span className="font-bold text-[#F05123]">
-                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "على" : "on"}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
-                        {lang === "ar" ? bid.item : bid.itemEn}
-                      </span>
-                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
-                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
-                      </span>
-                      <span className="text-gray-300">·</span>
-                    </div>
-                  ))}
-                </div>
-                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"} aria-hidden="true">
-                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
-                    <div key={`dup-${i}`} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
-                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
-                        {lang === "ar" ? bid.name : bid.nameEn}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "زايد بـ" : "bid"}
-                      </span>
-                      <span className="font-bold text-[#F05123]">
-                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "على" : "on"}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
-                        {lang === "ar" ? bid.item : bid.itemEn}
-                      </span>
-                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
-                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
-                      </span>
-                      <span className="text-gray-300">·</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+
 
         {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
         <section id="how-it-works" className="py-[96px] bg-[#FFFFFF] border-b border-[#F0F0EE] relative overflow-hidden">
@@ -1237,7 +1288,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   {lang === "ar" ? "كيف بيشتغل مزاد جو؟" : "How does MazadJo work?"}
                 </h2>
                 <p className="text-lg text-gray-600 font-ibmarabic">
-                  {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
+                  {lang === "ar" ? "أربع خطوات بسيطة، وكل خطوة مضمونة." : "Four simple steps, and every step is guaranteed."}
                 </p>
               </div>
             </Reveal>
@@ -1691,8 +1742,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     {
                       arVal: "١٠٠٪",
                       enVal: "100%",
-                      arLabel: "محجوز حتى الاستلام",
-                      enLabel: "Held until you confirm"
+                      arLabel: "ضمان مالي",
+                      enLabel: "Financial Guarantee"
                     }
                   ].map((stat, idx) => (
                     <div key={idx} className="space-y-2 flex flex-col items-center justify-center">
@@ -1727,8 +1778,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </h2>
                   <p className="text-gray-700 text-sm sm:text-base leading-relaxed font-ibmarabic">
                     {lang === "ar" 
-                      ? "جرب بنفسك حماس المزايدة في الوقت الفعلي. انظر كيف تتنافس الأطراف المختلفة وتتفاعل ديناميكياً لترفع القيمة الحقيقية للسلعة خلال ثوانٍ معدودة."
-                      : "Try the bidding excitement yourself in real-time. Experience how participants battle dynamically to raise the real value of the item in seconds."}
+                      ? "بتقدر تشاهد المزاد قبل الاشتراك وتشوف الحماس"
+                      : "You can watch the auction before joining and experience the excitement"}
                   </p>
                 </div>
 
@@ -1900,7 +1951,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       {lang === "ar" ? "الأمان المالي" : "Financial Security"}
                     </span>
                     <h2 className="text-4xl md:text-5xl font-bold text-[#0A0A0A] font-ibmarabic leading-tight">
-                      {lang === "ar" ? "فلوسك بأمان لحد ما توافق إنت — مش قبل." : "Your money is safe until you approve — never before."}
+                      {lang === "ar" ? "فلوسك بأمان لحد ما تتأكد من المنتج" : "Your money is safe until you inspect the item"}
                     </h2>
                   </div>
                   
@@ -1914,8 +1965,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="space-y-4 pt-2">
                     {[
                       {
-                        ar: "مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        en: "Mazad holds your payment and releases it to the seller only after you receive the item and confirm it matches."
+                        ar: "حماية كاملة بنسبة 100% لكلا الطرفين (البائع والمشتري).",
+                        en: "100% complete guaranteed protection for both buyers and sellers."
                       },
                       {
                         ar: "الدفع لا يكتمل إلا بعد معاينة السلعة فعلياً ومطابقتها للمواصفات.",
@@ -1968,10 +2019,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد بتحتفظ بالمبلغ",
-                        enTitle: "Mazad holds the payment",
-                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
+                        arTitle: "مزاد جو تحجز المبلغ بالضمان",
+                        enTitle: "MazadJo holds the funds in escrow",
+                        arDesc: "يتم حجز وتحصين المبلغ في حساب بنكي وسيط مستقل وآمن.",
+                        enDesc: "Funds are fully secured and held in a dedicated third-party escrow account."
                       },
                       {
                         step: 3,
@@ -2216,7 +2267,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                           </li>
                           <li className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-[#F05123] shrink-0" />
-                            <span>{lang === "ar" ? "توفير مستمر" : "Ongoing savings"}</span>
+                            <span>{lang === "ar" ? "توفير مضمون ومستمر" : "Guaranteed savings"}</span>
                           </li>
                         </ul>
                       </div>
@@ -2312,20 +2363,21 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="absolute top-0 right-0 -translate-x-1/4 -translate-y-1/4 w-[200px] h-[200px] rounded-full bg-[#F05123]/10 blur-2xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 translate-x-1/4 translate-y-1/4 w-[150px] h-[150px] rounded-full bg-white/5 blur-2xl pointer-events-none" />
 
-                  {/* Corner Badge - Orange Gradient */}
-                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
-                    {lang === "ar" ? "رسوم إدراج ٠ دينار — لفترة محدودة" : "Listing fee 0 JOD — Limited time"}
-                  </div>
-
-                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
-                    <div className="space-y-4 max-w-2xl">
+                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+                    <div className="space-y-3 max-w-2xl">
+                      {/* Badge in flow */}
+                      <div>
+                        <span className="inline-flex items-center bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[11px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
+                          {lang === "ar" ? "رسوم الإدراج مجاناً — لفترة محدودة" : "Free listing fees — Limited time"}
+                        </span>
+                      </div>
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
                         {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
-                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
+                          ? "رسوم الإدراج مجاناً حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
+                          : "Free listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
                       </p>
                     </div>
 
@@ -2762,7 +2814,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             {/* Tiny secure seal */}
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#ECECEA] text-[10px] text-gray-600 font-ibmarabic shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <Lock className="w-3 h-3 text-[#F05123]" />
-              <span>{lang === "ar" ? "مزادات تعمل في الأردن" : "Auctions operating in Jordan"}</span>
+              <span>{lang === "ar" ? "مزادات رسمية خاضعة للقوانين الأردنية" : "Official auctions regulated by Jordanian laws"}</span>
             </div>
           </div>
 

@@ -8,5 +8,3 @@ export { ToastProvider, useToast } from './Toast';
 export type { ToastOptions, ToastType } from './Toast';
 export { default as FirstBidCoach, markFirstBidDone, isFirstBidDone } from './FirstBidCoach';
 export { default as ReviewPrompt } from './ReviewPrompt';
-export { default as MediaGallery } from './MediaGallery';
-export type { MediaGalleryProps } from './MediaGallery';

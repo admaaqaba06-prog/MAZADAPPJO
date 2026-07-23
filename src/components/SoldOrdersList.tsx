@@ -85,7 +85,7 @@ export const SoldOrdersList: React.FC<SoldOrdersListProps> = ({
                     <span className={`font-black text-[10.5px] uppercase ${
                       order.paymentStatus === 'paid' ? 'text-emerald-400' : 'text-amber-500'
                     }`}>
-                      {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع (محجوز)' : 'Paid (Held)') : (isAr ? 'غير مدفوع' : 'Unpaid')}
+                      {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع (مضمون)' : 'Paid (Held)') : (isAr ? 'غير مدفوع' : 'Unpaid')}
                     </span>
                   </div>
 

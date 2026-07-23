@@ -10,16 +10,14 @@ import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { translations } from '../utils/translations';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
-import { getAuctionMedia } from '../utils/auctionMedia';
-import { MediaGallery } from './feedback/MediaGallery';
-import {
-  Volume2,
-  VolumeX,
-  Bookmark,
-  Share2,
-  Sparkles,
-  Eye,
-  Send,
+import { 
+  Volume2, 
+  VolumeX, 
+  Bookmark, 
+  Share2, 
+  Sparkles, 
+  Eye, 
+  Send, 
   Award,
   X,
   Heart,
@@ -414,10 +412,26 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
     );
   }, [activeComments]);
 
-  // Gallery source items (video first, then thumbnail/mediaUrls/concierge photos,
-  // de-duped) — MediaGallery below owns play/pause + muted sync internally
-  // (it knows which slide is actually visible), so no manual video effects here.
-  const mediaItems = useMemo(() => getAuctionMedia(auction), [auction]);
+  // Sync html5 video playback based on active reel, performance limits, and global isPlaying state
+  useEffect(() => {
+    const video = localVideoRef.current;
+    if (!video) return;
+
+    if (isActive && isPlaying && shouldLoad) {
+      video.play().catch((err) => {
+        console.warn("Playback prevented or interrupted:", err);
+      });
+    } else {
+      video.pause();
+    }
+  }, [isActive, isPlaying, shouldLoad, auction.videoUrl]);
+
+  // Sync muted property directly on element
+  useEffect(() => {
+    if (localVideoRef.current) {
+      localVideoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   // Bid logic status selectors
   const hasUserBid = auction?.id && bids ? bids.some(b => b.auctionId === auction.id && b.bidderId === currentUser?.id) : false;
@@ -570,34 +584,35 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
         }
       `}</style>
 
-      {/* ======================================================================
-          MEDIA PANE — the swipeable gallery + small status chips only.
-          Sized ~58% of the reel while active (bid panel owns the rest below);
-          full-bleed for the preloaded-but-not-active neighbour reel (no bid
-          panel renders for it, same as before this restructure).
-          ====================================================================== */}
-      <div
-        className="relative w-full shrink-0 overflow-hidden bg-black"
-        style={{ height: isActive ? '58%' : '100%' }}
-        id={`reel-media-pane-${auction.id}`}
-      >
-        <MediaGallery
-          items={mediaItems}
-          isActive={isActive}
-          isPlaying={isPlaying}
-          isMuted={isMuted}
-          isAr={isAr}
-          onVideoClick={onPlayPauseToggle}
-          videoRef={localVideoRef}
-          className="absolute inset-0"
+      {/* HTML5 Live Video Element — falls back to the auction image when no video exists */}
+      {auction.videoUrl ? (
+        <video
+          ref={localVideoRef}
+          src={auction.videoUrl}
+          loop
+          muted={isMuted}
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          onClick={onPlayPauseToggle}
         />
+      ) : (
+        <img
+          src={auction.thumbnailUrl || (auction as any).imageUrl || ''}
+          alt={auction.title}
+          width={1080}
+          height={1920}
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+      )}
 
       {/* Gradient overlays for contrast */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none z-10" />
 
       {/* Play/Pause standby overlay */}
       {!isPlaying && isActive && (
-        <div
+        <div 
           onClick={onPlayPauseToggle}
           className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer z-10 backdrop-blur-[1px]"
         >
@@ -714,8 +729,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
           {/* ======================================================================
               3. FLOATING ACTION PANEL (TikTok Side Actions)
               ====================================================================== */}
-          <div
-            style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+          <div 
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
             className="absolute right-4 z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
           >
             {/* Like appreciation button */}
@@ -764,8 +779,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               4. COMPACT CHAT FEED (Tucked at bottom-left, avoids covering product)
               ====================================================================== */}
           {!isChatHidden && (
-            <div
-              style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 210px)', direction: isAr ? 'rtl' : 'ltr' }}
               className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
             >
               <div className="space-y-1 p-1 flex flex-col justify-end">
@@ -798,8 +813,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
           )}
 
           {/* Chat text box trigger */}
-          <div
-            style={{ bottom: '16px' }}
+          <div 
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
             className="absolute left-4 z-20"
           >
             <button
@@ -812,8 +827,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
 
           {/* Floating Chat Input form */}
           {showChatInput && (
-            <div
-              style={{ bottom: '16px' }}
+            <div 
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 16px) + 172px)' }}
               className="absolute left-4 right-4 z-30 animate-fade-in"
             >
               <form 
@@ -832,7 +847,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   className="flex-grow h-8 px-2.5 bg-white/5 border border-white/10 rounded-lg text-zinc-100 text-[11px] placeholder-zinc-500 outline-none focus:border-[#FF6B00]/40 transition-colors"
                   autoFocus
                 />
-                <button
+                <button 
                   type="submit"
                   className="h-8 w-8 bg-[#FF6B00] hover:bg-orange-600 text-white rounded-lg transition-all flex items-center justify-center shrink-0 shadow-md cursor-pointer"
                 >
@@ -841,27 +856,16 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </form>
             </div>
           )}
-        </>
-      )}
-      </div>
-      {/* END MEDIA PANE */}
 
-      {/* ======================================================================
-          BID PANEL — opaque region below the media pane. Everything that used
-          to float on top of the video (price/timer/top-bidder row, tap-to-bid
-          button, price-moved confirm, first-bid coach) now lives here so it
-          never obscures the item photos/video (founder feedback from Wave 1).
-          Bid-flow wiring (useBidFlow/executeWithOptimism/confirm/cancel) is
-          untouched — only JSX position moved.
-          ====================================================================== */}
-      {isActive && (
-        <div
-          className="relative flex-1 min-h-0 z-20 bg-zinc-950 border-t border-white/5 overflow-y-auto"
-          id={`reel-bid-panel-${auction.id}`}
-        >
-          <div
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
-            className="w-full p-4 flex flex-col gap-3.5 select-none animate-fade-in"
+          {/* ======================================================================
+              5. THE MAZAD LIVE-BIDDING CARD (Strictly 5 Required Elements)
+              ====================================================================== */}
+          <div 
+            style={{ 
+              bottom: 'calc(env(safe-area-inset-bottom, 16px) + 8px)',
+              direction: isAr ? 'rtl' : 'ltr'
+            }}
+            className="absolute left-4 right-4 z-20 bg-black/45 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col gap-3.5 overflow-hidden select-none animate-fade-in"
             id={`bidding-card-${auction.id}`}
           >
             {/* Row 1: Product Title & Time Left (aligned nicely) */}
@@ -892,17 +896,6 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                 <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
               </div>
             </div>
-
-            {auction.reserveMet === false && (
-              <span className="text-xs font-semibold text-amber-500 -mt-2 text-right rtl:text-left">
-                {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
-              </span>
-            )}
-            {auction.reserveMet === true && (
-              <span className="text-xs font-semibold text-emerald-500 -mt-2 text-right rtl:text-left">
-                {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
-              </span>
-            )}
 
             {isEnded ? (
               <div className="w-full bg-black/75 border border-amber-500/30 rounded-xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
@@ -1058,9 +1051,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
             {/* Winning pill: pops over the bidding card on a successful bid */}
             <WinningPill show={showWinPill} isAr={isAr} />
           </div>
-        </div>
+        </>
       )}
-      {/* END BID PANEL */}
 
       {/* Complete Seller Profile Modal */}
       {selectedProfileId && (
@@ -1091,20 +1083,6 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
    (bids/orders/sellerProfiles via useApp) bypasses memo and re-renders anyway.
    Return TRUE to SKIP re-render (props considered equal).
    ---------------------------------------------------------------------- */
-// Shallow string-array compare — mediaUrls/conciergePhotos get a fresh array
-// reference on every snapshot rebuild even when the contents didn't change,
-// so a reference check would always force a re-render; compare by value instead.
-const sameStringArray = (
-  x: (string | null | undefined)[] | null | undefined,
-  y: (string | null | undefined)[] | null | undefined
-): boolean => {
-  if (x === y) return true;
-  const xa = x ?? [];
-  const ya = y ?? [];
-  if (xa.length !== ya.length) return false;
-  return xa.every((v, i) => v === ya[i]);
-};
-
 const areReelPropsEqual = (
   prev: Readonly<MobileAuctionReelProps>,
   next: Readonly<MobileAuctionReelProps>
@@ -1113,8 +1091,6 @@ const areReelPropsEqual = (
   const b = next.auction ?? {};
   // Auction fields the reel renders from (compared by value, since the object
   // ref changes on every snapshot even when the content is identical).
-  // Includes every field getAuctionMedia() reads (mediaUrls/conciergePhotos
-  // added for Wave 2) so a gallery update always triggers a re-render.
   if (
     a.id !== b.id ||
     a.currentPrice !== b.currentPrice ||
@@ -1129,9 +1105,7 @@ const areReelPropsEqual = (
     a.imageUrl !== b.imageUrl ||
     a.marketPrice !== b.marketPrice ||
     a.minIncrement !== b.minIncrement ||
-    a.sellerId !== b.sellerId ||
-    !sameStringArray(a.mediaUrls, b.mediaUrls) ||
-    !sameStringArray(a.conciergePhotos, b.conciergePhotos)
+    a.sellerId !== b.sellerId
   ) {
     return false;
   }
