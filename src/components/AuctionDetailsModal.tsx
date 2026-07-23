@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { ContextualHint } from './ContextualHint';
 import { 
@@ -30,7 +30,8 @@ interface AuctionDetailsModalProps {
 }
 
 export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctionId, onClose }) => {
-  const { auctions, currentUser, placeBid, wallet, activeView, setActiveView, language, setActiveAuctionId } = useApp();
+  const { currentUser, placeBid, wallet, activeView, setActiveView, language, setActiveAuctionId } = useApp();
+  const { auctions } = useAuctions();
   const isAr = language === 'ar';
   const t = translations[language];
 

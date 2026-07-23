@@ -19,6 +19,7 @@ import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '..
 import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
 import { isExpectedBidFailure } from '../utils/bidErrors';
+import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -55,7 +56,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -176,10 +177,8 @@ interface AppContextProps {
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   sellerProfiles: SellerProfile[];
   setSellerProfiles: React.Dispatch<React.SetStateAction<SellerProfile[]>>;
-  auctions: AuctionItem[];
-  setAuctions: React.Dispatch<React.SetStateAction<AuctionItem[]>>;
-  /** True once the first auctions snapshot (or an error) has arrived for the current view. */
-  auctionsLoaded: boolean;
+  // NOTE (Wave 3c / PF2): `auctions` / `setAuctions` / `auctionsLoaded` moved
+  // to their own AuctionsContext (useAuctions) — see the split below ChatContext.
   bids: Bid[];
   setBids: React.Dispatch<React.SetStateAction<Bid[]>>;
   wallet: Wallet;
@@ -213,14 +212,15 @@ interface AppContextProps {
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
-  globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
-  setGlobalWalletSubView: (subView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders') => void;
+  // Wave 2b: 'add-funds' and 'withdraw' sub-views were removed — the wallet
+  // is a read-only record (bidding is free; seller payouts are off-platform).
+  globalWalletSubView: 'wallet-home' | 'transactions' | 'orders';
+  setGlobalWalletSubView: (subView: 'wallet-home' | 'transactions' | 'orders') => void;
   globalSelectedOrderId: string | null;
   setGlobalSelectedOrderId: (id: string | null) => void;
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
-  triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
@@ -340,6 +340,26 @@ interface ChatContextProps {
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
+
+// Perf (Wave 3c / PF2): `auctions` lives in its OWN context, split out of the
+// main AppContext value object — the same isolation pattern as ChatContext
+// above. The auctions onSnapshot fires on EVERY bid in the room, so when
+// `auctions` (visibleAuctions) was a field on the giant AppContext value, each
+// bid recreated that value object and re-rendered ALL ~39 useApp() consumers —
+// wallet, notifications, admin lists — even though only auction surfaces care.
+// Now a bid invalidates only useAuctions() consumers. The state itself still
+// lives in AppProvider (the auctions onSnapshot effect calls setAuctions); it
+// is merely PROVIDED through this separate, independently-memoized Context.
+// `auctions` here is the FILTERED visibleAuctions (sim-visibility + own-pending
+// merge), exactly what the old appValue.auctions exposed.
+interface AuctionsContextProps {
+  auctions: AuctionItem[];
+  setAuctions: React.Dispatch<React.SetStateAction<AuctionItem[]>>;
+  /** True once the first auctions snapshot (or an error) has arrived for the current view. */
+  auctionsLoaded: boolean;
+}
+
+const AuctionsContext = createContext<AuctionsContextProps | undefined>(undefined);
 
 // Clean Initial Production States (No Demo/Mock Data)
 const DEFAULT_UNAUTHENTICATED_USER: User = {
@@ -583,7 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -1401,12 +1421,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? 'admin'
         : 'none';
 
+  // PF5: the previous output of the auctions-snapshot sync below — NOT a mirror
+  // of the `auctions` state (other, optimistic writers touch that). Keeping the
+  // last synced list here lets each snapshot reuse the prior object reference
+  // for every lot that did NOT change, so one bid no longer hands all ~80 lots
+  // a fresh identity (which churned every downstream memo and countdown).
+  const auctionsSnapSyncRef = useRef<AuctionItem[]>([]);
+
   useEffect(() => {
     if (auctionSubMode === 'none') {
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(false);
       return;
     }
+
+    // Fresh subscription (first mount or buyer<->admin flip): drop the prior
+    // identity map. The new listener's initial snapshot lists every doc as
+    // 'added', so everything is remapped fresh regardless — this reset just
+    // guarantees no stale reference can ever leak across query windows.
+    auctionsSnapSyncRef.current = [];
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
@@ -1439,14 +1473,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsub = onSnapshot(q, (snap) => {
       setAuctionsLoaded(true);
       if (snap.empty) {
+        auctionsSnapSyncRef.current = [];
         setAuctions([]);
       } else {
-        const fetchedList: AuctionItem[] = [];
         const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
 
-        snap.forEach((docSnap) => {
-          fetchedList.push(mapAuctionDoc(docSnap, itemsToResolve));
+        // PF5 (⚠️ money-adjacent): identity-preserving sync instead of the old
+        // full `snap.forEach(mapAuctionDoc)` remap. Docs named in docChanges()
+        // ('added'/'modified') are re-mapped IN FULL by the same mapAuctionDoc
+        // as before — never a hand-picked field merge — so a changed lot
+        // carries every field the room reads (currentPrice, currentBidderId,
+        // endTime/endsAt, status, totalBids, winnerId, …) with the exact same
+        // values the old handler produced. Only lots the snapshot did NOT
+        // change reuse their previous object reference, and 'removed' docs are
+        // dropped. Membership + order come from snap.docs (the query's
+        // orderBy createdAt desc), identical to the old forEach output.
+        const fetchedList = syncAuctionsFromSnapshot<AuctionItem, QueryDocumentSnapshot>({
+          prev: auctionsSnapSyncRef.current,
+          docs: snap.docs,
+          changes: snap.docChanges(),
+          getId: (docSnap) => docSnap.id,
+          mapDoc: (docSnap) => mapAuctionDoc(docSnap, itemsToResolve),
         });
+        auctionsSnapSyncRef.current = fetchedList;
 
         // Set the auctions synchronously so viewer counts, bids and clock ticks feel butter-smooth!
         setAuctions(fetchedList);
@@ -1460,14 +1509,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return { id, resolvedUrl };
             })
           ).then((results) => {
-            // Smoothly swap fallback video URLs with the resolved custom blob URLs
+            // Smoothly swap fallback video URLs with the resolved custom blob
+            // URLs. The canonical patch goes through the sync ref so the NEXT
+            // snapshot's unchanged-lot reuse hands back the patched object
+            // (otherwise the resolved URL would flip back to the fallback on
+            // the next bid). State is patched FUNCTIONALLY and ONLY on
+            // videoUrl — spreading the state's OWN item, never substituting
+            // the ref-derived object — so an optimistic per-item state write
+            // that landed between the snapshot and this async resolution
+            // (e.g. admin approve/reject flipping status, the seller edit)
+            // is never clobbered back to the stale snapshot object.
+            const resolvedById = new Map(results.map((r) => [r.id, r.resolvedUrl]));
+            auctionsSnapSyncRef.current = auctionsSnapSyncRef.current.map((item) => {
+              const resolvedUrl = resolvedById.get(item.id);
+              if (resolvedUrl === undefined) return item;
+              return { ...item, videoUrl: resolvedUrl };
+            });
             setAuctions((prev) =>
               prev.map((item) => {
-                const matched = results.find((r) => r.id === item.id);
-                if (matched) {
-                  return { ...item, videoUrl: matched.resolvedUrl };
-                }
-                return item;
+                const resolvedUrl = resolvedById.get(item.id);
+                return resolvedUrl === undefined ? item : { ...item, videoUrl: resolvedUrl };
               })
             );
           }).catch((err) => {
@@ -1477,6 +1538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error:", err);
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(true);
     });
@@ -3118,40 +3180,9 @@ const fetchIP = async () => {
     }
   }, [currentUser, language, addNotification, logSystemHealth, featureFlags, pendingReviewOrder]);
 
-  // CliQ Jordanian instant receipt topup via Cloud Function
-  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
-    if (!featureFlags.enableWallets) {
-      const walletsOffTitle = language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled';
-      const walletsOffMsg = language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.';
-      addNotification(walletsOffTitle, walletsOffMsg, 'alert');
-      showToast({ title: walletsOffTitle, message: walletsOffMsg, type: 'warn' });
-      return;
-    }
-
-    try {
-      const topUpCallable = await getCallableFunction<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>('requestTopUp');
-      const result = await topUpCallable({ amount, alias, paymentProofUrl });
-
-      if (result.data.success) {
-        addNotification(
-          language === 'ar' ? '💸 تم استلام طلب التعبئة' : '💸 CliQ Transfer Received',
-          language === 'ar' 
-            ? 'تم رفع الإيصال بنجاح! سيقوم فريق العمليات بمراجعة وتدقيق حوالتك خلال دقيقة.' 
-            : 'Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.',
-          'verify'
-        );
-      } else {
-        throw new Error(result.data.message || 'Operation failed on server.');
-      }
-    } catch (error: any) {
-      console.error("Cloud function requestTopUp failed:", error);
-      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Error: ${error.message || String(error)}`);
-      const topUpFailTitle = language === 'ar' ? '❌ خطأ في تعبئة الرصيد' : '❌ Top-up Error';
-      const topUpFailMsg = error.message || (language === 'ar' ? 'فشل تقديم طلب التعبئة. الرجاء المحاولة مجدداً.' : 'Failed to request top-up.');
-      addNotification(topUpFailTitle, topUpFailMsg, 'alert');
-      showToast({ title: topUpFailTitle, message: topUpFailMsg, type: 'warn' });
-    }
-  }, [currentUser, addNotification, showToast, logSystemHealth, featureFlags, language]);
+  // Wave 2b: customer CliQ top-up entry (triggerCliQTopUp -> requestTopUp)
+  // was removed from the client — bidding is free (pay-after-win), so there
+  // is nothing to pre-fund. The `requestTopUp` Cloud Function itself stays.
 
   const requestWithdrawal = useCallback(async (amount: number, method: string, accountDetails: any) => {
     try {
@@ -3889,48 +3920,11 @@ const fetchIP = async () => {
   }, [auctions, currentUser, language, addNotification, setDeletedAuctionIds]);
 
 
-  // =========================================================
-  // AUTOMATIC OUTBID REFUND CHECKER (GUARANTEES WALLET RETURN)
-  // Whenever any live auction is outbid, we refund the user's locked escrow
-  // =========================================================
-  useEffect(() => {
-    const activeUserId = currentUser?.id || 'user-current';
-    auctions.forEach(auction => {
-      if (auction.status === 'live' && auction.currentBidderId && auction.currentBidderId !== activeUserId) {
-        // Look for the user's locked escrow for this specific auction
-        const clientCommittedEscrow = escrows.find(
-          e => e.auctionId === auction.id && e.bidderId === activeUserId && e.status === 'locked'
-        );
-        if (clientCommittedEscrow) {
-          const refundAmount = clientCommittedEscrow.amount;
-
-          // 1. Mark escrow as refunded instantly
-          setEscrows(prev => prev.map(e => (e.id === clientCommittedEscrow.id ? { ...e, status: 'refunded' as const } : e)));
-
-          // 2. Refund client user's wallet
-          setWallet(prev => {
-            const newEsc = Math.max(0, prev.escrowBalance - refundAmount);
-            const newAvail = prev.availableBalance + refundAmount;
-            return {
-              ...prev,
-              availableBalance: newAvail,
-              escrowBalance: newEsc,
-              totalBalance: newAvail + newEsc
-            };
-          });
-
-          // 3. Show a friendly notification about transaction safety
-          addNotification(
-            language === 'ar' ? '🚨 تم تجاوز عرضك! تم إرجاع المبلغ' : '🚨 Outbid! Funds Returned Secured',
-            language === 'ar'
-              ? `تم تجاوز عرضك على "${auction.title}" بقيمة ${auction.currentPrice.toLocaleString()} دينار. تم إرجاع مبلغك ${refundAmount.toLocaleString()} دينار فوراً إلى محفظتك.`
-              : `You have been outbid on "${auction.title}" at ${auction.currentPrice.toLocaleString()} JOD. Your escrow locked funds of ${refundAmount.toLocaleString()} JOD have been instantly returned to your available wallet balance.`,
-            'outbid'
-          );
-        }
-      }
-    });
-  }, [auctions, escrows, language, addNotification]);
+  // Wave 2b: the legacy "outbid refund checker" (client-side bid-deposit
+  // escrow release simulation) was removed. Bids never lock wallet funds —
+  // bidding is free and you only pay after winning — so there is nothing to
+  // "release when outbid". Real outbid alerts come from the notifications
+  // pipeline; real escrows (order payments) are settled server-side.
 
 
   // 1. Watchlist and Auto-bid callback handles
@@ -4640,6 +4634,16 @@ const fetchIP = async () => {
     [chatMessages]
   );
 
+  // Separate, auctions-only context value (see AuctionsContext above).
+  // Memoized on [visibleAuctions, auctionsLoaded] (setAuctions is a stable
+  // useState setter) so a bid snapshot changes ONLY this context's identity —
+  // the main appValue below no longer lists visibleAuctions/auctionsLoaded in
+  // its deps, so its identity survives auction churn untouched.
+  const auctionsValue = useMemo<AuctionsContextProps>(
+    () => ({ auctions: visibleAuctions, setAuctions, auctionsLoaded }),
+    [visibleAuctions, auctionsLoaded]
+  );
+
   // Perf (Wave 3c / P0-1): memoize the main context value. Previously this
   // ~100-field object literal was recreated on EVERY AppProvider render, so
   // any state change (or a parent re-render) gave the value a new identity and
@@ -4654,8 +4658,6 @@ const fetchIP = async () => {
       sellerProfile, setSellerProfile,
       users, setUsers,
       sellerProfiles, setSellerProfiles,
-      auctions: visibleAuctions, setAuctions,
-      auctionsLoaded,
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,
@@ -4676,7 +4678,6 @@ const fetchIP = async () => {
       globalWalletSubView, setGlobalWalletSubView,
       globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
-      triggerCliQTopUp,
       requestWithdrawal,
       addNotification,
       markAsRead,
@@ -4738,9 +4739,10 @@ const fetchIP = async () => {
       removeSellerBadge,
       resetSellerTrustScore
   }), [
-    // State / memo values
-    currentUser, sellerProfile, users, sellerProfiles, visibleAuctions,
-    auctionsLoaded, bids, wallet, escrows, visibleOrders, notifications,
+    // State / memo values (auctions/auctionsLoaded intentionally NOT here —
+    // they live in AuctionsContext so bid churn can't touch this identity)
+    currentUser, sellerProfile, users, sellerProfiles,
+    bids, wallet, escrows, visibleOrders, notifications,
     adminActions, adminActionsError, reviews, verificationRequests,
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
@@ -4748,7 +4750,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, triggerCliQTopUp, requestWithdrawal, addNotification, markAsRead,
+    placeBid, requestWithdrawal, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
@@ -4765,9 +4767,11 @@ const fetchIP = async () => {
 
   return (
     <AppContext.Provider value={appValue}>
-      <ChatContext.Provider value={chatValue}>
-        {children}
-      </ChatContext.Provider>
+      <AuctionsContext.Provider value={auctionsValue}>
+        <ChatContext.Provider value={chatValue}>
+          {children}
+        </ChatContext.Provider>
+      </AuctionsContext.Provider>
     </AppContext.Provider>
   );
 };
@@ -4784,6 +4788,20 @@ export const useApp = () => {
 // write only re-renders the in-room components (LiveStreamView /
 // ReelsDesktopRightPanel), not every useApp() consumer. Provided from inside
 // AppProvider, so the same "must be used within an AppProvider" contract holds.
+// Perf (Wave 3c / PF2): read the high-churn auctions list from its own context
+// so a bid snapshot only re-renders auction surfaces (Discovery, live room,
+// stories bar, admin/seller lists), not every useApp() consumer. Provided from
+// inside AppProvider, so the same "must be used within an AppProvider"
+// contract holds. Components that read BOTH auctions and other app state
+// simply subscribe to both contexts.
+export const useAuctions = () => {
+  const context = useContext(AuctionsContext);
+  if (!context) {
+    throw new Error('useAuctions must be used within an AppProvider');
+  }
+  return context;
+};
+
 export const useChat = () => {
   const context = useContext(ChatContext);
   if (!context) {

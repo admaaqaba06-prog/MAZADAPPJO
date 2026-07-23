@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import type { AuctionItem } from '../types';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { buildAuctionCaption } from '../utils/dropCaption';
@@ -23,7 +23,8 @@ const GROUPS: { key: string; ar: string; en: string; match: (a: AuctionItem) => 
  * admin-only secrets doc and isn't readable here).
  */
 export default function DropsListPanel({ onRelist }: { onRelist?: (a: AuctionItem) => void }) {
-  const { auctions, language } = useApp();
+  const { language } = useApp();
+  const { auctions } = useAuctions();
   const isAr = language === 'ar';
   const copy = (t: string) => navigator.clipboard?.writeText(t).catch(() => {});
   // Per-row transient feedback keyed by auction id (e.g. "✅ نُسخ").

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from '../utils/dropChannel';
@@ -26,7 +26,8 @@ const slugifyVendor = (name: string): string =>
     .replace(/^-|-$/g, '');
 
 export default function AuctionDropBuilderView() {
-  const { language, currentUser, createListing, auctions } = useApp();
+  const { language, currentUser, createListing } = useApp();
+  const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
   const [productName, setProductName] = useState('');

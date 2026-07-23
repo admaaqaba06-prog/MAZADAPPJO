@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp, useChat } from '../context/AppContext';
+import { useApp, useAuctions, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
@@ -9,16 +9,16 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
-  const { 
-    activeAuctionId, 
-    auctions, 
-    bids, 
+  const {
+    activeAuctionId,
+    bids,
     sellerProfiles,
     language,
     sendChatMessage,
     currentUser,
     placeBid
   } = useApp();
+  const { auctions } = useAuctions();
   const { chatMessages } = useChat();
   const isAr = language === 'ar';
 

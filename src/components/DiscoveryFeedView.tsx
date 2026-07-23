@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useState, useRef } from 'react';
+import { useCountdownSeconds, useIsOnScreen } from '../hooks/useCountdownSeconds';
+import { useApp, useAuctions } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
@@ -63,30 +64,16 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   setActiveView,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
-    if (!item.endTime) return 120;
-    return Math.max(0, Math.floor((item.endTime - Date.now()) / 1000));
-  });
-
-  React.useEffect(() => {
-    if (!item.endTime) return;
-    const computeLeft = () => Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
-    // Already ended by the time we mount — nothing to tick.
-    if (computeLeft() <= 0) return;
-    // NOTE: deps are `[item.endTime]` only (not `secondsLeft`) so this
-    // interval is created ONCE per mount instead of torn down/recreated
-    // every second — with ~80 cards on screen that per-second churn was a
-    // major jank source. `left` is derived fresh from Date.now() on each
-    // tick, so it stays correct without needing `secondsLeft` as a dep.
-    const interval = setInterval(() => {
-      const left = computeLeft();
-      setSecondsLeft(left);
-      if (left <= 0) {
-        clearInterval(interval);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [item.endTime]);
+  // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
+  // per-card setInterval (~80 concurrent timers with a full grid). Only
+  // ticks while the card is on/near screen (useIsOnScreen); returns null
+  // when there's no endTime, in which case we preserve today's frozen
+  // 120s placeholder display exactly as before (a separate correctness
+  // fix, out of scope for this perf pass).
+  const cardRef = useRef<HTMLDivElement>(null);
+  const isOnScreen = useIsOnScreen(cardRef);
+  const liveSecondsLeft = useCountdownSeconds(item.endTime, isOnScreen);
+  const secondsLeft = liveSecondsLeft ?? 120;
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -113,7 +100,8 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   };
 
   return (
-    <div 
+    <div
+      ref={cardRef}
       onClick={handleCardClick}
       className="group relative bg-white border border-gray-100/80 rounded-2xl p-4 shadow-xs hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col justify-between h-full hover:-translate-y-1"
       style={{ minHeight: '380px' }}
@@ -364,13 +352,11 @@ export const PremiumAuctionCard = React.memo(PremiumAuctionCardBase, areCardProp
 
 export const DiscoveryFeedView: React.FC = () => {
   const {
-    auctions,
-    auctionsLoaded,
     setActiveAuctionId,
-    setActiveView, 
-    language, 
-    setLanguage, 
-    approveListing, 
+    setActiveView,
+    language,
+    setLanguage,
+    approveListing,
     currentUser,
     notifications,
     setShowNotifications,
@@ -379,6 +365,7 @@ export const DiscoveryFeedView: React.FC = () => {
     orders,
     setGlobalSelectedOrderId
   } = useApp();
+  const { auctions, auctionsLoaded } = useAuctions();
   
   const { showToast } = useToast();
   // Real social proof (spec §4): live bidders from the loaded auctions +
@@ -635,23 +622,23 @@ export const DiscoveryFeedView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
           onClick={handleWatchLive}
-          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl px-4 py-2.5 shadow-md shadow-red-600/20 transition-colors cursor-pointer active:scale-[0.99]"
+          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
           id="live-now-strip"
         >
-          <span className="flex items-center gap-2.5 min-w-0">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-80"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
             </span>
-            <span className="text-xs font-black tracking-tight truncate">
+            <span className="text-xs font-bold tracking-tight truncate">
               {isAr
-                ? `🔴 مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
-                : `🔴 Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
+                ? `مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
+                : `Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
             </span>
           </span>
-          <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider shrink-0 bg-white/15 rounded-full px-2.5 py-1">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-0.5 transition-colors">
             <Play className="w-3 h-3 fill-white" />
-            <span>{isAr ? 'ادخل البث' : 'Watch'}</span>
+            <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
           </span>
         </motion.button>
       )}

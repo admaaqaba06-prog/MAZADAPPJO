@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { isPendingOrderPayment } from '../utils/paymentReceipt';
@@ -361,11 +361,10 @@ function readStoredAdminTab(): AdminTab {
 }
 
 export const AdminDashboardView: React.FC = () => {
-  const { 
+  const {
     currentUser,
-    users, 
-    auctions, 
-    escrows, 
+    users,
+    escrows,
     orders,
     adminActions, 
     adminActionsError,
@@ -392,6 +391,7 @@ export const AdminDashboardView: React.FC = () => {
     resetOnboarding,
     setActiveView
   } = useApp();
+  const { auctions } = useAuctions();
 
   const t = translations[language];
   const isAr = language === 'ar';

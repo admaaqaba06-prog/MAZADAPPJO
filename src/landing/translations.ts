@@ -197,7 +197,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       smartTitle: "MazadJo - ذكي",
       smartPoints: [
         "منافسة منظمة وعادلة ترفع السعر تلقائياً لصالحك",
-        "مزايدون موثوقون ورسوم تأمين تضمن جدية الجميع",
+        "مزايدون موثوقون وعضوية مدفوعة تضمن جدية الجميع",
         "اكتشاف السعر الحقيقي للمنتج بدقة حسب حجم الطلب",
         "وقت بيع محدد بدقة مع إشعارات ذكية وشفافية مطلقة",
       ],
@@ -409,7 +409,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       smartTitle: "MazadJo - Smart",
       smartPoints: [
         "Organized, fair competition driving prices up automatically",
-        "Verified bidders and deposit fees to ensure serious participation",
+        "Verified, members-only bidders to ensure serious participation",
         "Accurate price discovery based purely on actual demand",
         "Strictly set sale window, smart notifications, and full transparency",
       ],

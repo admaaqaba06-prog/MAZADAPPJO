@@ -1,5 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
 import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
@@ -61,11 +61,10 @@ interface DesktopFrameProps {
 }
 
 export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
-  const { 
-    currentUser, 
-    activeView, 
-    setActiveView, 
-    auctions,
+  const {
+    currentUser,
+    activeView,
+    setActiveView,
     language,
     setLanguage,
     logout,
@@ -75,6 +74,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     showNotifications,
     setShowNotifications
   } = useApp();
+  const { auctions } = useAuctions();
 
   // Real social proof for the new-user right rail (spec §4): live bidders
   // from the loaded auctions + recent wins (one-time cached query).
