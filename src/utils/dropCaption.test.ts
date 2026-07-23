@@ -37,7 +37,9 @@ describe('buildAuctionCaption', () => {
   it('includes the subscribers-only rule, the guarantee and the deep link', () => {
     const out = buildAuctionCaption(sample);
     expect(out).toContain('المزايدة للمشتركين فقط');
-    expect(out).toContain('كفالة المزاد: شهر استرجاع');
+    // PR #64 (honest trust copy) replaced the month-return guarantee with the
+    // escrow buyer-protection line — assert the current boilerplate.
+    expect(out).toContain('حماية المشتري: مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام');
     expect(out).toContain('https://mazadjo.app/?auction=auction-123');
   });
 });
