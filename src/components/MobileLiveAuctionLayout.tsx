@@ -893,6 +893,17 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </div>
             </div>
 
+            {auction.reserveMet === false && (
+              <span className="text-xs font-semibold text-amber-500 -mt-2 text-right rtl:text-left">
+                {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
+              </span>
+            )}
+            {auction.reserveMet === true && (
+              <span className="text-xs font-semibold text-emerald-500 -mt-2 text-right rtl:text-left">
+                {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
+              </span>
+            )}
+
             {isEnded ? (
               <div className="w-full bg-black/75 border border-amber-500/30 rounded-xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
                 {(() => {

@@ -1,6 +1,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const { resolveTierByPrice } = require('./subscriptionTiers');
+const {
+  approveSubscriptionRequest,
+  grantSubscriptionDirect,
+  rejectSubscriptionRequest,
+} = require('./subscriptionApproval');
+const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -117,6 +124,21 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     }
   }
 
+  // Reserve lives in an admin/server-only doc (never on the world-readable
+  // auction). Read it here; the authoritative sale decision re-derives price
+  // from the in-txn snapshot below.
+  // FAIL CLOSED: if this read errors we must NOT settle — defaulting to
+  // "no reserve" could irreversibly sell below reserve. Abort this auction's
+  // settlement for this run; the per-minute cron retries next sweep.
+  let reservePrice = null;
+  try {
+    const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+    if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+  } catch (secErr) {
+    console.error(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId} — aborting settlement this run (fail closed):`, secErr);
+    throw secErr;
+  }
+
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
   let settled = false;
@@ -128,7 +150,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const freshDoc = await transaction.get(auctionRef);
     const freshData = freshDoc.data();
 
-    if (freshData.status === 'completed' || freshData.status === 'ended') {
+    if (['completed', 'ended', 'reserve_not_met'].includes(freshData.status)) {
       return;
     }
 
@@ -150,7 +172,9 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
-    if (totalBids > 0 && winnerId) {
+    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice });
+
+    if (decision.outcome === 'sold') {
       // Mark completed
       transaction.update(auctionRef, {
         status: 'completed',
@@ -221,6 +245,15 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           }
         }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
       }
+    } else if (decision.outcome === 'reserve_not_met') {
+      // A winner exists but the top bid never cleared the hidden reserve.
+      // Per spec: NO sale, NO order, NO wonCount. Relist-able.
+      transaction.update(auctionRef, {
+        status: 'reserve_not_met',
+        settledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      settled = true;
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
     } else {
       // Close without bidder
       transaction.update(auctionRef, {
@@ -325,7 +358,14 @@ exports.scheduledAuctionCloser = functions.pubsub
         if (isLive && isExpired) {
           console.log(`[scheduledAuctionCloser] Settling expired auction ${auctionId}...`);
           // Full settle logic lives in settleAuctionTxn (shared with simulateSettleNow).
-          await settleAuctionTxn(auctionDoc.ref, auctionData);
+          // Per-auction guard: a throw here (e.g. fail-closed reserve read) must
+          // abort only THIS auction's settle this sweep — log and let the other
+          // auctions settle; the per-minute cron retries this one next run.
+          try {
+            await settleAuctionTxn(auctionDoc.ref, auctionData);
+          } catch (settleErr) {
+            console.error(`[scheduledAuctionCloser] Settle failed for ${auctionId} — will retry next sweep:`, settleErr);
+          }
         }
       });
 
@@ -555,6 +595,22 @@ exports.onBidCreated = functions.firestore
       }
 
       const auctionData = auctionSnap.data();
+
+      // Maintain the room's reserve-met label without leaking the amount.
+      // Only flip false -> true (once), and only when a reserve actually exists.
+      try {
+        const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+        const rp = secretSnap.exists ? (secretSnap.data().reservePrice ?? null) : null;
+        if (rp) {
+          const met = reserveMet(auctionData.currentPrice ?? amount, rp);
+          if (met && auctionData.reserveMet !== true) {
+            await db.collection('auctions').doc(auctionId).update({ reserveMet: true });
+          }
+        }
+      } catch (rmErr) {
+        console.warn(`[onBidCreated] reserveMet update failed for ${auctionId}:`, rmErr);
+      }
+
       const previousBidderId = auctionData.previousBidderId;
 
       // Only notify if there is an active previous bidder and they are not the person who just bid
@@ -736,7 +792,10 @@ exports.getServerTime = functions.runWith({ cors: true }).https.onCall(async () 
   return { now: Date.now() };
 });
 
-exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+// PF3: keep one instance warm so the first bid of a drop doesn't eat a 2-5s
+// cold start at the open stampede; cap parallelism (bid contention is on the
+// single auction doc anyway — tune maxInstances after the load test).
+exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances: 20 }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -1135,7 +1194,19 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
   }
 
   const userId = context.auth.uid;
-  const { price, plan, paymentProofUrl, paymentProofImage, transferFullName, transferPhone } = data;
+  const { price, paymentProofUrl, paymentProofImage, transferFullName, transferPhone } = data;
+
+  // Wave 1 S3 — the PRICE is the anchor. Derive the canonical tier + duration
+  // from the amount (the admin verifies the CliQ proof against it); NEVER trust
+  // the client's plan label, and reject any amount not in the tier table.
+  // (The old `price || 15` / `plan || 'monthly'` fallbacks were latent mis-grants.)
+  const resolved = resolveTierByPrice(price);
+  if (!resolved) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `Invalid subscription price: ${JSON.stringify(price)}. Offered amounts are 1, 4 or 7 JD.`
+    );
+  }
 
   try {
     const userRef = db.collection('users').doc(userId);
@@ -1153,18 +1224,22 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
       userId: userId,
       userName: userData.name || 'User',
       userEmail: userData.email || '',
-      plan: plan || 'monthly',
-      price: price || 15,
+      // Server-derived canonical values (approveSubscription re-derives anyway).
+      plan: resolved.tier,
+      tier: resolved.tier,
+      durationDays: resolved.durationDays,
+      price: price,
       paymentProofUrl: proofUrl,
       paymentProofImage: proofUrl,
       transferFullName: transferFullName || '',
       transferPhone: transferPhone || '',
+      status: 'pending',
       subscriptionStatus: 'pending',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     const batch = db.batch();
-    
+
     // 1. Create the subscription request document inside subscriptionRequests
     const reqRef = db.collection('subscriptionRequests').doc(reqId);
     batch.set(reqRef, newRequest);
@@ -1172,7 +1247,7 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
     // 2. Set user status to pending on user document
     batch.set(userRef, {
       subscriptionStatus: 'pending',
-      subscriptionPlan: plan || 'monthly',
+      subscriptionPlan: resolved.tier,
       paymentProofUrl: proofUrl,
       paymentProofImage: proofUrl,
       transferFullName: transferFullName || '',
@@ -1185,7 +1260,99 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
 
   } catch (error) {
     console.error('Error in requestSubscription:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
     throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 7b. approveSubscription Callable Cloud Function (Wave 1 S3)
+ * Admin-only. The SOLE writer of the users/{uid} subscription-grant fields
+ * (Firestore rules block all client writes to them, including the admin
+ * client). Recomputes the grant duration server-side from the request's
+ * verified amount / canonical tier — never from a client plan label.
+ * Idempotent: re-approving an approved request is a no-op.
+ *
+ * Input: { reqId } (approve a subscriptionRequests doc)
+ *     or { userId, tier? } (direct comped grant — the admin "activate user
+ *        directly" flow; tier defaults to 'monthly', offered tiers only).
+ */
+const SUBSCRIPTION_ERROR_CODES = ['invalid-argument', 'not-found', 'failed-precondition'];
+
+exports.approveSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { reqId, userId, tier } = data || {};
+
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp };
+    let result;
+    if (reqId) {
+      result = await approveSubscriptionRequest(deps, reqId);
+    } else if (userId) {
+      result = await grantSubscriptionDirect(deps, { userId, ...(tier ? { tier } : {}) });
+    } else {
+      throw new functions.https.HttpsError('invalid-argument', 'Either reqId or userId is required.');
+    }
+
+    if (result.alreadyApproved) {
+      return { success: true, alreadyApproved: true, message: 'Request was already approved — no changes made.' };
+    }
+
+    // Log the conversion server-side (mirrors the old client analytics event).
+    await db.collection('analytics_events').add({
+      eventType: 'subscription_conversion',
+      userId: result.userId,
+      userEmail: result.userEmail || null,
+      timestamp: Date.now(),
+      metadata: {
+        plan: result.tier,
+        durationDays: result.durationDays,
+        price: typeof result.price === 'number' ? result.price : 0,
+        reqId: reqId || null,
+        direct: !reqId,
+        approvedBy: context.auth.uid,
+      },
+    }).catch((e) => console.warn('[approveSubscription] analytics log failed:', e && e.message));
+
+    console.log(`[approveSubscription] Granted ${result.tier}/${result.durationDays}d to ${result.userId} (by ${context.auth.uid}, reqId=${reqId || 'direct'})`);
+    return {
+      success: true,
+      alreadyApproved: false,
+      userId: result.userId,
+      tier: result.tier,
+      durationDays: result.durationDays,
+      expiryMs: result.expiryMs,
+    };
+  } catch (error) {
+    console.error('Error in approveSubscription:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = SUBSCRIPTION_ERROR_CODES.includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * 7c. rejectSubscription Callable Cloud Function (Wave 1 S3)
+ * Admin-only counterpart of approveSubscription — needed because the rules
+ * now block ALL client writes to the user subscription fields, including the
+ * admin client's old reject/downgrade updateDoc.
+ * Input: { reqId } (reject a request; downgrades the user only if still
+ * 'pending' — never wipes an active membership) or { userId } (direct reject).
+ */
+exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { reqId, userId } = data || {};
+
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp };
+    const result = await rejectSubscriptionRequest(deps, { reqId, userId });
+    console.log(`[rejectSubscription] Rejected (reqId=${result.reqId || 'direct'}, userId=${result.userId}, downgraded=${result.userDowngraded}) by ${context.auth.uid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in rejectSubscription:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = SUBSCRIPTION_ERROR_CODES.includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
 

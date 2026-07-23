@@ -14,6 +14,7 @@ import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
+import { stripReserve } from '../utils/reserveStrip';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
@@ -3216,6 +3217,9 @@ const fetchIP = async () => {
       throw new Error(errMsg);
     }
 
+    // Reserve must NOT be written to the world-readable auction doc.
+    const { reservePrice, auctionInput } = stripReserve(listingData as typeof listingData & { reservePrice?: number });
+
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
     // رفع الفيديو لـ Firebase Storage أولاً
@@ -3369,8 +3373,27 @@ const fetchIP = async () => {
     if (onProgress) onProgress(100, 'saving');
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
+
+    // Admin drop-builder auctions get a sequential number from the atomic counter.
+    // (Seller-wizard 'processing' submissions don't — they're numbered at approval time, later slice.)
+    let assignedAuctionNumber: number | undefined;
+    if (initialStatus === 'upcoming') {
+      try {
+        const { allocateAuctionNumber } = await import('../utils/auctionNumber');
+        assignedAuctionNumber = await allocateAuctionNumber(db);
+      } catch (numErr) {
+        console.warn('[createListing] auction number allocation failed (continuing without):', numErr);
+      }
+    }
+
     const newListing: any = {
-      ...listingData,
+      ...auctionInput,
+      ...(assignedAuctionNumber != null ? { auctionNumber: assignedAuctionNumber } : {}),
+      // Initialize the buyer-visible "reserve not yet met" flag to false when a
+      // reserve is actually set. Only the boolean crosses onto the world-readable
+      // auction doc — never the amount (that lives in auctionSecrets, see below).
+      // onBidCreated flips this to true once a qualifying bid lands.
+      ...(reservePrice && reservePrice > 0 ? { reserveMet: false } : {}),
       id: newListingId,
       currentPrice: listingData.startingPrice,
       sellerId: currentUser.id,
@@ -3423,6 +3446,15 @@ const fetchIP = async () => {
       addNotification(saveFailTitle, saveFailMsg, 'alert');
       showToast({ title: saveFailTitle, message: saveFailMsg, type: 'warn' });
       handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
+    }
+
+    // Reserve is stored server-side only (admin/CF-readable), never on the auction doc.
+    if (reservePrice && reservePrice > 0) {
+      try {
+        await setDoc(doc(db, 'auctionSecrets', newListingId), { reservePrice });
+      } catch (resErr) {
+        console.warn('[createListing] reserve secret write failed:', resErr);
+      }
     }
 
     setAuctions(prev => [newListing, ...prev]);
@@ -3979,6 +4011,9 @@ const fetchIP = async () => {
       isAutoBiddingRef.current = true;
       const nextBid = minNextBid(triggerable.currentPrice, triggerable.minIncrement, triggerable.totalBids);
       
+      // PF9: jitter the delay (0.8-2.0s) so many auto-bidders on one lot don't
+      // fire in lockstep and thundering-herd the single-doc bid transaction.
+      const jitteredDelay = 800 + Math.floor(Math.random() * 1200);
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
         isAutoBiddingRef.current = false;
@@ -3995,7 +4030,7 @@ const fetchIP = async () => {
             }
           });
         }
-      }, 1200);
+      }, jitteredDelay);
 
       return () => {
         clearTimeout(timer);
