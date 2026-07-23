@@ -153,8 +153,9 @@ async function grantSubscriptionDirect(deps, { userId, tier = 'monthly' } = {}) 
  *
  * deps: { db, Timestamp, now? }
  */
-async function rejectSubscriptionRequest(deps, { reqId, userId } = {}) {
+async function rejectSubscriptionRequest(deps, { reqId, userId, reason } = {}) {
   const { db, Timestamp, now = () => Date.now() } = deps;
+  const trimmedReason = typeof reason === 'string' && reason.trim() ? reason.trim() : null;
 
   if (reqId && typeof reqId === 'string') {
     return db.runTransaction(async (txn) => {
@@ -176,13 +177,18 @@ async function rejectSubscriptionRequest(deps, { reqId, userId } = {}) {
 
       txn.set(
         reqRef,
-        { status: 'rejected', subscriptionStatus: 'rejected', rejectedAt: Timestamp.fromMillis(now()) },
+        {
+          status: 'rejected',
+          subscriptionStatus: 'rejected',
+          rejectedAt: Timestamp.fromMillis(now()),
+          ...(trimmedReason ? { rejectionReason: trimmedReason } : {}),
+        },
         { merge: true }
       );
       if (downgradeUser && userRef) {
         txn.set(userRef, { ...REVOKE_FIELDS }, { merge: true });
       }
-      return { reqId, userId: reqData.userId || null, userDowngraded: downgradeUser };
+      return { reqId, userId: reqData.userId || null, userDowngraded: downgradeUser, reason: trimmedReason };
     });
   }
 
@@ -194,7 +200,7 @@ async function rejectSubscriptionRequest(deps, { reqId, userId } = {}) {
         throw makeError('not-found', `User ${userId} not found.`);
       }
       txn.set(userRef, { ...REVOKE_FIELDS }, { merge: true });
-      return { reqId: null, userId, userDowngraded: true };
+      return { reqId: null, userId, userDowngraded: true, reason: trimmedReason };
     });
   }
 

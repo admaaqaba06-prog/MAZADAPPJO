@@ -7,6 +7,7 @@ const {
   grantSubscriptionDirect,
   rejectSubscriptionRequest,
 } = require('./subscriptionApproval');
+const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
@@ -1341,17 +1342,74 @@ exports.approveSubscription = functions.runWith({ cors: true }).https.onCall(asy
  */
 exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   await assertAdmin(context);
-  const { reqId, userId } = data || {};
+  const { reqId, userId, reason } = data || {};
 
   try {
     const deps = { db, Timestamp: admin.firestore.Timestamp };
-    const result = await rejectSubscriptionRequest(deps, { reqId, userId });
+    const result = await rejectSubscriptionRequest(deps, { reqId, userId, reason });
     console.log(`[rejectSubscription] Rejected (reqId=${result.reqId || 'direct'}, userId=${result.userId}, downgraded=${result.userDowngraded}) by ${context.auth.uid}`);
+    let phone = '';
+    let userSnap = null;
+    try {
+      userSnap = result.userId ? await db.collection('users').doc(result.userId).get() : null;
+      phone = userSnap && userSnap.exists ? (userSnap.data().phoneNumber || '') : '';
+    } catch (e) { console.warn('[rejectSubscription] phone lookup failed:', e); }
+    // Only notify on a real reviewed request rejection (reqId). A bare
+    // direct-downgrade admin action returns reqId: null and must stay silent —
+    // it predates this slice and was never meant to trigger a rejection message.
+    if (result.reqId) {
+      await postToN8n('membership_rejected', {
+        phone,
+        name: (userSnap && userSnap.exists ? (userSnap.data().name || 'Member') : 'Member'),
+        reason: result.reason || '',
+        reqId: result.reqId || null,
+        idempotencyKey: `membership_rejected_${result.reqId || result.userId}`,
+      });
+    }
     return { success: true, ...result };
   } catch (error) {
     console.error('Error in rejectSubscription:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = SUBSCRIPTION_ERROR_CODES.includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * verifyOrderPayment — Slice B (Verify & Approve).
+ * Admin verifies (or rejects) a buyer's self-claimed CliQ payment on an order.
+ * State machine + idempotency live in orderPaymentVerify.js (unit-tested);
+ * this wrapper is admin-gating + the post-commit WhatsApp notify.
+ */
+exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { orderId, action, reason } = data || {};
+  if (action !== 'verify' && action !== 'reject') {
+    throw new functions.https.HttpsError('invalid-argument', "action must be 'verify' or 'reject'.");
+  }
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp };
+    if (action === 'verify') {
+      const result = await verifyOrderPaymentTxn(deps, { orderId, adminUid: context.auth.uid });
+      console.log(`[verifyOrderPayment] verified order=${orderId} already=${result.alreadyVerified} by ${context.auth.uid}`);
+      return { success: true, ...result };
+    }
+    const result = await rejectOrderPaymentTxn(deps, { orderId, adminUid: context.auth.uid, reason });
+    // Post-commit, best-effort: tell the buyer why, so they can resubmit.
+    let phone = '';
+    try {
+      const buyerSnap = result.buyerId ? await db.collection('users').doc(result.buyerId).get() : null;
+      phone = buyerSnap && buyerSnap.exists ? (buyerSnap.data().phoneNumber || '') : '';
+    } catch (e) { console.warn('[verifyOrderPayment] buyer phone lookup failed:', e); }
+    await postToN8n('order_payment_rejected', {
+      phone, name: result.buyerName, reason: result.reason, orderId,
+      idempotencyKey: `order_payment_rejected_${orderId}`,
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in verifyOrderPayment:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'invalid-argument', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });

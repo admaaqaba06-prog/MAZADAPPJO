@@ -287,3 +287,20 @@ describe('rejectSubscriptionRequest', () => {
     await expect(rejectSubscriptionRequest(deps(db), {})).rejects.toThrow();
   });
 });
+
+describe('rejectSubscriptionRequest — reason (Slice B)', () => {
+  it('stores rejectionReason on the request doc and returns it', async () => {
+    const db = makeFakeDb({ 'subscriptionRequests/r1': { userId: 'u1' }, 'users/u1': { subscriptionStatus: 'pending' } });
+    const res = await rejectSubscriptionRequest(deps(db), { reqId: 'r1', reason: '  receipt unclear ' });
+    const reqWrite = db._writes.find((w) => w.path === 'subscriptionRequests/r1');
+    expect(reqWrite.data.rejectionReason).toBe('receipt unclear');
+    expect(res.reason).toBe('receipt unclear');
+  });
+  it('omits rejectionReason entirely when no reason is given (back-compat)', async () => {
+    const db = makeFakeDb({ 'subscriptionRequests/r1': { userId: 'u1' }, 'users/u1': { subscriptionStatus: 'pending' } });
+    const res = await rejectSubscriptionRequest(deps(db), { reqId: 'r1' });
+    const reqWrite = db._writes.find((w) => w.path === 'subscriptionRequests/r1');
+    expect('rejectionReason' in reqWrite.data).toBe(false);
+    expect(res.reason).toBeNull();
+  });
+});

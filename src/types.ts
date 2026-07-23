@@ -247,6 +247,14 @@ export interface Order {
   totalDue?: number;
   paymentDeadlineAt?: any;
   paymentProofUrl?: string;
+  /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
+  paymentVerified?: boolean;
+  /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
+  paymentVerifiedBy?: string;
+  /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
+  paymentVerifiedAt?: any;
+  /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
+  paymentRejectionReason?: string;
   trackingNumber?: string;
   /**
    * Wave 2 (W4): per-order delivery address + phone the winner provides at the
