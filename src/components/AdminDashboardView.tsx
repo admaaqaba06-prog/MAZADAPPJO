@@ -4,9 +4,8 @@ import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
-import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
   ShieldCheck, 
   Users, 
@@ -796,44 +795,19 @@ export const AdminDashboardView: React.FC = () => {
     console.log("Pending subscriptions count", pendingSubsCount);
   }, [auctions, subscriptionRequests, currentUser]);
 
+  // Wave 1 S3 — grants are SERVER-ONLY. The approveSubscription callable is
+  // the sole writer of the user subscription fields (rules block all client
+  // writes, this admin dashboard included). It re-derives the duration from
+  // the request's verified amount / canonical tier and logs the conversion.
   const approveSubscription = async (request: any) => {
     try {
-      const plan = request.plan || 'monthly';
-      let durationDays = 30;
-      if (plan === 'semiannual') {
-        durationDays = 180; // 4 JD / 6-month tier
-      } else if (plan === 'quarterly') {
-        durationDays = 90; // legacy 3-month tier (retained for any old pending request)
-      } else if (plan === 'annual' || plan === 'yearly') {
-        durationDays = 365;
-      }
+      const approveCallable = await getCallableFunction<
+        { reqId: string },
+        { success: boolean; alreadyApproved?: boolean; tier?: string; durationDays?: number }
+      >('approveSubscription');
+      await approveCallable({ reqId: request.id });
 
-      const now = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(now.getDate() + durationDays);
-
-      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-        subscriptionStatus: 'approved',
-        status: 'approved'
-      });
-
-      await updateDoc(doc(db, 'users', request.userId), {
-        subscriptionStatus: 'active',
-        subscriptionPlan: plan,
-        subscriptionTier: plan,
-        subscriptionExpiry: expiryDate.getTime(),
-        subscriptionApprovedAt: serverTimestamp(),
-        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-      });
-
-      // Log subscription conversion to Analytics
-      await logAnalyticsEvent('subscription_conversion', request.userId, request.userEmail || null, {
-        plan,
-        durationDays,
-        price: request.price || 0
-      });
-
-      alert(isAr 
+      alert(isAr
         ? `🎉 تم تفعيل اشتراك المستخدم (${request.userName || request.userEmail || 'المشترك'}) بنجاح!` 
         : `🎉 User subscription (${request.userName || request.userEmail || 'Subscriber'}) has been activated successfully!`
       );
@@ -846,22 +820,18 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Direct (comped) activation — also server-only via the same callable
+  // (defaults to the 30-day monthly tier; duration comes from the canonical
+  // tier table on the server).
   const approveUserDirect = async (user: any) => {
     try {
-      const now = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(now.getDate() + 30); // Default to 30 days
+      const approveCallable = await getCallableFunction<
+        { userId: string },
+        { success: boolean }
+      >('approveSubscription');
+      await approveCallable({ userId: user.id });
 
-      await updateDoc(doc(db, 'users', user.id), {
-        subscriptionStatus: 'active',
-        subscriptionPlan: 'monthly',
-        subscriptionTier: 'monthly',
-        subscriptionExpiry: expiryDate.getTime(),
-        subscriptionApprovedAt: serverTimestamp(),
-        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-      });
-
-      alert(isAr 
+      alert(isAr
         ? `🎉 تم التفعيل الفوري لحساب العضو (${user.name || user.email}) بنجاح!` 
         : `🎉 Direct VIP status has been granted to user (${user.name || user.email}) successfully!`
       );
@@ -874,17 +844,17 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Wave 1 S3 — the user subscription fields are locked to the server, so the
+  // downgrade goes through the admin-only rejectSubscription callable.
   const rejectUserDirect = async (user: any) => {
     try {
-      await updateDoc(doc(db, 'users', user.id), {
-        subscriptionStatus: 'rejected',
-        subscriptionExpiry: null,
-        subscriptionPlan: null,
-        subscriptionApprovedAt: null,
-        subscriptionExpiresAt: null
-      });
+      const rejectCallable = await getCallableFunction<
+        { userId: string },
+        { success: boolean }
+      >('rejectSubscription');
+      await rejectCallable({ userId: user.id });
 
-      alert(isAr 
+      alert(isAr
         ? `⚠️ تم رفض تفعيل العضو (${user.name || user.email}).` 
         : `⚠️ User (${user.name || user.email}) activation has been rejected.`
       );
@@ -897,31 +867,19 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Wave 1 S3 — server-side reject: marks the request rejected and downgrades
+  // the user ONLY if they are still pending (rejecting a duplicate/stale
+  // request never wipes an already-active membership — enforced in the
+  // rejectSubscription Cloud Function).
   const rejectSubscription = async (request: any) => {
     try {
-      // Reject always updates the REQUEST doc...
-      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-        subscriptionStatus: 'rejected',
-        status: 'rejected'
-      });
+      const rejectCallable = await getCallableFunction<
+        { reqId: string },
+        { success: boolean; userDowngraded?: boolean }
+      >('rejectSubscription');
+      await rejectCallable({ reqId: request.id });
 
-      // ...but only downgrades the USER if they are still pending. Rejecting a
-      // duplicate/stale request must NEVER wipe an already-active membership.
-      if (request.userId) {
-        const userSnap = await getDoc(doc(db, 'users', request.userId));
-        const userStatus = userSnap.exists() ? (userSnap.data() as any)?.subscriptionStatus : null;
-        if (userStatus === 'pending') {
-          await updateDoc(doc(db, 'users', request.userId), {
-            subscriptionStatus: 'rejected',
-            subscriptionExpiry: null,
-            subscriptionPlan: null,
-            subscriptionApprovedAt: null,
-            subscriptionExpiresAt: null
-          });
-        }
-      }
-
-      alert(isAr 
+      alert(isAr
         ? `⚠️ تم رفض طلب الاشتراك للعضو (${request.userName || request.userEmail}) بنجاح.` 
         : `⚠️ Subscription request for (${request.userName || request.userEmail}) has been rejected.`
       );
