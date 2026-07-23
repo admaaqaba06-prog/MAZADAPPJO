@@ -4515,8 +4515,16 @@ const fetchIP = async () => {
     [chatMessages]
   );
 
-  return (
-    <AppContext.Provider value={{
+  // Perf (Wave 3c / P0-1): memoize the main context value. Previously this
+  // ~100-field object literal was recreated on EVERY AppProvider render, so
+  // any state change (or a parent re-render) gave the value a new identity and
+  // re-rendered all ~39 useApp() consumers even when nothing they read changed.
+  // The dep array below lists every NON-stable field: all state/memo values
+  // plus every useCallback. Raw useState setters are intentionally omitted —
+  // React guarantees their identity is stable, so listing them adds nothing.
+  // Now that chatMessages lives in its own ChatContext, a chat write touches
+  // none of these deps, so the value identity is preserved across chat churn.
+  const appValue = useMemo<AppContextProps>(() => ({
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
@@ -4604,7 +4612,34 @@ const fetchIP = async () => {
       suspendSeller,
       removeSellerBadge,
       resetSellerTrustScore
-    }}>
+  }), [
+    // State / memo values
+    currentUser, sellerProfile, users, sellerProfiles, visibleAuctions,
+    auctionsLoaded, bids, wallet, escrows, visibleOrders, notifications,
+    adminActions, adminActionsError, reviews, verificationRequests,
+    sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
+    activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
+    language, isAuthenticated, authReady, watchlist, autoBids,
+    showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
+    systemHealthLogs,
+    // Callbacks (all useCallback — stable unless their own deps change)
+    placeBid, triggerCliQTopUp, requestWithdrawal, addNotification, markAsRead,
+    markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
+    unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
+    repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
+    createListing, setLanguage, login, loginWithGoogle, loginWithPhone,
+    confirmPhoneCode, logout, registerUser, subscribeUser, updateOwnProfile,
+    completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
+    setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
+    updateFeatureFlag, logSystemHealth, submitVerificationRequest,
+    submitSellerReview, submitSellerReport, submitDispute, respondToDispute,
+    respondToReview, resolveDispute, approveVerificationRequest,
+    rejectVerificationRequest, suspendSeller, removeSellerBadge,
+    resetSellerTrustScore,
+  ]);
+
+  return (
+    <AppContext.Provider value={appValue}>
       <ChatContext.Provider value={chatValue}>
         {children}
       </ChatContext.Provider>
