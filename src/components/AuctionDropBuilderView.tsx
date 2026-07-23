@@ -6,6 +6,8 @@ import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from
 import { parseAmmanLocalToMs, formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
+import DropsListPanel from './DropsListPanel';
+import type { AuctionItem } from '../types';
 
 const DURATION_PRESETS = [
   { seconds: 600, label: '10 دقيقة', en: '10 min' },
@@ -199,6 +201,19 @@ export default function AuctionDropBuilderView() {
   const finalLink = createdId ? buildAuctionUrl(createdId, window.location.origin) : '';
   const sectionHeader = 'text-xs font-bold text-neutral-400 uppercase tracking-wide';
 
+  // Relist prefills the form from a past drop. The reserve is intentionally NOT
+  // carried over — it lives in the admin-only secrets doc and isn't readable here.
+  const handleRelist = (a: AuctionItem) => {
+    setProductName(a.title);
+    setStartingPrice(String(a.startingPrice));
+    setCondition(a.condition ?? condition);
+    if (a.channel) setChannel(a.channel);
+    if (a.marketPrice) setMarketPrice(String(a.marketPrice));
+    setDurationSeconds(a.duration || durationSeconds);
+    setCreatedId(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div style={{ direction: isAr ? 'rtl' : 'ltr' }} className="max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2">
       <div className="space-y-6">
@@ -390,6 +405,10 @@ export default function AuctionDropBuilderView() {
         ) : (
           <p className="text-neutral-500 text-sm">{isAr ? 'أنشئ المزاد للحصول على الرابط النهائي ثم انسخ النص' : 'Create the drop to get the final link, then copy the caption'}</p>
         )}
+
+        <div className="pt-4 mt-4 border-t">
+          <DropsListPanel onRelist={handleRelist} />
+        </div>
       </div>
     </div>
   );
