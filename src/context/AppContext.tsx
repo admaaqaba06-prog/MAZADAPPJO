@@ -7,27 +7,39 @@ import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBi
 import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
+import { nextHeartbeatDelayMs } from '../utils/heartbeat';
+import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
-import { isAdminUser } from '../utils/adminAuth';
+import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
+import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
+import { stripReserve } from '../utils/reserveStrip';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
+import { computeServerOffset, setServerOffset } from '../utils/serverTime';
+import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
+import { isExpectedBidFailure } from '../utils/bidErrors';
+import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
 
-const getFallbackVideoUrl = (category?: string): string => {
-  const cat = (category || '').toLowerCase();
-  if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
-  } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-  } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
-  }
-  return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
-};
+// Negative cache for the seller-profile prefetch (PF1). Holds sellerIds whose
+// fetch came back a GENUINE miss (no profile doc existed at read time) so a
+// profile-less seller — including the `seller-system` sentinel — is never
+// re-fetched on every auctions snapshot. Module-level so it survives re-renders
+// and never becomes an effect dependency. Tradeoff: a profile created AFTER a
+// cached miss won't be re-prefetched here, but the authoritative sellerProfiles
+// listener still delivers it — the cache only suppresses the redundant prefetch.
+const attemptedSellerIds = new Set<string>();
+
+// Local, bundled "media unavailable" poster. Used as the thumbnail fallback for
+// auctions with no image. Previously these fallbacks pointed at third-party hosts
+// (Unsplash images / Google `gtv-videos` sample MP4s) which added uncontrolled
+// per-render bandwidth and latency (bad for load and for a load test). A single
+// local asset is cached after first paint and never leaves the origin.
+const PLACEHOLDER_MEDIA = '/placeholder-media.svg';
 
 import { 
   GoogleAuthProvider, 
@@ -40,7 +52,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -86,19 +98,8 @@ const mapAuctionDoc = (
   let finalThumbnail = rawThumbnail;
 
   if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
-    const cat = (data.category || '').toLowerCase();
-    const tit = (data.title || '').toLowerCase();
-    if (cat.includes('elect') || tit.includes('iphone') || tit.includes('phone') || tit.includes('macbook') || tit.includes('tech') || tit.includes('workstation')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('watch') || tit.includes('watch') || tit.includes('rolex') || tit.includes('submariner')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('jewel') || tit.includes('jewel') || tit.includes('diamond') || tit.includes('gold') || tit.includes('ring')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80';
-    } else if (cat.includes('fash') || cat.includes('luxur') || tit.includes('jacket') || tit.includes('bag') || cat.includes('cloth')) {
-      finalThumbnail = 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=400&q=80';
-    } else {
-      finalThumbnail = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=400&q=80';
-    }
+    // Local bundled poster instead of per-category third-party (Unsplash) images.
+    finalThumbnail = PLACEHOLDER_MEDIA;
   }
 
   const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
@@ -117,8 +118,10 @@ const mapAuctionDoc = (
     finalVideoUrl = rawVideoUrl;
     videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
   } else {
-    // Use instant synchronous fallback while loading
-    finalVideoUrl = getFallbackVideoUrl(data.category || 'Luxury');
+    // No resolvable network URL yet. Keep it empty (no remote video element) so
+    // the UI paints the local thumbnail fallback instead of streaming a
+    // third-party sample clip. The blob resolver may still fill this in async.
+    finalVideoUrl = '';
     itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
   }
 
@@ -137,7 +140,7 @@ const mapAuctionDoc = (
     duration: data.duration ?? 3600,
     sellerId: data.sellerId || 'seller-system',
     sellerName: data.sellerName || data.createdByName || 'Seller JO',
-    sellerLogo: data.sellerLogo || 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?auto=format&fit=crop&w=150&q=80',
+    sellerLogo: data.sellerLogo || PLACEHOLDER_MEDIA,
     status: data.status || 'live',
     isFeatured: data.isFeatured ?? false,
     totalBids: data.totalBids ?? 0,
@@ -159,12 +162,13 @@ interface AppContextProps {
   // Lists
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  // True account total from a server aggregation (the `users` listener is capped);
+  // null until the count query resolves. Use for total-account stats, not users.length.
+  usersTotalCount: number | null;
   sellerProfiles: SellerProfile[];
   setSellerProfiles: React.Dispatch<React.SetStateAction<SellerProfile[]>>;
-  auctions: AuctionItem[];
-  setAuctions: React.Dispatch<React.SetStateAction<AuctionItem[]>>;
-  /** True once the first auctions snapshot (or an error) has arrived for the current view. */
-  auctionsLoaded: boolean;
+  // NOTE (Wave 3c / PF2): `auctions` / `setAuctions` / `auctionsLoaded` moved
+  // to their own AuctionsContext (useAuctions) — see the split below ChatContext.
   bids: Bid[];
   setBids: React.Dispatch<React.SetStateAction<Bid[]>>;
   wallet: Wallet;
@@ -173,8 +177,6 @@ interface AppContextProps {
   setEscrows: React.Dispatch<React.SetStateAction<EscrowTransaction[]>>;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  chatMessages: ChatMessage[];
-  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   notifications: Notification[];
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   adminActions: AdminAction[];
@@ -200,14 +202,15 @@ interface AppContextProps {
   setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
-  globalWalletSubView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders';
-  setGlobalWalletSubView: (subView: 'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders') => void;
+  // Wave 2b: 'add-funds' and 'withdraw' sub-views were removed — the wallet
+  // is a read-only record (bidding is free; seller payouts are off-platform).
+  globalWalletSubView: 'wallet-home' | 'transactions' | 'orders';
+  setGlobalWalletSubView: (subView: 'wallet-home' | 'transactions' | 'orders') => void;
   globalSelectedOrderId: string | null;
   setGlobalSelectedOrderId: (id: string | null) => void;
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
-  triggerCliQTopUp: (amount: number, alias: string, paymentProofUrl: string) => void;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
@@ -312,6 +315,42 @@ interface AppContextProps {
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
 
+// Perf (Wave 3c / P0-1): `chatMessages` lives in its OWN context, split out of
+// the main AppContext value object. A chat doc is written on every bid, so a
+// bidding war spams setChatMessages; when chatMessages was a field on the giant
+// AppContext value, each write recreated that value object and re-rendered ALL
+// ~39 useApp() consumers (incl. every Discovery card). Isolating it here means
+// a chat write only re-renders the two in-room components that read it
+// (LiveStreamView / ReelsDesktopRightPanel) via useChat(). The state itself
+// still lives in AppProvider (so the chats onSnapshot effect can setChatMessages);
+// it's merely PROVIDED through a separate, independently-memoized Context below.
+interface ChatContextProps {
+  chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+}
+
+const ChatContext = createContext<ChatContextProps | undefined>(undefined);
+
+// Perf (Wave 3c / PF2): `auctions` lives in its OWN context, split out of the
+// main AppContext value object — the same isolation pattern as ChatContext
+// above. The auctions onSnapshot fires on EVERY bid in the room, so when
+// `auctions` (visibleAuctions) was a field on the giant AppContext value, each
+// bid recreated that value object and re-rendered ALL ~39 useApp() consumers —
+// wallet, notifications, admin lists — even though only auction surfaces care.
+// Now a bid invalidates only useAuctions() consumers. The state itself still
+// lives in AppProvider (the auctions onSnapshot effect calls setAuctions); it
+// is merely PROVIDED through this separate, independently-memoized Context.
+// `auctions` here is the FILTERED visibleAuctions (sim-visibility + own-pending
+// merge), exactly what the old appValue.auctions exposed.
+interface AuctionsContextProps {
+  auctions: AuctionItem[];
+  setAuctions: React.Dispatch<React.SetStateAction<AuctionItem[]>>;
+  /** True once the first auctions snapshot (or an error) has arrived for the current view. */
+  auctionsLoaded: boolean;
+}
+
+const AuctionsContext = createContext<AuctionsContextProps | undefined>(undefined);
+
 // Clean Initial Production States (No Demo/Mock Data)
 const DEFAULT_UNAUTHENTICATED_USER: User = {
   id: 'unauthenticated',
@@ -393,6 +432,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  // PF4 part 1: the admin `users` listener is capped (see effect below), so
+  // `users.length` is NOT the true account total. This holds the real count from
+  // a server-side aggregation query so admin stats don't undercount. null = unknown.
+  const [usersTotalCount, setUsersTotalCount] = useState<number | null>(null);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
     const saved = localStorage.getItem('mazad_seller_profiles');
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
@@ -479,34 +522,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_deleted_auctions', JSON.stringify(deletedAuctionIds));
   }, [deletedAuctionIds]);
 
-  // Sync state changes with localStorage
-  useEffect(() => {
-    localStorage.setItem('mazad_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_seller_profiles', JSON.stringify(sellerProfiles));
-  }, [sellerProfiles]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_auctions', JSON.stringify(auctions));
-  }, [auctions]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_bids', JSON.stringify(bids));
-  }, [bids]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_wallet', JSON.stringify(wallet));
-  }, [wallet]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_escrows', JSON.stringify(escrows));
-  }, [escrows]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_chat_messages', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+  // Sync state changes with localStorage.
+  //
+  // `users`, `auctions` and `adminActions` are write-only here (nothing
+  // reads `mazad_users` / `mazad_auctions` / `mazad_admin_actions` back —
+  // they're populated straight from Firestore snapshots on boot), so
+  // per-delta persistence was pure overhead: a synchronous JSON.stringify of
+  // an 80-doc auctions array on every bid, on every lot. Firestore's own
+  // client cache already survives reloads, so these writes were removed
+  // outright rather than throttled.
+  //
+  // `sellerProfiles`, `bids`, `wallet`, `escrows` and `chatMessages` ARE read
+  // back from localStorage as an instant-paint seed on init, so they still
+  // need to persist — just not synchronously on every delta. Throttled to
+  // at most once every few seconds (flushed on tab-hide/unmount too).
+  useThrottledLocalStorageSync('mazad_seller_profiles', sellerProfiles);
+  useThrottledLocalStorageSync('mazad_bids', bids);
+  useThrottledLocalStorageSync('mazad_wallet', wallet);
+  useThrottledLocalStorageSync('mazad_escrows', escrows);
+  useThrottledLocalStorageSync('mazad_chat_messages', chatMessages);
 
   // One-time purge of the pre-fix SHARED bell keys: they leaked one user's
   // private verdicts (incl. rejection reasons) to the next account on the
@@ -517,10 +551,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(LEGACY_DISMISSED_KEY);
     } catch { /* storage unavailable — nothing leaked then */ }
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_admin_actions', JSON.stringify(adminActions));
-  }, [adminActions]);
 
   // Revive custom blob videos on load from IndexedDB (Disabled as we use permanent Firebase Storage uploads now)
   /*
@@ -567,7 +597,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'add-funds' | 'withdraw' | 'transactions' | 'orders'>('wallet-home');
+  const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -699,26 +729,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // flashing Login while a valid session is still restoring.
   const [authReady, setAuthReady] = useState<boolean>(false);
 
-  // Session Heartbeat - updates lastSeen, deviceInfo, and appVersion every 5 minutes
+  // Session Heartbeat (PF4 part 2) - updates lastSeen, deviceInfo, and appVersion.
+  // Every write fans out to the admin's live `users` listener, so instead of a
+  // fixed 5-min setInterval (which makes many clients write in lockstep) we use a
+  // recursive setTimeout re-jittered to 8-12 min on each tick so the writes spread out.
   useEffect(() => {
     if (!isAuthenticated || !currentUser || currentUser.id === 'user-current') return;
 
-    const interval = setInterval(async () => {
-      try {
-        const userRef = doc(db, 'users', currentUser.id);
-        const dev = getDeviceInfo();
-        await updateDoc(userRef, {
-          lastSeen: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          appVersion: dev.appVersion
-        });
-        console.log("Session heartbeat updated for user:", currentUser.id);
-      } catch (error) {
-        console.error("Heartbeat error:", error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+    let timer: ReturnType<typeof setTimeout>;
 
-    return () => clearInterval(interval);
+    const scheduleNext = () => {
+      timer = setTimeout(async () => {
+        try {
+          const userRef = doc(db, 'users', currentUser.id);
+          const dev = getDeviceInfo();
+          await updateDoc(userRef, {
+            lastSeen: new Date().toISOString(),
+            deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+            appVersion: dev.appVersion
+          });
+          console.log("Session heartbeat updated for user:", currentUser.id);
+        } catch (error) {
+          console.error("Heartbeat error:", error);
+        } finally {
+          scheduleNext(); // re-jitter the next interval
+        }
+      }, nextHeartbeatDelayMs());
+    };
+
+    scheduleNext();
+
+    return () => clearTimeout(timer);
   }, [isAuthenticated, currentUser?.id]);
 
   const addNotificationRef = useRef<any>(null);
@@ -1337,6 +1378,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // (pendingListingDrops) filters this context state — without the
   // subscription the queue is always empty and the reject-with-reason
   // gate UI never renders.
+  // CORR1: derive the client↔server clock offset once (early) and re-sync on
+  // reconnect / tab-foreground, so every serverNow() consumer — countdowns,
+  // finish checks, and the LiveStreamView bid gate — reads a latency-compensated
+  // server clock instead of a possibly-skewed device clock. SAFETY: on any
+  // failure the offset stays at its prior value (0 by default → identical to raw
+  // Date.now()), and computeServerOffset rejects non-finite/absurd samples, so a
+  // failed or noisy probe can never make a live lot show "ended" early or block a
+  // legitimate final bid. The client gate is advisory anyway — placeBid re-checks
+  // endTime with the real server clock inside its transaction.
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const sentAtMs = Date.now();
+        const getServerTime = await getCallableFunction<Record<string, never>, { now: number }>('getServerTime');
+        const res = await getServerTime({});
+        const receivedAtMs = Date.now();
+        if (cancelled) return;
+        const offset = computeServerOffset({
+          serverEpochMs: res.data?.now ?? NaN,
+          sentAtMs,
+          receivedAtMs,
+        });
+        if (offset !== null) setServerOffset(offset);
+      } catch {
+        // Probe failed (offline, or callable not yet deployed) — keep the prior
+        // offset. Never poison the clock on a failed fetch.
+      }
+    };
+    sync();
+    const onOnline = () => { void sync(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void sync(); };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   const auctionSubMode: 'buyer' | 'admin' | 'none' =
     activeView === 'discovery' || activeView === 'live'
       ? 'buyer'
@@ -1344,12 +1426,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? 'admin'
         : 'none';
 
+  // PF5: the previous output of the auctions-snapshot sync below — NOT a mirror
+  // of the `auctions` state (other, optimistic writers touch that). Keeping the
+  // last synced list here lets each snapshot reuse the prior object reference
+  // for every lot that did NOT change, so one bid no longer hands all ~80 lots
+  // a fresh identity (which churned every downstream memo and countdown).
+  const auctionsSnapSyncRef = useRef<AuctionItem[]>([]);
+
   useEffect(() => {
     if (auctionSubMode === 'none') {
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(false);
       return;
     }
+
+    // Fresh subscription (first mount or buyer<->admin flip): drop the prior
+    // identity map. The new listener's initial snapshot lists every doc as
+    // 'added', so everything is remapped fresh regardless — this reset just
+    // guarantees no stale reference can ever leak across query windows.
+    auctionsSnapSyncRef.current = [];
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
@@ -1367,23 +1463,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // approved, active lots. 'processing' is deliberately excluded here —
       // a seller's own under-review listing is surfaced separately via the
       // targeted own-pending subscription below (never leaked to buyers).
+      // PF10: order newest-first BEFORE the cap so a fresh drop always lands
+      // inside the 80-lot window instead of being stranded outside an arbitrary
+      // (unordered) slice. Backed by the existing composite index
+      // (auctions: status ASC, createdAt DESC) in firestore.indexes.json — the
+      // admin query above relies on the same ordering, so this is established-safe.
       q = query(
         auctionsRefCol,
         where('status', 'in', ['live', 'upcoming']),
+        orderBy('createdAt', 'desc'),
         limit(80)
       );
     }
     const unsub = onSnapshot(q, (snap) => {
       setAuctionsLoaded(true);
       if (snap.empty) {
+        auctionsSnapSyncRef.current = [];
         setAuctions([]);
       } else {
-        const fetchedList: AuctionItem[] = [];
         const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
 
-        snap.forEach((docSnap) => {
-          fetchedList.push(mapAuctionDoc(docSnap, itemsToResolve));
+        // PF5 (⚠️ money-adjacent): identity-preserving sync instead of the old
+        // full `snap.forEach(mapAuctionDoc)` remap. Docs named in docChanges()
+        // ('added'/'modified') are re-mapped IN FULL by the same mapAuctionDoc
+        // as before — never a hand-picked field merge — so a changed lot
+        // carries every field the room reads (currentPrice, currentBidderId,
+        // endTime/endsAt, status, totalBids, winnerId, …) with the exact same
+        // values the old handler produced. Only lots the snapshot did NOT
+        // change reuse their previous object reference, and 'removed' docs are
+        // dropped. Membership + order come from snap.docs (the query's
+        // orderBy createdAt desc), identical to the old forEach output.
+        const fetchedList = syncAuctionsFromSnapshot<AuctionItem, QueryDocumentSnapshot>({
+          prev: auctionsSnapSyncRef.current,
+          docs: snap.docs,
+          changes: snap.docChanges(),
+          getId: (docSnap) => docSnap.id,
+          mapDoc: (docSnap) => mapAuctionDoc(docSnap, itemsToResolve),
         });
+        auctionsSnapSyncRef.current = fetchedList;
 
         // Set the auctions synchronously so viewer counts, bids and clock ticks feel butter-smooth!
         setAuctions(fetchedList);
@@ -1397,14 +1514,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return { id, resolvedUrl };
             })
           ).then((results) => {
-            // Smoothly swap fallback video URLs with the resolved custom blob URLs
+            // Smoothly swap fallback video URLs with the resolved custom blob
+            // URLs. The canonical patch goes through the sync ref so the NEXT
+            // snapshot's unchanged-lot reuse hands back the patched object
+            // (otherwise the resolved URL would flip back to the fallback on
+            // the next bid). State is patched FUNCTIONALLY and ONLY on
+            // videoUrl — spreading the state's OWN item, never substituting
+            // the ref-derived object — so an optimistic per-item state write
+            // that landed between the snapshot and this async resolution
+            // (e.g. admin approve/reject flipping status, the seller edit)
+            // is never clobbered back to the stale snapshot object.
+            const resolvedById = new Map(results.map((r) => [r.id, r.resolvedUrl]));
+            auctionsSnapSyncRef.current = auctionsSnapSyncRef.current.map((item) => {
+              const resolvedUrl = resolvedById.get(item.id);
+              if (resolvedUrl === undefined) return item;
+              return { ...item, videoUrl: resolvedUrl };
+            });
             setAuctions((prev) =>
               prev.map((item) => {
-                const matched = results.find((r) => r.id === item.id);
-                if (matched) {
-                  return { ...item, videoUrl: matched.resolvedUrl };
-                }
-                return item;
+                const resolvedUrl = resolvedById.get(item.id);
+                return resolvedUrl === undefined ? item : { ...item, videoUrl: resolvedUrl };
               })
             );
           }).catch((err) => {
@@ -1414,6 +1543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error:", err);
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(true);
     });
@@ -1495,7 +1625,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to escrows where bidderId == userId or sellerId == userId (limit 100)
       const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id), limit(100));
-      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
 
       let bidderEscrows: EscrowTransaction[] = [];
       let sellerEscrows: EscrowTransaction[] = [];
@@ -1526,39 +1655,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'escrows' (bidder) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
-        const list: EscrowTransaction[] = [];
-        snap.forEach((docSnap) => {
-          const rawData = docSnap.data();
-          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
-          list.push({
-            id: docSnap.id,
-            ...rawData,
-            amount
-          } as EscrowTransaction);
+      // Pure buyers have no seller-side escrow rows — skip opening this
+      // subscription for them entirely (one fewer live listener for the
+      // majority of sessions, which are buyers, not sellers).
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
+          const list: EscrowTransaction[] = [];
+          snap.forEach((docSnap) => {
+            const rawData = docSnap.data();
+            const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
+            list.push({
+              id: docSnap.id,
+              ...rawData,
+              amount
+            } as EscrowTransaction);
+          });
+          sellerEscrows = list;
+          updateMergedEscrows();
+        }, (err) => {
+          console.warn("Firestore 'escrows' (seller) sync error:", err);
         });
-        sellerEscrows = list;
-        updateMergedEscrows();
-      }, (err) => {
-        console.warn("Firestore 'escrows' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBidder();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.isSeller, isDeferredReady]);
 
-  // Real-time chats synchronization with Firestore
+  // Real-time chats synchronization with Firestore.
+  //
+  // Gated on activeView === 'live': chatMessages is only ever read by
+  // LiveStreamView / ReelsDesktopRightPanel, both of which only mount for
+  // activeView === 'live' (see App.tsx's ActiveViewRenderer) — so there's
+  // no other screen depending on this being populated. Previously this
+  // subscription stayed open on every view, pinned to a default auction.
+  //
+  // NOTE (corrected): an earlier version of this fix removed the `limit(100)`
+  // cap and argued the read was "bounded in practice" because only one
+  // room's listener is open at a time. That conflates listener COUNT (always
+  // 1, thanks to the activeView gate) with per-listener DOC count — a single
+  // listener on a busy room with zero limit still reads every message in
+  // that room's entire history on every snapshot, which is an unbounded and
+  // growing read cost, not a bounded one. The actual fix is a server-side
+  // `orderBy('timestamp','desc').limit(100)`, backed by the (auctionId,
+  // timestamp) composite index in firestore.indexes.json — newest 100 only,
+  // then reversed below to the ascending order the UI expects.
   useEffect(() => {
-    if (!isAuthenticated || !isDeferredReady) {
+    if (!isAuthenticated || !isDeferredReady || activeView !== 'live') {
       return;
     }
     const targetAuctionId = activeAuctionId || 'auction-rolex';
     const chatsRefCol = collection(db, 'chats');
-    // Query chats filtered by the active auction ID, limiting to 100
-    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId), limit(100));
+    const q = query(
+      chatsRefCol,
+      where('auctionId', '==', targetAuctionId),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
@@ -1568,8 +1725,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...docSnap.data()
           } as ChatMessage);
         });
-        // Sort in-memory to prevent requiring compound indexes
-        fetchedChats.sort((a, b) => a.timestamp - b.timestamp);
+        // Query returns newest-first (desc); LiveStreamView/ReelsDesktopRightPanel
+        // render chatMessages oldest→newest (they treat the last array element
+        // as "latest"), so reverse to ascending order before publishing.
+        fetchedChats.reverse();
         setChatMessages(fetchedChats);
       } else {
         setChatMessages([]);
@@ -1578,15 +1737,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated, isDeferredReady, activeAuctionId]);
+  }, [isAuthenticated, isDeferredReady, activeAuctionId, activeView]);
 
-  // Real-time all users database synchronization with Firestore
+  // Real-time users synchronization with Firestore (admin only).
+  // PF4 part 1: cap the listener to the most-recently-active users instead of the
+  // whole collection. The old unbounded onSnapshot re-ran an O(N) merge over every
+  // user doc on every single per-bid `lastBidAt` write, hammering the admin browser.
+  // orderBy('lastSeen','desc') + limit keeps the live-activity views (sessions table,
+  // user list) fed with the users who actually matter while bounding the fan-out.
+  // Trade-off: this is display-only and the admin now sees at most ADMIN_USERS_CAP
+  // users live; the true account total is fetched separately via getCountFromServer.
   useEffect(() => {
     if (!isAuthenticated || !isAdminUser(currentUser)) {
       return;
     }
-    const usersRefCol = collection(db, 'users');
-    const unsub = onSnapshot(usersRefCol, (snap) => {
+    const ADMIN_USERS_CAP = 200;
+    const usersQuery = query(
+      collection(db, 'users'),
+      orderBy('lastSeen', 'desc'),
+      limit(ADMIN_USERS_CAP)
+    );
+
+    // True total (unaffected by the cap) for admin count stats. Best-effort, one-shot.
+    getCountFromServer(collection(db, 'users'))
+      .then(res => setUsersTotalCount(res.data().count))
+      .catch(err => console.warn("Firestore users count query failed:", err));
+
+    const unsub = onSnapshot(usersQuery, (snap) => {
       if (!snap.empty) {
         const fetchedUsers: User[] = [];
         snap.forEach((docSnap) => {
@@ -1728,18 +1905,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [...candidates].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt))[0];
   }, [orders, myReviews, myReviewsLoaded, currentUser?.id]);
 
-  // Automated pre-fetching of seller profiles of all active/upcoming auctions
+  // Distinct, non-sentinel seller ids across the current auctions. Memoized on
+  // a stable STRING key so the prefetch effect below runs when the SET of
+  // sellers changes — not on every auctions-snapshot object churn (PF1).
+  const distinctAuctionSellerIds = useMemo(
+    () => distinctSellerIds(auctions.map(a => a.sellerId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auctions.map(a => a.sellerId).join('|')]
+  );
+
+  // Latest sellerProfiles read via a ref so the prefetch effect can check
+  // "already loaded?" without taking sellerProfiles as a dependency (which would
+  // re-fire it on every profile merge).
+  const sellerProfilesRef = useRef(sellerProfiles);
+  sellerProfilesRef.current = sellerProfiles;
+
+  // Automated pre-fetching of seller profiles for all active/upcoming auctions.
+  // PF1: a module-level negative cache (attemptedSellerIds) records GENUINE
+  // misses so a profile-less seller is never re-fetched, collapsing what used to
+  // be an unbounded read loop firing on every bid/snapshot into a single pass
+  // per newly-seen seller.
   useEffect(() => {
-    if (auctions.length === 0) return;
-    
-    // Get unique seller IDs from current auctions
-    const sellerIds = Array.from(new Set(auctions.map(a => a.sellerId).filter(Boolean)));
-    
-    // Find which ones we don't have yet
-    const missingIds = sellerIds.filter(id => !sellerProfiles.some(p => p.userId === id || p.id === id));
-    
+    if (distinctAuctionSellerIds.length === 0) return;
+
+    const hasProfile = (id: string) =>
+      sellerProfilesRef.current.some(p => p.userId === id || p.id === id);
+    const missingIds = nextMissingSellerIds(distinctAuctionSellerIds, attemptedSellerIds, hasProfile);
     if (missingIds.length === 0) return;
-    
+
     const fetchMissing = async () => {
       const fetched: SellerProfile[] = [];
       for (const id of missingIds) {
@@ -1749,12 +1942,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!snap.empty) {
             fetched.push({ id: snap.docs[0].id, ...snap.docs[0].data() } as SellerProfile);
           } else {
-            const docSnap = await getDoc(doc(db, 'sellerProfiles', id as string));
+            const docSnap = await getDoc(doc(db, 'sellerProfiles', id));
             if (docSnap.exists()) {
               fetched.push({ id: docSnap.id, ...docSnap.data() } as SellerProfile);
+            } else {
+              // Genuine miss: no profile doc existed at read time. Cache it so we
+              // never re-fetch. If this seller creates a profile LATER, the
+              // authoritative sellerProfiles listener still surfaces it — we only
+              // suppress the redundant prefetch, accepting eventual-consistency
+              // staleness for the prefetch path (documented tradeoff).
+              attemptedSellerIds.add(id);
             }
           }
         } catch (e) {
+          // Do NOT cache on error — the miss is unconfirmed, so allow a retry.
           console.warn(`Error pre-fetching profile for seller ${id}:`, e);
         }
       }
@@ -1770,9 +1971,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     };
-    
+
     fetchMissing();
-  }, [auctions]);
+  }, [distinctAuctionSellerIds]);
 
   // Sync singular current user's sellerProfile whenever sellerProfiles list or current user changes
   useEffect(() => {
@@ -1818,7 +2019,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to orders where buyerId == userId or sellerId == userId (limit 100)
       const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id), limit(100));
-      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
 
       let buyerOrders: Order[] = [];
       let sellerOrders: Order[] = [];
@@ -1850,26 +2050,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'orders' (buyer) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerQuery, (snap) => {
-        const list: Order[] = [];
-        snap.forEach((docSnap) => {
-          list.push({
-            id: docSnap.id,
-            ...docSnap.data()
-          } as Order);
+      // Pure buyers have no seller-side orders — skip opening this
+      // subscription for them entirely.
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerQuery, (snap) => {
+          const list: Order[] = [];
+          snap.forEach((docSnap) => {
+            list.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as Order);
+          });
+          sellerOrders = list;
+          updateMergedOrders();
+        }, (err) => {
+          console.warn("Firestore 'orders' (seller) sync error:", err);
         });
-        sellerOrders = list;
-        updateMergedOrders();
-      }, (err) => {
-        console.warn("Firestore 'orders' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBuyer();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
   // Real-time synchronization for trust system collections
   useEffect(() => {
@@ -1935,11 +2141,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id (limit 50)
       const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id), limit(50));
-      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
-      
+
       let bDisps: Dispute[] = [];
       let sDisps: Dispute[] = [];
-      
+
       const updateDisputes = () => {
         const merged = new Map<string, Dispute>();
         bDisps.forEach(d => merged.set(d.id, d));
@@ -1954,12 +2159,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateDisputes();
       }, (err) => console.warn("Buyer disputes sync error:", err));
 
-      const unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
-        const list: Dispute[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
-        sDisps = list;
-        updateDisputes();
-      }, (err) => console.warn("Seller disputes sync error:", err));
+      // Pure buyers have no seller-side disputes — skip opening this
+      // subscription for them entirely.
+      let unsubSellerDisp = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
+        unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
+          const list: Dispute[] = [];
+          snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
+          sDisps = list;
+          updateDisputes();
+        }, (err) => console.warn("Seller disputes sync error:", err));
+      }
 
       unsubDisputes = () => {
         unsubBuyerDisp();
@@ -1973,7 +2184,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReports();
       unsubDisputes();
     };
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -2593,8 +2804,15 @@ const fetchIP = async () => {
       } catch { /* storage full/unavailable — resurrection is tolerable */ }
     };
 
-    // Same index-free pattern as SellerCenterView: where-only + client sort.
-    const q = query(collection(db, 'notifications'), where('userId', '==', currentUser.id));
+    // Bounded server-side to the newest 50 (backed by the composite index on
+    // (userId ASC, timestamp DESC) in firestore.indexes.json) so a long-lived
+    // account never re-reads its entire notification history on every app open.
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', currentUser.id),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
     const unsub = onSnapshot(q, (snap) => {
       const dismissed = readDismissed();
       const currentIds = new Set(notificationsStateRef.current.map(n => n.id));
@@ -2633,7 +2851,9 @@ const fetchIP = async () => {
       setNotifications(prev => {
         const incomingIds = new Set(incoming.map(n => n.id));
         const rest = prev.filter(n => !incomingIds.has(n.id));
-        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp);
+        // Query is already bounded to the newest 50 server-side; the sort +
+        // slice here are belt-and-suspenders across the merge with prior state.
+        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
       });
     }, (err: any) => {
       console.warn('Bell notifications subscription failed:', err?.code, err?.message);
@@ -2849,12 +3069,14 @@ const fetchIP = async () => {
     // 2. Bid Spam & Timing Protection (Min 1.5 seconds cooldown between bids)
     const lastBidTime = lastBidTimestampRef.current;
     if (now - lastBidTime < 1500) {
-      await logAnalyticsEvent('bid_spam_blocked', currentUser.id, currentUser.email, {
+      // PF6: fire-and-forget — an observability write must never add a round-trip
+      // to the user's rejection. Expected outcome, so it is NOT a health incident.
+      void logAnalyticsEvent('bid_spam_blocked', currentUser.id, currentUser.email, {
         auctionId,
         bidAmount: amount,
         timeSinceLastBidMs: now - lastBidTime,
         type: 'bot_spam_protection'
-      });
+      }).catch(() => {});
       return {
         success: false,
         message: language === 'ar'
@@ -2866,12 +3088,13 @@ const fetchIP = async () => {
     // 3. Sliding Window Rate Limiting (Max 10 bids per 60 seconds)
     const updatedWindow = bidTimestampsRef.current.filter(ts => now - ts < 60000);
     if (updatedWindow.length >= 10) {
-      await logAnalyticsEvent('rate_limit_triggered', currentUser.id, currentUser.email, {
+      // PF6: fire-and-forget — see spam-block note above. Expected outcome.
+      void logAnalyticsEvent('rate_limit_triggered', currentUser.id, currentUser.email, {
         auctionId,
         windowSizeSec: 60,
         requestCount: updatedWindow.length,
         type: 'bidding_rate_limit'
-      });
+      }).catch(() => {});
       return {
         success: false,
         message: language === 'ar'
@@ -2916,7 +3139,11 @@ const fetchIP = async () => {
           'win'
         );
       } else {
-        await logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`);
+        // PF6: only genuinely-unexpected rejections are health incidents; routine
+        // "no" answers (below-min, membership, funds…) are not. Fire-and-forget.
+        if (!isExpectedBidFailure(result.data.message)) {
+          void logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`).catch(() => {});
+        }
         if (result.data.message === 'MEMBERSHIP_REQUIRED') {
           setShowSubscriptionPrompt(true);
           return {
@@ -2933,20 +3160,42 @@ const fetchIP = async () => {
       };
     } catch (error: any) {
       const errorMsg = error.message || String(error);
-      const isExpectedError = 
-        errorMsg.includes('ended') || 
-        errorMsg.includes('Minimum') || 
-        errorMsg.includes('Funds') || 
-        errorMsg.includes('subscription') || 
-        errorMsg.includes('restricted') || 
-        errorMsg.includes('not accepting');
-        
+      const errorCode = error.code || '';
+
+      // Server-side transaction contention/deadline on the hot auction doc →
+      // the bid didn't fail on the merits, the price just moved or the room is
+      // busy. Surface a FRIENDLY, retriable message (not a scary generic error)
+      // and let the user immediately re-bid — the next confirm recomputes the
+      // min from live state. Distinct from the client-side "price moved" confirm
+      // reprompt, which handles a rival outbid DURING the confirm window.
+      const isContention =
+        errorCode === 'functions/aborted' ||
+        errorCode === 'aborted' ||
+        errorMsg.includes('PRICE_MOVED_RETRY');
+      if (isContention) {
+        console.warn("Cloud function placeBid contention — retriable:", errorMsg);
+        return {
+          success: false,
+          message: language === 'ar'
+            ? 'السعر تغيّر أو الضغط عالي — حاول مرة أخرى'
+            : 'Price moved or high demand — try again'
+        };
+      }
+
+      const isExpectedError = isExpectedBidFailure(errorMsg);
+
       if (isExpectedError) {
         console.warn("Cloud function placeBid expected warning:", errorMsg);
       } else {
         console.error("Cloud function placeBid error:", error);
       }
-      await logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${errorMsg}`);
+      // PF6: don't log EXPECTED rejections (ended/Minimum/Funds/subscription…) as
+      // health incidents — a normal bid war would flood system_health. Only
+      // genuinely-unexpected errors are logged, fire-and-forget so the rejection
+      // returns without an extra round-trip.
+      if (!isExpectedError) {
+        void logSystemHealth('bid_fail', 'Bid Placement Error', `Auction: ${auctionId}, Amount: ${amount} JOD, Error: ${errorMsg}`).catch(() => {});
+      }
       return {
         success: false,
         message: errorMsg || 'Bidding failed.'
@@ -2954,40 +3203,9 @@ const fetchIP = async () => {
     }
   }, [currentUser, language, addNotification, logSystemHealth, featureFlags, pendingReviewOrder]);
 
-  // CliQ Jordanian instant receipt topup via Cloud Function
-  const triggerCliQTopUp = useCallback(async (amount: number, alias: string, paymentProofUrl: string) => {
-    if (!featureFlags.enableWallets) {
-      const walletsOffTitle = language === 'ar' ? '⚠️ عمليات المحفظة معطلة' : '⚠️ Wallet Services Disabled';
-      const walletsOffMsg = language === 'ar' ? 'عمليات التعبئة والتحقق المالي معطلة مؤقتاً للصيانة المجدولة.' : 'Wallet deposits and verifications are temporarily disabled for scheduled maintenance.';
-      addNotification(walletsOffTitle, walletsOffMsg, 'alert');
-      showToast({ title: walletsOffTitle, message: walletsOffMsg, type: 'warn' });
-      return;
-    }
-
-    try {
-      const topUpCallable = await getCallableFunction<{ amount: number; alias: string; paymentProofUrl: string }, { success: boolean; message: string }>('requestTopUp');
-      const result = await topUpCallable({ amount, alias, paymentProofUrl });
-
-      if (result.data.success) {
-        addNotification(
-          language === 'ar' ? '💸 تم استلام طلب التعبئة' : '💸 CliQ Transfer Received',
-          language === 'ar' 
-            ? 'تم رفع الإيصال بنجاح! سيقوم فريق العمليات بمراجعة وتدقيق حوالتك خلال دقيقة.' 
-            : 'Receipt upload success! Amman operations team will audit payment verification manually within 60 seconds.',
-          'verify'
-        );
-      } else {
-        throw new Error(result.data.message || 'Operation failed on server.');
-      }
-    } catch (error: any) {
-      console.error("Cloud function requestTopUp failed:", error);
-      await logSystemHealth('payment_fail', 'CliQ Payment Top-up Error', `Amount: ${amount} JOD, Alias: ${alias}, Proof: ${paymentProofUrl}, Error: ${error.message || String(error)}`);
-      const topUpFailTitle = language === 'ar' ? '❌ خطأ في تعبئة الرصيد' : '❌ Top-up Error';
-      const topUpFailMsg = error.message || (language === 'ar' ? 'فشل تقديم طلب التعبئة. الرجاء المحاولة مجدداً.' : 'Failed to request top-up.');
-      addNotification(topUpFailTitle, topUpFailMsg, 'alert');
-      showToast({ title: topUpFailTitle, message: topUpFailMsg, type: 'warn' });
-    }
-  }, [currentUser, addNotification, showToast, logSystemHealth, featureFlags, language]);
+  // Wave 2b: customer CliQ top-up entry (triggerCliQTopUp -> requestTopUp)
+  // was removed from the client — bidding is free (pay-after-win), so there
+  // is nothing to pre-fund. The `requestTopUp` Cloud Function itself stays.
 
   const requestWithdrawal = useCallback(async (amount: number, method: string, accountDetails: any) => {
     try {
@@ -3053,6 +3271,9 @@ const fetchIP = async () => {
       throw new Error(errMsg);
     }
 
+    // Reserve must NOT be written to the world-readable auction doc.
+    const { reservePrice, auctionInput } = stripReserve(listingData as typeof listingData & { reservePrice?: number });
+
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
     // رفع الفيديو لـ Firebase Storage أولاً
@@ -3069,21 +3290,30 @@ const fetchIP = async () => {
     ): Promise<string> => {
       const { ref, uploadBytesResumable, getDownloadURL, getStorage } = await import('firebase/storage');
       const { getFirebaseStorage } = await import('../services/firebase');
-      
+
+      // Thumbnails (never video) get shrunk to a card-friendly size before
+      // upload — raw 12MP phone photos as small-card thumbnails is pure
+      // waste, and every Discovery card downloads one of these.
+      // resizeImage() never throws and falls back to the original file
+      // whenever it isn't a clear win, so this is always safe to await.
+      const uploadFile: File | Blob = pathPrefix === 'auction-thumbnails'
+        ? await resizeImage(file)
+        : file;
+
       const storage = await getFirebaseStorage();
       const fileName = (file as any).name || defaultName;
       const cleanPath = `${pathPrefix}/${Date.now()}_${fileName}`;
       const metadata = {
-        contentType: (file as any).type && (file as any).type.trim() !== ''
-          ? (file as any).type
-          : contentTypeDefault
+        contentType: (uploadFile as any).type && (uploadFile as any).type.trim() !== ''
+          ? (uploadFile as any).type
+          : ((file as any).type && (file as any).type.trim() !== '' ? (file as any).type : contentTypeDefault)
       };
 
       // Try primary bucket first
       try {
         console.log(`Attempting upload to primary bucket at path: ${cleanPath}...`);
         const primaryRef = ref(storage, cleanPath);
-        const uploadTask = uploadBytesResumable(primaryRef, file, metadata);
+        const uploadTask = uploadBytesResumable(primaryRef, uploadFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -3103,7 +3333,7 @@ const fetchIP = async () => {
           // Initialize storage instance with fallback bucket
           const fallbackStorage = getStorage(storage.app, "gs://mazadjoapp.appspot.com");
           const fallbackRef = ref(fallbackStorage, cleanPath);
-          const uploadTaskFallback = uploadBytesResumable(fallbackRef, file, metadata);
+          const uploadTaskFallback = uploadBytesResumable(fallbackRef, uploadFile, metadata);
           
           if (onProgressLocal) onProgressLocal(0); // Reset progress for retry
           
@@ -3197,8 +3427,27 @@ const fetchIP = async () => {
     if (onProgress) onProgress(100, 'saving');
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
+
+    // Admin drop-builder auctions get a sequential number from the atomic counter.
+    // (Seller-wizard 'processing' submissions don't — they're numbered at approval time, later slice.)
+    let assignedAuctionNumber: number | undefined;
+    if (initialStatus === 'upcoming') {
+      try {
+        const { allocateAuctionNumber } = await import('../utils/auctionNumber');
+        assignedAuctionNumber = await allocateAuctionNumber(db);
+      } catch (numErr) {
+        console.warn('[createListing] auction number allocation failed (continuing without):', numErr);
+      }
+    }
+
     const newListing: any = {
-      ...listingData,
+      ...auctionInput,
+      ...(assignedAuctionNumber != null ? { auctionNumber: assignedAuctionNumber } : {}),
+      // Initialize the buyer-visible "reserve not yet met" flag to false when a
+      // reserve is actually set. Only the boolean crosses onto the world-readable
+      // auction doc — never the amount (that lives in auctionSecrets, see below).
+      // onBidCreated flips this to true once a qualifying bid lands.
+      ...(reservePrice && reservePrice > 0 ? { reserveMet: false } : {}),
       id: newListingId,
       currentPrice: listingData.startingPrice,
       sellerId: currentUser.id,
@@ -3251,6 +3500,15 @@ const fetchIP = async () => {
       addNotification(saveFailTitle, saveFailMsg, 'alert');
       showToast({ title: saveFailTitle, message: saveFailMsg, type: 'warn' });
       handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
+    }
+
+    // Reserve is stored server-side only (admin/CF-readable), never on the auction doc.
+    if (reservePrice && reservePrice > 0) {
+      try {
+        await setDoc(doc(db, 'auctionSecrets', newListingId), { reservePrice });
+      } catch (resErr) {
+        console.warn('[createListing] reserve secret write failed:', resErr);
+      }
     }
 
     setAuctions(prev => [newListing, ...prev]);
@@ -3685,48 +3943,11 @@ const fetchIP = async () => {
   }, [auctions, currentUser, language, addNotification, setDeletedAuctionIds]);
 
 
-  // =========================================================
-  // AUTOMATIC OUTBID REFUND CHECKER (GUARANTEES WALLET RETURN)
-  // Whenever any live auction is outbid, we refund the user's locked escrow
-  // =========================================================
-  useEffect(() => {
-    const activeUserId = currentUser?.id || 'user-current';
-    auctions.forEach(auction => {
-      if (auction.status === 'live' && auction.currentBidderId && auction.currentBidderId !== activeUserId) {
-        // Look for the user's locked escrow for this specific auction
-        const clientCommittedEscrow = escrows.find(
-          e => e.auctionId === auction.id && e.bidderId === activeUserId && e.status === 'locked'
-        );
-        if (clientCommittedEscrow) {
-          const refundAmount = clientCommittedEscrow.amount;
-
-          // 1. Mark escrow as refunded instantly
-          setEscrows(prev => prev.map(e => (e.id === clientCommittedEscrow.id ? { ...e, status: 'refunded' as const } : e)));
-
-          // 2. Refund client user's wallet
-          setWallet(prev => {
-            const newEsc = Math.max(0, prev.escrowBalance - refundAmount);
-            const newAvail = prev.availableBalance + refundAmount;
-            return {
-              ...prev,
-              availableBalance: newAvail,
-              escrowBalance: newEsc,
-              totalBalance: newAvail + newEsc
-            };
-          });
-
-          // 3. Show a friendly notification about transaction safety
-          addNotification(
-            language === 'ar' ? '🚨 تم تجاوز عرضك! تم إرجاع المبلغ' : '🚨 Outbid! Funds Returned Secured',
-            language === 'ar'
-              ? `تم تجاوز عرضك على "${auction.title}" بقيمة ${auction.currentPrice.toLocaleString()} دينار. تم إرجاع مبلغك ${refundAmount.toLocaleString()} دينار فوراً إلى محفظتك.`
-              : `You have been outbid on "${auction.title}" at ${auction.currentPrice.toLocaleString()} JOD. Your escrow locked funds of ${refundAmount.toLocaleString()} JOD have been instantly returned to your available wallet balance.`,
-            'outbid'
-          );
-        }
-      }
-    });
-  }, [auctions, escrows, language, addNotification]);
+  // Wave 2b: the legacy "outbid refund checker" (client-side bid-deposit
+  // escrow release simulation) was removed. Bids never lock wallet funds —
+  // bidding is free and you only pay after winning — so there is nothing to
+  // "release when outbid". Real outbid alerts come from the notifications
+  // pipeline; real escrows (order payments) are settled server-side.
 
 
   // 1. Watchlist and Auto-bid callback handles
@@ -3807,6 +4028,9 @@ const fetchIP = async () => {
       isAutoBiddingRef.current = true;
       const nextBid = minNextBid(triggerable.currentPrice, triggerable.minIncrement, triggerable.totalBids);
       
+      // PF9: jitter the delay (0.8-2.0s) so many auto-bidders on one lot don't
+      // fire in lockstep and thundering-herd the single-doc bid transaction.
+      const jitteredDelay = 800 + Math.floor(Math.random() * 1200);
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
         isAutoBiddingRef.current = false;
@@ -3823,7 +4047,7 @@ const fetchIP = async () => {
             }
           });
         }
-      }, 1200);
+      }, jitteredDelay);
 
       return () => {
         clearTimeout(timer);
@@ -4425,19 +4649,43 @@ const fetchIP = async () => {
     [orders, currentUser, simEnabled]
   );
 
-  return (
-    <AppContext.Provider value={{
+  // Separate, chatMessages-only context value (see ChatContext above).
+  // Memoized on [chatMessages] alone (setChatMessages is a stable useState
+  // setter) so it only changes identity when the chat list actually changes.
+  const chatValue = useMemo<ChatContextProps>(
+    () => ({ chatMessages, setChatMessages }),
+    [chatMessages]
+  );
+
+  // Separate, auctions-only context value (see AuctionsContext above).
+  // Memoized on [visibleAuctions, auctionsLoaded] (setAuctions is a stable
+  // useState setter) so a bid snapshot changes ONLY this context's identity —
+  // the main appValue below no longer lists visibleAuctions/auctionsLoaded in
+  // its deps, so its identity survives auction churn untouched.
+  const auctionsValue = useMemo<AuctionsContextProps>(
+    () => ({ auctions: visibleAuctions, setAuctions, auctionsLoaded }),
+    [visibleAuctions, auctionsLoaded]
+  );
+
+  // Perf (Wave 3c / P0-1): memoize the main context value. Previously this
+  // ~100-field object literal was recreated on EVERY AppProvider render, so
+  // any state change (or a parent re-render) gave the value a new identity and
+  // re-rendered all ~39 useApp() consumers even when nothing they read changed.
+  // The dep array below lists every NON-stable field: all state/memo values
+  // plus every useCallback. Raw useState setters are intentionally omitted —
+  // React guarantees their identity is stable, so listing them adds nothing.
+  // Now that chatMessages lives in its own ChatContext, a chat write touches
+  // none of these deps, so the value identity is preserved across chat churn.
+  const appValue = useMemo<AppContextProps>(() => ({
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
+      usersTotalCount,
       sellerProfiles, setSellerProfiles,
-      auctions: visibleAuctions, setAuctions,
-      auctionsLoaded,
       bids, setBids,
       wallet, setWallet,
       escrows, setEscrows,
       orders: visibleOrders, setOrders,
-      chatMessages, setChatMessages,
       notifications, setNotifications,
       adminActions, setAdminActions,
       adminActionsError,
@@ -4454,7 +4702,6 @@ const fetchIP = async () => {
       globalWalletSubView, setGlobalWalletSubView,
       globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
-      triggerCliQTopUp,
       requestWithdrawal,
       addNotification,
       markAsRead,
@@ -4515,8 +4762,40 @@ const fetchIP = async () => {
       suspendSeller,
       removeSellerBadge,
       resetSellerTrustScore
-    }}>
-      {children}
+  }), [
+    // State / memo values (auctions/auctionsLoaded intentionally NOT here —
+    // they live in AuctionsContext so bid churn can't touch this identity)
+    currentUser, sellerProfile, users, usersTotalCount, sellerProfiles,
+    bids, wallet, escrows, visibleOrders, notifications,
+    adminActions, adminActionsError, reviews, verificationRequests,
+    sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
+    activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
+    language, isAuthenticated, authReady, watchlist, autoBids,
+    showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
+    systemHealthLogs,
+    // Callbacks (all useCallback — stable unless their own deps change)
+    placeBid, requestWithdrawal, addNotification, markAsRead,
+    markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
+    unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
+    repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
+    createListing, setLanguage, login, loginWithGoogle, loginWithPhone,
+    confirmPhoneCode, logout, registerUser, subscribeUser, updateOwnProfile,
+    completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
+    setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
+    updateFeatureFlag, logSystemHealth, submitVerificationRequest,
+    submitSellerReview, submitSellerReport, submitDispute, respondToDispute,
+    respondToReview, resolveDispute, approveVerificationRequest,
+    rejectVerificationRequest, suspendSeller, removeSellerBadge,
+    resetSellerTrustScore,
+  ]);
+
+  return (
+    <AppContext.Provider value={appValue}>
+      <AuctionsContext.Provider value={auctionsValue}>
+        <ChatContext.Provider value={chatValue}>
+          {children}
+        </ChatContext.Provider>
+      </AuctionsContext.Provider>
     </AppContext.Provider>
   );
 };
@@ -4525,6 +4804,32 @@ export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
     throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
+
+// Perf (Wave 3c): read the high-churn chat list from its own context so a chat
+// write only re-renders the in-room components (LiveStreamView /
+// ReelsDesktopRightPanel), not every useApp() consumer. Provided from inside
+// AppProvider, so the same "must be used within an AppProvider" contract holds.
+// Perf (Wave 3c / PF2): read the high-churn auctions list from its own context
+// so a bid snapshot only re-renders auction surfaces (Discovery, live room,
+// stories bar, admin/seller lists), not every useApp() consumer. Provided from
+// inside AppProvider, so the same "must be used within an AppProvider"
+// contract holds. Components that read BOTH auctions and other app state
+// simply subscribe to both contexts.
+export const useAuctions = () => {
+  const context = useContext(AuctionsContext);
+  if (!context) {
+    throw new Error('useAuctions must be used within an AppProvider');
+  }
+  return context;
+};
+
+export const useChat = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat must be used within an AppProvider');
   }
   return context;
 };

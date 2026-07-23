@@ -33,6 +33,8 @@ import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow } from '../utils/serverTime';
+import { getAuctionMedia } from '../utils/auctionMedia';
+import { MediaGallery } from './feedback/MediaGallery';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -103,22 +105,33 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // receiving `timeLeftStr` from LiveStreamView. That way the per-second tick
   // stays confined to this component and never re-renders the parent room.
   const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
+  // PF7: depend on the primitives the timer actually reads, NOT the
+  // activeAuction object identity — before PF5, every bid on ANY lot handed
+  // this component a fresh object and tore down/rebuilt the interval
+  // mid-snipe-window. ⚠️TIMING: `endTime` MUST stay in the deps (anti-snipe
+  // +15s extension must restart the countdown), `status` for the
+  // live→completed flip, and `scheduledStartAt` because the pre-open branch
+  // counts down to it (a reschedule must retarget the timer).
+  const activeAuctionId = activeAuction?.id;
+  const activeAuctionEndTime = activeAuction?.endTime;
+  const activeAuctionStatus = activeAuction?.status;
+  const activeAuctionScheduledStartAt = activeAuction?.scheduledStartAt;
   useEffect(() => {
-    if (!activeAuction) {
+    if (!activeAuctionId) {
       setTimeLeftStr('00:00:00');
       return;
     }
     const updateTimer = () => {
       // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
-      const open = isAuctionOpen(activeAuction?.status);
-      const target = !open && activeAuction?.scheduledStartAt
-        ? activeAuction.scheduledStartAt
-        : activeAuction?.endTime;
+      const open = isAuctionOpen(activeAuctionStatus);
+      const target = !open && activeAuctionScheduledStartAt
+        ? activeAuctionScheduledStartAt
+        : activeAuctionEndTime;
       const remainingMs = (target ?? 0) - serverNow();
       const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
 
       // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
-      if (!open && (activeAuction?.scheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
+      if (!open && (activeAuctionScheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
         setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
         return;
       }
@@ -138,7 +151,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [activeAuction, isAr]);
+  }, [activeAuctionId, activeAuctionEndTime, activeAuctionStatus, activeAuctionScheduledStartAt, isAr]);
 
   // --- The bid moment: confirm-then-bid + success rush ---
   const [pendingBid, setPendingBid] = useState<number | null>(null);
@@ -226,6 +239,10 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
   const trustScore = activeSellerProfile?.trustScore;
   const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
+
+  // Gallery source items (video first, then thumbnail/mediaUrls/concierge
+  // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
+  const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
 
   // Navigation Links for left sidebar
   const navLinks = [
@@ -440,29 +457,25 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             className="h-[calc(100vh-64px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto" 
             id="professional-video-player-canvas"
           >
-            {/* Live Video Tag — falls back to the auction image when no video exists */}
-            {activeAuction.videoUrl ? (
-              <video
-                ref={videoRef}
-                src={activeAuction.videoUrl}
-                loop
-                muted={isMuted}
-                playsInline
-                autoPlay
-                className="w-full h-full object-cover bg-[#010101] cursor-pointer"
-                onClick={onPlayPauseToggle}
-              />
-            ) : (
-              <div className="w-full h-full relative bg-[#010101]">
-                <img
-                  src={activeAuction.thumbnailUrl || (activeAuction as any).imageUrl || ''}
-                  alt={activeAuction.title}
-                  className="w-full h-full object-cover"
-                />
-                {/* Subtle dark gradient so overlaid text stays legible */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
-              </div>
-            )}
+            {/* Swipeable media gallery — video first, then photos. Arrows +
+                thumbnail strip give desktop a mouse-friendly way to browse
+                the lot's other images, without duplicating gallery/swipe
+                logic (MediaGallery owns it, shared with the mobile reel). */}
+            <MediaGallery
+              key={activeAuction?.id}
+              items={mediaItems}
+              isActive
+              isPlaying={isPlaying}
+              isMuted={isMuted}
+              isAr={isAr}
+              showArrows
+              showThumbnails
+              onVideoClick={onPlayPauseToggle}
+              videoRef={videoRef}
+              className="absolute inset-0"
+            />
+            {/* Subtle dark gradient so overlaid text stays legible */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none z-[5]" />
 
             {/* 1. TOP LEFT OVERLAYS */}
             <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
@@ -497,7 +510,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               >
                 <Share2 className="w-4 h-4" />
               </button>
-              <button 
+              <button
                 onClick={toggleFullscreen}
                 className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
                 title="Fullscreen"
@@ -505,267 +518,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 <Maximize2 className="w-4 h-4" />
               </button>
             </div>
-
-            {/* 3. BOTTOM GLASSMORPHISM BID PANEL */}
-            <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-xl flex flex-col gap-2.5 z-25">
-              
-              {isEnded ? (
-                <div className="w-full bg-black/75 border border-amber-500/30 rounded-2xl p-4 text-center backdrop-blur-md flex flex-col items-center justify-center gap-3.5 shadow-xl animate-in fade-in duration-300">
-                  {(() => {
-                    const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
-                    const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
-                    
-                    if (isUserWinner) {
-                      return (
-                        <>
-                          <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-2xl animate-bounce">
-                            🎉
-                          </div>
-                          <div className="space-y-1">
-                            <span className="text-emerald-400 font-black text-sm block">
-                              {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won the auction'}
-                            </span>
-                            <span className="text-zinc-300 text-[11px] font-semibold block">
-                              {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
-                            </span>
-                            {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
-                              <span className="text-emerald-300/80 text-[11px] font-bold block">
-                                {isAr
-                                  ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
-                                  : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
-                              </span>
-                            ) : null}
-                          </div>
-                          <button
-                            onClick={() => {
-                              const matchingOrder = orders?.find(o => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
-                              if (matchingOrder) {
-                                setGlobalSelectedOrderId(matchingOrder.id);
-                              }
-                              setActiveView('orders');
-                            }}
-                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
-                          >
-                            {isAr ? 'عرض الطلب' : 'View Order'}
-                          </button>
-                        </>
-                      );
-                    } else if (hasUserBid) {
-                      return (
-                        <>
-                          <div className="w-12 h-12 rounded-full bg-zinc-500/20 flex items-center justify-center text-2xl">
-                            🏁
-                          </div>
-                          <div className="space-y-1">
-                            <span className="text-white font-black text-sm block">
-                              {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                            </span>
-                            <span className="text-zinc-300 text-[11px] block font-bold">
-                              {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
-                            </span>
-                            <span className="text-emerald-400 text-[10.5px] font-bold block bg-emerald-500/10 border border-emerald-500/20 py-1 px-2.5 rounded-lg mt-1">
-                              {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setActiveView('discovery');
-                            }}
-                            className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
-                          >
-                            {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
-                          </button>
-                        </>
-                      );
-                    } else {
-                      return (
-                        <>
-                          <div className="w-12 h-12 rounded-full bg-zinc-500/20 flex items-center justify-center text-xl">
-                            🏁
-                          </div>
-                          <div className="space-y-1">
-                            <span className="text-white font-black text-sm block">
-                              {isAr ? 'انتهى المزاد' : 'Auction Ended'}
-                            </span>
-                            {activeAuction?.currentBidderName && (
-                              <span className="text-zinc-400 text-[10px] block">
-                                {isAr ? `الفائز: ${activeAuction.currentBidderName} بقيمة ${activePrice} د.أ` : `Winner: ${activeAuction.currentBidderName} at ${activePrice} JOD`}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => {
-                              setActiveView('discovery');
-                            }}
-                            className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
-                          >
-                            {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
-                          </button>
-                        </>
-                      );
-                    }
-                  })()}
-                </div>
-              ) : (
-                <>
-                  {/* Quick Bid Multipliers (hidden until the auction is open) */}
-                  {isAuctionOpen(activeAuction?.status) && (() => {
-                    const inc = activeAuction?.minIncrement || 10;
-                    const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
-                    return (
-                      <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-                        {[base, base + inc, base + 2 * inc].map((amount) => (
-                          <Pressable
-                            key={amount}
-                            onClick={() => setPendingBid(amount)}
-                            className="flex-1 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-lg shadow-black/10 hover:bg-white/25"
-                          >
-                            {isAr ? 'زايد' : 'Bid'} {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
-                          </Pressable>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
-                  <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-2.5 text-white">
-                    {/* Current Bid */}
-                    <div className="flex flex-col text-left rtl:text-right">
-                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                        {isAr ? 'العطاء الحالي' : 'Current Bid'}
-                      </span>
-                      <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
-                        <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-white/70">JOD</span>
-                      </span>
-                      <span className="text-[9px] text-emerald-400 font-semibold mt-1 block leading-none">
-                        +{(activeAuction.minIncrement || 10)} JOD
-                      </span>
-                    </div>
-
-                    {/* Time Remaining */}
-                    <div className="flex flex-col items-center justify-center border-x border-white/10 px-2">
-                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider mb-0.5">
-                        {!isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
-                          ? (isAr ? 'يبدأ خلال' : 'Starts in')
-                          : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
-                      </span>
-                      <motion.span
-                        animate={isSnipeWindow ? { scale: [1, 1.1, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
-                        transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
-                        className={`text-sm font-bold font-mono tracking-wider ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
-                      >
-                        {timeLeftStr}
-                      </motion.span>
-                      <span className="text-[8px] text-white/40 tracking-widest uppercase mt-0.5">
-                        HRS : MIN : SEC
-                      </span>
-                    </div>
-
-                    {/* Top Bidder */}
-                    <div className="flex flex-col text-right rtl:text-left">
-                      <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">
-                        {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
-                      </span>
-                      <span className="text-xs font-bold text-white truncate mt-1 leading-none">
-                        {recentBids?.[0]?.name || activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
-                      </span>
-                      {typeof trustScore === 'number' && (
-                        <span className="text-[9px] text-zinc-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
-                          ★ {trustScore}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Winning/Losing indicator (hidden until the auction is open) */}
-                  {(() => {
-                    if (!isAuctionOpen(activeAuction?.status)) return null;
-                    const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
-                    const isUserWinning = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
-                    if (!hasUserBid) return null;
-                    return isUserWinning ? (
-                      <div className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 mb-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently the highest bidder! 🎉'}</span>
-                      </div>
-                    ) : (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{
-                          opacity: 1,
-                          boxShadow: [
-                            '0 0 0 0 rgba(244,63,94,0)',
-                            '0 0 0 5px rgba(244,63,94,0.25)',
-                            '0 0 0 0 rgba(244,63,94,0)',
-                            '0 0 0 5px rgba(244,63,94,0.25)',
-                            '0 0 0 0 rgba(244,63,94,0)',
-                          ],
-                        }}
-                        transition={{ duration: 1.2, ease: 'easeOut' }}
-                        className="bg-rose-500/15 border border-rose-500/35 text-rose-400 text-[10px] font-black py-2 px-3 rounded-xl flex flex-col items-center justify-center gap-2 mb-2 text-center"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
-                          <span>{isAr ? 'تم تجاوز مزايدتك ⚠️' : "You've been outbid ⚠️"}</span>
-                        </span>
-                        <Pressable
-                          onClick={() => openConfirm(nextBidAmount)}
-                          className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
-                        >
-                          {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
-                        </Pressable>
-                      </motion.div>
-                    );
-                  })()}
-
-                  {/* SWIPE TO BID Button (hidden until the auction is open) */}
-                  <div className="w-full">
-                    {!isAuctionOpen(activeAuction?.status) ? (
-                      <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
-                        <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
-                        <div className="text-lg font-bold">
-                          {activeAuction?.scheduledStartAt ? formatAmmanClock(activeAuction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* One-time first-bid coach for active members who have never bid.
-                            Hidden while a bid confirm is open so it can never overlap or
-                            intercept clicks meant for the confirm dialog. */}
-                        <FirstBidCoach
-                          show={currentUser?.subscriptionStatus === 'active' && pendingBid == null}
-                          isAr={isAr}
-                        />
-                        <SwipeToBid
-                          amount={nextBidAmount}
-                          onSwipeSuccess={() => runBid(nextBidAmount)}
-                          onTap={() => openConfirm(nextBidAmount)}
-                          disabled={currentUser?.isBlocked}
-                          language={isAr ? 'ar' : 'en'}
-                        />
-                        <p className="text-[11px] text-gray-400 text-center mt-1">
-                          {isAr
-                            ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                            : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Inline bid confirmation (anchored to the panel, auto-dismisses) */}
-              <BidConfirm
-                amount={pendingBid}
-                isAr={isAr}
-                priceMoved={priceMoved}
-                onConfirm={handleConfirm}
-                onCancel={handleCancel}
-              />
-
-              {/* Winning pill: pops over the panel on a successful bid */}
-              <WinningPill show={showWinPill} isAr={isAr} />
-
-            </div>
+            {/* Bid controls (price/timer/top-bidder, quick-bid tiers, swipe-to-bid,
+                confirm, coach mark) no longer live here — they moved to Card 2 in
+                the right side panel so nothing interactive overlays the media. */}
 
           </div>
         </div>
@@ -908,24 +663,280 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           )}
         </div>
 
-        {/* Card 2: Current Bid & Time Left Card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm grid grid-cols-2 gap-4 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          <div className="text-left rtl:text-right">
-            <span className="text-[9px] text-gray-400 font-extrabold block uppercase tracking-wider leading-none">
-              {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
-            </span>
-            <span className="text-xl font-black text-[#E85D04] font-mono mt-2 block leading-none">
-              <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[11px] font-normal text-gray-500">JOD</span>
-            </span>
-          </div>
-          <div className="text-right rtl:text-left border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <span className="text-[9px] text-gray-400 font-extrabold block uppercase tracking-wider leading-none">
-              {isAr ? 'الوقت المتبقي' : 'TIME REMAINING'}
-            </span>
-            <span className={`text-lg font-black font-mono mt-2 block leading-none ${isSnipeWindow ? 'text-red-500' : 'text-emerald-500'}`}>
-              {timeLeftStr}
-            </span>
-          </div>
+        {/* Card 2: Bid Panel — price/timer/top-bidder, quick-bid tiers,
+            swipe-to-bid, price-moved confirm, first-bid coach. This used to
+            float on top of the video; it now lives in the side panel so it
+            never obscures the item media (founder feedback from Wave 1).
+            Bid-flow wiring below (useBidFlow-equivalent local state:
+            pendingBid/priceMoved/openConfirm/handleConfirm/handleCancel/
+            runBid) is untouched — only JSX position + light-theme styling
+            moved from the dark video-overlay version. */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }} id="desktop-bid-panel">
+          {isEnded ? (
+            <div className="w-full bg-amber-50/60 border border-amber-200 rounded-2xl p-4 text-center flex flex-col items-center justify-center gap-3.5">
+              {(() => {
+                const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                const isUserWinner = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+
+                if (isUserWinner) {
+                  return (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center text-2xl animate-bounce">
+                        🎉
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-emerald-600 font-black text-sm block">
+                          {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won the auction'}
+                        </span>
+                        <span className="text-gray-500 text-[11px] font-semibold block">
+                          {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
+                        </span>
+                        {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
+                          <span className="text-emerald-600/80 text-[11px] font-bold block">
+                            {isAr
+                              ? `وفّرت ${activeAuction.marketPrice - activePrice} دينار (السعر ${activeAuction.marketPrice})`
+                              : `You saved ${activeAuction.marketPrice - activePrice} JOD (worth ${activeAuction.marketPrice})`}
+                          </span>
+                        ) : null}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const matchingOrder = orders?.find(o => o.auctionId === activeAuction?.id && o.buyerId === currentUser?.id);
+                          if (matchingOrder) {
+                            setGlobalSelectedOrderId(matchingOrder.id);
+                          }
+                          setActiveView('orders');
+                        }}
+                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'عرض الطلب' : 'View Order'}
+                      </button>
+                    </>
+                  );
+                } else if (hasUserBid) {
+                  return (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-2xl">
+                        🏁
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-gray-800 font-black text-sm block">
+                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                        </span>
+                        <span className="text-gray-500 text-[11px] block font-bold">
+                          {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
+                        </span>
+                        <span className="text-emerald-600 text-[10.5px] font-bold block bg-emerald-50 border border-emerald-200 py-1 px-2.5 rounded-lg mt-1">
+                          {isAr ? 'تم تجاوز مزايدتك — زايد الآن لاستعادة الصدارة' : "You've been outbid — bid again to take the lead"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setActiveView('discovery');
+                        }}
+                        className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                      </button>
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-xl">
+                        🏁
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-gray-800 font-black text-sm block">
+                          {isAr ? 'انتهى المزاد' : 'Auction Ended'}
+                        </span>
+                        {activeAuction?.currentBidderName && (
+                          <span className="text-gray-400 text-[10px] block">
+                            {isAr ? `الفائز: ${activeAuction.currentBidderName} بقيمة ${activePrice} د.أ` : `Winner: ${activeAuction.currentBidderName} at ${activePrice} JOD`}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setActiveView('discovery');
+                        }}
+                        className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                      >
+                        {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
+                      </button>
+                    </>
+                  );
+                }
+              })()}
+            </div>
+          ) : (
+            <>
+              {/* Quick Bid Multipliers (hidden until the auction is open) */}
+              {isAuctionOpen(activeAuction?.status) && (() => {
+                const inc = activeAuction?.minIncrement || 10;
+                const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
+                return (
+                  <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                    {[base, base + inc, base + 2 * inc].map((amount) => (
+                      <Pressable
+                        key={amount}
+                        onClick={() => setPendingBid(amount)}
+                        className="flex-1 py-1.5 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-orange-100"
+                      >
+                        {isAr ? 'زايد' : 'Bid'} {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                      </Pressable>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="grid grid-cols-3 gap-4 border-b border-gray-100 pb-2.5">
+                {/* Current Bid */}
+                <div className="flex flex-col text-left rtl:text-right">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                    {isAr ? 'العطاء الحالي' : 'Current Bid'}
+                  </span>
+                  <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
+                    <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-gray-500">JOD</span>
+                  </span>
+                  <span className="text-[9px] text-emerald-600 font-semibold mt-1 block leading-none">
+                    +{(activeAuction.minIncrement || 10)} JOD
+                  </span>
+                  {activeAuction.reserveMet === false && (
+                    <span className="text-xs font-semibold text-amber-600 mt-1 block leading-none">
+                      {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
+                    </span>
+                  )}
+                  {activeAuction.reserveMet === true && (
+                    <span className="text-xs font-semibold text-emerald-600 mt-1 block leading-none">
+                      {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Time Remaining */}
+                <div className="flex flex-col items-center justify-center border-x border-gray-100 px-2">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                    {!isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
+                      ? (isAr ? 'يبدأ خلال' : 'Starts in')
+                      : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
+                  </span>
+                  <motion.span
+                    animate={isSnipeWindow ? { scale: [1, 1.1, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                    transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
+                    className={`text-sm font-bold font-mono tracking-wider ${isSnipeWindow ? 'text-red-500' : 'text-emerald-500'}`}
+                  >
+                    {timeLeftStr}
+                  </motion.span>
+                  <span className="text-[8px] text-gray-400 tracking-widest uppercase mt-0.5">
+                    HRS : MIN : SEC
+                  </span>
+                </div>
+
+                {/* Top Bidder */}
+                <div className="flex flex-col text-right rtl:text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                    {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
+                  </span>
+                  <span className="text-xs font-bold text-gray-800 truncate mt-1 leading-none">
+                    {recentBids?.[0]?.name || activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
+                  </span>
+                  {typeof trustScore === 'number' && (
+                    <span className="text-[9px] text-gray-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                      ★ {trustScore}%
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Winning/Losing indicator (hidden until the auction is open) */}
+              {(() => {
+                if (!isAuctionOpen(activeAuction?.status)) return null;
+                const hasUserBid = activeAuction?.id && bids ? bids.some(b => b.auctionId === activeAuction.id && b.bidderId === currentUser?.id) : false;
+                const isUserWinning = hasUserBid && activeAuction?.currentBidderId === currentUser?.id;
+                if (!hasUserBid) return null;
+                return isUserWinning ? (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>{isAr ? 'أنت المزايد الأعلى حالياً! 🎉' : 'You are currently the highest bidder! 🎉'}</span>
+                  </div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: 1,
+                      boxShadow: [
+                        '0 0 0 0 rgba(244,63,94,0)',
+                        '0 0 0 5px rgba(244,63,94,0.18)',
+                        '0 0 0 0 rgba(244,63,94,0)',
+                        '0 0 0 5px rgba(244,63,94,0.18)',
+                        '0 0 0 0 rgba(244,63,94,0)',
+                      ],
+                    }}
+                    transition={{ duration: 1.2, ease: 'easeOut' }}
+                    className="bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-black py-2 px-3 rounded-xl flex flex-col items-center justify-center gap-2 text-center"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
+                      <span>{isAr ? 'تم تجاوز مزايدتك ⚠️' : "You've been outbid ⚠️"}</span>
+                    </span>
+                    <Pressable
+                      onClick={() => openConfirm(nextBidAmount)}
+                      className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
+                    >
+                      {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
+                    </Pressable>
+                  </motion.div>
+                );
+              })()}
+
+              {/* SWIPE TO BID Button (hidden until the auction is open) */}
+              <div className="w-full">
+                {!isAuctionOpen(activeAuction?.status) ? (
+                  <div className="w-full rounded-xl bg-gray-100 text-gray-700 text-center p-4">
+                    <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
+                    <div className="text-lg font-bold">
+                      {activeAuction?.scheduledStartAt ? formatAmmanClock(activeAuction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* One-time first-bid coach for active members who have never bid.
+                        Hidden while a bid confirm is open so it can never overlap or
+                        intercept clicks meant for the confirm dialog. */}
+                    <FirstBidCoach
+                      show={currentUser?.subscriptionStatus === 'active' && pendingBid == null}
+                      isAr={isAr}
+                    />
+                    <SwipeToBid
+                      amount={nextBidAmount}
+                      onSwipeSuccess={() => runBid(nextBidAmount)}
+                      onTap={() => openConfirm(nextBidAmount)}
+                      disabled={currentUser?.isBlocked}
+                      language={isAr ? 'ar' : 'en'}
+                    />
+                    <p className="text-[11px] text-gray-400 text-center mt-1">
+                      {isAr
+                        ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                        : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                    </p>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Inline bid confirmation (anchored to the panel, auto-dismisses) */}
+          <BidConfirm
+            amount={pendingBid}
+            isAr={isAr}
+            priceMoved={priceMoved}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          />
+
+          {/* Winning pill: pops over the panel on a successful bid */}
+          <WinningPill show={showWinPill} isAr={isAr} />
         </div>
 
         {/* Card 3: Bid History Card */}

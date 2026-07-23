@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions, useChat } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FolderLock,
@@ -50,14 +50,23 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
   const prevSecondsRemaining = useRef<number | null>(null);
 
   // 1s countdown tick — only meaningful while the lot is live.
+  // PF7: depend on the primitives the tick actually reads (id/endTime/status),
+  // NOT the activeAuction object identity — before PF5, every bid on ANY lot
+  // handed this component a fresh object and tore down/rebuilt the interval
+  // mid-snipe-window. ⚠️TIMING: `endTime` MUST stay in the deps — an anti-snipe
+  // extension (server adds +15s to endsAt) must restart the countdown from the
+  // new endTime, and `status` must stay so the live→completed flip re-evaluates.
+  const activeAuctionId = activeAuction?.id;
+  const activeAuctionEndTime = activeAuction?.endTime;
+  const activeAuctionStatus = activeAuction?.status;
   useEffect(() => {
-    if (!activeAuction) {
+    if (!activeAuctionId) {
       setSecondsRemaining(null);
       return;
     }
     const update = () => {
-      if (activeAuction.status === 'live') {
-        const remainingMs = (activeAuction.endTime ?? 0) - serverNow();
+      if (activeAuctionStatus === 'live') {
+        const remainingMs = (activeAuctionEndTime ?? 0) - serverNow();
         setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
       } else {
         setSecondsRemaining(null);
@@ -66,7 +75,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
     update(); // run once immediately
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [activeAuction]);
+  }, [activeAuctionId, activeAuctionEndTime, activeAuctionStatus]);
 
   // Reset the edge-detector when the active lot swaps.
   useEffect(() => {
@@ -299,21 +308,21 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
 };
 
 export const LiveStreamView: React.FC = () => {
-  const { 
-    currentUser, 
-    auctions, 
-    activeAuctionId, 
-    setActiveAuctionId, 
-    setActiveView, 
+  const {
+    currentUser,
+    activeAuctionId,
+    setActiveAuctionId,
+    setActiveView,
     placeBid,
     language,
     watchlist,
     toggleWatchlist,
-    chatMessages,
     sendChatMessage,
     orders,
     setGlobalSelectedOrderId
   } = useApp();
+  const { auctions } = useAuctions();
+  const { chatMessages } = useChat();
 
   const isAr = language === 'ar';
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -348,7 +357,7 @@ export const LiveStreamView: React.FC = () => {
     // dead auction as if it were watchable.
     const approvedOnly = auctions.filter(a =>
       a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
-      a.status !== 'completed' && a.status !== 'ended'
+      a.status !== 'completed' && a.status !== 'ended' && a.status !== 'reserve_not_met'
     );
     const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {
@@ -420,28 +429,18 @@ export const LiveStreamView: React.FC = () => {
     />
   );
 
-  // Sync video source & playback when active lot swaps
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !activeAuction) return;
-
-    video.src = activeAuction.videoUrl;
-    video.load();
-    video.muted = isMuted;
-
-    if (isPlaying) {
-      video.play().catch(err => {
-        console.warn("Autoplay was blocked, muted instead:", err);
-        video.muted = true;
-        setIsMuted(true);
-        video.play().catch(e => console.warn("Playback failed entirely:", e));
-      });
-    } else {
-      video.pause();
-    }
-  }, [activeAuctionId, activeAuction?.videoUrl]);
-
-  // Manage mute state on video tag
+  // NOTE (Wave 2 fix): video src/load/play/pause used to be driven imperatively
+  // from here on every lot swap. MediaGallery now OWNS playback for both mobile
+  // (per-reel, via its own internal video ref) and desktop (via the forwarded
+  // `videoRef` below) — it sets <video src> declaratively and plays/pauses based
+  // on (isActive && isPlaying && currentIsVideo). Because effects run child-first,
+  // this parent effect used to re-play the new lot's video (with audio, if
+  // unmuted) AFTER MediaGallery had already paused it on a lot switch, while a
+  // stale gallery index still showed an image slide. Removed entirely so there is
+  // exactly one video controller. Only the mute sync below remains, since it never
+  // touches .src/.load()/.play() — it only mirrors `isMuted` onto the DOM node
+  // that MediaGallery's own ref points at (desktop only; mobile reels are muted
+  // via their own MediaGallery instance and don't read this shared videoRef).
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = isMuted;
@@ -501,15 +500,13 @@ export const LiveStreamView: React.FC = () => {
     // User gesture — unlock the shared AudioContext (iOS autoplay policy) so the
     // later programmatic countdown ticks are audible.
     resumeAudio();
-    const video = videoRef.current;
-    if (!video) return;
-    if (isPlaying) {
-      video.pause();
-      setIsPlaying(false);
-    } else {
-      video.play().catch(() => {});
-      setIsPlaying(true);
-    }
+    // Just flip the flag — MediaGallery (desktop's forwarded ref AND every
+    // mobile reel's own internal ref) reacts to `isPlaying` itself and calls
+    // .play()/.pause() on whichever video element is actually active+visible.
+    // Driving `videoRef.current` here too would be a second controller (and on
+    // mobile the shared `videoRef` is never populated in the first place, since
+    // each reel owns its own local video ref).
+    setIsPlaying(!isPlaying);
   };
 
   const handleMuteToggle = (e: React.MouseEvent) => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, useAuctions } from '../context/AppContext';
 import { OrderDetailsView } from './OrderDetailsView';
 import { winTotalDue } from './feedback';
 import { isViewerWinner } from '../utils/bidMath';
@@ -68,7 +68,8 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 };
 
 export const MyOrdersView: React.FC = () => {
-  const { orders, auctions, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
+  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
+  const { auctions } = useAuctions();
   const isAr = language === 'ar';
   const t = translations[isAr ? 'ar' : 'en'];
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);

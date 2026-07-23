@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
+import { isPendingOrderPayment } from '../utils/paymentReceipt';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
-import { logAnalyticsEvent } from '../services/analyticsService';
 import { 
   ShieldCheck, 
   Users, 
@@ -39,6 +39,10 @@ import {
 // Lazy: the simulator console (bots, spawn presets) is admin-only tooling —
 // keep it out of the main dashboard chunk.
 const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
+// Lazy: the Verify & Approve section (Slice B) — same chunking policy as the
+// simulator. The pending-count badge only needs the tiny paymentReceipt util,
+// so the heavy section stays out of the main chunk until the tab opens.
+const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
 
 /**
  * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
@@ -329,6 +333,7 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
 // reset the useState tab back to GENERAL METRICS. The active tab is therefore
 // mirrored into sessionStorage and restored (validated) on mount.
 const ADMIN_TABS = [
+  'verify',
   'metrics',
   'orders',
   'payments',
@@ -356,11 +361,11 @@ function readStoredAdminTab(): AdminTab {
 }
 
 export const AdminDashboardView: React.FC = () => {
-  const { 
+  const {
     currentUser,
-    users, 
-    auctions, 
-    escrows, 
+    users,
+    usersTotalCount,
+    escrows,
     orders,
     adminActions, 
     adminActionsError,
@@ -387,6 +392,7 @@ export const AdminDashboardView: React.FC = () => {
     resetOnboarding,
     setActiveView
   } = useApp();
+  const { auctions } = useAuctions();
 
   const t = translations[language];
   const isAr = language === 'ar';
@@ -472,6 +478,15 @@ export const AdminDashboardView: React.FC = () => {
   const realAuctions = (auctions || []).filter((a: any) => a.isSimulated !== true);
   const realOrders = (orders || []).filter((o: any) => o.isSimulated !== true);
   const simOrdersCount = (orders || []).length - realOrders.length;
+
+  // Verify & Approve — order payments awaiting review (receipt attached, not
+  // yet verified). Same predicate as the section's queue (shared util), and
+  // sourced from realOrders (isSimulated !== true) so simulated orders never
+  // inflate the badge — matching the real-metric hygiene used across this file.
+  const pendingOrderPaymentsCount = useMemo(
+    () => realOrders.filter(isPendingOrderPayment).length,
+    [realOrders]
+  );
 
   // Auctions the settlement cron should already have closed: still live/active
   // but ended more than 2 minutes ago.
@@ -796,44 +811,19 @@ export const AdminDashboardView: React.FC = () => {
     console.log("Pending subscriptions count", pendingSubsCount);
   }, [auctions, subscriptionRequests, currentUser]);
 
+  // Wave 1 S3 — grants are SERVER-ONLY. The approveSubscription callable is
+  // the sole writer of the user subscription fields (rules block all client
+  // writes, this admin dashboard included). It re-derives the duration from
+  // the request's verified amount / canonical tier and logs the conversion.
   const approveSubscription = async (request: any) => {
     try {
-      const plan = request.plan || 'monthly';
-      let durationDays = 30;
-      if (plan === 'semiannual') {
-        durationDays = 180; // 4 JD / 6-month tier
-      } else if (plan === 'quarterly') {
-        durationDays = 90; // legacy 3-month tier (retained for any old pending request)
-      } else if (plan === 'annual' || plan === 'yearly') {
-        durationDays = 365;
-      }
+      const approveCallable = await getCallableFunction<
+        { reqId: string },
+        { success: boolean; alreadyApproved?: boolean; tier?: string; durationDays?: number }
+      >('approveSubscription');
+      await approveCallable({ reqId: request.id });
 
-      const now = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(now.getDate() + durationDays);
-
-      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-        subscriptionStatus: 'approved',
-        status: 'approved'
-      });
-
-      await updateDoc(doc(db, 'users', request.userId), {
-        subscriptionStatus: 'active',
-        subscriptionPlan: plan,
-        subscriptionTier: plan,
-        subscriptionExpiry: expiryDate.getTime(),
-        subscriptionApprovedAt: serverTimestamp(),
-        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-      });
-
-      // Log subscription conversion to Analytics
-      await logAnalyticsEvent('subscription_conversion', request.userId, request.userEmail || null, {
-        plan,
-        durationDays,
-        price: request.price || 0
-      });
-
-      alert(isAr 
+      alert(isAr
         ? `🎉 تم تفعيل اشتراك المستخدم (${request.userName || request.userEmail || 'المشترك'}) بنجاح!` 
         : `🎉 User subscription (${request.userName || request.userEmail || 'Subscriber'}) has been activated successfully!`
       );
@@ -846,22 +836,18 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Direct (comped) activation — also server-only via the same callable
+  // (defaults to the 30-day monthly tier; duration comes from the canonical
+  // tier table on the server).
   const approveUserDirect = async (user: any) => {
     try {
-      const now = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(now.getDate() + 30); // Default to 30 days
+      const approveCallable = await getCallableFunction<
+        { userId: string },
+        { success: boolean }
+      >('approveSubscription');
+      await approveCallable({ userId: user.id });
 
-      await updateDoc(doc(db, 'users', user.id), {
-        subscriptionStatus: 'active',
-        subscriptionPlan: 'monthly',
-        subscriptionTier: 'monthly',
-        subscriptionExpiry: expiryDate.getTime(),
-        subscriptionApprovedAt: serverTimestamp(),
-        subscriptionExpiresAt: Timestamp.fromDate(expiryDate)
-      });
-
-      alert(isAr 
+      alert(isAr
         ? `🎉 تم التفعيل الفوري لحساب العضو (${user.name || user.email}) بنجاح!` 
         : `🎉 Direct VIP status has been granted to user (${user.name || user.email}) successfully!`
       );
@@ -874,17 +860,17 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Wave 1 S3 — the user subscription fields are locked to the server, so the
+  // downgrade goes through the admin-only rejectSubscription callable.
   const rejectUserDirect = async (user: any) => {
     try {
-      await updateDoc(doc(db, 'users', user.id), {
-        subscriptionStatus: 'rejected',
-        subscriptionExpiry: null,
-        subscriptionPlan: null,
-        subscriptionApprovedAt: null,
-        subscriptionExpiresAt: null
-      });
+      const rejectCallable = await getCallableFunction<
+        { userId: string },
+        { success: boolean }
+      >('rejectSubscription');
+      await rejectCallable({ userId: user.id });
 
-      alert(isAr 
+      alert(isAr
         ? `⚠️ تم رفض تفعيل العضو (${user.name || user.email}).` 
         : `⚠️ User (${user.name || user.email}) activation has been rejected.`
       );
@@ -897,31 +883,19 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
-  const rejectSubscription = async (request: any) => {
+  // Wave 1 S3 — server-side reject: marks the request rejected and downgrades
+  // the user ONLY if they are still pending (rejecting a duplicate/stale
+  // request never wipes an already-active membership — enforced in the
+  // rejectSubscription Cloud Function).
+  const rejectSubscription = async (request: any, reason?: string) => {
     try {
-      // Reject always updates the REQUEST doc...
-      await updateDoc(doc(db, 'subscriptionRequests', request.id), {
-        subscriptionStatus: 'rejected',
-        status: 'rejected'
-      });
+      const rejectCallable = await getCallableFunction<
+        { reqId: string; reason?: string },
+        { success: boolean; userDowngraded?: boolean }
+      >('rejectSubscription');
+      await rejectCallable({ reqId: request.id, ...(reason ? { reason } : {}) });
 
-      // ...but only downgrades the USER if they are still pending. Rejecting a
-      // duplicate/stale request must NEVER wipe an already-active membership.
-      if (request.userId) {
-        const userSnap = await getDoc(doc(db, 'users', request.userId));
-        const userStatus = userSnap.exists() ? (userSnap.data() as any)?.subscriptionStatus : null;
-        if (userStatus === 'pending') {
-          await updateDoc(doc(db, 'users', request.userId), {
-            subscriptionStatus: 'rejected',
-            subscriptionExpiry: null,
-            subscriptionPlan: null,
-            subscriptionApprovedAt: null,
-            subscriptionExpiresAt: null
-          });
-        }
-      }
-
-      alert(isAr 
+      alert(isAr
         ? `⚠️ تم رفض طلب الاشتراك للعضو (${request.userName || request.userEmail}) بنجاح.` 
         : `⚠️ Subscription request for (${request.userName || request.userEmail}) has been rejected.`
       );
@@ -930,6 +904,51 @@ export const AdminDashboardView: React.FC = () => {
       alert(isAr 
         ? `❌ فشل رفض الطلب: ${err.message || String(err)}` 
         : `❌ Failed to reject subscription: ${err.message || String(err)}`
+      );
+    }
+  };
+
+  // Slice B — order-payment verification is SERVER-ONLY (rules deny client
+  // writes to paymentVerified*); both actions go through the admin-only
+  // verifyOrderPayment callable.
+  const handleVerifyOrderPayment = async (orderId: string) => {
+    try {
+      const verifyCallable = await getCallableFunction<
+        { orderId: string; action: 'verify' | 'reject'; reason?: string },
+        { success: boolean; alreadyVerified?: boolean }
+      >('verifyOrderPayment');
+      await verifyCallable({ orderId, action: 'verify' });
+
+      alert(isAr
+        ? '✅ تم تأكيد استلام الدفعة وتوثيقها على الطلب.'
+        : '✅ Payment marked verified on the order.'
+      );
+    } catch (err: any) {
+      console.error('Error verifying order payment:', err);
+      alert(isAr
+        ? `❌ فشل تأكيد الدفع: ${err.message || String(err)}`
+        : `❌ Failed to verify payment: ${err.message || String(err)}`
+      );
+    }
+  };
+
+  const handleRejectOrderPayment = async (orderId: string, reason: string) => {
+    try {
+      const verifyCallable = await getCallableFunction<
+        { orderId: string; action: 'verify' | 'reject'; reason?: string },
+        { success: boolean }
+      >('verifyOrderPayment');
+      await verifyCallable({ orderId, action: 'reject', reason });
+
+      alert(isAr
+        ? '⚠️ تم رفض إثبات الدفع وإرجاع الطلب إلى انتظار الدفع.'
+        : '⚠️ Payment proof rejected — order returned to waiting for payment.'
+      );
+    } catch (err: any) {
+      console.error('Error rejecting order payment:', err);
+      alert(isAr
+        ? `❌ فشل رفض إثبات الدفع: ${err.message || String(err)}`
+        : `❌ Failed to reject payment proof: ${err.message || String(err)}`
       );
     }
   };
@@ -1038,13 +1057,14 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
+        {(['verify', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
           const tabLabel = isAr
-            ? (tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
-            : (tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
-          
+            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
+            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
+
           const isActive = activeTab === tab;
-          const hasPendingRequests = 
+          const hasPendingRequests =
+            (tab === 'verify' && (subscriptionRequests.length > 0 || pendingOrderPaymentsCount > 0)) ||
             (tab === 'subscriptions' && subscriptionRequests.length > 0) ||
             (tab === 'withdrawals' && allWithdrawals.filter((w: any) => w.status === 'pending_review').length > 0);
           
@@ -1061,9 +1081,11 @@ export const AdminDashboardView: React.FC = () => {
               <span>{tabLabel}</span>
               {hasPendingRequests && (
                 <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
-                  {tab === 'subscriptions' 
-                    ? subscriptionRequests.length 
-                    : allWithdrawals.filter((w: any) => w.status === 'pending_review').length}
+                  {tab === 'verify'
+                    ? subscriptionRequests.length + pendingOrderPaymentsCount
+                    : tab === 'subscriptions'
+                      ? subscriptionRequests.length
+                      : allWithdrawals.filter((w: any) => w.status === 'pending_review').length}
                 </span>
               )}
             </button>
@@ -1080,6 +1102,29 @@ export const AdminDashboardView: React.FC = () => {
        {/* Main Content Area */}
       <div className="p-5 max-w-5xl mx-auto w-full space-y-5">
         
+        {/* ==========================================
+            TAB: VERIFY & APPROVE (Slice B — daily money job)
+            ========================================== */}
+        {activeTab === 'verify' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <VerifyApproveSection
+              isAr={isAr}
+              subscriptionRequests={subscriptionRequests}
+              orders={realOrders}
+              onApproveSubscription={approveSubscription}
+              onRejectSubscription={rejectSubscription}
+              onVerifyOrderPayment={handleVerifyOrderPayment}
+              onRejectOrderPayment={handleRejectOrderPayment}
+            />
+          </React.Suspense>
+        )}
+
         {/* ==========================================
             TAB: ORDERS MANAGEMENT
             ========================================== */}
@@ -1324,7 +1369,7 @@ export const AdminDashboardView: React.FC = () => {
             {/* Elegant 4-Card Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               
-              {/* Card 1: Escrow Vault */}
+              {/* Card 1: Funds held by Mazad */}
               <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
@@ -1389,7 +1434,7 @@ export const AdminDashboardView: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {users.length} <span className="text-xs font-bold text-gray-400">{isAr ? 'عضو' : 'Users'}</span>
+                  {usersTotalCount ?? users.length} <span className="text-xs font-bold text-gray-400">{isAr ? 'عضو' : 'Users'}</span>
                 </p>
                 <div className="text-[9px] text-gray-400 mt-1">
                   {isAr ? 'إجمالي الحسابات المسجلة بالمنصة' : 'Total accounts in database'}
