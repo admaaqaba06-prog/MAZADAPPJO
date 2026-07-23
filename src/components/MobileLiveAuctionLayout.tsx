@@ -1157,8 +1157,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
    changes. It deliberately IGNORES the unstable inline callback props
    (onBidExecute, onMuteToggle, onCommentSubmit, …): whenever a value one of them
    closes over matters, a corresponding scalar prop below also changes and forces
-   the re-render, so the reel never runs a stale handler. Context-sourced data
-   (bids/orders/sellerProfiles via useApp) bypasses memo and re-renders anyway.
+   the re-render, so the reel never runs a stale handler. Perf Wave 3c hoisted
+   sellerProfile/hasUserBid/winnerOrderId out of the reel's own useApp() reads
+   into derived props from the list parent — this comparator MUST compare all
+   three explicitly below, or a change (e.g. the winner's order arriving after
+   the reel goes quiescent) is silently dropped by memo.
    Return TRUE to SKIP re-render (props considered equal).
    ---------------------------------------------------------------------- */
 // Shallow string-array compare — mediaUrls/conciergePhotos get a fresh array
@@ -1175,7 +1178,7 @@ const sameStringArray = (
   return xa.every((v, i) => v === ya[i]);
 };
 
-const areReelPropsEqual = (
+export const areReelPropsEqual = (
   prev: Readonly<MobileAuctionReelProps>,
   next: Readonly<MobileAuctionReelProps>
 ): boolean => {
@@ -1216,7 +1219,23 @@ const areReelPropsEqual = (
     prev.isSaved !== next.isSaved ||
     prev.nextBidAmount !== next.nextBidAmount ||
     prev.language !== next.language ||
-    prev.isAr !== next.isAr
+    prev.isAr !== next.isAr ||
+    prev.hasUserBid !== next.hasUserBid ||
+    prev.winnerOrderId !== next.winnerOrderId
+  ) {
+    return false;
+  }
+
+  // sellerProfile is a derived prop (list parent looks it up per-render), so
+  // its object reference churns even when nothing the reel actually shows
+  // (verification badge, store logo, seller id for the tap target) changed.
+  // Compare by the fields read, not by reference.
+  const ps = prev.sellerProfile ?? null;
+  const ns = next.sellerProfile ?? null;
+  if (
+    ps?.verificationStatus !== ns?.verificationStatus ||
+    ps?.storeLogo !== ns?.storeLogo ||
+    ps?.userId !== ns?.userId
   ) {
     return false;
   }
