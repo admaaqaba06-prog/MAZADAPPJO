@@ -7,10 +7,12 @@ import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBi
 import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
+import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
-import { isAdminUser } from '../utils/adminAuth';
+import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
+import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
@@ -479,34 +481,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mazad_deleted_auctions', JSON.stringify(deletedAuctionIds));
   }, [deletedAuctionIds]);
 
-  // Sync state changes with localStorage
-  useEffect(() => {
-    localStorage.setItem('mazad_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_seller_profiles', JSON.stringify(sellerProfiles));
-  }, [sellerProfiles]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_auctions', JSON.stringify(auctions));
-  }, [auctions]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_bids', JSON.stringify(bids));
-  }, [bids]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_wallet', JSON.stringify(wallet));
-  }, [wallet]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_escrows', JSON.stringify(escrows));
-  }, [escrows]);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_chat_messages', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+  // Sync state changes with localStorage.
+  //
+  // `users`, `auctions` and `adminActions` are write-only here (nothing
+  // reads `mazad_users` / `mazad_auctions` / `mazad_admin_actions` back —
+  // they're populated straight from Firestore snapshots on boot), so
+  // per-delta persistence was pure overhead: a synchronous JSON.stringify of
+  // an 80-doc auctions array on every bid, on every lot. Firestore's own
+  // client cache already survives reloads, so these writes were removed
+  // outright rather than throttled.
+  //
+  // `sellerProfiles`, `bids`, `wallet`, `escrows` and `chatMessages` ARE read
+  // back from localStorage as an instant-paint seed on init, so they still
+  // need to persist — just not synchronously on every delta. Throttled to
+  // at most once every few seconds (flushed on tab-hide/unmount too).
+  useThrottledLocalStorageSync('mazad_seller_profiles', sellerProfiles);
+  useThrottledLocalStorageSync('mazad_bids', bids);
+  useThrottledLocalStorageSync('mazad_wallet', wallet);
+  useThrottledLocalStorageSync('mazad_escrows', escrows);
+  useThrottledLocalStorageSync('mazad_chat_messages', chatMessages);
 
   // One-time purge of the pre-fix SHARED bell keys: they leaked one user's
   // private verdicts (incl. rejection reasons) to the next account on the
@@ -517,10 +510,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(LEGACY_DISMISSED_KEY);
     } catch { /* storage unavailable — nothing leaked then */ }
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('mazad_admin_actions', JSON.stringify(adminActions));
-  }, [adminActions]);
 
   // Revive custom blob videos on load from IndexedDB (Disabled as we use permanent Firebase Storage uploads now)
   /*
@@ -1495,7 +1484,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to escrows where bidderId == userId or sellerId == userId (limit 100)
       const bidderEscrowsQuery = query(collection(db, 'escrows'), where('bidderId', '==', currentUser.id), limit(100));
-      const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
 
       let bidderEscrows: EscrowTransaction[] = [];
       let sellerEscrows: EscrowTransaction[] = [];
@@ -1526,39 +1514,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'escrows' (bidder) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
-        const list: EscrowTransaction[] = [];
-        snap.forEach((docSnap) => {
-          const rawData = docSnap.data();
-          const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
-          list.push({
-            id: docSnap.id,
-            ...rawData,
-            amount
-          } as EscrowTransaction);
+      // Pure buyers have no seller-side escrow rows — skip opening this
+      // subscription for them entirely (one fewer live listener for the
+      // majority of sessions, which are buyers, not sellers).
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
+          const list: EscrowTransaction[] = [];
+          snap.forEach((docSnap) => {
+            const rawData = docSnap.data();
+            const amount = (rawData.amountFils !== undefined ? rawData.amountFils / 1000 : (rawData.amount ?? 0));
+            list.push({
+              id: docSnap.id,
+              ...rawData,
+              amount
+            } as EscrowTransaction);
+          });
+          sellerEscrows = list;
+          updateMergedEscrows();
+        }, (err) => {
+          console.warn("Firestore 'escrows' (seller) sync error:", err);
         });
-        sellerEscrows = list;
-        updateMergedEscrows();
-      }, (err) => {
-        console.warn("Firestore 'escrows' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBidder();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.role, currentUser?.isAdmin, currentUser?.isSeller, isDeferredReady]);
 
-  // Real-time chats synchronization with Firestore
+  // Real-time chats synchronization with Firestore.
+  //
+  // Gated on activeView === 'live': chatMessages is only ever read by
+  // LiveStreamView / ReelsDesktopRightPanel, both of which only mount for
+  // activeView === 'live' (see App.tsx's ActiveViewRenderer) — so there's
+  // no other screen depending on this being populated. Previously this
+  // subscription stayed open on every view, pinned to a default auction.
+  //
+  // NOTE (corrected): an earlier version of this fix removed the `limit(100)`
+  // cap and argued the read was "bounded in practice" because only one
+  // room's listener is open at a time. That conflates listener COUNT (always
+  // 1, thanks to the activeView gate) with per-listener DOC count — a single
+  // listener on a busy room with zero limit still reads every message in
+  // that room's entire history on every snapshot, which is an unbounded and
+  // growing read cost, not a bounded one. The actual fix is a server-side
+  // `orderBy('timestamp','desc').limit(100)`, backed by the (auctionId,
+  // timestamp) composite index in firestore.indexes.json — newest 100 only,
+  // then reversed below to the ascending order the UI expects.
   useEffect(() => {
-    if (!isAuthenticated || !isDeferredReady) {
+    if (!isAuthenticated || !isDeferredReady || activeView !== 'live') {
       return;
     }
     const targetAuctionId = activeAuctionId || 'auction-rolex';
     const chatsRefCol = collection(db, 'chats');
-    // Query chats filtered by the active auction ID, limiting to 100
-    const q = query(chatsRefCol, where('auctionId', '==', targetAuctionId), limit(100));
+    const q = query(
+      chatsRefCol,
+      where('auctionId', '==', targetAuctionId),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const fetchedChats: ChatMessage[] = [];
@@ -1568,8 +1584,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...docSnap.data()
           } as ChatMessage);
         });
-        // Sort in-memory to prevent requiring compound indexes
-        fetchedChats.sort((a, b) => a.timestamp - b.timestamp);
+        // Query returns newest-first (desc); LiveStreamView/ReelsDesktopRightPanel
+        // render chatMessages oldest→newest (they treat the last array element
+        // as "latest"), so reverse to ascending order before publishing.
+        fetchedChats.reverse();
         setChatMessages(fetchedChats);
       } else {
         setChatMessages([]);
@@ -1578,7 +1596,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore 'chats' collection sync error:", err);
     });
     return () => unsub();
-  }, [isAuthenticated, isDeferredReady, activeAuctionId]);
+  }, [isAuthenticated, isDeferredReady, activeAuctionId, activeView]);
 
   // Real-time all users database synchronization with Firestore
   useEffect(() => {
@@ -1818,7 +1836,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Standard user: listen to orders where buyerId == userId or sellerId == userId (limit 100)
       const buyerQuery = query(collection(db, 'orders'), where('buyerId', '==', currentUser.id), limit(100));
-      const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
 
       let buyerOrders: Order[] = [];
       let sellerOrders: Order[] = [];
@@ -1850,26 +1867,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'orders' (buyer) sync error:", err);
       });
 
-      const unsubSeller = onSnapshot(sellerQuery, (snap) => {
-        const list: Order[] = [];
-        snap.forEach((docSnap) => {
-          list.push({
-            id: docSnap.id,
-            ...docSnap.data()
-          } as Order);
+      // Pure buyers have no seller-side orders — skip opening this
+      // subscription for them entirely.
+      let unsubSeller = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
+        unsubSeller = onSnapshot(sellerQuery, (snap) => {
+          const list: Order[] = [];
+          snap.forEach((docSnap) => {
+            list.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as Order);
+          });
+          sellerOrders = list;
+          updateMergedOrders();
+        }, (err) => {
+          console.warn("Firestore 'orders' (seller) sync error:", err);
         });
-        sellerOrders = list;
-        updateMergedOrders();
-      }, (err) => {
-        console.warn("Firestore 'orders' (seller) sync error:", err);
-      });
+      }
 
       return () => {
         unsubBuyer();
         unsubSeller();
       };
     }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
   // Real-time synchronization for trust system collections
   useEffect(() => {
@@ -1935,11 +1958,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       // Buyer/Seller: Merge disputes where buyerId == currentUser.id OR sellerId == currentUser.id (limit 50)
       const qBuyerDisp = query(collection(db, 'disputes'), where('buyerId', '==', currentUser.id), limit(50));
-      const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
-      
+
       let bDisps: Dispute[] = [];
       let sDisps: Dispute[] = [];
-      
+
       const updateDisputes = () => {
         const merged = new Map<string, Dispute>();
         bDisps.forEach(d => merged.set(d.id, d));
@@ -1954,12 +1976,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateDisputes();
       }, (err) => console.warn("Buyer disputes sync error:", err));
 
-      const unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
-        const list: Dispute[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
-        sDisps = list;
-        updateDisputes();
-      }, (err) => console.warn("Seller disputes sync error:", err));
+      // Pure buyers have no seller-side disputes — skip opening this
+      // subscription for them entirely.
+      let unsubSellerDisp = () => {};
+      if (isAdminOrSeller(currentUser)) {
+        const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
+        unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
+          const list: Dispute[] = [];
+          snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Dispute));
+          sDisps = list;
+          updateDisputes();
+        }, (err) => console.warn("Seller disputes sync error:", err));
+      }
 
       unsubDisputes = () => {
         unsubBuyerDisp();
@@ -1973,7 +2001,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReports();
       unsubDisputes();
     };
-  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, isDeferredReady]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.isAdmin, currentUser?.role, currentUser?.isSeller, isDeferredReady]);
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -2593,8 +2621,15 @@ const fetchIP = async () => {
       } catch { /* storage full/unavailable — resurrection is tolerable */ }
     };
 
-    // Same index-free pattern as SellerCenterView: where-only + client sort.
-    const q = query(collection(db, 'notifications'), where('userId', '==', currentUser.id));
+    // Bounded server-side to the newest 50 (backed by the composite index on
+    // (userId ASC, timestamp DESC) in firestore.indexes.json) so a long-lived
+    // account never re-reads its entire notification history on every app open.
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', currentUser.id),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
     const unsub = onSnapshot(q, (snap) => {
       const dismissed = readDismissed();
       const currentIds = new Set(notificationsStateRef.current.map(n => n.id));
@@ -2633,7 +2668,9 @@ const fetchIP = async () => {
       setNotifications(prev => {
         const incomingIds = new Set(incoming.map(n => n.id));
         const rest = prev.filter(n => !incomingIds.has(n.id));
-        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp);
+        // Query is already bounded to the newest 50 server-side; the sort +
+        // slice here are belt-and-suspenders across the merge with prior state.
+        return [...incoming, ...rest].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
       });
     }, (err: any) => {
       console.warn('Bell notifications subscription failed:', err?.code, err?.message);
@@ -3069,21 +3106,30 @@ const fetchIP = async () => {
     ): Promise<string> => {
       const { ref, uploadBytesResumable, getDownloadURL, getStorage } = await import('firebase/storage');
       const { getFirebaseStorage } = await import('../services/firebase');
-      
+
+      // Thumbnails (never video) get shrunk to a card-friendly size before
+      // upload — raw 12MP phone photos as small-card thumbnails is pure
+      // waste, and every Discovery card downloads one of these.
+      // resizeImage() never throws and falls back to the original file
+      // whenever it isn't a clear win, so this is always safe to await.
+      const uploadFile: File | Blob = pathPrefix === 'auction-thumbnails'
+        ? await resizeImage(file)
+        : file;
+
       const storage = await getFirebaseStorage();
       const fileName = (file as any).name || defaultName;
       const cleanPath = `${pathPrefix}/${Date.now()}_${fileName}`;
       const metadata = {
-        contentType: (file as any).type && (file as any).type.trim() !== ''
-          ? (file as any).type
-          : contentTypeDefault
+        contentType: (uploadFile as any).type && (uploadFile as any).type.trim() !== ''
+          ? (uploadFile as any).type
+          : ((file as any).type && (file as any).type.trim() !== '' ? (file as any).type : contentTypeDefault)
       };
 
       // Try primary bucket first
       try {
         console.log(`Attempting upload to primary bucket at path: ${cleanPath}...`);
         const primaryRef = ref(storage, cleanPath);
-        const uploadTask = uploadBytesResumable(primaryRef, file, metadata);
+        const uploadTask = uploadBytesResumable(primaryRef, uploadFile, metadata);
         
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
@@ -3103,7 +3149,7 @@ const fetchIP = async () => {
           // Initialize storage instance with fallback bucket
           const fallbackStorage = getStorage(storage.app, "gs://mazadjoapp.appspot.com");
           const fallbackRef = ref(fallbackStorage, cleanPath);
-          const uploadTaskFallback = uploadBytesResumable(fallbackRef, file, metadata);
+          const uploadTaskFallback = uploadBytesResumable(fallbackRef, uploadFile, metadata);
           
           if (onProgressLocal) onProgressLocal(0); // Reset progress for retry
           
