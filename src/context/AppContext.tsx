@@ -14,6 +14,7 @@ import { filterSimulated } from '../utils/simVisibility';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
+import { stripReserve } from '../utils/reserveStrip';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
@@ -3113,7 +3114,7 @@ const fetchIP = async () => {
     }
 
     // Reserve must NOT be written to the world-readable auction doc.
-    const { reservePrice, ...auctionInput } = listingData as typeof listingData & { reservePrice?: number };
+    const { reservePrice, auctionInput } = stripReserve(listingData as typeof listingData & { reservePrice?: number });
 
     const newListingId = `auction-new-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
@@ -3284,6 +3285,11 @@ const fetchIP = async () => {
     const newListing: any = {
       ...auctionInput,
       ...(assignedAuctionNumber != null ? { auctionNumber: assignedAuctionNumber } : {}),
+      // Initialize the buyer-visible "reserve not yet met" flag to false when a
+      // reserve is actually set. Only the boolean crosses onto the world-readable
+      // auction doc — never the amount (that lives in auctionSecrets, see below).
+      // onBidCreated flips this to true once a qualifying bid lands.
+      ...(reservePrice && reservePrice > 0 ? { reserveMet: false } : {}),
       id: newListingId,
       currentPrice: listingData.startingPrice,
       sellerId: currentUser.id,
