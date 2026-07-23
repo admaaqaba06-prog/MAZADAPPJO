@@ -30,9 +30,13 @@ A reusable review-card unit presenting:
 The subscription-request review queue **only** (not a broader "manage all members" screen — confirmed). Each request renders through the verify core. **Approve** grants membership via the existing server-only `approveSubscription` callable; **Reject** captures a reason via `rejectSubscription` and notifies the user (see Reject flow). Grants stay 100% server-authoritative — the client never writes membership/subscription state.
 
 ### Sub-view 2 — Order payments
-Won orders in `waiting_payment` that carry a submitted buyer receipt (`paymentProofUrl`), rendered through the verify core. **This is the seam with Slice C (fulfillment):** Slice B ends at "payment verified → order marked `paid`"; Slice C picks up everything from `paid` onward (preparing → shipped → delivered → escrow release). Slice B builds NO post-paid UI.
+**Ground truth (post-PR #61/#64, verified in code):** the buyer already self-serves the `paid` flip — they upload `paymentProofUrl` (+ delivery address) onto the order, then `executeOrderTransition(order,'pay',…)` client-writes `status/paymentStatus: 'paid'` (the rules' one permitted buyer transition, logged as "pending admin confirmation"). **No admin verification stamp exists anywhere** — a seller can even start shipment on a self-claimed payment; verification is only implicit at escrow release. So Slice B's job is NOT creating the paid transition (my earlier draft was wrong) — it is **verifying the self-claim**:
 
-**Net-new backend (money-path):** a `confirmOrderPayment` admin-only callable that transitions an order `waiting_payment → paid` (sets `paymentStatus: 'paid'`, `status: 'paid'`, stamps verifier + timestamp). This does not exist today — no writer moves an order to paid. The client must never write this transition; it goes through the callable, gated in `firestore.rules` + verified `isAdmin` server-side.
+- **Queue:** orders with a submitted `paymentProofUrl` and `paymentVerified !== true` (covering both self-claimed `paid` and any proof-uploaded-but-unflipped `waiting_payment` stragglers), rendered through the verify core.
+- **Verify** → net-new admin-only callable `verifyOrderPayment({ orderId, action:'verify' })`: stamps `paymentVerified: true, paymentVerifiedBy, paymentVerifiedAt` (Admin SDK, server-authoritative; also normalizes a straggler to `paid`).
+- **Reject** → same callable with `action:'reject', reason`: server-resets `paymentStatus → 'unpaid'`, `status → 'waiting_payment'` (a paid→unpaid reset is admin/server-only per the rules), stamps the reason, fires the `order_payment_rejected` notify.
+
+**Seam with Slice C (fulfillment):** Slice B ends at "payment **verified**"; Slice C owns everything after (preparing → shipped → delivered → escrow release — including whether `prepare_shipment` should gate on `paymentVerified`, which it currently does not). Slice B builds NO post-verify UI.
 
 ### Reject flow (both sub-views)
 Reject requires a short reason (pick-list + free text) and **notifies the user** so they can fix and resubmit, closing the loop. Reuses the existing `rejectionReason` field pattern (already used for auctions + withdrawals) and the `postToN8n` WhatsApp pipe. Two **new n8n events**: `membership_rejected` and `order_payment_rejected`, each carrying `{ phone, name, reason, ... }`. Membership reject already downgrades via `rejectSubscription`; this slice adds the reason + notification to that path and the new order-payment path.
@@ -42,8 +46,9 @@ Reject requires a short reason (pick-list + free text) and **notifies the user**
 - **`src/utils/paymentReceipt.ts`** (new) — `normalizeReceiptUrl(record)` → single resolved URL (absorbs the five-field fallback + the sub `paymentProofImage` + order `paymentProofUrl`); `receiptFingerprint(record)` for the duplicate guard. Pure, unit-tested.
 - **`src/components/admin/PaymentVerifyCard.tsx`** (new) — the shared verify-core card (receipt viewer, amount-match, payer identity, dup-guard badge, approve/reject-with-reason). Presentational + callback props; no Firestore writes of its own.
 - **`src/components/admin/VerifyApproveSection.tsx`** (new) — hosts the two sub-views (tab/segment switch: Memberships | Order payments) + per-sub-view counts.
-- **`functions/index.js`** — add `confirmOrderPayment` callable; add `postToN8n('membership_rejected'|'order_payment_rejected', …)`; extend `rejectSubscription` to carry a reason + fire the notify.
-- **`firestore.rules`** — ensure order `paid` transition is not client-writable (confirm current rule; the callable bypasses rules server-side).
+- **`functions/index.js`** — add the `verifyOrderPayment` callable (verify/reject actions, above); fire `postToN8n('membership_rejected'|'order_payment_rejected', …)`; extend the `rejectSubscription` callable to accept a reason.
+- **`functions/subscriptionApproval.js`** — PR #61 already extracted approval/rejection into this pure, tested module; extend `rejectSubscriptionRequest(deps,{reqId,userId})` with `reason` (stored as `rejectionReason` on the request doc) and extend its existing test file.
+- **`firestore.rules`** — add `paymentVerified`/`paymentVerifiedBy`/`paymentVerifiedAt`/`rejectionReason` (orders) to the S2 client-update denylist so only the callable can write them.
 - **n8n** — two new webhook branches (assisted, documented) for the reject events. If the workflow isn't updated, `postToN8n` no-ops safely (unset `N8N_WEBHOOK_URL` / unknown event → no-op), so the app never breaks on a missing branch.
 - **`AdminDashboardView.tsx`** — mount the new `Verify & Approve` section; leave the existing `CLIQ PAYMENTS` (deposit) tab untouched.
 
@@ -51,11 +56,11 @@ Reject requires a short reason (pick-list + free text) and **notifies the user**
 
 **Membership:** user submits sub request + `paymentProofImage` → appears in Memberships queue → reviewer verifies via card → Approve (`approveSubscription`, server grants tier/expiry) OR Reject (reason → `rejectSubscription` downgrades + `membership_rejected` notify).
 
-**Order payment:** buyer wins → order `waiting_payment` → buyer uploads `paymentProofUrl` on the order → appears in Order-payments queue → reviewer verifies via card → Confirm (`confirmOrderPayment` → `paid`) hands off to Slice C OR Reject (reason → order stays `waiting_payment`/flagged + `order_payment_rejected` notify).
+**Order payment:** buyer wins → order `waiting_payment` → buyer uploads `paymentProofUrl` + self-claims `paid` (existing flow) → appears in Order-payments queue (proof present, `paymentVerified !== true`) → reviewer verifies via card → Verify (`verifyOrderPayment` stamps `paymentVerified`) hands off to Slice C OR Reject (reason → server-resets to `waiting_payment`/`unpaid` + `order_payment_rejected` notify → buyer resubmits).
 
 ## Error Handling
 
-- All state-changing actions are **server callables** (`approveSubscription`, `rejectSubscription`, `confirmOrderPayment`); the client never writes grant/paid/money state directly. `confirmOrderPayment` re-checks `isAdmin` and the order's current status server-side (idempotent: no-op/deny if already `paid`).
+- All state-changing actions are **server callables** (`approveSubscription`, `rejectSubscription`, `verifyOrderPayment`); the client never writes grant/verify/money state directly. `verifyOrderPayment` re-checks admin and the order's current state server-side (idempotent: verify on already-verified is a no-op; reject requires a non-empty reason).
 - `normalizeReceiptUrl` returns null for a missing/invalid receipt; the card shows a "no receipt attached" state and **disables Approve/Confirm** (can't verify what isn't there) — matching today's disabled-on-no-receipt behavior.
 - Duplicate guard is a **warning, not a hard block** (a legitimate resubmit can reuse an image); the reviewer decides.
 - `postToN8n` reject notifications are best-effort and must never block or fail the approve/reject transaction (fire post-commit, swallow errors) — same discipline as the settle-path webhooks.
@@ -63,7 +68,7 @@ Reject requires a short reason (pick-list + free text) and **notifies the user**
 ## Testing
 
 - **`paymentReceipt` util:** unit tests — resolves each field-name variant, null on none, stable fingerprint, dup detection.
-- **`confirmOrderPayment`:** emulator/behavior test — moves `waiting_payment → paid`, sets verifier + timestamp; denies non-admin; idempotent on already-`paid`; never runs on a non-existent/ineligible order.
+- **`verifyOrderPayment`:** pure-helper tests (extracted like `subscriptionApproval.js`) — verify stamps `paymentVerified/By/At` and normalizes a straggler to `paid`; reject requires a reason, resets to `waiting_payment`/`unpaid`, stamps the reason; idempotent on already-verified; errors on missing order/proof.
 - **PaymentVerifyCard:** amount-match flag fires on mismatch; approve/confirm disabled with no receipt; dup-guard badge renders on a repeat fingerprint.
 - **Reject:** reason required; the correct n8n event fires with the reason (mock `postToN8n`).
 - Manual smoke (needs live/simulated data, MJ/colleague — Claude can't auth): verify a real membership receipt end-to-end; verify an order win-payment → order flips to `paid`; reject with a reason → user receives the WhatsApp notice.
