@@ -262,7 +262,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                 <span className="text-zinc-500 text-xs font-bold"> {isAr ? 'طلب' : 'orders'}</span>
               </div>
               <p className="text-[10px] text-emerald-400 font-bold mt-2">
-                {isAr ? 'توصيل موثوق' : 'Reliable Deliveries'}
+                {isAr ? 'توصيل مضمون' : 'Safe Deliveries'}
               </p>
             </div>
 

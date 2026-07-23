@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import type { ConfirmationResult, RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
@@ -52,40 +52,6 @@ export const LoginView: React.FC = () => {
   const [phoneErr, setPhoneErr] = useState('');
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
-  // Resend cooldown: after a successful send, block re-sending for RESEND_COOLDOWN_S
-  // seconds (Jordanian carrier SMS can lag 10-60s, so give it room before a retry).
-  // `cooldown` is the seconds remaining (0 = ready to resend). The interval id lives
-  // in a ref so re-renders never spawn a second timer, and the tick uses a functional
-  // setState — the ticking value is NOT a dependency of anything, so there is no
-  // stale-closure countdown bug.
-  const RESEND_COOLDOWN_S = 60;
-  const [cooldown, setCooldown] = useState(0);
-  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const clearCooldownTimer = () => {
-    if (cooldownIntervalRef.current) {
-      clearInterval(cooldownIntervalRef.current);
-      cooldownIntervalRef.current = null;
-    }
-  };
-
-  const startCooldown = () => {
-    clearCooldownTimer(); // never run two intervals at once
-    setCooldown(RESEND_COOLDOWN_S);
-    cooldownIntervalRef.current = setInterval(() => {
-      setCooldown((s) => {
-        if (s <= 1) {
-          clearCooldownTimer();
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  };
-
-  // Leak safety: tear the interval down when the component unmounts.
-  useEffect(() => clearCooldownTimer, []);
-
   // Visitor arrived via a WhatsApp auction deep link (?auction=...) — after auth,
   // App.tsx routes them straight into that live room. Tell them why they're here.
   const cameFromAuctionLink = !!parseAuctionIdFromSearch(window.location.search);
@@ -119,7 +85,6 @@ export const LoginView: React.FC = () => {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const result = await loginWithPhone(e164, recaptchaRef.current);
       setConfirmation(result);
-      startCooldown(); // (re)start the 60s resend window on every successful send
     } catch (e: any) {
       console.warn('Phone sign-in (send code) failed:', e);
       // Never show raw Firebase strings — map to a friendly AR/EN message.
@@ -141,7 +106,6 @@ export const LoginView: React.FC = () => {
     const res = await confirmPhoneCode(confirmation, smsCode.trim());
     setPhoneBusy(false);
     if (!res.success) setPhoneErr(res.message);
-    else { clearCooldownTimer(); setCooldown(0); } // verified — no more resend timer
     // On success, onAuthStateChanged flips isAuthenticated and the app renders the main shell.
   };
 
@@ -150,8 +114,6 @@ export const LoginView: React.FC = () => {
     setConfirmation(null);
     setSmsCode('');
     setPhoneErr('');
-    clearCooldownTimer(); // going back to edit the number resets the resend window
-    setCooldown(0);
     clearRecaptcha();
   };
 
@@ -276,9 +238,6 @@ export const LoginView: React.FC = () => {
                       <span>{isAr ? 'إرسال الرمز' : 'Send code'}</span>
                     )}
                   </button>
-                  <p className="text-[11px] text-gray-400 font-medium text-center" id="phone-delivery-hint">
-                    {isAr ? 'قد يستغرق وصول الرمز حتى دقيقة' : 'The code can take up to a minute to arrive.'}
-                  </p>
                 </>
               ) : (
                 <>
@@ -308,28 +267,6 @@ export const LoginView: React.FC = () => {
                       <span>{isAr ? 'تأكيد' : 'Verify'}</span>
                     )}
                   </button>
-                  <div className="text-center space-y-1 pt-1" id="phone-resend-block">
-                    <p className="text-[11px] text-gray-400 font-medium">
-                      {isAr
-                        ? `أرسلنا رمزاً إلى ${phoneInput}. لم يصلك؟`
-                        : `We sent a code to ${phoneInput}. Didn't get it?`}
-                    </p>
-                    {cooldown > 0 ? (
-                      <span className="text-xs text-gray-400 font-semibold" id="phone-resend-cooldown">
-                        {isAr ? `أعد الإرسال خلال ${cooldown} ث` : `Resend in ${cooldown}s`}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={phoneBusy}
-                        onClick={handleSendCode}
-                        className="text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        id="phone-resend-btn"
-                      >
-                        {isAr ? 'إعادة إرسال الرمز' : 'Resend code'}
-                      </button>
-                    )}
-                  </div>
                 </>
               )}
               {phoneErr && (

@@ -28,7 +28,9 @@ import {
   Play,
   MessageCircle,
   Trophy,
-  Coins
+  Coins,
+  Check,
+  Users
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { CountdownStoriesBar } from './CountdownStoriesBar';
@@ -50,7 +52,7 @@ interface PremiumAuctionCardProps {
   setActiveView: (view: string) => void;
 }
 
-const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
+export const PremiumAuctionCard: React.FC<PremiumAuctionCardProps> = ({
   item,
   currentUser,
   bids,
@@ -69,24 +71,16 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   });
 
   React.useEffect(() => {
-    if (!item.endTime) return;
-    const computeLeft = () => Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
-    // Already ended by the time we mount — nothing to tick.
-    if (computeLeft() <= 0) return;
-    // NOTE: deps are `[item.endTime]` only (not `secondsLeft`) so this
-    // interval is created ONCE per mount instead of torn down/recreated
-    // every second — with ~80 cards on screen that per-second churn was a
-    // major jank source. `left` is derived fresh from Date.now() on each
-    // tick, so it stays correct without needing `secondsLeft` as a dep.
+    if (!item.endTime || secondsLeft <= 0) return;
     const interval = setInterval(() => {
-      const left = computeLeft();
+      const left = Math.max(0, Math.floor((item.endTime! - Date.now()) / 1000));
       setSecondsLeft(left);
       if (left <= 0) {
         clearInterval(interval);
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [item.endTime]);
+  }, [item.endTime, secondsLeft]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -296,71 +290,228 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   );
 };
 
-/* ----------------------------------------------------------------------
-   PERF (Wave 3a): memoize the card.
+interface LiveHeroCardProps {
+  isAr: boolean;
+  auctions: AuctionItem[];
+  onJoinLive: (id: string) => void;
+}
 
-   Discover renders up to ~80 of these. Without memo, every one re-renders
-   on ANY AppContext change (the provider value is a fresh object every
-   render), even for cards whose auction/seller/user data didn't change and
-   even off-screen ones.
+const LiveHeroCard: React.FC<LiveHeroCardProps> = ({ isAr, auctions, onJoinLive }) => {
+  const presetLots = React.useMemo(() => [
+    {
+      id: 'lot-001',
+      lotNum: isAr ? 'المزاد رقم ٠٠١' : 'LOT 001',
+      title: isAr ? 'ساعة رولكس دايتونا أويستر ستيل 2024' : 'Rolex Daytona Oystersteel 2024',
+      badge: isAr ? 'رولكس دايتونا' : 'Rolex Daytona',
+      specs: isAr ? '40 ملم • كرونوغراف • غير مستخدمة • علبة وأوراق كاملة' : '40mm • Chronograph • Unworn • Box & Papers',
+      image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=600&q=80',
+      price: '18,450',
+      time: { h: 0, m: 14, s: 22 },
+      biddersCount: 12
+    },
+    {
+      id: 'lot-002',
+      lotNum: isAr ? 'المزاد رقم ٠٠٢' : 'LOT 002',
+      title: isAr ? 'مرسيدس AMG GT Coupe موديل 2023' : 'Mercedes-AMG GT Coupe 2023',
+      badge: isAr ? 'مرسيدس AMG' : 'Mercedes AMG',
+      specs: isAr ? 'V8 Twin-Turbo • 577 حصان • ممشى 12,000 كم • فحص كامل' : 'V8 Twin-Turbo • 577 HP • 12,000 km • Mint Condition',
+      image: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=600&q=80',
+      price: '82,000',
+      time: { h: 1, m: 45, s: 10 },
+      biddersCount: 19
+    },
+    {
+      id: 'lot-003',
+      lotNum: isAr ? 'المزاد رقم ٠٠٣' : 'LOT 003',
+      title: isAr ? 'آيفون 15 بروك ماكس تيتانيوم طبيعي 512GB' : 'iPhone 15 Pro Max Titanium 512GB',
+      badge: isAr ? 'آيفون 15 برو' : 'iPhone 15 Pro',
+      specs: isAr ? 'جديد بكفالة الوكيل الرسمية • كفالة سنتين • علبة مختومة' : 'Brand New Sealed • Official Warranty 2 Years',
+      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=80',
+      price: '890',
+      time: { h: 0, m: 38, s: 5 },
+      biddersCount: 24
+    }
+  ], [isAr]);
 
-   This comparator re-renders a card ONLY when a value it actually renders
-   from changes. It deliberately IGNORES the unstable inline callback props
-   (onJoinLive/onSelectLot/setGlobalSelectedOrderId/setActiveView): each one
-   only closes over `item.id` (already a value-compared field below) and
-   stable context setters, so the card never runs a stale handler.
-   Return TRUE to SKIP re-render (props considered equal).
-   ---------------------------------------------------------------------- */
-const areCardPropsEqual = (
-  prev: Readonly<PremiumAuctionCardProps>,
-  next: Readonly<PremiumAuctionCardProps>
-): boolean => {
-  const a = prev.item;
-  const b = next.item;
-  // Auction fields the card actually renders (see the `item.*` reads above).
-  if (
-    a.id !== b.id ||
-    a.currentPrice !== b.currentPrice ||
-    a.endTime !== b.endTime ||
-    a.status !== b.status ||
-    a.currentBidderId !== b.currentBidderId ||
-    a.totalBids !== b.totalBids ||
-    a.title !== b.title ||
-    a.description !== b.description ||
-    a.thumbnailUrl !== b.thumbnailUrl ||
-    a.sellerId !== b.sellerId ||
-    a.sellerLogo !== b.sellerLogo ||
-    a.sellerName !== b.sellerName
-  ) {
-    return false;
-  }
+  const [activeLotIndex, setActiveLotIndex] = useState(0);
+  const currentLot = presetLots[activeLotIndex];
 
-  // bids/orders/sellerProfiles are plain useState arrays in AppContext —
-  // their reference only changes when THAT collection's setter actually
-  // runs (a new bid/order/profile snapshot), not on unrelated context
-  // updates, so a reference check is correct here and avoids walking
-  // potentially large arrays on every one of the ~80 cards.
-  if (
-    prev.bids !== next.bids ||
-    prev.orders !== next.orders ||
-    prev.sellerProfiles !== next.sellerProfiles
-  ) {
-    return false;
-  }
+  const [timeLeft, setTimeLeft] = useState(currentLot.time);
 
-  if (prev.isAr !== next.isAr) return false;
+  React.useEffect(() => {
+    setTimeLeft(currentLot.time);
+  }, [activeLotIndex, currentLot.time]);
 
-  // Only currentUser.id is read by the card (see hasUserBid/isUserWinner
-  // above); compare that instead of object identity, which can churn on
-  // unrelated profile-sync writes.
-  const puId = prev.currentUser?.id ?? null;
-  const nuId = next.currentUser?.id ?? null;
-  if (puId !== nuId) return false;
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev.s > 0) return { ...prev, s: prev.s - 1 };
+        if (prev.m > 0) return { ...prev, m: prev.m - 1, s: 59 };
+        if (prev.h > 0) return { h: prev.h - 1, m: 59, s: 59 };
+        return { h: 0, m: 14, s: 22 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeLotIndex]);
 
-  return true;
+  const formatTimer = () => {
+    const hz = timeLeft.h < 10 ? `0${timeLeft.h}` : `${timeLeft.h}`;
+    const mz = timeLeft.m < 10 ? `0${timeLeft.m}` : `${timeLeft.m}`;
+    const sz = timeLeft.s < 10 ? `0${timeLeft.s}` : `${timeLeft.s}`;
+    return timeLeft.h > 0 ? `${hz}:${mz}:${sz}` : `${mz}:${sz}`;
+  };
+
+  const biddersAvatars = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80',
+  ];
+
+  const handleCardClick = () => {
+    const liveAuction = auctions.find(a => a.status === 'live') || auctions[0];
+    if (liveAuction) {
+      onJoinLive(liveAuction.id);
+    }
+  };
+
+  return (
+    <div className="relative w-full max-w-[420px] mx-auto select-none">
+      {/* Glowing Orange Aura / Halo Background Effect */}
+      <div className="absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-3xl blur-2xl opacity-80 animate-pulse -z-10" />
+
+      {/* Main Physical Card */}
+      <div 
+        onClick={handleCardClick}
+        className="relative bg-white rounded-2xl border border-gray-100 p-5 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:rotate-0 flex flex-col gap-3.5 cursor-pointer"
+        style={{ 
+          boxShadow: '0 25px 50px -12px rgba(240, 81, 35, 0.15)',
+          transform: isAr ? 'rotate(1.5deg)' : 'rotate(-1.5deg)'
+        }}
+        id="hero-live-card"
+      >
+        {/* Top Bar: Auction Lot Number & Live Status Badge */}
+        <div className="flex items-center justify-between pb-1 border-b border-gray-100">
+          <span className="text-[#E85D04] font-black tracking-wider text-xs uppercase font-sans">
+            {currentLot.lotNum}
+          </span>
+          <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-[11px] font-extrabold rounded-full border border-emerald-200/60 shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>{isAr ? 'مباشر الآن' : 'Live Now'}</span>
+          </span>
+        </div>
+
+        {/* Product Image (4:3 Aspect Ratio) with Badge Overlays */}
+        <div className="relative aspect-[4/3] w-full rounded-xl overflow-hidden bg-gray-100 border border-gray-200/70 shadow-inner group">
+          <img 
+            src={currentLot.image} 
+            alt={currentLot.title}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          
+          {/* Badge 1: Product Short Badge (Bottom Start) */}
+          <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} px-2.5 py-1 bg-black/70 backdrop-blur-md text-white text-[10.5px] font-bold rounded-lg border border-white/20`}>
+            {currentLot.badge}
+          </div>
+
+          {/* Badge 2: Official Approved Inspection Badge (Bottom End) */}
+          <div className={`absolute bottom-3 ${isAr ? 'left-3' : 'right-3'} flex items-center gap-1 px-2.5 py-1 bg-emerald-600/95 backdrop-blur-md text-white text-[10px] font-black rounded-lg shadow-md border border-emerald-400/40`}>
+            <Check className="w-3 h-3 stroke-[3]" />
+            <span>{isAr ? 'مفحوص من مزادجو' : 'Mazadjo Inspected'}</span>
+          </div>
+        </div>
+
+        {/* Tab Switcher: Quick Navigation Between Lots (تبويب القطع) */}
+        <div className="flex items-center justify-between gap-1.5 p-1 bg-gray-100/80 rounded-xl border border-gray-200/60">
+          {presetLots.map((lot, idx) => {
+            const isActive = idx === activeLotIndex;
+            return (
+              <button
+                key={lot.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveLotIndex(idx);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[10.5px] font-bold transition-all duration-200 text-center truncate cursor-pointer ${
+                  isActive
+                    ? 'bg-white text-[#E85D04] shadow-xs border border-gray-200/80 font-extrabold scale-[1.02]'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                }`}
+              >
+                {lot.lotNum}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Product Title & Specifications */}
+        <div className="space-y-0.5">
+          <h3 className="text-sm font-black text-gray-950 leading-snug line-clamp-1">
+            {currentLot.title}
+          </h3>
+          <p className="text-[11px] text-gray-500 font-medium line-clamp-1">
+            {currentLot.specs}
+          </p>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Current Bid & Time Details */}
+        <div className="flex justify-between items-center">
+          <div className="space-y-0.5">
+            <span className="text-[9.5px] font-extrabold text-gray-400 uppercase tracking-wider block">
+              {isAr ? 'المزايدة الحالية' : 'Current Bid'}
+            </span>
+            <span className="text-xl font-black text-[#E85D04] font-mono leading-none">
+              {currentLot.price} <span className="text-xs font-bold text-gray-500">{isAr ? 'د.أ' : 'JOD'}</span>
+            </span>
+          </div>
+
+          <div className="flex flex-col items-end space-y-0.5">
+            <span className="text-[9.5px] font-extrabold text-gray-400 uppercase tracking-wider block">
+              {isAr ? 'ينتهي خلال' : 'Ends in'}
+            </span>
+            <div className="flex items-center gap-1.5 text-zinc-900 font-bold text-xs bg-zinc-100/90 border border-zinc-200/80 rounded-lg px-2.5 py-1 shadow-2xs font-mono">
+              <Clock className="w-3.5 h-3.5 text-[#E85D04] shrink-0" />
+              <span>{formatTimer()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Activity Indicator: Active Bidders */}
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2 rtl:space-x-reverse">
+              {biddersAvatars.map((src, i) => (
+                <img 
+                  key={i}
+                  src={src} 
+                  alt={`Bidder ${i}`} 
+                  className="w-5 h-5 rounded-full object-cover border-2 border-white shadow-xs"
+                />
+              ))}
+              <div className="w-5 h-5 rounded-full bg-[#E85D04]/10 border-2 border-white flex items-center justify-center text-[8px] font-black text-[#E85D04]">
+                +8
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-gray-600">
+              {isAr ? '١٢ مزايد نشط' : `${currentLot.biddersCount} active bidders`}
+            </span>
+          </div>
+
+          <span className="text-[10px] font-black text-[#E85D04] underline group-hover:translate-x-0.5 transition-transform">
+            {isAr ? 'زايد الآن ←' : 'Bid Now →'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 };
-
-export const PremiumAuctionCard = React.memo(PremiumAuctionCardBase, areCardPropsEqual);
 
 export const DiscoveryFeedView: React.FC = () => {
   const {
@@ -656,79 +807,55 @@ export const DiscoveryFeedView: React.FC = () => {
         </motion.button>
       )}
 
-      {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
-      <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
+      {/* Hero Live Auction Section with Rebuilt Live Card (Desktop) */}
+      <div className="hidden lg:grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white border border-gray-200/80 rounded-3xl p-6 mb-6 shadow-xs relative overflow-hidden" id="discover-desktop-hero">
+        <div className="lg:col-span-7 space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E85D04]/10 text-[#E85D04] rounded-full text-xs font-bold">
+            <span className="w-2 h-2 rounded-full bg-[#E85D04] animate-ping" />
+            <span>{isAr ? 'منصة المزادات المباشرة الأولى في الأردن' : "Jordan's #1 Live Auction Platform"}</span>
+          </div>
+          <h1 className="text-3xl xl:text-4xl font-black text-gray-950 leading-tight tracking-tight">
+            {isAr ? 'اكتشف المزادات الحية ونافس في الوقت الفعلي' : 'Discover Live Drops & Bid Real-Time'}
           </h1>
-          <p className="text-xs text-gray-500 font-medium">
-            {isAr
-              ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
-              : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
+          <p className="text-sm text-gray-600 font-medium leading-relaxed max-w-xl">
+            {isAr 
+              ? 'تصفح وشارك في مزادات الفيديو الفورية والمؤمنة بالكامل بحماية الأمان المالي وضمان استرجاع الأموال.' 
+              : 'Browse and bid in real-time verified video stream drops with guaranteed Jordan CliQ escrow protection.'}
           </p>
+          <div className="pt-2 flex items-center gap-3">
+            <button
+              onClick={handleWatchLive}
+              className="px-5 py-3 bg-[#E85D04] hover:bg-[#D05303] text-white font-extrabold text-sm rounded-xl flex items-center gap-2.5 active:scale-95 transition-all shadow-md cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>{isAr ? 'شاهد المزاد المباشر الآن' : 'Watch Live Auction Now'}</span>
+            </button>
+            <button
+              onClick={() => setActiveView('upload')}
+              className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm rounded-xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>{isAr ? 'أضف منتج للمزاد' : 'List Item for Auction'}</span>
+            </button>
+          </div>
         </div>
-        <div>
-          <button
-            onClick={handleWatchLive}
-            className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5" />
-            <span>{isAr ? 'شاهد البث الآن' : 'Watch Live Drops'}</span>
-          </button>
+
+        <div className="lg:col-span-5 flex justify-center py-2">
+          <LiveHeroCard 
+            isAr={isAr}
+            auctions={auctions}
+            onJoinLive={handleJoinLive}
+          />
         </div>
       </div>
 
-      {/* Hero Welcome Banner Card (Black Slate Vibe with Glow Accent) - Mobile only */}
-      <div className="px-4 pb-2 lg:hidden">
-        <div className="relative rounded-3xl bg-[#111111] p-5 overflow-hidden shadow-sm">
-          {/* Circular subtle glowing background shape */}
-          <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-orange-950/40 rounded-full blur-xl"></div>
-          
-          <div className="relative z-10 flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-[#E85D04] tracking-wider uppercase block">
-                {isAr ? 'مزادات مباشرة' : 'LIVE AUCTIONS'}
-              </span>
-              <h2 className="text-xl font-black text-white leading-tight font-sans tracking-tight mt-1">
-                {isAr ? 'زايد. اشترِ.' : 'Bid. Buy.'} <br/>
-                {isAr ? 'بع — مباشر.' : 'Sell — Live.'}
-              </h2>
-            </div>
-            <p className="text-[11px] text-gray-400 mt-2 font-sans font-medium">
-              {isAr ? 'مزادات فورية بالوقت الحقيقي مع حماية وضمان أموال المشترين.' : 'Real-time auctions with secure escrow payments.'}
-            </p>
-
-            {/* Real CTA: join (non-members) / watch live or browse (members) */}
-            {!isMember ? (
-              <button
-                onClick={() => setActiveView('wallet')}
-                className="mt-4 self-start px-4 py-2.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-orange-900/30 active:scale-95 cursor-pointer"
-                id="mobile-hero-join-cta"
-              >
-                {isAr ? 'انضم من ١ دينار' : 'Join from 1 JD'}
-              </button>
-            ) : liveNowAuctions.length > 0 ? (
-              <button
-                onClick={handleWatchLive}
-                className="mt-4 self-start px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-red-900/30 active:scale-95 cursor-pointer flex items-center gap-1.5"
-                id="mobile-hero-live-cta"
-              >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                {isAr ? 'شوف المباشر' : 'Watch live'}
-              </button>
-            ) : (
-              <button
-                onClick={() => document.getElementById('discover-feed-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="mt-4 self-start px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-                id="mobile-hero-browse-cta"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-                {isAr ? 'تصفّح' : 'Browse'}
-              </button>
-            )}
-          </div>
-        </div>
+      {/* Hero Welcome Banner Card - Mobile only */}
+      <div className="px-4 pb-4 lg:hidden flex flex-col gap-4">
+        <LiveHeroCard 
+          isAr={isAr}
+          auctions={auctions}
+          onJoinLive={handleJoinLive}
+        />
       </div>
 
       {/* Countdown Stories Bar - Horizontally Scrollable rectangular cards */}

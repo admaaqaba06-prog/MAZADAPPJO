@@ -23,55 +23,6 @@ export function serverNow(): number {
   return Date.now() + serverOffsetMs;
 }
 
-/** The offset currently applied (server epoch minus local epoch, ms). */
-export function getServerOffset(): number {
-  return serverOffsetMs;
-}
-
-export type ServerTimeSample = {
-  /** Server's own Date.now() (epoch ms) as reported by the source. */
-  serverEpochMs: number;
-  /** Local Date.now() captured just BEFORE the request went out. */
-  sentAtMs: number;
-  /** Local Date.now() captured just AFTER the response arrived. */
-  receivedAtMs: number;
-};
-
-/**
- * Compute the client↔server offset from a single round-trip sample, NTP-style:
- * the server's clock is sampled somewhere inside the round-trip, so we assume
- * it landed near the midpoint and add half the round-trip time before comparing
- * to the local clock at receipt. This keeps NETWORK LATENCY out of the offset —
- * a slow request no longer looks like clock skew.
- *
- * Returns `null` (rather than a poisoned value) when the sample can't be
- * trusted: a non-finite server time, a negative round-trip (clock went
- * backwards mid-request), or an absurdly long round-trip where the half-RTT
- * assumption breaks down. The caller must then leave the prior offset in place.
- *
- * SAFETY: the returned offset only shifts the CLIENT's rendered clock toward
- * the server's. It is never authoritative — functions/index.js re-checks
- * endTime with the real server clock inside the placeBid transaction, so a
- * client whose offset is slightly off (or who tampers with its own local
- * timestamps to skew this math) can only affect its own UI, never settle or
- * bid past the true auction close.
- */
-export function computeServerOffset(sample: ServerTimeSample): number | null {
-  const { serverEpochMs, sentAtMs, receivedAtMs } = sample;
-  if (
-    !Number.isFinite(serverEpochMs) ||
-    !Number.isFinite(sentAtMs) ||
-    !Number.isFinite(receivedAtMs)
-  ) {
-    return null;
-  }
-  const roundTripMs = receivedAtMs - sentAtMs;
-  // Negative RTT is impossible on a monotonic clock; > 10s is too noisy to trust.
-  if (roundTripMs < 0 || roundTripMs > 10_000) return null;
-  const estimatedServerNowAtReceipt = serverEpochMs + roundTripMs / 2;
-  return estimatedServerNowAtReceipt - receivedAtMs;
-}
-
 type FinishableAuction = {
   status?: string;
   endTime?: number | null;
