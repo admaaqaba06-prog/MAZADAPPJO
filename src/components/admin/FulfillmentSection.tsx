@@ -38,6 +38,21 @@ function ageLabel(fromMs: number, now: number, isAr: boolean): string {
   return isAr ? `${h}س` : `${h}h`;
 }
 
+// Same Timestamp/ms normalization as orderUpdatedAtMs, for the lastNudgedAt stamp.
+function nudgedAtMs(order: any): number | null {
+  const raw = order?.lastNudgedAt;
+  if (!raw) return null;
+  return raw?.seconds ? raw.seconds * 1000 : (typeof raw === 'number' ? raw : null);
+}
+
+// Bilingual "nudged Xh/Xd ago" — same h/d threshold as ageLabel.
+function nudgedLabel(fromMs: number, now: number, isAr: boolean): string {
+  const d = daysBetween(fromMs, now);
+  if (d >= 1) return isAr ? `تم التذكير قبل ${d}ي` : `Nudged ${d}d ago`;
+  const h = Math.max(0, hoursBetween(fromMs, now));
+  return isAr ? `تم التذكير قبل ${h}س` : `Nudged ${h}h ago`;
+}
+
 interface BucketConfig {
   id: LiveBucket;
   title: { ar: string; en: string };
@@ -105,6 +120,7 @@ const FulfillmentRow: React.FC<{
 
   const counterpart = order[config.nameField] || '—';
   const isRelease = config.id === 'awaiting_release';
+  const nudgedMs = nudgedAtMs(order);
 
   return (
     <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap animate-fadeIn">
@@ -130,6 +146,11 @@ const FulfillmentRow: React.FC<{
           {isAr ? config.nameLabel.ar : config.nameLabel.en}:{' '}
           <span className="text-gray-800">{counterpart}</span>
         </p>
+        {nudgedMs && (
+          <p className="text-[10px] text-gray-400 font-bold">
+            {nudgedLabel(nudgedMs, now, isAr)}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">

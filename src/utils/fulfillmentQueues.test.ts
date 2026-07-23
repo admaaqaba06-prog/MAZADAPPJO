@@ -13,6 +13,9 @@ describe('bucketOrder', () => {
     expect(bucketOrder({ status: 'paid', paymentVerified: false })).toBeNull();
     expect(bucketOrder({ status: 'paid' })).toBeNull();
   });
+  it('buckets a preparing_shipment order as awaiting_shipment (no paymentVerified required)', () => {
+    expect(bucketOrder({ status: 'preparing_shipment' })).toBe('awaiting_shipment');
+  });
   it('buckets shipped as awaiting_delivery, delivered as awaiting_release', () => {
     expect(bucketOrder({ status: 'shipped' })).toBe('awaiting_delivery');
     expect(bucketOrder({ status: 'delivered' })).toBe('awaiting_release');

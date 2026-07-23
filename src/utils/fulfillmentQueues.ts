@@ -17,6 +17,7 @@ const THRESHOLDS: Record<Exclude<FulfillmentBucket, null>, number> = {
 export function bucketOrder(order: { status: string; paymentVerified?: boolean }): FulfillmentBucket {
   if (order.status === 'disputed') return null;
   if (order.status === 'paid' && order.paymentVerified === true) return 'awaiting_shipment';
+  if (order.status === 'preparing_shipment') return 'awaiting_shipment';
   if (order.status === 'shipped') return 'awaiting_delivery';
   if (order.status === 'delivered') return 'awaiting_release';
   return null;

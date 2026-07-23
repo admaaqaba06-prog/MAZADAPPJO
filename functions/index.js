@@ -1434,9 +1434,13 @@ exports.sendFulfillmentNudge = functions.runWith({ cors: true }).https.onCall(as
     } catch (e) { console.warn('[sendFulfillmentNudge] target phone lookup failed:', e); }
 
     const event = kind === 'ship' ? 'seller_ship_nudge' : 'buyer_confirm_nudge';
+    // Hour-bucketed key: dedupes accidental same-click retries within a clock-hour,
+    // but still lets a deliberately-later repeat nudge (a spec requirement) through;
+    // the exact window is tunable once the n8n Switch branches + real dedup are wired.
+    const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
     await postToN8n(event, {
       phone, name: result.targetUserName, orderId,
-      idempotencyKey: `${event}_${orderId}`,
+      idempotencyKey: `${event}_${orderId}_${hourBucket}`,
     });
 
     console.log(`[sendFulfillmentNudge] ${kind} nudge sent for order=${orderId} by ${context.auth.uid}`);

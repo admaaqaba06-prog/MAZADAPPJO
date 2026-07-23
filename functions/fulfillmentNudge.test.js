@@ -63,6 +63,15 @@ describe('sendFulfillmentNudge', () => {
     expect(res).toEqual({ orderId: 'o1', kind: 'ship', targetUserId: 's1', targetUserName: 'Seller One' });
   });
 
+  it('ship nudge on a preparing_shipment order succeeds (seller acknowledged but not yet shipped)', async () => {
+    const db = makeFakeDb({ 'orders/o1': { status: 'preparing_shipment', sellerId: 's1', sellerName: 'Seller One' } });
+    const res = await sendFulfillmentNudge(deps(db), { orderId: 'o1', kind: 'ship', adminUid: 'admin1' });
+    const write = db._writes.find((w) => w.path === 'orders/o1');
+    expect(write.data.lastNudgedAt._ms).toBe(NOW_MS);
+    expect(write.data.nudgeCount).toBe(1);
+    expect(res).toEqual({ orderId: 'o1', kind: 'ship', targetUserId: 's1', targetUserName: 'Seller One' });
+  });
+
   it('increments nudgeCount on a repeat nudge (no rate limit)', async () => {
     const db = makeFakeDb({ 'orders/o1': { status: 'paid', paymentVerified: true, sellerId: 's1', sellerName: 'Seller One', nudgeCount: 2 } });
     await sendFulfillmentNudge(deps(db), { orderId: 'o1', kind: 'ship', adminUid: 'admin1' });
