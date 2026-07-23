@@ -222,8 +222,8 @@ export async function executeOrderTransition(
         status: 'disputed'
       };
       activityType = 'Dispute Opened';
-      activityMessageAr = 'تم فتح نزاع رسمي وتجميد حساب الضمان لحين مراجعة المشرفين.';
-      activityMessageEn = 'Formal dispute logged. Escrow assets frozen pending admin mediation.';
+      activityMessageAr = 'تم فتح نزاع رسمي. مزاد أوقف تحويل المبلغ للبائع لحين مراجعة الفريق.';
+      activityMessageEn = 'Formal dispute logged. Mazad has paused the payout to the seller pending review.';
       break;
 
     case 'resolve_dispute':

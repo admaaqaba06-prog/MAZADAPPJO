@@ -424,7 +424,7 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Footer */}
       <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto">
-        CENTRAL BANK OF JORDAN AUDITED GATEWAYS
+        {isAr ? 'الدفع عبر كليك • حماية المشتري من مزاد' : 'PAY VIA CLIQ • BUYER PROTECTION BY MAZAD'}
       </footer>
     </div>
   );

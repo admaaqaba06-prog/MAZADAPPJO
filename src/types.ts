@@ -248,6 +248,19 @@ export interface Order {
   paymentDeadlineAt?: any;
   paymentProofUrl?: string;
   trackingNumber?: string;
+  /**
+   * Wave 2 (W4): per-order delivery address + phone the winner provides at the
+   * post-win payment step (an address can differ per win). Written by the buyer
+   * on the 'pay' transition; surfaced to the seller/admin ONLY after payment.
+   * See utils/deliveryAddress.ts (validation) + firestore.rules orders S2.
+   */
+  deliveryAddress?: {
+    governorate: string;
+    area: string;
+    building?: string;
+    notes?: string;
+  };
+  deliveryPhone?: string;
   defaultedAt?: any;
   /** Internal vendor slug copied from the auction (never buyer-facing). */
   vendorId?: string | null;

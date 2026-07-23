@@ -778,7 +778,24 @@ function applyBidWrites(transaction, auctionRef, auctionData, bid) {
  * and outbid user refunding are guaranteed without race-conditions or browser-side vulnerability bypasses.
  * Balances and calculations are implemented in integer FILS to prevent float decimals loss.
  */
-exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+/**
+ * getServerTime (CORR1) — echoes the SERVER's own clock so the client can derive
+ * a latency-compensated client↔server offset (src/utils/serverTime.ts). No auth,
+ * no inputs, no side effects: it is a read-only clock probe. Because the value
+ * comes from the server's own Date.now() and uses NO client-supplied data, a
+ * client cannot game it to shift the offset — and even if it tampers with its
+ * own local timestamps in the offset math, that only skews its own UI clock; the
+ * placeBid transaction below re-checks endTime with the real server clock, so no
+ * client can bid or settle past the true auction close.
+ */
+exports.getServerTime = functions.runWith({ cors: true }).https.onCall(async () => {
+  return { now: Date.now() };
+});
+
+// PF3: keep one instance warm so the first bid of a drop doesn't eat a 2-5s
+// cold start at the open stampede; cap parallelism (bid contention is on the
+// single auction doc anyway — tune maxInstances after the load test).
+exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances: 20 }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }

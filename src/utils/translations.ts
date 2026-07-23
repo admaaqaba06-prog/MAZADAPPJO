@@ -1,8 +1,8 @@
 export const translations = {
   en: {
     appName: "MAZAD JO",
-    appSubtitle: "The Premium MENA Live Auction & Escrow Network",
-    tagline: "Live Broadcast Commerce • Safe Escrow Securities • CliQ Audited",
+    appSubtitle: "Live auctions with buyer protection across Jordan & the MENA region",
+    tagline: "Live auctions • Pay via CliQ • Mazad holds your payment until you confirm receipt",
     
     // Auth
     welcomeBack: "Welcome Back",
@@ -25,7 +25,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "PREMIUM BIDDING ACCESS",
-    paywallSub: "MAZAD JO utilizes full real-time video stream servers & secured CliQ escrow protocols. Activate an account plan to unlock full live bidding authorization.",
+    paywallSub: "MAZAD JO runs real-time live-auction video rooms with CliQ payments and buyer protection. Activate an account plan to unlock full live bidding.",
     choosePlan: "SELECT AN ACCESS PLAN",
     planMonthly: "1 JOD",
     planMonthlyUnit: " / Month",
@@ -40,7 +40,7 @@ export const translations = {
       "Access all high-ticket watch, vehicle & fashion live streams",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
       "Instant CliQ wallet balance ledger deposits",
-      "Full administrative active protection and deposit coverage"
+      "Buyer protection: Mazad holds your payment until you confirm receipt"
     ],
 
     // Global
@@ -48,7 +48,7 @@ export const translations = {
     logout: "Log Out",
     city: "Amman, Jordan",
     verifiedMerchant: "Verified User",
-    escrowAudit: "CliQ Audited",
+    escrowAudit: "Buyer protection",
 
     // Views Nav
     navDiscover: "Discover",
@@ -72,7 +72,7 @@ export const translations = {
     backToHome: "Return to Discover",
     commentsRemoved: "Comments section deactivated to focus on pure live bidding records.",
     systemNotif: "SYSTEM",
-    activeEscrowAlert: "Active bid capital safe in CliQ escrow until shipment verification.",
+    activeEscrowAlert: "When you win, Mazad holds your payment until you confirm you received the item.",
     videoLabel: "Active live broadcast player (Mux HLS grid)",
     swipeUpPrompt: "Swipe down/up or click buttons below for next/prev live lot",
 
@@ -158,8 +158,8 @@ export const translations = {
   },
   ar: {
     appName: "مزاد جو",
-    appSubtitle: "الشبكة الأولى للمزادات الحية والضمان الآمن في الأردن والشرق الأوسط",
-    tagline: "تجارة البث المباشر • ضمان مالي آمن • ماليّة مدققة عبر كليك",
+    appSubtitle: "مزادات حية مع حماية المشتري في الأردن والمنطقة",
+    tagline: "مزادات حية • ادفع عبر كليك • مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام",
     
     // Auth
     welcomeBack: "أهلاً بك مجدداً",
@@ -182,7 +182,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "تفعيل منصة المزايدة الممتازة",
-    paywallSub: "يستخدم مزاد جو خوادم بث حي فائقة السرعة مع بروتوكولات حجز مالي فورية عبر CliQ. يرجى تفعيل حسابك للاستمتاع بجميع المزايدات النشطة.",
+    paywallSub: "مزاد جو يقدّم غرف مزادات حية بالبث المباشر مع الدفع عبر كليك وحماية للمشتري. فعّل حسابك للمزايدة في كل المزادات النشطة.",
     choosePlan: "اختر اشتراك البوابة المناسب",
     planMonthly: "1 دينار",
     planMonthlyUnit: " / شهرياً",
@@ -205,7 +205,7 @@ export const translations = {
     logout: "تسجيل الخروج",
     city: "عمان، الأردن",
     verifiedMerchant: "حساب موثق",
-    escrowAudit: "مدقق كليك",
+    escrowAudit: "حماية المشتري",
 
     // Views Nav
     navDiscover: "اكتشف",
@@ -229,7 +229,7 @@ export const translations = {
     backToHome: "العودة للاكتشاف",
     commentsRemoved: "تم إلغاء قسم التعليقات والدردشات لتركيز البث بالكامل على المزايدات الرسمية فقط.",
     systemNotif: "إشعار نظام",
-    activeEscrowAlert: "أموالك في المزايدات النشطة آمنة كلياً في حساب كليك لضمان الحقوق حتى الاستلام المعتمد.",
+    activeEscrowAlert: "لما تربح، مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تأكّد إنك استلمت القطعة.",
     videoLabel: "بث حي ومباشر تفاعلي (خادم Mux الرياضي)",
     swipeUpPrompt: "اسحب الشاشة للأعلى أو للأسفل أو انقر الأزرار للتنقل بين المزادات الحية",
 
