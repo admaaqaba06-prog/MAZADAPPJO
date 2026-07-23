@@ -1,0 +1,12 @@
+{
+  "name": "mazadjo-loadtest",
+  "private": true,
+  "description": "Load-test harness for the Mazad JO placeBid path. THROWAWAY Firebase projects ONLY — hard-fails against prod.",
+  "type": "commonjs",
+  "scripts": {
+    "seed": "node seed.js",
+    "storm": "node bid-storm.js",
+    "report": "node report.js",
+    "teardown": "node teardown.js"
+  }
+}
