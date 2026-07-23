@@ -7,6 +7,7 @@ import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBi
 import { useToast } from '../components/feedback/Toast';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { minNextBid } from '../utils/bidMath';
+import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
@@ -56,7 +57,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -175,6 +176,9 @@ interface AppContextProps {
   // Lists
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  // True account total from a server aggregation (the `users` listener is capped);
+  // null until the count query resolves. Use for total-account stats, not users.length.
+  usersTotalCount: number | null;
   sellerProfiles: SellerProfile[];
   setSellerProfiles: React.Dispatch<React.SetStateAction<SellerProfile[]>>;
   // NOTE (Wave 3c / PF2): `auctions` / `setAuctions` / `auctionsLoaded` moved
@@ -442,6 +446,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   // Lists persistent initialization
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  // PF4 part 1: the admin `users` listener is capped (see effect below), so
+  // `users.length` is NOT the true account total. This holds the real count from
+  // a server-side aggregation query so admin stats don't undercount. null = unknown.
+  const [usersTotalCount, setUsersTotalCount] = useState<number | null>(null);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
     const saved = localStorage.getItem('mazad_seller_profiles');
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
@@ -735,26 +743,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // flashing Login while a valid session is still restoring.
   const [authReady, setAuthReady] = useState<boolean>(false);
 
-  // Session Heartbeat - updates lastSeen, deviceInfo, and appVersion every 5 minutes
+  // Session Heartbeat (PF4 part 2) - updates lastSeen, deviceInfo, and appVersion.
+  // Every write fans out to the admin's live `users` listener, so instead of a
+  // fixed 5-min setInterval (which makes many clients write in lockstep) we use a
+  // recursive setTimeout re-jittered to 8-12 min on each tick so the writes spread out.
   useEffect(() => {
     if (!isAuthenticated || !currentUser || currentUser.id === 'user-current') return;
 
-    const interval = setInterval(async () => {
-      try {
-        const userRef = doc(db, 'users', currentUser.id);
-        const dev = getDeviceInfo();
-        await updateDoc(userRef, {
-          lastSeen: new Date().toISOString(),
-          deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
-          appVersion: dev.appVersion
-        });
-        console.log("Session heartbeat updated for user:", currentUser.id);
-      } catch (error) {
-        console.error("Heartbeat error:", error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+    let timer: ReturnType<typeof setTimeout>;
 
-    return () => clearInterval(interval);
+    const scheduleNext = () => {
+      timer = setTimeout(async () => {
+        try {
+          const userRef = doc(db, 'users', currentUser.id);
+          const dev = getDeviceInfo();
+          await updateDoc(userRef, {
+            lastSeen: new Date().toISOString(),
+            deviceInfo: `${dev.browser} on ${dev.platform} (${dev.deviceType})`,
+            appVersion: dev.appVersion
+          });
+          console.log("Session heartbeat updated for user:", currentUser.id);
+        } catch (error) {
+          console.error("Heartbeat error:", error);
+        } finally {
+          scheduleNext(); // re-jitter the next interval
+        }
+      }, nextHeartbeatDelayMs());
+    };
+
+    scheduleNext();
+
+    return () => clearTimeout(timer);
   }, [isAuthenticated, currentUser?.id]);
 
   const addNotificationRef = useRef<any>(null);
@@ -1734,13 +1753,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, [isAuthenticated, isDeferredReady, activeAuctionId, activeView]);
 
-  // Real-time all users database synchronization with Firestore
+  // Real-time users synchronization with Firestore (admin only).
+  // PF4 part 1: cap the listener to the most-recently-active users instead of the
+  // whole collection. The old unbounded onSnapshot re-ran an O(N) merge over every
+  // user doc on every single per-bid `lastBidAt` write, hammering the admin browser.
+  // orderBy('lastSeen','desc') + limit keeps the live-activity views (sessions table,
+  // user list) fed with the users who actually matter while bounding the fan-out.
+  // Trade-off: this is display-only and the admin now sees at most ADMIN_USERS_CAP
+  // users live; the true account total is fetched separately via getCountFromServer.
   useEffect(() => {
     if (!isAuthenticated || !isAdminUser(currentUser)) {
       return;
     }
-    const usersRefCol = collection(db, 'users');
-    const unsub = onSnapshot(usersRefCol, (snap) => {
+    const ADMIN_USERS_CAP = 200;
+    const usersQuery = query(
+      collection(db, 'users'),
+      orderBy('lastSeen', 'desc'),
+      limit(ADMIN_USERS_CAP)
+    );
+
+    // True total (unaffected by the cap) for admin count stats. Best-effort, one-shot.
+    getCountFromServer(collection(db, 'users'))
+      .then(res => setUsersTotalCount(res.data().count))
+      .catch(err => console.warn("Firestore users count query failed:", err));
+
+    const unsub = onSnapshot(usersQuery, (snap) => {
       if (!snap.empty) {
         const fetchedUsers: User[] = [];
         snap.forEach((docSnap) => {
@@ -4657,6 +4694,7 @@ const fetchIP = async () => {
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
+      usersTotalCount,
       sellerProfiles, setSellerProfiles,
       bids, setBids,
       wallet, setWallet,
@@ -4741,7 +4779,7 @@ const fetchIP = async () => {
   }), [
     // State / memo values (auctions/auctionsLoaded intentionally NOT here —
     // they live in AuctionsContext so bid churn can't touch this identity)
-    currentUser, sellerProfile, users, sellerProfiles,
+    currentUser, sellerProfile, users, usersTotalCount, sellerProfiles,
     bids, wallet, escrows, visibleOrders, notifications,
     adminActions, adminActionsError, reviews, verificationRequests,
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
