@@ -1493,22 +1493,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // URLs. The canonical patch goes through the sync ref so the NEXT
             // snapshot's unchanged-lot reuse hands back the patched object
             // (otherwise the resolved URL would flip back to the fallback on
-            // the next bid). State is then updated FUNCTIONALLY, substituting
-            // the same patched objects by id — preserving today's semantics
-            // for any optimistic state writer (e.g. the just-created-listing
-            // prepend) whose items must not be clobbered, while untouched
-            // lots keep their reference in both the ref and the state.
+            // the next bid). State is patched FUNCTIONALLY and ONLY on
+            // videoUrl — spreading the state's OWN item, never substituting
+            // the ref-derived object — so an optimistic per-item state write
+            // that landed between the snapshot and this async resolution
+            // (e.g. admin approve/reject flipping status, the seller edit)
+            // is never clobbered back to the stale snapshot object.
             const resolvedById = new Map(results.map((r) => [r.id, r.resolvedUrl]));
-            const patchedById = new Map<string, AuctionItem>();
             auctionsSnapSyncRef.current = auctionsSnapSyncRef.current.map((item) => {
               const resolvedUrl = resolvedById.get(item.id);
               if (resolvedUrl === undefined) return item;
-              const patchedItem = { ...item, videoUrl: resolvedUrl };
-              patchedById.set(item.id, patchedItem);
-              return patchedItem;
+              return { ...item, videoUrl: resolvedUrl };
             });
             setAuctions((prev) =>
-              prev.map((item) => patchedById.get(item.id) ?? item)
+              prev.map((item) => {
+                const resolvedUrl = resolvedById.get(item.id);
+                return resolvedUrl === undefined ? item : { ...item, videoUrl: resolvedUrl };
+              })
             );
           }).catch((err) => {
             console.error("Async video resolution background task failed:", err);
