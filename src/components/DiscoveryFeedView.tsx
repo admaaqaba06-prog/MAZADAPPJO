@@ -786,23 +786,23 @@ export const DiscoveryFeedView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
           onClick={handleWatchLive}
-          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl px-4 py-2.5 shadow-md shadow-red-600/20 transition-colors cursor-pointer active:scale-[0.99]"
+          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
           id="live-now-strip"
         >
-          <span className="flex items-center gap-2.5 min-w-0">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-80"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
             </span>
-            <span className="text-xs font-black tracking-tight truncate">
+            <span className="text-xs font-bold tracking-tight truncate">
               {isAr
-                ? `🔴 مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
-                : `🔴 Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
+                ? `مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
+                : `Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
             </span>
           </span>
-          <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider shrink-0 bg-white/15 rounded-full px-2.5 py-1">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-0.5 transition-colors">
             <Play className="w-3 h-3 fill-white" />
-            <span>{isAr ? 'ادخل البث' : 'Watch'}</span>
+            <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
           </span>
         </motion.button>
       )}
