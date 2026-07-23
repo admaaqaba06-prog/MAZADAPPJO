@@ -734,7 +734,7 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
   }
 
   try {
-    return await db.runTransaction(async (transaction) => {
+    const txnResult = await db.runTransaction(async (transaction) => {
       // 1. Get user profile
       const userRef = db.collection('users').doc(userId);
       const userSnap = await transaction.get(userRef);
@@ -803,31 +803,74 @@ exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, c
         endTimeMs: endTime
       });
 
-      // 11. Create a beautiful system Chat bid indicator
-      const chatRef = db.collection('chats').doc();
-      transaction.set(chatRef, {
-        id: chatRef.id,
-        auctionId,
-        userId,
-        userName: userData.name || 'User',
-        userAvatar: userData.avatar || '',
-        text: `placed a winning bid of ${amount.toLocaleString()} JOD`,
-        timestamp: Date.now(),
-        isSystem: false,
-        isBid: true,
-        bidAmount: amount
-      });
-
+      // 11. The system chat "winning bid" indicator is a SIDE EFFECT — it does
+      // not need transactional consistency with the money-state. It is written
+      // AFTER the txn commits (below) to shrink the lock window on the hot
+      // auction doc. We only pass the payload out here.
       return {
         success: true,
         message: `Successfully bid ${amount} JOD! You are currently the highest bidder.`,
         amount,
-        finalEndTime
+        finalEndTime,
+        _chat: {
+          auctionId,
+          userId,
+          userName: userData.name || 'User',
+          userAvatar: userData.avatar || '',
+          amount
+        }
       };
     });
+
+    // POST-COMMIT side effect: system chat bid indicator. The bid has ALREADY
+    // committed at this point — a chat write failure must NEVER fail the bid,
+    // so it is logged and swallowed. Awaited (not fire-and-forget) so the write
+    // is guaranteed to run before the function freezes, but it happens OUTSIDE
+    // the transaction, so the auction-doc lock is already released.
+    if (txnResult && txnResult.success && txnResult._chat) {
+      const c = txnResult._chat;
+      try {
+        const chatRef = db.collection('chats').doc();
+        await chatRef.set({
+          id: chatRef.id,
+          auctionId: c.auctionId,
+          userId: c.userId,
+          userName: c.userName,
+          userAvatar: c.userAvatar,
+          text: `placed a winning bid of ${c.amount.toLocaleString()} JOD`,
+          timestamp: Date.now(),
+          isSystem: false,
+          isBid: true,
+          bidAmount: c.amount
+        });
+      } catch (chatErr) {
+        console.warn('[placeBid] post-commit chat write failed (bid already committed, ignoring):', chatErr && chatErr.message);
+      }
+      // Strip the internal side-effect payload from the client response so the
+      // response shape stays byte-identical to before.
+      const { _chat, ...clientResult } = txnResult;
+      return clientResult;
+    }
+
+    return txnResult;
   } catch (error) {
     console.error('Error during transaction:', error);
-    throw new functions.https.HttpsError('internal', error.message || 'Transaction failed.');
+    // Transaction contention / deadline / unavailable is a RETRIABLE infra
+    // condition on the hot auction doc — NOT a real bid rejection. Genuine
+    // validation errors never reach here (they return {success:false} inside
+    // the txn). Surface a distinct, retriable 'aborted' code so the client can
+    // offer a friendly "try again" instead of a scary generic 'internal'.
+    const code = error && (error.code !== undefined ? error.code : error.status);
+    const msg = (error && error.message) || '';
+    const isContention =
+      code === 10 || code === 4 || code === 14 || // gRPC ABORTED / DEADLINE_EXCEEDED / UNAVAILABLE
+      code === 'aborted' || code === 'deadline-exceeded' || code === 'unavailable' ||
+      code === 'ABORTED' || code === 'DEADLINE_EXCEEDED' || code === 'UNAVAILABLE' ||
+      /aborted|deadline exceeded|too much contention|contention|unavailable/i.test(msg);
+    if (isContention) {
+      throw new functions.https.HttpsError('aborted', 'PRICE_MOVED_RETRY');
+    }
+    throw new functions.https.HttpsError('internal', msg || 'Transaction failed.');
   }
 });
 
