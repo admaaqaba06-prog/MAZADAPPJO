@@ -3889,6 +3889,9 @@ const fetchIP = async () => {
       isAutoBiddingRef.current = true;
       const nextBid = minNextBid(triggerable.currentPrice, triggerable.minIncrement, triggerable.totalBids);
       
+      // PF9: jitter the delay (0.8-2.0s) so many auto-bidders on one lot don't
+      // fire in lockstep and thundering-herd the single-doc bid transaction.
+      const jitteredDelay = 800 + Math.floor(Math.random() * 1200);
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
         isAutoBiddingRef.current = false;
@@ -3905,7 +3908,7 @@ const fetchIP = async () => {
             }
           });
         }
-      }, 1200);
+      }, jitteredDelay);
 
       return () => {
         clearTimeout(timer);

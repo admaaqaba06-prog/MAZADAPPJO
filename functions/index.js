@@ -722,7 +722,10 @@ function applyBidWrites(transaction, auctionRef, auctionData, bid) {
  * and outbid user refunding are guaranteed without race-conditions or browser-side vulnerability bypasses.
  * Balances and calculations are implemented in integer FILS to prevent float decimals loss.
  */
-exports.placeBid = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+// PF3: keep one instance warm so the first bid of a drop doesn't eat a 2-5s
+// cold start at the open stampede; cap parallelism (bid contention is on the
+// single auction doc anyway — tune maxInstances after the load test).
+exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances: 20 }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
