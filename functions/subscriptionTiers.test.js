@@ -78,17 +78,36 @@ describe('resolveLegacyPlan', () => {
 });
 
 describe('resolveGrantForRequest (approval-time recompute)', () => {
-  it('uses the stored canonical tier when present (new-format request)', () => {
+  it('resolves a consistent new-format request from its price (tier agrees)', () => {
     expect(resolveGrantForRequest({ tier: 'semiannual', price: 4, durationDays: 180 }))
+      .toEqual({ tier: 'semiannual', durationDays: 180 });
+    expect(resolveGrantForRequest({ tier: 'monthly', price: 1 }))
+      .toEqual({ tier: 'monthly', durationDays: 30 });
+  });
+
+  it('THROWS on a tier/price mismatch — the forged {price:1, tier:annual} request', () => {
+    expect(() => resolveGrantForRequest({ price: 1, tier: 'annual' })).toThrow(/mismatch/i);
+    expect(() => resolveGrantForRequest({ price: 4, tier: 'annual' })).toThrow(/mismatch/i);
+    expect(() => resolveGrantForRequest({ price: 7, tier: 'monthly' })).toThrow(/mismatch/i);
+    expect(() => resolveGrantForRequest({ price: 1, tier: 'quarterly' })).toThrow(/mismatch/i);
+  });
+
+  it('anchors on price when present: a tampered durationDays never grants', () => {
+    expect(resolveGrantForRequest({ price: 1, tier: 'monthly', durationDays: 365 }))
+      .toEqual({ tier: 'monthly', durationDays: 30 });
+  });
+
+  it('resolves from price alone (no tier stored)', () => {
+    expect(resolveGrantForRequest({ price: 4 }))
       .toEqual({ tier: 'semiannual', durationDays: 180 });
   });
 
-  it('RECOMPUTES duration from the tier, ignoring a tampered durationDays field', () => {
+  it('RECOMPUTES duration from the tier on price-less docs, ignoring a tampered durationDays field', () => {
     expect(resolveGrantForRequest({ tier: 'monthly', durationDays: 365 }))
       .toEqual({ tier: 'monthly', durationDays: 30 });
   });
 
-  it('accepts a stored legacy quarterly tier', () => {
+  it('accepts a stored legacy quarterly tier (no price)', () => {
     expect(resolveGrantForRequest({ tier: 'quarterly' }))
       .toEqual({ tier: 'quarterly', durationDays: 90 });
   });
@@ -107,6 +126,8 @@ describe('resolveGrantForRequest (approval-time recompute)', () => {
     expect(resolveGrantForRequest({ plan: 'quarterly' }))
       .toEqual({ tier: 'quarterly', durationDays: 90 });
     expect(resolveGrantForRequest({ plan: 'yearly' }))
+      .toEqual({ tier: 'annual', durationDays: 365 });
+    expect(resolveGrantForRequest({ plan: 'annual' }))
       .toEqual({ tier: 'annual', durationDays: 365 });
   });
 

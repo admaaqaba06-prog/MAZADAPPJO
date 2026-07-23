@@ -67,17 +67,40 @@ function resolveLegacyPlan(plan) {
 /**
  * Approval-time recompute for a subscriptionRequests doc -> { tier, durationDays }.
  *
- * Resolution order (per the security spec):
- *   1. Stored canonical `tier` (server-derived by requestSubscription) — duration
- *      is RECOMPUTED from the table, never read from the doc.
- *   2. `price` — the verified amount is the anchor. A present-but-unknown price
- *      throws (e.g. the old `price || 15` fallback): admin must resolve manually.
- *   3. Legacy `plan` label — ONLY when price is missing on an old doc.
+ * Resolution order — THE PRICE IS THE ANCHOR (the admin verifies the CliQ
+ * proof against the amount, and the amount is what the admin queue displays):
+ *   1. `price` present: derive the tier from the price. A present-but-unknown
+ *      price throws (e.g. the old `price || 15` fallback): admin must resolve
+ *      manually. If a stored `tier` is ALSO present and disagrees with the
+ *      price-derived tier, THROW — a mismatch means a forged/corrupt request
+ *      (e.g. a direct-created doc with { price: 1, tier: 'annual' } trying to
+ *      turn a genuine 1 JD proof into a 365-day grant). Never trust `tier`
+ *      over the amount.
+ *   2. `price` absent (true legacy docs only): fall back to the stored
+ *      canonical `tier` — duration is RECOMPUTED from the table, never read
+ *      from the doc.
+ *   3. Legacy `plan` label — ONLY when both price and tier are missing.
  *
  * Throws Error with .code = 'failed-precondition' when unresolvable.
  */
 function resolveGrantForRequest(reqData) {
   const data = reqData || {};
+
+  if (data.price !== undefined && data.price !== null) {
+    const byPrice = resolveTierByPrice(data.price);
+    if (!byPrice) {
+      throw makeResolutionError(
+        `Unresolvable subscription price ${JSON.stringify(data.price)} on request — not a valid tier amount (1, 4 or 7 JD).`
+      );
+    }
+    if (typeof data.tier === 'string' && data.tier !== '' && data.tier !== byPrice.tier) {
+      throw makeResolutionError(
+        `Tier/price mismatch on request: stored tier "${data.tier}" does not match the tier for price ` +
+        `${JSON.stringify(data.price)} ("${byPrice.tier}"). Possible forged request — do not approve.`
+      );
+    }
+    return byPrice;
+  }
 
   if (typeof data.tier === 'string' && data.tier !== '') {
     const byTier =
@@ -85,14 +108,6 @@ function resolveGrantForRequest(reqData) {
       (LEGACY_TIERS[data.tier] && { tier: data.tier, durationDays: LEGACY_TIERS[data.tier].durationDays });
     if (byTier) return byTier;
     throw makeResolutionError(`Unknown subscription tier "${data.tier}" on request.`);
-  }
-
-  if (data.price !== undefined && data.price !== null) {
-    const byPrice = resolveTierByPrice(data.price);
-    if (byPrice) return byPrice;
-    throw makeResolutionError(
-      `Unresolvable subscription price ${JSON.stringify(data.price)} on request — not a valid tier amount (1, 4 or 7 JD).`
-    );
   }
 
   if (data.plan !== undefined && data.plan !== null && data.plan !== '') {

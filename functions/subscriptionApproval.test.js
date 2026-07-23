@@ -173,6 +173,18 @@ describe('approveSubscriptionRequest', () => {
     expect(db._writes).toHaveLength(0);
   });
 
+  it('REFUSES the forged {price:1, tier:annual} request (tier/price mismatch) without writing', async () => {
+    const db = makeFakeDb({
+      'subscriptionRequests/req-forged': {
+        id: 'req-forged', userId: 'attacker-1', status: 'pending',
+        price: 1, tier: 'annual', plan: 'annual', durationDays: 365,
+      },
+      'users/attacker-1': { subscriptionStatus: 'pending' },
+    });
+    await expect(approveSubscriptionRequest(deps(db), 'req-forged')).rejects.toThrow(/mismatch/i);
+    expect(db._writes).toHaveLength(0);
+  });
+
   it('rejects a request with an unresolvable price (old ||15 fallback) without writing', async () => {
     const db = makeFakeDb({
       'subscriptionRequests/req-bad': {

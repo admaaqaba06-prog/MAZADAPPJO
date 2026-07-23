@@ -161,9 +161,18 @@ service cloud.firestore {
     // 6. Subscription Requests
     match /subscriptionRequests/{reqId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && 
-                    request.resource.data.userId == request.auth.uid && 
-                    request.resource.data.status == 'pending';
+      // S3 defense-in-depth: grant-control fields may NEVER be client-set. The
+      // real flow (the requestSubscription callable) writes via the Admin SDK
+      // and bypasses rules; a direct client create with a forged `tier` (e.g.
+      // { price: 1, tier: 'annual' }) would otherwise ride a genuine 1 JD
+      // proof into a 365-day grant. approveSubscription also cross-checks
+      // tier-vs-price server-side; this rule just kills the forgery earlier.
+      allow create: if isSignedIn() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
+                    !request.resource.data.keys().hasAny([
+                      'tier', 'durationDays', 'approvedTier', 'approvedDurationDays'
+                    ]);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
