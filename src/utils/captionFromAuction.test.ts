@@ -29,10 +29,10 @@ describe('captionInputFromAuction', () => {
   it('formats the Amman start time when scheduled, — when not', () => {
     const unscheduled = captionInputFromAuction(base as AuctionItem, 'https://mazad-jo.com');
     expect(unscheduled.startTime).toBe('—');
-    // 2026-07-23T00:44 Amman ≈ a fixed ms; just assert it is non-empty and not the dash
+    // formatAmmanClock is deterministic UTC+3 offset math (no locale/ICU),
+    // so 1_700_000_000_000 ms → 2023-11-15 01:13 Amman → exactly "1:13".
     const scheduled = captionInputFromAuction({ ...base, scheduledStartAt: 1_700_000_000_000 } as AuctionItem, 'https://mazad-jo.com');
-    expect(scheduled.startTime).not.toBe('—');
-    expect(scheduled.startTime.length).toBeGreaterThan(0);
+    expect(scheduled.startTime).toBe('1:13');
   });
 
   it('emits empty specs (not stored on the auction) without throwing', () => {
