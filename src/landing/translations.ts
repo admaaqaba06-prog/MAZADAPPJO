@@ -187,7 +187,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "لماذا MazadJo؟",
       subtitle: "بدل ما تفاوض عشرات الناس… خليهم ينافسوا عليك.",
-      traditionalTitle: "السوق التقليدي",
+      traditionalTitle: "السوق المفتوح - تقليدي",
       traditionalPoints: [
         "مفاوضات متعبة وتكرار عبارة 'آخر سعر؟'",
         "تضييع وقت مع مشترين غير جادين وهواة بخس السلع",
@@ -204,7 +204,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     interactive: {
       title: "تجربة تفاعلية",
-      subtitle: "بتقدر تشاهد المزاد قبل الاشتراك وتشوف الحماس",
+      subtitle: "جرّب المزاد الحي الآن.",
       stats: [
         { value: "%98", label: "تركيز على الثقة" },
         { value: "3≤", label: "خطوات للمزايدة" },
@@ -399,7 +399,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "Why MazadJo?",
       subtitle: "Instead of negotiating with dozens... let them compete for you.",
-      traditionalTitle: "Traditional Market",
+      traditionalTitle: "Open Market - Traditional",
       traditionalPoints: [
         "Exhausting negotiations and constant 'what's your final price?'",
         "Wasted time with unserious buyers and low-ball offers",
@@ -416,7 +416,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     interactive: {
       title: "Interactive Experience",
-      subtitle: "You can watch the auction before joining and experience the excitement",
+      subtitle: "The feel of a live auction — try it right now.",
       stats: [
         { value: "98%", label: "Focus on Trust" },
         { value: "≤3", label: "Steps to Bid" },
