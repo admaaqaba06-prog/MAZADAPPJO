@@ -286,6 +286,13 @@ service cloud.firestore {
               request.resource.data.status == 'paid'
             )
           ) &&
+          // delivery address/phone are the BUYER's to set (given at the pay
+          // step) — a seller must never write or alter where the buyer's item
+          // ships. Only the buyer may touch these two fields.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deliveryAddress', 'deliveryPhone']) ||
+            resource.data.buyerId == request.auth.uid
+          ) &&
           // keep the existing terminal-transition guard (settlement is server-only)
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||

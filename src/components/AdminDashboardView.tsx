@@ -1282,7 +1282,7 @@ export const AdminDashboardView: React.FC = () => {
             {/* Elegant 4-Card Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               
-              {/* Card 1: Escrow Vault */}
+              {/* Card 1: Funds held by Mazad */}
               <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">

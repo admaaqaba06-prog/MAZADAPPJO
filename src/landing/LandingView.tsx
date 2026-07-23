@@ -1237,7 +1237,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   {lang === "ar" ? "كيف بيشتغل مزاد جو؟" : "How does MazadJo work?"}
                 </h2>
                 <p className="text-lg text-gray-600 font-ibmarabic">
-                  {lang === "ar" ? "أربع خطوات بسيطة، وكل خطوة مضمونة." : "Four simple steps, and every step is guaranteed."}
+                  {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
                 </p>
               </div>
             </Reveal>
@@ -1691,8 +1691,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     {
                       arVal: "١٠٠٪",
                       enVal: "100%",
-                      arLabel: "ضمان مالي",
-                      enLabel: "Financial Guarantee"
+                      arLabel: "محجوز حتى الاستلام",
+                      enLabel: "Held until you confirm"
                     }
                   ].map((stat, idx) => (
                     <div key={idx} className="space-y-2 flex flex-col items-center justify-center">
@@ -1914,8 +1914,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="space-y-4 pt-2">
                     {[
                       {
-                        ar: "حماية كاملة بنسبة 100% لكلا الطرفين (البائع والمشتري).",
-                        en: "100% complete guaranteed protection for both buyers and sellers."
+                        ar: "مزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        en: "Mazad holds your payment and releases it to the seller only after you receive the item and confirm it matches."
                       },
                       {
                         ar: "الدفع لا يكتمل إلا بعد معاينة السلعة فعلياً ومطابقتها للمواصفات.",
@@ -1968,10 +1968,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد جو تحجز المبلغ بالضمان",
-                        enTitle: "MazadJo holds the funds in escrow",
-                        arDesc: "يتم حجز وتحصين المبلغ في حساب بنكي وسيط مستقل وآمن.",
-                        enDesc: "Funds are fully secured and held in a dedicated third-party escrow account."
+                        arTitle: "مزاد بتحتفظ بالمبلغ",
+                        enTitle: "Mazad holds the payment",
+                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,
@@ -2216,7 +2216,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                           </li>
                           <li className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-[#F05123] shrink-0" />
-                            <span>{lang === "ar" ? "توفير مضمون ومستمر" : "Guaranteed savings"}</span>
+                            <span>{lang === "ar" ? "توفير مستمر" : "Ongoing savings"}</span>
                           </li>
                         </ul>
                       </div>
@@ -2762,7 +2762,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             {/* Tiny secure seal */}
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#ECECEA] text-[10px] text-gray-600 font-ibmarabic shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <Lock className="w-3 h-3 text-[#F05123]" />
-              <span>{lang === "ar" ? "مزادات رسمية خاضعة للقوانين الأردنية" : "Official auctions regulated by Jordanian laws"}</span>
+              <span>{lang === "ar" ? "مزادات تعمل في الأردن" : "Auctions operating in Jordan"}</span>
             </div>
           </div>
 
