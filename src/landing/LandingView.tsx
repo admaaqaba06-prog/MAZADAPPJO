@@ -872,12 +872,12 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.65] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-2"
+                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.35] text-[#0A0A0A] font-alexandria"
                 >
-                  <span className="block">{t.hero.titleFirst}</span>
-                  <span className="text-[#F05123] block relative pb-1">
+                  <span className="inline-block">{t.hero.titleFirst}</span>{" "}
+                  <span className="text-[#F05123] inline-block relative mx-2">
                     {t.hero.titleGradient}
-                    <svg className="absolute left-0 bottom-[-2px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
+                    <svg className="absolute left-0 bottom-[-4px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
                       <motion.path
                         d="M0,5 Q50,0 100,5"
                         fill="none"
@@ -889,8 +889,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         transition={{ delay: 0.9, duration: 1, ease: "easeInOut" }}
                       />
                     </svg>
-                  </span>
-                  <span className="block">{t.hero.titleLast}</span>
+                  </span>{" "}
+                  <span className="inline-block">{t.hero.titleLast}</span>
                 </motion.h1>
 
                 {/* Paragraph */}
@@ -899,7 +899,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-gray-700 text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-ibmarabic font-medium pt-3"
+                  className="text-gray-700 text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-ibmarabic font-medium"
                 >
                   {t.hero.desc}
                 </motion.p>
@@ -976,44 +976,35 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               </motion.div>
 
               {/* Right Column (Interactive Live Auction Card) enters last */}
-              <div className="lg:col-span-5 flex justify-center lg:justify-end relative my-auto py-4 w-full">
+              <div className="lg:col-span-5 flex justify-center lg:justify-end relative">
                 
-                {/* Soft blurred orange gradient blob behind the card */}
-                <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
+                {/* Large circular halo backdrop in warm grey #FAFAF8 to separate from white background */}
+                <div className="absolute inset-0 m-auto w-[450px] h-[450px] max-w-full rounded-full bg-[#F7F7F7] filter blur-3xl pointer-events-none -z-10 opacity-100" />
 
                 {/* Premium Floating Card Container with fade and scale */}
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.96, x: lang === "ar" ? 50 : -50 }}
+                  initial={{ opacity: 0, scale: 0.96, x: -50 }}
                   animate={{ opacity: 1, scale: 1, x: 0 }}
                   transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.8 }}
-                  className="w-full max-w-[420px] rounded-2xl bg-white border border-gray-100 p-5 shadow-2xl relative transition-all duration-300 hover:scale-[1.02] hover:rotate-0"
-                  style={{
-                    boxShadow: '0 25px 50px -12px rgba(240, 81, 35, 0.15)',
-                    transform: lang === "ar" ? 'rotate(1.5deg)' : 'rotate(-1.5deg)'
-                  }}
+                  className="w-full max-w-[390px] rounded-[10px] bg-white border border-[#ECECEA] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] relative transition-all duration-300"
                   id="hero-live-card"
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
-                  {/* Glowing warm orange aura behind card */}
-                  <div className="absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/20 via-[#E85D04]/15 to-[#FF8C00]/20 rounded-3xl blur-2xl opacity-75 animate-pulse -z-10 pointer-events-none" />
-
+                  
                   {/* Official Lot System Top Bar */}
-                  <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-gray-100">
+                  <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-[#ECECEA]">
                     <span className={`font-alexandria font-extrabold text-xs text-[#F05123] uppercase ${lang === "en" ? "tracking-wider" : ""}`}>
-                      {lang === "ar" ? "المزاد رقم ٠٠١" : "LOT 001"}
+                      {lang === "ar" ? "لوت ٠٠١" : "LOT 001"}
                     </span>
 
-                    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold font-ibmarabic border border-emerald-200/60 ${lang === "en" ? "tracking-wide" : ""}`}>
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
+                    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold font-ibmarabic ${lang === "en" ? "tracking-wide" : ""}`}>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                       <span>{t.hero.liveBadge}</span>
                     </span>
                   </div>
 
                   {/* Product Image Frame on Sand Backdrop */}
-                  <div className="w-full aspect-[4/3] rounded-xl overflow-hidden relative group bg-gray-100 border border-gray-200/70 shadow-inner transition-all duration-500">
+                  <div className="w-full aspect-[4/3] rounded-[10px] overflow-hidden relative group bg-[#F7F7F7] border border-[#ECECEA] shadow-inner transition-all duration-500">
                     <img
                       src={currentItem.image}
                       alt={lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
@@ -1033,30 +1024,28 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         }
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
                     
                     {/* Dynamic Time Extension Banner */}
                     {showExtensionAlert && (
-                      <div className="absolute top-3 inset-x-3 bg-white border border-[#ECECEA] text-[#F05123] text-center py-2 rounded-lg text-xs font-bold font-ibmarabic shadow-sm flex items-center justify-center gap-1.5 animate-bounce z-10">
+                      <div className="absolute top-3 inset-x-3 bg-white border border-[#ECECEA] text-[#F05123] text-center py-2 rounded-[10px] text-xs font-bold font-ibmarabic shadow-sm flex items-center justify-center gap-1.5 animate-bounce z-10">
                         <Bell className="w-3.5 h-3.5 animate-ring text-[#F05123]" />
                         <span>{lang === "ar" ? "⏱ تم تمديد الوقت تلقائياً!" : "⏱ Auto-Time Extended!"}</span>
                       </div>
                     )}
 
-                    {/* Product Badge & Inspection Overlay */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-1.5 z-10">
-                      <span className="text-white text-[11px] font-ibmarabic font-bold bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/20">
-                        {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                      <span className="text-white text-xs font-ibmarabic font-semibold opacity-95 flex items-center gap-1">
+                        {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
                       </span>
-                      <span className="text-white text-[10px] font-black font-ibmarabic bg-emerald-600/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-emerald-400/40 flex items-center gap-1 shadow-md">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        <span>{lang === "ar" ? "مفحوص من مزادجو" : "Mazadjo Inspected"}</span>
+                      <span className="text-[#F05123] text-xs font-semibold bg-[#FAFAFA] border border-[#ECECEA] px-2.5 py-0.5 rounded-[10px]">
+                        {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
                       </span>
                     </div>
                   </div>
 
                   {/* Elegant interactive item selection tabs below the image */}
-                  <div className="flex items-center justify-center gap-1.5 mt-3 mb-2">
+                  <div className="flex items-center justify-center gap-1.5 mt-3 mb-2.5">
                     {ACTIVE_ITEMS.map((item, idx) => {
                       const isActive = idx === activeItemIndex;
                       return (
@@ -1086,17 +1075,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </div>
 
                   {/* Specifications */}
-                  <div className="my-3 min-h-[52px] flex flex-col justify-center border-t border-[#ECECEA] pt-2">
-                    <h3 className="text-base font-bold text-[#0A0A0A] font-alexandria leading-tight transition-all duration-300">
+                  <div className="my-4 min-h-[56px] flex flex-col justify-center border-t border-[#ECECEA] pt-2">
+                    <h3 className="text-lg font-bold text-[#0A0A0A] font-alexandria leading-tight transition-all duration-300">
                       {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
                     </h3>
-                    <p className="text-xs text-gray-500 font-ibmarabic mt-0.5 transition-all duration-300 line-clamp-1">
+                    <p className="text-xs text-gray-600 font-ibmarabic mt-1 transition-all duration-300">
                       {lang === "ar" ? currentItem.detailsAr : currentItem.detailsEn}
                     </p>
                   </div>
 
                   {/* Real-time Bid Info Block with gold flash on background and numerical Price Roll */}
-                  <div className="bg-[#FAFAFA] rounded-xl p-3.5 border border-[#ECECEA] flex items-center justify-between mb-3 relative overflow-hidden">
+                  <div className="bg-[#FAFAFA] rounded-[10px] p-3.5 border border-[#ECECEA] flex items-center justify-between mb-4 relative overflow-hidden">
                     <AnimatePresence>
                       <motion.div
                         key={currentPrice}
@@ -1108,9 +1097,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       />
                     </AnimatePresence>
                     <div>
-                      <span className={`text-[10px] text-gray-500 font-bold uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>
-                        {lang === "ar" ? "المزايدة الحالية" : "Current Bid"}
-                      </span>
+                      <span className={`text-[10px] text-gray-600 uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>{t.hero.currentPrice}</span>
                       <div className="overflow-hidden relative h-7">
                         <AnimatePresence mode="popLayout">
                           <motion.span
@@ -1119,7 +1106,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: -20, opacity: 0 }}
                             transition={{ duration: 0.35, ease: "easeOut" }}
-                            className="text-xl font-black text-[#F05123] block font-mono"
+                            className="text-xl font-bold text-[#F05123] block"
                           >
                             {formatPrice(currentPrice)}
                           </motion.span>
@@ -1128,42 +1115,21 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </div>
 
                     <div className="text-end">
-                      <span className={`text-[10px] text-gray-500 font-bold uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>
-                        {lang === "ar" ? "ينتهي خلال" : "Ends in"}
+                      <span className={`text-[10px] text-gray-600 uppercase font-ibmarabic block ${lang === "en" ? "tracking-wider" : ""}`}>
+                        {lang === "ar" ? "الوقت المتبقي" : "Time Left"}
                       </span>
-                      <span className="text-xs font-mono font-bold text-[#F05123] flex items-center gap-1.5 justify-end bg-white border border-[#ECECEA] px-2.5 py-1 rounded-lg mt-0.5 shadow-2xs">
+                      <span className="text-sm font-mono font-bold text-[#F05123] flex items-center gap-1.5 justify-end bg-white border border-[#ECECEA] px-2.5 py-1 rounded-[10px] mt-0.5">
                         <Clock className="w-3.5 h-3.5 text-[#F05123]" />
                         {formatTimer(carTimer)}
                       </span>
                     </div>
                   </div>
 
-                  {/* Active Bidders Indicator Element */}
-                  <div className="flex items-center justify-between py-2.5 px-3 bg-gray-50/80 rounded-xl border border-gray-100 mb-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2 rtl:space-x-reverse">
-                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-5 h-5 rounded-full object-cover border-2 border-white shadow-xs" />
-                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-5 h-5 rounded-full object-cover border-2 border-white shadow-xs" />
-                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-5 h-5 rounded-full object-cover border-2 border-white shadow-xs" />
-                        <div className="w-5 h-5 rounded-full bg-[#F05123]/10 border-2 border-white flex items-center justify-center text-[8px] font-black text-[#F05123]">
-                          +8
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold text-gray-700 font-ibmarabic">
-                        {lang === "ar" ? "١٢ مزايد نشط" : "12 active bidders"}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 flex items-center gap-1 font-ibmarabic">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      {lang === "ar" ? "متواجدين الآن" : "Bidding Live"}
-                    </span>
-                  </div>
-
                   {/* Instant Bid Button */}
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={handleUserBid}
-                    className={`w-full py-3.5 rounded-xl bg-[#F05123] hover:bg-[#D93E15] text-white font-extrabold text-sm shadow-md transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${lang === "en" ? "tracking-wide" : ""}`}
+                    className={`w-full py-3.5 rounded-[10px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-sm shadow-sm transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${lang === "en" ? "tracking-wide" : ""}`}
                   >
                     <Hammer className="w-4 h-4 text-white" />
                     <span className="font-ibmarabic">
@@ -1174,8 +1140,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </motion.button>
 
                   {/* Footnotes */}
-                  <div className="mt-3 pt-3 border-t border-[#ECECEA] flex items-center justify-between text-[10px] text-gray-500 font-ibmarabic">
+                  <div className="mt-4 pt-3.5 border-t border-[#ECECEA] flex items-center justify-between text-[10px] text-gray-500 font-ibmarabic">
                     {t.hero.features.map((feat, idx) => {
+                      // Remove emoji character prefixes if any
                       const featClean = feat.replace(/^[🚗🛡📸⚡️⚖️✔️👑🔒⏱️🚀]+/, "").trim();
                       return (
                         <span key={idx} className="flex items-center gap-1">
@@ -1195,7 +1162,68 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-
+        {/* 3. شريط الثقة (Ticker tape / Infinite Marquee) */}
+        <section id="trust-bar" className="bg-white border-b border-[#F0F0EE] py-8 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="marquee-container py-3.5 bg-white border border-[#ECECEA] rounded-[10px] overflow-hidden relative shadow-sm">
+              <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+              
+              <div className="flex w-full overflow-hidden">
+                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"}>
+                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
+                    <div key={i} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
+                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
+                        {lang === "ar" ? bid.name : bid.nameEn}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "زايد بـ" : "bid"}
+                      </span>
+                      <span className="font-bold text-[#F05123]">
+                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "على" : "on"}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
+                        {lang === "ar" ? bid.item : bid.itemEn}
+                      </span>
+                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
+                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
+                      </span>
+                      <span className="text-gray-300">·</span>
+                    </div>
+                  ))}
+                </div>
+                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"} aria-hidden="true">
+                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
+                    <div key={`dup-${i}`} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
+                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
+                        {lang === "ar" ? bid.name : bid.nameEn}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "زايد بـ" : "bid"}
+                      </span>
+                      <span className="font-bold text-[#F05123]">
+                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
+                        {lang === "ar" ? "على" : "on"}
+                      </span>
+                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
+                        {lang === "ar" ? bid.item : bid.itemEn}
+                      </span>
+                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
+                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
+                      </span>
+                      <span className="text-gray-300">·</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
         <section id="how-it-works" className="py-[96px] bg-[#FFFFFF] border-b border-[#F0F0EE] relative overflow-hidden">
@@ -1699,8 +1727,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </h2>
                   <p className="text-gray-700 text-sm sm:text-base leading-relaxed font-ibmarabic">
                     {lang === "ar" 
-                      ? "بتقدر تشاهد المزاد قبل الاشتراك وتشوف الحماس"
-                      : "You can watch the auction before joining and experience the excitement"}
+                      ? "جرب بنفسك حماس المزايدة في الوقت الفعلي. انظر كيف تتنافس الأطراف المختلفة وتتفاعل ديناميكياً لترفع القيمة الحقيقية للسلعة خلال ثوانٍ معدودة."
+                      : "Try the bidding excitement yourself in real-time. Experience how participants battle dynamically to raise the real value of the item in seconds."}
                   </p>
                 </div>
 
@@ -1872,7 +1900,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       {lang === "ar" ? "الأمان المالي" : "Financial Security"}
                     </span>
                     <h2 className="text-4xl md:text-5xl font-bold text-[#0A0A0A] font-ibmarabic leading-tight">
-                      {lang === "ar" ? "فلوسك بأمان لحد ما تتأكد من المنتج" : "Your money is safe until you inspect the item"}
+                      {lang === "ar" ? "فلوسك بأمان لحد ما توافق إنت — مش قبل." : "Your money is safe until you approve — never before."}
                     </h2>
                   </div>
                   
@@ -2284,21 +2312,20 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="absolute top-0 right-0 -translate-x-1/4 -translate-y-1/4 w-[200px] h-[200px] rounded-full bg-[#F05123]/10 blur-2xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 translate-x-1/4 translate-y-1/4 w-[150px] h-[150px] rounded-full bg-white/5 blur-2xl pointer-events-none" />
 
-                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-                    <div className="space-y-3 max-w-2xl">
-                      {/* Badge in flow */}
-                      <div>
-                        <span className="inline-flex items-center bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[11px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
-                          {lang === "ar" ? "رسوم الإدراج مجاناً — لفترة محدودة" : "Free listing fees — Limited time"}
-                        </span>
-                      </div>
+                  {/* Corner Badge - Orange Gradient */}
+                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
+                    {lang === "ar" ? "رسوم إدراج ٠ دينار — لفترة محدودة" : "Listing fee 0 JOD — Limited time"}
+                  </div>
+
+                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
+                    <div className="space-y-4 max-w-2xl">
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
                         {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "رسوم الإدراج مجاناً حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
-                          : "Free listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
+                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
+                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
                       </p>
                     </div>
 

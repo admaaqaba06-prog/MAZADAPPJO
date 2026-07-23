@@ -91,6 +91,11 @@ export interface AuctionItem {
   currentBidderName: string | null;
   videoUrl: string;
   thumbnailUrl: string;
+  /**
+   * Wave 2 (media gallery): ordered extra gallery images (excludes the video).
+   * Rendered after videoUrl + thumbnailUrl — see utils/auctionMedia.ts.
+   */
+  mediaUrls?: string[];
   endTime: number; // Unix timestamp
   duration: number; // in seconds
   sellerId: string;

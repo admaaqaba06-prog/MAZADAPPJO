@@ -145,7 +145,10 @@ export const SellView: React.FC = () => {
           isConcierge: true,
           condition: cCondition,
           conciergeContact: cContact.trim(),
-          conciergePhotos: extraPhotoUrls
+          // Admin concierge queue keeps reading conciergePhotos; the live-room
+          // media gallery reads mediaUrls (Wave 2) — write both.
+          conciergePhotos: extraPhotoUrls,
+          mediaUrls: extraPhotoUrls
         } as any,
         null,
         cPhotos[0].file,
