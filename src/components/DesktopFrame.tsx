@@ -641,8 +641,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="text-[9.5px] text-gray-500 font-medium leading-relaxed">
                   {isAr
-                    ? 'مدفوعاتك عبر كليك إلى حساب مزاد جو في كابيتال بنك.'
-                    : "Payments via CliQ to Mazad JO's Capital Bank account."}
+                    ? 'مدفوعاتك عبر كليك إلى حساب مزاد جو في البنك العربي.'
+                    : "Payments via CliQ to Mazad JO's Arab Bank account."}
                 </p>
               </div>
 

@@ -34,7 +34,7 @@ export const translations = {
     planAnnualUnit: " / Year",
     mostPopular: "MOST POPULAR",
     bestValue: "BEST VALUE",
-    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes.",
+    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes.",
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live streams",
@@ -174,7 +174,7 @@ export const translations = {
     planAnnualUnit: " / سنوياً",
     mostPopular: "الأكثر اختياراً",
     bestValue: "أفضل قيمة",
-    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.",
+    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.",
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
       "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",
