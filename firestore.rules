@@ -164,14 +164,17 @@ service cloud.firestore {
       // S3 defense-in-depth: grant-control fields may NEVER be client-set. The
       // real flow (the requestSubscription callable) writes via the Admin SDK
       // and bypasses rules; a direct client create with a forged `tier` (e.g.
-      // { price: 1, tier: 'annual' }) would otherwise ride a genuine 1 JD
-      // proof into a 365-day grant. approveSubscription also cross-checks
-      // tier-vs-price server-side; this rule just kills the forgery earlier.
+      // { price: 1, tier: 'annual' }) — or a price-less `plan: 'annual'` that
+      // would ride the resolver's legacy-plan fallback — would otherwise turn
+      // a genuine 1 JD proof into a 365-day grant. approveSubscription also
+      // cross-checks tier-vs-price server-side; this rule kills the forgery
+      // earlier. `plan`'s legacy fallback stays resolver-side for old
+      // Admin-SDK-created docs only.
       allow create: if isSignedIn() &&
                     request.resource.data.userId == request.auth.uid &&
                     request.resource.data.status == 'pending' &&
                     !request.resource.data.keys().hasAny([
-                      'tier', 'durationDays', 'approvedTier', 'approvedDurationDays'
+                      'tier', 'durationDays', 'approvedTier', 'approvedDurationDays', 'plan'
                     ]);
       allow update: if isAdmin();
       allow delete: if isAdmin();
