@@ -298,7 +298,7 @@ export const SubscriptionView: React.FC = () => {
             </div>
             <div className="flex justify-between pb-1.5">
               <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
-              <span className="font-black text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+              <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? 'البنك العربي' : 'ARAB BANK'}</span>
             </div>
           </div>
         </div>

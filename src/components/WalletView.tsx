@@ -1071,7 +1071,7 @@ export const WalletView: React.FC = () => {
 
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
                         <span className="text-zinc-400">{localT.recipientBank}:</span>
-                        <span className="font-extrabold text-[#FF6B00] uppercase font-mono">CAPITAL BANK</span>
+                        <span className="font-extrabold text-[#FF6B00] uppercase font-mono">{isAr ? 'البنك العربي' : 'ARAB BANK'}</span>
                       </div>
                       
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
@@ -1626,8 +1626,8 @@ export const WalletView: React.FC = () => {
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {isAr
-                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.'
-                  : "Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes."}
+                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
+                  : "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes."}
               </p>
             </div>
 
