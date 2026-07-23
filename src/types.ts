@@ -255,6 +255,10 @@ export interface Order {
   paymentVerifiedAt?: any;
   /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
   paymentRejectionReason?: string;
+  /** Slice C fulfillment nudge — admin-stamped only, via sendFulfillmentNudge. Informational (no rate-limit). */
+  lastNudgedAt?: any;
+  /** Times an admin has nudged this order (any bucket). Admin-only. */
+  nudgeCount?: number;
   trackingNumber?: string;
   /**
    * Wave 2 (W4): per-order delivery address + phone the winner provides at the

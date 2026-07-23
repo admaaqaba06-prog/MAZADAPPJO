@@ -8,6 +8,7 @@ const {
   rejectSubscriptionRequest,
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
+const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
@@ -1408,6 +1409,44 @@ exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     return { success: true, ...result };
   } catch (error) {
     console.error('Error in verifyOrderPayment:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'invalid-argument', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * sendFulfillmentNudge — Slice C (Fulfillment). Admin nudges a seller to
+ * ship or a buyer to confirm delivery. Manual-only: this callable is the
+ * ONLY way a nudge fires — nothing calls it on a timer/trigger.
+ */
+exports.sendFulfillmentNudge = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { orderId, kind } = data || {};
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp };
+    const result = await sendFulfillmentNudgeTxn(deps, { orderId, kind, adminUid: context.auth.uid });
+
+    let phone = '';
+    try {
+      const targetSnap = result.targetUserId ? await db.collection('users').doc(result.targetUserId).get() : null;
+      phone = targetSnap && targetSnap.exists ? (targetSnap.data().phoneNumber || '') : '';
+    } catch (e) { console.warn('[sendFulfillmentNudge] target phone lookup failed:', e); }
+
+    const event = kind === 'ship' ? 'seller_ship_nudge' : 'buyer_confirm_nudge';
+    // Hour-bucketed key: dedupes accidental same-click retries within a clock-hour,
+    // but still lets a deliberately-later repeat nudge (a spec requirement) through;
+    // the exact window is tunable once the n8n Switch branches + real dedup are wired.
+    const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
+    await postToN8n(event, {
+      phone, name: result.targetUserName, orderId,
+      idempotencyKey: `${event}_${orderId}_${hourBucket}`,
+    });
+
+    console.log(`[sendFulfillmentNudge] ${kind} nudge sent for order=${orderId} by ${context.auth.uid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in sendFulfillmentNudge:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'invalid-argument', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
