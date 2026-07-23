@@ -19,6 +19,7 @@ import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '..
 import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
 import { isExpectedBidFailure } from '../utils/bidErrors';
+import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -55,7 +56,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -1401,12 +1402,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? 'admin'
         : 'none';
 
+  // PF5: the previous output of the auctions-snapshot sync below — NOT a mirror
+  // of the `auctions` state (other, optimistic writers touch that). Keeping the
+  // last synced list here lets each snapshot reuse the prior object reference
+  // for every lot that did NOT change, so one bid no longer hands all ~80 lots
+  // a fresh identity (which churned every downstream memo and countdown).
+  const auctionsSnapSyncRef = useRef<AuctionItem[]>([]);
+
   useEffect(() => {
     if (auctionSubMode === 'none') {
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(false);
       return;
     }
+
+    // Fresh subscription (first mount or buyer<->admin flip): drop the prior
+    // identity map. The new listener's initial snapshot lists every doc as
+    // 'added', so everything is remapped fresh regardless — this reset just
+    // guarantees no stale reference can ever leak across query windows.
+    auctionsSnapSyncRef.current = [];
 
     const auctionsRefCol = collection(db, 'auctions');
     let q;
@@ -1439,14 +1454,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsub = onSnapshot(q, (snap) => {
       setAuctionsLoaded(true);
       if (snap.empty) {
+        auctionsSnapSyncRef.current = [];
         setAuctions([]);
       } else {
-        const fetchedList: AuctionItem[] = [];
         const itemsToResolve: { id: string; rawUrl: string; category: string }[] = [];
 
-        snap.forEach((docSnap) => {
-          fetchedList.push(mapAuctionDoc(docSnap, itemsToResolve));
+        // PF5 (⚠️ money-adjacent): identity-preserving sync instead of the old
+        // full `snap.forEach(mapAuctionDoc)` remap. Docs named in docChanges()
+        // ('added'/'modified') are re-mapped IN FULL by the same mapAuctionDoc
+        // as before — never a hand-picked field merge — so a changed lot
+        // carries every field the room reads (currentPrice, currentBidderId,
+        // endTime/endsAt, status, totalBids, winnerId, …) with the exact same
+        // values the old handler produced. Only lots the snapshot did NOT
+        // change reuse their previous object reference, and 'removed' docs are
+        // dropped. Membership + order come from snap.docs (the query's
+        // orderBy createdAt desc), identical to the old forEach output.
+        const fetchedList = syncAuctionsFromSnapshot<AuctionItem, QueryDocumentSnapshot>({
+          prev: auctionsSnapSyncRef.current,
+          docs: snap.docs,
+          changes: snap.docChanges(),
+          getId: (docSnap) => docSnap.id,
+          mapDoc: (docSnap) => mapAuctionDoc(docSnap, itemsToResolve),
         });
+        auctionsSnapSyncRef.current = fetchedList;
 
         // Set the auctions synchronously so viewer counts, bids and clock ticks feel butter-smooth!
         setAuctions(fetchedList);
@@ -1460,14 +1490,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return { id, resolvedUrl };
             })
           ).then((results) => {
-            // Smoothly swap fallback video URLs with the resolved custom blob URLs
+            // Smoothly swap fallback video URLs with the resolved custom blob
+            // URLs. The canonical patch goes through the sync ref so the NEXT
+            // snapshot's unchanged-lot reuse hands back the patched object
+            // (otherwise the resolved URL would flip back to the fallback on
+            // the next bid). State is patched FUNCTIONALLY and ONLY on
+            // videoUrl — spreading the state's OWN item, never substituting
+            // the ref-derived object — so an optimistic per-item state write
+            // that landed between the snapshot and this async resolution
+            // (e.g. admin approve/reject flipping status, the seller edit)
+            // is never clobbered back to the stale snapshot object.
+            const resolvedById = new Map(results.map((r) => [r.id, r.resolvedUrl]));
+            auctionsSnapSyncRef.current = auctionsSnapSyncRef.current.map((item) => {
+              const resolvedUrl = resolvedById.get(item.id);
+              if (resolvedUrl === undefined) return item;
+              return { ...item, videoUrl: resolvedUrl };
+            });
             setAuctions((prev) =>
               prev.map((item) => {
-                const matched = results.find((r) => r.id === item.id);
-                if (matched) {
-                  return { ...item, videoUrl: matched.resolvedUrl };
-                }
-                return item;
+                const resolvedUrl = resolvedById.get(item.id);
+                return resolvedUrl === undefined ? item : { ...item, videoUrl: resolvedUrl };
               })
             );
           }).catch((err) => {
@@ -1477,6 +1519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }, (err) => {
       console.warn("Firestore 'auctions' collection sync error:", err);
+      auctionsSnapSyncRef.current = [];
       setAuctions([]);
       setAuctionsLoaded(true);
     });
