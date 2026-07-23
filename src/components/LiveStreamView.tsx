@@ -50,14 +50,23 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
   const prevSecondsRemaining = useRef<number | null>(null);
 
   // 1s countdown tick — only meaningful while the lot is live.
+  // PF7: depend on the primitives the tick actually reads (id/endTime/status),
+  // NOT the activeAuction object identity — before PF5, every bid on ANY lot
+  // handed this component a fresh object and tore down/rebuilt the interval
+  // mid-snipe-window. ⚠️TIMING: `endTime` MUST stay in the deps — an anti-snipe
+  // extension (server adds +15s to endsAt) must restart the countdown from the
+  // new endTime, and `status` must stay so the live→completed flip re-evaluates.
+  const activeAuctionId = activeAuction?.id;
+  const activeAuctionEndTime = activeAuction?.endTime;
+  const activeAuctionStatus = activeAuction?.status;
   useEffect(() => {
-    if (!activeAuction) {
+    if (!activeAuctionId) {
       setSecondsRemaining(null);
       return;
     }
     const update = () => {
-      if (activeAuction.status === 'live') {
-        const remainingMs = (activeAuction.endTime ?? 0) - serverNow();
+      if (activeAuctionStatus === 'live') {
+        const remainingMs = (activeAuctionEndTime ?? 0) - serverNow();
         setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
       } else {
         setSecondsRemaining(null);
@@ -66,7 +75,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
     update(); // run once immediately
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [activeAuction]);
+  }, [activeAuctionId, activeAuctionEndTime, activeAuctionStatus]);
 
   // Reset the edge-detector when the active lot swaps.
   useEffect(() => {
@@ -348,7 +357,7 @@ export const LiveStreamView: React.FC = () => {
     // dead auction as if it were watchable.
     const approvedOnly = auctions.filter(a =>
       a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
-      a.status !== 'completed' && a.status !== 'ended'
+      a.status !== 'completed' && a.status !== 'ended' && a.status !== 'reserve_not_met'
     );
     const displayList = filtered.length > 0 ? filtered : approvedOnly;
     return [...displayList].sort((a, b) => {

@@ -101,7 +101,7 @@ export interface AuctionItem {
   sellerId: string;
   sellerName: string;
   sellerLogo: string;
-  status: 'upcoming' | 'live' | 'processing' | 'rejected' | 'completed';
+  status: 'upcoming' | 'live' | 'processing' | 'rejected' | 'completed' | 'ended' | 'reserve_not_met';
   /** Mazad review gate verdict ('processing' listings are 'pending'). */
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   /** Admin-entered reason shown to the seller when a listing is rejected. */
@@ -111,6 +111,14 @@ export interface AuctionItem {
   viewersCount: number;
   caption?: string;
   marketPrice?: number; // retail/market reference for the "you saved X" reveal
+  /** Sequential internal auction number assigned at create from the atomic counter. */
+  auctionNumber?: number;
+  /**
+   * Reserve gate: true when there is no reserve OR the price has reached it.
+   * The reserve AMOUNT never lives on this (world-readable) doc — only this boolean.
+   * Maintained by onBidCreated; authoritative sale decision re-checks in settleAuctionTxn.
+   */
+  reserveMet?: boolean;
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
