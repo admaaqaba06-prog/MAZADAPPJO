@@ -107,15 +107,6 @@ function Counter({ target, prefix = "", suffix = "" }: { target: number; prefix?
   );
 }
 
-const marqueeBids = [
-  { name: "أحمد العبادي", item: "تويوتا كامري", amount: "14,500 د.أ", time: "منذ دقيقة", nameEn: "Ahmad Al-Abadi", itemEn: "Toyota Camry", amountEn: "14,500 JOD", timeEn: "1m ago" },
-  { name: "سارة حداد", item: "آيفون 15 برو ماكس", amount: "875 د.أ", time: "منذ ثوانٍ", nameEn: "Sarah Haddad", itemEn: "iPhone 15 Pro Max", amountEn: "875 JOD", timeEn: "Seconds ago" },
-  { name: "خالد الشوابكة", item: "فيلا في دابوق", amount: "325,000 د.أ", time: "منذ 5 دقائق", nameEn: "Khalid Shawabkeh", itemEn: "Villa in Dabouq", amountEn: "325,000 JOD", timeEn: "5m ago" },
-  { name: "حمزة المصري", item: "تويوتا كامري", amount: "14,250 د.أ", time: "منذ 10 دقائق", nameEn: "Hamzah Al-Masri", itemEn: "Toyota Camry", amountEn: "14,250 JOD", timeEn: "10m ago" },
-  { name: "هديل الخلايلة", item: "آيفون 15 برو ماكس", amount: "850 د.أ", time: "منذ دقيقة", nameEn: "Hadeel Al-Khalayleh", itemEn: "iPhone 15 Pro Max", amountEn: "850 JOD", timeEn: "1m ago" },
-  { name: "عمر الزعبي", item: "فيلا في دابوق", amount: "320,000 د.أ", time: "منذ ساعة", nameEn: "Omar Al-Zoubi", itemEn: "Villa in Dabouq", amountEn: "320,000 JOD", timeEn: "1h ago" }
-];
-
 
 const translateLogTime = (timeStr: string, isAr: boolean): string => {
   if (isAr) {
@@ -167,37 +158,6 @@ const renderMixedText = (text: string, isAr: boolean) => {
     }
   });
 };
-
-const renderTickerAmount = (amountStr: string, isAr: boolean) => {
-  const parts = amountStr.split(" ");
-  const numPart = parts[0];
-  const unitPart = parts.slice(1).join(" ");
-  return (
-    <span className="inline-flex items-center gap-0.5">
-      <span className="font-mono" dir="ltr">{numPart}</span>
-      <span className={isAr ? "font-ibmarabic text-[11px]" : "font-sans text-[11px]"}>{unitPart}</span>
-    </span>
-  );
-};
-
-const renderTickerTime = (timeStr: string, isAr: boolean) => {
-  const segments = timeStr.split(/(\d+)/g);
-  return segments.map((seg, idx) => {
-    if (/^\d+$/.test(seg)) {
-      return (
-        <span key={idx} className="font-mono mx-0.5" dir="ltr">
-          {seg}
-        </span>
-      );
-    }
-    return (
-      <span key={idx} className={isAr ? "font-ibmarabic" : "font-sans"}>
-        {seg}
-      </span>
-    );
-  });
-};
-
 
 // Simulated Jordanian names for the interactive feed
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
@@ -1271,69 +1231,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
             </div>
 
-          </div>
-        </section>
-
-        {/* 3. شريط الثقة (Ticker tape / Infinite Marquee) */}
-        <section id="trust-bar" className="bg-white border-b border-[#F0F0EE] py-8 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="marquee-container py-3.5 bg-white border border-[#ECECEA] rounded-[10px] overflow-hidden relative shadow-sm">
-              <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-              <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-              
-              <div className="flex w-full overflow-hidden">
-                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"}>
-                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
-                    <div key={i} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
-                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
-                        {lang === "ar" ? bid.name : bid.nameEn}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "زايد بـ" : "bid"}
-                      </span>
-                      <span className="font-bold text-[#F05123]">
-                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "على" : "on"}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
-                        {lang === "ar" ? bid.item : bid.itemEn}
-                      </span>
-                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
-                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
-                      </span>
-                      <span className="text-gray-300">·</span>
-                    </div>
-                  ))}
-                </div>
-                <div className={lang === "ar" ? "marquee-content-rtl" : "marquee-content"} aria-hidden="true">
-                  {[...marqueeBids, ...marqueeBids].map((bid, i) => (
-                    <div key={`dup-${i}`} className="flex items-center gap-2 px-6 text-xs text-[#0A0A0A]/80">
-                      <span className={lang === "ar" ? "font-ibmarabic font-semibold text-[#F05123]" : "font-sans font-semibold text-[#F05123]"}>
-                        {lang === "ar" ? bid.name : bid.nameEn}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "زايد بـ" : "bid"}
-                      </span>
-                      <span className="font-bold text-[#F05123]">
-                        {renderTickerAmount(lang === "ar" ? bid.amount : bid.amountEn, lang === "ar")}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic text-gray-500" : "font-sans text-gray-500"}>
-                        {lang === "ar" ? "على" : "on"}
-                      </span>
-                      <span className={lang === "ar" ? "font-ibmarabic font-medium text-gray-800" : "font-sans font-medium text-gray-800"}>
-                        {lang === "ar" ? bid.item : bid.itemEn}
-                      </span>
-                      <span className={`text-gray-400 ${lang === "ar" ? "font-ibmarabic" : ""}`}>
-                        ({renderTickerTime(lang === "ar" ? bid.time : bid.timeEn, lang === "ar")})
-                      </span>
-                      <span className="text-gray-300">·</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
