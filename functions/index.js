@@ -1349,17 +1349,23 @@ exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(asyn
     const result = await rejectSubscriptionRequest(deps, { reqId, userId, reason });
     console.log(`[rejectSubscription] Rejected (reqId=${result.reqId || 'direct'}, userId=${result.userId}, downgraded=${result.userDowngraded}) by ${context.auth.uid}`);
     let phone = '';
+    let userSnap = null;
     try {
-      const userSnap = result.userId ? await db.collection('users').doc(result.userId).get() : null;
+      userSnap = result.userId ? await db.collection('users').doc(result.userId).get() : null;
       phone = userSnap && userSnap.exists ? (userSnap.data().phoneNumber || '') : '';
     } catch (e) { console.warn('[rejectSubscription] phone lookup failed:', e); }
-    await postToN8n('membership_rejected', {
-      phone,
-      name: result.userId || 'Member',
-      reason: result.reason || '',
-      reqId: result.reqId || null,
-      idempotencyKey: `membership_rejected_${result.reqId || result.userId}_${Date.now()}`,
-    });
+    // Only notify on a real reviewed request rejection (reqId). A bare
+    // direct-downgrade admin action returns reqId: null and must stay silent —
+    // it predates this slice and was never meant to trigger a rejection message.
+    if (result.reqId) {
+      await postToN8n('membership_rejected', {
+        phone,
+        name: (userSnap && userSnap.exists ? (userSnap.data().name || 'Member') : 'Member'),
+        reason: result.reason || '',
+        reqId: result.reqId || null,
+        idempotencyKey: `membership_rejected_${result.reqId || result.userId}`,
+      });
+    }
     return { success: true, ...result };
   } catch (error) {
     console.error('Error in rejectSubscription:', error);
@@ -1397,7 +1403,7 @@ exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     } catch (e) { console.warn('[verifyOrderPayment] buyer phone lookup failed:', e); }
     await postToN8n('order_payment_rejected', {
       phone, name: result.buyerName, reason: result.reason, orderId,
-      idempotencyKey: `order_payment_rejected_${orderId}_${Date.now()}`,
+      idempotencyKey: `order_payment_rejected_${orderId}`,
     });
     return { success: true, ...result };
   } catch (error) {

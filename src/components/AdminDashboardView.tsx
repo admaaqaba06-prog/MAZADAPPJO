@@ -480,10 +480,11 @@ export const AdminDashboardView: React.FC = () => {
 
   // Verify & Approve — order payments awaiting review (receipt attached, not
   // yet verified). Same predicate as the section's queue (shared util), and
-  // the same `orders` source the ORDERS tab renders so sim-filtering matches.
+  // sourced from realOrders (isSimulated !== true) so simulated orders never
+  // inflate the badge — matching the real-metric hygiene used across this file.
   const pendingOrderPaymentsCount = useMemo(
-    () => (orders || []).filter(isPendingOrderPayment).length,
-    [orders]
+    () => realOrders.filter(isPendingOrderPayment).length,
+    [realOrders]
   );
 
   // Auctions the settlement cron should already have closed: still live/active
@@ -1114,7 +1115,7 @@ export const AdminDashboardView: React.FC = () => {
             <VerifyApproveSection
               isAr={isAr}
               subscriptionRequests={subscriptionRequests}
-              orders={orders || []}
+              orders={realOrders}
               onApproveSubscription={approveSubscription}
               onRejectSubscription={rejectSubscription}
               onVerifyOrderPayment={handleVerifyOrderPayment}
