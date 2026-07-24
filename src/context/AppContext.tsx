@@ -199,8 +199,8 @@ interface AppContextProps {
   // Active View State
   activeAuctionId: string | null;
   setActiveAuctionId: (id: string | null) => void;
-  activeView: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items';
-  setActiveView: (view: 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
+  activeView: 'landing' | 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items';
+  setActiveView: (view: 'landing' | 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items') => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   // Wave 2b: 'add-funds' and 'withdraw' sub-views were removed — the wallet
@@ -610,9 +610,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // on the right view in the FIRST render — the History-API sync effect below
   // then replaceState()s it (no phantom entry). parseNav normalizes a Firebase
   // auth-redirect callback to a neutral discovery so OAuth is never routed.
-  const initialNav = parseNav(typeof window !== 'undefined' ? window.location.search : '');
+  const initialNav = parseNav(typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
-  const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
+  const [activeView, setActiveView] = useState<'landing' | 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
   // Trust gate: a member without a real profile photo who taps bid/sell is shown
   // the "add a photo" sheet (mirrors the subscription prompt plumbing).
@@ -677,15 +677,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const node = deriveNavNode();
-    const search = serializeNav(node);
-    const prevSearch = historyNodeRef.current;
-    if (prevSearch === search) return; // already in history (e.g. from a pop)
-    const url = search || window.location.pathname;
+    const url = serializeNav(node); // a real path, e.g. '/discover' or '/auction/x'
+    const prevUrl = historyNodeRef.current;
+    if (prevUrl === url) return; // already in history (e.g. from a pop)
     if (!historyInitRef.current) {
       // Initial mount / deep-link entry: seed the top entry, no phantom push.
       historyInitRef.current = true;
       window.history.replaceState(node, '', url);
-    } else if (prevSearch !== null && isModalCloseTransition(parseNav(prevSearch), node)) {
+    } else if (prevUrl !== null && isModalCloseTransition(parseNav(prevUrl), node)) {
       // A wired modal was closed by its X/close button (view/auction unchanged).
       // Collapse the modal entry in place instead of pushing a new clean one —
       // otherwise history becomes [view, modal, view'] and Back reopens the modal.
@@ -694,7 +693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Real in-app navigation (view change, or opening a modal): add a Back target.
       window.history.pushState(node, '', url);
     }
-    historyNodeRef.current = search;
+    historyNodeRef.current = url;
   }, [deriveNavNode]);
 
   // Single popstate listener (mounted once). Reads the popped node from
@@ -704,7 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window === 'undefined') return;
     const onPopState = (event: PopStateEvent) => {
       const raw = event.state as NavNode | null;
-      const node: NavNode = raw && raw.view ? raw : parseNav(window.location.search);
+      const node: NavNode = raw && raw.view ? raw : parseNav(window.location.pathname + window.location.search);
       historyNodeRef.current = serializeNav(node);
       applyNavNode(node);
     };

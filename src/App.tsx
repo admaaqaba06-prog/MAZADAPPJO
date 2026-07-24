@@ -1,6 +1,6 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { AppProvider, useApp, useAuctions } from './context/AppContext';
-import { parseAuctionIdFromSearch } from './utils/deepLink';
+import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from './utils/deepLink';
 import { resolveUnauthenticatedScreen, canGuestAccessView } from './utils/guestGate';
 import { isAdminUser } from './utils/adminAuth';
 import { canSeeSimulated } from './utils/simVisibility';
@@ -180,10 +180,12 @@ function MainAppShell() {
   const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
-  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    const id = parseAuctionIdFromSearch(window.location.search);
+    // Redundant with AppContext's initialNav (which already parses the entry
+    // URL), but harmless and belt-and-suspenders: capture an auction deep link
+    // from either the new `/auction/:id` path or a legacy `?auction=` query.
+    const id = parseAuctionIdFromPath(window.location.pathname) ?? parseAuctionIdFromSearch(window.location.search);
     if (id) {
       setActiveAuctionId(id);
       setActiveView('live');
@@ -213,32 +215,34 @@ function MainAppShell() {
     return <MaintenanceView />;
   }
 
-  // 2. Unauthenticated (guest browsing — Whatnot/eBay pattern): the landing
-  // page stays the front door for a cold visitor; once they "Enter" (or arrive
-  // via an auction deep link) they get the REAL browse shell (Discover + the
-  // listing/live views) read-only. Every gated action (bid / chat / save / a
-  // members-only nav item) swaps this shell for the login flow — with
-  // activeView/activeAuctionId latched, so after signup they land back on the
-  // exact listing they were watching. The siteSettings featureFlags kill
-  // switch (enableGuestBrowsing:false) restores the old login-gated behavior.
-  // Reached only once authReady is true, so this is a real logged-out state.
+  // 2. Landing page (path `/`) — now a first-class view, shown to EVERYONE
+  // (guest or signed-in) when activeView is 'landing'. The logo routes here, and
+  // this is the marketing front door. "Enter" navigates into the app shell
+  // (defaults to /discover). Placed before the auth branches so a signed-in
+  // user tapping the logo also reaches it; the auction deep-link capture above
+  // means a cold `/auction/:id` URL is 'live' (not 'landing'), so deep links
+  // still bypass the landing straight to the listing.
+  if (activeView === 'landing') {
+    return (
+      <div className="landing-root min-h-screen">
+        <LandingView onEnter={(target) => { setActiveView((target as any) ?? 'discovery'); }} />
+      </div>
+    );
+  }
+
+  // 3. Unauthenticated (guest browsing — Whatnot/eBay pattern): non-landing
+  // views render the REAL browse shell (Discover + listing/live) read-only.
+  // Every gated action (bid / chat / save / a members-only nav item) swaps this
+  // shell for the login flow — with activeView/activeAuctionId latched, so after
+  // signup they land back on the exact listing they were watching. The
+  // siteSettings featureFlags kill switch (enableGuestBrowsing:false) restores
+  // the old login-gated behavior. Reached only once authReady is true.
   if (!isAuthenticated) {
-    const hasDeepLink = !!parseAuctionIdFromSearch(window.location.search);
     const screen = resolveUnauthenticatedScreen({
-      entered,
-      hasDeepLink,
       guestBrowsingEnabled: featureFlags.enableGuestBrowsing,
       signInRequested,
       activeView,
     });
-
-    if (screen === 'landing') {
-      return (
-        <div className="landing-root min-h-screen">
-          <LandingView onEnter={(target) => { if (target) setActiveView(target as any); setEntered(true); }} />
-        </div>
-      );
-    }
 
     if (screen === 'login') {
       return (
@@ -249,7 +253,6 @@ function MainAppShell() {
             featureFlags.enableGuestBrowsing
               ? () => {
                   dismissSignIn();
-                  setEntered(true); // landing's Enter is moot mid-session
                   // Only reset the view when it was the gate (a members-only nav
                   // tap) — an action tap on a watchable listing goes back to it.
                   if (!canGuestAccessView(activeView)) setActiveView('discovery');

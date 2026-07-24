@@ -260,9 +260,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             ====================================================================== */}
         <header className="w-full h-16 border-b border-gray-200/80 flex items-center justify-between px-6 shrink-0 z-40 bg-white text-gray-900 shadow-sm" id="global-desktop-header">
           
-          {/* 1. Logo & App Name (Left) */}
-          <div 
-            onClick={() => setActiveView('discovery')}
+          {/* 1. Logo & App Name (Left) — routes to the landing page (path `/`). */}
+          <div
+            onClick={() => setActiveView('landing')}
             className="flex items-center gap-3 cursor-pointer select-none group"
           >
             <div className="w-8 h-8 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base tracking-wider shadow-md shadow-orange-500/10 group-hover:scale-105 transition-all">

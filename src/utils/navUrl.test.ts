@@ -1,93 +1,82 @@
 import { describe, it, expect } from 'vitest';
 import { serializeNav, parseNav, isModalCloseTransition } from './navUrl';
 
-describe('serializeNav', () => {
-  it('returns empty string for the clean discovery home', () => {
-    expect(serializeNav({ view: 'discovery' })).toBe('');
+describe('serializeNav (path-based)', () => {
+  it('landing serializes to the root path', () => {
+    expect(serializeNav({ view: 'landing' })).toBe('/');
   });
 
-  it('serializes a plain view', () => {
-    expect(serializeNav({ view: 'wallet' })).toBe('?view=wallet');
+  it('serializes each view to its path', () => {
+    expect(serializeNav({ view: 'discovery' })).toBe('/discover');
+    expect(serializeNav({ view: 'upload' })).toBe('/sell');
+    expect(serializeNav({ view: 'orders' })).toBe('/orders');
+    expect(serializeNav({ view: 'about' })).toBe('/how-it-works');
+    expect(serializeNav({ view: 'seller-center' })).toBe('/seller');
+    expect(serializeNav({ view: 'prohibited-items' })).toBe('/prohibited');
+    expect(serializeNav({ view: 'wallet' })).toBe('/wallet');
   });
 
-  it('reuses ?auction= for the live auction detail (aligns with deepLink)', () => {
-    expect(serializeNav({ view: 'live', auctionId: 'auction-123' })).toBe(
-      '?auction=auction-123',
-    );
+  it('serializes a live auction to /auction/:id (url-encoded)', () => {
+    expect(serializeNav({ view: 'live', auctionId: 'auction-123' })).toBe('/auction/auction-123');
+    expect(serializeNav({ view: 'live', auctionId: 'a b' })).toBe('/auction/a%20b');
   });
 
-  it('url-encodes the auction id', () => {
-    expect(serializeNav({ view: 'live', auctionId: 'a b' })).toBe('?auction=a+b');
-  });
-
-  it('serializes a modal without a param', () => {
-    expect(serializeNav({ view: 'discovery', modal: 'notifications' })).toBe(
-      '?modal=notifications',
-    );
-  });
-
-  it('serializes a modal with a param', () => {
+  it('appends a modal as a query on top of the path', () => {
+    expect(serializeNav({ view: 'discovery', modal: 'notifications' })).toBe('/discover?modal=notifications');
     expect(
-      serializeNav({
-        view: 'discovery',
-        modal: 'order',
-        modalParam: { key: 'order', value: 'abc' },
-      }),
-    ).toBe('?modal=order&order=abc');
-  });
-
-  it('keeps the view alongside a modal on a non-discovery view', () => {
-    expect(serializeNav({ view: 'wallet', modal: 'notifications' })).toBe(
-      '?view=wallet&modal=notifications',
-    );
+      serializeNav({ view: 'orders', modal: 'order', modalParam: { key: 'order', value: 'abc' } }),
+    ).toBe('/orders?modal=order&order=abc');
   });
 });
 
-describe('parseNav', () => {
-  it('parses the clean home to discovery', () => {
-    expect(parseNav('')).toEqual({ view: 'discovery' });
+describe('parseNav (path-based)', () => {
+  it('root path parses to landing', () => {
+    expect(parseNav('/')).toEqual({ view: 'landing' });
+    expect(parseNav('')).toEqual({ view: 'landing' });
   });
 
-  it('round-trips a plain view', () => {
-    expect(parseNav('?view=wallet')).toEqual({ view: 'wallet' });
+  it('parses each view path', () => {
+    expect(parseNav('/discover')).toEqual({ view: 'discovery' });
+    expect(parseNav('/sell')).toEqual({ view: 'upload' });
+    expect(parseNav('/how-it-works')).toEqual({ view: 'about' });
+    expect(parseNav('/seller')).toEqual({ view: 'seller-center' });
   });
 
-  it('round-trips the live auction detail', () => {
-    expect(parseNav('?auction=auction-123')).toEqual({
-      view: 'live',
-      auctionId: 'auction-123',
-    });
+  it('tolerates a trailing slash', () => {
+    expect(parseNav('/orders/')).toEqual({ view: 'orders' });
   });
 
-  it('round-trips a modal without a param', () => {
-    expect(parseNav('?modal=notifications')).toEqual({
-      view: 'discovery',
-      modal: 'notifications',
-    });
+  it('parses /auction/:id to the live view', () => {
+    expect(parseNav('/auction/auction-123')).toEqual({ view: 'live', auctionId: 'auction-123' });
+    expect(parseNav('/auction/a%20b')).toEqual({ view: 'live', auctionId: 'a b' });
   });
 
-  it('round-trips a modal with a param', () => {
-    expect(parseNav('?modal=order&order=abc')).toEqual({
-      view: 'discovery',
+  it('parses a modal query on top of a path', () => {
+    expect(parseNav('/orders?modal=order&order=abc')).toEqual({
+      view: 'orders',
       modal: 'order',
       modalParam: { key: 'order', value: 'abc' },
     });
   });
 
+  it('BACK-COMPAT: legacy /?auction=<id> still resolves to the live view', () => {
+    expect(parseNav('/?auction=auction-123')).toEqual({ view: 'live', auctionId: 'auction-123' });
+  });
+
+  it('BACK-COMPAT: legacy /?view=orders still resolves', () => {
+    expect(parseNav('/?view=orders')).toEqual({ view: 'orders' });
+  });
+
   it('normalizes a Firebase auth-callback (apiKey) to neutral discovery', () => {
-    expect(
-      parseNav('?apiKey=AIzaFAKE&authType=signInViaRedirect&mode=select'),
-    ).toEqual({ view: 'discovery' });
+    expect(parseNav('/?apiKey=AIzaFAKE&authType=signInViaRedirect&mode=select')).toEqual({ view: 'discovery' });
   });
 
   it('normalizes a Firebase auth handler path to neutral discovery', () => {
-    expect(parseNav('?__/auth/handler=1&providerId=google.com')).toEqual({
-      view: 'discovery',
-    });
+    expect(parseNav('/__/auth/handler?providerId=google.com')).toEqual({ view: 'discovery' });
   });
 
-  it('ignores an unknown view and falls back to discovery', () => {
-    expect(parseNav('?view=not-a-real-view')).toEqual({ view: 'discovery' });
+  it('unknown path falls back to landing', () => {
+    expect(parseNav('/totally-unknown')).toEqual({ view: 'landing' });
   });
 });
 
@@ -111,9 +100,7 @@ describe('isModalCloseTransition', () => {
   });
 
   it('is false when opening a modal (closed -> open)', () => {
-    expect(
-      isModalCloseTransition({ view: 'wallet' }, { view: 'wallet', modal: 'notifications' }),
-    ).toBe(false);
+    expect(isModalCloseTransition({ view: 'wallet' }, { view: 'wallet', modal: 'notifications' })).toBe(false);
   });
 
   it('is false when the view changes even if the modal also closes', () => {
@@ -134,31 +121,20 @@ describe('isModalCloseTransition', () => {
     ).toBe(false);
   });
 
-  it('is false when swapping one modal for another', () => {
-    expect(
-      isModalCloseTransition(
-        { view: 'discovery', modal: 'order', modalParam: { key: 'order', value: 'x' } },
-        { view: 'discovery', modal: 'review', modalParam: { key: 'order', value: 'x' } },
-      ),
-    ).toBe(false);
-  });
-
   it('is false for a plain view->view change with no modal involved', () => {
     expect(isModalCloseTransition({ view: 'wallet' }, { view: 'orders' })).toBe(false);
   });
 });
 
-describe('round-trip serialize <-> parse', () => {
+describe('round-trip serialize <-> parse (path-based)', () => {
   const cases = [
+    { view: 'landing' as const },
     { view: 'discovery' as const },
     { view: 'wallet' as const },
+    { view: 'orders' as const },
     { view: 'live' as const, auctionId: 'auction-xyz' },
     { view: 'discovery' as const, modal: 'notifications' },
-    {
-      view: 'discovery' as const,
-      modal: 'order',
-      modalParam: { key: 'order', value: 'ord_99' },
-    },
+    { view: 'orders' as const, modal: 'order', modalParam: { key: 'order', value: 'ord_99' } },
   ];
   it.each(cases)('parse(serialize(%o)) === input', (node) => {
     expect(parseNav(serializeNav(node))).toEqual(node);

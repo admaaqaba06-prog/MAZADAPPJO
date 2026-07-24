@@ -1,27 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { buildAuctionUrl, parseAuctionIdFromSearch } from './deepLink';
+import { buildAuctionUrl, parseAuctionIdFromSearch, parseAuctionIdFromPath } from './deepLink';
 
 describe('buildAuctionUrl', () => {
-  it('builds an origin-rooted url with the auction query param', () => {
-    expect(buildAuctionUrl('auction-123', 'https://mazadjo.app')).toBe(
-      'https://mazadjo.app/?auction=auction-123',
+  it('builds an origin-rooted /auction/:id url', () => {
+    expect(buildAuctionUrl('auction-123', 'https://mazad-jo.com')).toBe(
+      'https://mazad-jo.com/auction/auction-123',
     );
   });
 
   it('strips a trailing slash on the origin', () => {
-    expect(buildAuctionUrl('a1', 'https://mazadjo.app/')).toBe(
-      'https://mazadjo.app/?auction=a1',
+    expect(buildAuctionUrl('a1', 'https://mazad-jo.com/')).toBe(
+      'https://mazad-jo.com/auction/a1',
     );
   });
 
   it('url-encodes the id', () => {
-    expect(buildAuctionUrl('a b', 'https://x.com')).toBe(
-      'https://x.com/?auction=a%20b',
-    );
+    expect(buildAuctionUrl('a b', 'https://x.com')).toBe('https://x.com/auction/a%20b');
   });
 });
 
-describe('parseAuctionIdFromSearch', () => {
+describe('parseAuctionIdFromSearch (legacy back-compat)', () => {
   it('reads the auction id from a query string', () => {
     expect(parseAuctionIdFromSearch('?auction=auction-123')).toBe('auction-123');
   });
@@ -37,5 +35,21 @@ describe('parseAuctionIdFromSearch', () => {
 
   it('returns null for a whitespace-only auction id', () => {
     expect(parseAuctionIdFromSearch('?auction=%20%20')).toBeNull();
+  });
+});
+
+describe('parseAuctionIdFromPath', () => {
+  it('reads the id from /auction/:id', () => {
+    expect(parseAuctionIdFromPath('/auction/auction-123')).toBe('auction-123');
+  });
+
+  it('decodes and tolerates a trailing slash', () => {
+    expect(parseAuctionIdFromPath('/auction/a%20b/')).toBe('a b');
+  });
+
+  it('returns null for a non-auction path', () => {
+    expect(parseAuctionIdFromPath('/discover')).toBeNull();
+    expect(parseAuctionIdFromPath('/')).toBeNull();
+    expect(parseAuctionIdFromPath('')).toBeNull();
   });
 });
