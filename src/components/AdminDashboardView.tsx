@@ -9,6 +9,13 @@ import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
+import {
+  type AdminTabId,
+  ADMIN_PRIMARY_TABS,
+  ADMIN_REFERENCE_TABS,
+  ADMIN_TAB_DEFAULT,
+  migrateStoredAdminTab,
+} from '../utils/adminNav';
 import { 
   ShieldCheck, 
   Users, 
@@ -337,36 +344,28 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
 // The dashboard occasionally remounts mid-session (live E2E finding), which
 // reset the useState tab back to GENERAL METRICS. The active tab is therefore
 // mirrored into sessionStorage and restored (validated) on mount.
-const ADMIN_TABS = [
-  'home',
-  'verify',
-  'fulfillment',
-  'disputes',
-  'metrics',
-  'orders',
-  'payments',
-  'listings',
-  'users',
-  'subscriptions',
-  'sessions',
-  'health',
-  'withdrawals',
-  'simulator',
-] as const;
-type AdminTab = (typeof ADMIN_TABS)[number];
-const ADMIN_TAB_DEFAULT: AdminTab = 'metrics';
 const ADMIN_TAB_STORAGE_KEY = 'mazad_admin_tab';
 
-function readStoredAdminTab(): AdminTab {
+function readStoredAdminTab(): AdminTabId {
   try {
-    const stored = sessionStorage.getItem(ADMIN_TAB_STORAGE_KEY);
-    return (ADMIN_TABS as readonly string[]).includes(stored ?? '')
-      ? (stored as AdminTab)
-      : ADMIN_TAB_DEFAULT;
+    return migrateStoredAdminTab(sessionStorage.getItem(ADMIN_TAB_STORAGE_KEY));
   } catch {
     return ADMIN_TAB_DEFAULT; // storage unavailable — session-local only
   }
 }
+
+// Bilingual labels for every nav tab, keyed by AdminTabId.
+const TAB_META: Record<AdminTabId, { ar: string; en: string }> = {
+  home: { ar: 'الرئيسية', en: 'HOME' },
+  verify: { ar: 'التحقق والموافقات', en: 'VERIFY & APPROVE' },
+  fulfillment: { ar: 'المتابعة والتنفيذ', en: 'FULFILLMENT' },
+  disputes: { ar: 'النزاعات', en: 'DISPUTES' },
+  payouts: { ar: 'المدفوعات', en: 'PAYOUTS' },
+  launch: { ar: 'إطلاق المزادات', en: 'LAUNCH' },
+  orders: { ar: 'الطلبات', en: 'ORDERS' },
+  members: { ar: 'الأعضاء', en: 'MEMBERS' },
+  system: { ar: 'النظام', en: 'SYSTEM' },
+};
 
 export const AdminDashboardView: React.FC = () => {
   const {
@@ -423,9 +422,9 @@ export const AdminDashboardView: React.FC = () => {
     return `data:image/png;base64,${clean}`;
   };
 
-  const [activeTab, setActiveTab] = useState<AdminTab>(readStoredAdminTab);
+  const [activeTab, setActiveTab] = useState<AdminTabId>(readStoredAdminTab);
   // Every tab selection goes through here so it survives remounts.
-  const selectTab = (tab: AdminTab) => {
+  const selectTab = (tab: AdminTabId) => {
     setActiveTab(tab);
     try {
       sessionStorage.setItem(ADMIN_TAB_STORAGE_KEY, tab);
@@ -1145,46 +1144,45 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['verify', 'fulfillment', 'disputes', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
-          const tabLabel = isAr
-            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'fulfillment' ? 'المتابعة والتنفيذ' : tab === 'disputes' ? 'النزاعات' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
-            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'fulfillment' ? 'FULFILLMENT' : tab === 'disputes' ? 'DISPUTES' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
-
-          const isActive = activeTab === tab;
-          const hasPendingRequests =
-            (tab === 'verify' && (subscriptionRequests.length > 0 || pendingOrderPaymentsCount > 0)) ||
-            (tab === 'fulfillment' && overdueFulfillmentCount > 0) ||
-            (tab === 'disputes' && openDisputesCount > 0) ||
-            (tab === 'subscriptions' && subscriptionRequests.length > 0) ||
-            (tab === 'withdrawals' && allWithdrawals.filter((w: any) => w.status === 'pending_review').length > 0);
-          
+        {(() => {
+          const pendingPayoutsCount = allWithdrawals.filter((w: any) => w.status === 'pending_review').length;
+          const badgeFor = (tab: AdminTabId): number | null => {
+            if (tab === 'verify') return subscriptionRequests.length + pendingOrderPaymentsCount;
+            if (tab === 'fulfillment') return overdueFulfillmentCount;
+            if (tab === 'disputes') return openDisputesCount;
+            if (tab === 'payouts') return pendingPayoutsCount;
+            return null;
+          };
+          const renderTab = (tab: AdminTabId) => {
+            const isActive = activeTab === tab;
+            const badge = badgeFor(tab);
+            return (
+              <button
+                key={tab}
+                onClick={() => selectTab(tab)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                  isActive
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <span>{isAr ? TAB_META[tab].ar : TAB_META[tab].en}</span>
+                {badge !== null && badge > 0 && (
+                  <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          };
           return (
-            <button
-              key={tab}
-              onClick={() => selectTab(tab)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                isActive 
-                  ? 'bg-gray-900 text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <span>{tabLabel}</span>
-              {hasPendingRequests && (
-                <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
-                  {tab === 'verify'
-                    ? subscriptionRequests.length + pendingOrderPaymentsCount
-                    : tab === 'fulfillment'
-                      ? overdueFulfillmentCount
-                    : tab === 'disputes'
-                      ? openDisputesCount
-                    : tab === 'subscriptions'
-                      ? subscriptionRequests.length
-                      : allWithdrawals.filter((w: any) => w.status === 'pending_review').length}
-                </span>
-              )}
-            </button>
+            <>
+              {ADMIN_PRIMARY_TABS.map(renderTab)}
+              <span className="mx-1 h-5 w-px bg-gray-200 shrink-0" />
+              {ADMIN_REFERENCE_TABS.map(renderTab)}
+            </>
           );
-        })}
+        })()}
         <button
           onClick={() => setActiveView('auction-drop-builder')}
           className="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 bg-[#FF6B00] text-white shadow-sm hover:bg-orange-500"
@@ -1521,7 +1519,7 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => selectTab('subscriptions')}
+                  onClick={() => selectTab('verify')}
                   className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap self-end sm:self-auto"
                 >
                   {isAr ? 'عرض الطلبات والمراجعة' : 'REVIEW NOW'}
