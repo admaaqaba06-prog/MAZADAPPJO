@@ -1073,7 +1073,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     }
                   }
                 }}
-                className="lg:col-span-7 space-y-8 text-center lg:text-start"
+                className="lg:col-span-7 space-y-6 text-center lg:text-start"
               >
                 
                 {/* Badge */}
@@ -1094,7 +1094,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.65] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-2"
+                  className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] leading-[1.02] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-1"
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
