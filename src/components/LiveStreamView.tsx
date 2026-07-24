@@ -460,18 +460,6 @@ export const LiveStreamView: React.FC = () => {
     }
   }, [isMuted]);
 
-  // Fullscreen support
-  const toggleFullscreen = () => {
-    if (!videoContainerRef.current) return;
-    if (!document.fullscreenElement) {
-      videoContainerRef.current.requestFullscreen().catch((err) => {
-        console.error("Error attempting to enable fullscreen:", err);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
   // The per-second countdown clock (secondsRemaining + HH:MM:SS + tick/finish
   // audio) now lives entirely inside <AuctionCountdownLayer> (see top of file)
   // and, for the desktop HH:MM:SS pill, inside DesktopLiveAuctionLayout — so a
@@ -729,7 +717,6 @@ export const LiveStreamView: React.FC = () => {
           videoRef={videoRef}
           videoContainerRef={videoContainerRef}
           showToast={showToast}
-          toggleFullscreen={toggleFullscreen}
         />
       )}
 
