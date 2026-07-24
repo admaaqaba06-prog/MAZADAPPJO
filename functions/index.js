@@ -10,6 +10,7 @@ const {
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
+const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
@@ -1255,9 +1256,11 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
     const reqRef = db.collection('subscriptionRequests').doc(reqId);
     batch.set(reqRef, newRequest);
 
-    // 2. Set user status to pending on user document
+    // 2. Set user status on the user doc. An already-active member upgrading
+    // stays 'active' (bidding is gated on it) — only non-active users flip to
+    // pending. The REQUEST doc is always 'pending' (needs review) regardless.
     batch.set(userRef, {
-      subscriptionStatus: 'pending',
+      subscriptionStatus: userStatusForSubscriptionRequest(userData.subscriptionStatus),
       subscriptionPlan: resolved.tier,
       paymentProofUrl: proofUrl,
       paymentProofImage: proofUrl,
