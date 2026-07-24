@@ -13,6 +13,7 @@ import { clampActiveIndex, isReelMounted } from '../utils/reelWindow';
 import { translations } from '../utils/translations';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { getAuctionMedia } from '../utils/auctionMedia';
+import { categoryLabel } from '../utils/categoryLabel';
 import { MediaGallery } from './feedback/MediaGallery';
 import {
   Volume2,
@@ -1102,7 +1103,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                         )}
                         {auction?.category && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8.5px] font-black uppercase tracking-wider text-zinc-300 leading-none">
-                            {auction.category}
+                            {categoryLabel(auction.category, isAr)}
                           </span>
                         )}
                       </div>
