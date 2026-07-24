@@ -5,9 +5,8 @@ import { isAdminUser } from '../utils/adminAuth';
 import { isPendingOrderPayment } from '../utils/paymentReceipt';
 import { isOverdue } from '../utils/fulfillmentQueues';
 import { executeOrderTransition } from '../utils/orderWorkflow';
-import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import {
   type AdminTabId,
@@ -16,34 +15,7 @@ import {
   ADMIN_TAB_DEFAULT,
   migrateStoredAdminTab,
 } from '../utils/adminNav';
-import { 
-  ShieldCheck, 
-  Users, 
-  DollarSign, 
-  CheckCircle, 
-  XCircle, 
-  Tv, 
-  Coins, 
-  Ban, 
-  UserCheck, 
-  Clock, 
-  FileText, 
-  TrendingUp,
-  Cpu,
-  UserX,
-  FileCheck2,
-  Sparkles,
-  RefreshCw,
-  LineChart,
-  Trash2,
-  Database,
-  Settings,
-  Activity,
-  ShieldAlert,
-  Server,
-  HardDrive,
-  RotateCcw
-} from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 // Lazy: the simulator console (bots, spawn presets) is admin-only tooling —
 // keep it out of the main dashboard chunk.
@@ -60,26 +32,6 @@ const LaunchSection = React.lazy(() => import('./admin/LaunchSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
 const SystemSection = React.lazy(() => import('./admin/SystemSection'));
-
-/**
- * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
- * .toDate()), an ISO string, or an epoch-ms number. Server-created requests
- * carry a Firestore Timestamp — naively passing it to `new Date()` yields
- * "Invalid Date".
- */
-const formatRequestDate = (v: any, locale: string): string => {
-  if (!v) return '';
-  let date: Date | null = null;
-  if (typeof v?.toDate === 'function') {
-    date = v.toDate();
-  } else if (typeof v?.seconds === 'number') {
-    date = new Date(v.seconds * 1000);
-  } else if (typeof v === 'string' || typeof v === 'number') {
-    date = new Date(v);
-  }
-  if (!date || isNaN(date.getTime())) return '';
-  return date.toLocaleString(locale);
-};
 
 /**
  * Normalize any timestamp shape we store (Firestore Timestamp, {seconds},
@@ -99,161 +51,6 @@ const tsToMillis = (v: any): number => {
 };
 
 type StatusSeverity = 'ok' | 'warn' | 'bad' | 'neutral';
-
-/** One glanceable card on the health status board. */
-const HealthStatusCard: React.FC<{
-  icon: string;
-  label: string;
-  value: string;
-  severity: StatusSeverity;
-  subtext?: string;
-}> = ({ icon, label, value, severity, subtext }) => {
-  const styles: Record<StatusSeverity, string> = {
-    ok: 'bg-emerald-50/60 border-emerald-100 text-emerald-700',
-    warn: 'bg-amber-50/60 border-amber-100 text-amber-700',
-    bad: 'bg-rose-50/60 border-rose-100 text-rose-700',
-    neutral: 'bg-gray-50 border-gray-200 text-gray-400',
-  };
-  const dotStyles: Record<StatusSeverity, string> = {
-    ok: 'bg-emerald-500',
-    warn: 'bg-amber-500',
-    bad: 'bg-rose-500 animate-pulse',
-    neutral: 'bg-gray-300',
-  };
-  return (
-    <div className={`border rounded-2xl p-4 shadow-xs flex flex-col gap-1.5 ${styles[severity]}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
-          <span aria-hidden="true">{icon}</span> {label}
-        </span>
-        <span className={`w-2 h-2 rounded-full shrink-0 ${dotStyles[severity]}`} />
-      </div>
-      <p className="text-lg font-black leading-none font-mono">{value}</p>
-      {subtext && <p className="text-[9px] font-mono text-gray-400 leading-snug">{subtext}</p>}
-    </div>
-  );
-};
-
-/** Ordered funnel stages: analytics eventType → AR/EN label. */
-const FUNNEL_STAGES: Array<{ event: string; labelAr: string; labelEn: string }> = [
-  { event: 'user_registration', labelAr: 'تسجيل', labelEn: 'Registered' },
-  { event: 'membership_submitted', labelAr: 'طلب عضوية', labelEn: 'Membership Submitted' },
-  { event: 'subscription_conversion', labelAr: 'عضوية مفعّلة', labelEn: 'Membership Activated' },
-  { event: 'first_bid', labelAr: 'مزايدة أولى', labelEn: 'First Bid' },
-  { event: 'auction_won_seen', labelAr: 'فوز', labelEn: 'Auction Won' },
-  { event: 'payment_submitted', labelAr: 'دفع', labelEn: 'Payment Submitted' },
-];
-
-/**
- * Conversion funnel card: one getDocs over `analytics_events` for the chosen
- * window (7/30 days, epoch-ms `timestamp` field written by analyticsService),
- * counted client-side per stage. No live listener — refetches on window toggle.
- */
-const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
-  const [windowDays, setWindowDays] = useState<7 | 30>(7);
-  const [counts, setCounts] = useState<Record<string, number> | null>(null);
-  const [funnelError, setFunnelError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setCounts(null);
-    setFunnelError(false);
-    const since = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    getDocs(query(collection(db, 'analytics_events'), where('timestamp', '>=', since)))
-      .then((snap) => {
-        if (cancelled) return;
-        const next: Record<string, number> = {};
-        snap.forEach((d) => {
-          const type = d.data().eventType;
-          if (type) next[type] = (next[type] || 0) + 1;
-        });
-        setCounts(next);
-      })
-      .catch((err) => {
-        console.warn('[FUNNEL] Failed to load analytics_events:', err);
-        if (!cancelled) setFunnelError(true);
-      });
-    return () => { cancelled = true; };
-  }, [windowDays]);
-
-  const stageCounts = FUNNEL_STAGES.map((s) => counts?.[s.event] || 0);
-  const maxCount = Math.max(1, ...stageCounts);
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-      <div className="flex items-center justify-between pb-3 border-b border-gray-100 gap-3 flex-wrap">
-        <div>
-          <h3 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[#FF6B00]" />
-            {isAr ? 'قمع التحويل' : 'CONVERSION FUNNEL'}
-          </h3>
-          <p className="text-[10px] text-gray-400 mt-0.5">
-            {isAr ? 'من التسجيل حتى الدفع — حسب أحداث المنصة' : 'Registration through payment — from platform events'}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
-          {([7, 30] as const).map((d) => (
-            <button
-              key={d}
-              onClick={() => setWindowDays(d)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                windowDays === d
-                  ? 'bg-[#FF6B00] text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {isAr ? (d === 7 ? '٧ أيام' : '٣٠ يوم') : `${d}D`}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {funnelError ? (
-        <div className="text-center py-8 text-red-500 text-xs font-medium">
-          {isAr ? 'تعذر تحميل بيانات القمع.' : 'Unable to load funnel data.'}
-        </div>
-      ) : counts === null ? (
-        <div className="text-center py-8 text-gray-400 text-xs animate-pulse">
-          {isAr ? 'جاري تحميل بيانات القمع…' : 'Loading funnel data…'}
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {FUNNEL_STAGES.map((stage, i) => {
-            const count = stageCounts[i];
-            const prev = i === 0 ? null : stageCounts[i - 1];
-            const pct = prev === null ? null : prev > 0 ? Math.round((count / prev) * 100) : null;
-            return (
-              <div key={stage.event} className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-extrabold text-gray-800">
-                    {isAr ? stage.labelAr : stage.labelEn}
-                  </span>
-                  <span className="font-mono text-gray-500">
-                    <span className="font-black text-gray-900">{count.toLocaleString()}</span>
-                    {pct !== null && (
-                      <span className="text-[9px] text-gray-400 font-bold ms-2">
-                        {isAr ? `٪${pct} من السابق` : `${pct}% of prev`}
-                      </span>
-                    )}
-                    {i > 0 && pct === null && (
-                      <span className="text-[9px] text-gray-300 font-bold ms-2">—</span>
-                    )}
-                  </span>
-                </div>
-                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#FF6B00] to-orange-400 transition-all duration-500"
-                    style={{ width: `${Math.max(count > 0 ? 3 : 0, (count / maxCount) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ── Active-tab persistence ───────────────────────────────────────────────
 // The dashboard occasionally remounts mid-session (live E2E finding), which
@@ -289,8 +86,6 @@ export const AdminDashboardView: React.FC = () => {
     usersTotalCount,
     escrows,
     orders,
-    adminActions, 
-    adminActionsError,
     approveListing, 
     rejectListing, 
     verifySeller, 
@@ -538,19 +333,6 @@ export const AdminDashboardView: React.FC = () => {
     };
   }, [currentUser]);
 
-  // Console logging for verification as requested by the user
-  useEffect(() => {
-    const isStrictAdmin = isAdminUser(currentUser);
-    if (!isStrictAdmin) return;
-
-    const pendingAuctionsCount = auctions.filter((a: any) => a.status === 'pending' || a.status === 'processing' || a.approvalStatus === 'pending').length;
-    const pendingSubsCount = subscriptionRequests.length;
-
-    console.log("Approval listener fired");
-    console.log("Pending auctions count", pendingAuctionsCount);
-    console.log("Pending subscriptions count", pendingSubsCount);
-  }, [auctions, subscriptionRequests, currentUser]);
-
   // Wave 1 S3 — grants are SERVER-ONLY. The approveSubscription callable is
   // the sole writer of the user subscription fields (rules block all client
   // writes, this admin dashboard included). It re-derives the duration from
@@ -768,7 +550,6 @@ export const AdminDashboardView: React.FC = () => {
   
   // Computations (Wave 3: from realAuctions — sim lots never inflate metrics)
   const activeAuctionsNum = realAuctions.filter(a => a.status === 'live').length;
-  const totalBidsSum = realAuctions.reduce((sum, a) => sum + a.totalBids, 0);
   const totalEscrowHeld = escrows
     .filter(e => e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
@@ -984,170 +765,6 @@ export const AdminDashboardView: React.FC = () => {
               onOpenOrder={setAdminSelectedOrderId}
             />
           </React.Suspense>
-        )}
-
-        {/* ==========================================
-            TAB: SYSTEM METRICS (Clean Dashboard Cards)
-            ========================================== */}
-        {activeTab === 'metrics' && (
-          <div className="space-y-6">
-            
-            {subscriptionRequests.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-pulse">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-amber-700" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-amber-900 uppercase">
-                      {isAr ? 'طلب اشتراك جديد معلق' : 'NEW PENDING SUBSCRIPTION'}
-                    </h4>
-                    <p className="text-[11px] text-amber-700 mt-0.5">
-                      {isAr 
-                        ? `هناك ${subscriptionRequests.length} طلب اشتراك بانتظار مراجعته والموافقة عليها وتفعيلها.`
-                        : `There are ${subscriptionRequests.length} pending subscription requests awaiting your review and approval.`}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => selectTab('verify')}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap self-end sm:self-auto"
-                >
-                  {isAr ? 'عرض الطلبات والمراجعة' : 'REVIEW NOW'}
-                </button>
-              </div>
-            )}
-            
-            {/* Elegant 4-Card Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* Card 1: Funds held by Mazad */}
-              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <Coins className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">
-                    {isAr ? 'أرصدة الأمان والضمان' : 'ESCROW FUNDS'}
-                  </span>
-                </div>
-                <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {totalEscrowHeld.toLocaleString()} <span className="text-xs font-bold text-emerald-600">JOD</span>
-                </p>
-                <div className="text-[9px] text-gray-400 mt-1">
-                  {isAr ? 'إيداعات كليك المحفوظة بسلامة' : 'Secure client balances held'}
-                </div>
-              </div>
-              
-              {/* Card 2: Live Channels */}
-              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center animate-pulse">
-                    <Tv className="w-4 h-4 text-rose-600" />
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">
-                    {isAr ? 'المزادات النشطة الآن' : 'LIVE AUCTIONS'}
-                  </span>
-                </div>
-                <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {activeAuctionsNum} <span className="text-xs font-bold text-rose-600">{isAr ? 'مزاد' : 'Active'}</span>
-                </p>
-                <div className="text-[9px] text-gray-400 mt-1">
-                  {isAr ? 'قنوات المزايدة البث الحي النشط' : 'Channels broadcasting right now'}
-                </div>
-              </div>
-
-              {/* Card 3: Total Concluded Bids */}
-              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">
-                    {isAr ? 'إجمالي المزايدات' : 'TOTAL BIDS PLACED'}
-                  </span>
-                </div>
-                <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {totalBidsSum} <span className="text-xs font-bold text-gray-400">{isAr ? 'عطاء' : 'Bids'}</span>
-                </p>
-                <div className="text-[9px] text-gray-400 mt-1">
-                  {isAr ? 'مجموع عروض الأسعار المسجلة' : 'Cumulative activity track'}
-                </div>
-              </div>
-
-              {/* Card 4: Registered Users */}
-              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">
-                    {isAr ? 'عدد المستخدمين' : 'REGISTERED MEMBERS'}
-                  </span>
-                </div>
-                <p className="text-xl font-black text-gray-900 font-mono tracking-tight mt-1.5">
-                  {usersTotalCount ?? users.length} <span className="text-xs font-bold text-gray-400">{isAr ? 'عضو' : 'Users'}</span>
-                </p>
-                <div className="text-[9px] text-gray-400 mt-1">
-                  {isAr ? 'إجمالي الحسابات المسجلة بالمنصة' : 'Total accounts in database'}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Conversion funnel: registration → payment, 7/30-day window */}
-            <ConversionFunnelCard isAr={isAr} />
-
-            {/* Simpler, Friendly Action Feed (Replacing complex SVG graphs & System Telemetry Logs) */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div>
-                  <h3 className="text-xs font-extrabold text-gray-900 uppercase">
-                    {isAr ? 'الأنشطة الأخيرة المتخذة في المنصة' : 'RECENT PLATFORM MODERATIONS'}
-                  </h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    {isAr ? 'سجل الإجراءات التي قام بها طاقم الإشراف والمدراء مؤخراً' : 'Audit logs of recent coordinator decisions'}
-                  </p>
-                </div>
-                <span className="text-[9px] bg-gray-50 text-gray-400 px-2.5 py-1 rounded-lg font-mono">
-                  {isAr ? 'محدث تلقائياً' : 'LIVE'}
-                </span>
-              </div>
-
-              <div className="divide-y divide-gray-100 max-h-52 overflow-y-auto pr-1">
-                {adminActionsError ? (
-                  <div className="text-center py-8 text-red-500 text-xs font-medium">
-                    {isAr ? 'عذراً، فشل تحميل سجل العمليات.' : 'Unable to load admin actions'}
-                  </div>
-                ) : adminActions.length > 0 ? (
-                  adminActions.map((action) => (
-                    <div key={action.id} className="py-3 flex items-start gap-4">
-                      <div className="w-2 h-2 rounded-full bg-[#FF6B00] mt-1 shrink-0" />
-                      <div className="space-y-1 flex-1">
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span className="font-extrabold text-gray-900">{(action.actionType || action.action || (isAr ? 'إجراء' : 'ACTION')).toString().toUpperCase().replace('_', ' ')}</span>
-                          <span className="text-gray-400 font-mono text-[9px]">Just now</span>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {isAr ? `${action.adminName} قام بتعديل ${action.targetName}` : `${action.adminName} modified ${action.targetName}`}
-                        </p>
-                        {action.details && (
-                          <div className="bg-gray-50 text-gray-600 p-2 rounded-xl text-[10px] font-mono mt-1 border border-gray-100">
-                            {action.details}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-400 text-xs">
-                    {isAr ? 'لا توجد أنشطة مسجلة في الجلسة الحالية.' : 'No administration logs recorded in this session thread.'}
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
         )}
 
         {/* ==========================================
