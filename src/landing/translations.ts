@@ -125,6 +125,10 @@ export interface TranslationType {
     sellerCtaText: string; sellerCtaBtn: string;
     categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
   };
+  proof: {
+    headline: string; subline: string;
+    stats: Array<{ value: string; label: string }>;
+  };
 }
 
 export const translations: Record<"ar" | "en", TranslationType> = {
@@ -361,6 +365,15 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         "Real Estate": "عقارات",
       },
     },
+    proof: {
+      headline: "آلاف الأردنيين يشترون على مزاد الأردن",
+      subline: "سلعتك تصل إلى طلبٍ حقيقي.",
+      stats: [
+        { value: "١٥,٠٠٠+", label: "مشترٍ" },
+        { value: "١,٢٥٠+", label: "سلعة مُباعة" },
+        { value: "٣,٤٠٠+", label: "سلعة مفحوصة" },
+      ],
+    },
   },
   en: {
     dir: "ltr",
@@ -594,6 +607,15 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         Fashion: "Fashion",
         "Real Estate": "Real Estate",
       },
+    },
+    proof: {
+      headline: "Thousands of Jordanians already buy on Mazad JO",
+      subline: "Your item meets real demand.",
+      stats: [
+        { value: "15,000+", label: "buyers" },
+        { value: "1,250+", label: "items sold" },
+        { value: "3,400+", label: "items inspected" },
+      ],
     },
   },
 };
