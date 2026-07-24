@@ -99,6 +99,8 @@ export interface AuctionItem {
   endTime: number; // Unix timestamp
   duration: number; // in seconds
   paymentWindowHours?: number; // hours winner has to pay before default-block; defaults to 24 server-side
+  antiSnipeWindowSec?: number; // final-seconds window that triggers a soft-close extension; default 30 server-side
+  antiSnipeExtendSec?: number; // seconds the clock resets to on a late bid; default 30 server-side
   sellerId: string;
   sellerName: string;
   sellerLogo: string;
