@@ -1182,34 +1182,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 {/* Soft blurred orange gradient blob behind the card */}
                 <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
 
-                {/* Decorative second-lot peek — a Rolex Datejust card poking out behind the phone */}
-                <div
-                  aria-hidden="true"
-                  className="hidden sm:block absolute top-10 end-[-12px] z-0 w-[154px] rounded-[18px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.35)] rotate-[6deg] opacity-95 pointer-events-none select-none"
-                >
-                  <img
-                    src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=500&q=80"
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="w-full h-[110px] object-cover block"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = "none";
-                      if (target.parentElement) {
-                        target.parentElement.style.backgroundImage =
-                          "radial-gradient(120% 120% at 30% 20%, #2a2a2e, #0d0d0f)";
-                      }
-                    }}
-                  />
-                  <div className="bg-[#0A0A0A] text-white px-2 py-1.5 flex items-center justify-between text-[10px] font-bold font-ibmarabic">
-                    <span>{lang === "ar" ? "رولكس" : "Rolex Datejust"}</span>
-                    <span dir="ltr" className="text-[#FF6B35] flex items-center gap-1 font-mono">
-                      <span className={`w-1.5 h-1.5 rounded-full bg-[#FF6B35] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
-                      2,150
-                    </span>
-                  </div>
-                </div>
-
                 {/* Premium Floating Reels Card Container with Phone Bezel */}
                 <div className={`relative z-10 w-full max-w-[400px] ${prefersReducedMotion ? "-rotate-3" : "hero-phwrap"}`}>
                 <motion.div
