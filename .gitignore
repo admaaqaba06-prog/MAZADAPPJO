@@ -7,3 +7,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Service-account keys — NEVER commit (full prod admin)
+*firebase-adminsdk*.json
+*-serviceaccount*.json
+serviceAccount*.json
+scripts/admin/*.json
