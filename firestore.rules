@@ -111,6 +111,11 @@ service cloud.firestore {
           (!('winnerEmail' in request.resource.data) || request.resource.data.winnerEmail == null) &&
           (!('winnerPhone' in request.resource.data) || request.resource.data.winnerPhone == null) &&
           (!('totalBids' in request.resource.data) || request.resource.data.totalBids == 0) &&
+          // Payment window is a Mazad ops decision: a self-serve seller may only
+          // create at the standard 24h. The admin drop builder (isAdmin branch
+          // above) can set any preset; a seller can't craft a hostile short
+          // window on their own listing that the approving admin never sees.
+          (!('paymentWindowHours' in request.resource.data) || request.resource.data.paymentWindowHours == 24) &&
           (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false) &&
           (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus == 'pending') &&
           (!('currentPrice' in request.resource.data) || request.resource.data.currentPrice == request.resource.data.startingPrice)
@@ -133,7 +138,7 @@ service cloud.firestore {
             'currentBidderId', 'currentBidderName', 'winnerId', 'winnerName',
             'winnerEmail', 'winnerPhone', 'winnerCity', 'currentPrice',
             'totalBids', 'scheduledStartAt', 'approvalStatus', 'isApproved',
-            'approvedAt', 'approvedBy', 'createdById'
+            'approvedAt', 'approvedBy', 'createdById', 'paymentWindowHours'
           ])
         )
       );
@@ -270,7 +275,7 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'buyerId', 'sellerId', 'auctionId', 'winningBidAmount', 'totalDue',
             'buyersPremium', 'escrowId', 'isSimulated', 'createdAt',
-            'id', 'buyerName', 'sellerName', 'paymentDeadlineAt',
+            'id', 'buyerName', 'sellerName', 'paymentDeadlineAt', 'paymentWindowHours',
             'paymentVerified', 'paymentVerifiedBy', 'paymentVerifiedAt',
             'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt',
             'lastNudgedAt', 'nudgeCount',

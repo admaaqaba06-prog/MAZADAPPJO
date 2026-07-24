@@ -11,10 +11,20 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Per-auction payment window: hours the winner has to pay before the
+// paymentDefaultEnforcer blocks them. Set at auction creation; clamp + 24h
+// default live in ./settlement (resolvePaymentWindowHours) so the rule has one
+// unit-tested source of truth. This wrapper turns the resolved hours into the
+// order's Firestore deadline Timestamp.
+function paymentDeadlineFromNow(auctionData) {
+  const hours = resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours);
+  return admin.firestore.Timestamp.fromMillis(Date.now() + hours * 60 * 60 * 1000);
+}
 
 // Fire-and-forget notification to the n8n webhook. No-ops if unconfigured.
 // NEVER throws — these calls sit inside financial/transaction paths, so a
@@ -206,7 +216,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           winningBidAmount: finalPrice,
           buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
           totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-          paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
+          paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
+          paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
           status: "waiting_payment",
           paymentStatus: "unpaid",
           shippingStatus: "not_started",
@@ -278,7 +289,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       amount: notifyData.finalPrice,
       buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
@@ -287,7 +298,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       amount: notifyData.finalPrice,
       buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
     });
   }
@@ -462,7 +473,7 @@ exports.paymentDefaultEnforcer = functions.pubsub
         }
         batch.set(db.collection('system_health').doc(), {
           type: 'payment_fail',
-          title: 'Order defaulted (24h unpaid)',
+          title: `Order defaulted (${resolvePaymentWindowHours(o.paymentWindowHours)}h unpaid)`,
           details: `Order ${doc.id} (${o.auctionTitle || ''}) buyer ${o.buyerName || o.buyerId} — ${o.totalDue || o.winningBidAmount} JOD. Buyer blocked; decide re-run/runner-up.`,
           source: 'paymentDefaultEnforcer',
           createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1698,7 +1709,8 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       winningBidAmount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-      paymentDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
+      paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
+      paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       status: "waiting_payment",
       paymentStatus: "unpaid",
       shippingStatus: "not_started",
@@ -1726,7 +1738,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
@@ -1734,7 +1746,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_payment_due`,
     });
 
