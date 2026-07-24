@@ -798,7 +798,15 @@ exports.getServerTime = functions.runWith({ cors: true }).https.onCall(async () 
 // PF3: keep one instance warm so the first bid of a drop doesn't eat a 2-5s
 // cold start at the open stampede; cap parallelism (bid contention is on the
 // single auction doc anyway — tune maxInstances after the load test).
-exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances: 20 }).https.onCall(async (data, context) => {
+//
+// Load-tested 2026-07-24 (docs/PERFORMANCE.md): maxInstances:20 caused real
+// platform-level HTTP 500s (not app errors — placeBid's own execution logs
+// showed zero internal failures) starting at ~500 concurrent bidders.
+// Confirmed via direct A/B on a throwaway project: 0 errors at
+// maxInstances:500 under the same load, clean up to 2,000 concurrent
+// bidders. Raised accordingly — this only bounds a burst ceiling and costs
+// nothing at idle; minInstances:1 (unchanged) is the only always-billed part.
+exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances: 500 }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
