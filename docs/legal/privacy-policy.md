@@ -20,8 +20,7 @@
 
 **Al Hani Commercial Brokerage** (Arabic: **الهاني للوساطة التجارية**), a limited
 liability company (LLC / ذات مسؤولية محدودة) registered in Jordan under commercial
-registration number **200213982**, address **Amman, Jordan [FULL STREET ADDRESS
-TBD]** ("**Mazad**", "**we**"), is the controller of the personal data described
+registration number **200213982**, address **Amman — Al-Madina Al-Munawara Street — Saad 4 Complex — Opposite Habiba, Amman, Jordan** ("**Mazad**", "**we**"), is the controller of the personal data described
 in this policy.
 
 <!-- REGISTRATION LABEL NOTE (for counsel): 200213982 is the الرقم الوطني للمنشأة

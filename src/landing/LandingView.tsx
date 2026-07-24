@@ -2781,15 +2781,30 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
 
           {/* Company / Contact Info */}
-          <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-center text-xs text-gray-500 font-ibmarabic">
-            <span className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-[#F05123]" />
-              <span>{lang === "ar" ? "عمّان، الأردن" : "Amman, Jordan"}</span>
+          <div className="pt-6 flex flex-col items-center justify-center gap-2.5 text-center text-xs text-gray-500 font-ibmarabic">
+            <span className="flex items-center gap-1.5 max-w-md">
+              <MapPin className="w-3.5 h-3.5 text-[#F05123] shrink-0" />
+              <span>
+                {lang === "ar"
+                  ? "عمّان — شارع المدينة المنورة — مجمع سعد ٤ — مقابل حبيبة"
+                  : "Amman — Al-Madina Al-Munawara St — Saad 4 Complex — Opposite Habiba"}
+              </span>
             </span>
-            <a href="tel:+962781444899" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
-              <span>{lang === "ar" ? "خدمة العملاء:" : "Customer Service:"}</span>
-              <span className="font-mono" dir="ltr">0781444899</span>
-            </a>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-5">
+              <a href="tel:+962781444899" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
+                <span>{lang === "ar" ? "خدمة العملاء:" : "Customer Service:"}</span>
+                <span className="font-mono" dir="ltr">+962 78 144 4899</span>
+              </a>
+              <a href="tel:+962785446498" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
+                <span>{lang === "ar" ? "المزادات والدفع:" : "Auctions & Payment:"}</span>
+                <span className="font-mono" dir="ltr">+962 78 544 6498</span>
+              </a>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              {lang === "ar"
+                ? "ساعات العمل: ١٠ صباحاً – ٧ مساءً · السبت إلى الخميس"
+                : "Working hours: 10 AM – 7 PM · Saturday to Thursday"}
+            </span>
           </div>
 
           {/* Registered company identity (compliance / ads trust signal) */}
