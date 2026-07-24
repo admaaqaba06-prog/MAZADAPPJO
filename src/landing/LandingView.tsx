@@ -3,7 +3,6 @@ import {
   Hammer,
   ShieldCheck,
   Camera,
-  Zap,
   CheckCircle2,
   XCircle,
   Car,
@@ -196,12 +195,26 @@ const ACTIVE_ITEMS = [
     titleEn: "iPhone 15 Pro Max",
     detailsAr: "سعة 512 جيجابايت · كفالة الوكيل · كالجديد",
     detailsEn: "512GB · Agency Warranty · Like New",
-    image: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1592286927505-1def25115558?auto=format&fit=crop&w=800&q=80",
     badgeAr: "كفالة الوكيل",
     badgeEn: "Warranty Active",
     basePrice: 850,
     stepPrice: 25,
     timerStart: 180
+  },
+  {
+    id: "watch",
+    icon: "⌚",
+    titleAr: "رولكس ديت جست ٤١",
+    titleEn: "Rolex Datejust 41",
+    detailsAr: "٤١ ملم · ستيل · بالكرت والعلبة · مفحوصة",
+    detailsEn: "41mm · Oystersteel · Box & Papers · Inspected",
+    image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=800&q=80",
+    badgeAr: "موثّقة",
+    badgeEn: "Authenticated",
+    basePrice: 2150,
+    stepPrice: 50,
+    timerStart: 120
   },
   {
     id: "house",
@@ -1048,43 +1061,23 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </motion.button>
                 </motion.div>
 
-                {/* Stats Bar */}
+                {/* Real proof row */}
                 <motion.div
                   variants={{
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-[#F0F0EE] text-start"
+                  className="flex items-center justify-center lg:justify-start gap-5 sm:gap-7 pt-6 border-t border-[#F0F0EE]"
                 >
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.steps.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.steps.desc}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.verified.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.verified.desc}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <Zap className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.live.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.live.desc}</p>
-                    </div>
-                  </div>
+                  {t.hero.proof.map((s, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="w-px h-7 bg-[#F0F0EE] shrink-0" aria-hidden="true" />}
+                      <div className="text-center lg:text-start">
+                        <div dir="ltr" className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A] font-alexandria leading-none">{s.value}</div>
+                        <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-[#0A0A0A]/50 font-ibmarabic mt-1.5">{s.label}</div>
+                      </div>
+                    </React.Fragment>
+                  ))}
                 </motion.div>
 
               </motion.div>
@@ -1123,14 +1116,23 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       key={currentItem.id}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
+                        if (target.dataset.fallback === "done") return;
                         if (currentItem.id === "phone") {
                           if (target.src.includes("/iphone.png")) {
                             target.src = "/iphone.jpg";
-                          } else if (target.src.includes("/iphone.jpg")) {
-                            target.src = "/src/iphone.png";
-                          } else {
-                            target.src = "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=800&q=80";
+                            return;
                           }
+                          if (target.src.includes("/iphone.jpg")) {
+                            target.src = "/src/iphone.png";
+                            return;
+                          }
+                        }
+                        // Final fallback for any lot: warm gradient, never a broken image
+                        target.dataset.fallback = "done";
+                        target.style.display = "none";
+                        if (target.parentElement) {
+                          target.parentElement.style.backgroundImage =
+                            "radial-gradient(120% 120% at 30% 20%, #2a2a2e, #0d0d0f)";
                         }
                       }}
                     />
@@ -1380,26 +1382,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
             </div>
 
-          </div>
-        </section>
-
-        {/* Promoted proof strip (real WhatsApp track record) */}
-        <section className="py-10 bg-[#0A0A0A]">
-          <div className="max-w-5xl mx-auto px-5">
-            <Reveal>
-              <div className="text-center mb-6">
-                <p className="text-white font-bold text-lg md:text-xl">{t.proof.headline}</p>
-                <p className="text-white/50 text-sm mt-1">{t.proof.subline}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {t.proof.stats.map((s, i) => (
-                  <div key={i} className="text-center">
-                    <span dir="ltr" className="block text-2xl md:text-4xl font-bold text-[#F05123]">{s.value}</span>
-                    <span className="block text-white/60 text-xs md:text-sm mt-1">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
           </div>
         </section>
 

@@ -19,11 +19,7 @@ export interface TranslationType {
     desc: string;
     ctaPrimary: string;
     ctaSecondary: string;
-    stats: {
-      steps: { title: string; desc: string };
-      verified: { title: string; desc: string };
-      live: { title: string; desc: string };
-    };
+    proof: Array<{ value: string; label: string }>;
     liveBadge: string;
     verifiedSeller: string;
     carTitle: string;
@@ -125,10 +121,6 @@ export interface TranslationType {
     sellerCtaText: string; sellerCtaBtn: string;
     categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
   };
-  proof: {
-    headline: string; subline: string;
-    stats: Array<{ value: string; label: string }>;
-  };
 }
 
 export const translations: Record<"ar" | "en", TranslationType> = {
@@ -147,17 +139,17 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "اعرض سلعتك و",
-      titleGradient: "بِعْها مباشرةً",
-      titleLast: " لآلاف المشترين الجادّين",
+      titleFirst: "اعرِضها.",
+      titleGradient: "بِعْها مباشرةً.",
+      titleLast: "واقبِض بأمان.",
       desc: "منصة المزادات الموثوقة في الأردن. نفحص سلعتك، ونعرضها على مشترين جادّين، ونضمن وصول أموالك بأمان.",
       ctaPrimary: "اعرض سلعتك للبيع",
       ctaSecondary: "تصفّح المزادات المباشرة",
-      stats: {
-        steps: { title: "3 خطوات", desc: "مزايدة سهلة وواضحة" },
-        verified: { title: "توثيق كامل", desc: "بائعون وحسابات موثقة" },
-        live: { title: "تحديث مباشر", desc: "تحديثات فورية للمزايدات" },
-      },
+      proof: [
+        { value: "١٥,٠٠٠+", label: "مشترٍ" },
+        { value: "١,٢٥٠+", label: "سلعة مُباعة" },
+        { value: "٣,٤٠٠+", label: "سلعة مفحوصة" },
+      ],
       liveBadge: "مباشر الآن",
       verifiedSeller: "✓ بائع موثق",
       carTitle: "تويوتا كامري 2022",
@@ -366,15 +358,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         "Real Estate": "عقارات",
       },
     },
-    proof: {
-      headline: "آلاف الأردنيين يشترون على مزاد الأردن",
-      subline: "سلعتك تصل إلى طلبٍ حقيقي.",
-      stats: [
-        { value: "١٥,٠٠٠+", label: "مشترٍ" },
-        { value: "١,٢٥٠+", label: "سلعة مُباعة" },
-        { value: "٣,٤٠٠+", label: "سلعة مفحوصة" },
-      ],
-    },
   },
   en: {
     dir: "ltr",
@@ -391,17 +374,17 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "List your item and ",
-      titleGradient: "sell it live",
-      titleLast: " to thousands of serious buyers",
+      titleFirst: "List it.",
+      titleGradient: "Sell it live.",
+      titleLast: "Get paid safely.",
       desc: "Jordan's trusted auction platform. We inspect your item, put it in front of serious buyers, and make sure you get paid safely.",
       ctaPrimary: "List your item",
       ctaSecondary: "Browse live auctions",
-      stats: {
-        steps: { title: "3 Steps", desc: "Easy & clear bidding" },
-        verified: { title: "Full Verification", desc: "Certified sellers & accounts" },
-        live: { title: "Live Updates", desc: "Instant bidding updates" },
-      },
+      proof: [
+        { value: "15,000+", label: "buyers" },
+        { value: "1,250+", label: "items sold" },
+        { value: "3,400+", label: "items inspected" },
+      ],
       liveBadge: "Live Now",
       verifiedSeller: "✓ Verified Seller",
       carTitle: "Toyota Camry 2022",
@@ -609,15 +592,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         Fashion: "Fashion",
         "Real Estate": "Real Estate",
       },
-    },
-    proof: {
-      headline: "Thousands of Jordanians already buy on Mazad JO",
-      subline: "Your item meets real demand.",
-      stats: [
-        { value: "15,000+", label: "buyers" },
-        { value: "1,250+", label: "items sold" },
-        { value: "3,400+", label: "items inspected" },
-      ],
     },
   },
 };
