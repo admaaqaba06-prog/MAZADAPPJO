@@ -7,6 +7,7 @@ import { canSeeSimulated } from './utils/simVisibility';
 import { useSimulatorEnabled } from './hooks/useSimulatorEnabled';
 import { DesktopFrame } from './components/DesktopFrame';
 import { SubscriptionPromptModal } from './components/SubscriptionPromptModal';
+import { PhotoGatePrompt } from './components/PhotoGatePrompt';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { isProfileComplete } from './utils/jordanCities';
@@ -176,7 +177,7 @@ function SimulatorOnBanner() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
   const [entered, setEntered] = useState(false);
@@ -326,6 +327,11 @@ function MainAppShell() {
         {/* Global Subscription Prompt Modal */}
         {showSubscriptionPrompt && (
           <SubscriptionPromptModal onClose={() => setShowSubscriptionPrompt(false)} />
+        )}
+
+        {/* Global "add a real photo to bid/sell" trust gate */}
+        {showPhotoGate && (
+          <PhotoGatePrompt onClose={() => setShowPhotoGate(false)} />
         )}
 
         {/* Global Post-win Review Prompt */}

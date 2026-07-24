@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { resolveBidTap } from '../utils/guestGate';
+import { resolveBidGate } from '../utils/guestGate';
+import { hasRealPhoto } from '../utils/avatarPlaceholder';
 
 type BidResult = { success: boolean; message: string } | void;
 type BidExecute = (amount: number) => Promise<BidResult> | BidResult;
@@ -40,28 +41,36 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  * can branch on success/failure.
  */
 export function useBidFlow(execute: BidExecute) {
-  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, requestSignIn } = useApp();
+  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, requestSignIn } = useApp();
   const isMember = currentUser?.subscriptionStatus === 'active';
   const isGuest = !isAuthenticated;
+  const hasPhoto = hasRealPhoto(currentUser);
 
   const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Guests are sent to SIGNUP (never the subscription sheet); authenticated
-  // non-members are invited to join before any confirm; members get the confirm.
-  // resolveBidTap is the shared, pure decision (see utils/guestGate.test.ts).
+  // Ordered gate (resolveBidGate — pure, see utils/guestGate.test.ts):
+  //   guest        -> SIGNUP (never a members-only sheet)
+  //   non-member   -> subscription invite
+  //   member, no photo -> "add a photo to bid" trust gate (client-side only)
+  //   member, photo    -> stage the confirm
+  // The server bid path is untouched — this only decides whether to stage.
   const startBid = useCallback((amount: number) => {
-    const decision = resolveBidTap(isAuthenticated, isMember);
-    if (decision === 'signup') {
+    const decision = resolveBidGate({ isAuthenticated, isMember, hasPhoto });
+    if (decision === 'signin') {
       requestSignIn();
       return;
     }
-    if (decision === 'subscribe') {
+    if (decision === 'membership') {
       setShowSubscriptionPrompt(true);
       return;
     }
+    if (decision === 'photo') {
+      setShowPhotoGate(true);
+      return;
+    }
     setPendingBid(amount);
-  }, [isAuthenticated, isMember, requestSignIn, setShowSubscriptionPrompt]);
+  }, [isAuthenticated, isMember, hasPhoto, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 

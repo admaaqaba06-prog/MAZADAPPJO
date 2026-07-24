@@ -3,6 +3,7 @@ import { useApp, useAuctions } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
 import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import type { Notification } from '../types';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
@@ -410,7 +411,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   id="header-user-menu-btn"
                 >
                   <img
-                    src={currentUser.avatar}
+                    src={resolveAvatarUrl(currentUser.avatar, currentUser.id)}
                     alt={currentUser.name}
                     className="w-8 h-8 rounded-full object-cover border border-gray-200/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
                   />
@@ -506,9 +507,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {/* Context Profile Block (hidden for guests — they have no profile) */}
               {!isGuest && currentUser && (
                 <div className="flex items-center gap-3 pb-5 border-b border-gray-100">
-                  <img 
-                    src={currentUser.avatar} 
-                    alt={currentUser.name} 
+                  <img
+                    src={resolveAvatarUrl(currentUser.avatar, currentUser.id)}
+                    alt={currentUser.name}
                     className="w-10 h-10 rounded-full object-cover border border-gray-200/80 shadow-xs shrink-0"
                   />
                   <div className="flex flex-col text-left rtl:text-right min-w-0">

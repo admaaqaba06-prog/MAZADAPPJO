@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { db } from '../services/firebase';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
   ArrowLeft, 
@@ -1544,8 +1545,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
               return (
                 <div className="flex items-center gap-3">
-                  {sellerProf?.storeLogo ? (
-                    <img src={sellerProf.storeLogo} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-gray-200 shadow-xs shrink-0" />
+                  {sellerProf ? (
+                    <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-gray-200 shadow-xs shrink-0" />
                   ) : (
                     <div className="w-11 h-11 rounded-full bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
                       {order.sellerName.substring(0, 2).toUpperCase()}

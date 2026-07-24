@@ -39,6 +39,18 @@ service firebase.storage {
       allow update, delete: if isAdmin();
     }
 
+    // 1.6. Profile Avatars (public read — a face shows next to every bid, chat,
+    // seller card & order; owner-only write, image-only, ≤10MB). Enables the
+    // "add a real photo to bid/sell" trust flow.
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+                    && isOwner(userId)
+                    && request.resource.contentType.matches('image/.*')
+                    && request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
     // 2. Video Upload Path (Unified and restricted to 250MB size limit)
     match /auction-videos/{fileName} {
       allow read: if true;

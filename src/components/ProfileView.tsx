@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { db } from '../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { winTotalDue } from './feedback';
 import { Order } from '../types';
+import { resolveAvatarUrl, hasRealPhoto } from '../utils/avatarPlaceholder';
+import { useAvatarUpload } from '../hooks/useAvatarUpload';
 import {
   User as UserIcon,
   ShieldCheck,
@@ -17,7 +19,8 @@ import {
   ChevronRight,
   ExternalLink,
   Trophy,
-  HelpCircle
+  HelpCircle,
+  Camera
 } from 'lucide-react';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
@@ -41,6 +44,24 @@ export const ProfileView: React.FC = () => {
   const [city, setCity] = useState(currentUser?.city || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Avatar upload (tap-to-change control on the profile photo).
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { uploading: avatarUploading, progress: avatarProgress, error: avatarError, uploadAvatar } = useAvatarUpload();
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+    let objectUrl: string | null = null;
+    try { objectUrl = URL.createObjectURL(file); setAvatarPreview(objectUrl); } catch { /* noop */ }
+    const res = await uploadAvatar(file);
+    if (!res.success) {
+      setAvatarPreview(null);
+      if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch { /* noop */ } }
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -149,13 +170,45 @@ export const ProfileView: React.FC = () => {
         {/* Profile Header Card */}
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
           <div className="relative group shrink-0">
-            <img 
-              src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
-              alt={currentUser.name} 
-              className="w-24 h-24 rounded-3xl object-cover border border-gray-200 group-hover:border-[#FF6B00] transition-colors"
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={handleAvatarFile}
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
             />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              aria-label={isAr ? 'تغيير الصورة الشخصية' : 'Change profile photo'}
+              className="relative block rounded-3xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 cursor-pointer disabled:cursor-wait"
+            >
+              <img
+                src={avatarPreview || resolveAvatarUrl(currentUser.avatar, currentUser.id)}
+                alt={currentUser.name}
+                className="w-24 h-24 rounded-3xl object-cover border border-gray-200 group-hover:border-[#FF6B00] transition-colors"
+              />
+              {/* Camera overlay */}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">
+                <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+              </span>
+              {avatarUploading && (
+                <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 gap-1">
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  <span className="text-[10px] font-black text-white font-mono">{Math.round(avatarProgress)}%</span>
+                </span>
+              )}
+            </button>
+            {/* Pencil/camera affordance badge */}
+            <span className="absolute -top-1 -left-1 rtl:-left-auto rtl:-right-1 bg-[#FF6B00] text-white p-1.5 rounded-xl shadow-lg border-2 border-white pointer-events-none">
+              <Camera className="w-3.5 h-3.5" />
+            </span>
             {currentUser.isVerified && (
-              <span className="absolute -bottom-1 -right-1 bg-[#FF6B00] text-white p-1.5 rounded-xl shadow-lg border-2 border-white" title={isAr ? 'حساب موثق' : 'Verified Account'}>
+              <span className="absolute -bottom-1 -right-1 rtl:-right-auto rtl:-left-1 bg-[#FF6B00] text-white p-1.5 rounded-xl shadow-lg border-2 border-white" title={isAr ? 'حساب موثق' : 'Verified Account'}>
                 <ShieldCheck className="w-4 h-4" />
               </span>
             )}
@@ -179,6 +232,42 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Avatar upload error */}
+        {avatarError && (
+          <div className="bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl px-4 py-3 text-xs font-bold flex items-center gap-2">
+            <Camera className="w-4 h-4 shrink-0" />
+            <span>{avatarError}</span>
+          </div>
+        )}
+
+        {/* Trust nudge: gentle "add a real photo" card when the user has none */}
+        {!hasRealPhoto(currentUser) && (
+          <div className="bg-orange-50 border border-[#FF6B00]/20 rounded-3xl p-5 flex items-center gap-4" id="profile-photo-nudge">
+            <div className="w-11 h-11 rounded-2xl bg-[#FF6B00]/10 border border-[#FF6B00]/20 flex items-center justify-center text-[#FF6B00] shrink-0">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">
+                {isAr ? 'أضِف صورتك الشخصية' : 'Add your profile photo'}
+              </h3>
+              <p className="text-[11px] text-gray-600 leading-normal">
+                {isAr
+                  ? 'الصور الحقيقية تحافظ على ثقة مزادات مزاد — المشترون والبائعون يتعاملون مع أشخاص حقيقيين. أضِف صورتك لتزايد أو تبيع.'
+                  : "Real photos keep Mazad's auctions trustworthy — buyers and sellers deal with real people. Add yours to bid or sell."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="bg-[#FF6B00] hover:bg-orange-600 disabled:opacity-60 text-white font-sans font-black text-[11px] py-2.5 px-4 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>{isAr ? 'أضف صورة' : 'Add photo'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Wins shelf «انتصاراتي 🏆» */}
         {wonCount > 0 && (
