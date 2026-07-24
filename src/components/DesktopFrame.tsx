@@ -92,7 +92,16 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   const unreadCount = isStrictAdmin
     ? (notifications || []).filter(n => !n.read).length
     : unreadUserFacingCount(notifications);
-  const isSeller = isAdminOrSeller(currentUser);
+  // Seller Center nav shows for the formal seller role OR anyone who owns a
+  // listing. createListing never grants isSeller (the only granting code path
+  // is dead), so without this a first-time seller has NO route to the Pending
+  // status tab — the Discover pending-box that used to cover that gap was
+  // removed in the Discover redesign.
+  const ownsListing = React.useMemo(() => {
+    const uid = currentUser?.id;
+    return uid ? (auctions || []).some(a => a.sellerId === uid) : false;
+  }, [auctions, currentUser?.id]);
+  const isSeller = isAdminOrSeller(currentUser) || ownsListing;
 
   // Wave D (spec §5): the right rail shows the user's OWN relevant alerts —
   // outbid / won / payment / subscription — not the raw escrow ledger.
