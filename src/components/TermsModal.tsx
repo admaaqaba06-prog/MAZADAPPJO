@@ -165,7 +165,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
             <ul className="space-y-2 list-none pl-0 text-zinc-700">
               <li className="flex items-start gap-1.5">
                 <span className="text-emerald-600 mt-0.5 select-none">•</span>
-                <span>All transaction screenshots, receiver addresses, and phone numbers are encrypted safely on-device and never distributed to third parties.</span>
+                <span>All transaction screenshots, receiver addresses, and phone numbers are stored securely with our payment and infrastructure providers, used only to operate the service, and never sold to third parties.</span>
               </li>
             </ul>
           </div>

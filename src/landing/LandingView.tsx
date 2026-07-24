@@ -40,6 +40,7 @@ import {
 import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { translations, TranslationType } from "./translations";
 import { Logo } from "./components/Logo";
+import TermsModal from "../components/TermsModal";
 
 // Reveal scroll component
 function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number; key?: React.Key }) {
@@ -303,6 +304,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   const [formContact, setFormContact] = useState<string>("");
   const [formSuccess, setFormSuccess] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>("");
+
+  // Terms & Privacy modal state (public legal reachability from the landing footer)
+  const [isTermsOpen, setIsTermsOpen] = useState<boolean>(false);
 
   // Sticky Header state
   const [scrolled, setScrolled] = useState<boolean>(false);
@@ -1698,8 +1702,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       enLabel: "Active Users"
                     },
                     {
-                      arVal: "١٠٠٪",
-                      enVal: "100%",
+                      arVal: <Lock className="w-8 h-8 sm:w-9 sm:h-9 inline-block" aria-hidden="true" />,
+                      enVal: <Lock className="w-8 h-8 sm:w-9 sm:h-9 inline-block" aria-hidden="true" />,
                       arLabel: "محجوز حتى الاستلام",
                       enLabel: "Held until you confirm"
                     }
@@ -1931,8 +1935,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         en: "Payment is never disbursed until you inspect the item and approve its specifications."
                       },
                       {
-                        ar: "استرداد آمن وسريع للمبلغ في حال وجود أي خلاف أو عدم تطابق.",
-                        en: "Fast and secure refund of your funds if there is any discrepancies or disputes."
+                        ar: "إذا كان في مشكلة أو عدم تطابق قبل تأكيدك للاستلام، مزاد يتوسط ويرجّع لك مبلغك المحجوز.",
+                        en: "If there is a problem or mismatch before you confirm receipt, Mazad mediates and returns your held payment."
                       }
                     ].map((point, idx) => (
                       <div key={idx} className="flex items-start gap-3">
@@ -2758,8 +2762,34 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic font-semibold">
                 {t.footer.links.contact}
               </a>
+              <button
+                type="button"
+                onClick={() => setIsTermsOpen(true)}
+                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-gray-600"
+              >
+                {lang === "ar" ? "شروط الاستخدام" : "Terms of Use"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTermsOpen(true)}
+                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-gray-600"
+              >
+                {lang === "ar" ? "سياسة الخصوصية" : "Privacy Policy"}
+              </button>
             </div>
 
+          </div>
+
+          {/* Company / Contact Info */}
+          <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-center text-xs text-gray-500 font-ibmarabic">
+            <span className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-[#F05123]" />
+              <span>{lang === "ar" ? "عمّان، الأردن" : "Amman, Jordan"}</span>
+            </span>
+            <a href="tel:+962781444899" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
+              <span>{lang === "ar" ? "خدمة العملاء:" : "Customer Service:"}</span>
+              <span className="font-mono" dir="ltr">0781444899</span>
+            </a>
           </div>
 
           {/* Copyrights and Jordan Badge */}
@@ -2767,7 +2797,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             <p className="text-xs text-gray-500 font-ibmarabic">
               {t.footer.rights}
             </p>
-            
+
             {/* Tiny secure seal */}
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#ECECEA] text-[10px] text-gray-600 font-ibmarabic shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <Lock className="w-3 h-3 text-[#F05123]" />
@@ -2807,6 +2837,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Terms of Use & Privacy Policy modal (opened from the footer) */}
+      <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
 
     </div>
   );
