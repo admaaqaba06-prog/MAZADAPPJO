@@ -36,7 +36,14 @@ const {
   initAdmin,
   writeManifest,
   deleteRefsInBatches,
+  mapWithConcurrency,
 } = require('./common');
+
+// Bounded parallelism for seeding thousands of users: fast enough to be
+// practical at scale, capped low enough to stay gentle on Firebase Auth's own
+// per-project write quotas (a quota wall here would masquerade as an app
+// failure it isn't).
+const SEED_CONCURRENCY = parseInt(process.env.LOADTEST_SEED_CONCURRENCY || '25', 10);
 
 const N_USERS = parseInt(process.env.LOADTEST_USERS || '50', 10);
 const N_AUCTIONS = parseInt(process.env.LOADTEST_AUCTIONS || '3', 10);
@@ -65,17 +72,18 @@ async function ensureAuthUser(uid, displayName) {
 }
 
 async function seedUsers() {
-  const uids = [];
-  let created = 0;
   const subscriptionExpiry = admin.firestore.Timestamp.fromMillis(
     Date.now() + 30 * 24 * 60 * 60 * 1000 // +30 days — clears the expiry gate
   );
 
-  for (let i = 1; i <= N_USERS; i++) {
+  const indices = Array.from({ length: N_USERS }, (_, k) => k + 1);
+  let createdCount = 0;
+
+  const uids = await mapWithConcurrency(indices, SEED_CONCURRENCY, async (i) => {
     const uid = `${USER_UID_PREFIX}${pad(i, 4)}`;
     const name = `LoadTest Bidder ${pad(i, 4)}`;
     const status = await ensureAuthUser(uid, name);
-    if (status === 'created') created++;
+    if (status === 'created') createdCount++;
 
     // Full overwrite (set, no merge): re-seeding resets lastBidAt so the rate
     // limiter starts cold for every run.
@@ -92,9 +100,18 @@ async function seedUsers() {
       role: 'user',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    uids.push(uid);
+    return uid;
+  });
+
+  console.log(`[seed] users: ${uids.length} total (${createdCount} newly created in Auth)`);
+  if (createdCount > 0) {
+    console.log(
+      `[seed] NOTE: ${createdCount} brand-new Auth user(s) were just created — their ` +
+      `onUserCreated trigger fires asynchronously and can race this same write, ` +
+      `resetting subscriptionStatus back to 'none' for some of them. Re-run seed.js ` +
+      `once more before storming (no new Auth users next run = no race).`
+    );
   }
-  console.log(`[seed] users: ${uids.length} total (${created} newly created in Auth)`);
   return uids;
 }
 

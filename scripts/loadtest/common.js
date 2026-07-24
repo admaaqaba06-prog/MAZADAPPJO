@@ -207,6 +207,27 @@ function writeManifest(manifest) {
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
 }
 
+/**
+ * Run `fn(item, index)` over `items` with at most `limit` in flight at once.
+ * Used for scaling seed/mint steps to thousands of users without either (a)
+ * fully sequential setup (impractically slow at scale) or (b) fully unbounded
+ * parallelism (risks tripping Google's own per-project API quotas, which would
+ * look like an app failure but isn't one). Preserves each result's index.
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 /** Delete a list of document refs in chunks (Firestore batches cap at 500 writes). */
 async function deleteRefsInBatches(db, refs) {
   let count = 0;
@@ -228,6 +249,7 @@ module.exports = {
   loadConfig,
   initAdmin,
   sleep,
+  mapWithConcurrency,
   percentile,
   filsToJod,
   bidPricing,
