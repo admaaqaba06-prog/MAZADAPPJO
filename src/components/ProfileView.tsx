@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Trophy
+  Trophy,
+  HelpCircle
 } from 'lucide-react';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
@@ -462,6 +463,30 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* How-it-works entry point — this is the mobile route to the 'about'
+            view now that the bottom-nav "How it works" tab was removed. */}
+        <button
+          type="button"
+          onClick={() => setActiveView('about')}
+          className="w-full bg-white hover:bg-gray-50 border border-gray-200 rounded-3xl p-5 flex items-center justify-between gap-4 transition-colors cursor-pointer text-start"
+          id="profile-how-it-works-link"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00] shrink-0">
+              <HelpCircle className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider truncate">
+                {isAr ? 'كيف يعمل مزاد جو' : 'How Mazad JO Works'}
+              </h3>
+              <p className="text-[9px] text-gray-500 truncate">
+                {isAr ? 'دليل المزايدة والدفع والتوصيل' : 'Bidding, payment & delivery guide'}
+              </p>
+            </div>
+          </div>
+          {isAr ? <ChevronLeft className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+        </button>
 
       </div>
     </div>
