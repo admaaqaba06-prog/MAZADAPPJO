@@ -1099,7 +1099,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
                     {t.hero.titleGradient}
-                    <svg className="absolute left-0 bottom-[-2px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
+                    <svg className={`absolute left-0 bottom-[-2px] w-full h-2 overflow-visible ${prefersReducedMotion ? "" : "animate-pulse-slow"}`} viewBox="0 0 100 10" preserveAspectRatio="none">
                       <motion.path
                         d="M0,5 Q50,0 100,5"
                         fill="none"
@@ -1221,7 +1221,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
                   {/* Glowing warm orange aura behind card */}
-                  <div className="absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 animate-pulse -z-10 pointer-events-none" />
+                  <div className={`absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 ${prefersReducedMotion ? "" : "animate-pulse"} -z-10 pointer-events-none`} />
 
                   {/* Phone Bezel Top Notch */}
                   <div className="w-20 h-4 bg-gray-900 rounded-b-xl mx-auto absolute top-0 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center gap-1.5 shadow-inner">
@@ -1298,7 +1298,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                             alt="MazadJo Streamer" 
                             className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
                           />
-                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black animate-pulse" />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
                         <div className={`flex flex-col ${lang === "ar" ? "text-right" : "text-left"}`}>
                           <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
@@ -1314,8 +1314,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </div>
 
                       {/* Live Badge Pill */}
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 ${prefersReducedMotion ? "" : "animate-pulse"}`}>
+                        <span className={`w-2 h-2 rounded-full bg-white ${prefersReducedMotion ? "" : "animate-ping"}`} />
                         <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
                       </div>
                     </div>
@@ -1513,7 +1513,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </div>
 
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${prefersReducedMotion ? "" : "animate-ping"}`} />
                         {lang === "ar" ? "متواجدين الآن" : "Live Now"}
                       </span>
                     </div>
