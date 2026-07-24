@@ -11,7 +11,6 @@ import { NotificationCenter } from './NotificationCenter';
 const AdminPanel = lazy(() => import('./AdminPanel'));
 import { ReelsDesktopRightPanel } from './ReelsDesktopRightPanel';
 import { 
-  Wallet as WalletIcon, 
   User,
   TrendingUp, 
   Tv, 
@@ -188,18 +187,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           </button>
 
           <button
-            onClick={() => setActiveView('wallet')}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'wallet'
-                ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
-            }`}
-          >
-            <WalletIcon className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'العضوية' : 'Membership'}</span>
-          </button>
-
-          <button
             onClick={() => setActiveView('about')}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'about'
@@ -308,18 +295,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => setActiveView('wallet')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                activeView === 'wallet'
-                  ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
-              }`}
-            >
-              <WalletIcon className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>{isAr ? 'العضوية' : 'Membership'}</span>
-            </button>
-
-            <button
               onClick={() => setActiveView('about')}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'about'
@@ -364,7 +339,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {/* 3. Actions: Wallet balance, Language switcher, Notifications bell, User Profile (Right) */}
           <div className="flex items-center gap-3 xl:gap-4" id="global-header-actions">
             
-            {/* Membership pill */}
+            {/* Member/Join pill */}
             {currentUser && (
               <div
                 onClick={() => setActiveView('wallet')}
