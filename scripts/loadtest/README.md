@@ -87,6 +87,38 @@ node teardown.js    # delete everything flagged isLoadTest
 Re-run `seed.js` between storms — it resets lot prices, clears old bids, and
 zeroes each user's `lastBidAt`.
 
+**At scale (K/N in the thousands), also set** `export UV_THREADPOOL_SIZE=64`
+(or higher) **before running seed.js/bid-storm.js.** Node's default DNS
+resolver thread pool (4) causes spurious `ENOTFOUND` errors under heavy
+concurrent lookup pressure otherwise — a local-machine limitation, not a
+Firebase or app issue.
+
+**Re-run `seed.js` a second time after any run that creates brand-new Auth
+users** (i.e. the first time you raise `LOADTEST_USERS`) before storming.
+`onUserCreated` (an Auth trigger) writes default field values asynchronously
+on user creation and can race `seed.js`'s own `subscriptionStatus:'active'`
+write, silently reverting some users to `'none'`. A second `seed.js` run (no
+new Auth users created ⇒ no trigger fires ⇒ no race) fixes it — `seed.js`
+prints a note when this applies.
+
+### Viewer/read-fan-out test
+
+`bid-storm.js` answers "how many people can WRITE (bid) at once" — capped by
+Firestore's single-document transaction ceiling (~2 accepted/sec/lot,
+confirmed flat from 10 to 5,000 bidders; see `docs/PERFORMANCE.md`). A
+DIFFERENT question — "how many people can WATCH a live lot at once" — is a
+read/listener fan-out problem with a completely different (much higher)
+ceiling. Test it separately:
+
+```bash
+node viewer-storm.js                        # N=1000 viewers, default lot
+LOADTEST_VIEWERS=10000 node viewer-storm.js
+```
+
+Confirmed 100% subscription success up to 50,000 concurrent viewers on one
+lot with zero failures (see `docs/PERFORMANCE.md` for the full results and
+the client-vs-server-limit caveat at very high N).
+
 ### Knobs
 
 | Env var | Default | Meaning |
@@ -102,6 +134,10 @@ zeroes each user's `lastBidAt`.
 | `LOADTEST_JITTER_MS` | 400 | random extra pacing |
 | `LOADTEST_AUCTION_ID` | first seeded lot | which lot to storm |
 | `LOADTEST_SETTLE` | 1 | after the storm, expire the lot and wait for the real `scheduledAuctionCloser` cron so the audit can verify the order; `0` skips |
+| `LOADTEST_SEED_CONCURRENCY` | 25 | parallel Auth-create + Firestore-write batch size (seed.js) — raise for thousands of users |
+| `LOADTEST_MINT_CONCURRENCY` | 25 | parallel custom-token mint + exchange batch size (bid-storm.js) — raise for thousands of bidders |
+| `LOADTEST_VIEWERS` | 1000 | N concurrent listeners (viewer-storm.js) |
+| `LOADTEST_VIEWER_HOLD_MS` | 15000 | how long to hold listeners open after the fan-out mutation, to catch dropped connections |
 
 ### The ramp the spec asks for (10 → 25 → 50 → 100 on the hot lot)
 

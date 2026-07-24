@@ -54,6 +54,7 @@ const {
   sleep,
   bidPricing,
   readManifest,
+  mapWithConcurrency,
   fail,
 } = require('./common');
 const { buildReport, printReport, runAudit } = require('./report');
@@ -63,6 +64,10 @@ const T_SECONDS = parseInt(process.env.LOADTEST_SECONDS || '60', 10);
 const PACE_MS = parseInt(process.env.LOADTEST_PACE_MS || '1600', 10);
 const JITTER_MS = parseInt(process.env.LOADTEST_JITTER_MS || '400', 10);
 const DO_SETTLE = process.env.LOADTEST_SETTLE !== '0';
+// Bounded parallel token minting: fully sequential is impractical at K in the
+// thousands (each mint+exchange is a network round trip). Capped low enough to
+// stay gentle on the Identity Toolkit API's own per-project quota.
+const MINT_CONCURRENCY = parseInt(process.env.LOADTEST_MINT_CONCURRENCY || '25', 10);
 
 const config = loadConfig({ requireWebApiKey: true });
 const { admin, db } = initAdmin(config);
@@ -280,11 +285,8 @@ async function settleViaCron() {
   }
 
   const uids = manifest.uids.slice(0, K);
-  console.log(`[storm] minting ${K} custom tokens + exchanging for ID tokens...`);
-  const idTokens = [];
-  for (const uid of uids) {
-    idTokens.push(await mintIdToken(uid)); // sequential: gentle on the Auth REST quota
-  }
+  console.log(`[storm] minting ${K} custom tokens + exchanging for ID tokens (concurrency=${MINT_CONCURRENCY})...`);
+  const idTokens = await mapWithConcurrency(uids, MINT_CONCURRENCY, (uid) => mintIdToken(uid));
   console.log('[storm] tokens ready. firing.');
 
   const records = [];
