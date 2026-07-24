@@ -259,6 +259,13 @@ export interface Order {
   lastNudgedAt?: any;
   /** Times an admin has nudged this order (any bucket). Admin-only. */
   nudgeCount?: number;
+  /** Reason the buyer/seller gave when opening the dispute. Buyer/seller-writable (their own transition). */
+  disputeReason?: string;
+  /** Slice D dispute-resolution stamp — admin-only via stampDisputeResolution, recorded AFTER the real resolution (release/refund/resume) already happened. */
+  resolutionNotes?: string;
+  disputeResolvedBy?: string;
+  disputeResolvedAt?: any;
+  disputeResolutionType?: 'release' | 'refund' | 'resume';
   trackingNumber?: string;
   /**
    * Wave 2 (W4): per-order delivery address + phone the winner provides at the
