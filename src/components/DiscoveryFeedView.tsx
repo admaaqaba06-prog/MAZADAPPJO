@@ -557,7 +557,7 @@ export const DiscoveryFeedView: React.FC = () => {
       {/* Sticky top zone: mobile bar (mobile only) + search/filters (all breakpoints).
           Grouped under ONE sticky wrapper so they stack as a unit on scroll —
           two independent `sticky top-0` siblings would overlap instead of stack. */}
-      <div className="sticky top-0 z-40 bg-white" id="discover-sticky-header">
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-100" id="discover-sticky-header">
         {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
         <div className="p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-2">
@@ -845,7 +845,9 @@ export const DiscoveryFeedView: React.FC = () => {
       </div>
 
       {/* Dual-Column High Fidelity grid list of live streams preview */}
-      <div className="flex-grow px-4 pb-12" id="discover-feed-grid">
+      {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
+          pinned sticky header (bar+search+pills ≈ 190px mobile / search+pills ≈ 130px desktop). */}
+      <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-36" id="discover-feed-grid">
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
