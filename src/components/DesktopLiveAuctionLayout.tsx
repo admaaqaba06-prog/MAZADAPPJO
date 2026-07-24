@@ -32,6 +32,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { compactJod } from '../utils/bidFormat';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow } from '../utils/serverTime';
 import { getAuctionMedia } from '../utils/auctionMedia';
@@ -780,7 +781,10 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {/* Quick Bid Multipliers (hidden until the auction is open) */}
               {isAuctionOpen(activeAuction?.status) && (() => {
                 const inc = activeAuction?.minIncrement || 10;
-                const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
+                // Derive the next-bid tiers from the AUTHORITATIVE doc price, never
+                // the optimistic activePrice — an in-flight overlay must not inflate
+                // the amounts these chips stage (would cause an overpay if the bid fails).
+                const base = minNextBid(activeAuction?.currentPrice ?? activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
                 return (
                   <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
                     {[base, base + inc, base + 2 * inc].map((amount) => (
@@ -789,7 +793,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         onClick={() => setPendingBid(amount)}
                         className="flex-1 py-1.5 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-orange-100"
                       >
-                        {isAr ? 'زايد' : 'Bid'} {amount.toLocaleString()} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                        {isAr ? 'زايد' : 'Bid'} {compactJod(amount)} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
                       </Pressable>
                     ))}
                   </div>
@@ -802,7 +806,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
                     {isAr ? 'العطاء الحالي' : 'Current Bid'}
                   </span>
-                  <span className="text-lg font-black text-[#E85D04] font-mono mt-0.5 leading-none">
+                  <span className="text-lg font-black text-[#E85D04] font-mono tabular-nums mt-0.5 leading-none">
                     <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-gray-500">JOD</span>
                   </span>
                   <span className="text-[9px] text-emerald-600 font-semibold mt-1 block leading-none">

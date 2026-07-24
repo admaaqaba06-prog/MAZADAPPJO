@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -765,12 +765,11 @@ function applyBidWrites(transaction, auctionRef, auctionData, bid) {
   }
   transaction.set(bidRef, bidDoc);
 
-  // Anti-sniping and pricing
-  let finalEndTime = bid.endTimeMs || Date.now();
-  const timeRemaining = finalEndTime - Date.now();
-  if (timeRemaining > 0 && timeRemaining < 10000) {
-    finalEndTime += 15000;
-  }
+  // Anti-sniping (soft close) and pricing: a bid inside the final `window`
+  // resets the clock to `extend` remaining (per-auction, default 30s/30s).
+  const nowMs = Date.now();
+  const { windowMs, extendMs } = resolveAntiSnipe(auctionData);
+  const finalEndTime = computeSoftCloseEnd(bid.endTimeMs || nowMs, nowMs, windowMs, extendMs);
 
   transaction.update(auctionRef, {
     currentPrice: bid.amountJod,

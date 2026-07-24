@@ -24,6 +24,14 @@ const PAYMENT_WINDOW_PRESETS = [
   { hours: 72, label: '72 ساعة', en: '72 hours' },
 ];
 
+// Anti-snipe soft-close window: a bid in the final N seconds resets the clock
+// to N seconds. Value tunes both window + extend (kept symmetric for v1).
+const ANTI_SNIPE_PRESETS = [
+  { sec: 15, label: '15 ثانية', en: '15s' },
+  { sec: 30, label: '30 ثانية', en: '30s' },
+  { sec: 60, label: '60 ثانية', en: '60s' },
+];
+
 /** Internal vendor slug: lowercase, dashes, keeps Arabic/Latin letters + digits. */
 const slugifyVendor = (name: string): string =>
   name
@@ -47,6 +55,7 @@ export default function AuctionDropBuilderView() {
   const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
   const [paymentWindowHours, setPaymentWindowHours] = useState(24);
+  const [antiSnipeSec, setAntiSnipeSec] = useState(30);
   const [condition, setCondition] = useState('جديدة كلياً');
   const [vendorName, setVendorName] = useState(''); // internal-only, never buyer-facing
   const [specsText, setSpecsText] = useState(''); // one spec per line
@@ -180,6 +189,8 @@ export default function AuctionDropBuilderView() {
           endTime: (scheduledStartAtMs ?? Date.now()) + durationSeconds * 1000,
           duration: durationSeconds,
           paymentWindowHours,
+          antiSnipeWindowSec: antiSnipeSec,
+          antiSnipeExtendSec: antiSnipeSec,
           channel,
           // No schedule = open now: the opener cron only flips auctions that
           // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
@@ -223,6 +234,7 @@ export default function AuctionDropBuilderView() {
     if (a.marketPrice) setMarketPrice(String(a.marketPrice));
     setDurationSeconds(a.duration || durationSeconds);
     if (a.paymentWindowHours) setPaymentWindowHours(a.paymentWindowHours);
+    if (a.antiSnipeWindowSec) setAntiSnipeSec(a.antiSnipeWindowSec);
     setCreatedId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -331,6 +343,19 @@ export default function AuctionDropBuilderView() {
               {isAr
                 ? 'الوقت المتاح للفائز للدفع قبل تقييد الحساب. الافتراضي 24 ساعة.'
                 : 'Time the winner has to pay before their account is restricted. Default 24h.'}
+            </span>
+          </label>
+
+          <label className="block text-sm">{isAr ? 'الحماية من القنص' : 'Anti-snipe'}
+            <select className="mt-1 w-full border rounded p-2" value={antiSnipeSec} onChange={(e) => setAntiSnipeSec(Number(e.target.value))}>
+              {ANTI_SNIPE_PRESETS.map((p) => (
+                <option key={p.sec} value={p.sec}>{isAr ? p.label : p.en}</option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-neutral-400">
+              {isAr
+                ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي ٣٠ ثانية.'
+                : 'Bids in the final seconds extend the clock. Default 30s.'}
             </span>
           </label>
         </section>
