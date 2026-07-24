@@ -644,7 +644,7 @@ export const DiscoveryFeedView: React.FC = () => {
               </h2>
             </div>
             <p className="text-[11px] text-gray-400 mt-2 font-sans font-medium">
-              {isAr ? 'مزادات فورية بالوقت الحقيقي مع حماية وضمان أموال المشترين.' : 'Real-time auctions with secure escrow payments.'}
+              {isAr ? 'مزادات فورية — مزاد يحتفظ بمبلغك حتى تستلم القطعة وتؤكّد.' : 'Real-time auctions — Mazad holds your payment until you confirm receipt.'}
             </p>
 
             {/* Real CTA: join (non-members) / browse (members) — the green
@@ -862,7 +862,7 @@ export const DiscoveryFeedView: React.FC = () => {
              into the middle of the feed area instead of pinning it to the top). */
           <div className="min-h-[58vh] flex items-center justify-center">
           <div
-            className="w-full text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="feedback-empty-state"
           >
