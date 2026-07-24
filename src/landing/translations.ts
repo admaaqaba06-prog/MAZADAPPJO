@@ -303,7 +303,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "كيف أدفع؟",
-          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فتمر عبر نظام الضمان المالي ولا تُحوَّل للبائع إلا بعد استلامك للقطعة. تُضاف عمولة مشترٍ ٥٪ عند الفوز."
+          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فيحتفظ بها مزاد ولا تُحوَّل للبائع إلا بعد استلامك للقطعة وتأكيدك. تُضاف عمولة مشترٍ ٥٪ عند الفوز."
         },
         {
           q: "ماذا تعني \"مفحوص من مزادو\"؟",
@@ -515,7 +515,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "How do I pay?",
-          a: "Subscriptions are paid via CliQ. Auction payments go through our secure escrow system and are not transferred to the seller until you receive and approve the item. A 5% buyer's premium is added on winning bids."
+          a: "Subscriptions are paid via CliQ. Auction payments are held by Mazad and are not transferred to the seller until you receive and approve the item. A 5% buyer's premium is added on winning bids."
         },
         {
           q: "What does \"Verified by Mazadjo\" mean?",
