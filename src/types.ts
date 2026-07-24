@@ -98,6 +98,7 @@ export interface AuctionItem {
   mediaUrls?: string[];
   endTime: number; // Unix timestamp
   duration: number; // in seconds
+  paymentWindowHours?: number; // hours winner has to pay before default-block; defaults to 24 server-side
   sellerId: string;
   sellerName: string;
   sellerLogo: string;

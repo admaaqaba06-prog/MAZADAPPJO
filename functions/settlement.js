@@ -36,4 +36,25 @@ function nextAuctionNumber(current, seed = 2000) {
   return { assigned: base, next: base + 1 };
 }
 
-module.exports = { reserveMet, resolveSettlement, nextAuctionNumber };
+// Payment window: hours the winner has to pay before the payment-default
+// enforcer blocks them. Set per-auction at creation; falls back to 24h when
+// unset (existing auctions, seller self-serve, simulator). Clamped so a
+// bad/forged value can never produce an absurd deadline.
+const DEFAULT_PAYMENT_WINDOW_HOURS = 24;
+const MIN_PAYMENT_WINDOW_HOURS = 1;
+const MAX_PAYMENT_WINDOW_HOURS = 168; // 7 days
+function resolvePaymentWindowHours(paymentWindowHours) {
+  const raw = Number(paymentWindowHours);
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_PAYMENT_WINDOW_HOURS;
+  return Math.min(MAX_PAYMENT_WINDOW_HOURS, Math.max(MIN_PAYMENT_WINDOW_HOURS, Math.round(raw)));
+}
+
+module.exports = {
+  reserveMet,
+  resolveSettlement,
+  nextAuctionNumber,
+  resolvePaymentWindowHours,
+  DEFAULT_PAYMENT_WINDOW_HOURS,
+  MIN_PAYMENT_WINDOW_HOURS,
+  MAX_PAYMENT_WINDOW_HOURS,
+};

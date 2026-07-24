@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-const { reserveMet, resolveSettlement, nextAuctionNumber } = require('./settlement');
+const {
+  reserveMet,
+  resolveSettlement,
+  nextAuctionNumber,
+  resolvePaymentWindowHours,
+  DEFAULT_PAYMENT_WINDOW_HOURS,
+  MIN_PAYMENT_WINDOW_HOURS,
+  MAX_PAYMENT_WINDOW_HOURS,
+} = require('./settlement');
 
 describe('reserveMet', () => {
   it('is true when no reserve is set', () => {
@@ -44,5 +52,38 @@ describe('nextAuctionNumber', () => {
   });
   it('honors a custom seed', () => {
     expect(nextAuctionNumber(null, 5000)).toEqual({ assigned: 5000, next: 5001 });
+  });
+});
+
+describe('resolvePaymentWindowHours', () => {
+  it('defaults to 24h when unset/blank', () => {
+    expect(resolvePaymentWindowHours(undefined)).toBe(DEFAULT_PAYMENT_WINDOW_HOURS);
+    expect(resolvePaymentWindowHours(null)).toBe(24);
+    expect(resolvePaymentWindowHours('')).toBe(24);
+  });
+  it('defaults to 24h on garbage / non-positive values', () => {
+    expect(resolvePaymentWindowHours('abc')).toBe(24);
+    expect(resolvePaymentWindowHours(NaN)).toBe(24);
+    expect(resolvePaymentWindowHours(0)).toBe(24);
+    expect(resolvePaymentWindowHours(-5)).toBe(24);
+  });
+  it('passes through the standard presets unchanged', () => {
+    expect(resolvePaymentWindowHours(12)).toBe(12);
+    expect(resolvePaymentWindowHours(24)).toBe(24);
+    expect(resolvePaymentWindowHours(48)).toBe(48);
+    expect(resolvePaymentWindowHours(72)).toBe(72);
+  });
+  it('accepts numeric strings (form values arrive as strings)', () => {
+    expect(resolvePaymentWindowHours('48')).toBe(48);
+  });
+  it('clamps to the sane range so a forged value cannot set an absurd deadline', () => {
+    expect(resolvePaymentWindowHours(0.3)).toBe(MIN_PAYMENT_WINDOW_HOURS); // rounds to 0, floored up to 1
+    expect(resolvePaymentWindowHours(1)).toBe(1);
+    expect(resolvePaymentWindowHours(9999)).toBe(MAX_PAYMENT_WINDOW_HOURS); // 168h cap
+    expect(resolvePaymentWindowHours(168)).toBe(168);
+  });
+  it('rounds fractional hours to whole hours', () => {
+    expect(resolvePaymentWindowHours(23.6)).toBe(24);
+    expect(resolvePaymentWindowHours(48.4)).toBe(48);
   });
 });

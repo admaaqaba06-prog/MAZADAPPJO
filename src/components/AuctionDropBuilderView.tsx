@@ -15,6 +15,15 @@ const DURATION_PRESETS = [
   { seconds: 1800, label: '30 دقيقة', en: '30 min' },
 ];
 
+// How long the winner has to pay before the payment-default enforcer blocks
+// them. Mirrors DEFAULT_PAYMENT_WINDOW_HOURS in functions/index.js (24h).
+const PAYMENT_WINDOW_PRESETS = [
+  { hours: 12, label: '12 ساعة', en: '12 hours' },
+  { hours: 24, label: '24 ساعة', en: '24 hours' },
+  { hours: 48, label: '48 ساعة', en: '48 hours' },
+  { hours: 72, label: '72 ساعة', en: '72 hours' },
+];
+
 /** Internal vendor slug: lowercase, dashes, keeps Arabic/Latin letters + digits. */
 const slugifyVendor = (name: string): string =>
   name
@@ -37,6 +46,7 @@ export default function AuctionDropBuilderView() {
   const [channel, setChannel] = useState<DropChannel>('misc');
   const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
+  const [paymentWindowHours, setPaymentWindowHours] = useState(24);
   const [condition, setCondition] = useState('جديدة كلياً');
   const [vendorName, setVendorName] = useState(''); // internal-only, never buyer-facing
   const [specsText, setSpecsText] = useState(''); // one spec per line
@@ -169,6 +179,7 @@ export default function AuctionDropBuilderView() {
           thumbnailUrl: '',
           endTime: (scheduledStartAtMs ?? Date.now()) + durationSeconds * 1000,
           duration: durationSeconds,
+          paymentWindowHours,
           channel,
           // No schedule = open now: the opener cron only flips auctions that
           // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
@@ -211,6 +222,7 @@ export default function AuctionDropBuilderView() {
     if (a.channel) setChannel(a.channel);
     if (a.marketPrice) setMarketPrice(String(a.marketPrice));
     setDurationSeconds(a.duration || durationSeconds);
+    if (a.paymentWindowHours) setPaymentWindowHours(a.paymentWindowHours);
     setCreatedId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -307,6 +319,19 @@ export default function AuctionDropBuilderView() {
                 <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
               ))}
             </select>
+          </label>
+
+          <label className="block text-sm">{isAr ? 'مهلة الدفع' : 'Payment window'}
+            <select className="mt-1 w-full border rounded p-2" value={paymentWindowHours} onChange={(e) => setPaymentWindowHours(Number(e.target.value))}>
+              {PAYMENT_WINDOW_PRESETS.map((p) => (
+                <option key={p.hours} value={p.hours}>{isAr ? p.label : p.en}</option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-neutral-400">
+              {isAr
+                ? 'الوقت المتاح للفائز للدفع قبل تقييد الحساب. الافتراضي 24 ساعة.'
+                : 'Time the winner has to pay before their account is restricted. Default 24h.'}
+            </span>
           </label>
         </section>
 
