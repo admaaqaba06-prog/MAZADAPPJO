@@ -170,7 +170,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
   if (!order) {
     return (
-      <div className="bg-white border border-gray-150 rounded-3xl p-8 text-center space-y-4 max-w-lg mx-auto mt-10">
+      <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-4 max-w-lg mx-auto mt-10">
         <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto">
           <AlertTriangle className="w-8 h-8" />
         </div>
@@ -667,7 +667,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   return (
     <div className="w-full space-y-6 pb-12 animate-fade-in text-gray-900 leading-relaxed">
       {/* Header Back Bar */}
-      <div className="flex items-center justify-between bg-white px-5 py-4 rounded-3xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)] shrink-0">
+      <div className="flex items-center justify-between bg-white px-5 py-4 rounded-3xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.01)] shrink-0">
         <button 
           onClick={onBack}
           className="flex items-center gap-1.5 text-xs font-black text-gray-700 hover:text-gray-950 transition-colors uppercase font-mono cursor-pointer"
@@ -755,7 +755,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <span>{isAr ? 'تتبع حالة الطلب الفوري' : 'ORDER STATUS TRACKER'}</span>
             </h3>
             {order.status !== 'completed' && order.status !== 'disputed' && (
-              <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono font-black px-2 py-0.5 rounded-md uppercase animate-pulse">
+              <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono font-black px-2 py-0.5 rounded-full uppercase animate-pulse">
                 {isAr ? 'نشط' : 'Active'}
               </span>
             )}
@@ -816,7 +816,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         <div className="lg:col-span-2 space-y-6">
           
           {/* SECTION 2: Auction Information */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <Package className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات وتفاصيل المزاد المغلق' : 'AUCTION DETAILS'}</span>
@@ -826,7 +826,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <img 
                 src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=400&q=80'} 
                 alt={order.auctionTitle} 
-                className="w-full sm:w-28 h-28 rounded-2xl object-cover border border-gray-150 shrink-0 shadow-xs"
+                className="w-full sm:w-28 h-28 rounded-2xl object-cover border border-gray-200 shrink-0 shadow-xs"
                 referrerPolicy="no-referrer"
               />
               <div className="space-y-2.5 flex-1 min-w-0">
@@ -864,7 +864,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               (Mazad holds the buyer's payment in its own account and releases it
               to the seller only after the buyer confirms receipt; NOT regulated
               escrow, NOT audited). */}
-          <div className="bg-[#FAF9F6] border border-gray-150 rounded-3xl p-6 relative overflow-hidden">
+          <div className="bg-[#FAF9F6] border border-gray-200 rounded-3xl p-6 relative overflow-hidden">
             {/* Background luxury watermark */}
             <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-orange-500/[0.02] rounded-full pointer-events-none" />
 
@@ -923,7 +923,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 6: Shipping status + real delivery address (no fabricated data) */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <Truck className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'الشحن والتوصيل' : 'SHIPPING & DELIVERY'}</span>
@@ -975,7 +975,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           {/* SECTION 9: Documents — only the buyer's REAL uploaded CliQ receipt.
               Fabricated waybill / POD cards with dead alert() buttons removed;
               new document controls should render only when a real URL exists. */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <FileCheck className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'المستندات' : 'DOCUMENTS'}</span>
@@ -1018,7 +1018,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         <div className="space-y-6">
           
           {/* ACTION BUTTONS (Section 8) */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'مركز إجراءات الضمان والتسليم' : 'FULFILLMENT INTERACTION PANEL'}</span>
@@ -1043,7 +1043,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           <button
                             type="button"
                             onClick={handleCopyAmount}
-                            className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                            className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                             aria-label={isAr ? 'نسخ المبلغ' : 'Copy amount'}
                           >
                             {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1085,7 +1085,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               <button
                                 type="button"
                                 onClick={handleCopyAlias}
-                                className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                                className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                               >
                                 {copiedAlias ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                               </button>
@@ -1110,7 +1110,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             <button
                               type="button"
                               onClick={handleCopyIban}
-                              className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                              className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                             >
                               {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
@@ -1210,7 +1210,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             <img
                               src={receiptPreview}
                               alt="CliQ Receipt"
-                              className="max-h-40 w-auto object-contain rounded-lg border border-gray-200 shadow-sm"
+                              className="max-h-40 w-auto object-contain rounded-xl border border-gray-200 shadow-sm"
                               referrerPolicy="no-referrer"
                             />
                             <span className="text-[10px] text-gray-400 font-bold group-hover:text-[#FF6B00] transition-colors">
@@ -1259,7 +1259,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   {/* Progressive email capture — only while the account has no email.
                       Optional and dismissible; persists via the write-once rules claim. */}
                   {!currentUser?.email && !receiptEmailDismissed && (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-3.5 space-y-2" id="receipt-email-capture">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-3.5 space-y-2" id="receipt-email-capture">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-[11px] font-black text-gray-800 flex items-center gap-1.5">
                           <Mail className="w-4 h-4 text-[#FF6B00] shrink-0" />
@@ -1286,7 +1286,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           onChange={e => { setReceiptEmail(e.target.value); if (receiptEmailError) setReceiptEmailError(false); }}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveReceiptEmail(); } }}
                           placeholder={t.receiptEmailPlaceholder}
-                          className={`flex-1 min-w-0 bg-[#FAF9F6] border rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${receiptEmailError ? 'border-red-300' : 'border-gray-150'}`}
+                          className={`flex-1 min-w-0 bg-[#FAF9F6] border rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${receiptEmailError ? 'border-red-300' : 'border-gray-200'}`}
                           id="receipt-email-input"
                         />
                         <button
@@ -1391,7 +1391,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
               {/* Admin specific operations (Section 8) */}
               {isAdmin && (
-                <div className="space-y-2.5 bg-[#FAF9F6] p-4 rounded-2xl border border-gray-150">
+                <div className="space-y-2.5 bg-[#FAF9F6] p-4 rounded-2xl border border-gray-200">
                   <div className="flex items-center gap-1 text-[9px] text-[#FF6B00] font-mono font-black uppercase mb-1">
                     <BadgeCheck className="w-3.5 h-3.5" />
                     <span>{isAr ? 'صلاحيات المشرف الفورية' : 'SUPERADMIN OVERRIDE CONSOLE'}</span>
@@ -1454,7 +1454,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                   {/* One-tap buyer trust rating at close-out (mazad_rates_buyer) */}
                   {(order.status === 'completed' || order.status === 'delivered') && (
-                    <div className="bg-white border border-gray-150 rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
                       <span className="text-[9px] text-gray-400 font-mono font-black uppercase block">
                         {isAr ? 'تقييم المشتري (نقرة واحدة)' : 'RATE BUYER (ONE TAP)'}
                       </span>
@@ -1496,7 +1496,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-center space-y-1">
                   <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
                   <p className="font-black text-xs uppercase font-mono">{isAr ? 'الصفقة مغلقة بالكامل' : 'ORDER ARCHIVED & COMPLETED'}</p>
-                  <p className="text-[10px] text-emerald-650">
+                  <p className="text-[10px] text-emerald-700">
                     {isAr ? 'تم الانتهاء من الطلب بنجاح وتحرير حسابات الضمان المالي بالكامل.' : 'All goods arrived safely and escrow transaction accounts cleared.'}
                   </p>
                 </div>
@@ -1505,7 +1505,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 3: Buyer Information */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <User className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات حساب المشتري' : 'BUYER INFORMATION'}</span>
@@ -1518,7 +1518,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{order.buyerName}</h4>
-                  <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.2 rounded-md font-sans font-black">Bidder</span>
+                  <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
                 </div>
                 <p className="text-[9px] text-gray-400 font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
@@ -1528,7 +1528,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 4: Seller Information */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <Building className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات حساب البائع' : 'SELLER PROFILE'}</span>
@@ -1568,20 +1568,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         )}
                         {!!completedSales && (
                           <>
-                            {!!ratingVal && <span className="text-gray-250">•</span>}
+                            {!!ratingVal && <span className="text-gray-300">•</span>}
                             <span>({completedSales} {isAr ? 'مبيعات' : 'lots'})</span>
                           </>
                         )}
                         {!!trustScore && (
                           <>
-                            {(!!ratingVal || !!completedSales) && <span className="text-gray-250">•</span>}
+                            {(!!ratingVal || !!completedSales) && <span className="text-gray-300">•</span>}
                             <span className="text-orange-500 font-bold">{isAr ? 'ثقة' : 'Trust'} {trustScore}%</span>
                           </>
                         )}
                       </div>
                     )}
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`text-[8.5px] font-sans font-extrabold px-1.5 py-0.5 rounded-md border ${
+                      <span className={`text-[8.5px] font-sans font-extrabold px-1.5 py-0.5 rounded-full border ${
                         isPremium 
                           ? 'bg-amber-50 border-amber-200 text-amber-600' 
                           : isVerified 
@@ -1605,7 +1605,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 7: Order Activity chronological history */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
             <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'سجل تتبع الشحنة والنشاط' : 'AUDIT LEDGER & ACTIVITY'}</span>

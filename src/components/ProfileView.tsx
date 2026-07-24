@@ -51,10 +51,10 @@ export const ProfileView: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <div className="flex-1 min-h-screen bg-[#0E0E0E] text-white flex items-center justify-center font-sans">
+      <div className="flex-1 min-h-screen bg-[#F7F6F3] text-gray-900 flex items-center justify-center font-sans">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin mx-auto" />
-          <p className="text-zinc-400 text-sm">
+          <p className="text-gray-500 text-sm">
             {isAr ? 'جاري تحميل بيانات الملف الشخصي...' : 'Loading profile data...'}
           </p>
         </div>
@@ -93,15 +93,15 @@ export const ProfileView: React.FC = () => {
   const getSubStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
       case 'pending':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
       case 'rejected':
-        return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+        return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
       case 'expired':
-        return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
+        return 'bg-zinc-500/10 text-gray-500 border-zinc-500/20';
       default:
-        return 'bg-zinc-500/5 text-zinc-400 border-zinc-500/10';
+        return 'bg-zinc-500/5 text-gray-500 border-zinc-500/10';
     }
   };
 
@@ -139,22 +139,22 @@ export const ProfileView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-screen bg-[#0E0E0E] text-white overflow-y-auto pb-16 font-sans"
+      className="flex-1 min-h-screen bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-16 font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="profile-view-root-container"
     >
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 space-y-6">
         
         {/* Profile Header Card */}
-        <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
           <div className="relative group shrink-0">
             <img 
               src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
               alt={currentUser.name} 
-              className="w-24 h-24 rounded-3xl object-cover border-2 border-white/10 group-hover:border-[#FF6B00] transition-colors"
+              className="w-24 h-24 rounded-3xl object-cover border border-gray-200 group-hover:border-[#FF6B00] transition-colors"
             />
             {currentUser.isVerified && (
-              <span className="absolute -bottom-1 -right-1 bg-[#FF6B00] text-white p-1.5 rounded-xl shadow-lg border-2 border-[#18181B]" title={isAr ? 'حساب موثق' : 'Verified Account'}>
+              <span className="absolute -bottom-1 -right-1 bg-[#FF6B00] text-white p-1.5 rounded-xl shadow-lg border-2 border-white" title={isAr ? 'حساب موثق' : 'Verified Account'}>
                 <ShieldCheck className="w-4 h-4" />
               </span>
             )}
@@ -162,7 +162,7 @@ export const ProfileView: React.FC = () => {
 
           <div className="text-center md:text-start space-y-2 min-w-0 flex-1">
             <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-start gap-2">
-              <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">{currentUser.name}</h1>
+              <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">{currentUser.name}</h1>
               {currentUser.isVerified && (
                 <span className="inline-flex items-center gap-1 bg-[#FF6B00]/10 border border-[#FF6B00]/20 text-[#FF6B00] text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full w-fit mx-auto md:mx-0">
                   <ShieldCheck className="w-3 h-3" />
@@ -170,9 +170,9 @@ export const ProfileView: React.FC = () => {
                 </span>
               )}
             </div>
-            <p className="text-sm text-zinc-400 font-mono truncate">{currentUser.email}</p>
+            <p className="text-sm text-gray-500 font-mono truncate">{currentUser.email}</p>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1 text-xs">
-              <span className="px-3 py-1 bg-white/5 border border-white/5 text-zinc-300 rounded-lg capitalize font-bold">
+              <span className="px-3 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full capitalize font-bold">
                 {currentUser.role === 'admin' ? (isAr ? 'مدير المنصة' : 'Platform Administrator') : currentUser.role === 'seller' ? (isAr ? 'بائع معتمد' : 'Authorized Seller') : (isAr ? 'مزايد نشط' : 'Active Bidder')}
               </span>
             </div>
@@ -181,18 +181,18 @@ export const ProfileView: React.FC = () => {
 
         {/* Wins shelf «انتصاراتي 🏆» */}
         {wonCount > 0 && (
-          <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-4" id="profile-wins-shelf">
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 space-y-4" id="profile-wins-shelf">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
                 <Trophy className="w-5 h-5" />
               </div>
               <div className="flex items-baseline gap-3 min-w-0">
-                <span className="text-3xl font-black font-mono text-amber-400 leading-none">{wonCount}</span>
+                <span className="text-3xl font-black font-mono text-amber-600 leading-none">{wonCount}</span>
                 <div className="min-w-0">
-                  <h3 className="font-sans font-black text-xs text-white uppercase tracking-wider">
+                  <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">
                     {isAr ? 'انتصاراتي 🏆' : 'My Wins 🏆'}
                   </h3>
-                  <p className="text-[9px] text-zinc-400 truncate">
+                  <p className="text-[9px] text-gray-500 truncate">
                     {isAr ? 'مزادات ربحتها وأتممتها — استمر!' : 'Auctions you won and followed through — keep going!'}
                   </p>
                 </div>
@@ -207,17 +207,17 @@ export const ProfileView: React.FC = () => {
                     key={order.id}
                     type="button"
                     onClick={() => openWonOrder(order.id)}
-                    className="w-36 shrink-0 bg-zinc-900/60 hover:bg-zinc-900 border border-white/5 hover:border-amber-500/30 rounded-2xl p-2.5 space-y-2 text-start transition-colors cursor-pointer"
+                    className="w-36 shrink-0 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-amber-500/40 rounded-2xl p-2.5 space-y-2 text-start transition-colors cursor-pointer"
                     id={`profile-win-card-${order.id}`}
                   >
                     <img
                       src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
                       alt={order.auctionTitle}
-                      className="w-full h-20 rounded-xl object-cover border border-white/5"
+                      className="w-full h-20 rounded-xl object-cover border border-gray-200"
                       referrerPolicy="no-referrer"
                     />
-                    <p className="text-[10.5px] font-black text-white leading-snug truncate">{order.auctionTitle}</p>
-                    <p className="text-[10px] font-black font-mono text-amber-400">
+                    <p className="text-[10.5px] font-black text-gray-900 leading-snug truncate">{order.auctionTitle}</p>
+                    <p className="text-[10px] font-black font-mono text-amber-600">
                       {totalDue.toLocaleString()} {isAr ? 'د.أ' : 'JOD'}
                     </p>
                   </button>
@@ -230,35 +230,35 @@ export const ProfileView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Form (2/3 grid span) */}
           <div className="lg:col-span-2 space-y-6">
-            <form onSubmit={handleSave} className="bg-[#18181B] border border-white/5 rounded-3xl p-6 md:p-8 space-y-6">
-              <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+            <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 space-y-6">
+              <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                 <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
                   <UserIcon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-sans font-black text-sm text-white uppercase tracking-wider">{isAr ? 'تعديل بيانات الحساب' : 'Edit Account Details'}</h3>
-                  <p className="text-[10px] text-zinc-400">{isAr ? 'تحديث معلوماتك الشخصية للتواصل والضمان' : 'Keep your personal records updated for transaction security'}</p>
+                  <h3 className="font-sans font-black text-sm text-gray-900 uppercase tracking-wider">{isAr ? 'تعديل بيانات الحساب' : 'Edit Account Details'}</h3>
+                  <p className="text-[10px] text-gray-500">{isAr ? 'تحديث معلوماتك الشخصية للتواصل والضمان' : 'Keep your personal records updated for transaction security'}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Full Name */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-400 tracking-wider block uppercase">{isAr ? 'الاسم الكامل' : 'Full Name'}</label>
+                  <label className="text-[10px] font-black text-gray-500 tracking-wider block uppercase">{isAr ? 'الاسم الكامل' : 'Full Name'}</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder={isAr ? 'مثال: أحمد العبدالله' : 'e.g. Ahmad Al-Abdullah'}
-                      className="w-full bg-zinc-900/60 border border-white/5 focus:border-[#FF6B00]/50 rounded-2xl py-3.5 px-4 text-xs font-bold text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all font-sans"
+                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#FF6B00] rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/20 transition-all font-sans"
                     />
                   </div>
                 </div>
 
                 {/* Email (Read Only) */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-400 tracking-wider block uppercase">
+                  <label className="text-[10px] font-black text-gray-500 tracking-wider block uppercase">
                     {isAr ? 'البريد الإلكتروني (للقراءة فقط)' : 'Email (Read Only)'}
                   </label>
                   <div className="relative">
@@ -266,9 +266,9 @@ export const ProfileView: React.FC = () => {
                       type="email"
                       value={currentUser.email}
                       readOnly
-                      className="w-full bg-zinc-950/80 border border-white/5 rounded-2xl py-3.5 px-4 text-xs font-bold text-zinc-500 cursor-not-allowed transition-all font-mono"
+                      className="w-full bg-gray-100 border border-gray-200 rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-400 cursor-not-allowed transition-all font-mono"
                     />
-                    <span className="absolute right-3 top-3.5 text-[9px] bg-white/5 text-zinc-500 border border-white/5 font-black px-2 py-1 rounded-lg uppercase">
+                    <span className="absolute right-3 top-3.5 text-[9px] bg-gray-100 text-gray-400 border border-gray-200 font-black px-2 py-1 rounded-full uppercase">
                       {isAr ? 'محمي' : 'Secure'}
                     </span>
                   </div>
@@ -276,35 +276,35 @@ export const ProfileView: React.FC = () => {
 
                 {/* Phone Number */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-400 tracking-wider block uppercase">{isAr ? 'رقم الهاتف' : 'Phone Number'}</label>
+                  <label className="text-[10px] font-black text-gray-500 tracking-wider block uppercase">{isAr ? 'رقم الهاتف' : 'Phone Number'}</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       placeholder={isAr ? 'مثال: 079XXXXXXXX' : 'e.g. 079XXXXXXXX'}
-                      className="w-full bg-zinc-900/60 border border-white/5 focus:border-[#FF6B00]/50 rounded-2xl py-3.5 px-4 text-xs font-bold text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all font-sans"
+                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#FF6B00] rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/20 transition-all font-sans"
                     />
                   </div>
                 </div>
 
                 {/* City */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-400 tracking-wider block uppercase">{isAr ? 'المدينة' : 'City'}</label>
+                  <label className="text-[10px] font-black text-gray-500 tracking-wider block uppercase">{isAr ? 'المدينة' : 'City'}</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       placeholder={isAr ? 'مثال: عمان' : 'e.g. Amman'}
-                      className="w-full bg-zinc-900/60 border border-white/5 focus:border-[#FF6B00]/50 rounded-2xl py-3.5 px-4 text-xs font-bold text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all font-sans"
+                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#FF6B00] rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/20 transition-all font-sans"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-white/5 font-sans">
-                <p className="text-[10px] text-zinc-500 font-mono leading-normal">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-gray-100 font-sans">
+                <p className="text-[10px] text-gray-400 font-mono leading-normal">
                   {isAr 
                     ? '* تخضع التحديثات لتدقيق معايير الأمان لمنع الاحتيال والمضاربة الوهمية.' 
                     : '* Updates are logged in our secure ledger network for bidding assurance.'}
@@ -330,7 +330,7 @@ export const ProfileView: React.FC = () => {
               </div>
 
               {saveSuccess && (
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fadeIn font-sans">
+                <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fadeIn font-sans">
                   <ShieldCheck className="w-4 h-4" />
                   <span>{isAr ? 'تم حفظ التعديلات وتحديث حسابك بنجاح!' : 'Profile updated successfully!'}</span>
                 </div>
@@ -341,26 +341,26 @@ export const ProfileView: React.FC = () => {
           {/* Right Column: Cards (1/3 grid span) */}
           <div className="space-y-6">
             {/* Wallet Quick Navigation Card */}
-            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-4">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
                   <Wallet className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-sans font-black text-xs text-white uppercase tracking-wider">{isAr ? 'محفظتي المالية' : 'My Financial Wallet'}</h3>
-                  <p className="text-[9px] text-zinc-400">{isAr ? 'الوصول الفوري للرصيد والعمليات' : 'Instant access to funds & ledger'}</p>
+                  <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'محفظتي المالية' : 'My Financial Wallet'}</h3>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'الوصول الفوري للرصيد والعمليات' : 'Instant access to funds & ledger'}</p>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <p className="text-[10px] text-zinc-400 font-mono uppercase font-black">{isAr ? 'الرصيد الكلي المتاح' : 'Available Balance'}</p>
+                  <p className="text-[10px] text-gray-500 font-mono uppercase font-black">{isAr ? 'الرصيد الكلي المتاح' : 'Available Balance'}</p>
                   <p className="text-lg font-black font-mono text-[#FF6B00]">JOD {currentUser.walletBalance !== undefined ? currentUser.walletBalance : '0.00'}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveView('wallet')}
-                  className="bg-white/5 hover:bg-white/10 text-white p-2.5 rounded-xl border border-white/5 transition-colors cursor-pointer"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2.5 rounded-xl border border-gray-200 transition-colors cursor-pointer"
                   title={isAr ? 'عرض المحفظة' : 'View Wallet'}
                 >
                   {isAr ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -378,20 +378,20 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {/* Subscription Section Card */}
-            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-4">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-sans font-black text-xs text-white uppercase tracking-wider">{isAr ? 'باقة العضوية والاشتراك' : 'Bidding Subscription'}</h3>
-                  <p className="text-[9px] text-zinc-400">{isAr ? 'تفاصيل ترخيص المزايدة النشط' : 'Active live streaming license status'}</p>
+                  <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'باقة العضوية والاشتراك' : 'Bidding Subscription'}</h3>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'تفاصيل ترخيص المزايدة النشط' : 'Active live streaming license status'}</p>
                 </div>
               </div>
 
               <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between text-xs font-bold border-b border-white/5 pb-2.5">
-                  <span className="text-zinc-400">{isAr ? 'حالة الاشتراك:' : 'Plan Status:'}</span>
+                <div className="flex items-center justify-between text-xs font-bold border-b border-gray-100 pb-2.5">
+                  <span className="text-gray-500">{isAr ? 'حالة الاشتراك:' : 'Plan Status:'}</span>
                   <span className={`px-2.5 py-1 text-[10px] font-black tracking-widest uppercase border rounded-full ${getSubStatusColor(currentUser.subscriptionStatus || 'none')}`}>
                     {currentUser.subscriptionStatus === 'active' 
                       ? (isAr ? 'نشط' : 'Active') 
@@ -405,9 +405,9 @@ export const ProfileView: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs font-bold border-b border-white/5 pb-2.5">
-                  <span className="text-zinc-400">{isAr ? 'تاريخ الانتهاء:' : 'Expires On:'}</span>
-                  <span className="text-white font-mono">{formatExpiry(currentUser.subscriptionExpiry || currentUser.subscriptionExpiresAt)}</span>
+                <div className="flex items-center justify-between text-xs font-bold border-b border-gray-100 pb-2.5">
+                  <span className="text-gray-500">{isAr ? 'تاريخ الانتهاء:' : 'Expires On:'}</span>
+                  <span className="text-gray-900 font-mono">{formatExpiry(currentUser.subscriptionExpiry || currentUser.subscriptionExpiresAt)}</span>
                 </div>
               </div>
 
@@ -422,28 +422,28 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {/* Sessions & Security Card */}
-            <div className="bg-[#18181B] border border-white/5 rounded-3xl p-6 space-y-4">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
                   <Laptop className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-sans font-black text-xs text-white uppercase tracking-wider">{isAr ? 'الأمان والجلسات النشطة' : 'Security & Sessions'}</h3>
-                  <p className="text-[9px] text-zinc-400">{isAr ? 'بيانات جهازك وسجل النشاط الأخير' : 'Last seen device signature & metadata'}</p>
+                  <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'الأمان والجلسات النشطة' : 'Security & Sessions'}</h3>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'بيانات جهازك وسجل النشاط الأخير' : 'Last seen device signature & metadata'}</p>
                 </div>
               </div>
 
               <div className="space-y-3 pt-1 text-xs font-bold">
                 <div className="space-y-1">
-                  <span className="text-zinc-400 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'الجهاز المتصل حالياً:' : 'Current Device:'}</span>
-                  <span className="text-white font-mono bg-zinc-900/60 border border-white/5 py-1.5 px-3 rounded-xl block truncate" title={currentUser.deviceInfo || 'Unknown Browser Signature'}>
+                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'الجهاز المتصل حالياً:' : 'Current Device:'}</span>
+                  <span className="text-gray-900 font-mono bg-gray-50 border border-gray-200 py-1.5 px-3 rounded-xl block truncate" title={currentUser.deviceInfo || 'Unknown Browser Signature'}>
                     {currentUser.deviceInfo || (isAr ? 'جهاز غير معروف' : 'Unknown Device')}
                   </span>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-zinc-400 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'آخر تسجيل دخول مالي:' : 'Last Login Audit:'}</span>
-                  <span className="text-white font-mono bg-zinc-900/60 border border-white/5 py-1.5 px-3 rounded-xl block">
+                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'آخر تسجيل دخول مالي:' : 'Last Login Audit:'}</span>
+                  <span className="text-gray-900 font-mono bg-gray-50 border border-gray-200 py-1.5 px-3 rounded-xl block">
                     {currentUser.lastLoginAt 
                       ? new Date(currentUser.lastLoginAt).toLocaleString(isAr ? 'ar-JO' : 'en-US') 
                       : (currentUser.lastSeen ? new Date(currentUser.lastSeen).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A')}
@@ -454,7 +454,7 @@ export const ProfileView: React.FC = () => {
               <button
                 type="button"
                 onClick={logout}
-                className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-sans font-black text-xs py-3 px-4 rounded-2xl border border-rose-500/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-sans font-black text-xs py-3 px-4 rounded-2xl border border-rose-100 transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>{isAr ? 'تسجيل الخروج الآمن' : 'Log Out Securely'}</span>

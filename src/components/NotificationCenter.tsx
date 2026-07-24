@@ -258,7 +258,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         className={`px-3 py-1.5 rounded-full text-[10.5px] font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
                           isSelected
                             ? 'bg-gray-950 text-white shadow-xs scale-102'
-                            : 'bg-white border border-gray-150 text-gray-600 hover:border-gray-300'
+                            : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}
                       >
                         <span>{getCategoryLabel(filter)}</span>
@@ -322,8 +322,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         onClick={() => markAsRead(item.id)}
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
                           item.read 
-                            ? 'bg-white border-gray-150 text-gray-700 hover:bg-gray-50/50' 
-                            : 'bg-white border-l-4 border-l-[#FF6B00] border-y-gray-150 border-r-gray-150 text-gray-950 shadow-xs hover:bg-orange-50/5'
+                            ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50/50' 
+                            : 'bg-white border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-gray-950 shadow-xs hover:bg-orange-50/5'
                         }`}
                         id={`notification-card-${item.id}`}
                       >

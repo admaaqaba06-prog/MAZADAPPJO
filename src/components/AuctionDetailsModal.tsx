@@ -158,7 +158,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             
             {/* Countdown floating badge */}
-            <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} bg-black/55 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2`}>
+            <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} bg-black/55 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2`}>
               <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
               <span className="text-xs font-black text-white font-mono tracking-tight">{timeLeftStr}</span>
             </div>
@@ -256,7 +256,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                           key={amount}
                           disabled={submitting}
                           onClick={() => openConfirm(amount)}
-                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-lg text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-xl text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-[10.5px]">
                             {amount > auction.currentPrice
