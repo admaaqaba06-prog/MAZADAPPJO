@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mazad JO — Hero A (refined)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{--orange:#F05123;--orange2:#FF6B35;--orange3:#D63E10;--ink:#0A0A0A;--off:#F7F7F7;--line:#F0F0EE}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Alexandria',system-ui,sans-serif;background:#111;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px}
+  .intro{color:#eee;text-align:center;margin:6px 0 22px}
+  .intro h1{font-size:20px;font-weight:800;color:#fff}
+  .intro p{color:#aaa;font-size:13.5px;margin-top:6px;max-width:680px;margin:6px auto 0}
+  .dir{background:var(--off);border-radius:22px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .dtag{display:flex;align-items:center;gap:10px;padding:12px 18px;background:#0A0A0A;color:#fff}
+  .dtag .k{width:30px;height:30px;border-radius:9px;background:var(--orange);display:grid;place-items:center;font-weight:900}
+  .dtag h2{font-size:15px;font-weight:800}
+  .dtag .why{margin-inline-start:auto;color:#9a9a9a;font-size:12px}
+
+  .badge{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);color:var(--orange);font-weight:700;font-size:12.5px;padding:7px 14px;border-radius:100px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .h1{font-weight:900;line-height:.98;letter-spacing:-1.5px;color:var(--ink)}
+  .grad{color:var(--orange);position:relative;white-space:nowrap}
+  .grad::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:5px;border-radius:4px;background:linear-gradient(90deg,var(--orange2),var(--orange3))}
+  .sub{color:#0A0A0A;opacity:.62;font-size:16px;line-height:1.5}
+  .cta{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:15px;border-radius:14px;padding:15px 24px;cursor:pointer;border:2px solid transparent;transition:.2s}
+  .cta.primary{background:var(--orange);color:#fff;box-shadow:0 10px 26px rgba(240,81,35,.34)}
+  .cta.primary:hover{background:var(--orange3);transform:translateY(-1px)}
+  .cta.ghost{background:#fff;color:var(--ink);border-color:var(--ink)}
+  .proof{display:flex;gap:26px;align-items:center}
+  .proof .n{font-weight:900;font-size:20px;color:var(--ink)}
+  .proof .l{font-size:11.5px;color:#0A0A0A;opacity:.5;font-weight:600;letter-spacing:.3px}
+  .proof .div{width:1px;height:26px;background:var(--line)}
+
+  .A{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;padding:46px 48px;align-items:center;position:relative;
+    background:radial-gradient(90% 120% at 85% 30%,rgba(255,107,53,.16),transparent 60%),var(--off)}
+  .stage{position:relative;display:flex;justify-content:center}
+  .peek{position:absolute;right:-8px;top:34px;width:150px;border-radius:18px;overflow:hidden;transform:rotate(6deg);box-shadow:0 20px 50px rgba(0,0,0,.3);opacity:.94}
+  .peek img{width:100%;height:110px;object-fit:cover;display:block}
+  .peek .pk{background:#0A0A0A;color:#fff;padding:7px 9px;font-size:10px;font-weight:700;display:flex;justify-content:space-between}
+  .peek .pk .live2{color:#FF6B35;display:flex;align-items:center;gap:4px}
+  .phwrap{transform:rotate(-3deg);animation:float 6s ease-in-out infinite}
+  @keyframes float{50%{transform:rotate(-3deg) translateY(-9px)}}
+
+  .phone{position:relative;width:298px;border-radius:42px;background:#0A0A0A;padding:11px;box-shadow:0 40px 90px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06) inset}
+  .screen{border-radius:31px;overflow:hidden;background:#0d0d0f;color:#fff;position:relative}
+  .ph-top{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+  .ph-top .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--orange2),var(--orange3))}
+  .ph-top .nm{font-size:12px;font-weight:800}
+  .ph-top .watch{font-size:10.5px;color:#bbb;font-weight:500}
+  .livepill{margin-inline-start:auto;background:var(--orange);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:100px;display:inline-flex;align-items:center;gap:5px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#fff;animation:blink 1.1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .media{height:196px;background-size:cover;background-position:center;position:relative}
+  .media.img-fallback{background:radial-gradient(120% 120% at 30% 20%,#2a2a2e,#0d0d0f)}
+  .media::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.72))}
+  .bidflash{position:absolute;left:10px;right:10px;bottom:10px;z-index:2;background:rgba(10,10,10,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;transition:box-shadow .25s, transform .25s}
+  .bidflash.hit{box-shadow:0 0 0 3px rgba(240,81,35,.55);transform:translateY(-2px)}
+  .bidflash .lab{font-size:9.5px;color:#FFB08A;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+  .bidflash .amt{font-size:14px;font-weight:900;color:#fff}
+  .ph-body{padding:11px 14px 14px}
+  .ttl{font-size:15px;font-weight:800}
+  .meta{font-size:11px;color:#9a9a9a;margin-top:2px}
+  .bidrow{display:flex;align-items:center;justify-content:space-between;margin-top:11px;background:#151518;border:1px solid #232327;border-radius:12px;padding:10px 12px}
+  .cl{font-size:9.5px;color:#8a8a8a;font-weight:700;letter-spacing:.4px}
+  .cur{font-size:17px;font-weight:900;color:#FFC24B;transition:transform .18s;display:inline-block}
+  .cur.bump{transform:scale(1.14)}
+  .timer{font-size:15px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums}
+  .timer.red{color:#FF5A4D}
+  .timer.tick{animation:pulse 1s}
+  @keyframes pulse{50%{opacity:.45}}
+  .bidnow{margin-top:11px;background:var(--orange);color:#fff;text-align:center;font-weight:900;font-size:14px;padding:13px;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;overflow:hidden}
+  .bidnow::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:sheen 3.4s infinite}
+  @keyframes sheen{0%{left:-60%}55%,100%{left:130%}}
+  .foot{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:10.5px;color:#9a9a9a}
+  .stack{display:flex;margin-inline-end:4px}
+  .stack span{width:18px;height:18px;border-radius:50%;border:2px solid #0d0d0f;background:linear-gradient(135deg,#7a7a7a,#3a3a3a);margin-inline-start:-6px;transition:transform .3s}
+  .stack span.pop{animation:pop .4s}
+  @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.25)}100%{transform:scale(1)}}
+  /* floating "just bid" toast */
+  .toast{position:absolute;top:52px;left:12px;background:rgba(10,10,10,.82);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:10.5px;font-weight:700;padding:6px 10px;border-radius:100px;opacity:0;transform:translateY(6px);z-index:4}
+  .toast.show{animation:toast 2.2s ease}
+  @keyframes toast{12%,72%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-6px)}}
+  @media(max-width:900px){.A{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Direction A — refined for liveliness</h1>
+    <p>Same composition you loved. Now the room actually breathes: the countdown ticks down, a new bid lands every few seconds → the price bumps + flashes, bid & watcher counts climb, a "just bid" toast pops, the CTA has a subtle sheen. Tuned subtle, not busy — watch the phone for ~15s.</p>
+  </div>
+
+  <div class="dir">
+    <div class="dtag"><span class="k">A</span><h2>The Live Room, Elevated — live motion</h2><span class="why">Everything real-data-driven in the build.</span></div>
+    <div class="A">
+      <div>
+        <span class="badge">✨ Jordan's live auction marketplace 🇯🇴</span>
+        <div class="h1" style="font-size:52px;margin:18px 0 16px">List it. <span class="grad">Sell it live.</span><br>Get paid safely.</div>
+        <p class="sub" style="max-width:420px">Put your item in front of thousands of serious buyers in a live auction — inspected, verified, and paid out safely. Watch the room fight for it.</p>
+        <div style="display:flex;gap:12px;margin:26px 0 22px">
+          <span class="cta primary">List your item →</span>
+          <span class="cta ghost">Browse live auctions</span>
+        </div>
+        <div class="proof">
+          <div><div class="n">15,000+</div><div class="l">BUYERS</div></div><div class="div"></div>
+          <div><div class="n">1,250+</div><div class="l">ITEMS SOLD</div></div><div class="div"></div>
+          <div><div class="n">3,400+</div><div class="l">INSPECTED</div></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="peek">
+          <img src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=500&q=80" onerror="this.style.display='none';this.parentElement.classList.add('img-fallback')">
+          <div class="pk"><span>Rolex Datejust</span><span class="live2"><span class="dot"></span>2,150</span></div>
+        </div>
+        <div class="phwrap"><div class="phone"><div class="screen">
+          <div class="ph-top"><span class="av"></span><div><div class="nm">Mazad JO Live</div><div class="watch"><span id="watch">1,428</span> watching</div></div><span class="livepill"><span class="dot"></span>LIVE</span></div>
+          <div class="media" style="background-image:url('https://images.unsplash.com/photo-1592286927505-1def25115558?auto=format&fit=crop&w=800&q=80')" onerror="this.classList.add('img-fallback')">
+            <div class="toast" id="toast">🔥 Omar just bid</div>
+            <div class="bidflash" id="flash"><span class="lab">🔥 Latest bid</span><span class="amt" id="flashAmt">4,850 JOD</span></div>
+          </div>
+          <div class="ph-body">
+            <div class="ttl">iPhone 15 Pro Max</div>
+            <div class="meta">512GB · Agency Warranty · Inspected ✓</div>
+            <div class="bidrow"><div><div class="cl">CURRENT BID</div><div class="cur" id="cur">4,850 JOD</div></div><div style="text-align:right"><div class="cl">ENDS IN</div><div class="timer red" id="timer">00:38</div></div></div>
+            <div class="bidnow">🔨 Bid Now (+25 JOD)</div>
+            <div class="foot"><span class="stack" id="stack"><span></span><span></span><span></span></span><span id="bidders">12</span> bidders active<span style="color:#12B76A;margin-inline-start:auto">Live now</span></div>
+          </div>
+        </div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var price=4850, step=25, bids=12, watchers=1428, t=38;
+  var elCur=document.getElementById('cur'), elFlash=document.getElementById('flash'),
+      elFlashAmt=document.getElementById('flashAmt'), elTimer=document.getElementById('timer'),
+      elBidders=document.getElementById('bidders'), elWatch=document.getElementById('watch'),
+      elToast=document.getElementById('toast'), elStack=document.getElementById('stack');
+  var names=['Omar','Layla','Khaled','Sara','Yousef','Rania','Tariq','Dana'];
+  function fmt(n){return n.toLocaleString('en-US');}
+  function two(n){return (n<10?'0':'')+n;}
+  // countdown ticks every second; anti-snipe: a late bid nudges it back up
+  setInterval(function(){
+    t--; if(t<0){t=42;}
+    elTimer.textContent='00:'+two(t);
+    elTimer.classList.remove('tick'); void elTimer.offsetWidth; elTimer.classList.add('tick');
+  },1000);
+  // watcher count gently drifts
+  setInterval(function(){
+    watchers += Math.round((Math.random()-.45)*6);
+    elWatch.textContent=fmt(watchers);
+  },2600);
+  // a new bid lands every 2.5–4.5s → price bump, flash, bid count, toast, anti-snipe
+  function newBid(){
+    price+=step; bids++;
+    elCur.textContent=fmt(price)+' JOD';
+    elCur.classList.add('bump'); setTimeout(function(){elCur.classList.remove('bump');},200);
+    elFlashAmt.textContent=fmt(price)+' JOD';
+    elFlash.classList.add('hit'); setTimeout(function(){elFlash.classList.remove('hit');},300);
+    elBidders.textContent=Math.min(60,bids);
+    if(t<12){t+=8;} // anti-snipe extension — keeps it alive
+    // toast
+    elToast.textContent='🔥 '+names[Math.floor(Math.random()*names.length)]+' just bid';
+    elToast.classList.remove('show'); void elToast.offsetWidth; elToast.classList.add('show');
+    // occasionally add an avatar
+    if(Math.random()<0.4 && elStack.children.length<6){
+      var s=document.createElement('span'); s.className='pop'; elStack.appendChild(s);
+    }
+    setTimeout(newBid, 2500+Math.random()*2000);
+  }
+  setTimeout(newBid, 1400);
+})();
+</script>
+</body>
+</html>
