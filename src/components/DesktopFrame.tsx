@@ -7,6 +7,7 @@ import type { Notification } from '../types';
 import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
+import { InstallPrompt } from './InstallPrompt';
 
 const AdminPanel = lazy(() => import('./AdminPanel'));
 import { ReelsDesktopRightPanel } from './ReelsDesktopRightPanel';
@@ -241,6 +242,11 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </button>
           )}
         </nav>
+
+        {/* Dismissible "Add to Home Screen" install hint (mobile only). Lives
+            inside the lg:hidden shell so it never appears on desktop, and is
+            suppressed on the immersive live/reels view. */}
+        <InstallPrompt suppressed={activeView === 'live'} />
       </div>
 
       {/* ======================================================================
