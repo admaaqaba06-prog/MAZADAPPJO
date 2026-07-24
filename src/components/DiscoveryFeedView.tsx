@@ -554,10 +554,27 @@ export const DiscoveryFeedView: React.FC = () => {
       id="discovery-feed-root"
     >
       
+      {/* Desktop page header — title FIRST (conventional marketplace hierarchy:
+          title, then sticky filters). display:none on mobile, so it doesn't
+          affect the sticky wrapper being first-in-flow there. Scrolls away;
+          only the filter row below pins. */}
+      <div className="hidden lg:block mt-2 mb-3" id="discover-desktop-header">
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+          {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
+        </h1>
+        <p className="text-xs text-gray-500 font-medium mt-1">
+          {isAr
+            ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
+            : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
+        </p>
+      </div>
+
       {/* Sticky top zone: mobile bar (mobile only) + search/filters (all breakpoints).
           Grouped under ONE sticky wrapper so they stack as a unit on scroll —
-          two independent `sticky top-0` siblings would overlap instead of stack. */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-100" id="discover-sticky-header">
+          two independent `sticky top-0` siblings would overlap instead of stack.
+          Translucent page-bg + blur so it reads as part of the page, not a
+          detached white slab; hairline only on the bottom edge. */}
+      <div className="sticky top-0 z-40 bg-[#F7F6F3]/90 backdrop-blur-md border-b border-gray-200/60" id="discover-sticky-header">
         {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
         <div className="p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-2">
@@ -607,26 +624,25 @@ export const DiscoveryFeedView: React.FC = () => {
           </div>
         </div>
 
-        {/* Search + category pills — moved here from lower on the page (was
-            buried below the hero/rail). Sticky on both breakpoints: on mobile
-            it sticks together with the bar above via the shared wrapper; on
-            desktop the bar is hidden so this sticks alone, immediately below
-            the always-visible global header (DesktopFrame.tsx), which lives
-            outside this scrollable component and never moves. */}
-        <div className="px-4 pb-3 pt-3 lg:pt-4 space-y-3">
-          <div className="relative">
+        {/* Search + category pills. Mobile: stacked (search over pills), sticks
+            together with the bar above via the shared wrapper. Desktop: ONE
+            horizontal row (search grows, pills scroll inline) to cut vertical
+            bulk — pins alone below the always-visible global header
+            (DesktopFrame.tsx), which lives outside this scrollable component. */}
+        <div className="px-4 lg:px-0 pt-3 pb-3 lg:py-2.5 space-y-3 lg:space-y-0 lg:flex lg:items-center lg:gap-3">
+          <div className="relative lg:w-80 lg:shrink-0">
             <input
               type="text"
               placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full bg-[#F2F2EF] border border-transparent rounded-[18px] py-3.5 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:bg-white focus:border-gray-250 transition-all font-sans`}
+              className={`w-full bg-white border border-gray-200/80 shadow-xs rounded-[18px] py-3 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:border-[#E85D04]/40 transition-all font-sans`}
             />
-            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-4 w-4.5 h-4.5 text-gray-400`} />
+            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-3.5 w-4.5 h-4.5 text-gray-400`} />
           </div>
 
           {/* Elegant Horizontal Categories Carousel */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 font-sans">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 lg:pb-0 lg:min-w-0 font-sans">
             {categoriesList.map(cat => {
               const isSelected = selectedCategory === cat.name;
               return (
@@ -672,20 +688,6 @@ export const DiscoveryFeedView: React.FC = () => {
           </span>
         </motion.button>
       )}
-
-      {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
-      <div className="hidden lg:block mb-6 mt-2" id="discover-desktop-header">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
-          </h1>
-          <p className="text-xs text-gray-500 font-medium">
-            {isAr
-              ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
-              : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
-          </p>
-        </div>
-      </div>
 
       {/* Hero Welcome Banner Card (Black Slate Vibe with Glow Accent) - Mobile only */}
       <div className="px-4 pb-2 lg:hidden">
@@ -846,8 +848,8 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Dual-Column High Fidelity grid list of live streams preview */}
       {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
-          pinned sticky header (bar+search+pills ≈ 190px mobile / search+pills ≈ 130px desktop). */}
-      <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-36" id="discover-feed-grid">
+          pinned sticky header (bar+search+pills ≈ 190px mobile / single filter row ≈ 60px desktop). */}
+      <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-24" id="discover-feed-grid">
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
