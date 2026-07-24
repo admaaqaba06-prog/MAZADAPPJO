@@ -4,6 +4,7 @@ import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { isPendingOrderPayment } from '../utils/paymentReceipt';
 import { isOverdue } from '../utils/fulfillmentQueues';
+import { executeOrderTransition } from '../utils/orderWorkflow';
 import { AdminListSkeleton, EmptyState } from './FeedbackStates';
 import { OrderDetailsView } from './OrderDetailsView';
 import { collection, onSnapshot, doc, Timestamp, writeBatch, getDocs, deleteDoc, query, where, limit, orderBy } from 'firebase/firestore';
@@ -45,6 +46,7 @@ const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
 // so the heavy section stays out of the main chunk until the tab opens.
 const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
 const FulfillmentSection = React.lazy(() => import('./admin/FulfillmentSection'));
+const DisputesSection = React.lazy(() => import('./admin/DisputesSection'));
 
 /**
  * Format a request createdAt that may be a Firestore Timestamp ({seconds} or
@@ -337,6 +339,7 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
 const ADMIN_TABS = [
   'verify',
   'fulfillment',
+  'disputes',
   'metrics',
   'orders',
   'payments',
@@ -501,6 +504,14 @@ export const AdminDashboardView: React.FC = () => {
       return isOverdue({ status: o.status, paymentVerified: o.paymentVerified, updatedAtMs }, now);
     }).length;
   }, [realOrders]);
+
+  // Disputes (Slice D): count of open disputed orders, for the tab's
+  // attention dot. Sourced from realOrders (sim-excluded), matching the
+  // established pattern from Slices B/C.
+  const openDisputesCount = useMemo(
+    () => realOrders.filter((o: any) => o.status === 'disputed').length,
+    [realOrders]
+  );
 
   // Auctions the settlement cron should already have closed: still live/active
   // but ended more than 2 minutes ago.
@@ -995,6 +1006,39 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  const handleResolveDispute = async (orderId: string, resolutionType: 'release' | 'refund' | 'resume', notes: string) => {
+    const order = realOrders.find((o: any) => o.id === orderId);
+    if (!order) {
+      alert(isAr ? 'تعذر العثور على الطلب.' : 'Order not found.');
+      return;
+    }
+    try {
+      // 1. The REAL resolution — untouched, existing engine (money moves here).
+      await executeOrderTransition(order, 'resolve_dispute', currentUser, { resolutionType });
+      // 2. ONLY on success: record the admin's note. A failure here must never
+      // read as if the resolution itself failed — it already succeeded.
+      try {
+        const stampCallable = await getCallableFunction<
+          { orderId: string; resolutionType: 'release' | 'refund' | 'resume'; notes: string },
+          { success: boolean }
+        >('stampDisputeResolution');
+        await stampCallable({ orderId, resolutionType, notes });
+      } catch (stampErr: any) {
+        console.warn('[handleResolveDispute] resolution succeeded but the note failed to save:', stampErr);
+        alert(isAr
+          ? '✅ تم الحل، لكن تعذر حفظ الملاحظة.'
+          : '✅ Resolved, but the note could not be saved.'
+        );
+        return;
+      }
+      alert(isAr ? '✅ تم حل النزاع بنجاح.' : '✅ Dispute resolved successfully.');
+    } catch (err: any) {
+      console.error('Error resolving dispute:', err);
+      alert(isAr ? `❌ فشل حل النزاع: ${err.message || String(err)}` : `❌ Failed to resolve dispute: ${err.message || String(err)}`);
+      throw err;
+    }
+  };
+
   const handleApproveWithdrawal = async (withdrawalId: string) => {
     if (isProcessingAction[withdrawalId]) return;
     setIsProcessingAction(prev => ({ ...prev, [withdrawalId]: true }));
@@ -1099,15 +1143,16 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-        {(['verify', 'fulfillment', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
+        {(['verify', 'fulfillment', 'disputes', 'metrics', 'orders', 'payments', 'withdrawals', 'listings', 'users', 'subscriptions', 'sessions', 'health', 'simulator'] as const).map((tab) => {
           const tabLabel = isAr
-            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'fulfillment' ? 'المتابعة والتنفيذ' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
-            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'fulfillment' ? 'FULFILLMENT' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
+            ? (tab === 'verify' ? 'التحقق والموافقات' : tab === 'fulfillment' ? 'المتابعة والتنفيذ' : tab === 'disputes' ? 'النزاعات' : tab === 'metrics' ? 'الإحصائيات العامّة' : tab === 'orders' ? 'إدارة الطلبات' : tab === 'payments' ? 'إيداعات كليك' : tab === 'withdrawals' ? 'سحوبات البائعين' : tab === 'listings' ? 'المعروضات والمزادات' : tab === 'users' ? 'قائمة الأعضاء' : tab === 'subscriptions' ? 'طلبات الاشتراك' : tab === 'sessions' ? 'جلسات النشاط' : tab === 'simulator' ? '🧪 Simulator' : 'الصحة والتشغيل')
+            : (tab === 'verify' ? 'VERIFY & APPROVE' : tab === 'fulfillment' ? 'FULFILLMENT' : tab === 'disputes' ? 'DISPUTES' : tab === 'metrics' ? 'GENERAL METRICS' : tab === 'orders' ? 'ORDERS' : tab === 'payments' ? 'CLIQ PAYMENTS' : tab === 'withdrawals' ? 'WITHDRAWALS' : tab === 'listings' ? 'AUCTIONS & LOTS' : tab === 'users' ? 'MEMBERS' : tab === 'subscriptions' ? 'PREMIUM SUBS' : tab === 'sessions' ? 'ACTIVE SESSIONS' : tab === 'simulator' ? '🧪 SIMULATOR' : 'HEALTH & OPS');
 
           const isActive = activeTab === tab;
           const hasPendingRequests =
             (tab === 'verify' && (subscriptionRequests.length > 0 || pendingOrderPaymentsCount > 0)) ||
             (tab === 'fulfillment' && overdueFulfillmentCount > 0) ||
+            (tab === 'disputes' && openDisputesCount > 0) ||
             (tab === 'subscriptions' && subscriptionRequests.length > 0) ||
             (tab === 'withdrawals' && allWithdrawals.filter((w: any) => w.status === 'pending_review').length > 0);
           
@@ -1128,6 +1173,8 @@ export const AdminDashboardView: React.FC = () => {
                     ? subscriptionRequests.length + pendingOrderPaymentsCount
                     : tab === 'fulfillment'
                       ? overdueFulfillmentCount
+                    : tab === 'disputes'
+                      ? openDisputesCount
                     : tab === 'subscriptions'
                       ? subscriptionRequests.length
                       : allWithdrawals.filter((w: any) => w.status === 'pending_review').length}
@@ -1186,6 +1233,25 @@ export const AdminDashboardView: React.FC = () => {
               orders={realOrders}
               onNudge={handleSendFulfillmentNudge}
               onReleaseEscrow={handleFulfillmentReleaseEscrow}
+            />
+          </React.Suspense>
+        )}
+
+        {/* ==========================================
+            TAB: DISPUTES (Slice D — resolve stuck orders)
+            ========================================== */}
+        {activeTab === 'disputes' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <DisputesSection
+              isAr={isAr}
+              orders={realOrders}
+              onResolve={handleResolveDispute}
             />
           </React.Suspense>
         )}

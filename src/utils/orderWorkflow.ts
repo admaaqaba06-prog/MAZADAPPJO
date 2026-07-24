@@ -71,7 +71,7 @@ export async function executeOrderTransition(
   order: Order,
   action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
-  extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume' }
+  extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume'; disputeReason?: string }
 ): Promise<any> {
   // Determine role
   let role: 'buyer' | 'seller' | 'admin' = 'buyer';
@@ -219,7 +219,8 @@ export async function executeOrderTransition(
     case 'open_dispute':
       toStatus = 'disputed';
       updateFields = {
-        status: 'disputed'
+        status: 'disputed',
+        disputeReason: extraFields?.disputeReason || ''
       };
       activityType = 'Dispute Opened';
       activityMessageAr = 'تم فتح نزاع رسمي. مزاد أوقف تحويل المبلغ للبائع لحين مراجعة الفريق.';
