@@ -3,7 +3,6 @@ import {
   Hammer,
   ShieldCheck,
   Camera,
-  Zap,
   CheckCircle2,
   XCircle,
   Car,
@@ -37,8 +36,9 @@ import {
   Share2,
   Flame
 } from "lucide-react";
-import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
+import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate, useReducedMotion } from "motion/react";
 import { translations, TranslationType } from "./translations";
+import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { Logo } from "./components/Logo";
@@ -166,6 +166,12 @@ const renderMixedText = (text: string, isAr: boolean) => {
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
 const EN_NAMES = ["Mustafa Al-Qudah", "Ahmad Al-Abadi", "Sarah Haddad", "Khalid Shawabkeh", "Rania Al-Fayez", "Hamzah Al-Masri", "Omar Al-Zoubi", "Hadeel Al-Khalayleh", "Tariq Al-Hussein", "Zaid Al-Nabulsi"];
 
+// First-name-only demo list for the "🔥 <name> just bid" toast in the hero simulator
+const HERO_FIRST_NAMES: Record<"ar" | "en", string[]> = {
+  en: ["Omar", "Layla", "Khaled", "Sara", "Yousef", "Rania", "Tariq", "Dana"],
+  ar: ["عمر", "ليلى", "خالد", "سارة", "يوسف", "رانيا", "طارق", "دانا"]
+};
+
 interface BidLog {
   id: string;
   name: string;
@@ -196,12 +202,26 @@ const ACTIVE_ITEMS = [
     titleEn: "iPhone 15 Pro Max",
     detailsAr: "سعة 512 جيجابايت · كفالة الوكيل · كالجديد",
     detailsEn: "512GB · Agency Warranty · Like New",
-    image: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1592286927505-1def25115558?auto=format&fit=crop&w=800&q=80",
     badgeAr: "كفالة الوكيل",
     badgeEn: "Warranty Active",
     basePrice: 850,
     stepPrice: 25,
     timerStart: 180
+  },
+  {
+    id: "watch",
+    icon: "⌚",
+    titleAr: "رولكس ديت جست ٤١",
+    titleEn: "Rolex Datejust 41",
+    detailsAr: "٤١ ملم · ستيل · بالكرت والعلبة · مفحوصة",
+    detailsEn: "41mm · Oystersteel · Box & Papers · Inspected",
+    image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=800&q=80",
+    badgeAr: "موثّقة",
+    badgeEn: "Authenticated",
+    basePrice: 2150,
+    stepPrice: 50,
+    timerStart: 120
   },
   {
     id: "house",
@@ -375,8 +395,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   const [isAutoCycling, setIsAutoCycling] = useState<boolean>(true);
   const [likesCount, setLikesCount] = useState<number>(1428);
   const [hasLiked, setHasLiked] = useState<boolean>(false);
-  const [prices, setPrices] = useState<number[]>([14250, 850, 320000]);
-  const [timers, setTimers] = useState<number[]>([138, 180, 3600]);
+  // NOTE: these parallel arrays are indexed by activeItemIndex and MUST stay
+  // aligned with ACTIVE_ITEMS ([car, phone, watch, house]).
+  const [prices, setPrices] = useState<number[]>([14250, 850, 2150, 320000]);
+  const [timers, setTimers] = useState<number[]>([138, 180, 120, 3600]);
   const [bidLogsList, setBidLogsList] = useState<BidLog[][]>(() => [
     [
       { id: "c1", name: "أحمد العبادي", amount: 14250, time: "10s ago" },
@@ -390,11 +412,25 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
       { id: "p3", name: "رائد بني هاني", amount: 800, time: "4m ago" }
     ],
     [
+      { id: "w1", name: "عمر الزعبي", amount: 2150, time: "15s ago" },
+      { id: "w2", name: "رانيا الفايز", amount: 2100, time: "1m ago" },
+      { id: "w3", name: "زيد النابلسي", amount: 2050, time: "3m ago" }
+    ],
+    [
       { id: "h1", name: "حمزة المصري", amount: 320000, time: "40s ago" },
       { id: "h2", name: "عمر الزعبي", amount: 315000, time: "2m ago" },
       { id: "h3", name: "زيد النابلسي", amount: 310000, time: "8m ago" }
     ]
   ]);
+
+  // Live-room ambient sim state (hero right column)
+  const prefersReducedMotion = useReducedMotion();
+  const [watchers, setWatchers] = useState<number>(1420);
+  const [bidCount, setBidCount] = useState<number>(12);
+  const [priceBump, setPriceBump] = useState<boolean>(false);
+  const [flashHit, setFlashHit] = useState<boolean>(false);
+  const [extraAvatars, setExtraAvatars] = useState<number>(0);
+  const [justBidToast, setJustBidToast] = useState<{ name: string; key: number } | null>(null);
 
   // Derived active item fields
   const currentItem = ACTIVE_ITEMS[activeItemIndex];
@@ -495,9 +531,12 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     }
   }, [lang, t]);
 
-  // Timers countdown ticker for all active items
+  // Timers countdown ticker for all active items.
+  // Reduced motion → freeze (calm static hero). Also pauses while the tab is hidden.
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       setTimers((prevTimers) =>
         prevTimers.map((tVal, idx) => {
           if (tVal <= 1) {
@@ -512,31 +551,55 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
       );
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeItemIndex]);
+  }, [activeItemIndex, prefersReducedMotion]);
 
-  // Automatically cycle through items (Car, Phone, House) every 8 seconds
+  // Automatically cycle through items every 8 seconds (frozen under reduced motion)
   useEffect(() => {
-    if (!isAutoCycling) return;
+    if (!isAutoCycling || prefersReducedMotion) return;
     const cycleInterval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       setActiveItemIndex((prev) => (prev + 1) % ACTIVE_ITEMS.length);
     }, 8000);
     return () => clearInterval(cycleInterval);
-  }, [isAutoCycling]);
+  }, [isAutoCycling, prefersReducedMotion]);
 
-  // Automatically simulate a bidding update for the active item every 5 seconds
+  // Watcher count gently drifts (ambient life). Reduced motion → static.
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const interval = setInterval(() => {
-      // Pick random simulated name
-      const namesList = lang === "ar" ? AR_NAMES : EN_NAMES;
-      const randomName = namesList[Math.floor(Math.random() * namesList.length)];
-      
+      if (typeof document !== "undefined" && document.hidden) return;
+      setWatchers((w) => driftWatchers(w));
+    }, 2600);
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion]);
+
+  // Landing bids: a new bid lands every ~2.5–4.5s (single self-scheduling engine).
+  // Price steps + bump, "latest bid" flash, bid count climbs, toast blips, anti-snipe.
+  // Reduced motion → no landing bids at all (calm static hero).
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const landBid = () => {
+      if (cancelled) return;
+      // Pause while hidden; re-check shortly.
+      if (typeof document !== "undefined" && document.hidden) {
+        timeoutId = setTimeout(landBid, 1500);
+        return;
+      }
+
+      const fullNames = lang === "ar" ? AR_NAMES : EN_NAMES;
+      const randomName = fullNames[Math.floor(Math.random() * fullNames.length)];
+      const firstNames = HERO_FIRST_NAMES[lang];
+      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
       const step = ACTIVE_ITEMS[activeItemIndex].stepPrice;
-      
+
       setPrices((prevPrices) => {
         const nextPrices = [...prevPrices];
-        const nextPrice = nextPrices[activeItemIndex] + step;
+        const nextPrice = stepPriceBy(nextPrices[activeItemIndex], step);
         nextPrices[activeItemIndex] = nextPrice;
-        
+
         // Schedule log update outside to avoid React state loop issues
         setTimeout(() => {
           setBidLogsList((prevList) => {
@@ -559,6 +622,31 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         return nextPrices;
       });
 
+      // Anti-snipe: a late bid nudges the countdown back up so the lot never dies.
+      setTimers((prevTimers) => {
+        const nextTimers = [...prevTimers];
+        const extended = antiSnipe(nextTimers[activeItemIndex]);
+        if (extended !== nextTimers[activeItemIndex]) {
+          nextTimers[activeItemIndex] = extended;
+          setShowExtensionAlert(true);
+          setTimeout(() => setShowExtensionAlert(false), 3000);
+        }
+        return nextTimers;
+      });
+
+      // Climbing bid count + occasional avatar pop
+      setBidCount((c) => Math.min(60, c + 1));
+      if (Math.random() < 0.4) setExtraAvatars((a) => Math.min(3, a + 1));
+
+      // Price bump + "latest bid" flash
+      setPriceBump(true);
+      setTimeout(() => setPriceBump(false), 200);
+      setFlashHit(true);
+      setTimeout(() => setFlashHit(false), 300);
+
+      // "🔥 <FirstName> just bid" toast
+      setJustBidToast({ name: firstName, key: Date.now() });
+
       // Fluctuating competition level
       setCompLevel((prev) => {
         const next = prev + Math.floor(Math.random() * 3) + 1;
@@ -567,13 +655,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
       // Price Pulse Animation
       setPulsePrice(true);
-      const timer = setTimeout(() => setPulsePrice(false), 600);
-      return () => clearTimeout(timer);
+      setTimeout(() => setPulsePrice(false), 600);
 
-    }, 5000);
+      timeoutId = setTimeout(landBid, 2500 + Math.random() * 2000);
+    };
 
-    return () => clearInterval(interval);
-  }, [lang, activeItemIndex]);
+    timeoutId = setTimeout(landBid, 1400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [lang, activeItemIndex, prefersReducedMotion]);
 
   // Format Helper
   const formatPrice = (val: number): React.ReactNode => {
@@ -591,13 +683,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     );
   };
 
-  const formatTimer = (totalSeconds: number) => {
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    const mStr = m < 10 ? `0${m}` : `${m}`;
-    const sStr = s < 10 ? `0${s}` : `${s}`;
-    return `${mStr}:${sStr}`;
-  };
+  // Count text in the active language's numerals (Arabic-Indic for ar).
+  const formatCount = (n: number) => n.toLocaleString(lang === "ar" ? "ar-EG" : "en-US");
 
   // formatTimeLeft and LiveMarketplaceSection hoisted to module scope (see above export)
 
@@ -951,6 +1038,26 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           className="relative pt-8 pb-16 lg:pt-16 lg:pb-24 px-4 sm:px-6 lg:px-8"
           style={{ backgroundImage: "radial-gradient(circle at 50% 0%, rgba(240, 81, 35, 0.04) 0%, rgba(255, 255, 255, 0) 70%)" }}
         >
+          {/* Live-room simulator motion — ALL keyframes gated behind prefers-reduced-motion: no-preference */}
+          <style>{`
+            .hero-phwrap { transform: rotate(-3deg); }
+            @media (prefers-reduced-motion: no-preference) {
+              @keyframes hero-float { 50% { transform: rotate(-3deg) translateY(-9px); } }
+              .hero-phwrap { animation: hero-float 6s ease-in-out infinite; }
+              .hero-sheen::after {
+                content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+                animation: hero-sheen 3.4s infinite; pointer-events: none;
+              }
+              @keyframes hero-sheen { 0% { left: -60%; } 55%, 100% { left: 130%; } }
+              @keyframes hero-toast { 0% { opacity: 0; transform: translateY(6px); } 12%, 72% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-6px); } }
+              .hero-toast { animation: hero-toast 2.2s ease forwards; }
+              @keyframes hero-tick { 50% { opacity: 0.45; } }
+              .hero-timer-tick { animation: hero-tick 1s infinite; }
+              @keyframes hero-pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+              .hero-avatar-pop { animation: hero-pop 0.4s; }
+            }
+          `}</style>
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
               
@@ -992,7 +1099,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
                     {t.hero.titleGradient}
-                    <svg className="absolute left-0 bottom-[-2px] w-full h-2 overflow-visible animate-pulse-slow" viewBox="0 0 100 10" preserveAspectRatio="none">
+                    <svg className={`absolute left-0 bottom-[-2px] w-full h-2 overflow-visible ${prefersReducedMotion ? "" : "animate-pulse-slow"}`} viewBox="0 0 100 10" preserveAspectRatio="none">
                       <motion.path
                         d="M0,5 Q50,0 100,5"
                         fill="none"
@@ -1048,43 +1155,23 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   </motion.button>
                 </motion.div>
 
-                {/* Stats Bar */}
+                {/* Real proof row */}
                 <motion.div
                   variants={{
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-[#F0F0EE] text-start"
+                  className="flex items-center justify-center lg:justify-start gap-5 sm:gap-7 pt-6 border-t border-[#F0F0EE]"
                 >
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.steps.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.steps.desc}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.verified.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.verified.desc}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-white rounded-[10px] p-4 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:border-[#F05123]/30 transition-all duration-300">
-                    <div className="w-8 h-8 rounded-lg bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                      <Zap className="w-5 h-5 text-[#F05123]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] font-alexandria leading-snug">{t.hero.stats.live.title}</h4>
-                      <p className="text-xs text-gray-600 font-ibmarabic mt-0.5">{t.hero.stats.live.desc}</p>
-                    </div>
-                  </div>
+                  {t.hero.proof.map((s, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="w-px h-7 bg-[#F0F0EE] shrink-0" aria-hidden="true" />}
+                      <div className="text-center lg:text-start">
+                        <div dir="ltr" className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A] font-alexandria leading-none">{s.value}</div>
+                        <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-[#0A0A0A]/50 font-ibmarabic mt-1.5">{s.label}</div>
+                      </div>
+                    </React.Fragment>
+                  ))}
                 </motion.div>
 
               </motion.div>
@@ -1095,17 +1182,46 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 {/* Soft blurred orange gradient blob behind the card */}
                 <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
 
+                {/* Decorative second-lot peek — a Rolex Datejust card poking out behind the phone */}
+                <div
+                  aria-hidden="true"
+                  className="hidden sm:block absolute top-8 start-0 z-0 w-[140px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] rotate-6 opacity-95 pointer-events-none select-none"
+                >
+                  <img
+                    src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=500&q=80"
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="w-full h-[104px] object-cover block"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      if (target.parentElement) {
+                        target.parentElement.style.backgroundImage =
+                          "radial-gradient(120% 120% at 30% 20%, #2a2a2e, #0d0d0f)";
+                      }
+                    }}
+                  />
+                  <div className="bg-[#0A0A0A] text-white px-2 py-1.5 flex items-center justify-between text-[10px] font-bold font-ibmarabic">
+                    <span>{lang === "ar" ? "رولكس" : "Rolex Datejust"}</span>
+                    <span dir="ltr" className="text-[#FF6B35] flex items-center gap-1 font-mono">
+                      <span className={`w-1.5 h-1.5 rounded-full bg-[#FF6B35] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                      2,150
+                    </span>
+                  </div>
+                </div>
+
                 {/* Premium Floating Reels Card Container with Phone Bezel */}
-                <motion.div 
+                <div className={`relative z-10 w-full max-w-[400px] ${prefersReducedMotion ? "-rotate-3" : "hero-phwrap"}`}>
+                <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
-                  className="w-full max-w-[400px] h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
+                  className="w-full h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
                   id="hero-live-card"
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
                   {/* Glowing warm orange aura behind card */}
-                  <div className="absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 animate-pulse -z-10 pointer-events-none" />
+                  <div className={`absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 ${prefersReducedMotion ? "" : "animate-pulse"} -z-10 pointer-events-none`} />
 
                   {/* Phone Bezel Top Notch */}
                   <div className="w-20 h-4 bg-gray-900 rounded-b-xl mx-auto absolute top-0 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center gap-1.5 shadow-inner">
@@ -1123,20 +1239,40 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       key={currentItem.id}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
+                        if (target.dataset.fallback === "done") return;
                         if (currentItem.id === "phone") {
                           if (target.src.includes("/iphone.png")) {
                             target.src = "/iphone.jpg";
-                          } else if (target.src.includes("/iphone.jpg")) {
-                            target.src = "/src/iphone.png";
-                          } else {
-                            target.src = "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=800&q=80";
+                            return;
                           }
+                          if (target.src.includes("/iphone.jpg")) {
+                            target.src = "/src/iphone.png";
+                            return;
+                          }
+                        }
+                        // Final fallback for any lot: warm gradient, never a broken image
+                        target.dataset.fallback = "done";
+                        target.style.display = "none";
+                        if (target.parentElement) {
+                          target.parentElement.style.backgroundImage =
+                            "radial-gradient(120% 120% at 30% 20%, #2a2a2e, #0d0d0f)";
                         }
                       }}
                     />
                     {/* Top and Bottom Reels Vignette Gradients */}
                     <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/25 to-black/95 pointer-events-none" />
                   </div>
+
+                  {/* "🔥 <name> just bid" toast — blips in on each landing bid */}
+                  {justBidToast && !prefersReducedMotion && (
+                    <div
+                      key={justBidToast.key}
+                      className={`hero-toast absolute top-[120px] ${lang === "ar" ? "right-3" : "left-3"} z-20 bg-black/80 backdrop-blur-md border border-white/15 text-white text-[10.5px] font-bold font-ibmarabic px-2.5 py-1.5 rounded-full pointer-events-none shadow-lg`}
+                      onAnimationEnd={() => setJustBidToast(null)}
+                    >
+                      🔥 {justBidToast.name} {lang === "ar" ? "زايد الآن" : "just bid"}
+                    </div>
+                  )}
 
                   {/* Z-10 TOP OVERLAY: REELS HEADER & TABS */}
                   <div className="relative z-10 pt-3 space-y-2.5">
@@ -1162,23 +1298,24 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                             alt="MazadJo Streamer" 
                             className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
                           />
-                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black animate-pulse" />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
-                        <div className="flex flex-col text-right">
+                        <div className={`flex flex-col ${lang === "ar" ? "text-right" : "text-left"}`}>
                           <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
-                            مزاد جو مباشر
+                            {lang === "ar" ? "مزاد جو مباشر" : "Mazad JO Live"}
                             <Sparkles className="w-3 h-3 text-amber-400" />
                           </span>
                           <span className="text-[9px] text-gray-300 font-ibmarabic flex items-center gap-1 mt-0.5">
                             <Eye className="w-2.5 h-2.5 text-emerald-400" />
-                            ١,٤٢٠ يشاهدون
+                            <span dir="ltr" className="font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>{formatCount(watchers)}</span>
+                            {lang === "ar" ? "يشاهدون" : "watching"}
                           </span>
                         </div>
                       </div>
 
                       {/* Live Badge Pill */}
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 ${prefersReducedMotion ? "" : "animate-pulse"}`}>
+                        <span className={`w-2 h-2 rounded-full bg-white ${prefersReducedMotion ? "" : "animate-ping"}`} />
                         <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
                       </div>
                     </div>
@@ -1202,9 +1339,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                           >
                             <span>{item.icon}</span>
                             <span>
-                              {lang === "ar" 
-                                ? (item.id === "car" ? "سيارات" : item.id === "phone" ? "هواتف" : "عقارات")
-                                : (item.id === "car" ? "Cars" : item.id === "phone" ? "Phones" : "Realty")}
+                              {lang === "ar"
+                                ? (item.id === "car" ? "سيارات" : item.id === "phone" ? "هواتف" : item.id === "watch" ? "ساعات" : "عقارات")
+                                : (item.id === "car" ? "Cars" : item.id === "phone" ? "Phones" : item.id === "watch" ? "Watches" : "Realty")}
                             </span>
                           </button>
                         );
@@ -1237,8 +1374,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
                         <MessageCircle className="w-5 h-5 text-amber-300" />
                       </div>
-                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
-                        {lang === "ar" ? "١٢ مزايدة" : "12 bids"}
+                      <span dir="ltr" className="text-[10px] font-bold text-white/90 drop-shadow-md" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {formatCount(bidCount)} {lang === "ar" ? "مزايدة" : "bids"}
                       </span>
                     </div>
 
@@ -1272,17 +1409,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </motion.div>
                     )}
 
-                    {/* Live Comment Stream Bubble (Floating Reel Bid Comment) */}
-                    <div className="max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl p-2.5 border border-white/15 shadow-xl space-y-1">
+                    {/* Live Comment Stream Bubble — "latest bid" chip, flashes an orange ring on each bid */}
+                    <div className={`max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl p-2.5 border border-white/15 shadow-xl space-y-1 transition-all duration-300 ${flashHit ? "ring-2 ring-[#F05123] ring-offset-0 -translate-y-0.5" : ""}`}>
                       <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-ibmarabic">
-                        <Flame className="w-3 h-3 text-[#F05123] animate-pulse" />
+                        <Flame className={`w-3 h-3 text-[#F05123] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         <span>{lang === "ar" ? "آخر مزايدة حية الآن 🔥" : "Latest Live Bid 🔥"}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs font-bold text-white font-ibmarabic">
                         <span className="text-emerald-400 font-semibold truncate max-w-[140px]">
-                          {bidLogsList[activeItemIndex]?.[0]?.name || "أحمد العبادي"}
+                          {bidLogsList[activeItemIndex]?.[0] ? getLogName(bidLogsList[activeItemIndex][0]) : (lang === "ar" ? "أحمد العبادي" : "Ahmad Al-Abadi")}
                         </span>
-                        <span className="text-[#F05123] font-black font-mono dir-ltr">
+                        <span dir="ltr" className={`text-[#F05123] font-black font-mono inline-block transition-transform duration-200 ${priceBump ? "scale-[1.14]" : "scale-100"}`}>
                           {formatPrice(currentPrice)}
                         </span>
                       </div>
@@ -1332,9 +1469,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <span className="text-[10px] text-gray-300 font-bold uppercase font-ibmarabic block">
                           {lang === "ar" ? "الوقت المتبقي" : "Ends In"}
                         </span>
-                        <span className="text-xs font-mono font-extrabold text-[#F05123] flex items-center gap-1 justify-end bg-black/80 border border-[#F05123]/40 px-2.5 py-1 rounded-lg mt-0.5 shadow-inner">
-                          <Clock className="w-3.5 h-3.5 text-[#F05123] animate-pulse" />
-                          {formatTimer(carTimer)}
+                        <span dir="ltr" className={`text-xs font-mono font-extrabold flex items-center gap-1 justify-end bg-black/80 border px-2.5 py-1 rounded-lg mt-0.5 shadow-inner transition-colors duration-300 ${carTimer < 12 ? "text-[#FF5A4D] border-[#FF5A4D]/50" : "text-[#F05123] border-[#F05123]/40"} ${carTimer < 12 && !prefersReducedMotion ? "hero-timer-tick" : ""}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                          <Clock className={`w-3.5 h-3.5 ${carTimer < 12 ? "text-[#FF5A4D]" : "text-[#F05123]"} ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                          {formatCountdown(carTimer)}
                         </span>
                       </div>
                     </div>
@@ -1343,10 +1480,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <motion.button
                       whileTap={{ scale: 0.96 }}
                       onClick={handleUserBid}
-                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#F05123] via-[#FF6B35] to-[#F05123] hover:brightness-110 text-white font-extrabold text-sm shadow-[0_10px_25px_-5px_rgba(240,81,35,0.6)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 border border-white/20 relative overflow-hidden group/bid"
+                      className="hero-sheen w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#F05123] via-[#FF6B35] to-[#F05123] hover:brightness-110 text-white font-extrabold text-sm shadow-[0_10px_25px_-5px_rgba(240,81,35,0.6)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 border border-white/20 relative overflow-hidden group/bid"
                     >
                       <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/bid:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
-                      <Hammer className="w-4 h-4 text-white animate-bounce" />
+                      <Hammer className={`w-4 h-4 text-white ${prefersReducedMotion ? "" : "animate-bounce"}`} />
                       <span className="font-ibmarabic tracking-wide text-sm">
                         {lang === "ar" 
                           ? `زايد الآن (+${currentItem.stepPrice.toLocaleString("ar-JO")} د.أ)` 
@@ -1361,45 +1498,34 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                           <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
                           <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
                           <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
+                          {/* Occasional avatar pops in as bids land */}
+                          {Array.from({ length: extraAvatars }).map((_, i) => (
+                            <span
+                              key={i}
+                              aria-hidden="true"
+                              className={`w-4 h-4 rounded-full border border-black bg-gradient-to-br from-gray-500 to-gray-800 ${prefersReducedMotion ? "" : "hero-avatar-pop"}`}
+                            />
+                          ))}
                         </div>
-                        <span className="text-[10px] text-gray-300 font-bold">
-                          {lang === "ar" ? "١٢ مزايد نشط" : "12 bidders active"}
+                        <span dir="ltr" className="text-[10px] text-gray-300 font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {formatCount(bidCount)} {lang === "ar" ? "مزايد نشط" : "bidders active"}
                         </span>
                       </div>
 
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${prefersReducedMotion ? "" : "animate-ping"}`} />
                         {lang === "ar" ? "متواجدين الآن" : "Live Now"}
                       </span>
                     </div>
                   </div>
 
                 </motion.div>
+                </div>
 
               </div>
 
             </div>
 
-          </div>
-        </section>
-
-        {/* Promoted proof strip (real WhatsApp track record) */}
-        <section className="py-10 bg-[#0A0A0A]">
-          <div className="max-w-5xl mx-auto px-5">
-            <Reveal>
-              <div className="text-center mb-6">
-                <p className="text-white font-bold text-lg md:text-xl">{t.proof.headline}</p>
-                <p className="text-white/50 text-sm mt-1">{t.proof.subline}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {t.proof.stats.map((s, i) => (
-                  <div key={i} className="text-center">
-                    <span dir="ltr" className="block text-2xl md:text-4xl font-bold text-[#F05123]">{s.value}</span>
-                    <span className="block text-white/60 text-xs md:text-sm mt-1">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
           </div>
         </section>
 
