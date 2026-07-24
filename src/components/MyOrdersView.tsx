@@ -141,7 +141,7 @@ export const MyOrdersView: React.FC = () => {
     <div className="w-full h-full overflow-y-auto bg-[#F7F6F3]" id="my-orders-view-root">
       <div className="max-w-3xl mx-auto w-full p-4 md:p-0 space-y-4 pb-16 animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between bg-white px-5 py-4 rounded-3xl border border-gray-150 shadow-[0_2px_8px_rgba(0,0,0,0.01)] mt-2 md:mt-0">
+        <div className="flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-gray-200 shadow-xs mt-2 md:mt-0">
           <h2 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2 uppercase font-mono">
             <ShoppingBag className="w-4 h-4 text-[#FF6B00]" />
             <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
@@ -155,7 +155,7 @@ export const MyOrdersView: React.FC = () => {
             hasn't created yet — the winner never dead-ends here. */}
         {hasUnsettledWin && (
           <div
-            className="flex items-center gap-3 bg-white border border-amber-200 rounded-3xl px-5 py-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+            className="flex items-center gap-3 bg-white border border-amber-200 rounded-2xl px-5 py-3.5 shadow-xs"
             id="order-finalizing-hint"
           >
             <Clock className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
@@ -168,7 +168,7 @@ export const MyOrdersView: React.FC = () => {
 
         {myOrders.length === 0 ? (
           /* Empty state */
-          <div className="text-center py-16 bg-white rounded-3xl border border-gray-150 p-6 space-y-4">
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
             <div className="w-14 h-14 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] mx-auto">
               <ShoppingBag className="w-6 h-6" />
             </div>
@@ -204,13 +204,13 @@ export const MyOrdersView: React.FC = () => {
                   tabIndex={0}
                   onClick={() => setSelectedOrderId(order.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedOrderId(order.id); } }}
-                  className="w-full text-left rtl:text-right bg-white border border-gray-150 hover:border-orange-200 rounded-3xl p-4 transition-all cursor-pointer active:scale-[0.995] shadow-[0_2px_8px_rgba(0,0,0,0.01)] flex items-center gap-4"
+                  className="w-full text-left rtl:text-right bg-white border border-gray-200 hover:border-orange-200 rounded-2xl p-4 transition-all cursor-pointer active:scale-[0.995] shadow-xs flex items-center gap-4"
                   id={`my-order-card-${order.id}`}
                 >
                   <img
                     src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
                     alt={order.auctionTitle}
-                    className="w-16 h-16 rounded-2xl object-cover border border-gray-150 shrink-0"
+                    className="w-16 h-16 rounded-2xl object-cover border border-gray-200 bg-gray-100 shrink-0"
                     referrerPolicy="no-referrer"
                   />
 
@@ -223,12 +223,6 @@ export const MyOrdersView: React.FC = () => {
                         {isAr ? chip.ar : chip.en}
                       </span>
                     </div>
-
-                    <p className="text-sm font-black text-[#FF6B00] font-mono">
-                      {isAr
-                        ? `المجموع: ${totalDue.toLocaleString()} د.أ شامل العمولة`
-                        : `Total: ${totalDue.toLocaleString()} JOD incl. premium`}
-                    </p>
 
                     {order.status === 'waiting_payment' && (
                       <PaymentCountdown deadline={order.paymentDeadlineAt} isAr={isAr} />
@@ -250,7 +244,22 @@ export const MyOrdersView: React.FC = () => {
                     )}
                   </div>
 
-                  <Chevron className="w-4 h-4 text-gray-300 shrink-0" />
+                  {/* Total — prominent, right-aligned column (mirrors the Discover price treatment) */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right rtl:text-left leading-tight">
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide font-mono">
+                        {isAr ? 'المجموع' : 'Total'}
+                      </p>
+                      <p className="text-sm font-black text-[#FF6B00] font-mono whitespace-nowrap">
+                        {totalDue.toLocaleString()}{' '}
+                        <span className="text-[10px]">{isAr ? 'د.أ' : 'JOD'}</span>
+                      </p>
+                      <p className="text-[8.5px] text-gray-400 font-semibold">
+                        {isAr ? 'شامل العمولة' : 'incl. premium'}
+                      </p>
+                    </div>
+                    <Chevron className="w-4 h-4 text-gray-300 shrink-0" />
+                  </div>
                 </div>
               );
             })}

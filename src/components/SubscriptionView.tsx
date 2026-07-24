@@ -430,7 +430,7 @@ export const SubscriptionView: React.FC = () => {
         </div>
 
         {/* TWO NEW INPUT FIELDS */}
-        <div className="bg-gray-50/50 border border-gray-150 rounded-2xl p-5 mb-6 space-y-4">
+        <div className="bg-gray-50/50 border border-gray-200 rounded-2xl p-5 mb-6 space-y-4">
           <div className="text-xs font-black text-gray-800 uppercase tracking-tight font-mono">
             {isAr ? 'معلومات التحقق من التحويل' : 'VERIFICATION DETAILS'}
           </div>
@@ -465,7 +465,7 @@ export const SubscriptionView: React.FC = () => {
         </div>
 
         {/* Upload field for payment screenshot / ارفع إيصال الدفع */}
-        <div className="bg-gray-50/50 border border-gray-150 rounded-2xl p-5 mb-6 space-y-3.5">
+        <div className="bg-gray-50/50 border border-gray-200 rounded-2xl p-5 mb-6 space-y-3.5">
           <div className="flex justify-between items-center">
             <label className="text-xs font-black text-gray-800 uppercase tracking-tight font-mono">
               {isAr ? 'ارفع إيصال الدفع / Upload Payment Screenshot' : 'Upload Payment Screenshot / ارفع إيصال الدفع'}

@@ -82,7 +82,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto w-full">
         
         {/* Welcome Admin Row */}
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-150 flex items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-200 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-lg border border-orange-100">
               A
@@ -238,7 +238,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
               filteredAdminDeposits.map((escrow) => (
                 <div 
                   key={escrow.id} 
-                  className="bg-white border border-gray-150 rounded-3xl p-5 hover:border-gray-200 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="bg-white border border-gray-200 rounded-3xl p-5 hover:border-gray-200 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                   id={`admin-escrow-row-${escrow.id}`}
                 >
                   
@@ -263,7 +263,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                         </span>
                       </div>
                       
-                      <div className="text-[10px] text-gray-450 font-mono space-x-1.5 flex flex-wrap items-center">
+                      <div className="text-[10px] text-gray-500 font-mono space-x-1.5 flex flex-wrap items-center">
                         <span>REF: {escrow.id.substring(0, 8).toUpperCase()}</span>
                         <span>•</span>
                         <span>{new Date(escrow.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US', {hour: '2-digit', minute: '2-digit'})}</span>
@@ -330,7 +330,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
         </div>
 
         {/* 4. ACTIVE MEMBERS WITH SILVER PASS */}
-        <div className="bg-white border border-gray-150 rounded-3xl p-5 shadow-xs space-y-4">
+        <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-xs space-y-4">
           <div>
             <h3 className="text-xs font-black text-gray-900 tracking-wider uppercase font-mono flex items-center gap-1.5">
               <UserCheck className="w-4 h-4 text-[#FF6B00]" />
@@ -352,7 +352,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                   )}
                   <div>
                     <h4 className="text-xs font-extrabold text-gray-900 leading-none">{user.name}</h4>
-                    <p className="text-[9px] text-gray-450 mt-1 font-mono">{user.email} • {user.phoneNumber || '+962 7 9XXX XXXX'}</p>
+                    <p className="text-[9px] text-gray-500 mt-1 font-mono">{user.email} • {user.phoneNumber || '+962 7 9XXX XXXX'}</p>
                   </div>
                 </div>
 
@@ -417,7 +417,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
           <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col border border-gray-100 max-h-[90vh]">
               
-              <div className="p-4 border-b border-gray-150 flex items-center justify-between">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="font-black text-xs text-gray-800 uppercase font-mono tracking-wider flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
                   <span>{isAr ? 'تدقيق إيصال كليك البنكي' : 'Verify CliQ Deposit Receipt'}</span>
@@ -468,7 +468,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 bg-gray-50 border-t border-gray-150 flex items-center gap-2 justify-end">
+              <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center gap-2 justify-end">
                 <button
                   type="button"
                   onClick={() => setSelectedProofEscrow(null)}

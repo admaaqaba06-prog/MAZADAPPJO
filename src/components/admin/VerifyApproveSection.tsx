@@ -134,7 +134,7 @@ export const VerifyApproveSection: React.FC<VerifyApproveSectionProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-1">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-1">
         <h3 className="text-lg font-black text-gray-900">
           {isAr ? 'التحقق والموافقات' : 'Verify & Approve'}
         </h3>
@@ -146,7 +146,7 @@ export const VerifyApproveSection: React.FC<VerifyApproveSectionProps> = ({
       </div>
 
       {/* Segment switch */}
-      <div className="bg-white border border-gray-150 rounded-2xl p-1.5 flex items-center gap-1">
+      <div className="bg-white border border-gray-200 rounded-2xl p-1.5 flex items-center gap-1">
         {segments.map((seg) => {
           const active = queue === seg.id;
           return (

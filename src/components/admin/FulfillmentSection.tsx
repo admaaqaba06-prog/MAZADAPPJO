@@ -123,7 +123,7 @@ const FulfillmentRow: React.FC<{
   const nudgedMs = nudgedAtMs(order);
 
   return (
-    <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap animate-fadeIn">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap animate-fadeIn">
       <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
           <h4 className="font-extrabold text-sm text-gray-900 leading-snug truncate">
@@ -220,7 +220,7 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="space-y-4">
       {/* Header */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-1">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-1">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-lg font-black text-gray-900">
             {isAr ? 'متابعة التنفيذ' : 'Fulfillment'}

@@ -111,7 +111,7 @@ export default function ReviewPrompt({
             <img
               src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
               alt={order.auctionTitle}
-              className="w-12 h-12 rounded-2xl object-cover border border-gray-150 shrink-0"
+              className="w-12 h-12 rounded-2xl object-cover border border-gray-200 shrink-0"
               referrerPolicy="no-referrer"
             />
             <div className="min-w-0 space-y-0.5">
@@ -166,7 +166,7 @@ export default function ReviewPrompt({
             maxLength={500}
             rows={3}
             placeholder={isAr ? 'شاركنا تجربتك (اختياري)' : 'Tell us about your experience (optional)'}
-            className="w-full bg-gray-50 border border-gray-150 focus:border-[#FF6B00]/50 rounded-2xl p-3 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all resize-none"
+            className="w-full bg-gray-50 border border-gray-200 focus:border-[#FF6B00]/50 rounded-2xl p-3 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all resize-none"
             id="review-prompt-text"
           />
 

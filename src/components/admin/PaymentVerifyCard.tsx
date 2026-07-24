@@ -54,7 +54,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="bg-white border border-gray-150 rounded-2xl p-5 shadow-sm space-y-4 animate-fadeIn"
+      className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4 animate-fadeIn"
     >
       {/* Header: title + warning chips */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -78,7 +78,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
         <img
           src={receiptUrl}
           alt={isAr ? 'إيصال الدفع' : 'Payment receipt'}
-          className="w-full max-h-72 object-contain rounded-xl border border-gray-150 bg-gray-50 cursor-zoom-in transition-transform hover:scale-[1.01]"
+          className="w-full max-h-72 object-contain rounded-xl border border-gray-200 bg-gray-50 cursor-zoom-in transition-transform hover:scale-[1.01]"
           onClick={() => setZoomOpen(true)}
         />
       ) : (
@@ -88,7 +88,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
       )}
 
       {/* Amount + payer */}
-      <div className="bg-gray-50 border border-gray-150 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-[10px] text-gray-400 font-bold uppercase">
             {isAr ? 'المبلغ المتوقع' : 'Expected amount'}
@@ -122,7 +122,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           onClick={() => setRejecting(r => !r)}
           className={`font-bold text-xs px-4 py-2 rounded-xl min-w-[100px] border transition-all ${
             busy
-              ? 'bg-gray-100 text-gray-400 border-gray-150 cursor-not-allowed'
+              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
               : 'bg-red-50 hover:bg-red-100 text-red-650 border-red-100 cursor-pointer'
           }`}
         >

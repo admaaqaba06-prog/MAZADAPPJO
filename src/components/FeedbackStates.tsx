@@ -49,7 +49,7 @@ export const AdminListSkeleton: React.FC = () => {
   return (
     <div className="space-y-3" id="admin-list-skeleton">
       {[1, 2, 3].map((n) => (
-        <div key={n} className="p-4 bg-white border border-gray-150 rounded-2xl flex items-center justify-between gap-4">
+        <div key={n} className="p-4 bg-white border border-gray-200 rounded-2xl flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
             <div className="space-y-1.5 min-w-0 flex-1">

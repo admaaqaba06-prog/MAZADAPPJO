@@ -314,7 +314,7 @@ export const AdminPanel: React.FC = () => {
                         setRejectingId(item.id);
                         setRejectionReason('');
                       }}
-                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-zinc-250 flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-gray-200 flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                       {isAr ? 'رفض' : 'REJECT'}
