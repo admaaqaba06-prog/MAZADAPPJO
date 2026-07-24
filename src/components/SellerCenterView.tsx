@@ -747,7 +747,7 @@ export const SellerCenterView: React.FC = () => {
   const [activeAuctionTab, setActiveAuctionTab] = useState<'upcoming' | 'live' | 'pending' | 'completed' | 'rejected'>('live');
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-[#fafafa] min-h-screen text-gray-900" id="seller-center-root">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-[#F7F6F3] min-h-screen text-gray-900" id="seller-center-root">
       
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-5" id="seller-header">

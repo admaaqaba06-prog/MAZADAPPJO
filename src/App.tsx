@@ -235,7 +235,7 @@ function MainAppShell() {
     if (screen === 'landing') {
       return (
         <div className="landing-root min-h-screen">
-          <LandingView onEnter={() => setEntered(true)} />
+          <LandingView onEnter={(target) => { if (target) setActiveView(target as any); setEntered(true); }} />
         </div>
       );
     }

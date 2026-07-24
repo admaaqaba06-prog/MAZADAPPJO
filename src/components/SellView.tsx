@@ -201,7 +201,7 @@ export const SellView: React.FC = () => {
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto w-full bg-[#FBFAF8] font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full bg-[#F7F6F3] font-sans"
       dir={isAr ? 'rtl' : 'ltr'}
       id="sell-view-root"
     >
@@ -495,8 +495,8 @@ export const SellView: React.FC = () => {
         {mode === 'choose' && (
           <motion.div
             key="choose"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={easeOut}
             className="max-w-md lg:max-w-2xl mx-auto w-full p-4 lg:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] space-y-6"
