@@ -118,6 +118,17 @@ export interface TranslationType {
     };
     rights: string;
   };
+  marketplace: {
+    badge: string; title: string; subtitle: string; currentBid: string; bids: string;
+    verified: string; endingSoon: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
+    unavailableTitle: string; unavailableDesc: string;
+    sellerCtaText: string; sellerCtaBtn: string;
+    categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
+  };
+  proof: {
+    headline: string; subline: string;
+    stats: Array<{ value: string; label: string }>;
+  };
 }
 
 export const translations: Record<"ar" | "en", TranslationType> = {
@@ -136,12 +147,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "Mazad Jo",
-      titleGradient: "البيع الذكي",
-      titleLast: "والشراء الأذكى",
-      desc: "مزاد جو تجربة بيع تنافسية حديثة تجمع الثقة، الفرصة، والمتعة. الآن في الأردن لتبيع أسرع، تزايد بذكاء، وتربح بثقة.",
-      ctaPrimary: "ادخل المزادات المباشرة",
-      ctaSecondary: "تواصل عبر واتساب",
+      titleFirst: "اعرض سلعتك و",
+      titleGradient: "بِعْها مباشرةً",
+      titleLast: " لآلاف المشترين الجادّين",
+      desc: "منصة المزادات الموثوقة في الأردن. نفحص سلعتك، ونعرضها على مشترين جادّين، ونضمن وصول أموالك بأمان.",
+      ctaPrimary: "اعرض سلعتك للبيع",
+      ctaSecondary: "تصفّح المزادات المباشرة",
       stats: {
         steps: { title: "3 خطوات", desc: "مزايدة سهلة وواضحة" },
         verified: { title: "توثيق كامل", desc: "بائعون وحسابات موثقة" },
@@ -332,6 +343,38 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       },
       rights: "© 2026 MazadJo. صمم للسوق الأردني بكل فخر 🇯🇴",
     },
+    marketplace: {
+      badge: "مباشر الآن",
+      title: "مزادات مباشرة على مزاد الأردن الآن",
+      subtitle: "سلع مفحوصة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
+      currentBid: "أعلى مزايدة",
+      bids: "مزايدة",
+      verified: "موثّقة",
+      endingSoon: "ينتهي قريباً",
+      viewBtn: "شاهد المزاد",
+      emptyTitle: "المزادات تنطلق يومياً",
+      emptyDesc: "كن من أوائل البائعين — اعرض سلعتك الآن وتصدَّر الصفحة.",
+      unavailableTitle: "المزادات المباشرة غير متاحة الآن",
+      unavailableDesc: "يرجى تحديث الصفحة بعد قليل.",
+      sellerCtaText: "جاهز لرؤية سلعتك هنا؟",
+      sellerCtaBtn: "اعرض سلعتك للبيع",
+      categoryLabels: {
+        Electronics: "إلكترونيات",
+        Luxury: "كماليات",
+        Vehicles: "مركبات",
+        Fashion: "أزياء",
+        "Real Estate": "عقارات",
+      },
+    },
+    proof: {
+      headline: "آلاف الأردنيين يشترون على مزاد الأردن",
+      subline: "سلعتك تصل إلى طلبٍ حقيقي.",
+      stats: [
+        { value: "١٥,٠٠٠+", label: "مشترٍ" },
+        { value: "١,٢٥٠+", label: "سلعة مُباعة" },
+        { value: "٣,٤٠٠+", label: "سلعة مفحوصة" },
+      ],
+    },
   },
   en: {
     dir: "ltr",
@@ -348,12 +391,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "Mazad Jo",
-      titleGradient: "Smart Selling",
-      titleLast: "and Smarter Buying",
-      desc: "MazadJo is a modern competitive selling experience combining trust, opportunity, and excitement. Now in Jordan so you can sell faster, bid smarter, and win with confidence.",
-      ctaPrimary: "Enter Live Auctions",
-      ctaSecondary: "Chat on WhatsApp",
+      titleFirst: "List your item and ",
+      titleGradient: "sell it live",
+      titleLast: " to thousands of serious buyers",
+      desc: "Jordan's trusted auction platform. We inspect your item, put it in front of serious buyers, and make sure you get paid safely.",
+      ctaPrimary: "List your item",
+      ctaSecondary: "Browse live auctions",
       stats: {
         steps: { title: "3 Steps", desc: "Easy & clear bidding" },
         verified: { title: "Full Verification", desc: "Certified sellers & accounts" },
@@ -543,6 +586,38 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         contact: "Contact Us",
       },
       rights: "© 2026 MazadJo. Proudly designed for the Jordanian market 🇯🇴",
+    },
+    marketplace: {
+      badge: "Live now",
+      title: "Live on Mazad JO right now",
+      subtitle: "Inspected items selling now — this is where your item shows up for buyers.",
+      currentBid: "Current bid",
+      bids: "bids",
+      verified: "Verified",
+      endingSoon: "Ending soon",
+      viewBtn: "View auction",
+      emptyTitle: "New auctions launch daily",
+      emptyDesc: "Be one of the first sellers — list your item now and lead the page.",
+      unavailableTitle: "Live auctions are momentarily unavailable",
+      unavailableDesc: "Please refresh in a moment.",
+      sellerCtaText: "Ready to see your item here?",
+      sellerCtaBtn: "List your item",
+      categoryLabels: {
+        Electronics: "Electronics",
+        Luxury: "Luxury",
+        Vehicles: "Vehicles",
+        Fashion: "Fashion",
+        "Real Estate": "Real Estate",
+      },
+    },
+    proof: {
+      headline: "Thousands of Jordanians already buy on Mazad JO",
+      subline: "Your item meets real demand.",
+      stats: [
+        { value: "15,000+", label: "buyers" },
+        { value: "1,250+", label: "items sold" },
+        { value: "3,400+", label: "items inspected" },
+      ],
     },
   },
 };

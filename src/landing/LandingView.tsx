@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { translations, TranslationType } from "./translations";
+import { emitLandingEvent } from './landingAnalytics';
+import { useLandingAuctions } from './useLandingAuctions';
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
 
@@ -217,14 +219,156 @@ const ACTIVE_ITEMS = [
   }
 ];
 
-export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/962781444899" }: { onEnter: () => void; whatsappUrl?: string }) {
+function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
+  lang: 'ar' | 'en';
+  t: TranslationType;
+  onEnter: (target?: string) => void;
+  formatPrice: (val: number) => React.ReactNode;
+}) {
+  const { auctions, isLoading, isEmpty, isError } = useLandingAuctions();
+  const formatTimeLeft = (endTime: number, now = Date.now()): string => {
+    const ms = Math.max(0, endTime - now);
+    const totalMin = Math.floor(ms / 60000);
+    const days = Math.floor(totalMin / 1440);
+    const hours = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (lang === 'ar') {
+      if (days > 0) return `${days} يوم ${hours} س`;
+      if (hours > 0) return `${hours} س ${mins} د`;
+      return `${mins} د`;
+    }
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  };
+  return (
+    <section id="live-marketplace" className="py-20 md:py-28 bg-[#F7F7F7]">
+      <div className="max-w-7xl mx-auto px-5">
+        <Reveal>
+          <div className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 text-[#F05123] font-semibold text-sm">
+              <span className="w-2 h-2 rounded-full bg-[#F05123] animate-pulse" />
+              {t.marketplace.badge}
+            </span>
+            <h2 className="mt-3 text-3xl md:text-4xl font-bold text-[#0A0A0A]">{t.marketplace.title}</h2>
+            <p className="mt-3 text-[#0A0A0A]/60 max-w-xl mx-auto">{t.marketplace.subtitle}</p>
+          </div>
+        </Reveal>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-2xl bg-white border border-[#F0F0EE] h-72 animate-pulse" />
+            ))}
+          </div>
+        ) : isError ? (
+          <Reveal>
+            <div className="max-w-md mx-auto text-center rounded-2xl bg-white border border-[#F0F0EE] p-10">
+              <h3 className="text-xl font-bold text-[#0A0A0A]">{t.marketplace.unavailableTitle}</h3>
+              <p className="mt-2 text-[#0A0A0A]/60">{t.marketplace.unavailableDesc}</p>
+              <button
+                type="button"
+                onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace_error' }); onEnter('upload'); }}
+                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+              >
+                {t.marketplace.sellerCtaBtn}
+              </button>
+            </div>
+          </Reveal>
+        ) : isEmpty ? (
+          <Reveal>
+            <div className="max-w-md mx-auto text-center rounded-2xl bg-white border border-[#F0F0EE] p-10">
+              <h3 className="text-xl font-bold text-[#0A0A0A]">{t.marketplace.emptyTitle}</h3>
+              <p className="mt-2 text-[#0A0A0A]/60">{t.marketplace.emptyDesc}</p>
+              <button
+                type="button"
+                onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace_empty' }); onEnter('upload'); }}
+                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+              >
+                {t.marketplace.sellerCtaBtn}
+              </button>
+            </div>
+          </Reveal>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {auctions.map((a) => {
+                const endingSoon = a.endTime - Date.now() < 3600_000;
+                return (
+                  <Reveal key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => { emitLandingEvent('auction_viewed', { auctionId: a.id }); onEnter(); }}
+                      className="group text-start w-full rounded-2xl bg-white border border-[#F0F0EE] overflow-hidden hover:-translate-y-1 hover:shadow-xl transition"
+                    >
+                      <div className="relative aspect-[4/3] bg-[#F0F0EE] overflow-hidden">
+                        {a.imageUrl ? (
+                          <img src={a.imageUrl} alt={a.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        ) : null}
+                        {a.isVerified ? (
+                          <span className="absolute top-3 start-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 text-xs font-semibold text-[#0A0A0A]">
+                            ✓ {t.marketplace.verified}
+                          </span>
+                        ) : null}
+                        {endingSoon ? (
+                          <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-[#F05123] text-white text-xs font-semibold">
+                            {t.marketplace.endingSoon}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="p-4">
+                        <span className="text-xs text-[#0A0A0A]/50">{t.marketplace.categoryLabels[a.category] ?? a.category}</span>
+                        <h3 className="mt-1 font-semibold text-[#0A0A0A] line-clamp-1">{a.title}</h3>
+                        <div className="mt-3 flex items-end justify-between">
+                          <div>
+                            <span className="block text-xs text-[#0A0A0A]/50">{t.marketplace.currentBid}</span>
+                            <span dir="ltr" className="block font-bold text-[#0A0A0A]">{formatPrice(a.currentPrice)}</span>
+                          </div>
+                          <div className="text-end">
+                            <span dir="ltr" className="block text-xs text-[#0A0A0A]/50">{a.totalBids} {t.marketplace.bids}</span>
+                            <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
+                          </div>
+                        </div>
+                        <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>
+                      </div>
+                    </button>
+                  </Reveal>
+                );
+              })}
+            </div>
+            <Reveal>
+              <div className="mt-12 text-center">
+                <p className="text-lg font-semibold text-[#0A0A0A]">{t.marketplace.sellerCtaText}</p>
+                <button
+                  type="button"
+                  onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace' }); onEnter('upload'); }}
+                  className="mt-4 inline-flex items-center justify-center px-8 py-4 rounded-full bg-[#F05123] text-white font-bold text-lg hover:bg-[#D93E15] transition"
+                >
+                  {t.marketplace.sellerCtaBtn}
+                </button>
+              </div>
+            </Reveal>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/962781444899" }: { onEnter: (target?: string) => void; whatsappUrl?: string }) {
   const [lang, setLang] = useState<"ar" | "en">(() => (localStorage.getItem('mazad_language') === 'en' ? 'en' : 'ar'));
   const toggleLang = () => {
     const next = lang === "ar" ? "en" : "ar";
+    emitLandingEvent('language_switched', { to: next });
     setLang(next);
     localStorage.setItem('mazad_language', next);
   };
   const t: TranslationType = translations[lang];
+
+  useEffect(() => {
+    emitLandingEvent('landing_viewed', { lang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Active item switching states
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
@@ -279,7 +423,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   const [pulseUserAction, setPulseUserAction] = useState<boolean>(false);
   const [showExtensionAlert, setShowExtensionAlert] = useState<boolean>(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-  const [howItWorksTab, setHowItWorksTab] = useState<"buyer" | "seller">("buyer");
+  const [howItWorksTab, setHowItWorksTab] = useState<"buyer" | "seller">("seller");
   const [activeEscrowStep, setActiveEscrowStep] = useState<number>(2);
 
   // Live competition level state
@@ -454,6 +598,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     const sStr = s < 10 ? `0${s}` : `${s}`;
     return `${mStr}:${sStr}`;
   };
+
+  // formatTimeLeft and LiveMarketplaceSection hoisted to module scope (see above export)
 
   // Manual User Bidding Handler
   const handleUserBid = () => {
@@ -689,7 +835,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               {t.nav.pricing}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
-            <button type="button" onClick={onEnter} className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 cursor-pointer ${lang === "en" ? "tracking-wide" : ""}`}>
+            <button type="button" onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'nav' }); onEnter(); }} className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 cursor-pointer ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.comingSoon}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </button>
@@ -778,7 +924,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </a>
           <button
             type="button"
-            onClick={() => { setMobileMenuOpen(false); onEnter(); }}
+            onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'mobile_menu' }); setMobileMenuOpen(false); onEnter(); }}
             className="text-start text-base font-semibold text-[#0A0A0A] hover:text-[#F05123] py-2 border-b border-[#E5E5E5]/40 transition-colors duration-200 font-ibmarabic cursor-pointer"
           >
             {t.nav.comingSoon}
@@ -883,7 +1029,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 >
                   <motion.button
                     type="button"
-                    onClick={onEnter}
+                    onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
@@ -891,16 +1037,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <span>{t.hero.ctaPrimary}</span>
                     <span className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5">→</span>
                   </motion.button>
-                  <motion.a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <motion.button
+                    type="button"
+                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-[#0A0A0A] text-[#0A0A0A] font-semibold text-base bg-white hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
                   >
                     {t.hero.ctaSecondary}
-                  </motion.a>
+                  </motion.button>
                 </motion.div>
 
                 {/* Stats Bar */}
@@ -1238,6 +1383,26 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
+        {/* Promoted proof strip (real WhatsApp track record) */}
+        <section className="py-10 bg-[#0A0A0A]">
+          <div className="max-w-5xl mx-auto px-5">
+            <Reveal>
+              <div className="text-center mb-6">
+                <p className="text-white font-bold text-lg md:text-xl">{t.proof.headline}</p>
+                <p className="text-white/50 text-sm mt-1">{t.proof.subline}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {t.proof.stats.map((s, i) => (
+                  <div key={i} className="text-center">
+                    <span dir="ltr" className="block text-2xl md:text-4xl font-bold text-[#F05123]">{s.value}</span>
+                    <span className="block text-white/60 text-xs md:text-sm mt-1">{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
         {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
         <section id="how-it-works" className="py-[96px] bg-[#FFFFFF] border-b border-[#F0F0EE] relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -1470,6 +1635,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
 
 
+
+        <LiveMarketplaceSection lang={lang} t={t} onEnter={onEnter} formatPrice={formatPrice} />
 
         {/* 3. Section "الثقة أولاً" (Trust First) */}
         <section id="why-mazadjo" className="py-20 bg-white border-y border-[#F0F0EE] relative">
@@ -2345,7 +2512,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <div className="shrink-0">
                       <motion.button
                         type="button"
-                        onClick={onEnter}
+                        onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'pricing' }); onEnter('upload'); }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.98 }}
                         className="inline-block px-8 py-3.5 bg-white text-black hover:bg-gray-50 font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
@@ -2548,7 +2715,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               </p>
               <motion.button
                 type="button"
-                onClick={onEnter}
+                onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'coming_soon' }); onEnter(); }}
                 whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                 whileTap={{ scale: 0.97 }}
                 className="mt-2 px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
@@ -2707,7 +2874,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                     <motion.button
                       type="button"
-                      onClick={onEnter}
+                      onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'final' }); onEnter(); }}
                       whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}
                       whileTap={{ scale: 0.98 }}
                       className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-[#D63E10] hover:bg-gray-50 font-bold font-ibmarabic text-base transition-colors duration-200 text-center shadow-lg cursor-pointer"
@@ -2853,7 +3020,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             </button>
             <button
               type="button"
-              onClick={onEnter}
+              onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'sticky' }); onEnter('upload'); }}
               className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-white border-2 border-[#0A0A0A] text-[#0A0A0A] font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
             >
               <span>{lang === "ar" ? "بيع قطعتك" : "Sell Your Item"}</span>
