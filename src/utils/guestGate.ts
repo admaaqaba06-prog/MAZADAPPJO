@@ -44,6 +44,34 @@ export function resolveGuestWriteAction(isAuthenticated: boolean): 'signup' | 'p
   return isAuthenticated ? 'proceed' : 'signup';
 }
 
+export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'proceed';
+
+export interface BidGateArgs {
+  isAuthenticated: boolean;
+  isMember: boolean;
+  /** Whether the user has a REAL uploaded/linked profile photo (see hasRealPhoto). */
+  hasPhoto: boolean;
+}
+
+/**
+ * The single ordered gate a bid tap must pass, added to enforce the trust rule
+ * "a real photo is required to bid" WITHOUT touching the server bid path. Order,
+ * cheapest-blocker first:
+ *   1. signin     — a guest must sign up (wins over every later gate).
+ *   2. membership — an authenticated non-member is invited to join.
+ *   3. photo      — an authenticated member with NO real photo must add one.
+ *   4. proceed    — member with a photo → stage the confirm.
+ * A guest is always routed to sign-in first even if the (impossible) member/photo
+ * flags say otherwise, so no members-only sheet can ever show to a logged-out tap.
+ */
+export function resolveBidGate(args: BidGateArgs): BidGateDecision {
+  const { isAuthenticated, isMember, hasPhoto } = args;
+  if (!isAuthenticated) return 'signin';
+  if (!isMember) return 'membership';
+  if (!hasPhoto) return 'photo';
+  return 'proceed';
+}
+
 /**
  * siteSettings/featureFlags.enableGuestBrowsing — production kill switch.
  * Default ENABLED (absent doc/field/junk value => true); only an explicit

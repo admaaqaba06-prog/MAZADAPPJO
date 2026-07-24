@@ -4,6 +4,7 @@ import {
   isGuestSession,
   readGuestBrowsingFlag,
   resolveBidTap,
+  resolveBidGate,
   resolveGuestWriteAction,
   resolveUnauthenticatedScreen,
 } from './guestGate';
@@ -32,6 +33,23 @@ describe('resolveBidTap — the "should this tap sign up or proceed" decision', 
   });
   it('an impossible "member but unauthenticated" state still routes to signup (safety)', () => {
     expect(resolveBidTap(false, true)).toBe('signup');
+  });
+});
+
+describe('resolveBidGate — ordered signin → membership → photo → proceed', () => {
+  it('guest → signin (regardless of member/photo flags)', () => {
+    expect(resolveBidGate({ isAuthenticated: false, isMember: false, hasPhoto: false })).toBe('signin');
+    expect(resolveBidGate({ isAuthenticated: false, isMember: true, hasPhoto: true })).toBe('signin');
+  });
+  it('authenticated non-member → membership', () => {
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: true })).toBe('membership');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: false })).toBe('membership');
+  });
+  it('member without a real photo → photo', () => {
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: false })).toBe('photo');
+  });
+  it('member with a real photo → proceed', () => {
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: true })).toBe('proceed');
   });
 });
 
