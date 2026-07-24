@@ -300,6 +300,10 @@ interface AppContextProps {
   showSubscriptionPrompt: boolean;
   setShowSubscriptionPrompt: (show: boolean) => void;
 
+  // Trust gate: "add a real photo to bid/sell" prompt
+  showPhotoGate: boolean;
+  setShowPhotoGate: (show: boolean) => void;
+
   // Live Chat Comments System
   sendChatMessage: (text: string) => void;
 
@@ -610,6 +614,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
   const [activeView, setActiveView] = useState<'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
+  // Trust gate: a member without a real profile photo who taps bid/sell is shown
+  // the "add a photo" sheet (mirrors the subscription prompt plumbing).
+  const [showPhotoGate, setShowPhotoGate] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
@@ -4785,6 +4792,8 @@ const fetchIP = async () => {
       removeAutoBid,
       showSubscriptionPrompt,
       setShowSubscriptionPrompt,
+      showPhotoGate,
+      setShowPhotoGate,
       showNotifications,
       setShowNotifications,
       sendChatMessage,
@@ -4815,7 +4824,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, watchlist, autoBids,
-    showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, showPhotoGate, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, requestWithdrawal, addNotification, markAsRead,

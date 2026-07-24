@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ListingWizardView } from './ListingWizardView';
 import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
 import { resizeImage } from '../utils/resizeImage';
+import { hasRealPhoto } from '../utils/avatarPlaceholder';
 import {
   Store,
   Handshake,
@@ -33,10 +34,22 @@ type SellMode = 'choose' | 'wizard' | 'concierge' | 'success';
  * Selling never requires the bidding membership — the approval gate is the quality control.
  */
 export const SellView: React.FC = () => {
-  const { createListing, setActiveView, currentUser, language } = useApp();
+  const { createListing, setActiveView, currentUser, language, setShowPhotoGate } = useApp();
   const isAr = language === 'ar';
+  const canList = hasRealPhoto(currentUser);
 
   const [mode, setMode] = useState<SellMode>('choose');
+
+  // Trust gate: selling — like bidding — requires a real profile photo. Block the
+  // "choose a path" actions until the seller has one (client-side UX only; the
+  // listing/approval server path is untouched).
+  const startPath = (id: 'wizard' | 'concierge') => {
+    if (!canList) {
+      setShowPhotoGate(true);
+      return;
+    }
+    setMode(id);
+  };
 
   // ---- Concierge form state ----
   const [cName, setCName] = useState('');
@@ -528,7 +541,7 @@ export const SellView: React.FC = () => {
                   <motion.button
                     key={card.id}
                     type="button"
-                    onClick={() => setMode(card.id)}
+                    onClick={() => startPath(card.id)}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...easeOut, delay: 0.08 + i * 0.06 }}

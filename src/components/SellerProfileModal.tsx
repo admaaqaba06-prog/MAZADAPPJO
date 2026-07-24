@@ -4,6 +4,7 @@ import { calculateTrustScore, getSellerBadges } from '../utils/trust';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Review } from '../types';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { 
   X, ShieldCheck, MapPin, Calendar, Award, Star, 
   Users, Percent, Clock, AlertTriangle, MessageSquare, 
@@ -189,9 +190,9 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
           
           {/* Avatar and Main Info Overlay */}
           <div className="flex flex-col sm:flex-row gap-4 -mt-16 sm:-mt-20 mb-6 items-start sm:items-end">
-            <img 
-              src={profile.storeLogo} 
-              alt={profile.storeName} 
+            <img
+              src={resolveAvatarUrl(profile.storeLogo, profile.userId)}
+              alt={profile.storeName}
               className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-[#0B0B0F] shadow-xl shrink-0 bg-zinc-900"
             />
             <div className="flex-grow text-left rtl:text-right min-w-0">
@@ -357,8 +358,8 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                   <div key={rev.id} className="bg-zinc-900/40 p-4 rounded-2xl border border-white/5">
                     <div className="flex items-center gap-3 mb-2.5">
                       <img 
-                        src={rev.buyerAvatar} 
-                        alt="avatar" 
+                        src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)}
+                        alt="avatar"
                         className="w-8 h-8 rounded-full object-cover bg-zinc-800"
                       />
                       <div>

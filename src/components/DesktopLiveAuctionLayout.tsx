@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { resolveConfirm } from '../hooks/useBidFlow';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -392,17 +393,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              {activeSellerProfile.storeLogo ? (
-                <img
-                  src={activeSellerProfile.storeLogo}
-                  alt=""
-                  className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-[#E85D04] text-white flex items-center justify-center font-black text-xs shrink-0">
-                  {activeSellerProfile.storeName?.[0] || 'M'}
-                </div>
-              )}
+              <img
+                src={resolveAvatarUrl(activeSellerProfile.storeLogo, activeSellerProfile.userId)}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
+              />
               <div className="min-w-0 text-left rtl:text-right">
                 <span className="text-[11px] font-bold text-gray-800 truncate block leading-tight">
                   {activeSellerProfile.storeName || 'MAZAD JO Store'}
@@ -618,11 +613,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              {activeSellerProfile?.storeLogo ? (
-                <img 
-                  src={activeSellerProfile.storeLogo} 
-                  alt="" 
-                  className="w-11 h-11 rounded-full object-cover border border-gray-100 shrink-0 animate-fade-in" 
+              {activeSellerProfile ? (
+                <img
+                  src={resolveAvatarUrl(activeSellerProfile.storeLogo, activeSellerProfile.userId)}
+                  alt=""
+                  className="w-11 h-11 rounded-full object-cover border border-gray-100 shrink-0 animate-fade-in"
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -1031,9 +1026,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             {activeComments && activeComments.length > 0 ? (
               activeComments.map((msg) => (
                 <div key={msg.id} className="flex items-start gap-2.5">
-                  <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                    alt="" 
+                  <img
+                    src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
+                    alt=""
                     className="w-6 h-6 rounded-full object-cover shrink-0 border border-gray-100"
                     referrerPolicy="no-referrer"
                   />

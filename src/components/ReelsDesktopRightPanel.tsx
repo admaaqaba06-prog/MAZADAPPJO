@@ -4,6 +4,7 @@ import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-rea
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
 import { isAuctionOpen } from '../utils/auctionPhase';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { minNextBid } from '../utils/bidMath';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -241,8 +242,8 @@ export const ReelsDesktopRightPanel: React.FC = () => {
       <div className="space-y-3 bg-zinc-900/60 border border-white/5 p-4 rounded-2xl">
         <div className="flex items-center gap-2.5">
           <img 
-            src={currentItem.sellerLogo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} 
-            alt="Seller" 
+            src={resolveAvatarUrl(currentItem.sellerLogo, currentItem.sellerId)}
+            alt="Seller"
             className="w-8 h-8 rounded-full object-cover border-2 border-[#FF6B00]/40 shadow-sm"
             referrerPolicy="no-referrer"
           />
@@ -282,8 +283,8 @@ export const ReelsDesktopRightPanel: React.FC = () => {
               .map((msg) => (
                 <div key={msg.id} className="flex gap-2 items-start text-[10px] font-sans">
                   <img 
-                    src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'} 
-                    alt="Avatar" 
+                    src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
+                    alt="Avatar"
                     className="w-5 h-5 rounded-full object-cover border border-white/10"
                     referrerPolicy="no-referrer"
                   />
@@ -361,8 +362,8 @@ export const ReelsDesktopRightPanel: React.FC = () => {
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <img 
-                      src={bid.bidderAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=50&q=80'} 
-                      alt="Avatar" 
+                      src={resolveAvatarUrl(bid.bidderAvatar, bid.bidderId)}
+                      alt="Avatar"
                       className="w-5.5 h-5.5 rounded-full object-cover shrink-0 border border-white/10"
                       referrerPolicy="no-referrer"
                     />

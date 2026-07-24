@@ -3,6 +3,7 @@ import { useApp, useAuctions } from '../context/AppContext';
 import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
 import { OrderDetailsView } from './OrderDetailsView';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { 
   collection, 
@@ -1568,7 +1569,7 @@ export const SellerCenterView: React.FC = () => {
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         {/* Reviewer Profile */}
                         <div className="flex items-center gap-3">
-                          <img src={rev.buyerAvatar} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-gray-200" />
+                          <img src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-gray-200" />
                           <div>
                             <p className="font-extrabold text-xs text-gray-900">{rev.buyerName}</p>
                             <p className="text-[10px] text-gray-400 font-mono">

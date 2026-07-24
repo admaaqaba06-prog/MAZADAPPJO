@@ -6,6 +6,7 @@ import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, m
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { formatMoney } from '../utils/formatMoney';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { clampActiveIndex, isReelMounted } from '../utils/reelWindow';
@@ -718,11 +719,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                 }}
                 className="bg-black/35 backdrop-blur-xl border border-white/10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95 transition-all"
               >
-                {activeSellerProfile?.storeLogo ? (
-                  <img 
-                    src={activeSellerProfile.storeLogo} 
-                    alt="Logo" 
-                    className="w-5 h-5 rounded-full object-cover shrink-0" 
+                {activeSellerProfile ? (
+                  <img
+                    src={resolveAvatarUrl(activeSellerProfile.storeLogo, activeSellerProfile.userId)}
+                    alt="Logo"
+                    className="w-5 h-5 rounded-full object-cover shrink-0"
                   />
                 ) : (
                   <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#FF6B00] to-orange-400 flex items-center justify-center font-black text-white text-[9px] shrink-0">
@@ -846,7 +847,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                     className="bg-black/25 backdrop-blur-md border border-white/5 rounded-xl px-2.5 py-1.5 flex items-start gap-2 max-w-[95%] animate-fade-in pointer-events-auto shadow-sm"
                   >
                     <img
-                      src={msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&q=80'}
+                      src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
                       alt="User"
                       width={16}
                       height={16}
