@@ -518,10 +518,21 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   };
 
   const handleOpenDispute = async () => {
+    const reason = prompt(
+      isAr
+        ? 'يرجى وصف المشكلة قبل فتح النزاع (مطلوب):'
+        : 'Please describe the issue before opening a dispute (required):'
+    );
+    if (!reason || !reason.trim()) {
+      if (reason !== null) {
+        alert(isAr ? 'سبب النزاع مطلوب.' : 'A dispute reason is required.');
+      }
+      return;
+    }
     if (confirm(isAr ? 'هل ترغب في فتح نزاع رسمي حول هذا الطلب؟ سيتم تجميد الضمان.' : 'Open a formal dispute for this order? Escrow assets will be locked.')) {
       setIsUpdating(true);
       try {
-        await executeOrderTransition(order, 'open_dispute', currentUser);
+        await executeOrderTransition(order, 'open_dispute', currentUser, { disputeReason: reason.trim() });
         addNotification(
           isAr ? 'تم فتح نزاع رسمي' : 'Dispute Opened',
           isAr ? 'تم فتح نزاع رسمي. مزاد أوقف تحويل المبلغ للبائع لحين مراجعة الفريق.' : 'Formal dispute logged. Mazad has paused the payout to the seller pending review.',
