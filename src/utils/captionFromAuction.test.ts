@@ -18,7 +18,7 @@ describe('captionInputFromAuction', () => {
     expect(out.productName).toBe('iPhone 15');
     expect(out.startingPriceJod).toBe(200);
     expect(out.durationLabel).toBe('30 دقيقة');
-    expect(out.deepLink).toBe('https://mazad-jo.com/?auction=auction-new-123');
+    expect(out.deepLink).toBe('https://mazad-jo.com/auction/auction-new-123');
   });
 
   it('falls back to — for a missing auction number', () => {

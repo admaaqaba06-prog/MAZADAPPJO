@@ -8,6 +8,7 @@
 /** Views a logged-out visitor may render read-only. Everything else is the
  *  signup moment. Fail closed: unknown views are gated. */
 export const GUEST_ALLOWED_VIEWS: readonly string[] = [
+  'landing',
   'discovery',
   'live',
   'about',
@@ -84,13 +85,9 @@ export function readGuestBrowsingFlag(
   return data?.enableGuestBrowsing !== false;
 }
 
-export type UnauthScreen = 'landing' | 'login' | 'browse';
+export type UnauthScreen = 'login' | 'browse';
 
 export interface UnauthScreenArgs {
-  /** Visitor clicked "Enter" on the landing page this session. */
-  entered: boolean;
-  /** Visitor arrived via an auction deep link (?auction=<id>). */
-  hasDeepLink: boolean;
   /** siteSettings kill switch (see readGuestBrowsingFlag). */
   guestBrowsingEnabled: boolean;
   /** A gated action tap (bid/chat/save/...) requested the sign-in flow. */
@@ -100,16 +97,15 @@ export interface UnauthScreenArgs {
 }
 
 /**
- * The single routing decision for a logged-out visitor (App.tsx unauth branch):
- *  1. Cold visitor (not entered, no deep link) -> landing front door (SEO/marketing).
- *  2. Flag OFF -> login (EXACTLY today's login-gated behavior).
- *  3. An action tapped sign-in -> login.
- *  4. A members-only view -> login (nav taps to Orders/Wallet/Profile/Sell/...).
- *  5. Otherwise -> the real browse shell (Discover / live room), read-only.
+ * Routing decision for a logged-out visitor who is NOT on the landing page
+ * (landing is now a first-class view rendered upstream in App.tsx, path `/`):
+ *  1. Flag OFF -> login (EXACTLY today's login-gated behavior).
+ *  2. An action tapped sign-in -> login.
+ *  3. A members-only view -> login (nav taps to Orders/Wallet/Profile/Sell/...).
+ *  4. Otherwise -> the real browse shell (Discover / live room), read-only.
  */
 export function resolveUnauthenticatedScreen(args: UnauthScreenArgs): UnauthScreen {
-  const { entered, hasDeepLink, guestBrowsingEnabled, signInRequested, activeView } = args;
-  if (!entered && !hasDeepLink) return 'landing';
+  const { guestBrowsingEnabled, signInRequested, activeView } = args;
   if (!guestBrowsingEnabled) return 'login';
   if (signInRequested) return 'login';
   if (!canGuestAccessView(activeView)) return 'login';

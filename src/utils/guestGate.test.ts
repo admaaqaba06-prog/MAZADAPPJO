@@ -108,51 +108,28 @@ describe('readGuestBrowsingFlag — siteSettings/featureFlags kill switch', () =
 
 describe('resolveUnauthenticatedScreen — what a logged-out visitor sees', () => {
   const base = {
-    entered: true,
-    hasDeepLink: false,
     guestBrowsingEnabled: true,
     signInRequested: false,
     activeView: 'discovery',
   };
 
-  it('cold visitor (not entered, no deep link) gets the landing front door', () => {
+  it('a deep link / browse surface goes straight to browse (watchable)', () => {
     expect(
-      resolveUnauthenticatedScreen({ ...base, entered: false })
-    ).toBe('landing');
-  });
-
-  it('a deep link skips the landing and goes straight to browse (watchable)', () => {
-    expect(
-      resolveUnauthenticatedScreen({
-        ...base,
-        entered: false,
-        hasDeepLink: true,
-        activeView: 'live',
-      })
+      resolveUnauthenticatedScreen({ ...base, activeView: 'live' })
     ).toBe('browse');
   });
 
-  it('flag OFF restores today\'s behavior exactly: entered/deep-link -> login', () => {
+  it('flag OFF restores today\'s behavior exactly: any view -> login', () => {
     expect(
       resolveUnauthenticatedScreen({ ...base, guestBrowsingEnabled: false })
     ).toBe('login');
     expect(
       resolveUnauthenticatedScreen({
         ...base,
-        entered: false,
-        hasDeepLink: true,
         guestBrowsingEnabled: false,
         activeView: 'live',
       })
     ).toBe('login');
-    // ...and the landing stays the front door for a cold visitor either way.
-    expect(
-      resolveUnauthenticatedScreen({
-        ...base,
-        entered: false,
-        guestBrowsingEnabled: false,
-      })
-    ).toBe('landing');
   });
 
   it('an action tap (sign-in requested) shows the login flow', () => {
