@@ -120,7 +120,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           1. MOBILE EMULATOR LAYOUT (Presented on screens below 1024px / lg)
           ====================================================================== */}
       <div 
-        className="lg:hidden h-[100dvh] max-h-[100dvh] w-full bg-white flex flex-col overflow-hidden"
+        className="lg:hidden h-[100dvh] max-h-[100dvh] w-full bg-[#F7F6F3] flex flex-col overflow-hidden"
         id="mobile-layout-root"
       >
         {/* Main Application active view fills standard mobile viewport exactly */}
