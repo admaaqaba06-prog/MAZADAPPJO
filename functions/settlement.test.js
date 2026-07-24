@@ -7,6 +7,11 @@ const {
   DEFAULT_PAYMENT_WINDOW_HOURS,
   MIN_PAYMENT_WINDOW_HOURS,
   MAX_PAYMENT_WINDOW_HOURS,
+  resolveAntiSnipe,
+  computeSoftCloseEnd,
+  DEFAULT_ANTISNIPE_WINDOW_SEC,
+  MIN_ANTISNIPE_SEC,
+  MAX_ANTISNIPE_SEC,
 } = require('./settlement');
 
 describe('reserveMet', () => {
@@ -85,5 +90,36 @@ describe('resolvePaymentWindowHours', () => {
   it('rounds fractional hours to whole hours', () => {
     expect(resolvePaymentWindowHours(23.6)).toBe(24);
     expect(resolvePaymentWindowHours(48.4)).toBe(48);
+  });
+});
+
+describe('resolveAntiSnipe', () => {
+  it('defaults to 30s/30s when unset', () => {
+    expect(resolveAntiSnipe({})).toEqual({ windowMs: 30000, extendMs: 30000 });
+    expect(resolveAntiSnipe({ antiSnipeWindowSec: undefined })).toEqual({ windowMs: 30000, extendMs: 30000 });
+  });
+  it('reads per-auction values in seconds -> ms', () => {
+    expect(resolveAntiSnipe({ antiSnipeWindowSec: 60, antiSnipeExtendSec: 15 })).toEqual({ windowMs: 60000, extendMs: 15000 });
+  });
+  it('clamps to [5,120]s and coerces junk to default', () => {
+    expect(resolveAntiSnipe({ antiSnipeWindowSec: 9999 }).windowMs).toBe(MAX_ANTISNIPE_SEC * 1000);
+    expect(resolveAntiSnipe({ antiSnipeWindowSec: 1 }).windowMs).toBe(MIN_ANTISNIPE_SEC * 1000);
+    expect(resolveAntiSnipe({ antiSnipeWindowSec: 'abc' }).windowMs).toBe(DEFAULT_ANTISNIPE_WINDOW_SEC * 1000);
+  });
+});
+
+describe('computeSoftCloseEnd', () => {
+  const now = 1_000_000;
+  it('extends to now+extend when a bid lands inside the window', () => {
+    expect(computeSoftCloseEnd(now + 8000, now, 30000, 30000)).toBe(now + 30000);
+  });
+  it('does not shorten an end further out than the window', () => {
+    expect(computeSoftCloseEnd(now + 90000, now, 30000, 30000)).toBe(now + 90000);
+  });
+  it('leaves an already-past end untouched', () => {
+    expect(computeSoftCloseEnd(now - 1, now, 30000, 30000)).toBe(now - 1);
+  });
+  it('resets to a full window even for a bid at 1s remaining (soft close, not additive)', () => {
+    expect(computeSoftCloseEnd(now + 1000, now, 30000, 30000)).toBe(now + 30000);
   });
 });
