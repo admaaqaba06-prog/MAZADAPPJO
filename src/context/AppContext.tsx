@@ -53,7 +53,7 @@ import {
   signOut, 
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, deleteField, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -3789,16 +3789,24 @@ const fetchIP = async () => {
     setAdminActions(prev => [action, ...prev]);
   }, [users, currentUser, addNotification]);
 
-  const banUser = useCallback((userId: string) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return { ...u, isBlocked: true };
-      }
-      return u;
-    }));
-    // If we blocked the active user themselves
+  const banUser = useCallback(async (userId: string) => {
+    // Optimistic local update for instant UI…
+    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, isBlocked: true } : u)));
     if (userId === currentUser.id) {
       setCurrentUser(prev => ({ ...prev, isBlocked: true }));
+    }
+    // …then PERSIST to Firestore (rules allow an admin to write isBlocked). The
+    // bid path reads isBlocked server-side, so without this write the ban never
+    // took effect (it was a local-only stub).
+    try {
+      await updateDoc(doc(db, 'users', userId), { isBlocked: true, blockedReason: 'admin_ban' });
+    } catch (err: any) {
+      console.error('banUser: failed to persist block', err);
+      // roll back the optimistic UI so it doesn't lie about a block that didn't save
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, isBlocked: false } : u)));
+      if (userId === currentUser.id) setCurrentUser(prev => ({ ...prev, isBlocked: false }));
+      showToast({ title: language === 'ar' ? 'تعذّر حظر العضو' : 'Could not block user', message: err?.message || '', type: 'warn' });
+      return;
     }
 
     const targetU = users.find(u => u.id === userId);
@@ -3812,19 +3820,30 @@ const fetchIP = async () => {
       details: 'Banned due to bidding spam / non-payment.'
     };
     setAdminActions(prev => [action, ...prev]);
-  }, [users, currentUser]);
+  }, [users, currentUser, showToast, language]);
 
-  const unbanUser = useCallback((userId: string) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return { ...u, isBlocked: false };
-      }
-      return u;
-    }));
+  const unbanUser = useCallback(async (userId: string) => {
+    // Optimistic local update…
+    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, isBlocked: false } : u)));
     if (userId === currentUser.id) {
       setCurrentUser(prev => ({ ...prev, isBlocked: false }));
     }
-  }, [currentUser]);
+    // …then PERSIST: clear isBlocked AND remove blockedReason so the account is
+    // fully un-restricted (e.g. a 'payment_default' block set by the enforcer).
+    // Without this write the UNBAN button was a local-only stub — the user stayed
+    // blocked server-side (placeBid reads isBlocked from Firestore).
+    // Note: if a defaulted order is still in `waiting_payment` past its deadline,
+    // the paymentDefaultEnforcer cron can re-block within 30 min — resolve/cancel
+    // that order too to make the unban stick.
+    try {
+      await updateDoc(doc(db, 'users', userId), { isBlocked: false, blockedReason: deleteField() });
+    } catch (err: any) {
+      console.error('unbanUser: failed to persist unblock', err);
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, isBlocked: true } : u)));
+      if (userId === currentUser.id) setCurrentUser(prev => ({ ...prev, isBlocked: true }));
+      showToast({ title: language === 'ar' ? 'تعذّر فك الحظر' : 'Could not unblock user', message: err?.message || '', type: 'warn' });
+    }
+  }, [currentUser, showToast, language]);
 
   // ESCROW RELEASES (CRITICAL MONEY FLOW SYSTEM)
   const releaseEscrow = useCallback(async (escrowId: string) => {
