@@ -122,4 +122,10 @@ describe('computeSoftCloseEnd', () => {
   it('resets to a full window even for a bid at 1s remaining (soft close, not additive)', () => {
     expect(computeSoftCloseEnd(now + 1000, now, 30000, 30000)).toBe(now + 30000);
   });
+  it('never SHORTENS the auction under an asymmetric config (extend < window)', () => {
+    // bid at 20s remaining, window 30s, extend 15s: now+15 would shorten -> keep now+20
+    expect(computeSoftCloseEnd(now + 20000, now, 30000, 15000)).toBe(now + 20000);
+    // bid at 8s remaining, same config: now+15 is later -> extend to now+15
+    expect(computeSoftCloseEnd(now + 8000, now, 30000, 15000)).toBe(now + 15000);
+  });
 });

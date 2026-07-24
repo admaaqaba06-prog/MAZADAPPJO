@@ -21,4 +21,9 @@ describe('compactJod', () => {
     expect(compactJod(NaN as unknown as number)).toBe('0');
     expect(compactJod(-5)).toBe('0');
   });
+  it('promotes the 999.95K–999.999K rounding edge to 1M, never "1000K"', () => {
+    expect(compactJod(999999)).toBe('1M');
+    expect(compactJod(999950)).toBe('1M');
+    expect(compactJod(999499)).toBe('999.5K');
+  });
 });

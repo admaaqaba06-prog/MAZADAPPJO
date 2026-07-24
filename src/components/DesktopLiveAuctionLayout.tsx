@@ -781,7 +781,10 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {/* Quick Bid Multipliers (hidden until the auction is open) */}
               {isAuctionOpen(activeAuction?.status) && (() => {
                 const inc = activeAuction?.minIncrement || 10;
-                const base = minNextBid(activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
+                // Derive the next-bid tiers from the AUTHORITATIVE doc price, never
+                // the optimistic activePrice — an in-flight overlay must not inflate
+                // the amounts these chips stage (would cause an overpay if the bid fails).
+                const base = minNextBid(activeAuction?.currentPrice ?? activePrice, activeAuction?.minIncrement, activeAuction?.totalBids || 0);
                 return (
                   <div className="flex gap-2 justify-center w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
                     {[base, base + inc, base + 2 * inc].map((amount) => (

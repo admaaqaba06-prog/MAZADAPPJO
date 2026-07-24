@@ -72,7 +72,10 @@ function resolveAntiSnipe(auctionData) {
 }
 function computeSoftCloseEnd(currentEndMs, nowMs, windowMs, extendMs) {
   const remaining = currentEndMs - nowMs;
-  if (remaining > 0 && remaining < windowMs) return nowMs + extendMs;
+  // Soft close only ever EXTENDS. Under an asymmetric config (extend < window)
+  // a naive `now + extend` could land before the current end and shorten the
+  // auction — never do that; take the later of the two.
+  if (remaining > 0 && remaining < windowMs) return Math.max(currentEndMs, nowMs + extendMs);
   return currentEndMs;
 }
 

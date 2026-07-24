@@ -3,7 +3,8 @@
 export function compactJod(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '0';
   const trim = (v: number) => String(Number(v.toFixed(1))); // drop trailing .0
-  if (n >= 1_000_000) return `${trim(n / 1_000_000)}M`;
+  // 999_950 rounds up to 1.0M at one decimal — promote so we never render "1000K".
+  if (n >= 999_950) return `${trim(n / 1_000_000)}M`;
   if (n >= 1_000) return `${trim(n / 1_000)}K`;
   return String(Math.round(n));
 }
