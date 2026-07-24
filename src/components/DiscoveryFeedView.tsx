@@ -32,7 +32,6 @@ import {
   Coins
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
-import { CountdownStoriesBar } from './CountdownStoriesBar';
 import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
 
@@ -356,7 +355,6 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView,
     language,
     setLanguage,
-    approveListing,
     currentUser,
     notifications,
     setShowNotifications,
@@ -438,15 +436,6 @@ export const DiscoveryFeedView: React.FC = () => {
       return true;
     });
   }, [auctions, activeTab, searchTerm, selectedCategory, categoriesList]);
-
-  const pendingListingsToDisplay = React.useMemo(() => {
-    const isStrictAdmin = isAdminUser(currentUser);
-    return auctions.filter(a => {
-      if (a.status !== 'processing' && a.status !== 'pending') return false;
-      if (isStrictAdmin) return true; // Admins can see all pending lots to approve on-the-fly
-      return a.sellerId === currentUser?.id; // Regular merchants see their own under-review lots
-    });
-  }, [auctions, currentUser]);
 
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
@@ -565,52 +554,93 @@ export const DiscoveryFeedView: React.FC = () => {
       id="discovery-feed-root"
     >
       
-      {/* Top Mobile Bar Header - Exactly like the Screenshot, hidden on desktop */}
-      <div className="p-4 flex items-center justify-between sticky top-0 bg-white z-40 lg:hidden">
-        <div className="flex items-center gap-2">
-          {/* Orange Brand Square M logo */}
-          <div className="w-9 h-9 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base shadow-sm">
-            M
+      {/* Sticky top zone: mobile bar (mobile only) + search/filters (all breakpoints).
+          Grouped under ONE sticky wrapper so they stack as a unit on scroll —
+          two independent `sticky top-0` siblings would overlap instead of stack. */}
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-100" id="discover-sticky-header">
+        {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
+        <div className="p-4 flex items-center justify-between lg:hidden">
+          <div className="flex items-center gap-2">
+            {/* Orange Brand Square M logo */}
+            <div className="w-9 h-9 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base shadow-sm">
+              M
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-gray-950 font-sans">
+                {isAr ? 'مزاد جو' : 'Mazad Jo'}
+              </h1>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-gray-950 font-sans">
-              {isAr ? 'مزاد جو' : 'Mazad Jo'}
-            </h1>
+
+          {/* Action Header controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+              className="px-2.5 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-[11px] font-bold text-gray-700 font-sans transition-all shrink-0"
+              id="discover-lang-btn"
+            >
+              {language === 'en' ? 'العربية' : 'EN'}
+            </button>
+
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="relative p-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+              title={isAr ? 'الإشعارات' : 'Notifications'}
+              id="mobile-header-bell"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#E85D04] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveView('upload')}
+              className="px-3 py-1.5 border border-[#E85D04] bg-[#E85D04]/5 hover:bg-[#E85D04]/10 rounded-xl text-[11px] font-bold text-[#E85D04] flex items-center gap-1 transition-all shrink-0"
+              id="sell-wizard-btn"
+            >
+              <Plus className="w-3 h-3 stroke-[3]" />
+              <span>{isAr ? 'بيع' : 'Sell'}</span>
+            </button>
           </div>
         </div>
 
-        {/* Action Header controls */}
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-            className="px-2.5 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-[11px] font-bold text-gray-700 font-sans transition-all shrink-0"
-            id="discover-lang-btn"
-          >
-            {language === 'en' ? 'العربية' : 'EN'}
-          </button>
+        {/* Search + category pills — moved here from lower on the page (was
+            buried below the hero/rail). Sticky on both breakpoints: on mobile
+            it sticks together with the bar above via the shared wrapper; on
+            desktop the bar is hidden so this sticks alone, immediately below
+            the always-visible global header (DesktopFrame.tsx), which lives
+            outside this scrollable component and never moves. */}
+        <div className="px-4 pb-3 pt-3 lg:pt-4 space-y-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={`w-full bg-[#F2F2EF] border border-transparent rounded-[18px] py-3.5 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:bg-white focus:border-gray-250 transition-all font-sans`}
+            />
+            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-4 w-4.5 h-4.5 text-gray-400`} />
+          </div>
 
-          <button
-            onClick={() => setShowNotifications(true)}
-            className="relative p-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
-            title={isAr ? 'الإشعارات' : 'Notifications'}
-            id="mobile-header-bell"
-          >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#E85D04] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-
-          <button 
-            onClick={() => setActiveView('upload')}
-            className="px-3 py-1.5 border border-[#E85D04] bg-[#E85D04]/5 hover:bg-[#E85D04]/10 rounded-xl text-[11px] font-bold text-[#E85D04] flex items-center gap-1 transition-all shrink-0"
-            id="sell-wizard-btn"
-          >
-            <Plus className="w-3 h-3 stroke-[3]" /> 
-            <span>{isAr ? 'بيع' : 'Sell'}</span>
-          </button>
+          {/* Elegant Horizontal Categories Carousel */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 font-sans">
+            {categoriesList.map(cat => {
+              const isSelected = selectedCategory === cat.name;
+              return (
+                <button
+                  key={cat.name}
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs' : 'bg-white text-gray-700 border-gray-200/80 hover:bg-gray-50'}`}
+                >
+                  {cat.icon}
+                  <span>{isAr ? cat.arName : cat.name}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -644,7 +674,7 @@ export const DiscoveryFeedView: React.FC = () => {
       )}
 
       {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
-      <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
+      <div className="hidden lg:block mb-6 mt-2" id="discover-desktop-header">
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
             {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
@@ -654,15 +684,6 @@ export const DiscoveryFeedView: React.FC = () => {
               ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
               : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
           </p>
-        </div>
-        <div>
-          <button
-            onClick={handleWatchLive}
-            className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5" />
-            <span>{isAr ? 'شاهد البث الآن' : 'Watch Live Drops'}</span>
-          </button>
         </div>
       </div>
 
@@ -686,7 +707,8 @@ export const DiscoveryFeedView: React.FC = () => {
               {isAr ? 'مزادات فورية بالوقت الحقيقي مع حماية وضمان أموال المشترين.' : 'Real-time auctions with secure escrow payments.'}
             </p>
 
-            {/* Real CTA: join (non-members) / watch live or browse (members) */}
+            {/* Real CTA: join (non-members) / browse (members) — the green
+                live-now banner above is the sole "watch live" entry point. */}
             {!isMember ? (
               <button
                 onClick={() => setActiveView('wallet')}
@@ -694,15 +716,6 @@ export const DiscoveryFeedView: React.FC = () => {
                 id="mobile-hero-join-cta"
               >
                 {isAr ? 'انضم من ١ دينار' : 'Join from 1 JD'}
-              </button>
-            ) : liveNowAuctions.length > 0 ? (
-              <button
-                onClick={handleWatchLive}
-                className="mt-4 self-start px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-red-900/30 active:scale-95 cursor-pointer flex items-center gap-1.5"
-                id="mobile-hero-live-cta"
-              >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                {isAr ? 'شوف المباشر' : 'Watch live'}
               </button>
             ) : (
               <button
@@ -718,13 +731,10 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
-      {/* Countdown Stories Bar - Horizontally Scrollable rectangular cards */}
-      <CountdownStoriesBar />
-
-      {/* Search Input bar with soft beige/gray layout bg */}
-      <div className="p-4 space-y-4">
-        {/* Join Funnel Banner (Non-members only): 3-step money story + join CTA */}
-        {currentUser?.subscriptionStatus !== 'active' && (
+      {/* Join Funnel Banner (Non-members only): 3-step money story + join CTA.
+          Unrelated to the redesign — left in its normal place in the page flow. */}
+      {currentUser?.subscriptionStatus !== 'active' && (
+        <div className="p-4">
           <div
             className="bg-orange-50/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
@@ -770,36 +780,8 @@ export const DiscoveryFeedView: React.FC = () => {
               {isAr ? 'انضم الآن — ١ د.أ' : 'Join now — 1 JD'}
             </button>
           </div>
-        )}
-
-        <div className="relative">
-          <input
-            type="text"
-            placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className={`w-full bg-[#F2F2EF] border border-transparent rounded-[18px] py-3.5 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:bg-white focus:border-gray-250 transition-all font-sans`}
-          />
-          <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-4 w-4.5 h-4.5 text-gray-400`} />
         </div>
-
-        {/* Elegant Horizontal Categories Carousel */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 font-sans">
-          {categoriesList.map(cat => {
-            const isSelected = selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.name}
-                onClick={() => setSelectedCategory(cat.name)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs' : 'bg-white text-gray-700 border-gray-200/80 hover:bg-gray-50'}`}
-              >
-                {cat.icon}
-                <span>{isAr ? cat.arName : cat.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Won Orders Shortcut Banner / Widget */}
       {(() => {
@@ -834,67 +816,6 @@ export const DiscoveryFeedView: React.FC = () => {
         );
       })()}
 
-      {/* Pending Listings Banner (For Admins & Merchants) */}
-      {pendingListingsToDisplay.length > 0 && (() => {
-        const isStrictAdmin = isAdminUser(currentUser);
-        return (
-          <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
-            <div className="flex gap-2 items-start">
-              <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
-              <div>
-                <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
-                  {isStrictAdmin 
-                    ? (isAr ? '🛡️ مراجعة واعتماد المزادات المعلقة' : '🛡️ PENDING AUCTIONS RELEASES')
-                    : (isAr ? '⏳ مزادك قيد المراجعة والتحقق' : '⏳ YOUR UNDER REVIEW AUCTION')
-                  }
-                </h4>
-                <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
-                  {isStrictAdmin
-                    ? (isAr ? 'بصفتك مديراً للمنصة، يمكنك اعتماد وتفعيل هذه المزادات مباشرة لتظهر لجميع المزايدين:' : 'As an Administrator, you can instantly approve and launch these lots to the public live feed:')
-                    : (isAr ? 'تم رفع معروضك بنجاح وهو قيد المراجعة الأمنية وسيظهر للمزايدين فور اعتماده:' : 'Your listing was successfully uploaded. It will appear on the active live feed once approved:')
-                  }
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-2 pt-1 border-t border-orange-100">
-              {pendingListingsToDisplay.map(item => (
-                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-150 p-2.5 rounded-xl gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" loading="lazy" width="32" height="32" />
-                    <div className="min-w-0">
-                      <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
-                      <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
-                        {item.startingPrice.toLocaleString()} JOD
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-1.5 shrink-0">
-                    {isStrictAdmin ? (
-                      <button
-                        onClick={() => {
-                          if (window.confirm(isAr ? `هل أنت متأكد من رغبتك في تفعيل المزاد "${item.title}" فوراً؟` : `Are you sure you want to approve "${item.title}" and go live now?`)) {
-                            approveListing(item.id);
-                          }
-                        }}
-                        className="text-[10px] font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        ✅ {isAr ? 'موافقة وتفعيل البث' : 'Approve & Go Live'}
-                      </button>
-                    ) : (
-                      <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
-                        {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Tabs active live feed & upcoming drops with Fire & Calendar icon */}
       <div className="px-4 flex border-b border-gray-100 mb-3">
         <button
@@ -924,7 +845,9 @@ export const DiscoveryFeedView: React.FC = () => {
       </div>
 
       {/* Dual-Column High Fidelity grid list of live streams preview */}
-      <div className="flex-grow px-4 pb-12" id="discover-feed-grid">
+      {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
+          pinned sticky header (bar+search+pills ≈ 190px mobile / search+pills ≈ 130px desktop). */}
+      <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-36" id="discover-feed-grid">
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
