@@ -959,7 +959,7 @@ export const SellerCenterView: React.FC = () => {
                     {myOrders.slice(0, 4).map((order) => (
                       <div key={order.id} className="py-3 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+                          <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-gray-200">
                             <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
                           </div>
                           <div>
@@ -969,7 +969,7 @@ export const SellerCenterView: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="font-black text-gray-900">{order.winningBidAmount} JOD</p>
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase ${
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
                             order.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                             order.status === 'disputed' ? 'bg-rose-50 text-rose-700' :
                             'bg-orange-50 text-orange-700'
@@ -1035,14 +1035,14 @@ export const SellerCenterView: React.FC = () => {
                 <button
                   key={sub.id}
                   onClick={() => setActiveAuctionTab(sub.id as any)}
-                  className={`flex-1 py-2 text-center rounded-lg text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     activeAuctionTab === sub.id 
                       ? 'bg-white text-gray-950 shadow-xs border border-gray-200' 
                       : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
                   <span>{sub.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeAuctionTab === sub.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-150 text-gray-600'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeAuctionTab === sub.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
                     {sub.count}
                   </span>
                 </button>
@@ -1101,12 +1101,12 @@ export const SellerCenterView: React.FC = () => {
 
                         {/* Rejection reason back to the seller (spec §6) + resubmit affordance */}
                         {(auction.status === 'rejected' || auction.approvalStatus === 'rejected') && auction.rejectionReason && (
-                          <div className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-lg space-y-1.5">
+                          <div className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-xl space-y-1.5">
                             <p>{isAr ? 'سبب الرفض: ' : 'Rejection reason: '}{auction.rejectionReason}</p>
                             {auction.status === 'rejected' && (
                               <button
                                 onClick={() => handleEditClick(auction)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
                               >
                                 <RefreshCw className="w-3 h-3" />
                                 <span>{st.resubmit}</span>
@@ -1190,7 +1190,7 @@ export const SellerCenterView: React.FC = () => {
               <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
                 <button 
                   onClick={() => setSelectedOrderId(null)}
-                  className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-150 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
+                  className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -1260,7 +1260,7 @@ export const SellerCenterView: React.FC = () => {
 
                             {/* Payment Status */}
                             <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
                                 order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
                               }`}>
                                 {order.paymentStatus}
@@ -1269,7 +1269,7 @@ export const SellerCenterView: React.FC = () => {
 
                             {/* Shipping Status */}
                             <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
                                 order.shippingStatus === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
                                 order.shippingStatus === 'shipped' ? 'bg-blue-50 text-blue-700' :
                                 'bg-zinc-100 text-zinc-500'
@@ -1280,7 +1280,7 @@ export const SellerCenterView: React.FC = () => {
 
                             {/* Escrow Status */}
                             <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
                                 order.escrowStatus === 'released' ? 'bg-emerald-50 text-emerald-700' :
                                 order.escrowStatus === 'refunded' ? 'bg-rose-50 text-rose-700' :
                                 'bg-amber-50 text-amber-700'
@@ -1424,7 +1424,7 @@ export const SellerCenterView: React.FC = () => {
                             )}
                           </td>
                           <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
                               w.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                               w.status === 'rejected' ? 'bg-rose-50 text-rose-700' :
                               'bg-amber-50 text-amber-700'
