@@ -183,7 +183,10 @@ export const SubscriptionView: React.FC = () => {
     setLoading(true);
     try {
       const ok = await subscribeUser(selectedPlan.price, paymentProofImage || undefined, transferFullName, transferPhone, selectedPlan.id);
-      if (ok) setSubmitted(true);
+      // Reset `upgrading` on success so an active member returns to the dashboard
+      // (where the 'upgrade under review' banner then renders) instead of being
+      // stranded on the pricing form — also closes the double-submit window.
+      if (ok) { setSubmitted(true); setUpgrading(false); }
     } finally {
       setLoading(false);
     }
@@ -332,6 +335,16 @@ export const SubscriptionView: React.FC = () => {
           </div>
         ) : (
         <>
+        {/* An active member who tapped Upgrade can bail out of the pricing form
+            back to their still-active membership dashboard (upgrading = false). */}
+        {currentUser?.subscriptionStatus === 'active' && upgrading && (
+          <button
+            onClick={() => setUpgrading(false)}
+            className="mb-4 text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 cursor-pointer"
+          >
+            ← {isAr ? 'رجوع للعضوية' : 'Back to membership'}
+          </button>
+        )}
         <div className="text-center space-y-3 mb-8">
           <div className="mx-auto w-10 h-10 rounded-full bg-orange-100/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-5 h-5 fill-current text-white stroke-[#FF6B00]" />

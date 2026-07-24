@@ -3000,12 +3000,19 @@ const fetchIP = async () => {
         price
       });
 
+      // Mirror the server helper (userStatusForSubscriptionRequest): an already-
+      // active member submitting an UPGRADE must NOT be downgraded to 'pending'
+      // — bidding is gated on this LOCAL subscriptionStatus, so flipping it would
+      // revoke their access until the Firestore listener re-synced. Replicated
+      // inline because that helper is a Cloud Function (CJS) module and cannot be
+      // imported into client src/ across the ESM boundary.
       setCurrentUser(prev => {
         if (!prev) return prev;
-        return { 
-          ...prev, 
-          subscriptionStatus: 'pending' as const, 
-          subscriptionExpiry: null, 
+        const keepActive = prev.subscriptionStatus === 'active';
+        return {
+          ...prev,
+          subscriptionStatus: keepActive ? ('active' as const) : ('pending' as const),
+          subscriptionExpiry: keepActive ? prev.subscriptionExpiry : null,
           paymentProofImage: downloadURL,
           transferFullName,
           transferPhone
@@ -3014,10 +3021,14 @@ const fetchIP = async () => {
 
       setUsers(prev => prev.map(u => {
         if (currentUser && u.id === currentUser.id) {
-          return { 
-            ...u, 
-            subscriptionStatus: 'pending' as const, 
-            subscriptionExpiry: null, 
+          // Same server-mirroring rule as above: an active member upgrading keeps
+          // 'active' + their existing expiry so bidding (gated on local status)
+          // isn't revoked; everyone else flips to pending with null expiry.
+          const keepActive = u.subscriptionStatus === 'active';
+          return {
+            ...u,
+            subscriptionStatus: keepActive ? ('active' as const) : ('pending' as const),
+            subscriptionExpiry: keepActive ? u.subscriptionExpiry : null,
             paymentProofImage: downloadURL,
             transferFullName,
             transferPhone
