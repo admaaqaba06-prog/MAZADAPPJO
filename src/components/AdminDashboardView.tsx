@@ -1035,6 +1035,7 @@ export const AdminDashboardView: React.FC = () => {
     } catch (err: any) {
       console.error('Error resolving dispute:', err);
       alert(isAr ? `❌ فشل حل النزاع: ${err.message || String(err)}` : `❌ Failed to resolve dispute: ${err.message || String(err)}`);
+      throw err;
     }
   };
 
