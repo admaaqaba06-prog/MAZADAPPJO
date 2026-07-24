@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    
+
     <!-- PWA Core Setup -->
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,31 +12,34 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    
+
     <!-- Standard SEO Meta Tags -->
     <title>MAZAD JO | Ultra-Premium Live Commerce & Social Auctions</title>
-    <meta name="description" content="Jordan's premier live-video luxury auction house. Bid on exclusive high-spec cars, bespoke luxury watches, designer streetwear, and Dabouq real estate with active CliQ Escrow." />
-    <meta name="keywords" content="mazad jo, jordan auctions, luxury auction amman, live video commerce, cliq escrow, rolex amman, porsche jordan, real estate dabouq" />
+    <meta name="description" content="Jordan's live-video auction marketplace. Bid on cars, watches, electronics, and real estate in live auctions. Pay via CliQ — Mazad holds your payment until you confirm receipt." />
+    <meta name="keywords" content="mazad jo, jordan auctions, luxury auction amman, live video commerce, cliq payments, watches jordan, cars jordan, real estate amman" />
     <meta name="author" content="MAZAD JO Ltd." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
-    <link rel="canonical" href="https://mazad.jo" />
+    <link rel="canonical" href="https://www.mazad-jo.com" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://mazad.jo" />
+    <meta property="og:url" content="https://www.mazad-jo.com" />
     <meta property="og:title" content="MAZAD JO | Ultra-Premium Live Commerce & Social Auctions" />
-    <meta property="og:description" content="Step into the arena of live bidding. Secure your verified CliQ pass, watch high-fidelity video streams, and acquire certified assets safely with automatic escrow protection." />
-    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:description" content="Live video auctions in Jordan. Bid in real time, pay via CliQ, and Mazad holds your payment until you receive and confirm your item." />
+    <!-- TODO(MJ): provide a 1200x630 PNG/JPG social preview image at /og-image.png, then add:
+         <meta property="og:image" content="https://www.mazad-jo.com/og-image.png" />
+         <meta name="twitter:image" content="https://www.mazad-jo.com/og-image.png" />
+         The previous /icon.svg reference was removed: SVG + relative URLs do not render on WhatsApp/Twitter,
+         and the raster icons currently in public/ (icon-192.png, icon-512.png) are corrupted files. -->
     <meta property="og:site_name" content="MAZAD JO" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:locale:alternate" content="ar_JO" />
+    <meta property="og:locale" content="ar_JO" />
+    <meta property="og:locale:alternate" content="en_US" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://mazad.jo" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:url" content="https://www.mazad-jo.com" />
     <meta name="twitter:title" content="MAZAD JO | Live Commerce & Luxury Auctions" />
-    <meta name="twitter:description" content="Live video shopping and certified luxury auctions with real-time escrows. Jordan's premier marketplace." />
-    <meta name="twitter:image" content="/icon.svg" />
+    <meta name="twitter:description" content="Live video shopping and luxury auctions in Jordan. Pay via CliQ — your payment is held by Mazad until you confirm receipt." />
 
     <!-- Preconnect to Google Fonts & non-blocking font load (media=print → all swap) for swift text LCP -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -52,26 +55,26 @@
       {
         "@context": "https://schema.org",
         "@type": "OnlineStore",
-        "@id": "https://mazad.jo#organization",
+        "@id": "https://www.mazad-jo.com#organization",
         "name": "MAZAD JO",
-        "url": "https://mazad.jo",
-        "logo": "https://mazad.jo/icon.svg",
-        "description": "Jordan's premier live commerce platform for secure luxury auctions with CliQ escrow protection.",
+        "url": "https://www.mazad-jo.com",
+        "logo": "https://www.mazad-jo.com/icon.svg",
+        "description": "Jordan's live commerce platform for luxury auctions. Buyers pay via CliQ and Mazad holds the payment until the buyer receives and confirms the item.",
         "currenciesAccepted": "JOD",
-        "paymentAccepted": "Bank Transfer, CliQ Escrow, Credit Card",
+        "paymentAccepted": "Bank Transfer, CliQ, Credit Card",
         "areaServed": {
           "@type": "Country",
           "name": "Jordan"
         },
         "potentialAction": {
           "@type": "SearchAction",
-          "target": "https://mazad.jo/?q={search_term_string}",
+          "target": "https://www.mazad-jo.com/?q={search_term_string}",
           "query-input": "required name=search_term_string"
         }
       }
     </script>
 
-    <!-- Inline Critical CSS for the login screen to achieve LCP < 2.5s -->
+    <!-- Inline Critical CSS for the loading splash to achieve LCP < 2.5s -->
     <style id="critical-path-css">
       html, body {
         margin: 0;
@@ -97,33 +100,22 @@
         position: relative;
         overflow-x: hidden;
       }
-      .critical-header {
-        position: absolute;
-        top: 1.5rem;
-        left: 1.5rem;
-        right: 1.5rem;
+      .critical-splash {
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
         align-items: center;
-        max-width: 80rem;
-        width: calc(100% - 3rem);
-        margin: 0 auto;
-        z-index: 10;
-      }
-      .critical-logo {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        gap: 1rem;
+        margin: auto 0;
       }
       .critical-logo-m {
-        width: 2rem;
-        height: 2rem;
-        border-radius: 0.5rem;
+        width: 3.5rem;
+        height: 3.5rem;
+        border-radius: 0.875rem;
         background-color: #FF6B00;
         color: #ffffff;
         font-family: monospace;
         font-weight: 900;
-        font-size: 0.875rem;
+        font-size: 1.5rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -132,101 +124,19 @@
       .critical-logo-text {
         font-family: monospace;
         font-weight: 900;
-        font-size: 1rem;
+        font-size: 1.25rem;
         color: #111111;
         letter-spacing: -0.025em;
       }
-      .critical-lang-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-        padding: 0.375rem 0.75rem;
-        border-radius: 9999px;
-        border: 1px solid #e5e5e5;
-        background-color: #ffffff;
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #111111;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-      }
-      .critical-globe {
-        width: 0.875rem;
-        height: 0.875rem;
-        stroke: #a3a3a3;
-        stroke-width: 2;
-        fill: none;
-      }
-      .critical-card {
-        width: 100%;
-        max-width: 28rem;
-        background-color: #ffffff;
-        border-radius: 1.5rem;
-        padding: 1.5rem;
-        border: 1px solid #f5f5f5;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-        margin: 4rem 0;
-        z-index: 10;
-      }
-      @media (min-width: 768px) {
-        .critical-card {
-          padding: 2rem;
-        }
-      }
-      .critical-title {
-        font-size: 1.5rem;
-        font-weight: 900;
-        color: #111111;
-        letter-spacing: -0.025em;
-        text-align: center;
-        margin-top: 0;
-        margin-bottom: 1.5rem;
-      }
-      .critical-tabs {
-        display: flex;
-        border-bottom: 1px solid #f5f5f5;
-        margin-bottom: 1.5rem;
-      }
-      .critical-tab {
-        flex: 1;
-        padding-bottom: 0.75rem;
-        text-align: center;
+      .critical-loading {
         font-size: 0.875rem;
-        font-weight: 700;
+        font-weight: 500;
         color: #a3a3a3;
-        border-bottom: 2px solid transparent;
+        animation: critical-pulse 1.4s ease-in-out infinite;
       }
-      .critical-tab.active {
-        color: #111111;
-        font-weight: 900;
-        border-bottom-color: #FF6B00;
-      }
-      .critical-btn {
-        width: 100%;
-        height: 2.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
-        font-size: 0.875rem;
-        font-weight: 700;
-        border-radius: 9999px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        margin-bottom: 0.75rem;
-        border: none;
-      }
-      .critical-btn-google {
-        background-color: #ffffff;
-        border: 1px solid #e5e5e5;
-        color: #111111;
-      }
-      .critical-btn-facebook {
-        background-color: #1877F2;
-        color: #ffffff;
-      }
-      .critical-icon {
-        width: 1.25rem;
-        height: 1.25rem;
-        flex-shrink: 0;
+      @keyframes critical-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
       }
       .critical-footer {
         text-align: center;
@@ -243,47 +153,16 @@
   </head>
   <body>
     <div id="root">
-      <!-- Critical Render Skeleton of the Login Screen to minimize LCP/CLS during bootstrapping -->
+      <!-- Critical Render Skeleton: neutral brand loading splash to minimize LCP/CLS during bootstrapping -->
       <div class="critical-root">
-        <header class="critical-header">
-          <div class="critical-logo">
-            <div class="critical-logo-m">M</div>
-            <span class="critical-logo-text">MAZAD JO</span>
-          </div>
-          <div class="critical-lang-btn">
-            <svg class="critical-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-            <span>العربية</span>
-          </div>
-        </header>
-
-        <div class="critical-card">
-          <h1 class="critical-title">Join MAZAD JO!</h1>
-          
-          <div class="critical-tabs">
-            <div class="critical-tab active">Sign up</div>
-            <div class="critical-tab">Log in</div>
-          </div>
-
-          <div class="critical-btn critical-btn-google">
-            <svg class="critical-icon" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.53-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-8.77z"/>
-              <path fill="#34A853" d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.08 1.16-3.14 0-5.8-2.11-6.75-4.96H1.31v3.15C3.29 21.35 7.37 24 12 24z"/>
-              <path fill="#FBBC05" d="M5.25 14.24A7.18 7.18 0 0 1 4.88 12c0-.79.13-1.57.37-2.31V6.54H1.31A11.94 11.94 0 0 0 0 12c0 1.92.45 3.74 1.25 5.37l3.9-3.13z"/>
-              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.29 2.65 1.31 6.54l3.94 3.12c.95-2.85 3.61-4.91 6.75-4.91z"/>
-            </svg>
-            <span>Continue with Google</span>
-          </div>
-
-          <div class="critical-btn critical-btn-facebook">
-            <svg class="critical-icon" fill="currentColor" viewBox="0 0 24 24">
-              <path fill-rule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clip-rule="evenodd"/>
-            </svg>
-            <span>Continue with Facebook</span>
-          </div>
+        <div class="critical-splash">
+          <div class="critical-logo-m">M</div>
+          <span class="critical-logo-text">MAZAD JO</span>
+          <span class="critical-loading">جاري التحميل…</span>
         </div>
 
         <footer class="critical-footer">
-          100% Secure CliQ Verification Protected Escrows
+          الدفع عبر كليك — مزاد يحتفظ بمبلغك حتى تأكيد الاستلام
         </footer>
       </div>
     </div>
