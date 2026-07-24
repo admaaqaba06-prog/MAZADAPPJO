@@ -537,6 +537,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   // Was the staged amount bumped by a rival bid during the ≤10s confirm window?
   const [priceMoved, setPriceMoved] = useState(false);
 
+  // Custom bid amount (bottom-dock secondary action). Local-only UI state; the
+  // actual bid still flows through the shared openConfirm/useBidFlow gate.
+  const [showCustom, setShowCustom] = useState(false);
+  const [customValue, setCustomValue] = useState('');
+
   // Open a fresh confirm (resets any stale "price moved" flag).
   const openConfirm = (amount: number) => {
     setPriceMoved(false);
@@ -566,6 +571,32 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
   const handleLocalBid = () => {
     openConfirm(nextBidAmount);
   };
+
+  // Reveal / prefill the inline custom-amount input.
+  const toggleCustom = () => {
+    setShowCustom((prev) => {
+      const nextOpen = !prev;
+      if (nextOpen) setCustomValue(String(nextBidAmount));
+      return nextOpen;
+    });
+  };
+
+  // Stage a custom amount through the EXISTING confirm path (no new bid route).
+  // Ignore anything below the current minimum next bid.
+  const submitCustom = () => {
+    const amount = Number(customValue);
+    if (!Number.isFinite(amount) || amount < nextBidAmount) return;
+    setShowCustom(false);
+    openConfirm(amount);
+  };
+
+  // Condition chip label (structured spec field; static per lot).
+  const conditionChip =
+    auction?.condition === 'new'
+      ? (isAr ? 'جديد' : 'New')
+      : auction?.condition === 'used'
+        ? (isAr ? 'مستعمل' : 'Used')
+        : null;
 
   // Anti-snipe drama: red pulsing countdown under 10s (active reel only)
   const msLeft = auction?.endTime ? auction.endTime - serverNow() : Infinity;
@@ -643,14 +674,13 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
       `}</style>
 
       {/* ======================================================================
-          MEDIA PANE — the swipeable gallery + small status chips only.
-          Sized ~58% of the reel while active (bid panel owns the rest below);
-          full-bleed for the preloaded-but-not-active neighbour reel (no bid
-          panel renders for it, same as before this restructure).
+          MEDIA PANE — full-bleed swipeable gallery. The compact bid dock now
+          overlays the bottom of this same pane (Whatnot / TikTok Shop pattern)
+          instead of taking a 42% split below it.
           ====================================================================== */}
       <div
-        className="relative w-full shrink-0 overflow-hidden bg-black"
-        style={{ height: isActive ? '58%' : '100%' }}
+        className="relative w-full h-full overflow-hidden bg-black"
+        style={{ height: '100%' }}
         id={`reel-media-pane-${auction.id}`}
       >
         <MediaGallery
@@ -787,7 +817,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               3. FLOATING ACTION PANEL (TikTok Side Actions)
               ====================================================================== */}
           <div
-            style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 264px)', direction: isAr ? 'rtl' : 'ltr' }}
             className="absolute right-4 z-20 flex flex-col gap-3.5 items-center select-none animate-fade-in"
           >
             {/* Like appreciation button */}
@@ -837,7 +867,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               ====================================================================== */}
           {!isChatHidden && (
             <div
-              style={{ bottom: '84px', direction: isAr ? 'rtl' : 'ltr' }}
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 264px)', direction: isAr ? 'rtl' : 'ltr' }}
               className="absolute left-4 right-20 max-h-[85px] z-20 pointer-events-none flex flex-col justify-end overflow-hidden animate-fade-in"
             >
               <div className="space-y-1 p-1 flex flex-col justify-end">
@@ -871,7 +901,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
 
           {/* Chat text box trigger */}
           <div
-            style={{ bottom: '16px' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 196px)' }}
             className="absolute left-4 z-20"
           >
             <button
@@ -894,7 +924,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
           {/* Floating Chat Input form */}
           {showChatInput && (
             <div
-              style={{ bottom: '16px' }}
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 196px)' }}
               className="absolute left-4 right-4 z-30 animate-fade-in"
             >
               <form 
@@ -928,65 +958,26 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
       {/* END MEDIA PANE */}
 
       {/* ======================================================================
-          BID PANEL — opaque region below the media pane. Everything that used
-          to float on top of the video (price/timer/top-bidder row, tap-to-bid
-          button, price-moved confirm, first-bid coach) now lives here so it
-          never obscures the item photos/video (founder feedback from Wave 1).
-          Bid-flow wiring (useBidFlow/executeWithOptimism/confirm/cancel) is
-          untouched — only JSX position moved.
+          BID DOCK — compact translucent dock overlaid on the FULL-BLEED media
+          (Whatnot / TikTok Shop pattern). Replaces the old 42% below-media
+          panel. All bid-flow wiring (useBidFlow/executeWithOptimism/confirm/
+          cancel/openConfirm) is untouched — only JSX position + styling moved.
           ====================================================================== */}
       {isActive && (
         <div
-          className="relative flex-1 min-h-0 z-20 bg-zinc-950 border-t border-white/5 overflow-y-auto"
-          id={`reel-bid-panel-${auction.id}`}
+          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none"
+          id={`reel-bid-dock-${auction.id}`}
         >
           <div
-            style={{ direction: isAr ? 'rtl' : 'ltr' }}
-            className="w-full p-4 flex flex-col gap-3.5 select-none animate-fade-in"
+            style={{
+              direction: isAr ? 'rtl' : 'ltr',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)',
+            }}
+            className="pointer-events-auto w-full px-4 pt-16 pb-3 flex flex-col gap-2 select-none animate-fade-in bg-gradient-to-t from-black/95 via-black/80 to-transparent"
             id={`bidding-card-${auction.id}`}
           >
-            {/* Row 1: Product Title & Time Left (aligned nicely) */}
-            <div className="flex justify-between items-center gap-3">
-              <h3 className="text-sm font-black text-white truncate max-w-[70%]">
-                {auction.title}
-              </h3>
-              
-              <motion.div
-                animate={isSnipeWindow ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
-                transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
-                className={`inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${isSnipeWindow ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
-                <span>{reelTimeLeft}</span>
-              </motion.div>
-            </div>
-
-            {/* Row 2: Current Bid */}
-            <div className="flex items-center justify-between border-t border-b border-white/5 py-2">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                {isAr ? 'العطاء الحالي' : 'CURRENT BID'}
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-xl font-black text-[#FF6B00] font-mono transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
-                  <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString('en-US')} />
-                </span>
-                <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
-              </div>
-            </div>
-
-            {auction.reserveMet === false && (
-              <span className="text-xs font-semibold text-amber-500 -mt-2 text-right rtl:text-left">
-                {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
-              </span>
-            )}
-            {auction.reserveMet === true && (
-              <span className="text-xs font-semibold text-emerald-500 -mt-2 text-right rtl:text-left">
-                {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
-              </span>
-            )}
-
             {isEnded ? (
-              <div className="w-full bg-black/75 border border-amber-500/30 rounded-xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
+              <div className="relative w-full bg-black/70 border border-amber-500/30 rounded-2xl p-3 text-center backdrop-blur-md flex flex-col items-center justify-center gap-2 shadow-xl">
                 {(() => {
                   // hasUserBid / isUserWinner come from the component scope
                   // (hoisted prop + derivation above) — the old inline
@@ -1027,7 +1018,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                 })()}
               </div>
             ) : !isAuctionOpen(auction?.status) ? (
-              <div className="w-full rounded-xl bg-neutral-800 text-white text-center p-4">
+              <div className="relative w-full rounded-2xl bg-black/70 border border-white/10 backdrop-blur-md text-white text-center p-4">
                 <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
                 <div className="text-lg font-bold">
                   {auction?.scheduledStartAt ? formatAmmanClock(auction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
@@ -1035,7 +1026,8 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </div>
             ) : (
               <>
-                {/* Row 3: Winning / Outbid status feed with instant feedback */}
+                {/* STATUS LINE — winning / outbid feed with instant feedback +
+                    inline "retake the lead" CTA for the losing state. */}
                 {(() => {
                   const isLosing = hasUserBid && !isUserWinner && !justBidded;
                   return (
@@ -1056,14 +1048,14 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                           : { boxShadow: '0 0 0 0 rgba(244,63,94,0)' }
                       }
                       transition={{ duration: 1.2, ease: 'easeOut' }}
-                      className={`py-1.5 px-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-[11px] font-black tracking-wide border transition-all duration-300 ${
+                      className={`py-1.5 px-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-[11px] font-black tracking-wide border backdrop-blur-md transition-all duration-300 ${
                         justBidded
                           ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-400 animate-pulse"
                           : isUserWinner
                           ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
                           : isLosing
                           ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
-                          : "bg-white/5 border-white/5 text-zinc-400"
+                          : "bg-white/5 border-white/10 text-zinc-300"
                       }`}
                     >
                       <span className="flex items-center justify-center gap-1.5">
@@ -1084,6 +1076,67 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   );
                 })()}
 
+                {/* PRODUCT ROW — thumbnail · title + condition/category chip ·
+                    big current price + urgency countdown on the trailing side. */}
+                <div className="flex items-center gap-3">
+                  {mediaItems[0] && (
+                    <div className="w-11 h-11 rounded-xl overflow-hidden border border-white/15 bg-black/40 shrink-0 shadow-md">
+                      <img
+                        src={mediaItems[0].url}
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-black text-white truncate leading-tight">
+                      {auction.title}
+                    </h3>
+                    {(conditionChip || auction?.category) && (
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        {conditionChip && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10 text-[8.5px] font-black uppercase tracking-wider text-zinc-200 leading-none">
+                            {conditionChip}
+                          </span>
+                        )}
+                        {auction?.category && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8.5px] font-black uppercase tracking-wider text-zinc-300 leading-none">
+                            {auction.category}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end shrink-0 gap-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-2xl font-black text-[#FF6B00] tabular-nums font-mono leading-none transition-all duration-300 ${priceAnimate ? 'scale-110 text-amber-400' : 'scale-100'}`}>
+                        <CountUp value={displayPrice} format={(n) => Math.round(n).toLocaleString('en-US')} />
+                      </span>
+                      <span className="text-[11px] font-bold text-white/70">{isAr ? 'د.أ' : 'JOD'}</span>
+                    </div>
+                    <motion.div
+                      animate={isSnipeWindow ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                      transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
+                      className={`inline-flex items-center gap-1 bg-black/50 border border-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono ${isSnipeWindow ? 'text-red-400' : 'text-emerald-400'}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${isSnipeWindow ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                      <span>{reelTimeLeft}</span>
+                    </motion.div>
+                  </div>
+                </div>
+
+                {auction.reserveMet === false && (
+                  <span className="text-[10px] font-bold text-amber-500 text-right rtl:text-left -mt-1">
+                    {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
+                  </span>
+                )}
+                {auction.reserveMet === true && (
+                  <span className="text-[10px] font-bold text-emerald-500 text-right rtl:text-left -mt-1">
+                    {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
+                  </span>
+                )}
+
                 {/* One-time first-bid coach for active members who have never bid.
                     Hidden while a bid confirm is open so it can never overlap or
                     intercept clicks meant for the confirm dialog. */}
@@ -1092,37 +1145,74 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   isAr={isAr}
                 />
 
-                {/* Row 4: Single HUGE Thumb-Tappable Bid Button (opens the inline confirm) */}
-                <Pressable
-                  disabled={currentUser?.isBlocked || submitting}
-                  onClick={handleLocalBid}
-                  className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
-                >
-                  {isGuest ? (
-                    <span className="text-sm tracking-wide font-black">
-                      {isAr ? 'سجّل مجاناً وزايد' : 'Sign up to bid — free'}
-                    </span>
-                  ) : !isMember ? (
-                    <span className="text-sm tracking-wide font-black">
-                      {t.joinToBid}
-                    </span>
-                  ) : submitting ? (
-                    <span className="flex items-center gap-2 text-sm tracking-wide font-black">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {isAr ? 'جارٍ الإرسال…' : 'Placing bid…'}
-                    </span>
-                  ) : (
-                    <>
+                {/* Custom amount reveal — stages via the EXISTING openConfirm gate. */}
+                {showCustom && (
+                  <div className="flex gap-2" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={customValue}
+                      min={nextBidAmount}
+                      onChange={(e) => setCustomValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitCustom();
+                      }}
+                      placeholder={String(nextBidAmount)}
+                      autoFocus
+                      className="flex-grow h-11 px-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-black font-mono tabular-nums placeholder-zinc-500 outline-none focus:border-[#FF6B00]/50 transition-colors"
+                    />
+                    <button
+                      onClick={submitCustom}
+                      className="h-11 px-4 bg-[#FF6B00] hover:bg-orange-600 text-white rounded-xl text-xs font-black shrink-0 shadow-md cursor-pointer"
+                    >
+                      {isAr ? 'زايد' : 'Set'}
+                    </button>
+                  </div>
+                )}
+
+                {/* ACTION ROW — secondary Custom + primary Bid button. */}
+                <div className="flex items-stretch gap-2">
+                  <button
+                    onClick={toggleCustom}
+                    className={`h-14 px-4 rounded-2xl border text-xs font-black tracking-wide shrink-0 backdrop-blur-md active:scale-95 transition-all cursor-pointer ${
+                      showCustom
+                        ? 'bg-[#FF6B00]/20 border-[#FF6B00]/50 text-[#FF6B00]'
+                        : 'bg-white/10 border-white/15 text-white hover:bg-white/15'
+                    }`}
+                  >
+                    {isAr ? 'مبلغ' : 'Custom'}
+                  </button>
+                  <Pressable
+                    disabled={currentUser?.isBlocked || submitting}
+                    onClick={handleLocalBid}
+                    className="flex-1 h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
+                  >
+                    {isGuest ? (
                       <span className="text-sm tracking-wide font-black">
-                        {getBidButtonText()}
+                        {isAr ? 'سجّل مجاناً وزايد' : 'Sign up to bid — free'}
                       </span>
-                      <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
-                        {isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')}` : `Bid ${formatMoney(nextBidAmount, 'en')}`}
+                    ) : !isMember ? (
+                      <span className="text-sm tracking-wide font-black">
+                        {t.joinToBid}
                       </span>
-                    </>
-                  )}
-                </Pressable>
-                <p className="text-[11px] text-gray-400 text-center mt-1">
+                    ) : submitting ? (
+                      <span className="flex items-center gap-2 text-sm tracking-wide font-black">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {isAr ? 'جارٍ الإرسال…' : 'Placing bid…'}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-sm tracking-wide font-black">
+                          {getBidButtonText()}
+                        </span>
+                        <span className="text-[10px] opacity-80 font-bold font-mono mt-0.5">
+                          {isAr ? `زايد ${formatMoney(nextBidAmount, 'ar')}` : `Bid ${formatMoney(nextBidAmount, 'en')}`}
+                        </span>
+                      </>
+                    )}
+                  </Pressable>
+                </div>
+                <p className="text-[10px] text-gray-400 text-center">
                   {isAr
                     ? `المجموع عند الفوز: ${formatMoney(totalWithPremium(nextBidAmount), 'ar')} (شامل عمولة المشتري ٥٪)`
                     : `Total if you win: ${formatMoney(totalWithPremium(nextBidAmount), 'en')} (incl. 5% buyer's premium)`}
@@ -1130,7 +1220,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               </>
             )}
 
-            {/* Inline bid confirmation (anchored to the bidding card, auto-dismisses) */}
+            {/* Inline bid confirmation (anchored to the dock, auto-dismisses) */}
             <BidConfirm
               amount={pendingBid}
               isAr={isAr}
@@ -1139,12 +1229,12 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
               onCancel={handleCancel}
             />
 
-            {/* Winning pill: pops over the bidding card on a successful bid */}
+            {/* Winning pill: pops over the dock on a successful bid */}
             <WinningPill show={showWinPill} isAr={isAr} />
           </div>
         </div>
       )}
-      {/* END BID PANEL */}
+      {/* END BID DOCK */}
 
       {/* Complete Seller Profile Modal */}
       {selectedProfileId && (
