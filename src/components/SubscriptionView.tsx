@@ -193,8 +193,8 @@ export const SubscriptionView: React.FC = () => {
   };
 
   return (
-    <div 
-      className="min-h-screen w-full bg-white text-gray-900 flex flex-col justify-between p-6 md:p-12 font-sans select-none"
+    <div
+      className="h-full w-full overflow-y-auto bg-white text-gray-900 flex flex-col justify-between p-6 md:p-12 pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans select-none"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="subscription-view-root"
     >
