@@ -104,25 +104,21 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
           <div className="space-y-4">
             <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>🔄 Returns & Guarded Escrow</span>
+              <span>🔄 Buyer Protection & Returns</span>
             </h4>
-            
+
             <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 space-y-1.5">
-              <span className="text-[#FF6B00] font-extrabold text-[11px] block font-sans">🛍️ New Sealed Retail Items:</span>
-              <p className="text-[11px] text-zinc-650">
-                Eligible for return within <strong>7 days</strong> if returned in pristine, unused packaging containing all original sealed stickers and components intact.
+              <span className="text-[#FF6B00] font-extrabold text-[11px] block font-sans">🛡️ How your payment is protected:</span>
+              <p className="text-[11px] text-zinc-650 leading-normal">
+                When you win and pay, Mazad JO <strong>holds your payment</strong> and does not release it to the seller until you receive the item, verify it, and approve the release. If there is a problem or the item does not match the listing <strong>before you approve release</strong>, open a dispute and Mazad JO will mediate and return your held funds.
               </p>
             </div>
 
             <div className="bg-red-50/5 rounded-xl p-3 border border-red-100 space-y-1.5">
-              <span className="text-red-600 font-extrabold text-[11px] block font-sans">⚖️ Bidding & Used Showcase Items:</span>
+              <span className="text-red-600 font-extrabold text-[11px] block font-sans">⚖️ All sales are final after confirmation:</span>
               <p className="text-[11px] text-zinc-650 leading-normal">
-                All finished live bids are final and legally binding. Returns are strictly disallowed except for high-priority mismatch scenarios:
+                Winning bids are binding. Once you confirm receipt and approve release of funds to the seller, the sale is complete and <strong>no post-sale refunds</strong> are offered. Raise any concern through the dispute process <strong>before</strong> approving release.
               </p>
-              <ul className="text-[10px] text-zinc-500 list-disc pl-4 space-y-1">
-                <li>Material characteristics differ fundamentally from listing details.</li>
-                <li>Presence of severe undisclosed technical defects or battery health mismatch.</li>
-              </ul>
             </div>
           </div>
 
@@ -151,8 +147,8 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
               <span>📊 Service Commission Rates</span>
             </h4>
             <div className="bg-[#FF6B00]/5 border border-[#FF6B00]/15 rounded-xl p-3.5 text-center space-y-1">
-              <span className="text-[#FF6B00] text-sm font-black font-sans">Flat Platform Fee: 7 JOD</span>
-              <p className="text-[10px] text-zinc-500">Deducted transparently from final listing success value to support secure operations, shipment escrows, and instant technical support channels.</p>
+              <span className="text-[#FF6B00] text-sm font-black font-sans">5% Buyer's Premium · 5% Seller's Commission</span>
+              <p className="text-[10px] text-zinc-500">A 5% buyer's premium is added to the winning bid, and a 5% commission is deducted from the seller's proceeds (seller receives 95%). Membership fees are separate.</p>
             </div>
           </div>
 

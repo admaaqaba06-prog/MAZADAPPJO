@@ -1348,7 +1348,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <Lock className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-[#0A0A0A] font-ibmarabic mb-2">
-                        {lang === "ar" ? "فلوسك محجوزة" : "Escrow Protection"}
+                        {lang === "ar" ? "فلوسك محجوزة" : "Held Until You Confirm"}
                       </h3>
                       <p className="text-sm text-gray-600 font-ibmarabic leading-relaxed">
                         {lang === "ar" ? "لما تربح، فلوسك تنحجز بالضمان، ما بتوصل للبائع لسا" : "When you win, your funds are securely held in escrow and not yet sent."}
@@ -1959,7 +1959,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   
                   <div className="flex items-center justify-between mb-8 border-b border-gray-100 pb-4">
                     <h3 className="font-bold text-[#0A0A0A] font-ibmarabic text-lg">
-                      {lang === "ar" ? "مسار الضمان المالي الحي" : "Live Escrow Protection Path"}
+                      {lang === "ar" ? "مسار الضمان المالي الحي" : "How Your Payment Is Held"}
                     </h3>
                     <span className="text-xs font-bold text-gray-500 font-ibmarabic">
                       {lang === "ar" ? "اضغط على الخطوة للتجربة" : "Click step to interact"}
