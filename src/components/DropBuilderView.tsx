@@ -264,7 +264,7 @@ export const DropBuilderView: React.FC = () => {
   });
 
   return (
-    <div className="flex-1 bg-[#090909] text-white min-h-screen font-sans">
+    <div className="flex-1 min-h-0 bg-[#090909] text-white overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans">
       
       {/* Toast Alert */}
       {showToast && (

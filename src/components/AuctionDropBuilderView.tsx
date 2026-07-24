@@ -240,7 +240,7 @@ export default function AuctionDropBuilderView() {
   };
 
   return (
-    <div style={{ direction: isAr ? 'rtl' : 'ltr' }} className="max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2">
+    <div style={{ direction: isAr ? 'rtl' : 'ltr' }} className="h-full overflow-y-auto max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <div className="space-y-6">
         <h1 className="text-xl font-bold">{isAr ? 'إنشاء مزاد جديد' : 'Create a Drop'}</h1>
 
