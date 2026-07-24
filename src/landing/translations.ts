@@ -198,7 +198,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "لماذا MazadJo؟",
       subtitle: "بدل ما تفاوض عشرات الناس… خليهم ينافسوا عليك.",
-      traditionalTitle: "طرق أخرى - تقليدي",
+      traditionalTitle: "الطريقة التقليدية",
       traditionalPoints: [
         "مفاوضات متعبة وتكرار عبارة 'آخر سعر؟'",
         "تضييع وقت مع مشترين غير جادين وهواة بخس السلع",
@@ -442,7 +442,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     why: {
       title: "Why MazadJo?",
       subtitle: "Instead of negotiating with dozens... let them compete for you.",
-      traditionalTitle: "Others - Traditional",
+      traditionalTitle: "The Traditional Way",
       traditionalPoints: [
         "Exhausting negotiations and constant 'what's your final price?'",
         "Wasted time with unserious buyers and low-ball offers",
