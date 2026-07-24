@@ -21,6 +21,7 @@ import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
 import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
+import { readGuestBrowsingFlag } from '../utils/guestGate';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -264,6 +265,14 @@ interface AppContextProps {
   setLanguage: (lang: 'en' | 'ar') => void;
   isAuthenticated: boolean;
   authReady: boolean;
+  // Guest browsing: a resolved logged-out session (authReady && !isAuthenticated).
+  isGuest: boolean;
+  // Latched when a guest taps a gated action (bid/chat/save/...). App.tsx swaps
+  // the guest browse shell for the login flow; activeView/activeAuctionId stay
+  // latched, so after signup the visitor lands back on that exact listing.
+  signInRequested: boolean;
+  requestSignIn: () => void;
+  dismissSignIn: () => void;
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -306,6 +315,10 @@ interface AppContextProps {
     enableSubscriptions: boolean;
     enableWallets: boolean;
     enablePushNotifications: boolean;
+    // Guest browsing kill switch (default ENABLED; flip siteSettings/featureFlags
+    // .enableGuestBrowsing to false to restore the login-gated front door
+    // instantly in production, no redeploy).
+    enableGuestBrowsing: boolean;
   };
   updateMaintenanceMode: (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => Promise<void>;
   updateFeatureFlag: (flag: string, value: boolean) => Promise<void>;
@@ -412,7 +425,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enableLiveAuctions: true,
     enableSubscriptions: true,
     enableWallets: true,
-    enablePushNotifications: true
+    enablePushNotifications: true,
+    enableGuestBrowsing: true
   });
 
   const [systemHealthLogs, setSystemHealthLogs] = useState<any[]>([]);
@@ -728,6 +742,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // EITHER direction. Until then App.tsx shows the loading splash instead of
   // flashing Login while a valid session is still restoring.
   const [authReady, setAuthReady] = useState<boolean>(false);
+
+  // Guest browsing: latched when a logged-out visitor taps a gated action
+  // (bid / chat / save / a members-only nav item). Read ONLY by the
+  // unauthenticated branch in App.tsx, which then shows the login flow while
+  // activeView/activeAuctionId stay latched for the post-signup return.
+  const [signInRequested, setSignInRequested] = useState<boolean>(false);
+  const requestSignIn = useCallback(() => setSignInRequested(true), []);
+  const dismissSignIn = useCallback(() => setSignInRequested(false), []);
+  // Reset the latch once signed in, so a later logout lands back on the guest
+  // browse shell instead of a stale login screen.
+  useEffect(() => {
+    if (isAuthenticated) setSignInRequested(false);
+  }, [isAuthenticated]);
 
   // Session Heartbeat (PF4 part 2) - updates lastSeen, deviceInfo, and appVersion.
   // Every write fans out to the admin's live `users` listener, so instead of a
@@ -1193,6 +1220,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableSubscriptions: data.enableSubscriptions !== false,
           enableWallets: data.enableWallets !== false,
           enablePushNotifications: data.enablePushNotifications !== false,
+          enableGuestBrowsing: readGuestBrowsingFlag(data),
         });
       } else {
         setFeatureFlags({
@@ -1200,6 +1228,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableSubscriptions: true,
           enableWallets: true,
           enablePushNotifications: true,
+          enableGuestBrowsing: true,
         });
       }
     }, (err) => {
@@ -4723,6 +4752,10 @@ const fetchIP = async () => {
       setLanguage,
       isAuthenticated,
       authReady,
+      isGuest: authReady && !isAuthenticated,
+      signInRequested,
+      requestSignIn,
+      dismissSignIn,
       login,
       loginWithGoogle,
       loginWithPhone,
@@ -4770,7 +4803,7 @@ const fetchIP = async () => {
     adminActions, adminActionsError, reviews, verificationRequests,
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
-    language, isAuthenticated, authReady, watchlist, autoBids,
+    language, isAuthenticated, authReady, signInRequested, watchlist, autoBids,
     showSubscriptionPrompt, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
@@ -4778,7 +4811,7 @@ const fetchIP = async () => {
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
-    createListing, setLanguage, login, loginWithGoogle, loginWithPhone,
+    createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
     confirmPhoneCode, logout, registerUser, subscribeUser, updateOwnProfile,
     completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,

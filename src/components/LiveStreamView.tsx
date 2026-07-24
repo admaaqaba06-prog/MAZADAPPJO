@@ -319,7 +319,9 @@ export const LiveStreamView: React.FC = () => {
     toggleWatchlist,
     sendChatMessage,
     orders,
-    setGlobalSelectedOrderId
+    setGlobalSelectedOrderId,
+    isAuthenticated,
+    requestSignIn
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
@@ -542,6 +544,11 @@ export const LiveStreamView: React.FC = () => {
 
   const handleLikeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Guest browsing: reactions are an account action — the signup moment.
+    if (!isAuthenticated) {
+      requestSignIn();
+      return;
+    }
     triggerToast(isAr ? '❤️ أرسلت تفاعلاً للبث المباشر!' : '❤️ Sent stream appreciation!');
     
     // Show the user's own real reaction in the fading activity overlay
@@ -561,6 +568,11 @@ export const LiveStreamView: React.FC = () => {
 
   const handleSaveToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Guest browsing: saving/following is an account action — the signup moment.
+    if (!isAuthenticated) {
+      requestSignIn();
+      return;
+    }
     toggleWatchlist(activeAuction.id);
     const saved = !isSaved;
     triggerToast(saved ? (isAr ? '🔖 تم الحفظ في قائمتك!' : '🔖 Saved to Watchlist!') : (isAr ? 'تمت الإزالة من المفضلة' : 'Removed from Watchlist'));
@@ -579,6 +591,13 @@ export const LiveStreamView: React.FC = () => {
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Guest browsing: chatting is an account action — the signup moment.
+    // (Guests can't read `chats` per firestore.rules either, so the composer
+    // is their entry into the room, not a silent failed write.)
+    if (!isAuthenticated) {
+      requestSignIn();
+      return;
+    }
     if (!commentText.trim()) return;
     sendChatMessage(commentText);
     setCommentText('');

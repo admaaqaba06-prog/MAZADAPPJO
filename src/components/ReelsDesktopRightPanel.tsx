@@ -16,7 +16,9 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     language,
     sendChatMessage,
     currentUser,
-    placeBid
+    placeBid,
+    isAuthenticated,
+    requestSignIn
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
@@ -143,6 +145,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         <SwipeToBid
           amount={nextBidAmount}
           onSwipeSuccess={async () => {
+            // Guest browsing: bidding is the signup moment.
+            if (!isAuthenticated) {
+              requestSignIn();
+              return;
+            }
             if (currentUser.isBlocked) {
               alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
               return;
@@ -150,6 +157,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             await placeBid(currentItem.id, nextBidAmount);
           }}
           onTap={() => {
+            // Guest browsing: bidding is the signup moment.
+            if (!isAuthenticated) {
+              requestSignIn();
+              return;
+            }
             if (currentUser.isBlocked) {
               alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
               return;
@@ -289,15 +301,20 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         </div>
 
         {/* Comment input form */}
-        <form 
+        <form
           onSubmit={(e) => {
             e.preventDefault();
+            // Guest browsing: chatting is the signup moment.
+            if (!isAuthenticated) {
+              requestSignIn();
+              return;
+            }
             const form = e.currentTarget;
             const input = form.elements.namedItem('commentText') as HTMLInputElement;
             if (!input || !input.value.trim()) return;
             sendChatMessage(input.value.trim());
             input.value = '';
-          }} 
+          }}
           className="flex gap-1.5 pt-1"
         >
           <input 

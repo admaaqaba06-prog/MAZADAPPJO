@@ -531,7 +531,7 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
 
   // Shared bid flow: membership gate (non-members never reach confirm) +
   // confirm step + in-flight submitting guard. Same handler the details modal uses.
-  const { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
+  const { isMember, isGuest, requestSignIn, pendingBid, submitting, startBid, confirmBid, cancelBid } = useBidFlow(executeWithOptimism);
 
   // Was the staged amount bumped by a rival bid during the ≤10s confirm window?
   const [priceMoved, setPriceMoved] = useState(false);
@@ -874,10 +874,19 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
             className="absolute left-4 z-20"
           >
             <button
-              onClick={() => setShowChatInput(!showChatInput)}
+              onClick={() => {
+                // Guest browsing: chatting is an account action — signup moment.
+                if (isGuest) {
+                  requestSignIn();
+                  return;
+                }
+                setShowChatInput(!showChatInput);
+              }}
               className="bg-black/30 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-[10px] font-black text-white hover:bg-black/50 transition-colors"
             >
-              {isAr ? '💬 اكتب تعليقاً...' : '💬 Send a message...'}
+              {isGuest
+                ? (isAr ? '💬 سجّل للتعليق' : '💬 Sign up to chat')
+                : (isAr ? '💬 اكتب تعليقاً...' : '💬 Send a message...')}
             </button>
           </div>
 
@@ -1088,7 +1097,11 @@ const MobileAuctionReelBase: React.FC<MobileAuctionReelProps> = ({
                   onClick={handleLocalBid}
                   className="w-full h-14 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700/50 text-white border border-orange-400/20 font-black rounded-2xl flex flex-col items-center justify-center transition-colors shadow-[0_4px_20px_rgba(255,107,0,0.3)] cursor-pointer"
                 >
-                  {!isMember ? (
+                  {isGuest ? (
+                    <span className="text-sm tracking-wide font-black">
+                      {isAr ? 'سجّل مجاناً وزايد' : 'Sign up to bid — free'}
+                    </span>
+                  ) : !isMember ? (
                     <span className="text-sm tracking-wide font-black">
                       {t.joinToBid}
                     </span>
