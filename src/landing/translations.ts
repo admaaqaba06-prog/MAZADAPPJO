@@ -1,7 +1,6 @@
 export interface TranslationType {
   dir: "rtl" | "ltr";
   langCode: "ar" | "en";
-  sellerIntentMsg: string;
   nav: {
     logo: string;
     whyUs: string;
@@ -136,7 +135,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
   ar: {
     dir: "rtl",
     langCode: "ar",
-    sellerIntentMsg: "مرحباً، أرغب بعرض سلعة للبيع في مزاد الأردن.",
     nav: {
       logo: "🔨 MazadJo",
       whyUs: "لماذا مزاد جو؟",
@@ -381,7 +379,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
   en: {
     dir: "ltr",
     langCode: "en",
-    sellerIntentMsg: "Hi, I'd like to list an item to sell on Mazad JO.",
     nav: {
       logo: "🔨 MazadJo",
       whyUs: "Why MazadJo?",
