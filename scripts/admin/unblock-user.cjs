@@ -14,15 +14,19 @@
  * settings -> Service accounts -> Generate new private key). NEVER commit it.
  *   export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/key.json
  *
- * USAGE:
+ * USAGE (identifier = phone, email, OR uid — auto-detected):
  *   node scripts/admin/unblock-user.cjs 0790005753            # diagnose (read-only)
- *   node scripts/admin/unblock-user.cjs 0790005753 --fix      # unblock only
+ *   node scripts/admin/unblock-user.cjs maher@example.com --fix
+ *   node scripts/admin/unblock-user.cjs JLXGOwj1ueSgmgzkeFbudo8jpBR2 --fix
  *   node scripts/admin/unblock-user.cjs 0790005753 --fix --clear-orders
  *                                                            # unblock + delete stale orders
  *
- * The phone may be local (0790005753) or E.164 (+962790005753); Jordan variants
- * are matched automatically. Only orders in waiting_payment/defaulted are ever
- * deleted, and only with --clear-orders; completed/paid orders are never touched.
+ * Phone may be local (0790005753) or E.164 (+962790005753); Jordan variants are
+ * matched automatically. An identifier with `@` is looked up by email (returns
+ * EVERY doc on that email — an admin can have both a phone and email/Google doc);
+ * a 20+ char alphanumeric string is treated as a Firebase uid. Only orders in
+ * waiting_payment/defaulted are ever deleted, and only with --clear-orders;
+ * completed/paid orders are never touched.
  */
 'use strict';
 
@@ -48,7 +52,7 @@ const FIX = args.includes('--fix');
 const CLEAR_ORDERS = args.includes('--clear-orders');
 
 if (!phoneArg) {
-  console.error('Usage: node scripts/admin/unblock-user.cjs <phone> [--fix] [--clear-orders]');
+  console.error('Usage: node scripts/admin/unblock-user.cjs <phone|email|uid> [--fix] [--clear-orders]');
   process.exit(1);
 }
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -74,7 +78,7 @@ function phoneVariants(input) {
 admin.initializeApp(); // uses GOOGLE_APPLICATION_CREDENTIALS
 const db = admin.firestore();
 
-async function findUserDocs(variants) {
+async function findByPhone(variants) {
   for (const field of ['phoneNumber', 'phone']) {
     for (const v of variants) {
       const snap = await db.collection('users').where(field, '==', v).limit(5).get();
@@ -84,12 +88,30 @@ async function findUserDocs(variants) {
   return null;
 }
 
+async function findByEmail(email) {
+  const snap = await db.collection('users').where('email', '==', email).limit(10).get();
+  return snap.empty ? null : { docs: snap.docs, via: `email==${email}` };
+}
+
+async function findByUid(uid) {
+  const doc = await db.collection('users').doc(uid).get();
+  return doc.exists ? { docs: [doc], via: `uid==${uid}` } : null;
+}
+
+// Detect what the identifier is: an email (@), a Firebase uid (long alnum, no
+// digits-only), or a phone. Firebase uids are 28 alnum chars; a phone is all
+// digits/+, so the {20,} alnum test can't collide with a phone.
+async function findUser(identifier) {
+  if (identifier.includes('@')) return findByEmail(identifier.trim().toLowerCase());
+  if (/^[A-Za-z0-9]{20,}$/.test(identifier)) return findByUid(identifier);
+  return findByPhone(phoneVariants(identifier));
+}
+
 (async () => {
-  const variants = phoneVariants(phoneArg);
-  console.log(`[unblock] project via credentials; phone variants: ${variants.join(', ')}`);
-  const found = await findUserDocs(variants);
+  console.log(`[unblock] project via credentials; identifier: ${phoneArg}`);
+  const found = await findUser(phoneArg);
   if (!found) {
-    console.error(`[unblock] no users doc matched. Nothing changed.`);
+    console.error(`[unblock] no users doc matched "${phoneArg}" (tried email/uid/phone). Nothing changed.`);
     process.exit(2);
   }
   console.log(`[unblock] matched via ${found.via}: ${found.docs.length} doc(s)`);

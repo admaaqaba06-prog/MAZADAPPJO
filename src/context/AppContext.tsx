@@ -3789,6 +3789,22 @@ const fetchIP = async () => {
   }, [users, currentUser, addNotification]);
 
   const banUser = useCallback(async (userId: string) => {
+    // Self-ban guard: an admin must never block their OWN account — by uid, or
+    // by a shared email (an admin can hold both a phone-signup and an email/
+    // Google-signup doc under one email; banning the sibling account locks
+    // themselves out of bidding). Blocked before any optimistic write.
+    const target = users.find(u => u.id === userId);
+    const myEmail = (currentUser?.email || '').trim().toLowerCase();
+    const targetEmail = (target?.email || '').trim().toLowerCase();
+    const isOwnAccount = userId === currentUser?.id || (!!myEmail && myEmail === targetEmail);
+    if (isOwnAccount) {
+      showToast({
+        title: language === 'ar' ? 'لا يمكنك حظر حسابك' : "Can't ban your own account",
+        message: language === 'ar' ? 'هذا الحساب مرتبط بك.' : 'This account is linked to you.',
+        type: 'warn',
+      });
+      return;
+    }
     // Optimistic local update for instant UI…
     setUsers(prev => prev.map(u => (u.id === userId ? { ...u, isBlocked: true } : u)));
     if (userId === currentUser.id) {
