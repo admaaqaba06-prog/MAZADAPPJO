@@ -44,6 +44,7 @@ const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
 // Lazy: the Verify & Approve section (Slice B) — same chunking policy as the
 // simulator. The pending-count badge only needs the tiny paymentReceipt util,
 // so the heavy section stays out of the main chunk until the tab opens.
+const AdminHome = React.lazy(() => import('./admin/AdminHome'));
 const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
 const FulfillmentSection = React.lazy(() => import('./admin/FulfillmentSection'));
 const DisputesSection = React.lazy(() => import('./admin/DisputesSection'));
@@ -337,6 +338,7 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
 // reset the useState tab back to GENERAL METRICS. The active tab is therefore
 // mirrored into sessionStorage and restored (validated) on mount.
 const ADMIN_TABS = [
+  'home',
   'verify',
   'fulfillment',
   'disputes',
@@ -1193,7 +1195,37 @@ export const AdminDashboardView: React.FC = () => {
 
        {/* Main Content Area */}
       <div className="p-5 max-w-5xl mx-auto w-full space-y-5">
-        
+
+        {/* ==========================================
+            TAB: HOME (needs-attention landing)
+            ========================================== */}
+        {activeTab === 'home' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <AdminHome
+              isAr={isAr}
+              counts={{
+                pendingVerify: subscriptionRequests.length + pendingOrderPaymentsCount,
+                overdueFulfillment: overdueFulfillmentCount,
+                openDisputes: openDisputesCount,
+                pendingPayouts: allWithdrawals.filter((w: any) => w.status === 'pending_review').length,
+                pendingListings: pendingListingDrops.length,
+              }}
+              metrics={{
+                escrowHeld: totalEscrowHeld,
+                liveAuctions: activeAuctionsNum,
+                members: usersTotalCount,
+              }}
+              onSelectTab={selectTab}
+            />
+          </React.Suspense>
+        )}
+
         {/* ==========================================
             TAB: VERIFY & APPROVE (Slice B — daily money job)
             ========================================== */}
