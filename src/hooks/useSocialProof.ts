@@ -90,6 +90,20 @@ function firstNameOnly(name: unknown): string | null {
   return first || null;
 }
 
+// Placeholder / non-identifying winner names must NOT appear as social proof —
+// "Guest won iPhone" reads as fabricated and undercuts the very trust the strip
+// is meant to build. A win with such a name is skipped entirely.
+const PLACEHOLDER_WINNER_NAMES = new Set(['guest', 'user', 'anonymous', 'buyer', 'bidder', 'مستخدم', 'زائر']);
+export function isPlaceholderWinner(name: string | null): boolean {
+  const norm = (name ?? '').trim().toLowerCase();
+  return norm === '' || PLACEHOLDER_WINNER_NAMES.has(norm);
+}
+
+// Only wins from the last RECENT_WIN_WINDOW_MS count as "recent". A month-old
+// win presented under "RECENT WINS" signals a dead marketplace — worse than
+// showing nothing (callers fall back to qualitative trust chips when empty).
+const RECENT_WIN_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
 // One fetch per session, shared across the three surfaces that mount the hook
 // (banner, empty state, right rail) — keeps it cheap.
 let recentWinsCache: Promise<Omit<RecentWin, 'when'>[]> | null = null;
@@ -118,9 +132,12 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
           if (!data.currentBidderId) return; // ended with no winner → not a win
           const whenTs = toMillis(data.endTime ?? data.endsAt);
           if (!whenTs || whenTs <= 0) return; // no timestamp → skip (avoids "~20000d ago")
+          if (Date.now() - whenTs > RECENT_WIN_WINDOW_MS) return; // stale → not "recent"
+          const winner = firstNameOnly(data.currentBidderName);
+          if (isPlaceholderWinner(winner)) return; // Guest/placeholder → not trust-building
           wins.push({
             item: title,
-            winner: firstNameOnly(data.currentBidderName),
+            winner,
             city: undefined,
             whenTs,
           });

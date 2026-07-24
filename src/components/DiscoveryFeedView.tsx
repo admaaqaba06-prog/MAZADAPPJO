@@ -858,8 +858,11 @@ export const DiscoveryFeedView: React.FC = () => {
             )}
           </div>
         ) : (
+          /* Center the empty state in the available vertical space (drops it
+             into the middle of the feed area instead of pinning it to the top). */
+          <div className="min-h-[58vh] flex items-center justify-center">
           <div
-            className="text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            className="w-full text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="feedback-empty-state"
           >
@@ -986,6 +989,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <MessageCircle className="w-3 h-3" />
               {isAr ? 'أو تابع قناتنا' : 'or follow our channel'}
             </button>
+          </div>
           </div>
         )}
       </div>
