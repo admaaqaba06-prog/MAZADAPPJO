@@ -28,7 +28,13 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export const LoginView: React.FC = () => {
+interface LoginViewProps {
+  /** Guest browsing: "continue browsing" escape hatch back to the read-only
+   *  shell. Absent (default) renders the exact pre-guest-browse screen. */
+  onBack?: () => void;
+}
+
+export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const {
     loginWithGoogle,
     loginWithPhone,
@@ -364,6 +370,18 @@ export const LoginView: React.FC = () => {
             <span>{isAr ? 'المتابعة بـ Google' : 'Continue with Google'}</span>
           </button>
         </div>
+
+        {/* Guest browsing: back to the read-only browse shell */}
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-full mt-4 text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
+            id="login-continue-browsing-btn"
+          >
+            {isAr ? '← متابعة التصفح بدون تسجيل' : '← Continue browsing without an account'}
+          </button>
+        )}
 
       </div>
 

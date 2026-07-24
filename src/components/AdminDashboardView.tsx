@@ -2863,6 +2863,41 @@ export const AdminDashboardView: React.FC = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* Guest Browsing Gate (kill switch — flag OFF restores the
+                        login-gated front door instantly, no redeploy) */}
+                    <div className="py-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                          {isAr ? 'التصفح كزائر (بدون تسجيل)' : 'Guest Browsing (logged-out visitors)'}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {isAr
+                            ? 'السماح للزوار بتصفح المزادات ومشاهدتها بدون حساب — المزايدة والدردشة والحفظ تتطلب التسجيل.'
+                            : 'Let logged-out visitors browse and watch auctions read-only — bidding, chat and saving still require signup.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                          featureFlags?.enableGuestBrowsing ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                        }`}>
+                          {featureFlags?.enableGuestBrowsing ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                        </span>
+                        <button
+                          onClick={() => updateFeatureFlag('enableGuestBrowsing', !featureFlags?.enableGuestBrowsing)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            featureFlags?.enableGuestBrowsing ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                          id="admin-guest-browsing-toggle"
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              featureFlags?.enableGuestBrowsing ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

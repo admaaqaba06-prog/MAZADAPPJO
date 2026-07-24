@@ -97,7 +97,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
-  const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId } = useApp();
+  const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId, isAuthenticated, requestSignIn } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const { showToast: pushToast } = useToast();
 
@@ -166,6 +166,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // gesture, which stays no-confirm; a plain CLICK on the swipe track routes
   // through the BidConfirm dialog via onTap instead)
   const runBid = async (amount: number) => {
+    // Guest browsing: bidding is THE signup moment — a guest never reaches
+    // placeBid (whose non-member fallback is the subscription sheet).
+    if (!isAuthenticated) {
+      requestSignIn();
+      return;
+    }
     setPendingBid(null);
     const res = await onBidExecute(amount);
     if (res && res.success) {
@@ -185,6 +191,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
   // Open a fresh confirm (resets any stale "price moved" flag).
   const openConfirm = (amount: number) => {
+    // Guest browsing: a bid tap signs the guest up instead of staging a confirm.
+    if (!isAuthenticated) {
+      requestSignIn();
+      return;
+    }
     setPriceMoved(false);
     setPendingBid(amount);
   };
@@ -1036,25 +1047,39 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               ))
             ) : (
               <div className="h-full flex items-center justify-center text-gray-400 text-xs">
-                {isAr ? 'أرسل رسالة للبث المباشر...' : 'Send a message to start chatting...'}
+                {!isAuthenticated
+                  ? (isAr ? 'سجّل دخولك لعرض الدردشة الحية' : 'Sign in to see the live chat')
+                  : (isAr ? 'أرسل رسالة للبث المباشر...' : 'Send a message to start chatting...')}
               </div>
             )}
           </div>
 
-          {/* Chat Comment Form */}
-          <form onSubmit={onCommentSubmit} className="flex items-center gap-2 border border-gray-200 rounded-xl px-2.5 py-1.5 bg-gray-50 shrink-0">
-            <Smile className="w-4 h-4 text-gray-400 shrink-0 cursor-pointer hover:text-gray-600" />
-            <input 
-              type="text"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder={isAr ? 'اكتب تعليقاً...' : 'Type a message...'}
-              className="flex-1 text-xs text-gray-800 placeholder-gray-400 outline-none bg-transparent"
-            />
-            <button type="submit" className="text-[#E85D04] hover:text-orange-600 shrink-0 transition-colors cursor-pointer">
-              <Send className="w-4 h-4" />
+          {/* Chat Comment Form — guests get the signup entry instead of a
+              composer (firestore.rules gates chat reads+writes to members). */}
+          {!isAuthenticated ? (
+            <button
+              type="button"
+              onClick={requestSignIn}
+              className="w-full border border-[#E85D04]/30 bg-[#E85D04]/5 hover:bg-[#E85D04]/10 text-[#E85D04] rounded-xl px-2.5 py-2 text-xs font-black transition-colors cursor-pointer shrink-0"
+              id="desktop-chat-signin-cta"
+            >
+              {isAr ? 'سجّل مجاناً للمشاركة في الدردشة' : 'Sign up free to join the chat'}
             </button>
-          </form>
+          ) : (
+            <form onSubmit={onCommentSubmit} className="flex items-center gap-2 border border-gray-200 rounded-xl px-2.5 py-1.5 bg-gray-50 shrink-0">
+              <Smile className="w-4 h-4 text-gray-400 shrink-0 cursor-pointer hover:text-gray-600" />
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder={isAr ? 'اكتب تعليقاً...' : 'Type a message...'}
+                className="flex-1 text-xs text-gray-800 placeholder-gray-400 outline-none bg-transparent"
+              />
+              <button type="submit" className="text-[#E85D04] hover:text-orange-600 shrink-0 transition-colors cursor-pointer">
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          )}
         </div>
 
       </aside>

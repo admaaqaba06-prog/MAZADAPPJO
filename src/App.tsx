@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { AppProvider, useApp, useAuctions } from './context/AppContext';
 import { parseAuctionIdFromSearch } from './utils/deepLink';
+import { resolveUnauthenticatedScreen, canGuestAccessView } from './utils/guestGate';
 import { isAdminUser } from './utils/adminAuth';
 import { canSeeSimulated } from './utils/simVisibility';
 import { useSimulatorEnabled } from './hooks/useSimulatorEnabled';
@@ -175,7 +176,7 @@ function SimulatorOnBanner() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
   const [entered, setEntered] = useState(false);
@@ -211,19 +212,74 @@ function MainAppShell() {
     return <MaintenanceView />;
   }
 
-  // 2. Unauthenticated: show the landing page as the front door — unless the
-  // visitor arrived via an auction deep link, or clicked "Enter" on the landing.
+  // 2. Unauthenticated (guest browsing — Whatnot/eBay pattern): the landing
+  // page stays the front door for a cold visitor; once they "Enter" (or arrive
+  // via an auction deep link) they get the REAL browse shell (Discover + the
+  // listing/live views) read-only. Every gated action (bid / chat / save / a
+  // members-only nav item) swaps this shell for the login flow — with
+  // activeView/activeAuctionId latched, so after signup they land back on the
+  // exact listing they were watching. The siteSettings featureFlags kill
+  // switch (enableGuestBrowsing:false) restores the old login-gated behavior.
   // Reached only once authReady is true, so this is a real logged-out state.
   if (!isAuthenticated) {
     const hasDeepLink = !!parseAuctionIdFromSearch(window.location.search);
-    if (!entered && !hasDeepLink) {
+    const screen = resolveUnauthenticatedScreen({
+      entered,
+      hasDeepLink,
+      guestBrowsingEnabled: featureFlags.enableGuestBrowsing,
+      signInRequested,
+      activeView,
+    });
+
+    if (screen === 'landing') {
       return (
         <div className="landing-root min-h-screen">
           <LandingView onEnter={() => setEntered(true)} />
         </div>
       );
     }
-    return <LoginView />;
+
+    if (screen === 'login') {
+      return (
+        <LoginView
+          // "Continue browsing" escape hatch — only when guest browsing is on
+          // (with the flag off there is nothing to go back to, exactly like today).
+          onBack={
+            featureFlags.enableGuestBrowsing
+              ? () => {
+                  dismissSignIn();
+                  setEntered(true); // landing's Enter is moot mid-session
+                  // Only reset the view when it was the gate (a members-only nav
+                  // tap) — an action tap on a watchable listing goes back to it.
+                  if (!canGuestAccessView(activeView)) setActiveView('discovery');
+                }
+              : undefined
+          }
+        />
+      );
+    }
+
+    // 'browse' — the guest shell. Same DesktopFrame + view renderer as members,
+    // WITHOUT the member-only overlays: no SubscriptionPromptModal (guest bid
+    // taps go to signup, never the membership sheet), no OnboardingModal, no
+    // ReviewPromptHost (both need a signed-in profile), no profile-completion
+    // gate (guests have no profile yet — it applies only AFTER signup).
+    return (
+      <div className="relative min-h-screen flex flex-col w-full">
+        <DesktopFrame>
+          <Suspense fallback={
+            <div className="flex-1 flex flex-col items-center justify-center bg-white p-12 min-h-[400px] font-sans">
+              <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
+                M
+              </div>
+              <span className="text-[10px] text-gray-400 font-mono tracking-widest uppercase mt-3">Loading view...</span>
+            </div>
+          }>
+            <ActiveViewRenderer />
+          </Suspense>
+        </DesktopFrame>
+      </div>
+    );
   }
 
   // 2.5. Profile-completion gate (Auth/KYC Wave 2): authenticated but the

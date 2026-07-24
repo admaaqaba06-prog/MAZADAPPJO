@@ -72,7 +72,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     users,
     notifications,
     showNotifications,
-    setShowNotifications
+    setShowNotifications,
+    isGuest,
+    requestSignIn
   } = useApp();
   const { auctions } = useAuctions();
 
@@ -211,15 +213,17 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           </button>
 
           <button
-            onClick={() => setActiveView('profile')}
+            onClick={() => (isGuest ? requestSignIn() : setActiveView('profile'))}
             className={`flex flex-col items-center gap-1 transition-all flex-1 ${
               activeView === 'profile'
-                ? 'text-[#FF6B00]' 
+                ? 'text-[#FF6B00]'
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
             }`}
           >
             <User className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'حسابي' : 'Profile'}</span>
+            <span className="text-[9px] font-extrabold tracking-normal">
+              {isGuest ? (isAr ? 'دخول' : 'Sign in') : (isAr ? 'حسابي' : 'Profile')}
+            </span>
           </button>
 
           {isStrictAdmin && (
@@ -397,8 +401,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               )}
             </button>
 
+            {/* Guest browsing: explicit sign-in entry instead of the user menu */}
+            {isGuest && (
+              <button
+                onClick={requestSignIn}
+                className="px-3.5 py-1.5 rounded-full bg-[#E85D04] hover:bg-orange-600 text-white text-xs font-black transition-colors cursor-pointer shadow-sm"
+                id="header-guest-signin-btn"
+              >
+                {isAr ? 'تسجيل الدخول' : 'Sign in'}
+              </button>
+            )}
+
             {/* Profile Avatar + user menu (Profile / Terms / Log Out) */}
-            {currentUser && (
+            {!isGuest && currentUser && (
               <div className="relative" id="header-user-menu-root">
                 <button
                   onClick={() => setIsUserMenuOpen(v => !v)}
@@ -500,8 +515,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 ====================================================================== */}
             <aside className="w-[320px] h-full bg-white border-l border-gray-200/80 p-6 shrink-0 overflow-y-auto flex flex-col gap-6 select-none" id="right-context-panel">
               
-              {/* Context Profile Block */}
-              {currentUser && (
+              {/* Context Profile Block (hidden for guests — they have no profile) */}
+              {!isGuest && currentUser && (
                 <div className="flex items-center gap-3 pb-5 border-b border-gray-100">
                   <img 
                     src={currentUser.avatar} 

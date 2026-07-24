@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { resolveBidTap } from '../utils/guestGate';
 
 type BidResult = { success: boolean; message: string } | void;
 type BidExecute = (amount: number) => Promise<BidResult> | BidResult;
@@ -39,20 +40,28 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  * can branch on success/failure.
  */
 export function useBidFlow(execute: BidExecute) {
-  const { currentUser, setShowSubscriptionPrompt } = useApp();
+  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, requestSignIn } = useApp();
   const isMember = currentUser?.subscriptionStatus === 'active';
+  const isGuest = !isAuthenticated;
 
   const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Non-members are invited to join before any confirm; members get the confirm.
+  // Guests are sent to SIGNUP (never the subscription sheet); authenticated
+  // non-members are invited to join before any confirm; members get the confirm.
+  // resolveBidTap is the shared, pure decision (see utils/guestGate.test.ts).
   const startBid = useCallback((amount: number) => {
-    if (!isMember) {
+    const decision = resolveBidTap(isAuthenticated, isMember);
+    if (decision === 'signup') {
+      requestSignIn();
+      return;
+    }
+    if (decision === 'subscribe') {
       setShowSubscriptionPrompt(true);
       return;
     }
     setPendingBid(amount);
-  }, [isMember, setShowSubscriptionPrompt]);
+  }, [isAuthenticated, isMember, requestSignIn, setShowSubscriptionPrompt]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 
@@ -67,5 +76,5 @@ export function useBidFlow(execute: BidExecute) {
     }
   }, [submitting, execute]);
 
-  return { isMember, pendingBid, submitting, startBid, confirmBid, cancelBid };
+  return { isMember, isGuest, requestSignIn, pendingBid, submitting, startBid, confirmBid, cancelBid };
 }
