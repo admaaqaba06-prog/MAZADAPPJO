@@ -17,11 +17,7 @@ import {
 } from '../utils/adminNav';
 import { ShieldCheck } from 'lucide-react';
 
-// Lazy: the simulator console (bots, spawn presets) is admin-only tooling —
-// keep it out of the main dashboard chunk.
-const SimulatorPanel = React.lazy(() => import('./SimulatorPanel'));
-// Lazy: the Verify & Approve section (Slice B) — same chunking policy as the
-// simulator. The pending-count badge only needs the tiny paymentReceipt util,
+// Lazy: the Verify & Approve section (Slice B). The pending-count badge only needs the tiny paymentReceipt util,
 // so the heavy section stays out of the main chunk until the tab opens.
 const AdminHome = React.lazy(() => import('./admin/AdminHome'));
 const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
@@ -664,7 +660,7 @@ export const AdminDashboardView: React.FC = () => {
               metrics={{
                 escrowHeld: totalEscrowHeld,
                 liveAuctions: activeAuctionsNum,
-                members: usersTotalCount,
+                members: usersTotalCount ?? users.length,
               }}
               onSelectTab={selectTab}
             />

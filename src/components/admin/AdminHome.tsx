@@ -44,7 +44,7 @@ export const AdminHome: React.FC<Props> = ({ isAr, counts, metrics, onSelectTab 
         ].map((m, i) => (
           <div key={i} className="bg-white rounded-3xl border border-gray-200 p-5">
             <span className="block text-xs font-semibold text-gray-400">{isAr ? m.ar : m.en}</span>
-            <span dir="ltr" className="block mt-1 text-2xl font-black text-gray-950">{m.v.toLocaleString('en-US')}{m.suffix}</span>
+            <span dir="ltr" className="block mt-1 text-2xl font-black text-gray-950">{(m.v ?? 0).toLocaleString('en-US')}{m.suffix}</span>
           </div>
         ))}
       </div>
