@@ -1604,7 +1604,7 @@ export const AdminDashboardView: React.FC = () => {
                       <div className="w-2 h-2 rounded-full bg-[#FF6B00] mt-1 shrink-0" />
                       <div className="space-y-1 flex-1">
                         <div className="flex justify-between items-center text-[11px]">
-                          <span className="font-extrabold text-gray-900">{action.actionType.toUpperCase().replace('_', ' ')}</span>
+                          <span className="font-extrabold text-gray-900">{(action.actionType || action.action || (isAr ? 'إجراء' : 'ACTION')).toString().toUpperCase().replace('_', ' ')}</span>
                           <span className="text-gray-400 font-mono text-[9px]">Just now</span>
                         </div>
                         <p className="text-xs text-gray-500">
