@@ -414,7 +414,7 @@ export const WalletView: React.FC = () => {
   if (selectedOrderId) {
     return (
       <div 
-        className="flex-1 min-h-screen bg-[#F7F6F3] text-gray-900 p-4 md:p-8 overflow-y-auto"
+        className="flex-1 bg-[#F7F6F3] text-gray-900 p-4 md:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] overflow-y-auto"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="order-details-pane-rebuilt"
       >
@@ -788,7 +788,7 @@ export const WalletView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-screen bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-16"
+      className="flex-1 bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="wallet-rebuild-root-container"
     >

@@ -140,7 +140,7 @@ export const ProfileView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-screen bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-16 font-sans"
+      className="flex-1 bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="profile-view-root-container"
     >
@@ -167,7 +167,7 @@ export const ProfileView: React.FC = () => {
               {currentUser.isVerified && (
                 <span className="inline-flex items-center gap-1 bg-[#FF6B00]/10 border border-[#FF6B00]/20 text-[#FF6B00] text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full w-fit mx-auto md:mx-0">
                   <ShieldCheck className="w-3 h-3" />
-                  {isAr ? 'موثق بضمان' : 'VERIFIED SECURITY'}
+                  {isAr ? 'موثّق' : 'Verified'}
                 </span>
               )}
             </div>
@@ -306,9 +306,9 @@ export const ProfileView: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-gray-100 font-sans">
                 <p className="text-[10px] text-gray-400 font-mono leading-normal">
-                  {isAr 
-                    ? '* تخضع التحديثات لتدقيق معايير الأمان لمنع الاحتيال والمضاربة الوهمية.' 
-                    : '* Updates are logged in our secure ledger network for bidding assurance.'}
+                  {isAr
+                    ? '* بياناتك محفوظة بأمان وتُستخدم فقط لإدارة حسابك.'
+                    : '* Your details are saved securely and used only to run your account.'}
                 </p>
 
                 <button
@@ -349,7 +349,7 @@ export const ProfileView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'محفظتي المالية' : 'My Financial Wallet'}</h3>
-                  <p className="text-[9px] text-gray-500">{isAr ? 'الوصول الفوري للرصيد والعمليات' : 'Instant access to funds & ledger'}</p>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'رصيدك وعملياتك' : 'Your balance and transactions'}</p>
                 </div>
               </div>
 
@@ -386,7 +386,7 @@ export const ProfileView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'باقة العضوية والاشتراك' : 'Bidding Subscription'}</h3>
-                  <p className="text-[9px] text-gray-500">{isAr ? 'تفاصيل ترخيص المزايدة النشط' : 'Active live streaming license status'}</p>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'حالة اشتراك المزايدة' : 'Your bidding membership status'}</p>
                 </div>
               </div>
 
@@ -430,24 +430,24 @@ export const ProfileView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider">{isAr ? 'الأمان والجلسات النشطة' : 'Security & Sessions'}</h3>
-                  <p className="text-[9px] text-gray-500">{isAr ? 'بيانات جهازك وسجل النشاط الأخير' : 'Last seen device signature & metadata'}</p>
+                  <p className="text-[9px] text-gray-500">{isAr ? 'نشاط تسجيل الدخول الأخير' : 'Your recent sign-in activity'}</p>
                 </div>
               </div>
 
               <div className="space-y-3 pt-1 text-xs font-bold">
                 <div className="space-y-1">
-                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'الجهاز المتصل حالياً:' : 'Current Device:'}</span>
-                  <span className="text-gray-900 font-mono bg-gray-50 border border-gray-200 py-1.5 px-3 rounded-xl block truncate" title={currentUser.deviceInfo || 'Unknown Browser Signature'}>
-                    {currentUser.deviceInfo || (isAr ? 'جهاز غير معروف' : 'Unknown Device')}
+                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'الجهاز الحالي:' : 'Current Device:'}</span>
+                  <span className="text-gray-900 font-mono bg-gray-50 border border-gray-200 py-1.5 px-3 rounded-xl block truncate" title={currentUser.deviceInfo || (isAr ? 'هذا الجهاز' : 'This device')}>
+                    {currentUser.deviceInfo || (isAr ? 'هذا الجهاز' : 'This device')}
                   </span>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'آخر تسجيل دخول مالي:' : 'Last Login Audit:'}</span>
+                  <span className="text-gray-500 block text-[10px] font-black uppercase tracking-wider">{isAr ? 'آخر تسجيل دخول:' : 'Last sign-in:'}</span>
                   <span className="text-gray-900 font-mono bg-gray-50 border border-gray-200 py-1.5 px-3 rounded-xl block">
-                    {currentUser.lastLoginAt 
-                      ? new Date(currentUser.lastLoginAt).toLocaleString(isAr ? 'ar-JO' : 'en-US') 
-                      : (currentUser.lastSeen ? new Date(currentUser.lastSeen).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A')}
+                    {currentUser.lastLoginAt
+                      ? new Date(currentUser.lastLoginAt).toLocaleString(isAr ? 'ar-JO' : 'en-US')
+                      : (currentUser.lastSeen ? new Date(currentUser.lastSeen).toLocaleString(isAr ? 'ar-JO' : 'en-US') : '—')}
                   </span>
                 </div>
               </div>

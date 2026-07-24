@@ -487,7 +487,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-4 overscroll-contain select-none font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="discovery-feed-root"
     >

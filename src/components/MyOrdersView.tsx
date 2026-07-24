@@ -129,7 +129,7 @@ export const MyOrdersView: React.FC = () => {
 
   if (selectedOrderId) {
     return (
-      <div className="w-full h-full overflow-y-auto bg-[#F7F6F3] p-4 md:p-0" id="my-orders-details-wrap">
+      <div className="w-full h-full overflow-y-auto bg-[#F7F6F3] p-4 md:p-0 pb-[calc(6rem+env(safe-area-inset-bottom))]" id="my-orders-details-wrap">
         <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
       </div>
     );
@@ -139,7 +139,7 @@ export const MyOrdersView: React.FC = () => {
 
   return (
     <div className="w-full h-full overflow-y-auto bg-[#F7F6F3]" id="my-orders-view-root">
-      <div className="max-w-3xl mx-auto w-full p-4 md:p-0 space-y-4 pb-16 animate-fade-in">
+      <div className="max-w-3xl mx-auto w-full p-4 md:p-0 space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))] animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-gray-200 shadow-xs mt-2 md:mt-0">
           <h2 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2 uppercase font-mono">

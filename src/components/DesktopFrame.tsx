@@ -134,7 +134,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             as role-gated slots so those destinations aren't orphaned on mobile.
             Order is source-order so RTL mirrors it correctly. */}
         <nav
-          className={`pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-4 flex items-center justify-between text-[10px] font-bold tracking-wider select-none h-16 shrink-0 transition-all duration-300 ${
+          className={`relative z-20 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-4 flex items-center justify-between text-[10px] font-bold tracking-wider select-none h-16 shrink-0 transition-all duration-300 ${
             activeView === 'live'
               ? 'bg-[#111111]/95 text-zinc-400 border-t border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]'
               : 'bg-white border-t border-gray-200/80 text-gray-500 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]'

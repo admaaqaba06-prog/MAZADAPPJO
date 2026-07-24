@@ -138,7 +138,7 @@ export const HowItWorksView: React.FC = () => {
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="how-it-works-root"
     >
-      <div className="w-full max-w-2xl mx-auto px-4 py-8 lg:py-4 space-y-8 pb-16">
+      <div className="w-full max-w-2xl mx-auto px-4 py-8 lg:py-4 space-y-8 pb-[calc(6rem+env(safe-area-inset-bottom))]">
 
         {/* Hero */}
         <motion.div
@@ -156,8 +156,8 @@ export const HowItWorksView: React.FC = () => {
           </h1>
           <p className="text-xs lg:text-sm text-gray-500 font-medium max-w-md mx-auto leading-relaxed">
             {isAr
-              ? 'مزادات مباشرة بالفيديو في الأردن — انضم، زايد مجاناً، وادفع فقط إذا فزت.'
-              : 'Live video auctions in Jordan — join, bid free, and pay only if you win.'}
+              ? 'مزادات مباشرة في الأردن — انضم، زايد مجاناً، وادفع فقط إذا فزت.'
+              : 'Live auctions in Jordan — join, bid free, and pay only if you win.'}
           </p>
           <PrimaryCta id="how-it-works-cta-top" />
         </motion.div>
