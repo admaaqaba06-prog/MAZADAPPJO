@@ -37,7 +37,7 @@ export const translations = {
     subLockText: "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes.",
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
-      "Access all high-ticket watch, vehicle & fashion live streams",
+      "Access all high-ticket watch, vehicle & fashion live auctions",
       "Authorize high-speed bid engine queues (+10, +25, +50 JOD)",
       "Bid free — pay via CliQ only when you win",
       "Buyer protection: Mazad holds your payment until you confirm receipt"
@@ -177,7 +177,7 @@ export const translations = {
     subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.",
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
-      "مشاهدة جميع البثوث المباشرة الفاخرة للسيارات، الساعات والموضة",
+      "الوصول لكل المزادات المباشرة الفاخرة للسيارات، الساعات والموضة",
       "تفعيل أزرار المزايدة الفورية (+10، +25، +50، +100 دينار)",
       "المزايدة مجانية — تدفع عبر كليك فقط عند الفوز",
       "حماية المشتري: مزاد يحتفظ بدفعتك حتى تستلم القطعة وتتأكد منها"

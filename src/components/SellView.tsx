@@ -268,7 +268,7 @@ export const SellView: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={easeOut}
-            className="max-w-md mx-auto w-full p-4 lg:p-8 space-y-5"
+            className="max-w-md mx-auto w-full p-4 lg:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] space-y-5"
             id="sell-concierge-form"
           >
             <div>{backButton}</div>
@@ -486,7 +486,7 @@ export const SellView: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={easeOut}
-            className="max-w-md lg:max-w-2xl mx-auto w-full p-4 lg:p-8 space-y-6"
+            className="max-w-md lg:max-w-2xl mx-auto w-full p-4 lg:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] space-y-6"
             id="sell-chooser"
           >
             {/* Header */}
