@@ -24,8 +24,7 @@ import {
   Truck,
   Copy,
   Smile,
-  Star,
-  Maximize2
+  Star
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { resolveConfirm } from '../hooks/useBidFlow';
@@ -64,7 +63,6 @@ interface DesktopLiveAuctionLayoutProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   videoContainerRef: React.RefObject<HTMLDivElement | null>;
   showToast: string | null;
-  toggleFullscreen: () => void;
   recentBids?: any[];
   allActivities?: any[];
 }
@@ -95,7 +93,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   videoRef,
   videoContainerRef,
   showToast,
-  toggleFullscreen,
   recentBids = [],
   allActivities = [],
 }) => {
@@ -461,7 +458,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           {/* Video Card Player Canvas with overlays */}
           <div 
             ref={videoContainerRef}
-            className="h-[calc(100vh-64px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto" 
+            className="h-[calc(100vh-220px)] max-h-[calc(100vh-220px)] aspect-[9/16] bg-black rounded-2xl border border-white/10 relative overflow-hidden group shadow-2xl shrink-0 mx-auto"
             id="professional-video-player-canvas"
           >
             {/* Swipeable media gallery — video first, then photos. Arrows +
@@ -510,19 +507,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
             {/* 2. TOP RIGHT CONTROLS */}
             <div className="absolute top-4 right-4 z-20 flex gap-2">
-              <button 
+              <button
                 onClick={onShareClick}
                 className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
                 title="Share"
               >
                 <Share2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
-                title="Fullscreen"
-              >
-                <Maximize2 className="w-4 h-4" />
               </button>
             </div>
             {/* Bid controls (price/timer/top-bidder, quick-bid tiers, swipe-to-bid,
@@ -533,7 +523,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Product information row underneath video card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-64px)*9/16)] max-w-full mx-auto" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
           
           {/* Product Condition */}
           <div className="flex items-center gap-2.5">
