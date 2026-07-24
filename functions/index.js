@@ -9,6 +9,7 @@ const {
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
+const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { resolveSettlement, reserveMet } = require('./settlement');
 
 admin.initializeApp();
@@ -1449,6 +1450,29 @@ exports.sendFulfillmentNudge = functions.runWith({ cors: true }).https.onCall(as
     console.error('Error in sendFulfillmentNudge:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'invalid-argument', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * stampDisputeResolution — Slice D (Disputes). Records the admin's
+ * resolution note AFTER the real resolution (release/refund/resume) has
+ * already happened via the existing, unmodified resolve_dispute path.
+ * This callable moves no money and re-derives nothing from order state —
+ * it is purely descriptive metadata.
+ */
+exports.stampDisputeResolution = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const { orderId, resolutionType, notes } = data || {};
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp };
+    const result = await stampDisputeResolutionTxn(deps, { orderId, resolutionType, adminUid: context.auth.uid, notes });
+    console.log(`[stampDisputeResolution] ${resolutionType} note stamped for order=${orderId} by ${context.auth.uid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in stampDisputeResolution:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
