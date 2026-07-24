@@ -78,12 +78,40 @@ export const SubscriptionView: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<typeof plans[0]>(plans[1]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
   const [paymentProofImage, setPaymentProofImage] = useState<string>('');
   const [transferFullName, setTransferFullName] = useState('');
   const [transferPhone, setTransferPhone] = useState('');
   const [copied, setCopied] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
   const isAr = language === 'ar';
+
+  // Tier rank for "show only higher tiers" upgrade logic.
+  const TIER_RANK: Record<string, number> = { monthly: 0, semiannual: 1, annual: 2 };
+  const currentTierId = (currentUser?.subscriptionTier || currentUser?.subscriptionPlan || 'monthly') as string;
+  const currentRank = TIER_RANK[currentTierId] ?? 0;
+  const isTopTier = currentRank >= 2;
+
+  const memberBenefits = isAr
+    ? [
+        'زايد مجاناً — لا رسوم على كل مزايدة',
+        'ادفع فقط عند الفوز (+٥٪ عمولة المشتري)',
+        'الدفع عند الاستلام: متاح لمشتركي VIP',
+        'حماية المشتري: مزاد يحتفظ بمبلغك حتى تأكيد الاستلام',
+      ]
+    : [
+        'Bid freely — no per-bid fees',
+        'Pay only when you win (+5% buyer premium)',
+        'VIP pay-on-delivery',
+        'Buyer protection — Mazad holds your payment until you confirm receipt',
+      ];
+
+  const formatExpiry = (v?: string | number | null): string | null => {
+    if (!v) return null;
+    const ms = typeof v === 'number' ? v : Date.parse(v);
+    if (!ms || Number.isNaN(ms)) return null;
+    return new Date(ms).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
 
   // Show the pending state after a successful submit AND on refresh while the
   // request is still under review — kills the silent-success → duplicate-click loop.
@@ -196,7 +224,91 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Main Body */}
       <main className="w-full max-w-2xl mx-auto my-auto py-8">
-        {isPendingReview ? (
+        {currentUser?.subscriptionStatus === 'active' && !upgrading ? (
+          /* ACTIVE MEMBER DASHBOARD — replaces the pricing form for paid members. */
+          <div className="space-y-6" id="member-dashboard">
+            {/* Your membership */}
+            <div className="text-center space-y-2">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">
+                {isAr ? 'عضويتك فعّالة' : "You're a member"}
+              </h1>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider text-gray-500 font-mono">
+                  {plans.find(p => p.id === currentTierId)?.name || currentTierId}
+                </span>
+                <span className="text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                  {isAr ? 'فعّال' : 'ACTIVE'}
+                </span>
+              </div>
+              {formatExpiry(currentUser?.subscriptionExpiry) && (
+                <p className="text-xs text-gray-500">
+                  {isAr ? 'يتجدد / ينتهي في ' : 'Renews / expires '}{formatExpiry(currentUser?.subscriptionExpiry)}
+                </p>
+              )}
+            </div>
+
+            {/* Upgrade-under-review (this session only) */}
+            {submitted && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-center" id="upgrade-under-review">
+                <p className="text-xs font-bold text-amber-700">
+                  {isAr ? '⏳ ترقيتك قيد المراجعة — تبقى عضويتك فعّالة حتى الاعتماد.' : '⏳ Your upgrade is under review — your membership stays active until it\'s approved.'}
+                </p>
+              </div>
+            )}
+
+            {/* Member benefits */}
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3">
+                {isAr ? 'مزايا العضوية' : 'Member benefits'}
+              </h2>
+              <ul className="space-y-2">
+                {memberBenefits.map((b, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs font-medium text-gray-700">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Upgrade options (only tiers above the current one) */}
+            {isTopTier ? (
+              <div className="text-center text-xs text-gray-400 font-semibold py-2">
+                {isAr ? '👑 أنت على أعلى باقة.' : "👑 You're on the top plan."}
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3">
+                  {isAr ? 'ترقية العضوية' : 'Upgrade'}
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {plans.filter(p => (TIER_RANK[p.id] ?? 0) > currentRank).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedPlan(p); setUpgrading(true); }}
+                      className={`relative rounded-2xl border-2 p-4 text-start hover:bg-gray-50/50 transition-all cursor-pointer ${p.color}`}
+                    >
+                      <h3 className="font-black text-xs uppercase tracking-wider text-gray-400 font-mono">{p.name}</h3>
+                      <div className="flex items-baseline mt-1">
+                        <span className="text-2xl font-black text-gray-900 font-mono">{p.price}</span>
+                        <span className="text-[10px] text-gray-500 font-mono font-bold uppercase ms-1">{p.period}</span>
+                      </div>
+                      <span className="mt-2 inline-block text-[10px] font-black text-[#E85D04]">
+                        {isAr ? 'ترقية ←' : 'Upgrade →'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 text-center mt-3">
+                  {isAr ? 'الترقية = باقة جديدة كاملة بالسعر الأعلى؛ تبقى عضويتك فعّالة أثناء المراجعة.' : 'Upgrade = a fresh full term at the higher tier; your membership stays active during review.'}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : isPendingReview ? (
           /* PENDING REVIEW STATE — replaces the form entirely (also shown on refresh
              while subscriptionStatus === 'pending') so users can't double-submit. */
           <div className="text-center space-y-5 py-10" id="subscription-pending-state">
