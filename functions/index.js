@@ -289,7 +289,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       amount: notifyData.finalPrice,
       buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
@@ -298,7 +298,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       amount: notifyData.finalPrice,
       buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
     });
   }
@@ -473,7 +473,7 @@ exports.paymentDefaultEnforcer = functions.pubsub
         }
         batch.set(db.collection('system_health').doc(), {
           type: 'payment_fail',
-          title: 'Order defaulted (24h unpaid)',
+          title: `Order defaulted (${resolvePaymentWindowHours(o.paymentWindowHours)}h unpaid)`,
           details: `Order ${doc.id} (${o.auctionTitle || ''}) buyer ${o.buyerName || o.buyerId} — ${o.totalDue || o.winningBidAmount} JOD. Buyer blocked; decide re-run/runner-up.`,
           source: 'paymentDefaultEnforcer',
           createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1738,7 +1738,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
@@ -1746,7 +1746,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
-      paymentHours: 24,
+      paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_payment_due`,
     });
 
