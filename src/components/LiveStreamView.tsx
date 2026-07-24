@@ -12,6 +12,7 @@ import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid, totalWithPremium, isViewerWinner } from '../utils/bidMath';
 import { translations } from '../utils/translations';
 import { formatMoney } from '../utils/formatMoney';
+import { effectivePrice, optimisticResolved, type OptimisticBid } from '../utils/optimisticBid';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
@@ -327,6 +328,9 @@ export const LiveStreamView: React.FC = () => {
   const { chatMessages } = useChat();
 
   const isAr = language === 'ar';
+  // Optimistic bid overlay: the price paints my bid instantly (before the
+  // callable round-trip + Firestore echo), then reconciles when the doc catches up.
+  const [optimistic, setOptimistic] = useState<OptimisticBid>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -388,7 +392,14 @@ export const LiveStreamView: React.FC = () => {
     setIsOverlayDismissed(false);
   }, [activeAuctionId]);
 
-  const activePrice = activeAuction ? activeAuction.currentPrice : 0;
+  const activePrice = activeAuction ? effectivePrice(activeAuction.currentPrice, optimistic, activeAuction.id) : 0;
+
+  // Clear the optimistic overlay once the live doc has caught up to (or passed) it.
+  useEffect(() => {
+    if (optimistic && activeAuction && optimisticResolved(activeAuction.currentPrice, optimistic, activeAuction.id)) {
+      setOptimistic(null);
+    }
+  }, [activeAuction?.currentPrice, activeAuction?.id, optimistic]);
 
   // Win celebration: fires only on the status *transition* to 'completed'
   // while this user holds the highest bid (per-id previous-status ref inside
@@ -534,8 +545,14 @@ export const LiveStreamView: React.FC = () => {
       return { success: false, message };
     }
 
-    const res = await placeBid(activeAuction.id, amount);
+    // Optimistic paint: show my bid instantly; reconcile when the listener echoes.
+    const auctionId = activeAuction.id;
+    if (currentUser) {
+      setOptimistic({ auctionId, price: amount, bidderId: currentUser.id, bidderName: currentUser.name || (isAr ? 'أنت' : 'You') });
+    }
+    const res = await placeBid(auctionId, amount);
     if (!res.success) {
+      setOptimistic(prev => (prev && prev.auctionId === auctionId ? null : prev)); // roll back
       triggerToast(res.message);
     }
     // Success feedback (price count-up + winning pill) is owned by the layouts.
