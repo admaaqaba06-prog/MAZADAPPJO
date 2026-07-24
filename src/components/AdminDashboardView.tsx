@@ -99,7 +99,7 @@ const HealthStatusCard: React.FC<{
     ok: 'bg-emerald-50/60 border-emerald-100 text-emerald-700',
     warn: 'bg-amber-50/60 border-amber-100 text-amber-700',
     bad: 'bg-rose-50/60 border-rose-100 text-rose-700',
-    neutral: 'bg-gray-50 border-gray-150 text-gray-400',
+    neutral: 'bg-gray-50 border-gray-200 text-gray-400',
   };
   const dotStyles: Record<StatusSeverity, string> = {
     ok: 'bg-emerald-500',
@@ -185,7 +185,7 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
         ) : losingLockedEscrows.length === 0 ? (
           <p className="text-emerald-600 font-bold text-[11px] font-sans">✅ All losing escrows refunded/released</p>
         ) : (
-          <div className="bg-white border border-zinc-150 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
+          <div className="bg-white border border-gray-200 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
             {losingLockedEscrows.map((e) => (
               <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 last:border-0 pb-1.5 last:pb-0">
                 <div className="min-w-0">
@@ -257,7 +257,7 @@ const ConversionFunnelCard: React.FC<{ isAr: boolean }> = ({ isAr }) => {
   const maxCount = Math.max(1, ...stageCounts);
 
   return (
-    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-gray-100 gap-3 flex-wrap">
         <div>
           <h3 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
@@ -1200,7 +1200,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'verify' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1223,7 +1223,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'fulfillment' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1243,7 +1243,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'disputes' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1262,7 +1262,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'orders' && (
           <div className="space-y-4">
             {/* Header and Stats */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-3xl border border-gray-150">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-3xl border border-gray-200">
               <div className="space-y-1">
                 <h3 className="text-lg font-black text-gray-900">{isAr ? 'نظام تتبع وإدارة الطلبات' : 'Order Fulfillment Ledger'}</h3>
                 <p className="text-xs text-gray-500">{isAr ? 'عرض وتتبع جميع عمليات الفوز والطلبات المنبثقة من المزادات المغلقة.' : 'Audit and track all won listings, escrow transactions, and shipping states.'}</p>
@@ -1296,7 +1296,7 @@ export const AdminDashboardView: React.FC = () => {
             </div>
 
             {/* Filter buttons bar */}
-            <div className="bg-white p-2 rounded-2xl border border-gray-150 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <div className="bg-white p-2 rounded-2xl border border-gray-200 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
               {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'completed', 'disputed', 'defaulted'] as const).map((filterOpt) => {
                 const label = isAr
                   ? (filterOpt === 'all' ? 'الكل' :
@@ -1351,7 +1351,7 @@ export const AdminDashboardView: React.FC = () => {
                   return (
                     <div 
                       key={order.id} 
-                      className="bg-white border border-gray-150 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
+                      className="bg-white border border-gray-200 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
                     >
                       {/* Left vertical neon status tag depending on order state */}
                       <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${
@@ -1448,7 +1448,7 @@ export const AdminDashboardView: React.FC = () => {
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 bg-white rounded-3xl border border-gray-150 p-6">
+              <div className="text-center py-12 bg-white rounded-3xl border border-gray-200 p-6">
                 <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
                   <Database className="w-5 h-5 text-gray-400" />
                 </div>
@@ -1501,7 +1501,7 @@ export const AdminDashboardView: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Card 1: Funds held by Mazad */}
-              <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
+              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
                     <Coins className="w-4 h-4 text-emerald-600" />
@@ -1519,7 +1519,7 @@ export const AdminDashboardView: React.FC = () => {
               </div>
               
               {/* Card 2: Live Channels */}
-              <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
+              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center animate-pulse">
                     <Tv className="w-4 h-4 text-rose-600" />
@@ -1537,7 +1537,7 @@ export const AdminDashboardView: React.FC = () => {
               </div>
 
               {/* Card 3: Total Concluded Bids */}
-              <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
+              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
                     <TrendingUp className="w-4 h-4 text-blue-600" />
@@ -1555,7 +1555,7 @@ export const AdminDashboardView: React.FC = () => {
               </div>
 
               {/* Card 4: Registered Users */}
-              <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
+              <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs transition-all hover:border-gray-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center">
                     <Users className="w-4 h-4 text-amber-600" />
@@ -1578,7 +1578,7 @@ export const AdminDashboardView: React.FC = () => {
             <ConversionFunnelCard isAr={isAr} />
 
             {/* Simpler, Friendly Action Feed (Replacing complex SVG graphs & System Telemetry Logs) */}
-            <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div>
                   <h3 className="text-xs font-extrabold text-gray-900 uppercase">
@@ -1634,7 +1634,7 @@ export const AdminDashboardView: React.FC = () => {
             ========================================== */}
         {activeTab === 'payments' && (
           <div className="space-y-4">
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'طلبات التحقق من حوالات كليك' : 'CLIQ DEPOSITS VERIFICATION'}
@@ -1648,7 +1648,7 @@ export const AdminDashboardView: React.FC = () => {
                 <AdminListSkeleton />
               ) : pendingCliQDrops.length > 0 ? (
                 pendingCliQDrops.map((dep) => (
-                  <div key={dep.id} className="bg-white border border-gray-150 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm relative overflow-hidden transition-all hover:border-gray-250">
+                  <div key={dep.id} className="bg-white border border-gray-200 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm relative overflow-hidden transition-all hover:border-gray-200">
                     <div className="space-y-3 min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">
@@ -1667,7 +1667,7 @@ export const AdminDashboardView: React.FC = () => {
                       </div>
 
                       {/* File presentation / Receipt slip */}
-                      <div className="bg-gray-50 border border-gray-150 rounded-xl p-3 flex items-center justify-between">
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                           <div className="min-w-0">
@@ -1754,7 +1754,7 @@ export const AdminDashboardView: React.FC = () => {
           <div className="space-y-6">
             
             {/* Header */}
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <Tv className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'طلبات التحقق والموافقة على المزادات' : 'AUCTION LOT APPROVAL SYSTEM'}
@@ -1774,12 +1774,12 @@ export const AdminDashboardView: React.FC = () => {
                 <AdminListSkeleton />
               ) : pendingListingDrops.length > 0 ? (
                 pendingListingDrops.map((item) => (
-                  <div key={item.id} className="bg-white border border-gray-150 p-5 rounded-2xl space-y-4 shadow-xs transition-all hover:border-gray-250">
+                  <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs transition-all hover:border-gray-200">
                     <div className="flex gap-4">
                       <img 
                         src={item.thumbnailUrl} 
                         alt="Lot Cover" 
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-150 shrink-0 shadow-xs"
+                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 shrink-0 shadow-xs"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1814,7 +1814,7 @@ export const AdminDashboardView: React.FC = () => {
                     <p className="text-xs text-gray-600 leading-relaxed bg-gray-50/50 p-3 rounded-xl border border-gray-100">{item.description}</p>
 
                     {item.videoUrl && (
-                      <div className="bg-gray-50 border border-gray-150 p-3 rounded-xl space-y-2">
+                      <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl space-y-2">
                         <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
                           🎥 {isAr ? 'معاينة محتوى الفيديو المرفق' : 'ATTACHED DEMO VIDEO'}
                         </span>
@@ -1905,7 +1905,7 @@ export const AdminDashboardView: React.FC = () => {
                 
                 if (completedAuctions.length === 0) {
                   return (
-                    <div className="text-center py-10 bg-white border border-gray-150 rounded-2xl p-6 text-gray-400 text-xs shadow-xs">
+                    <div className="text-center py-10 bg-white border border-gray-200 rounded-2xl p-6 text-gray-400 text-xs shadow-xs">
                       {isAr ? 'لم ينتهِ أي مزاد بعد في النظام لتسجيل فائزين.' : 'No auctions have closed yet.'}
                     </div>
                   );
@@ -1921,10 +1921,10 @@ export const AdminDashboardView: React.FC = () => {
                       const winnerCityStr = winnerUser?.city || (item.currentBidderId ? 'Amman' : 'N/A');
 
                       return (
-                        <div key={item.id} className="bg-white border border-gray-150 p-5 rounded-2xl space-y-4 shadow-xs">
+                        <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs">
                           {/* Minimal item tag */}
                           <div className="flex gap-3 items-center">
-                            <img src={item.thumbnailUrl} alt="Cover" className="w-11 h-11 rounded-lg object-cover border border-gray-150 shrink-0" />
+                            <img src={item.thumbnailUrl} alt="Cover" className="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0" />
                             <div className="min-w-0 flex-1">
                               <h4 className="font-extrabold text-xs text-gray-900 truncate leading-none mt-1">{item.title}</h4>
                               <p className="text-[11px] text-gray-500 mt-2 font-mono">
@@ -1955,7 +1955,7 @@ export const AdminDashboardView: React.FC = () => {
                                 </div>
                                 <div className="sm:mt-1">
                                   <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'البريد الإلكتروني:' : 'EMAIL'}</span>
-                                  <span className="font-medium text-gray-850 font-mono truncate block">{winnerEmailStr}</span>
+                                  <span className="font-medium text-gray-800 font-mono truncate block">{winnerEmailStr}</span>
                                 </div>
                                 <div className="sm:mt-1">
                                   <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'المدينة والمنطقة:' : 'REGION'}</span>
@@ -2007,7 +2007,7 @@ export const AdminDashboardView: React.FC = () => {
                                 </button>
                                 <button 
                                   onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
-                                  className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-850 text-white font-extrabold text-[11px] rounded-xl transition-all"
+                                  className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-[11px] rounded-xl transition-all"
                                 >
                                   {isAr ? 'نسخ بيانات الشحن والتنسيق ✈️' : 'DISPATCH LOT ✈️'}
                                 </button>
@@ -2037,11 +2037,11 @@ export const AdminDashboardView: React.FC = () => {
               </h3>
 
               {auctions.length === 0 ? (
-                <div className="text-center py-8 bg-white border border-gray-150 rounded-2xl p-4 text-gray-400 text-xs shadow-xs">
+                <div className="text-center py-8 bg-white border border-gray-200 rounded-2xl p-4 text-gray-400 text-xs shadow-xs">
                   {isAr ? 'لا توجد مزادات في قاعدة البيانات.' : 'No registered entries found.'}
                 </div>
               ) : (
-                <div className="bg-white border border-gray-150 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
+                <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
                   {auctions.map((item) => {
                     let statusLabel = item.status.toUpperCase();
                     let statusColor = 'bg-gray-100 text-gray-500';
@@ -2065,7 +2065,7 @@ export const AdminDashboardView: React.FC = () => {
                           <img 
                             src={item.thumbnailUrl} 
                             alt={item.title} 
-                            className="w-10 h-10 rounded-lg object-cover border border-gray-150 shrink-0" 
+                            className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" 
                           />
                           <div className="min-w-0 flex-1">
                             <h4 className="font-extrabold text-[12px] text-gray-900 truncate" title={item.title}>
@@ -2113,7 +2113,7 @@ export const AdminDashboardView: React.FC = () => {
             ========================================== */}
         {activeTab === 'users' && (
           <div className="space-y-4">
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'سجل الأعضاء وإدارة الصلاحيات' : 'MEMBERS PRIVILEGE CONTROL'}
@@ -2123,7 +2123,7 @@ export const AdminDashboardView: React.FC = () => {
               </p>
             </div>
 
-            <div className="bg-white border border-gray-150 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
+            <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
               {isLoading ? (
                 <div className="p-4">
                   <AdminListSkeleton />
@@ -2135,7 +2135,7 @@ export const AdminDashboardView: React.FC = () => {
                     <img 
                       src={profile.avatar} 
                       alt="Avatar" 
-                      className="w-10 h-10 rounded-xl object-cover shrink-0 border border-gray-150 shadow-xs"
+                      className="w-10 h-10 rounded-xl object-cover shrink-0 border border-gray-200 shadow-xs"
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -2203,7 +2203,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'subscriptions' && (
           <div className="space-y-4">
             
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'طلبات اشتراكات المزايدة الممتازة' : 'PREMIUM MEMBERSHIP PASSES'}
@@ -2214,7 +2214,7 @@ export const AdminDashboardView: React.FC = () => {
             </div>
 
             {isLoading ? (
-              <div className="bg-white border border-gray-150 rounded-2xl p-4">
+              <div className="bg-white border border-gray-200 rounded-2xl p-4">
                 <AdminListSkeleton />
               </div>
             ) : subscriptionRequests.length === 0 ? (
@@ -2227,7 +2227,7 @@ export const AdminDashboardView: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {subscriptionRequests.map((req) => (
-                  <div key={req.id} className="bg-white border border-gray-150 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn transition-all hover:border-gray-250">
+                  <div key={req.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn transition-all hover:border-gray-200">
                     <div className="space-y-3 min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/20 rounded-full font-bold px-2.5 py-0.5 uppercase">
@@ -2249,7 +2249,7 @@ export const AdminDashboardView: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="bg-gray-50 border border-gray-150 p-3 rounded-xl text-xs space-y-1.5">
+                      <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs space-y-1.5">
                         <p className="text-gray-600">
                           <strong className="text-gray-800">{isAr ? 'الاسم بالكامل للحوالة:' : 'Sender Name:'}</strong> {req.transferFullName || 'N/A'}
                         </p>
@@ -2316,7 +2316,7 @@ export const AdminDashboardView: React.FC = () => {
                 
                 <div className="space-y-2">
                   {pendingByUsersOnly.map((user) => (
-                    <div key={user.id} className="bg-white border border-gray-150 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                    <div key={user.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
                       <div>
                         <h5 className="font-extrabold text-xs text-gray-900 leading-none">{user.name}</h5>
                         <p className="text-[10px] text-gray-400 mt-1">{user.email}</p>
@@ -2351,7 +2351,7 @@ export const AdminDashboardView: React.FC = () => {
             ========================================== */}
         {activeTab === 'sessions' && (
           <div className="space-y-4">
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'جلسات النشاط النشطة' : 'ACTIVE USER SESSIONS'}
@@ -2361,11 +2361,11 @@ export const AdminDashboardView: React.FC = () => {
               </p>
             </div>
 
-            <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-150 text-gray-500 font-bold">
+                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold">
                       <th className="p-4 text-start">{isAr ? 'المستخدم' : 'USER'}</th>
                       <th className="p-4 text-start">{isAr ? 'الجهاز المتصل' : 'DEVICE'}</th>
                       <th className="p-4 text-start">{isAr ? 'نظام التشغيل' : 'PLATFORM'}</th>
@@ -2423,7 +2423,7 @@ export const AdminDashboardView: React.FC = () => {
             ========================================== */}
         {activeTab === 'withdrawals' && (
           <div className="space-y-4 animate-fadeIn">
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> 
                 {isAr ? 'إدارة طلبات السحب المالي للبائعين' : 'MERCHANT WITHDRAWAL AUDIT'}
@@ -2434,7 +2434,7 @@ export const AdminDashboardView: React.FC = () => {
             </div>
 
             {isLoading ? (
-              <div className="bg-white border border-gray-150 rounded-2xl p-4">
+              <div className="bg-white border border-gray-200 rounded-2xl p-4">
                 <AdminListSkeleton />
               </div>
             ) : allWithdrawals.length === 0 ? (
@@ -2461,7 +2461,7 @@ export const AdminDashboardView: React.FC = () => {
                   }
 
                   return (
-                    <div key={req.id} className="bg-white border border-gray-150 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn transition-all hover:border-gray-250">
+                    <div key={req.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn transition-all hover:border-gray-200">
                       <div className="space-y-3 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-[9px] border rounded-full font-bold px-2.5 py-0.5 uppercase tracking-wider ${statusBadge}`}>
@@ -2488,7 +2488,7 @@ export const AdminDashboardView: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="bg-gray-50 border border-gray-150 p-3 rounded-xl text-xs space-y-1.5 font-mono">
+                        <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs space-y-1.5 font-mono">
                           <p className="text-gray-600">
                             <strong className="text-gray-800">{isAr ? 'طريقة السحب:' : 'Payout Method:'}</strong> {req.type === 'cliq' ? (isAr ? 'كليك (CliQ)' : 'CliQ') : (isAr ? 'حوالة بنكية' : 'Bank Transfer')}
                           </p>
@@ -2529,7 +2529,7 @@ export const AdminDashboardView: React.FC = () => {
                                     setRejectingId(null);
                                     setRejectionReason('');
                                   }}
-                                  className="bg-gray-150 hover:bg-gray-200 text-gray-700 text-[11px] font-black px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-black px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                                 >
                                   {isAr ? 'إلغاء' : 'Cancel'}
                                 </button>
@@ -2571,7 +2571,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'health' && (
           <div className="space-y-6 animate-fadeIn">
             {/* Header Description */}
-            <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-[#FF6B00] animate-pulse" /> 
                 {isAr ? 'مركز التحكم التشغيلي والجاهزية الفنية' : 'OPERATIONAL CONTROL CENTER & SYSTEM HEALTH'}
@@ -2627,7 +2627,7 @@ export const AdminDashboardView: React.FC = () => {
               <div className="lg:col-span-2 space-y-6">
                 
                 {/* 1. Maintenance Toggle Card */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                       <Server className="w-4 h-4 text-gray-400" />
@@ -2723,7 +2723,7 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
 
                 {/* 2. Feature Flags Switchboard */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
                     <Settings className="w-4 h-4 text-gray-400" />
                     <h4 className="text-xs font-extrabold text-gray-900 uppercase">
@@ -2902,7 +2902,7 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
 
                 {/* 3. Database State Back backups & Recovery */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
                     <HardDrive className="w-4 h-4 text-gray-400" />
                     <h4 className="text-xs font-extrabold text-gray-900 uppercase">
@@ -2929,7 +2929,7 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
 
                 {/* Onboarding & Welcome Flow Testing Controls */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
                     <RotateCcw className="w-4 h-4 text-[#FF6B00]" />
                     <h4 className="text-xs font-extrabold text-gray-900 uppercase">
@@ -3020,7 +3020,7 @@ export const AdminDashboardView: React.FC = () => {
               </div>
 
               {/* Right Side: Real-time Operations & Logs */}
-              <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs flex flex-col h-[600px] lg:h-[720px]">
+              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex flex-col h-[600px] lg:h-[720px]">
                 <div className="pb-3 border-b border-gray-100">
                   <h4 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
                     <Activity className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
@@ -3046,7 +3046,7 @@ export const AdminDashboardView: React.FC = () => {
                         className={`text-[9px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider font-mono transition-colors ${
                           isSelected 
                             ? 'bg-slate-900 text-white' 
-                            : 'bg-gray-105 hover:bg-gray-150 text-gray-500 bg-gray-100'
+                            : 'bg-gray-105 hover:bg-gray-100 text-gray-500 bg-gray-100'
                         }`}
                       >
                         {label}
@@ -3084,7 +3084,7 @@ export const AdminDashboardView: React.FC = () => {
                       }
 
                       return (
-                        <div key={log.id} className="bg-gray-50/50 border border-gray-150 rounded-xl p-3 space-y-2 text-[11px] hover:bg-gray-50 transition-colors animate-fadeIn">
+                        <div key={log.id} className="bg-gray-50/50 border border-gray-200 rounded-xl p-3 space-y-2 text-[11px] hover:bg-gray-50 transition-colors animate-fadeIn">
                           <div className="flex items-center justify-between">
                             <span className={`text-[8px] font-black tracking-widest font-mono px-2 py-0.5 rounded border ${typeBadgeBg}`}>
                               {typeLabel}
@@ -3125,7 +3125,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'simulator' && isAdminUser(currentUser) && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-150 text-xs text-gray-400 font-semibold">
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
                 Loading simulator…
               </div>
             }
@@ -3152,7 +3152,7 @@ export const AdminDashboardView: React.FC = () => {
               <span className="text-[10px] text-gray-400 font-mono uppercase">{isAr ? 'إثبات تحويل كليك' : 'CliQ Transfer Proof'}</span>
               <button 
                 onClick={() => setViewReceiptUrl(null)}
-                className="bg-gray-150 hover:bg-gray-200 text-gray-850 rounded-xl px-4 py-2 text-xs font-black uppercase transition-all"
+                className="bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl px-4 py-2 text-xs font-black uppercase transition-all"
               >
                 {isAr ? 'إغلاق' : 'Close'}
               </button>

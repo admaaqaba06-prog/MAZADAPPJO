@@ -95,7 +95,7 @@ const DisputeRow: React.FC<{
   const selectedConfig = RESOLUTIONS.find((r) => r.id === selected);
 
   return (
-    <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
       {/* Header: title + age */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <h4 className="font-extrabold text-sm text-gray-900 leading-snug min-w-0">
@@ -162,7 +162,7 @@ const DisputeRow: React.FC<{
 
       {/* Inline required-note box for the chosen resolution */}
       {selected && (
-        <div className="bg-gray-50 border border-gray-150 rounded-xl p-3 space-y-2.5 animate-fadeIn">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5 animate-fadeIn">
           <p className="text-[10px] font-bold text-gray-500 uppercase">
             {isAr ? 'ملاحظة الحل (مطلوبة)' : 'Resolution note (required)'}
           </p>
@@ -232,7 +232,7 @@ export const DisputesSection: React.FC<DisputesSectionProps> = ({
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="space-y-4">
       {/* Header */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-1">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-1">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-lg font-black text-gray-900">
             {isAr ? 'النزاعات' : 'Disputes'}

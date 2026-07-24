@@ -109,14 +109,14 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
             <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 space-y-1.5">
               <span className="text-[#FF6B00] font-extrabold text-[11px] block font-sans">🛡️ How your payment is protected:</span>
-              <p className="text-[11px] text-zinc-650 leading-normal">
+              <p className="text-[11px] text-zinc-600 leading-normal">
                 When you win and pay, Mazad JO <strong>holds your payment</strong> and does not release it to the seller until you receive the item, verify it, and approve the release. If there is a problem or the item does not match the listing <strong>before you approve release</strong>, open a dispute and Mazad JO will mediate and return your held funds.
               </p>
             </div>
 
             <div className="bg-red-50/5 rounded-xl p-3 border border-red-100 space-y-1.5">
               <span className="text-red-600 font-extrabold text-[11px] block font-sans">⚖️ All sales are final after confirmation:</span>
-              <p className="text-[11px] text-zinc-650 leading-normal">
+              <p className="text-[11px] text-zinc-600 leading-normal">
                 Winning bids are binding. Once you confirm receipt and approve release of funds to the seller, the sale is complete and <strong>no post-sale refunds</strong> are offered. Raise any concern through the dispute process <strong>before</strong> approving release.
               </p>
             </div>

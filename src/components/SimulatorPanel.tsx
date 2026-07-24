@@ -292,7 +292,7 @@ export const SimulatorPanel: React.FC = () => {
     if (a.status === 'upcoming') return { label: 'UPCOMING', cls: 'bg-sky-50 text-sky-600 border-sky-100' };
     if (ended) return { label: 'ENDED (unsettled)', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
     if (isLiveStatus(a.status)) return { label: 'LIVE', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    return { label: String(a.status || 'unknown').toUpperCase(), cls: 'bg-gray-50 text-gray-500 border-gray-150' };
+    return { label: String(a.status || 'unknown').toUpperCase(), cls: 'bg-gray-50 text-gray-500 border-gray-200' };
   };
 
   const timeLeftLabel = (a: any): string => {
@@ -311,7 +311,7 @@ export const SimulatorPanel: React.FC = () => {
   return (
     <div className="space-y-4" id="simulator-panel">
       {/* ── Master toggle + banner ─────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-3">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
@@ -344,7 +344,7 @@ export const SimulatorPanel: React.FC = () => {
             <span className="ms-auto w-2 h-2 rounded-full bg-violet-500 animate-pulse shrink-0" />
           </div>
         ) : (
-          <div className="bg-gray-50 border border-gray-150 text-gray-500 rounded-2xl px-4 py-2.5 text-xs font-bold">
+          <div className="bg-gray-50 border border-gray-200 text-gray-500 rounded-2xl px-4 py-2.5 text-xs font-bold">
             Simulator OFF — spawning and bots disabled. Existing test data can still be cleared below.
           </div>
         )}
@@ -357,7 +357,7 @@ export const SimulatorPanel: React.FC = () => {
       </div>
 
       {/* ── Spawn ──────────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-4">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-4">
         <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
           <Plus className="w-3.5 h-3.5" /> Spawn test auction
         </h4>
@@ -431,7 +431,7 @@ export const SimulatorPanel: React.FC = () => {
       </div>
 
       {/* ── Active simulated auctions ──────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 space-y-3">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
             <Gavel className="w-3.5 h-3.5" /> Simulated auctions ({simAuctions.length})
@@ -544,7 +544,7 @@ export const SimulatorPanel: React.FC = () => {
       </div>
 
       {/* ── Clear all ──────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-150 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-white p-5 rounded-3xl border border-gray-200 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500">Danger zone</h4>
           <p className="text-[10px] text-gray-400 mt-1">

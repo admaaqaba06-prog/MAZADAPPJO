@@ -240,7 +240,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
           </div>
 
           {fileDetails && (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50 p-3.5 rounded-xl border border-gray-150">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-black text-gray-800 truncate font-mono" title={fileDetails.name}>
                   {fileDetails.name}

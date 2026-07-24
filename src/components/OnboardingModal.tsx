@@ -124,7 +124,7 @@ export const OnboardingModal: React.FC = () => {
               {/* Language Switcher */}
               <button
                 onClick={() => setOnboardingLang(prev => prev === 'ar' ? 'en' : 'ar')}
-                className="text-[10px] font-black text-slate-400 hover:text-slate-700 bg-slate-100/60 hover:bg-slate-150 px-2 py-1 rounded-md transition-all cursor-pointer uppercase"
+                className="text-[10px] font-black text-slate-400 hover:text-slate-700 bg-slate-100/60 hover:bg-slate-100 px-2 py-1 rounded-md transition-all cursor-pointer uppercase"
                 id="onboarding-lang-toggle"
               >
                 {onboardingLang === 'ar' ? 'English' : 'عربي'}
