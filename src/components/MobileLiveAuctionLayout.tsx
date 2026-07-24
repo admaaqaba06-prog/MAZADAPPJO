@@ -166,7 +166,7 @@ export const MobileLiveAuctionLayout: React.FC<MobileLiveAuctionLayoutProps> = (
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar"
+        className="w-full h-full overflow-y-scroll snap-y snap-mandatory overscroll-contain no-scrollbar"
         id="mobile-reels-snap-container"
       >
         {(() => {

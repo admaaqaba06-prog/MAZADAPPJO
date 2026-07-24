@@ -14,9 +14,10 @@ import {
   User,
   TrendingUp, 
   Tv, 
-  ShieldAlert, 
-  PlusCircle, 
-  Activity, 
+  ShieldAlert,
+  PlusCircle,
+  Plus,
+  Activity,
   Clock, 
   ShieldCheck, 
   Coins,
@@ -110,7 +111,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   return (
     <div 
-      className="w-full h-screen overflow-hidden text-gray-900 bg-gray-50/50 font-sans selection:bg-[#FF6B00]/20"
+      className="w-full h-[100dvh] overflow-hidden text-gray-900 bg-gray-50/50 font-sans selection:bg-[#FF6B00]/20"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="desktop-frame-root"
     >
@@ -126,56 +127,38 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {children}
         </div>
 
-        {/* Global Bottom Navigation bar strictly at foot of phone screens */}
-        <nav 
+        {/* Global Bottom Navigation bar strictly at foot of phone screens.
+            Native 4-slot IA: Discover · Orders · [elevated Sell "+" FAB] · Profile.
+            Sell is a raised center FAB (Instagram/TikTok create pattern); the
+            former Home/Sell/How-it-works flat tabs are gone. Seller/Admin remain
+            as role-gated slots so those destinations aren't orphaned on mobile.
+            Order is source-order so RTL mirrors it correctly. */}
+        <nav
           className={`pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-4 flex items-center justify-between text-[10px] font-bold tracking-wider select-none h-16 shrink-0 transition-all duration-300 ${
-            activeView === 'live' 
-              ? 'bg-[#111111]/95 text-zinc-400 border-t border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]' 
+            activeView === 'live'
+              ? 'bg-[#111111]/95 text-zinc-400 border-t border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]'
               : 'bg-white border-t border-gray-200/80 text-gray-500 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]'
           }`}
           id="mobile-nav-bar"
         >
-          <button 
+          {/* Discover — same 'discovery' route, relabeled from "Home" */}
+          <button
             onClick={() => setActiveView('discovery')}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'discovery' 
-                ? 'text-[#FF6B00]' 
+            aria-current={activeView === 'discovery' ? 'page' : undefined}
+            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
+              activeView === 'discovery'
+                ? 'text-[#FF6B00]'
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
             }`}
           >
             <Home className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'الرئيسية' : 'Home'}</span>
+            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'اكتشف' : 'Discover'}</span>
           </button>
-
-          <button
-            onClick={() => setActiveView('upload')}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'upload' 
-                ? 'text-[#FF6B00]' 
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
-            }`}
-          >
-            <PlusCircle className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'بيع' : 'Sell'}</span>
-          </button>
-
-          {isSeller && (
-            <button 
-              onClick={() => setActiveView('seller-center')}
-              className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-                activeView === 'seller-center' 
-                  ? 'text-[#FF6B00]' 
-                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <Store className="w-5 h-5" />
-              <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'المتجر' : 'Seller'}</span>
-            </button>
-          )}
 
           <button
             onClick={() => setActiveView('orders')}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+            aria-current={activeView === 'orders' ? 'page' : undefined}
+            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'orders'
                 ? 'text-[#FF6B00]'
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
@@ -186,22 +169,36 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'مشترياتي' : 'Orders'}</span>
           </button>
 
+          {/* Sell — elevated center FAB (raised orange circle). Same 'upload'
+              route/handler; only the presentation changed. */}
           <button
-            onClick={() => setActiveView('about')}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-              activeView === 'about'
-                ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
-            }`}
-            id="mobile-how-it-works-tab-btn"
+            onClick={() => setActiveView('upload')}
+            aria-label={isAr ? 'بيع' : 'Sell'}
+            aria-current={activeView === 'upload' ? 'page' : undefined}
+            className="flex flex-col items-center flex-1 transition-colors"
           >
-            <HelpCircle className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal whitespace-nowrap">{isAr ? 'كيف يعمل' : 'How it works'}</span>
+            <span
+              className={`flex items-center justify-center w-14 h-14 -mt-8 rounded-full bg-[#FF6B00] text-white shadow-lg shadow-[#FF6B00]/40 border-4 transition-transform active:scale-95 ${
+                activeView === 'live' ? 'border-[#111111]' : 'border-white'
+              } ${activeView === 'upload' ? 'ring-2 ring-[#FF6B00]/40 ring-offset-0' : ''}`}
+            >
+              <Plus className="w-7 h-7" strokeWidth={2.75} />
+            </span>
+            <span
+              className={`text-[9px] font-extrabold tracking-normal mt-0.5 ${
+                activeView === 'upload'
+                  ? 'text-[#FF6B00]'
+                  : activeView === 'live' ? 'text-zinc-500' : 'text-gray-400'
+              }`}
+            >
+              {isAr ? 'بيع' : 'Sell'}
+            </span>
           </button>
 
           <button
             onClick={() => (isGuest ? requestSignIn() : setActiveView('profile'))}
-            className={`flex flex-col items-center gap-1 transition-all flex-1 ${
+            aria-current={activeView === 'profile' ? 'page' : undefined}
+            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'profile'
                 ? 'text-[#FF6B00]'
                 : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
@@ -213,12 +210,28 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </span>
           </button>
 
+          {isSeller && (
+            <button
+              onClick={() => setActiveView('seller-center')}
+              aria-current={activeView === 'seller-center' ? 'page' : undefined}
+              className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
+                activeView === 'seller-center'
+                  ? 'text-[#FF6B00]'
+                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+              }`}
+            >
+              <Store className="w-5 h-5" />
+              <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'المتجر' : 'Seller'}</span>
+            </button>
+          )}
+
           {isStrictAdmin && (
-            <button 
+            <button
               onClick={() => setActiveView('admin')}
-              className={`flex flex-col items-center gap-1 transition-all flex-1 ${
-                activeView === 'admin' 
-                  ? 'text-[#FF6B00]' 
+              aria-current={activeView === 'admin' ? 'page' : undefined}
+              className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
+                activeView === 'admin'
+                  ? 'text-[#FF6B00]'
                   : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
               }`}
               id="mobile-admin-tab-btn"
@@ -233,7 +246,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       {/* ======================================================================
           2. THE PREMIUM THREE-COLUMN MOCKUP LAYOUT (Presented strictly on screens lg and above)
           ====================================================================== */}
-      <div className="hidden lg:flex flex-col h-screen overflow-hidden bg-[#F7F6F3]" id="desktop-premium-layout-root">
+      <div className="hidden lg:flex flex-col h-[100dvh] overflow-hidden bg-[#F7F6F3]" id="desktop-premium-layout-root">
         
         {/* ======================================================================
             GLOBAL DESKTOP HEADER (Standard height, clean white, like the reference)
