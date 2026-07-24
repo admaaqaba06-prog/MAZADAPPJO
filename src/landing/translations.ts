@@ -122,6 +122,7 @@ export interface TranslationType {
   marketplace: {
     badge: string; title: string; subtitle: string; currentBid: string; bids: string;
     verified: string; endingSoon: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
+    unavailableTitle: string; unavailableDesc: string;
     sellerCtaText: string; sellerCtaBtn: string;
     categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
   };
@@ -355,6 +356,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       viewBtn: "شاهد المزاد",
       emptyTitle: "المزادات تنطلق يومياً",
       emptyDesc: "كن من أوائل البائعين — اعرض سلعتك الآن وتصدَّر الصفحة.",
+      unavailableTitle: "المزادات المباشرة غير متاحة الآن",
+      unavailableDesc: "يرجى تحديث الصفحة بعد قليل.",
       sellerCtaText: "جاهز لرؤية سلعتك هنا؟",
       sellerCtaBtn: "اعرض سلعتك للبيع",
       categoryLabels: {
@@ -598,6 +601,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       viewBtn: "View auction",
       emptyTitle: "New auctions launch daily",
       emptyDesc: "Be one of the first sellers — list your item now and lead the page.",
+      unavailableTitle: "Live auctions are momentarily unavailable",
+      unavailableDesc: "Please refresh in a moment.",
       sellerCtaText: "Ready to see your item here?",
       sellerCtaBtn: "List your item",
       categoryLabels: {

@@ -226,7 +226,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, sellerWhatsappUrl, formatPri
   sellerWhatsappUrl: string;
   formatPrice: (val: number) => React.ReactNode;
 }) {
-  const { auctions, isLoading, isEmpty } = useLandingAuctions();
+  const { auctions, isLoading, isEmpty, isError } = useLandingAuctions();
   const formatTimeLeft = (endTime: number, now = Date.now()): string => {
     const ms = Math.max(0, endTime - now);
     const totalMin = Math.floor(ms / 60000);
@@ -262,6 +262,22 @@ function LiveMarketplaceSection({ lang, t, onEnter, sellerWhatsappUrl, formatPri
               <div key={i} className="rounded-2xl bg-white border border-[#F0F0EE] h-72 animate-pulse" />
             ))}
           </div>
+        ) : isError ? (
+          <Reveal>
+            <div className="max-w-md mx-auto text-center rounded-2xl bg-white border border-[#F0F0EE] p-10">
+              <h3 className="text-xl font-bold text-[#0A0A0A]">{t.marketplace.unavailableTitle}</h3>
+              <p className="mt-2 text-[#0A0A0A]/60">{t.marketplace.unavailableDesc}</p>
+              <a
+                href={sellerWhatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => emitLandingEvent('seller_cta_clicked', { location: 'marketplace_error' })}
+                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+              >
+                {t.marketplace.sellerCtaBtn}
+              </a>
+            </div>
+          </Reveal>
         ) : isEmpty ? (
           <Reveal>
             <div className="max-w-md mx-auto text-center rounded-2xl bg-white border border-[#F0F0EE] p-10">
@@ -306,7 +322,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, sellerWhatsappUrl, formatPri
                         ) : null}
                       </div>
                       <div className="p-4">
-                        <span className="text-xs text-[#0A0A0A]/50">{t.marketplace.categoryLabels[a.category]}</span>
+                        <span className="text-xs text-[#0A0A0A]/50">{t.marketplace.categoryLabels[a.category] ?? a.category}</span>
                         <h3 className="mt-1 font-semibold text-[#0A0A0A] line-clamp-1">{a.title}</h3>
                         <div className="mt-3 flex items-end justify-between">
                           <div>
@@ -318,7 +334,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, sellerWhatsappUrl, formatPri
                             <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
                           </div>
                         </div>
-                        <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} →</span>
+                        <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>
                       </div>
                     </button>
                   </Reveal>
@@ -2988,13 +3004,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             >
               <span>{lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'sticky' }); onEnter(); }}
+            <a
+              href={sellerWhatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => emitLandingEvent('seller_cta_clicked', { location: 'sticky' })}
               className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-white border-2 border-[#0A0A0A] text-[#0A0A0A] font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
             >
               <span>{lang === "ar" ? "بيع قطعتك" : "Sell Your Item"}</span>
-            </button>
+            </a>
           </motion.div>
         )}
       </AnimatePresence>

@@ -42,6 +42,14 @@ describe('curateLandingAuctions', () => {
   it('excludes items without a title', () => {
     expect(curateLandingAuctions([auction({ title: '' })], NOW)).toHaveLength(0);
   });
+  it('excludes live auctions with a missing or invalid endTime', () => {
+    const out = curateLandingAuctions([
+      auction({ id: 'zero', status: 'live', endTime: 0 }),
+      auction({ id: 'undef', status: 'live', endTime: undefined as any }),
+      auction({ id: 'ok', status: 'live', endTime: NOW + 60_000 }),
+    ], NOW);
+    expect(out.map(a => a.id)).toEqual(['ok']);
+  });
   it('orders featured first, then soonest endTime', () => {
     const out = curateLandingAuctions([
       auction({ id: 'soon', endTime: NOW + 10_000, isFeatured: false }),

@@ -20,6 +20,7 @@ export interface LandingAuctionsState {
   auctions: LandingAuction[];
   isLoading: boolean;
   isEmpty: boolean;
+  isError: boolean;
 }
 
 const DISPLAY_CAP = 8;
@@ -46,7 +47,7 @@ export function curateLandingAuctions(
   cap: number = DISPLAY_CAP
 ): LandingAuction[] {
   return auctions
-    .filter(a => a.isSimulated !== true && !!a.title && isLiveNow(a, now))
+    .filter(a => a.isSimulated !== true && !!a.title && typeof a.endTime === 'number' && a.endTime > now && isLiveNow(a, now))
     .sort((x, y) => {
       if (x.isFeatured !== y.isFeatured) return x.isFeatured ? -1 : 1;
       return x.endTime - y.endTime;
@@ -68,27 +69,30 @@ function fetchLandingAuctions(): Promise<AuctionItem[]> {
     )
   )
     .then(snap => snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AuctionItem, 'id'>) })))
-    .catch(err => {
-      console.warn('[landing] failed to load live auctions', err);
-      landingAuctionsCache = null; // allow retry next mount
-      return [];
-    });
+    .catch(err => { console.warn('[landing] failed to load live auctions', err); landingAuctionsCache = null; throw err; });
   return landingAuctionsCache;
 }
 
 export function useLandingAuctions(): LandingAuctionsState {
   const [auctions, setAuctions] = useState<LandingAuction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    fetchLandingAuctions().then(raw => {
-      if (!active) return;
-      setAuctions(curateLandingAuctions(raw));
-      setIsLoading(false);
-    });
+    fetchLandingAuctions()
+      .then(raw => {
+        if (!active) return;
+        setAuctions(curateLandingAuctions(raw));
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsError(true);
+        setIsLoading(false);
+      });
     return () => { active = false; };
   }, []);
 
-  return { auctions, isLoading, isEmpty: !isLoading && auctions.length === 0 };
+  return { auctions, isLoading, isEmpty: !isLoading && !isError && auctions.length === 0, isError };
 }
