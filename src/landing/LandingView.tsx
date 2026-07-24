@@ -1073,7 +1073,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     }
                   }
                 }}
-                className="lg:col-span-7 space-y-8 text-center lg:text-start"
+                className="lg:col-span-7 space-y-6 text-center lg:text-start"
               >
                 
                 {/* Badge */}
@@ -1094,7 +1094,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-normal leading-[1.65] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-2"
+                  className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] leading-[1.02] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-1"
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
@@ -1185,13 +1185,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 {/* Decorative second-lot peek — a Rolex Datejust card poking out behind the phone */}
                 <div
                   aria-hidden="true"
-                  className="hidden sm:block absolute top-8 start-0 z-0 w-[140px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] rotate-6 opacity-95 pointer-events-none select-none"
+                  className="hidden sm:block absolute top-10 end-[-12px] z-0 w-[154px] rounded-[18px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.35)] rotate-[6deg] opacity-95 pointer-events-none select-none"
                 >
                   <img
                     src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=500&q=80"
                     alt=""
                     referrerPolicy="no-referrer"
-                    className="w-full h-[104px] object-cover block"
+                    className="w-full h-[110px] object-cover block"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = "none";
@@ -1274,21 +1274,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </div>
                   )}
 
-                  {/* Z-10 TOP OVERLAY: REELS HEADER & TABS */}
-                  <div className="relative z-10 pt-3 space-y-2.5">
-                    {/* Top Story Progress Bars */}
-                    <div className="flex gap-1.5 w-full px-1">
-                      {ACTIVE_ITEMS.map((item, idx) => (
-                        <div key={item.id} className="h-1 flex-1 rounded-full bg-white/30 overflow-hidden">
-                          <div 
-                            className={`h-full bg-gradient-to-r from-[#F05123] to-amber-400 transition-all duration-500 ${
-                              idx === activeItemIndex ? "w-full" : idx < activeItemIndex ? "w-full opacity-60" : "w-0"
-                            }`} 
-                          />
-                        </div>
-                      ))}
-                    </div>
-
+                  {/* Z-10 TOP OVERLAY: REELS HEADER */}
+                  <div className="relative z-10 pt-3">
                     {/* Reels Streamer Profile & Live Badge Row */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/15">
@@ -1319,80 +1306,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
                       </div>
                     </div>
-
-                    {/* Reels Item Switcher Pills */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-                      {ACTIVE_ITEMS.map((item, idx) => {
-                        const isActive = idx === activeItemIndex;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActiveItemIndex(idx);
-                              setIsAutoCycling(false);
-                            }}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold font-ibmarabic backdrop-blur-md transition-all duration-300 shrink-0 border ${
-                              isActive
-                                ? "bg-[#F05123] text-white border-white/30 shadow-md scale-105"
-                                : "bg-black/40 text-white/80 hover:bg-black/60 border-white/10"
-                            }`}
-                          >
-                            <span>{item.icon}</span>
-                            <span>
-                              {lang === "ar"
-                                ? (item.id === "car" ? "سيارات" : item.id === "phone" ? "هواتف" : item.id === "watch" ? "ساعات" : "عقارات")
-                                : (item.id === "car" ? "Cars" : item.id === "phone" ? "Phones" : item.id === "watch" ? "Watches" : "Realty")}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* FLOATING RIGHT SIDE REELS ACTIONS BAR */}
-                  <div className={`absolute top-1/2 -translate-y-1/2 ${lang === "ar" ? "left-3" : "right-3"} z-20 flex flex-col items-center gap-4`}>
-                    {/* Like Heart Action */}
-                    <button 
-                      onClick={() => {
-                        setHasLiked(!hasLiked);
-                        setLikesCount(prev => hasLiked ? prev - 1 : prev + 1);
-                      }}
-                      className="flex flex-col items-center gap-1 group/btn"
-                    >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-300 ${
-                        hasLiked ? "bg-rose-500 text-white shadow-lg shadow-rose-500/50 scale-110" : "bg-black/40 text-white border border-white/15 hover:bg-black/60"
-                      }`}>
-                        <Heart className={`w-5 h-5 ${hasLiked ? "fill-white" : ""}`} />
-                      </div>
-                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
-                        {likesCount.toLocaleString()}
-                      </span>
-                    </button>
-
-                    {/* Bids Chat Action */}
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-                        <MessageCircle className="w-5 h-5 text-amber-300" />
-                      </div>
-                      <span dir="ltr" className="text-[10px] font-bold text-white/90 drop-shadow-md" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {formatCount(bidCount)} {lang === "ar" ? "مزايدة" : "bids"}
-                      </span>
-                    </div>
-
-                    {/* Share Action */}
-                    <button className="flex flex-col items-center gap-1 hover:scale-110 transition-transform">
-                      <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-                        <Share2 className="w-4 h-4 text-emerald-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-white/90 drop-shadow-md">
-                        {lang === "ar" ? "مشاركة" : "Share"}
-                      </span>
-                    </button>
-
-                    {/* Inspected Badge Icon */}
-                    <div className="w-10 h-10 rounded-full bg-emerald-600/90 backdrop-blur-md border border-emerald-400/40 flex items-center justify-center text-white shadow-md" title={lang === "ar" ? "مفحوص من مزاد جو" : "Inspected"}>
-                      <ShieldCheck className="w-5 h-5 text-white" />
-                    </div>
                   </div>
 
                   {/* Z-10 BOTTOM OVERLAY: REELS DETAILS & INSTANT BID */}
@@ -1409,20 +1322,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </motion.div>
                     )}
 
-                    {/* Live Comment Stream Bubble — "latest bid" chip, flashes an orange ring on each bid */}
-                    <div className={`max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl p-2.5 border border-white/15 shadow-xl space-y-1 transition-all duration-300 ${flashHit ? "ring-2 ring-[#F05123] ring-offset-0 -translate-y-0.5" : ""}`}>
-                      <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-ibmarabic">
+                    {/* "Latest bid" chip — flashes an orange ring + price bump on each landing bid */}
+                    <div className={`max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2.5 border border-white/15 shadow-xl flex items-center justify-between gap-3 transition-all duration-300 ${flashHit ? "ring-2 ring-[#F05123] ring-offset-0 -translate-y-0.5" : ""}`}>
+                      <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-ibmarabic uppercase tracking-wide">
                         <Flame className={`w-3 h-3 text-[#F05123] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
-                        <span>{lang === "ar" ? "آخر مزايدة حية الآن 🔥" : "Latest Live Bid 🔥"}</span>
+                        <span>{lang === "ar" ? "آخر مزايدة 🔥" : "Latest bid 🔥"}</span>
                       </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-white font-ibmarabic">
-                        <span className="text-emerald-400 font-semibold truncate max-w-[140px]">
-                          {bidLogsList[activeItemIndex]?.[0] ? getLogName(bidLogsList[activeItemIndex][0]) : (lang === "ar" ? "أحمد العبادي" : "Ahmad Al-Abadi")}
-                        </span>
-                        <span dir="ltr" className={`text-[#F05123] font-black font-mono inline-block transition-transform duration-200 ${priceBump ? "scale-[1.14]" : "scale-100"}`}>
-                          {formatPrice(currentPrice)}
-                        </span>
-                      </div>
+                      <span dir="ltr" className={`text-sm text-[#F05123] font-black font-mono inline-block transition-transform duration-200 ${priceBump ? "scale-[1.14]" : "scale-100"}`}>
+                        {formatPrice(currentPrice)}
+                      </span>
                     </div>
 
                     {/* Product Title & Badge */}
