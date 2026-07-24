@@ -566,7 +566,7 @@ export const AdminDashboardView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 pb-8 overscroll-contain select-none font-sans text-gray-800 animate-fadeIn"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans text-gray-800 animate-fadeIn"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="admin-dashboard-root"
     >

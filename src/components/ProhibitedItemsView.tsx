@@ -97,7 +97,7 @@ export const ProhibitedItemsView: React.FC = () => {
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="prohibited-items-root"
     >
