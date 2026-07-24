@@ -129,6 +129,7 @@ describe('isModalCloseTransition', () => {
 describe('round-trip serialize <-> parse (path-based)', () => {
   const cases = [
     { view: 'landing' as const },
+    { view: 'landing' as const, modal: 'notifications' },
     { view: 'discovery' as const },
     { view: 'wallet' as const },
     { view: 'orders' as const },

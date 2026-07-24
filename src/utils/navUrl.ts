@@ -139,7 +139,9 @@ export function parseNav(input: string): NavNode {
       applyModal(node, params);
       return node;
     }
-    return { view: 'landing' };
+    const node: NavNode = { view: 'landing' };
+    applyModal(node, params);
+    return node;
   }
 
   // `/auction/:id`

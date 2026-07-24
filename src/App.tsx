@@ -183,9 +183,13 @@ function MainAppShell() {
 
   useEffect(() => {
     // Redundant with AppContext's initialNav (which already parses the entry
-    // URL), but harmless and belt-and-suspenders: capture an auction deep link
-    // from either the new `/auction/:id` path or a legacy `?auction=` query.
-    const id = parseAuctionIdFromPath(window.location.pathname) ?? parseAuctionIdFromSearch(window.location.search);
+    // URL), but harmless and belt-and-suspenders. Mirror parseNav EXACTLY: the
+    // `/auction/:id` path anywhere, OR a legacy `?auction=` ONLY at root — so a
+    // hand-mangled `/discover?auction=x` can't force 'live' and push a phantom
+    // history entry that disagrees with the seeded initialNav.
+    const id =
+      parseAuctionIdFromPath(window.location.pathname) ??
+      (window.location.pathname === '/' ? parseAuctionIdFromSearch(window.location.search) : null);
     if (id) {
       setActiveAuctionId(id);
       setActiveView('live');

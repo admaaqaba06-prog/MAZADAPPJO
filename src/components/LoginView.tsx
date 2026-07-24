@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { mapAuthError } from '../utils/authErrors';
-import { parseAuctionIdFromSearch } from '../utils/deepLink';
+import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from '../utils/deepLink';
 import { Globe, CheckCircle2, Phone, Loader2 } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -92,9 +92,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   // Leak safety: tear the interval down when the component unmounts.
   useEffect(() => clearCooldownTimer, []);
 
-  // Visitor arrived via a WhatsApp auction deep link (?auction=...) — after auth,
-  // App.tsx routes them straight into that live room. Tell them why they're here.
-  const cameFromAuctionLink = !!parseAuctionIdFromSearch(window.location.search);
+  // Visitor arrived via a WhatsApp auction deep link — after auth, App.tsx routes
+  // them straight into that live room. Tell them why they're here. Check the new
+  // `/auction/:id` path AND the legacy `?auction=` query (old shared links).
+  const cameFromAuctionLink =
+    !!parseAuctionIdFromPath(window.location.pathname) ||
+    !!parseAuctionIdFromSearch(window.location.search);
 
   const clearRecaptcha = () => {
     // A consumed/errored verifier can't be reused — clear + null AND wipe the
