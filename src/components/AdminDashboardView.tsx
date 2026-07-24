@@ -1243,6 +1243,16 @@ export const AdminDashboardView: React.FC = () => {
               onRejectSubscription={rejectSubscription}
               onVerifyOrderPayment={handleVerifyOrderPayment}
               onRejectOrderPayment={handleRejectOrderPayment}
+              isLoading={isLoading}
+              cliqDrops={pendingCliQDrops}
+              onReleaseCliq={releaseEscrow}
+              onRefundCliq={refundEscrow}
+              isRealUrl={isRealUrl}
+              getReceiptImageSrc={getReceiptImageSrc}
+              onViewReceipt={setViewReceiptUrl}
+              pendingByUsersOnly={pendingByUsersOnly}
+              onApproveUserDirect={approveUserDirect}
+              onRejectUserDirect={rejectUserDirect}
             />
           </React.Suspense>
         )}
@@ -1654,124 +1664,6 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ==========================================
-            TAB: PAYMENTS (CLIQ Receipts Verification)
-            ========================================== */}
-        {activeTab === 'payments' && (
-          <div className="space-y-4">
-            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-              <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-[#FF6B00]" /> 
-                {isAr ? 'طلبات التحقق من حوالات كليك' : 'CLIQ DEPOSITS VERIFICATION'}
-              </h3>
-              <p className="text-[11px] text-gray-400 mt-1">
-                {isAr ? 'راجع واعتمد لقطات الحوالات المالية البنكية لشحن أرصدة المزايدة للمستخدمين مباشرة.' : 'Review and approve bank transfer receipts to instantly update bidding credit for Jordanian clients.'}</p>
-            </div>
-
-            <div className="space-y-3.5">
-              {isLoading ? (
-                <AdminListSkeleton />
-              ) : pendingCliQDrops.length > 0 ? (
-                pendingCliQDrops.map((dep) => (
-                  <div key={dep.id} className="bg-white border border-gray-200 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm relative overflow-hidden transition-all hover:border-gray-200">
-                    <div className="space-y-3 min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">
-                          {isAr ? 'بانتظار التحقق والمراجعة والتأكيد' : 'PENDING REVIEW'}
-                        </span>
-                        <span className="text-gray-400 text-[10px] font-mono">ID: {dep.id.substring(0, 8)}</span>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-extrabold text-sm text-gray-900">
-                          {dep.bidderName}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {isAr ? 'اسم المستعار لكليك: ' : 'CliQ Alias: '} <span className="font-mono text-gray-800 font-bold">{dep.cliqAlias}</span>
-                        </p>
-                      </div>
-
-                      {/* File presentation / Receipt slip */}
-                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-5 h-5 text-gray-400 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-[11px] text-gray-700 font-mono truncate max-w-[200px]" title={
-                              (() => {
-                                const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
-                                return isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : 'No receipt attached';
-                              })()
-                            }>
-                              {(() => {
-                                const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
-                                return isRealUrl(rawUrl) ? (rawUrl.length > 40 ? rawUrl.substring(0, 40) + '...' : rawUrl) : (isAr ? 'لا يوجد لقطة إيصال مرفقة' : 'No receipt attached');
-                              })()}
-                            </p>
-                            <p className="text-[9px] text-gray-400">{isAr ? 'لقطة شاشة إشعار التحويل البنكي' : 'CliQ receipt attachment'}</p>
-                          </div>
-                        </div>
-                        
-                        <button 
-                          onClick={() => {
-                            const rawUrl = dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null;
-                            setViewReceiptUrl(isRealUrl(rawUrl) ? getReceiptImageSrc(rawUrl) : null);
-                          }}
-                          disabled={!isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)}
-                          className={`text-[11px] font-black shrink-0 px-2 ${
-                            isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)
-                              ? 'text-[#FF6B00] hover:underline cursor-pointer'
-                              : 'text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {isAr ? 'عرض' : 'VIEW'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col md:items-end gap-3 shrink-0">
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-mono block font-bold uppercase">{isAr ? 'المبلغ المطلوب إيداعه' : 'REQUESTED DEPOSIT'}</span>
-                        <div className="text-xl font-black font-mono text-emerald-600 mt-0.5">
-                          +{dep.amount.toLocaleString()} <span className="text-xs">JOD</span>
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex md:flex-col gap-2 w-full md:w-auto">
-                        <button 
-                          disabled={!isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)}
-                          onClick={() => releaseEscrow(dep.id)}
-                          className={`flex-1 md:w-44 font-extrabold text-xs py-2 px-3 rounded-xl transition-all shadow-xs ${
-                            isRealUrl(dep.receiptUrl ?? dep.paymentProofUrl ?? dep.paymentProofImage ?? dep.proofUrl ?? dep.paymentImageUrl ?? null)
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          }`}
-                        >
-                          {isAr ? 'قبول وشحن الرصيد' : 'APPROVE & ADD JOD'}
-                        </button>
-                        <button 
-                          onClick={() => refundEscrow(dep.id)}
-                          className="flex-1 md:w-44 bg-gray-100 hover:bg-gray-205 border border-gray-200 text-gray-700 font-semibold text-xs py-1.5 px-3 rounded-xl transition-all"
-                        >
-                          {isAr ? 'رفض الطلب' : 'REJECT / DENY'}
-                        </button>
-                      </div>
-                    </div>
-
-                  </div>
-                ))
-              ) : (
-                <EmptyState 
-                  title={isAr ? 'لا توجد طلبات إيداع معلقة' : 'No pending cliq deposits'}
-                  description={isAr ? 'تمت مراجعة وتدقيق جميع حوالات كليك البنكية المرفقة بنجاح.' : 'No users have pending top-up cliq transfer receipts to verify.'}
-                  language={isAr ? 'ar' : 'en'}
-                />
-              )}
             </div>
 
           </div>
@@ -2224,155 +2116,6 @@ export const AdminDashboardView: React.FC = () => {
             )}
           </div>
 
-          </div>
-        )}
-
-        {/* ==========================================
-            TAB: SUBSCRIPTIONS (Premium Subscribing requests)
-            ========================================== */}
-        {activeTab === 'subscriptions' && (
-          <div className="space-y-4">
-            
-            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-              <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#FF6B00]" /> 
-                {isAr ? 'طلبات اشتراكات المزايدة الممتازة' : 'PREMIUM MEMBERSHIP PASSES'}
-              </h3>
-              <p className="text-[11px] text-gray-400 mt-1">
-                {isAr ? 'تفعيل اشتراكات المنصة الشهرية والسنوية والتحقق من إثبات التحويل المالي المرفق.' : 'Audit custom cliq subscription payments to grant instant vip bidder passport accounts.'}
-              </p>
-            </div>
-
-            {isLoading ? (
-              <div className="bg-white border border-gray-200 rounded-2xl p-4">
-                <AdminListSkeleton />
-              </div>
-            ) : subscriptionRequests.length === 0 ? (
-              <EmptyState 
-                title={isAr ? 'لا توجد طلبات اشتراك مميز' : 'No premium pass requests'}
-                description={isAr ? 'تمت تسوية وتفعيل جميع طلبات جواز السفر الذهبي والممتاز على المنصة.' : 'No VIP membership passport purchases are currently pending audit.'}
-                language={isAr ? 'ar' : 'en'}
-                icon={<Sparkles className="w-6 h-6 text-[#FF6B00]" />}
-              />
-            ) : (
-              <div className="space-y-3">
-                {subscriptionRequests.map((req) => (
-                  <div key={req.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fadeIn transition-all hover:border-gray-200">
-                    <div className="space-y-3 min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/20 rounded-full font-bold px-2.5 py-0.5 uppercase">
-                          {req.plan === 'monthly' ? (isAr ? 'شهري' : 'Monthly') : req.plan === 'quarterly' ? (isAr ? 'ربع سنوي' : 'Quarterly') : (isAr ? 'سنوي' : 'Annual')}
-                        </span>
-                        <span className="text-xs text-gray-900 font-mono font-bold">
-                          {req.price} JOD
-                        </span>
-                      </div>
-
-                      <div>
-                        <h4 className="font-extrabold text-sm text-gray-900 leading-none">{req.userName}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1">{req.userEmail}</p>
-                        {!!formatRequestDate(req.createdAt, isAr ? 'ar-JO' : 'en-US') && (
-                          <p className="text-[10px] text-gray-500 mt-1">
-                            <span className="font-semibold">{isAr ? 'تاريخ الطلب: ' : 'Requested At: '}</span>
-                            {formatRequestDate(req.createdAt, isAr ? 'ar-JO' : 'en-US')}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs space-y-1.5">
-                        <p className="text-gray-600">
-                          <strong className="text-gray-800">{isAr ? 'الاسم بالكامل للحوالة:' : 'Sender Name:'}</strong> {req.transferFullName || 'N/A'}
-                        </p>
-                        <p className="text-gray-600">
-                          <strong className="text-gray-800">{isAr ? 'رقم الهاتف المحول منه:' : 'Sender Phone:'}</strong> {req.transferPhone || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3.5 shrink-0">
-                      {isRealUrl(req.paymentProofImage || req.paymentProofUrl) ? (
-                        <div className="relative cursor-pointer max-w-[70px]">
-                          <img 
-                            src={req.paymentProofImage || req.paymentProofUrl} 
-                            alt="Payment Proof" 
-                            className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-xs transition-transform hover:scale-105"
-                            onClick={() => setViewReceiptUrl(req.paymentProofImage || req.paymentProofUrl)}
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl p-3 max-w-[100px] text-center shrink-0">
-                          {isAr ? 'لا يوجد إثبات' : 'No Proof'}
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-2">
-                        <button
-                          disabled={!isRealUrl(req.paymentProofImage || req.paymentProofUrl)}
-                          onClick={() => approveSubscription(req)}
-                          className={`font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px] transition-all ${
-                            isRealUrl(req.paymentProofImage || req.paymentProofUrl)
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          }`}
-                        >
-                          {isAr ? 'قبول وتفعيل' : 'APPROVE'}
-                        </button>
-                        <button
-                          onClick={() => rejectSubscription(req)}
-                          className="bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-xs px-4 py-1.5 rounded-xl min-w-[120px] cursor-pointer"
-                        >
-                          {isAr ? 'رفض الطلب' : 'REJECT'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pendingByUsersOnly.length > 0 && (
-              <div className="space-y-3 mt-6 pt-6 border-t border-gray-200" id="instant-approval-failsafe-section">
-                <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl">
-                  <h4 className="text-xs font-bold text-[#FF6B00] flex items-center gap-1.5 uppercase">
-                    <ShieldCheck className="w-4 h-4" />
-                    {isAr ? 'أعضاء في انتظار التفعيل (تفعيل فوري)' : 'PENDING ACCOUNTS (READY FOR DIRECT VIP ACTIVATION)'}
-                  </h4>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    {isAr 
-                      ? 'هؤلاء الأعضاء قاموا بطلب تفعيل اشتراك. لم يتم إرفاق إيصال الدفع تلقائياً بسبب حجم الصورة الكبير. يمكنك تفعيل حساباتهم فوراً من هنا.' 
-                      : 'These users requested a membership pass but their screenshot exceeded the storage limit. Use the button below to grant instant bidding level status.'}
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  {pendingByUsersOnly.map((user) => (
-                    <div key={user.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-                      <div>
-                        <h5 className="font-extrabold text-xs text-gray-900 leading-none">{user.name}</h5>
-                        <p className="text-[10px] text-gray-400 mt-1">{user.email}</p>
-                        <span className="inline-block text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1.5 border border-amber-100">
-                          {isAr ? 'اشتراك معلّق' : 'Subscription Pending'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => approveUserDirect(user)}
-                          className="bg-[#FF6B00] hover:bg-[#E05E00] text-white font-extrabold text-[11px] px-3.5 py-1.5 rounded-xl shadow-xs"
-                        >
-                          {isAr ? 'تفعيل فوري' : 'APPROVE VIP'}
-                        </button>
-                        <button
-                          onClick={() => rejectUserDirect(user)}
-                          className="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 font-bold text-[11px] px-3 py-1.5 rounded-xl"
-                        >
-                          {isAr ? 'رفض' : 'REJECT'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
