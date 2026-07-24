@@ -2792,6 +2792,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             </a>
           </div>
 
+          {/* Registered company identity (compliance / ads trust signal) */}
+          <div className="pt-4 text-center text-[11px] leading-relaxed text-gray-400 font-ibmarabic">
+            <span>
+              {lang === "ar"
+                ? "الهاني للوساطة التجارية (Al Hani Commercial Brokerage) · سجل تجاري 200213982 · عمّان، الأردن"
+                : "Al Hani Commercial Brokerage (الهاني للوساطة التجارية) · Commercial Reg. 200213982 · Amman, Jordan"}
+            </span>
+          </div>
+
           {/* Copyrights and Jordan Badge */}
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
             <p className="text-xs text-gray-500 font-ibmarabic">

@@ -24,9 +24,17 @@
 ## 1. Who we are
 
 Mazad JO ("**Mazad**", "**we**", "**us**") is an online auction marketplace
-operated by **[LEGAL ENTITY NAME]**, a company registered in the Hashemite
-Kingdom of Jordan under commercial registration number **[REGISTRATION NO.]**,
-with its registered address at **[FULL REGISTERED ADDRESS]**, Amman, Jordan.
+operated by **Al Hani Commercial Brokerage** (Arabic: **الهاني للوساطة التجارية**),
+a limited liability company (LLC / ذات مسؤولية محدودة) registered in the Hashemite
+Kingdom of Jordan under commercial registration number **200213982**,
+with its registered address at **Amman, Jordan [FULL STREET ADDRESS TBD]**.
+
+<!-- REGISTRATION LABEL NOTE (for counsel): The number 200213982 is the الرقم
+     الوطني للمنشأة (national establishment number), which the owner designated as
+     the public registration number. The commercial registration certificate ALSO
+     carries registration number 82841 (رقم التسجيل). Counsel to confirm which
+     label is the correct one to publish as the "commercial registration number". -->
+
 
 - Customer service: **0781444899**
 - Auctions & payments: **0785446498**
