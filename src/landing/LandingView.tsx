@@ -40,6 +40,7 @@ import {
 import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { translations, TranslationType } from "./translations";
 import { emitLandingEvent } from './landingAnalytics';
+import { useLandingAuctions } from './useLandingAuctions';
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
 
@@ -461,6 +462,128 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     const mStr = m < 10 ? `0${m}` : `${m}`;
     const sStr = s < 10 ? `0${s}` : `${s}`;
     return `${mStr}:${sStr}`;
+  };
+
+  const formatTimeLeft = (endTime: number, now = Date.now()): string => {
+    const ms = Math.max(0, endTime - now);
+    const totalMin = Math.floor(ms / 60000);
+    const days = Math.floor(totalMin / 1440);
+    const hours = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (lang === 'ar') {
+      if (days > 0) return `${days} يوم ${hours} س`;
+      if (hours > 0) return `${hours} س ${mins} د`;
+      return `${mins} د`;
+    }
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  };
+
+  const LiveMarketplaceSection = () => {
+    const { auctions, isLoading, isEmpty } = useLandingAuctions();
+    return (
+      <section id="live-marketplace" className="py-20 md:py-28 bg-[#F7F7F7]">
+        <div className="max-w-7xl mx-auto px-5">
+          <Reveal>
+            <div className="text-center mb-12">
+              <span className="inline-flex items-center gap-2 text-[#F05123] font-semibold text-sm">
+                <span className="w-2 h-2 rounded-full bg-[#F05123] animate-pulse" />
+                {t.marketplace.badge}
+              </span>
+              <h2 className="mt-3 text-3xl md:text-4xl font-bold text-[#0A0A0A]">{t.marketplace.title}</h2>
+              <p className="mt-3 text-[#0A0A0A]/60 max-w-xl mx-auto">{t.marketplace.subtitle}</p>
+            </div>
+          </Reveal>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-white border border-[#F0F0EE] h-72 animate-pulse" />
+              ))}
+            </div>
+          ) : isEmpty ? (
+            <Reveal>
+              <div className="max-w-md mx-auto text-center rounded-2xl bg-white border border-[#F0F0EE] p-10">
+                <h3 className="text-xl font-bold text-[#0A0A0A]">{t.marketplace.emptyTitle}</h3>
+                <p className="mt-2 text-[#0A0A0A]/60">{t.marketplace.emptyDesc}</p>
+                <a
+                  href={sellerWhatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => emitLandingEvent('seller_cta_clicked', { location: 'marketplace_empty' })}
+                  className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+                >
+                  {t.marketplace.sellerCtaBtn}
+                </a>
+              </div>
+            </Reveal>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {auctions.map((a) => {
+                  const endingSoon = a.endTime - Date.now() < 3600_000;
+                  return (
+                    <Reveal key={a.id}>
+                      <button
+                        type="button"
+                        onClick={() => { emitLandingEvent('auction_viewed', { auctionId: a.id }); onEnter(); }}
+                        className="group text-start w-full rounded-2xl bg-white border border-[#F0F0EE] overflow-hidden hover:-translate-y-1 hover:shadow-xl transition"
+                      >
+                        <div className="relative aspect-[4/3] bg-[#F0F0EE] overflow-hidden">
+                          {a.imageUrl ? (
+                            <img src={a.imageUrl} alt={a.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                          ) : null}
+                          {a.isVerified ? (
+                            <span className="absolute top-3 start-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 text-xs font-semibold text-[#0A0A0A]">
+                              ✓ {t.marketplace.verified}
+                            </span>
+                          ) : null}
+                          {endingSoon ? (
+                            <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-[#F05123] text-white text-xs font-semibold">
+                              {t.marketplace.endingSoon}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="p-4">
+                          <span className="text-xs text-[#0A0A0A]/50">{t.marketplace.categoryLabels[a.category]}</span>
+                          <h3 className="mt-1 font-semibold text-[#0A0A0A] line-clamp-1">{a.title}</h3>
+                          <div className="mt-3 flex items-end justify-between">
+                            <div>
+                              <span className="block text-xs text-[#0A0A0A]/50">{t.marketplace.currentBid}</span>
+                              <span dir="ltr" className="block font-bold text-[#0A0A0A]">{formatPrice(a.currentPrice)}</span>
+                            </div>
+                            <div className="text-end">
+                              <span dir="ltr" className="block text-xs text-[#0A0A0A]/50">{a.totalBids} {t.marketplace.bids}</span>
+                              <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
+                            </div>
+                          </div>
+                          <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} →</span>
+                        </div>
+                      </button>
+                    </Reveal>
+                  );
+                })}
+              </div>
+              <Reveal>
+                <div className="mt-12 text-center">
+                  <p className="text-lg font-semibold text-[#0A0A0A]">{t.marketplace.sellerCtaText}</p>
+                  <a
+                    href={sellerWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => emitLandingEvent('seller_cta_clicked', { location: 'marketplace' })}
+                    className="mt-4 inline-flex items-center justify-center px-8 py-4 rounded-full bg-[#F05123] text-white font-bold text-lg hover:bg-[#D93E15] transition"
+                  >
+                    {t.marketplace.sellerCtaBtn}
+                  </a>
+                </div>
+              </Reveal>
+            </>
+          )}
+        </div>
+      </section>
+    );
   };
 
   // Manual User Bidding Handler
@@ -1479,6 +1602,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
 
 
+
+        <LiveMarketplaceSection />
 
         {/* 3. Section "الثقة أولاً" (Trust First) */}
         <section id="why-mazadjo" className="py-20 bg-white border-y border-[#F0F0EE] relative">

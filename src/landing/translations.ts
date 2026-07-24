@@ -119,6 +119,12 @@ export interface TranslationType {
     };
     rights: string;
   };
+  marketplace: {
+    badge: string; title: string; subtitle: string; currentBid: string; bids: string;
+    verified: string; endingSoon: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
+    sellerCtaText: string; sellerCtaBtn: string;
+    categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
+  };
 }
 
 export const translations: Record<"ar" | "en", TranslationType> = {
@@ -334,6 +340,27 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       },
       rights: "© 2026 MazadJo. صمم للسوق الأردني بكل فخر 🇯🇴",
     },
+    marketplace: {
+      badge: "مباشر الآن",
+      title: "مزادات مباشرة على مزاد الأردن الآن",
+      subtitle: "سلع مفحوصة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
+      currentBid: "أعلى مزايدة",
+      bids: "مزايدة",
+      verified: "موثّقة",
+      endingSoon: "ينتهي قريباً",
+      viewBtn: "شاهد المزاد",
+      emptyTitle: "المزادات تنطلق يومياً",
+      emptyDesc: "كن من أوائل البائعين — اعرض سلعتك الآن وتصدَّر الصفحة.",
+      sellerCtaText: "جاهز لرؤية سلعتك هنا؟",
+      sellerCtaBtn: "اعرض سلعتك للبيع",
+      categoryLabels: {
+        Electronics: "إلكترونيات",
+        Luxury: "كماليات",
+        Vehicles: "مركبات",
+        Fashion: "أزياء",
+        "Real Estate": "عقارات",
+      },
+    },
   },
   en: {
     dir: "ltr",
@@ -546,6 +573,27 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         contact: "Contact Us",
       },
       rights: "© 2026 MazadJo. Proudly designed for the Jordanian market 🇯🇴",
+    },
+    marketplace: {
+      badge: "Live now",
+      title: "Live on Mazad JO right now",
+      subtitle: "Inspected items selling now — this is where your item shows up for buyers.",
+      currentBid: "Current bid",
+      bids: "bids",
+      verified: "Verified",
+      endingSoon: "Ending soon",
+      viewBtn: "View auction",
+      emptyTitle: "New auctions launch daily",
+      emptyDesc: "Be one of the first sellers — list your item now and lead the page.",
+      sellerCtaText: "Ready to see your item here?",
+      sellerCtaBtn: "List your item",
+      categoryLabels: {
+        Electronics: "Electronics",
+        Luxury: "Luxury",
+        Vehicles: "Vehicles",
+        Fashion: "Fashion",
+        "Real Estate": "Real Estate",
+      },
     },
   },
 };
