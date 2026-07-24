@@ -1,30 +1,20 @@
 {
-  "name": "MAZAD JO | Luxury Live Commerce & Social Auctions",
-  "short_name": "MAZAD JO",
-  "description": "Ultra-Premium Live Commerce & Social Auctions in Jordan. Real-time bidding, verified escrow and live video commerce.",
+  "name": "Mazad JO — Live Auctions in Jordan",
+  "short_name": "Mazad Jo",
+  "description": "Real-time auctions in Jordan. Browse and bid free — pay via CliQ only when you win. Mazad holds your payment until you confirm receipt.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#F7F6F3",
+  "theme_color": "#FFFFFF",
   "orientation": "portrait-primary",
-  "categories": ["shopping", "finance", "social"],
+  "lang": "ar",
+  "dir": "auto",
+  "categories": ["shopping", "business"],
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
