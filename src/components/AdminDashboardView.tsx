@@ -813,6 +813,8 @@ export const AdminDashboardView: React.FC = () => {
               onVerifySeller={verifySeller}
               onBan={banUser}
               onUnban={unbanUser}
+              currentUserId={currentUser?.id}
+              currentUserEmail={currentUser?.email}
             />
           </React.Suspense>
         )}

@@ -16,6 +16,11 @@ export interface MembersSectionProps {
   onVerifySeller: (userId: string) => void; // verifySeller
   onBan: (userId: string) => void; // banUser
   onUnban: (userId: string) => void; // unbanUser
+  /** The acting admin's own uid + email — used to mark their own account(s) as
+   *  "You" (they can't ban themselves; the guard blocks it), so the Ban action
+   *  isn't offered on a row that would just error. */
+  currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 export const MembersSection: React.FC<MembersSectionProps> = ({
@@ -25,7 +30,10 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
   onVerifySeller,
   onBan,
   onUnban,
+  currentUserId,
+  currentUserEmail,
 }) => {
+  const myEmail = (currentUserEmail || '').trim().toLowerCase();
   return (
     <div className="space-y-4">
       <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
@@ -44,7 +52,11 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
             <AdminListSkeleton />
           </div>
         ) : users.length > 0 ? (
-          users.map((profile) => (
+          users.map((profile) => {
+          const isOwnAccount =
+            profile.id === currentUserId ||
+            (!!myEmail && (profile.email || '').trim().toLowerCase() === myEmail);
+          return (
           <div key={profile.id} className="p-4 flex justify-between items-center gap-4 transition-colors hover:bg-gray-50/40">
             <div className="flex items-center gap-3">
               <img
@@ -72,7 +84,7 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               {profile.role === 'user' && !profile.isVerified && (
                 <button
                   onClick={() => onVerifySeller(profile.id)}
@@ -82,24 +94,46 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
                 </button>
               )}
 
+              {/* STATUS pill (state, not clickable) — removes the old ambiguity
+                  where the "BAN" action button read like a status. */}
+              <span
+                className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border select-none ${
+                  profile.isBlocked
+                    ? 'bg-red-50 text-red-600 border-red-100'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${profile.isBlocked ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                {profile.isBlocked ? (isAr ? 'محظور' : 'Banned') : (isAr ? 'نشط' : 'Active')}
+              </span>
+
+              {/* ACTION button (verb) — separate from the status pill. A banned
+                  account can always be unbanned (incl. your own). Your own ACTIVE
+                  account shows a muted "You" chip instead of a Ban button you
+                  can't use (the self-ban guard would just reject it). */}
               {profile.isBlocked ? (
                 <button
                   onClick={() => onUnban(profile.id)}
-                  className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all"
+                  className="bg-emerald-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl hover:bg-emerald-700 transition-all shadow-xs cursor-pointer"
                 >
-                  {isAr ? 'فك الحظر' : 'UNBAN'}
+                  {isAr ? 'فك الحظر' : 'Unban'}
                 </button>
+              ) : isOwnAccount ? (
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg bg-gray-100 text-gray-400 border border-gray-200 select-none">
+                  {isAr ? 'أنت' : 'You'}
+                </span>
               ) : (
                 <button
                   onClick={() => onBan(profile.id)}
-                  className="bg-red-50 text-red-650 border border-red-100 text-[10px] font-bold px-3 py-1.5 rounded-xl hover:bg-red-100 transition-all"
+                  className="bg-white text-red-600 border border-red-200 text-[10px] font-bold px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all cursor-pointer"
                 >
-                  {isAr ? 'حظر العضوية' : 'BAN'}
+                  {isAr ? 'حظر' : 'Ban'}
                 </button>
               )}
             </div>
           </div>
-        ))
+          );
+        })
       ) : (
         <EmptyState
           title={isAr ? 'لا يوجد أعضاء بعد' : 'No users yet'}
