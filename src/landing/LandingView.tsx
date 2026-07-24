@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { translations, TranslationType } from "./translations";
+import { emitLandingEvent } from './landingAnalytics';
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
 
@@ -221,10 +222,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   const [lang, setLang] = useState<"ar" | "en">(() => (localStorage.getItem('mazad_language') === 'en' ? 'en' : 'ar'));
   const toggleLang = () => {
     const next = lang === "ar" ? "en" : "ar";
+    emitLandingEvent('language_switched', { to: next });
     setLang(next);
     localStorage.setItem('mazad_language', next);
   };
   const t: TranslationType = translations[lang];
+  const sellerWhatsappUrl = `${whatsappUrl}?text=${encodeURIComponent(t.sellerIntentMsg)}`;
+
+  useEffect(() => {
+    emitLandingEvent('landing_viewed', { lang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Active item switching states
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
@@ -881,26 +889,27 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   }}
                   className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2"
                 >
-                  <motion.button
-                    type="button"
-                    onClick={onEnter}
+                  <motion.a
+                    href={sellerWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => emitLandingEvent('seller_cta_clicked', { location: 'hero' })}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
                   >
                     <span>{t.hero.ctaPrimary}</span>
                     <span className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5">→</span>
-                  </motion.button>
-                  <motion.a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  </motion.a>
+                  <motion.button
+                    type="button"
+                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-[#0A0A0A] text-[#0A0A0A] font-semibold text-base bg-white hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
                   >
                     {t.hero.ctaSecondary}
-                  </motion.a>
+                  </motion.button>
                 </motion.div>
 
                 {/* Stats Bar */}

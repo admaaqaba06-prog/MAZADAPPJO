@@ -1,6 +1,7 @@
 export interface TranslationType {
   dir: "rtl" | "ltr";
   langCode: "ar" | "en";
+  sellerIntentMsg: string;
   nav: {
     logo: string;
     whyUs: string;
@@ -124,6 +125,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
   ar: {
     dir: "rtl",
     langCode: "ar",
+    sellerIntentMsg: "مرحباً، أرغب بعرض سلعة للبيع في مزاد الأردن.",
     nav: {
       logo: "🔨 MazadJo",
       whyUs: "لماذا مزاد جو؟",
@@ -136,12 +138,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "Mazad Jo",
-      titleGradient: "البيع الذكي",
-      titleLast: "والشراء الأذكى",
-      desc: "مزاد جو تجربة بيع تنافسية حديثة تجمع الثقة، الفرصة، والمتعة. الآن في الأردن لتبيع أسرع، تزايد بذكاء، وتربح بثقة.",
-      ctaPrimary: "ادخل المزادات المباشرة",
-      ctaSecondary: "تواصل عبر واتساب",
+      titleFirst: "اعرض سلعتك و",
+      titleGradient: "بِعْها مباشرةً",
+      titleLast: " لآلاف المشترين الجادّين",
+      desc: "منصة المزادات الموثوقة في الأردن. نفحص سلعتك، ونعرضها على مشترين جادّين، ونضمن وصول أموالك بأمان.",
+      ctaPrimary: "اعرض سلعتك للبيع",
+      ctaSecondary: "تصفّح المزادات المباشرة",
       stats: {
         steps: { title: "3 خطوات", desc: "مزايدة سهلة وواضحة" },
         verified: { title: "توثيق كامل", desc: "بائعون وحسابات موثقة" },
@@ -336,6 +338,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
   en: {
     dir: "ltr",
     langCode: "en",
+    sellerIntentMsg: "Hi, I'd like to list an item to sell on Mazad JO.",
     nav: {
       logo: "🔨 MazadJo",
       whyUs: "Why MazadJo?",
@@ -348,12 +351,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "Mazad Jo",
-      titleGradient: "Smart Selling",
-      titleLast: "and Smarter Buying",
-      desc: "MazadJo is a modern competitive selling experience combining trust, opportunity, and excitement. Now in Jordan so you can sell faster, bid smarter, and win with confidence.",
-      ctaPrimary: "Enter Live Auctions",
-      ctaSecondary: "Chat on WhatsApp",
+      titleFirst: "List your item and ",
+      titleGradient: "sell it live",
+      titleLast: " to thousands of serious buyers",
+      desc: "Jordan's trusted auction platform. We inspect your item, put it in front of serious buyers, and make sure you get paid safely.",
+      ctaPrimary: "List your item",
+      ctaSecondary: "Browse live auctions",
       stats: {
         steps: { title: "3 Steps", desc: "Easy & clear bidding" },
         verified: { title: "Full Verification", desc: "Certified sellers & accounts" },
