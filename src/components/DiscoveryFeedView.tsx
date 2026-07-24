@@ -32,7 +32,6 @@ import {
   Coins
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
-import { CountdownStoriesBar } from './CountdownStoriesBar';
 import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
 
@@ -356,7 +355,6 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView,
     language,
     setLanguage,
-    approveListing,
     currentUser,
     notifications,
     setShowNotifications,
@@ -438,15 +436,6 @@ export const DiscoveryFeedView: React.FC = () => {
       return true;
     });
   }, [auctions, activeTab, searchTerm, selectedCategory, categoriesList]);
-
-  const pendingListingsToDisplay = React.useMemo(() => {
-    const isStrictAdmin = isAdminUser(currentUser);
-    return auctions.filter(a => {
-      if (a.status !== 'processing' && a.status !== 'pending') return false;
-      if (isStrictAdmin) return true; // Admins can see all pending lots to approve on-the-fly
-      return a.sellerId === currentUser?.id; // Regular merchants see their own under-review lots
-    });
-  }, [auctions, currentUser]);
 
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
@@ -644,7 +633,7 @@ export const DiscoveryFeedView: React.FC = () => {
       )}
 
       {/* Premium Desktop Page Header (Apple / Stripe Dashboard style) */}
-      <div className="hidden lg:flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-2" id="discover-desktop-header">
+      <div className="hidden lg:block mb-6 mt-2" id="discover-desktop-header">
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
             {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
@@ -654,15 +643,6 @@ export const DiscoveryFeedView: React.FC = () => {
               ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
               : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
           </p>
-        </div>
-        <div>
-          <button
-            onClick={handleWatchLive}
-            className="px-4 py-2 bg-[#E85D04] hover:bg-[#D05303] text-white font-bold text-xs rounded-xl flex items-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5" />
-            <span>{isAr ? 'شاهد البث الآن' : 'Watch Live Drops'}</span>
-          </button>
         </div>
       </div>
 
@@ -686,7 +666,8 @@ export const DiscoveryFeedView: React.FC = () => {
               {isAr ? 'مزادات فورية بالوقت الحقيقي مع حماية وضمان أموال المشترين.' : 'Real-time auctions with secure escrow payments.'}
             </p>
 
-            {/* Real CTA: join (non-members) / watch live or browse (members) */}
+            {/* Real CTA: join (non-members) / browse (members) — the green
+                live-now banner above is the sole "watch live" entry point. */}
             {!isMember ? (
               <button
                 onClick={() => setActiveView('wallet')}
@@ -694,15 +675,6 @@ export const DiscoveryFeedView: React.FC = () => {
                 id="mobile-hero-join-cta"
               >
                 {isAr ? 'انضم من ١ دينار' : 'Join from 1 JD'}
-              </button>
-            ) : liveNowAuctions.length > 0 ? (
-              <button
-                onClick={handleWatchLive}
-                className="mt-4 self-start px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-red-900/30 active:scale-95 cursor-pointer flex items-center gap-1.5"
-                id="mobile-hero-live-cta"
-              >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                {isAr ? 'شوف المباشر' : 'Watch live'}
               </button>
             ) : (
               <button
@@ -717,9 +689,6 @@ export const DiscoveryFeedView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Countdown Stories Bar - Horizontally Scrollable rectangular cards */}
-      <CountdownStoriesBar />
 
       {/* Search Input bar with soft beige/gray layout bg */}
       <div className="p-4 space-y-4">
@@ -830,67 +799,6 @@ export const DiscoveryFeedView: React.FC = () => {
             >
               {isAr ? 'عرض الطلب' : 'View Order'}
             </button>
-          </div>
-        );
-      })()}
-
-      {/* Pending Listings Banner (For Admins & Merchants) */}
-      {pendingListingsToDisplay.length > 0 && (() => {
-        const isStrictAdmin = isAdminUser(currentUser);
-        return (
-          <div className="mx-4 mb-4 p-4 bg-orange-50/70 border border-orange-100 rounded-2xl space-y-2.5">
-            <div className="flex gap-2 items-start">
-              <span className="w-2 h-2 bg-[#FF6B00] rounded-full mt-1.5 animate-ping shrink-0 animate-pulse"></span>
-              <div>
-                <h4 className="text-xs font-extrabold text-[#FF6B00] uppercase font-sans tracking-wide">
-                  {isStrictAdmin 
-                    ? (isAr ? '🛡️ مراجعة واعتماد المزادات المعلقة' : '🛡️ PENDING AUCTIONS RELEASES')
-                    : (isAr ? '⏳ مزادك قيد المراجعة والتحقق' : '⏳ YOUR UNDER REVIEW AUCTION')
-                  }
-                </h4>
-                <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
-                  {isStrictAdmin
-                    ? (isAr ? 'بصفتك مديراً للمنصة، يمكنك اعتماد وتفعيل هذه المزادات مباشرة لتظهر لجميع المزايدين:' : 'As an Administrator, you can instantly approve and launch these lots to the public live feed:')
-                    : (isAr ? 'تم رفع معروضك بنجاح وهو قيد المراجعة الأمنية وسيظهر للمزايدين فور اعتماده:' : 'Your listing was successfully uploaded. It will appear on the active live feed once approved:')
-                  }
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-2 pt-1 border-t border-orange-100">
-              {pendingListingsToDisplay.map(item => (
-                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-150 p-2.5 rounded-xl gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img src={item.thumbnailUrl} alt="Cover" className="w-8 h-8 rounded-lg object-cover border border-gray-150 shrink-0" loading="lazy" width="32" height="32" />
-                    <div className="min-w-0">
-                      <span className="font-bold text-xs text-gray-900 block truncate leading-tight">{item.title}</span>
-                      <span className="text-[9px] text-gray-400 font-mono block mt-0.5">
-                        {item.startingPrice.toLocaleString()} JOD
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-1.5 shrink-0">
-                    {isStrictAdmin ? (
-                      <button
-                        onClick={() => {
-                          if (window.confirm(isAr ? `هل أنت متأكد من رغبتك في تفعيل المزاد "${item.title}" فوراً؟` : `Are you sure you want to approve "${item.title}" and go live now?`)) {
-                            approveListing(item.id);
-                          }
-                        }}
-                        className="text-[10px] font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        ✅ {isAr ? 'موافقة وتفعيل البث' : 'Approve & Go Live'}
-                      </button>
-                    ) : (
-                      <span className="text-[9.5px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
-                        {isAr ? '⏳ قيد المراجعة' : '⏳ IN REVIEW'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         );
       })()}
