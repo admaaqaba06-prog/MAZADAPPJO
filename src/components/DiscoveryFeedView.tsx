@@ -606,7 +606,7 @@ export const DiscoveryFeedView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
           onClick={handleWatchLive}
-          className="mx-4 mt-3 mb-1 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
+          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
           id="live-now-strip"
         >
           <span className="flex items-center gap-2 min-w-0">
