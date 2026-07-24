@@ -1182,16 +1182,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 {/* Soft blurred orange gradient blob behind the card */}
                 <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
 
-                {/* Second-lot peek — a Rolex card beside the phone, sized to feel like a companion (not a tiny sticker) */}
+                {/* Second/third-lot peeks — a small deck of live lots flanking the phone, balances the composition */}
+                {/* Watch — upper left, pulled out so it reads clearly next to the phone */}
                 <div
                   aria-hidden="true"
-                  className="hidden lg:block absolute top-20 start-[-48px] z-0 w-[240px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[9deg] opacity-95 pointer-events-none select-none bg-white border border-black/5"
+                  className="hidden lg:block absolute top-6 start-[-76px] z-0 w-[248px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[10deg] opacity-95 pointer-events-none select-none bg-white border border-black/5"
                 >
                   <img
                     src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=600&q=80"
                     alt=""
                     referrerPolicy="no-referrer"
-                    className="w-full h-[184px] object-cover block"
+                    className="w-full h-[188px] object-cover block"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = "none";
@@ -1212,9 +1213,39 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     </span>
                   </div>
                 </div>
+                {/* Car — lower left, overlapping below the watch to form the deck */}
+                <div
+                  aria-hidden="true"
+                  className="hidden lg:block absolute top-[356px] start-[-28px] z-0 w-[232px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.30)] rotate-[7deg] opacity-95 pointer-events-none select-none bg-white border border-black/5"
+                >
+                  <img
+                    src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80"
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="w-full h-[172px] object-cover block"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      if (target.parentElement) {
+                        target.parentElement.style.backgroundImage =
+                          "radial-gradient(120% 120% at 30% 20%, #2a2a2e, #0d0d0f)";
+                      }
+                    }}
+                  />
+                  <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "بورش ٩١١" : "Porsche 911"}</span>
+                      <span className="block text-[9px] text-white/50 font-ibmarabic mt-0.5">{lang === "ar" ? "مركبات · مباشر" : "Vehicles · Live"}</span>
+                    </div>
+                    <span dir="ltr" className="text-[#FF6B35] font-mono font-black text-sm flex items-center gap-1 shrink-0">
+                      <span className={`w-1.5 h-1.5 rounded-full bg-[#FF6B35] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                      42,500
+                    </span>
+                  </div>
+                </div>
 
                 {/* Premium Floating Reels Card Container with Phone Bezel */}
-                <div className={`relative z-10 w-full max-w-[400px] ${prefersReducedMotion ? "-rotate-3" : "hero-phwrap"}`}>
+                <div className={`relative z-10 w-full max-w-[370px] ${prefersReducedMotion ? "-rotate-3" : "hero-phwrap"}`}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
