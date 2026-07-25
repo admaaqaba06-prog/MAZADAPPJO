@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Share2, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucide-react';
 import { CountUp, markFirstBidDone, useToast } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
 import { BidSheet } from './auction/BidSheet';
@@ -10,6 +10,7 @@ import { categoryLabel } from '../utils/categoryLabel';
 import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
+import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -86,6 +87,8 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   currentUser,
   videoRef,
   onClose,
+  onSaveToggle,
+  isSaved,
 }) => {
   const reduce = useReducedMotion();
   const { showToast } = useToast();
@@ -445,6 +448,75 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
           <div className="mt-3 text-[12px] font-bold text-[#999]">
             {isAr ? '▾ التفاصيل · البائع · المحادثة' : '▾ Details · Seller · Chat'}
           </div>
+
+          {/* ----- DETAILS / SELLER (real fields only) ----- */}
+          <section className="mt-4" id="mobile-auction-details">
+            <h2 className="text-[13px] font-black text-[#0A0A0A] tracking-tight">
+              {isAr ? 'التفاصيل' : 'Details'}
+            </h2>
+
+            {activeAuction?.description && (
+              <p className="mt-2 text-[13px] leading-relaxed text-[#444] whitespace-pre-line">
+                {activeAuction.description}
+              </p>
+            )}
+
+            <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-[#ECECEA] text-[12px]">
+              {conditionChip && (
+                <div className="flex items-center justify-between py-2.5">
+                  <dt className="font-bold text-[#999]">
+                    {isAr ? 'الحالة' : 'Condition'}
+                  </dt>
+                  <dd className="font-bold text-[#333]">{conditionChip}</dd>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-2.5">
+                <dt className="font-bold text-[#999]">{isAr ? 'المرجع' : 'Ref'}</dt>
+                <dd className="font-bold text-[#333] tabular-nums" dir="ltr">
+                  {activeAuction?.auctionNumber
+                    ? `#${activeAuction.auctionNumber}`
+                    : activeAuction?.id}
+                </dd>
+              </div>
+            </dl>
+
+            {/* Seller card — real auction seller fields. No seller-modal handler
+                is passed to this view, so the card is non-interactive (per spec:
+                open the modal only via an existing handler, else omit). Save uses
+                the shared onSaveToggle/isSaved props. */}
+            {activeAuction?.sellerName && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#ECECEA] p-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={resolveAvatarUrl(activeAuction.sellerLogo, activeAuction.sellerId)}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover border border-[#ECECEA] shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <span className="block text-[12.5px] font-black text-[#0A0A0A] truncate leading-tight">
+                      {activeAuction.sellerName}
+                    </span>
+                    <span className="block text-[10px] font-bold text-[#F05123] leading-none mt-1">
+                      {isAr ? 'بائع في مزادو' : 'Seller on Mazad'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onSaveToggle}
+                  className="w-9 h-9 rounded-full bg-[#F7F7F7] flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer"
+                  aria-label={isAr ? 'حفظ' : 'Save'}
+                  aria-pressed={isSaved}
+                >
+                  <Bookmark
+                    className={`w-4 h-4 ${
+                      isSaved ? 'text-[#F05123] fill-[#F05123]' : 'text-[#333]'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+          </section>
         </div>
 
         {/* ----- CHAT SECTION (working composer + live messages) ----- */}
