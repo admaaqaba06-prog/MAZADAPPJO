@@ -142,7 +142,7 @@ function foldMaxCreatedAt(
  * unmount. Errors surface via `error` and stop the relevant loading flag rather
  * than throwing.
  */
-export function useDiscoverFeed(category: string): UseDiscoverFeedResult {
+export function useDiscoverFeed(category: string, enabled: boolean = true): UseDiscoverFeedResult {
   const [liveItems, setLiveItems] = useState<AuctionItem[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,8 +208,12 @@ export function useDiscoverFeed(category: string): UseDiscoverFeedResult {
   }, [category]);
 
   useEffect(() => {
+    // OFF (flag-gated fallback path): never fetch. The consumer keeps using the
+    // broad `useAuctions()` feed, so this hook must stay completely inert — no
+    // page-1 getDocs, no reads — until it is actually mounted behind the flag.
+    if (!enabled) return;
     void loadPage1();
-  }, [loadPage1]);
+  }, [loadPage1, enabled]);
 
   const loadMore = useCallback(() => {
     if (!hasMoreLiveRef.current || loadingMoreRef.current) return;
@@ -248,7 +252,9 @@ export function useDiscoverFeed(category: string): UseDiscoverFeedResult {
   }, [category]);
 
   // New-drops detector: ONE snapshot on the newest live lot by createdAt.
+  // Gated by `enabled` so the OFF path opens no listener at all.
   useEffect(() => {
+    if (!enabled) return;
     const unsub = onSnapshot(
       query(
         collection(db, 'auctions'),
@@ -267,7 +273,7 @@ export function useDiscoverFeed(category: string): UseDiscoverFeedResult {
       },
     );
     return unsub;
-  }, []);
+  }, [enabled]);
 
   const refresh = useCallback(() => {
     void loadPage1();
