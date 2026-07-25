@@ -1250,7 +1250,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
-                  className="w-full h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
+                  className="w-full h-[clamp(500px,62vh,640px)] sm:h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
                   id="hero-live-card"
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
