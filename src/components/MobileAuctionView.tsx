@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Share2, CheckCircle2 } from 'lucide-react';
-import { CountUp, markFirstBidDone } from './feedback';
+import { CountUp, markFirstBidDone, useToast } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
 import { BidSheet } from './auction/BidSheet';
+import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
 import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
-import { minNextBid } from '../utils/bidMath';
+import { minNextBid, isViewerWinner } from '../utils/bidMath';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -76,12 +77,18 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   onPlayPauseToggle,
   onShareClick,
   isAr,
+  activeComments,
+  activeActivities,
+  commentText,
+  setCommentText,
+  onCommentSubmit,
   onBidExecute,
   currentUser,
   videoRef,
   onClose,
 }) => {
   const reduce = useReducedMotion();
+  const { showToast } = useToast();
 
   // ----- Single per-page countdown (ONE setInterval, cleaned up) -----
   // Today's reel screen runs ~4 timers; the product page runs exactly one.
@@ -173,6 +180,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
   const {
     isGuest,
+    requestSignIn,
     pendingBid,
     submitting,
     startBid,
@@ -220,6 +228,84 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
   const showCoach =
     currentUser?.subscriptionStatus === 'active' && sheetOpen;
+
+  // ----- Activity toasts (mockup mini-toasts) -----
+  // Transition-detection via refs so we NEVER toast on first render/mount: we
+  // seed the refs on the first observation, then fire only when a value crosses
+  // a boundary (price up = a new bid; winner→not = outbid; reserve becomes met).
+  // A single 2s debounce keeps rapid-fire bids to ~one toast, and outbid /
+  // reserve take priority over the generic "new bid" toast in the same tick.
+  const viewerId = currentUser?.id;
+  const isWinner = isViewerWinner(activeAuction, viewerId);
+  const prevPriceRef = useRef<number | null>(null);
+  const prevWinnerRef = useRef<boolean | null>(null);
+  const reserveToastedRef = useRef(false);
+  const lastToastAtRef = useRef(0);
+  const toastSeededRef = useRef(false);
+  useEffect(() => {
+    const price = activePrice;
+    const prevPrice = prevPriceRef.current;
+    const prevWinner = prevWinnerRef.current;
+
+    // First observation: seed refs, do NOT toast.
+    if (!toastSeededRef.current) {
+      toastSeededRef.current = true;
+      prevPriceRef.current = price;
+      prevWinnerRef.current = isWinner;
+      reserveToastedRef.current = activeAuction?.reserveMet === true;
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastToastAtRef.current >= 2000) {
+      const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+      const jod = isAr ? 'د.أ' : 'JOD';
+      if (prevWinner === true && !isWinner && viewerId) {
+        // Viewer was the top bidder and just lost the lead.
+        showToast({
+          title: isAr ? '⚠️ تمت المزايدة عليك' : '⚠️ You were outbid',
+          message: isAr
+            ? `المزايدة الآن ${fmt(price)} ${jod}`
+            : `Bid is now ${fmt(price)} ${jod}`,
+          type: 'warn',
+        });
+        lastToastAtRef.current = now;
+      } else if (!reserveToastedRef.current && activeAuction?.reserveMet === true) {
+        // Reserve just became met — fire once.
+        reserveToastedRef.current = true;
+        showToast({
+          title: isAr ? '✅ تم بلوغ السعر الاحتياطي' : '✅ Reserve met',
+          type: 'success',
+        });
+        lastToastAtRef.current = now;
+      } else if (prevPrice != null && price > prevPrice) {
+        // A rival bid landed.
+        const name =
+          activeAuction?.currentBidderName || (isAr ? 'مزايد' : 'A bidder');
+        showToast({
+          title: isAr
+            ? `🔥 ${name} زايد ${fmt(price)} ${jod}`
+            : `🔥 ${name} just bid ${fmt(price)} ${jod}`,
+          type: 'info',
+        });
+        lastToastAtRef.current = now;
+      }
+    }
+
+    prevPriceRef.current = price;
+    prevWinnerRef.current = isWinner;
+    // activeActivities.length is included so a bid that arrives via the activity
+    // stream (without a distinct price object identity) still re-runs the check.
+  }, [
+    activePrice,
+    isWinner,
+    activeAuction?.reserveMet,
+    activeAuction?.currentBidderName,
+    activeActivities.length,
+    isAr,
+    viewerId,
+    showToast,
+  ]);
 
   return (
     <div
@@ -269,14 +355,9 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             autoAdvancePhotos={!reduce}
             className="absolute inset-0"
           />
-          {/* Small activity-toast spot over the media. Full activity toasts
-              (bid landed / outbid / reserve met) arrive in Task 6 — this is a
-              simple, motion-free placeholder anchor for now. */}
-          <div
-            className="pointer-events-none absolute bottom-3 z-20"
-            style={{ insetInlineStart: '12px' }}
-            id="mobile-auction-activity-toast"
-          />
+          {/* Activity toasts (bid landed / outbid / reserve met) surface via the
+              global <ToastProvider> stack, wired in the effect above — not
+              overlaid on the media. */}
         </div>
 
         {/* ----- TITLE + TRUST CHIPS ----- */}
@@ -366,18 +447,16 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
           </div>
         </div>
 
-        {/* ----- CHAT SECTION STUB (real composer + messages = Task 6) ----- */}
-        <div
-          className="mt-4 mx-4 border-t border-[#ECECEA] pt-4"
-          id="mobile-auction-chat"
-        >
-          <h2 className="text-[15px] font-black text-[#0A0A0A]">
-            {isAr ? 'المحادثة' : 'Chat'}
-          </h2>
-          <p className="text-[11.5px] text-[#999] font-medium mt-1">
-            {isAr ? 'المحادثة قريباً' : 'Chat coming below'}
-          </p>
-        </div>
+        {/* ----- CHAT SECTION (working composer + live messages) ----- */}
+        <ChatSection
+          activeComments={activeComments}
+          commentText={commentText}
+          setCommentText={setCommentText}
+          onCommentSubmit={onCommentSubmit}
+          isGuest={isGuest}
+          requestSignIn={requestSignIn}
+          isAr={isAr}
+        />
       </div>
 
       {/* ================= STICKY PLACE-BID CTA ================= */}
