@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mazad JO — Product Page (enriched)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{--orange:#F05123;--orange2:#FF6B35;--orange3:#D63E10;--ink:#0A0A0A;--off:#F7F7F7;--line:#ECECEA;--green:#12B76A;--amber:#F0A500}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Alexandria',system-ui,sans-serif;background:#141414;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 70px}
+  .intro{text-align:center;color:#eee;margin-bottom:6px}
+  .intro h1{font-size:21px;font-weight:800;color:#fff}
+  .intro p{color:#aaa;font-size:13.5px;margin:6px auto 0;max-width:760px}
+  .row{display:flex;gap:34px;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+  .col{width:320px;max-width:100%}
+  .lbl{color:#fff;text-align:center;font-size:14px;font-weight:800;margin-bottom:12px}
+  .lbl small{display:block;color:#9a9a9a;font-weight:500;font-size:11.5px;margin-top:3px}
+  .phone{width:320px;height:680px;border-radius:42px;background:#0A0A0A;padding:9px;box-shadow:0 30px 70px rgba(0,0,0,.5);position:relative}
+  .scr{width:100%;height:100%;border-radius:34px;overflow:hidden;background:#fff;position:relative;display:flex;flex-direction:column}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:112px;height:24px;background:#0A0A0A;border-radius:0 0 15px 15px;z-index:60}
+  .chip{font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:100px;background:var(--off);color:#444}
+  .chip.v{background:rgba(18,183,106,.12);color:#0a7a48;display:inline-flex;align-items:center;gap:4px}
+  .bidbtn{width:100%;padding:15px;border-radius:15px;background:var(--orange);color:#fff;font-weight:900;font-size:15px;text-align:center;box-shadow:0 10px 24px rgba(240,81,35,.32);display:flex;align-items:center;justify-content:center;gap:7px}
+  .bidbtn small{font-weight:700;opacity:.85;font-size:12px}
+
+  /* frame 1: product page */
+  .top{display:flex;align-items:center;justify-content:space-between;padding:15px 15px 9px}
+  .ic{width:34px;height:34px;border-radius:50%;background:var(--off);display:grid;place-items:center;font-size:15px;color:#333}
+  .media{position:relative;height:280px;background-size:cover;background-position:center}
+  .media .vpill{position:absolute;top:11px;left:11px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:700;padding:4px 9px;border-radius:100px;display:flex;align-items:center;gap:5px}
+  .media .vpill .rec{width:6px;height:6px;border-radius:50%;background:#FF4d4d;animation:blink 1.1s infinite}
+  @keyframes blink{50%{opacity:.3}}
+  .media .expand{position:absolute;top:11px;right:11px;width:30px;height:30px;border-radius:8px;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:grid;place-items:center;color:#fff;font-size:14px}
+  .media .dots{position:absolute;bottom:11px;left:50%;transform:translateX(-50%);display:flex;gap:4px}
+  .media .dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
+  .media .dots span.on{background:#fff;width:18px;border-radius:3px}
+  .media .toast{position:absolute;bottom:11px;left:11px;background:rgba(10,10,10,.8);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:100px;display:flex;align-items:center;gap:5px}
+  .body{flex:1;overflow:hidden;padding:13px 15px}
+  .ttl{font-size:19px;font-weight:900;letter-spacing:-.02em;color:var(--ink)}
+  .chips{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+  .bidcard{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+  .bidcard .r1{display:flex;justify-content:space-between;align-items:flex-end}
+  .cl{font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.3px}
+  .big{font-size:24px;font-weight:900;color:var(--ink);line-height:1}
+  .big small{font-size:12px;font-weight:800;color:#666}
+  .time{font-size:16px;font-weight:900;color:var(--orange);font-variant-numeric:tabular-nums}
+  .bidcard .sub{display:flex;justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:11px;color:#666;font-weight:600}
+  .cta{position:absolute;bottom:0;left:0;right:0;padding:11px 15px 18px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 32%);z-index:8}
+
+  /* frame 2: bid sheet */
+  .sheetscr{background:rgba(0,0,0,.35);position:relative;justify-content:flex-end}
+  .sheet{background:#fff;border-radius:26px 26px 0 0;padding:18px 16px 20px;box-shadow:0 -20px 50px rgba(0,0,0,.3)}
+  .sheet .grab{width:38px;height:4px;border-radius:2px;background:#ddd;margin:0 auto 14px}
+  .sheet h3{font-size:15px;font-weight:900;color:var(--ink)}
+  .sheet .cur{font-size:12px;color:#666;font-weight:600;margin-top:2px}
+  .incs{display:flex;gap:8px;margin-top:14px}
+  .inc{flex:1;text-align:center;padding:12px 6px;border:1.5px solid var(--line);border-radius:13px;font-weight:800;font-size:13px;color:var(--ink)}
+  .inc.on{border-color:var(--orange);background:rgba(240,81,35,.06);color:var(--orange)}
+  .inc small{display:block;font-size:9.5px;color:#999;font-weight:700;margin-bottom:2px}
+  .inc.on small{color:var(--orange)}
+  .custom{margin-top:12px;border:1.5px solid var(--line);border-radius:13px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+  .custom .lab{font-size:12px;color:#666;font-weight:700}
+  .custom .amt{font-size:20px;font-weight:900;color:var(--ink)}
+  .custom .amt .cur2{font-size:12px;color:#999}
+  .custom .cur3{font-size:11px;color:#999;font-weight:700}
+  .premium{text-align:center;font-size:11px;color:#999;font-weight:600;margin:12px 0 12px}
+
+  /* frame 3: chat */
+  .chatscr{background:#fff}
+  .chdr{padding:15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .chdr h3{font-size:15px;font-weight:900}
+  .chdr .cnt{font-size:11px;color:#12b76a;font-weight:700}
+  .msgs{flex:1;overflow:hidden;padding:14px 15px;display:flex;flex-direction:column;gap:12px}
+  .msg{display:flex;gap:9px}
+  .msg .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#8a8a8a,#555);flex-shrink:0}
+  .msg .bub .nm{font-size:11px;font-weight:800;color:var(--ink)}
+  .msg .bub .tx{font-size:12.5px;color:#333;margin-top:2px}
+  .msg.sys .bub{background:rgba(240,81,35,.07);border-radius:10px;padding:7px 10px}
+  .msg.sys .tx{color:var(--orange);font-weight:700;font-size:11.5px}
+  .composer{padding:11px 15px 18px;border-top:1px solid var(--line);display:flex;gap:9px;align-items:center}
+  .composer .inp{flex:1;background:var(--off);border-radius:100px;padding:11px 15px;font-size:12.5px;color:#999}
+  .composer .snd{width:40px;height:40px;border-radius:50%;background:var(--orange);display:grid;place-items:center;color:#fff;font-size:15px}
+  .selbar{display:flex;gap:12px;justify-content:center;margin-top:26px}
+  .cx{background:#1e1e1e;color:#fff;border:1px solid #3a3a3a;border-radius:12px;padding:11px 20px;font-weight:800;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Direction A — enriched with the live-page cues</h1>
+    <p>Autoplaying video + auto-advancing photos + tap-to-expand · mini activity toasts · working chat/comments · custom bid amount. Same calm product page, none of the reel clutter. English shown; build is RTL-native.</p>
+  </div>
+
+  <div class="row">
+    <!-- FRAME 1 -->
+    <div class="col">
+      <div class="lbl">The page<small>media autoplays · toast · one Place Bid</small></div>
+      <div class="phone"><div class="scr"><div class="notch"></div>
+        <div class="top"><div class="ic">‹</div><div style="font-size:11.5px;font-weight:800;color:#999">Live drop</div><div class="ic">⤴</div></div>
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=700&q=80')">
+          <span class="vpill"><span class="rec"></span>Video playing · 0:42</span>
+          <span class="expand">⤢</span>
+          <div class="toast">🔥 Sara just bid · 2,150</div>
+          <div class="dots"><span class="on"></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="body">
+          <div class="ttl">Rolex Datejust 41</div>
+          <div class="chips"><span class="chip v">✓ Inspected by Mazad</span><span class="chip">Watches</span><span class="chip">Like new</span></div>
+          <div class="bidcard">
+            <div class="r1"><div><span class="cl">Current bid</span><div class="big">2,150 <small>JOD</small></div></div><div style="text-align:right"><span class="cl">Ends in</span><div class="time">08:15:32</div></div></div>
+            <div class="sub"><span>🔥 12 bids</span><span>Reserve met ✓</span><span>Top: Maher J.</span></div>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:#999;font-weight:700">▾ Details · Seller · Chat (scroll)</div>
+        </div>
+        <div class="cta"><div class="bidbtn">Place Bid <small>· 2,200 JOD ›</small></div></div>
+      </div></div>
+    </div>
+
+    <!-- FRAME 2 -->
+    <div class="col">
+      <div class="lbl">Tap Place Bid<small>quick steps OR type any amount</small></div>
+      <div class="phone"><div class="scr sheetscr"><div class="notch"></div>
+        <div style="flex:1"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h3>Place your bid</h3>
+          <div class="cur">Current bid 2,150 JOD · min next 2,200 JOD</div>
+          <div class="incs">
+            <div class="inc on"><small>+50</small>2,200</div>
+            <div class="inc"><small>+100</small>2,250</div>
+            <div class="inc"><small>+250</small>2,400</div>
+          </div>
+          <div class="custom"><span class="lab">Or enter amount</span><span class="amt">2,300 <span class="cur2">JOD</span></span></div>
+          <div class="premium">Total if you win: 2,415 JOD (incl. 5% buyer's premium)</div>
+          <div class="bidbtn">Confirm bid · 2,200 JOD</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- FRAME 3 -->
+    <div class="col">
+      <div class="lbl">Chat / comments<small>lower on the page — actually works</small></div>
+      <div class="phone"><div class="scr chatscr"><div class="notch"></div>
+        <div class="chdr"><h3>Chat</h3><span class="cnt">● 34 here now</span></div>
+        <div class="msgs">
+          <div class="msg sys"><div class="bub"><div class="tx">🔥 Sara just bid 2,150 JOD</div></div></div>
+          <div class="msg"><span class="av"></span><div class="bub"><div class="nm">Khaled</div><div class="tx">Is the box and papers included?</div></div></div>
+          <div class="msg"><span class="av" style="background:linear-gradient(135deg,#F05123,#D63E10)"></span><div class="bub"><div class="nm">MAZAD JO Store ✓</div><div class="tx">Yes — full set, inspected. Photos in gallery.</div></div></div>
+          <div class="msg"><span class="av"></span><div class="bub"><div class="nm">Rania</div><div class="tx">Good luck everyone 👏</div></div></div>
+          <div class="msg sys"><div class="bub"><div class="tx">⏱ 8 min left — reserve met</div></div></div>
+        </div>
+        <div class="composer"><div class="inp">Write a comment…</div><div class="snd">➤</div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="selbar">
+    <div class="cx" data-choice="looks-right" onclick="if(window.toggleSelect)toggleSelect(this)">This is it ✓</div>
+    <div class="cx" data-choice="tweak" onclick="if(window.toggleSelect)toggleSelect(this)">Tweak something</div>
+  </div>
+</div>
+</body>
+</html>
