@@ -99,6 +99,25 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
     ? Math.floor((activeAuction.endTime - serverNow()) / 1000) <= 0
     : false;
 
+  // ONE-SHOT end-flip: since the per-second parent tick is gone (it moved into
+  // <CountdownPill>), a quiet lot that expires with no trailing snapshot would
+  // never re-render, leaving `ended` stale-false and the CTA enabled while the
+  // pill reads "Ended". This fires a SINGLE re-render exactly at endTime so the
+  // on-render `ended` derivation above re-evaluates to true — no 1s interval
+  // reintroduced. Uses serverNow() (the same clock `ended` compares against, so
+  // the timer lands precisely when the derivation crosses). Keyed on the lot +
+  // its end/status: an anti-snipe +15s extension or a status flip reschedules
+  // it, and it's torn down on change/unmount.
+  const [, bumpEnded] = useState(0);
+  useEffect(() => {
+    if (!activeAuction?.endTime) return;
+    const ms = activeAuction.endTime - serverNow();
+    if (ms <= 0) return; // already past end — this render already derives ended=true
+    if (ms > 2_147_483_647) return; // beyond setTimeout's 32-bit range; re-runs when endTime changes
+    const id = window.setTimeout(() => bumpEnded((n) => n + 1), ms + 50);
+    return () => window.clearTimeout(id);
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status]);
+
   // Memoized so the gallery source is rebuilt only when the media fields
   // change — not on every price/bid tick that re-renders this page.
   const media = useMemo(

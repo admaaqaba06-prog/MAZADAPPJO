@@ -199,6 +199,26 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const trustScore = activeSellerProfile?.trustScore;
   const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
 
+  // ONE-SHOT end-flip: the per-second layout tick is gone (it moved into
+  // <CountdownPill>), so a quiet lot that expires with no trailing snapshot
+  // would never re-render — `isEnded` would stay stale-false and Card 2 keeps
+  // rendering the live SwipeToBid panel while the pill reads "Auction ended".
+  // This fires a SINGLE re-render exactly at endTime so the on-render `isEnded`
+  // derivation above re-evaluates to true — no 1s interval reintroduced. Uses
+  // Date.now() (the same clock `isEnded` compares against, so the timer lands
+  // precisely when the derivation crosses). Keyed on the lot + its end/status:
+  // an anti-snipe +15s extension or a status flip reschedules it, torn down on
+  // change/unmount.
+  const [, bumpEnded] = useState(0);
+  useEffect(() => {
+    if (activeAuction?.status === 'completed' || !activeAuction?.endTime) return;
+    const ms = activeAuction.endTime - Date.now();
+    if (ms <= 0) return; // already past end — this render already derives isEnded=true
+    if (ms > 2_147_483_647) return; // beyond setTimeout's 32-bit range; re-runs when endTime changes
+    const id = window.setTimeout(() => bumpEnded((n) => n + 1), ms + 50);
+    return () => window.clearTimeout(id);
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status]);
+
   // Gallery source items (video first, then thumbnail/mediaUrls/concierge
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
   const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
