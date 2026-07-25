@@ -17,6 +17,8 @@ import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
+import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { mergeLiveIntoCard } from '../utils/discoverQuery';
 
 /* ======================================================================
    ISOLATED COUNTDOWN LAYER (Wave 4)
@@ -374,9 +376,21 @@ export const LiveStreamView: React.FC = () => {
   }, [auctions]);
 
   // Active auction item helper
-  const activeAuction = useMemo(() => {
+  const activeAuctionBase = useMemo(() => {
     return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
   }, [liveAuctions, activeAuctionId]);
+
+  // Slice 1b-A: the open lot gets its OWN single-doc realtime subscription
+  // (ref-counted, leak-safe) instead of reading its live data out of the broad
+  // 80-lot array. `mergeLiveIntoCard` overlays only the authoritative live
+  // fields (currentPrice, totalBids, currentBidder*, reserveMet, status,
+  // endTime) onto the array-derived base, preserving identity + all static
+  // fields, so every downstream `activeAuction` read is unchanged.
+  const openLive = useVisibleAuctionLive(activeAuctionBase?.id ?? '', !!activeAuctionBase?.id);
+  const activeAuction = useMemo(
+    () => (activeAuctionBase ? mergeLiveIntoCard(activeAuctionBase, openLive) : activeAuctionBase),
+    [activeAuctionBase, openLive],
+  );
 
   // Align activeAuctionId to the REAL resolved lot so every chat surface keys on
   // one id. AppContext seeds activeAuctionId with the placeholder 'auction-rolex'
