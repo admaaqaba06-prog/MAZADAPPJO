@@ -438,6 +438,21 @@ export const DiscoveryFeedView: React.FC = () => {
   // live-now strip, the primary route into the bidding room from Discover.
   const liveNowAuctions = getLiveAuctions<AuctionItem>(auctions);
 
+  // Hottest live auction for the spotlight strip: the one with the most bids
+  // (tie-break soonest-ending). Only "hot" when it actually has bids — otherwise
+  // the strip falls back to the generic "Live now — N" count.
+  const hottestAuction = React.useMemo(() => {
+    if (liveNowAuctions.length === 0) return null;
+    const top = [...liveNowAuctions].sort((a, b) => {
+      const bd = (b.totalBids || 0) - (a.totalBids || 0);
+      if (bd !== 0) return bd;
+      return (a.endTime || 0) - (b.endTime || 0);
+    })[0];
+    return top && (top.totalBids || 0) > 0 ? top : null;
+  }, [liveNowAuctions]);
+
+  const watchAuction = (id: string) => { setActiveAuctionId(id); setActiveView('live'); };
+
   // Next scheduled drops (soonest first, unscheduled last) — previewed inline
   // in the empty state so a quiet feed still shows what's coming.
   const upcomingPreview = React.useMemo(() => {
@@ -598,9 +613,43 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
-      {/* Live-now strip: the primary route into the bidding room from Discover.
-          Hidden when nothing is genuinely live. */}
-      {liveNowAuctions.length > 0 && (
+      {/* Live-now strip. When a live auction is genuinely HOT (has bids), the
+          strip spotlights it (thumbnail · title · current bid) as a promo and
+          taps straight into it. Otherwise it falls back to the generic count. */}
+      {hottestAuction ? (
+        <motion.button
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          onClick={() => watchAuction(hottestAuction.id)}
+          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl p-1.5 pr-3 shadow-sm transition-all cursor-pointer active:scale-[0.99] text-left rtl:text-right"
+          id="live-now-strip"
+          style={{ direction: isAr ? 'rtl' : 'ltr' }}
+        >
+          <span className="w-11 h-11 rounded-lg overflow-hidden bg-black/20 shrink-0 border border-white/15">
+            {(hottestAuction.thumbnailUrl || hottestAuction.mediaUrls?.[0] || hottestAuction.imageUrl) ? (
+              <img src={hottestAuction.thumbnailUrl || hottestAuction.mediaUrls?.[0] || hottestAuction.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+            ) : null}
+          </span>
+          <span className="flex flex-col min-w-0 flex-1 leading-tight">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-100">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-80" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+              </span>
+              🔥 {isAr ? 'الأكثر تفاعلاً الآن' : 'Hottest right now'}
+            </span>
+            <span className="text-xs font-bold truncate">{hottestAuction.title}</span>
+            <span className="text-[11px] font-semibold text-emerald-50/90 tabular-nums">
+              {isAr ? 'العطاء الحالي' : 'Current bid'} {(hottestAuction.currentPrice || 0).toLocaleString()} {isAr ? 'د.أ' : 'JOD'} · {hottestAuction.totalBids} {isAr ? 'مزايدة' : 'bids'}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 transition-colors">
+            <Play className="w-3 h-3 fill-white" />
+            <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
+          </span>
+        </motion.button>
+      ) : liveNowAuctions.length > 0 ? (
         <motion.button
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -625,7 +674,7 @@ export const DiscoveryFeedView: React.FC = () => {
             <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
           </span>
         </motion.button>
-      )}
+      ) : null}
 
       {/* Hero Welcome Banner Card (Black Slate Vibe with Glow Accent) - Mobile only */}
       <div className="px-4 pb-2 lg:hidden">

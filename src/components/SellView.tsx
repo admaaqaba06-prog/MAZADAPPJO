@@ -545,19 +545,25 @@ export const SellView: React.FC = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...easeOut, delay: 0.08 + i * 0.06 }}
-                    className="group bg-white border border-gray-200/80 hover:border-[#FF6B00]/40 rounded-3xl shadow-sm hover:shadow-md p-6 text-start space-y-4 transition-all cursor-pointer active:scale-[0.99]"
+                    className="group relative overflow-hidden bg-gradient-to-b from-white to-[#FFF7F1] border border-orange-100/70 hover:border-[#FF6B00]/45 rounded-3xl shadow-[0_2px_16px_rgba(255,107,0,0.05)] hover:shadow-[0_10px_30px_rgba(255,107,0,0.14)] p-6 text-start flex flex-col gap-4 transition-all duration-300 cursor-pointer active:scale-[0.99] hover:-translate-y-0.5"
                     id={`sell-card-${card.id}`}
+                    style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center group-hover:bg-[#FF6B00] transition-colors">
-                      <CardIcon className="w-6 h-6 text-[#FF6B00] group-hover:text-white transition-colors" />
+                    {/* Soft brand glow in the trailing-top corner */}
+                    <span className="pointer-events-none absolute -top-10 end-[-2.5rem] w-32 h-32 rounded-full bg-[#FF6B00]/10 blur-2xl" />
+
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FF9A4D] to-[#E85D04] shadow-lg shadow-orange-500/25 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
+                      <CardIcon className="w-7 h-7 text-white" />
                     </div>
-                    <div className="space-y-1.5">
-                      <h3 className="text-sm font-black text-gray-950">{card.title}</h3>
+                    <div className="space-y-1.5 relative">
+                      <h3 className="text-base font-black text-gray-950 leading-tight">{card.title}</h3>
                       <p className="text-xs text-gray-500 font-medium leading-relaxed min-h-[48px]">{card.desc}</p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-black text-[#FF6B00]">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#FF6B00] mt-auto relative">
                       <span>{card.cta}</span>
-                      {isAr ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <span className="group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                        {isAr ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </span>
                     </span>
                   </motion.button>
                 );

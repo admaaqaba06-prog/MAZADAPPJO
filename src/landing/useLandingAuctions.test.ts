@@ -27,9 +27,17 @@ describe('mapToLandingAuction', () => {
 });
 
 describe('curateLandingAuctions', () => {
-  it('excludes simulated auctions', () => {
+  it('INCLUDES simulated auctions (pre-launch, so the section is never empty)', () => {
     const out = curateLandingAuctions([auction({ id: 'x', isSimulated: true })], NOW);
-    expect(out).toHaveLength(0);
+    expect(out.map(a => a.id)).toEqual(['x']);
+  });
+  it('orders hottest first: featured, then most bids, then soonest', () => {
+    const out = curateLandingAuctions([
+      auction({ id: 'quiet', endTime: NOW + 10_000, totalBids: 0 }),
+      auction({ id: 'hot', endTime: NOW + 90_000, totalBids: 25 }),
+      auction({ id: 'mid', endTime: NOW + 50_000, totalBids: 5 }),
+    ], NOW);
+    expect(out.map(a => a.id)).toEqual(['hot', 'mid', 'quiet']);
   });
   it('excludes non-live and past-endTime auctions', () => {
     const out = curateLandingAuctions([

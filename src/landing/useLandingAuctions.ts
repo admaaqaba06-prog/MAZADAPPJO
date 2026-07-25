@@ -39,17 +39,20 @@ export function mapToLandingAuction(a: AuctionItem): LandingAuction {
   };
 }
 
-// Pure curation: live, non-simulated, titled auctions, ordered featured-first
-// then soonest-ending, capped. Unit-tested; the hook wrapper is not.
+// Pure curation: live, titled auctions ordered by "hottest" (featured, then most
+// bids, then soonest-ending), capped. Simulated auctions ARE included pre-launch
+// so the section never looks dead while real volume ramps (founder decision —
+// revisit once real live volume is steady). Unit-tested; the hook wrapper is not.
 export function curateLandingAuctions(
   auctions: AuctionItem[],
   now: number = Date.now(),
   cap: number = DISPLAY_CAP
 ): LandingAuction[] {
   return auctions
-    .filter(a => a.isSimulated !== true && !!a.title && typeof a.endTime === 'number' && a.endTime > now && isLiveNow(a, now))
+    .filter(a => !!a.title && typeof a.endTime === 'number' && a.endTime > now && isLiveNow(a, now))
     .sort((x, y) => {
       if (x.isFeatured !== y.isFeatured) return x.isFeatured ? -1 : 1;
+      if ((y.totalBids || 0) !== (x.totalBids || 0)) return (y.totalBids || 0) - (x.totalBids || 0);
       return x.endTime - y.endTime;
     })
     .slice(0, cap)
@@ -65,7 +68,7 @@ function fetchLandingAuctions(): Promise<AuctionItem[]> {
     query(
       collection(db, 'auctions'),
       where('status', '==', 'live'),
-      limit(24)
+      limit(60)
     )
   )
     .then(snap => snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AuctionItem, 'id'>) })))
