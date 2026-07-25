@@ -71,7 +71,6 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
           ref={inputRef}
           type="file"
           accept="image/*"
-          capture="user"
           onChange={handleFile}
           className="hidden"
           aria-hidden="true"
