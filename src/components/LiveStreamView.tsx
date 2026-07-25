@@ -7,7 +7,7 @@ import {
   X
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
-import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
+import { MobileAuctionView } from './MobileAuctionView';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid, totalWithPremium, isViewerWinner } from '../utils/bidMath';
 import { translations } from '../utils/translations';
@@ -667,7 +667,7 @@ export const LiveStreamView: React.FC = () => {
   return (
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
       {isMobile ? (
-        <MobileLiveAuctionLayout
+        <MobileAuctionView
           liveAuctions={liveAuctions}
           activeAuctionId={activeAuctionId}
           onSelectAuction={(id) => setActiveAuctionId(id)}
