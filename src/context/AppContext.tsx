@@ -302,6 +302,9 @@ interface AppContextProps {
     // .enableGuestBrowsing to false to restore the login-gated front door
     // instantly in production, no redeploy).
     enableGuestBrowsing: boolean;
+    // Paginated Discover feed (Slice 1). Default OFF — reads
+    // siteSettings/featureFlags.enablePaginatedDiscover === true to opt in.
+    enablePaginatedDiscover: boolean;
   };
   updateMaintenanceMode: (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => Promise<void>;
   updateFeatureFlag: (flag: string, value: boolean) => Promise<void>;
@@ -409,7 +412,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enableSubscriptions: true,
     enableWallets: true,
     enablePushNotifications: true,
-    enableGuestBrowsing: true
+    enableGuestBrowsing: true,
+    enablePaginatedDiscover: false
   });
 
   const [systemHealthLogs, setSystemHealthLogs] = useState<any[]>([]);
@@ -1206,6 +1210,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableWallets: data.enableWallets !== false,
           enablePushNotifications: data.enablePushNotifications !== false,
           enableGuestBrowsing: readGuestBrowsingFlag(data),
+          enablePaginatedDiscover: data.enablePaginatedDiscover === true,
         });
       } else {
         setFeatureFlags({
@@ -1214,6 +1219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableWallets: true,
           enablePushNotifications: true,
           enableGuestBrowsing: true,
+          enablePaginatedDiscover: false,
         });
       }
     }, (err) => {
