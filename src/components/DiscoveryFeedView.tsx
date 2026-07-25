@@ -403,7 +403,18 @@ export const DiscoveryFeedView: React.FC = () => {
   // hooks) but only fetches when `usePaginated` is true. Category chips drive
   // the SERVER re-query (`selectedCategory`); search still filters client-side
   // over the loaded page (Slice 2 swaps to Algolia).
-  const feed = useDiscoverFeed(selectedCategory, usePaginated);
+  // Translate the selected chip into its CANONICAL stored category value(s)
+  // (its `match` alias list) so the server query uses `where('category','in',…)`
+  // — a raw chip name like `Cars`/`Phones` would never match the stored
+  // `Vehicles`/`Electronics` values and return an empty feed. `All` → null (no
+  // category clause). Reference is stable per chip (categoriesList is memoized).
+  const categoryMatches = React.useMemo<string[] | null>(() => {
+    if (selectedCategory === 'All') return null;
+    const pill = categoriesList.find((c) => c.name === selectedCategory);
+    return pill?.match ?? [selectedCategory];
+  }, [selectedCategory, categoriesList]);
+
+  const feed = useDiscoverFeed(categoryMatches, usePaginated);
 
   const paginatedLists = React.useMemo(() => {
     if (!usePaginated) return null;
@@ -888,7 +899,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <AuctionCardSkeleton key={n} />
             ))}
           </div>
-        ) : (liveList.length > 0 || upcomingList.length > 0) ? (
+        ) : (liveList.length > 0 || upcomingList.length > 0 || (usePaginated && feed.hasMoreLive)) ? (
           <div className="space-y-10">
             {liveList.length > 0 && (
               <section id="live-now-section">
@@ -926,18 +937,20 @@ export const DiscoveryFeedView: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                {/* Infinite-scroll trigger (paginated path only). The sentinel
-                    sits just under the live grid; when it enters view the
-                    observer pulls the next page. */}
-                {usePaginated && feed.hasMoreLive && (
-                  <div ref={loadMoreSentinelRef} className="h-8" aria-hidden="true" />
-                )}
-                {usePaginated && feed.loadingMore && (
-                  <div className="flex items-center justify-center py-4" id="discover-loading-more">
-                    <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
-                  </div>
-                )}
               </section>
+            )}
+
+            {/* Infinite-scroll trigger (paginated path only). Mounts whenever
+                more live pages exist — even if this filtered page rendered
+                empty (e.g. a thin first page) — so the observer can still pull
+                the next page instead of stranding hidden live inventory. */}
+            {usePaginated && feed.hasMoreLive && (
+              <div ref={loadMoreSentinelRef} className="h-8" aria-hidden="true" />
+            )}
+            {usePaginated && feed.loadingMore && (
+              <div className="flex items-center justify-center py-4" id="discover-loading-more">
+                <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
+              </div>
             )}
 
             {upcomingList.length > 0 && (

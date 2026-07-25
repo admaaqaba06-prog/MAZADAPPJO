@@ -25,6 +25,7 @@ import {
   startAfter,
   getDocs,
   onSnapshot,
+  Timestamp,
   type QueryConstraint,
   type QueryDocumentSnapshot,
   type DocumentData,
@@ -85,12 +86,31 @@ function mapFeedDoc(docSnap: QueryDocumentSnapshot<DocumentData>): AuctionItem {
   } as AuctionItem;
 }
 
-/** Build the LIVE ending-soon query (optionally category-scoped + cursor-paged). */
-function buildLiveQuery(category: string, cursor: QueryDocumentSnapshot<DocumentData> | null) {
+/**
+ * Build the LIVE ending-soon query (optionally category-scoped + cursor-paged).
+ *
+ * - `categoryMatches` is the selected chip's CANONICAL alias list (e.g.
+ *   `Cars → ['Cars','Vehicles']`); a non-empty list scopes with
+ *   `where('category','in', matches)`. `null`/empty means the `'All'` chip → no
+ *   category clause. Firestore `in` allows up to 10 values; alias display names
+ *   that aren't real stored categories are harmless (they never match a doc).
+ * - Excludes past-ended lots SERVER-SIDE via `where('endsAt','>', now)`: such
+ *   lots (status still 'live' but past their end) sort FIRST under `endsAt asc`
+ *   and would otherwise fill a page that then filters to empty client-side,
+ *   stranding displayable inventory. `endsAt` is a Firestore `Timestamp` in
+ *   prod, so we compare against `Timestamp.fromMillis(serverNow())`. The range
+ *   field equals the first `orderBy`, so the existing `(status,endsAt)` /
+ *   `(status,category,endsAt)` composite indexes still back it (no new index).
+ */
+function buildLiveQuery(
+  categoryMatches: string[] | null,
+  cursor: QueryDocumentSnapshot<DocumentData> | null,
+) {
   const constraints: QueryConstraint[] = [where('status', '==', 'live')];
-  if (category && category !== 'All') {
-    constraints.push(where('category', '==', category));
+  if (categoryMatches && categoryMatches.length > 0) {
+    constraints.push(where('category', 'in', categoryMatches.slice(0, 10)));
   }
+  constraints.push(where('endsAt', '>', Timestamp.fromMillis(serverNow())));
   constraints.push(orderBy('endsAt', 'asc'));
   if (cursor) constraints.push(startAfter(cursor));
   constraints.push(limit(PAGE));
@@ -142,7 +162,10 @@ function foldMaxCreatedAt(
  * unmount. Errors surface via `error` and stop the relevant loading flag rather
  * than throwing.
  */
-export function useDiscoverFeed(category: string, enabled: boolean = true): UseDiscoverFeedResult {
+export function useDiscoverFeed(
+  categoryMatches: string[] | null,
+  enabled: boolean = true,
+): UseDiscoverFeedResult {
   const [liveItems, setLiveItems] = useState<AuctionItem[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +175,10 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
   const [latestLiveCreatedAt, setLatestLiveCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
 
+  // Stable primitive key so effects/callbacks re-run only on a real category
+  // change, not on array-identity churn from the parent.
+  const categoryKey = categoryMatches && categoryMatches.length ? categoryMatches.join('|') : '';
+
   // Refs mirror state read inside stable callbacks (avoids stale closures) and
   // carry cross-render bookkeeping the render output doesn't need.
   const mountedRef = useRef(true);
@@ -160,6 +187,10 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
   const hasMoreLiveRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const newestCreatedRef = useRef<number | null>(null);
+  const categoryMatchesRef = useRef(categoryMatches);
+  categoryMatchesRef.current = categoryMatches;
+  const latestLiveCreatedAtRef = useRef<number | null>(null); // detector's newest
+  const ackFloorRef = useRef<number | null>(null); // baseline raised on refresh (acknowledge)
 
   useEffect(() => {
     mountedRef.current = true;
@@ -181,7 +212,7 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
     }
     try {
       const [liveSnap, upSnap] = await Promise.all([
-        getDocs(buildLiveQuery(category, null)),
+        getDocs(buildLiveQuery(categoryMatchesRef.current, null)),
         getDocs(buildUpcomingQuery()),
       ]);
       if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
@@ -189,7 +220,13 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
       const now = serverNow();
       const live = liveSnap.docs.map(mapFeedDoc).filter((a) => isDisplayableLive(a, now));
       const upcoming = upSnap.docs.map(mapFeedDoc);
-      const newest = foldMaxCreatedAt(liveSnap.docs, null);
+      // Fold the acknowledged baseline (a refresh may have raised it above this
+      // ending-soon page's max, since the newest-created lot ends farthest out)
+      // so a prior acknowledge is never undone by a page-1 reload.
+      let newest = foldMaxCreatedAt(liveSnap.docs, null);
+      if (ackFloorRef.current != null) {
+        newest = newest == null ? ackFloorRef.current : Math.max(newest, ackFloorRef.current);
+      }
 
       cursorRef.current = liveSnap.docs[liveSnap.docs.length - 1] ?? null;
       hasMoreLiveRef.current = liveSnap.docs.length === PAGE;
@@ -205,7 +242,7 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
       setError(e);
       setLoading(false);
     }
-  }, [category]);
+  }, [categoryKey]);
 
   useEffect(() => {
     // OFF (flag-gated fallback path): never fetch. The consumer keeps using the
@@ -224,7 +261,7 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
     loadingMoreRef.current = true;
     if (mountedRef.current) setLoadingMore(true);
 
-    getDocs(buildLiveQuery(category, cursor))
+    getDocs(buildLiveQuery(categoryMatchesRef.current, cursor))
       .then((snap) => {
         if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
         const now = serverNow();
@@ -249,7 +286,7 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
         setError(e);
         setLoadingMore(false);
       });
-  }, [category]);
+  }, [categoryKey]);
 
   // New-drops detector: ONE snapshot on the newest live lot by createdAt.
   // Gated by `enabled` so the OFF path opens no listener at all.
@@ -266,7 +303,9 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
         if (!mountedRef.current) return;
         const top = snap.docs[0];
         const raw = top ? (top.data() as any).createdAt : null;
-        setLatestLiveCreatedAt(raw == null ? null : parseAuctionTimestamp(raw));
+        const parsed = raw == null ? null : parseAuctionTimestamp(raw);
+        latestLiveCreatedAtRef.current = parsed;
+        setLatestLiveCreatedAt(parsed);
       },
       (e) => {
         if (mountedRef.current) setError(e);
@@ -276,6 +315,22 @@ export function useDiscoverFeed(category: string, enabled: boolean = true): UseD
   }, [enabled]);
 
   const refresh = useCallback(() => {
+    // ACKNOWLEDGE the new-drops pill: raise the loaded baseline to the newest
+    // live lot the detector has seen. The feed is ordered ending-soon while the
+    // detector tracks newest-CREATED, so a freshly-listed lot (farthest endsAt)
+    // won't land on page 1 — without this the pill would re-arm forever after a
+    // refresh. Acknowledging clears it now; the lot still surfaces naturally as
+    // its end-time approaches. "New drops" thus means "new lots were listed —
+    // tap to re-pull + dismiss."
+    const ack = latestLiveCreatedAtRef.current;
+    if (ack != null) {
+      ackFloorRef.current = ackFloorRef.current == null ? ack : Math.max(ackFloorRef.current, ack);
+      newestCreatedRef.current =
+        newestCreatedRef.current == null ? ack : Math.max(newestCreatedRef.current, ack);
+      if (mountedRef.current) {
+        setNewestLoadedCreatedAt((prev) => (prev == null ? ack : Math.max(prev, ack)));
+      }
+    }
     void loadPage1();
   }, [loadPage1]);
 

@@ -23,20 +23,32 @@ export interface FeedConstraints {
 
 /**
  * Build the constraint descriptor for the live (ending-soon) feed.
- * Filters to `status === 'live'`, adds a `category` clause only when a real
- * category is selected (not undefined and not the `'All'` sentinel), orders by
- * `endsAt asc`, and paginates from `cursor`.
+ * Filters to `status === 'live'`, adds a `category in [...]` clause only when a
+ * specific category is selected (a non-empty `categoryMatches` list — `null`/
+ * empty means the `'All'` chip), optionally adds an `endsAt > endsAfter` range
+ * clause to drop past-ended lots at the source, orders by `endsAt asc`, and
+ * paginates from `cursor`.
+ *
+ * `categoryMatches` is the chip's CANONICAL alias list (e.g. `Cars →
+ * ['Cars','Vehicles']`): Firestore `in` supports up to 10 values and any alias
+ * display names that aren't real stored categories are harmless (they simply
+ * never match a doc). This descriptor mirrors the live query the hook builds.
  */
 export function buildLiveFeedConstraints({
-  category,
+  categoryMatches,
   cursor,
+  endsAfter,
 }: {
-  category?: string;
+  categoryMatches?: string[] | null;
   cursor?: unknown;
+  endsAfter?: unknown;
 }): FeedConstraints {
   const where: WhereClause[] = [['status', '==', 'live']];
-  if (category && category !== 'All') {
-    where.push(['category', '==', category]);
+  if (categoryMatches && categoryMatches.length > 0) {
+    where.push(['category', 'in', categoryMatches.slice(0, 10)]);
+  }
+  if (endsAfter != null) {
+    where.push(['endsAt', '>', endsAfter]);
   }
   return {
     where,

@@ -16,8 +16,8 @@ describe('PAGE', () => {
 });
 
 describe('buildLiveFeedConstraints', () => {
-  it('has no category clause for "All"', () => {
-    expect(buildLiveFeedConstraints({ category: 'All' })).toEqual({
+  it('has no category clause for the "All" chip (null matches)', () => {
+    expect(buildLiveFeedConstraints({ categoryMatches: null })).toEqual({
       where: [['status', '==', 'live']],
       orderBy: [['endsAt', 'asc']],
       startAfter: null,
@@ -25,7 +25,7 @@ describe('buildLiveFeedConstraints', () => {
     });
   });
 
-  it('has no category clause when category is undefined', () => {
+  it('has no category clause when categoryMatches is undefined', () => {
     expect(buildLiveFeedConstraints({})).toEqual({
       where: [['status', '==', 'live']],
       orderBy: [['endsAt', 'asc']],
@@ -34,11 +34,20 @@ describe('buildLiveFeedConstraints', () => {
     });
   });
 
-  it('adds a category clause for a specific category', () => {
-    expect(buildLiveFeedConstraints({ category: 'Watches' })).toEqual({
+  it('has no category clause for an empty matches list', () => {
+    expect(buildLiveFeedConstraints({ categoryMatches: [] })).toEqual({
+      where: [['status', '==', 'live']],
+      orderBy: [['endsAt', 'asc']],
+      startAfter: null,
+      limit: 24,
+    });
+  });
+
+  it('adds a category `in` clause for a single-value matches list', () => {
+    expect(buildLiveFeedConstraints({ categoryMatches: ['Watches'] })).toEqual({
       where: [
         ['status', '==', 'live'],
-        ['category', '==', 'Watches'],
+        ['category', 'in', ['Watches']],
       ],
       orderBy: [['endsAt', 'asc']],
       startAfter: null,
@@ -46,12 +55,50 @@ describe('buildLiveFeedConstraints', () => {
     });
   });
 
-  it('sets startAfter when a cursor is passed', () => {
-    const cursor = { id: 'doc-42' };
-    expect(buildLiveFeedConstraints({ category: 'Watches', cursor })).toEqual({
+  it('uses the full alias list so legacy stored values still match (Cars→Vehicles)', () => {
+    expect(buildLiveFeedConstraints({ categoryMatches: ['Cars', 'Vehicles'] })).toEqual({
       where: [
         ['status', '==', 'live'],
-        ['category', '==', 'Watches'],
+        ['category', 'in', ['Cars', 'Vehicles']],
+      ],
+      orderBy: [['endsAt', 'asc']],
+      startAfter: null,
+      limit: 24,
+    });
+  });
+
+  it('caps the `in` list at 10 values', () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => `c${i}`);
+    const result = buildLiveFeedConstraints({ categoryMatches: eleven });
+    expect(result.where).toEqual([
+      ['status', '==', 'live'],
+      ['category', 'in', eleven.slice(0, 10)],
+    ]);
+  });
+
+  it('adds an `endsAt >` range clause when endsAfter is passed', () => {
+    const bound = { seconds: 123 };
+    expect(buildLiveFeedConstraints({ categoryMatches: null, endsAfter: bound })).toEqual({
+      where: [
+        ['status', '==', 'live'],
+        ['endsAt', '>', bound],
+      ],
+      orderBy: [['endsAt', 'asc']],
+      startAfter: null,
+      limit: 24,
+    });
+  });
+
+  it('combines category `in` + endsAt range + cursor', () => {
+    const cursor = { id: 'doc-42' };
+    const bound = { seconds: 456 };
+    expect(
+      buildLiveFeedConstraints({ categoryMatches: ['Phones', 'Electronics'], cursor, endsAfter: bound }),
+    ).toEqual({
+      where: [
+        ['status', '==', 'live'],
+        ['category', 'in', ['Phones', 'Electronics']],
+        ['endsAt', '>', bound],
       ],
       orderBy: [['endsAt', 'asc']],
       startAfter: cursor,
