@@ -436,7 +436,10 @@ export const DiscoveryFeedView: React.FC = () => {
 
   // Genuinely live right now (status 'live' AND not past endTime) — drives the
   // live-now strip, the primary route into the bidding room from Discover.
-  const liveNowAuctions = getLiveAuctions<AuctionItem>(auctions);
+  const liveNowAuctions = React.useMemo(
+    () => getLiveAuctions<AuctionItem>(auctions),
+    [auctions]
+  );
 
   // Hottest live auction for the spotlight strip: the one with the most bids
   // (tie-break soonest-ending). Only "hot" when it actually has bids — otherwise
@@ -833,16 +836,12 @@ export const DiscoveryFeedView: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {liveAuctionsList.map((item, index) => (
-                    <motion.div
+                    <div
                       key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.25,
-                        ease: 'easeOut',
-                        delay: gridStaggerDone.current ? 0 : Math.min(index * 0.04, 0.32),
+                      className="feed-card-in h-full"
+                      style={{
+                        animationDelay: `${gridStaggerDone.current ? 0 : Math.min(index * 0.04, 0.32)}s`,
                       }}
-                      className="h-full"
                     >
                       <PremiumAuctionCard
                         item={item}
@@ -856,7 +855,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                       />
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </section>
@@ -875,18 +874,16 @@ export const DiscoveryFeedView: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {upcomingAuctionsList.map((item, index) => (
-                    <motion.div
+                    <div
                       key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.25,
-                        ease: 'easeOut',
-                        delay: gridStaggerDone.current
-                          ? 0
-                          : Math.min((liveAuctionsList.length + index) * 0.04, 0.32),
+                      className="feed-card-in h-full"
+                      style={{
+                        animationDelay: `${
+                          gridStaggerDone.current
+                            ? 0
+                            : Math.min((liveAuctionsList.length + index) * 0.04, 0.32)
+                        }s`,
                       }}
-                      className="h-full"
                     >
                       <PremiumAuctionCard
                         item={item}
@@ -900,7 +897,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                       />
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </section>
