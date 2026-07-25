@@ -33,9 +33,9 @@ import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { compactJod } from '../utils/bidFormat';
 import { formatAmmanClock } from '../utils/ammanTime';
-import { serverNow } from '../utils/serverTime';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { MediaGallery } from './feedback/MediaGallery';
+import { CountdownPill } from './auction/CountdownPill';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -100,57 +100,10 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const { showToast: pushToast } = useToast();
 
-  // PERF (Wave 4): the desktop HH:MM:SS pill owns its OWN 1s clock instead of
-  // receiving `timeLeftStr` from LiveStreamView. That way the per-second tick
-  // stays confined to this component and never re-renders the parent room.
-  const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');
-  // PF7: depend on the primitives the timer actually reads, NOT the
-  // activeAuction object identity — before PF5, every bid on ANY lot handed
-  // this component a fresh object and tore down/rebuilt the interval
-  // mid-snipe-window. ⚠️TIMING: `endTime` MUST stay in the deps (anti-snipe
-  // +15s extension must restart the countdown), `status` for the
-  // live→completed flip, and `scheduledStartAt` because the pre-open branch
-  // counts down to it (a reschedule must retarget the timer).
-  const activeAuctionId = activeAuction?.id;
-  const activeAuctionEndTime = activeAuction?.endTime;
-  const activeAuctionStatus = activeAuction?.status;
-  const activeAuctionScheduledStartAt = activeAuction?.scheduledStartAt;
-  useEffect(() => {
-    if (!activeAuctionId) {
-      setTimeLeftStr('00:00:00');
-      return;
-    }
-    const updateTimer = () => {
-      // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
-      const open = isAuctionOpen(activeAuctionStatus);
-      const target = !open && activeAuctionScheduledStartAt
-        ? activeAuctionScheduledStartAt
-        : activeAuctionEndTime;
-      const remainingMs = (target ?? 0) - serverNow();
-      const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
-
-      // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
-      if (!open && (activeAuctionScheduledStartAt ?? 0) > 0 && remainingMs <= 0) {
-        setTimeLeftStr(isAr ? 'يبدأ الآن…' : 'Starting…');
-        return;
-      }
-
-      if (remainingSecs > 0) {
-        const hrs = Math.floor(remainingSecs / 3600);
-        const mins = Math.floor((remainingSecs % 3600) / 60);
-        const secs = remainingSecs % 60;
-        setTimeLeftStr(
-          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        );
-      } else {
-        // Clamp at zero: the server closer flips the status shortly.
-        setTimeLeftStr(isAr ? 'انتهى المزاد' : 'Auction ended');
-      }
-    };
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [activeAuctionId, activeAuctionEndTime, activeAuctionStatus, activeAuctionScheduledStartAt, isAr]);
+  // PERF (Wave 4): the desktop HH:MM:SS pill now lives in <CountdownPill> (a
+  // leaf that owns its OWN 1s interval, computing timeLeft + snipe pulse from
+  // endTime/status/scheduledStartAt). The per-second tick stays confined to
+  // that leaf and never re-renders this room.
 
   // --- The bid moment: confirm-then-bid + success rush ---
   const [pendingBid, setPendingBid] = useState<number | null>(null);
@@ -217,13 +170,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     setPendingBid(null);
   };
 
-  // --- Anti-snipe drama: red pulsing countdown under 10s ---
-  const msLeft = activeAuction?.endTime ? activeAuction.endTime - Date.now() : Infinity;
-  const isSnipeWindow =
-    isAuctionOpen(activeAuction?.status) &&
-    Number.isFinite(msLeft) &&
-    msLeft > 0 &&
-    msLeft < 10000;
+  // Anti-snipe drama (red pulsing countdown under 10s) now lives inside
+  // <CountdownPill> — the pill owns the snipe-window pulse so it re-evaluates
+  // per tick without re-rendering this layout.
 
   // Toast when the end time extends (a late bid pushed the clock)
   const prevEndRef = useRef<{ id: string; end: number } | null>(null);
@@ -249,6 +198,26 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const isVerified = activeSellerProfile?.verificationStatus === 'verified' || isPremium;
   const trustScore = activeSellerProfile?.trustScore;
   const isEnded = activeAuction?.status === 'completed' || (activeAuction?.endTime ? activeAuction.endTime <= Date.now() : false);
+
+  // ONE-SHOT end-flip: the per-second layout tick is gone (it moved into
+  // <CountdownPill>), so a quiet lot that expires with no trailing snapshot
+  // would never re-render — `isEnded` would stay stale-false and Card 2 keeps
+  // rendering the live SwipeToBid panel while the pill reads "Auction ended".
+  // This fires a SINGLE re-render exactly at endTime so the on-render `isEnded`
+  // derivation above re-evaluates to true — no 1s interval reintroduced. Uses
+  // Date.now() (the same clock `isEnded` compares against, so the timer lands
+  // precisely when the derivation crosses). Keyed on the lot + its end/status:
+  // an anti-snipe +15s extension or a status flip reschedules it, torn down on
+  // change/unmount.
+  const [, bumpEnded] = useState(0);
+  useEffect(() => {
+    if (activeAuction?.status === 'completed' || !activeAuction?.endTime) return;
+    const ms = activeAuction.endTime - Date.now();
+    if (ms <= 0) return; // already past end — this render already derives isEnded=true
+    if (ms > 2_147_483_647) return; // beyond setTimeout's 32-bit range; re-runs when endTime changes
+    const id = window.setTimeout(() => bumpEnded((n) => n + 1), ms + 50);
+    return () => window.clearTimeout(id);
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status]);
 
   // Gallery source items (video first, then thumbnail/mediaUrls/concierge
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
@@ -821,13 +790,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       ? (isAr ? 'يبدأ خلال' : 'Starts in')
                       : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
                   </span>
-                  <motion.span
-                    animate={isSnipeWindow ? { scale: [1, 1.1, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
-                    transition={isSnipeWindow ? { duration: 1, ease: 'easeOut', repeat: Infinity } : { duration: 0.2, ease: 'easeOut' }}
-                    className={`text-sm font-bold font-mono tracking-wider ${isSnipeWindow ? 'text-red-500' : 'text-emerald-500'}`}
-                  >
-                    {timeLeftStr}
-                  </motion.span>
+                  <CountdownPill
+                    variant="desktop"
+                    endTime={activeAuction?.endTime}
+                    status={activeAuction?.status}
+                    scheduledStartAt={activeAuction?.scheduledStartAt}
+                    isAr={isAr}
+                    className="text-sm font-bold font-mono tracking-wider"
+                  />
                   <span className="text-[8px] text-gray-400 tracking-widest uppercase mt-0.5">
                     HRS : MIN : SEC
                   </span>

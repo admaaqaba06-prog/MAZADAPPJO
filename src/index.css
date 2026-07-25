@@ -36,3 +36,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Discover feed card entrance — a keyed CSS fade that reproduces the old
+   per-card framer-motion mount animation (opacity 0→1, translateY 12px→0,
+   0.25s ease-out) without any per-bid reconciliation. The `key={item.id}`
+   on the wrapper replays this only on genuine mount/remount; a re-render
+   from a bid on an already-mounted card does not replay it. Stagger is
+   driven by a per-card inline `animation-delay`. */
+@keyframes feed-card-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.feed-card-in {
+  animation: feed-card-in 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-card-in {
+    animation: none;
+  }
+}
+

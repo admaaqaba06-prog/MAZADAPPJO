@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucide-react';
 import { CountUp, markFirstBidDone, useToast } from './feedback';
@@ -8,6 +8,7 @@ import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
 import { serverNow } from '../utils/serverTime';
+import { CountdownPill } from './auction/CountdownPill';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
@@ -60,17 +61,6 @@ interface MobileAuctionViewProps {
   onClose: () => void;
 }
 
-/** Format a remaining-seconds count as HH:MM:SS (LTR numerals). */
-const formatCountdown = (totalSecs: number): string => {
-  const s = Math.max(0, totalSecs);
-  const hrs = Math.floor(s / 3600);
-  const mins = Math.floor((s % 3600) / 60);
-  const secs = s % 60;
-  return `${hrs.toString().padStart(2, '0')}:${mins
-    .toString()
-    .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
-
 export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   activeAuction,
   activePrice,
@@ -101,40 +91,53 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   // so a posted comment stays in the log instead of vanishing.
   const { chatMessages } = useChat();
 
-  // ----- Single per-page countdown (ONE setInterval, cleaned up) -----
-  // Today's reel screen runs ~4 timers; the product page runs exactly one.
-  const [timeLeft, setTimeLeft] = useState<string>(() =>
-    activeAuction?.endTime
-      ? formatCountdown(Math.floor((activeAuction.endTime - serverNow()) / 1000))
-      : '00:00:00'
-  );
-  const [ended, setEnded] = useState(false);
-  useEffect(() => {
-    const end = activeAuction?.endTime;
-    if (!end) {
-      setTimeLeft('00:00:00');
-      setEnded(false);
-      return;
-    }
-    const tick = () => {
-      const remaining = Math.floor((end - serverNow()) / 1000);
-      if (remaining <= 0) {
-        setTimeLeft('00:00:00');
-        setEnded(true);
-      } else {
-        setTimeLeft(formatCountdown(remaining));
-        setEnded(false);
-      }
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [activeAuction?.endTime]);
+  // The per-second HH:MM:SS clock now lives in <CountdownPill> (a leaf that
+  // owns its own 1s interval) so a tick no longer re-renders this whole page.
+  // `ended` (gates the Place-Bid CTA below) is derived from endTime on render —
+  // no per-second state here — flipping when the auction crosses its end.
+  const ended = activeAuction?.endTime
+    ? Math.floor((activeAuction.endTime - serverNow()) / 1000) <= 0
+    : false;
 
-  const media = getAuctionMedia(activeAuction);
+  // ONE-SHOT end-flip: since the per-second parent tick is gone (it moved into
+  // <CountdownPill>), a quiet lot that expires with no trailing snapshot would
+  // never re-render, leaving `ended` stale-false and the CTA enabled while the
+  // pill reads "Ended". This fires a SINGLE re-render exactly at endTime so the
+  // on-render `ended` derivation above re-evaluates to true — no 1s interval
+  // reintroduced. Uses serverNow() (the same clock `ended` compares against, so
+  // the timer lands precisely when the derivation crosses). Keyed on the lot +
+  // its end/status: an anti-snipe +15s extension or a status flip reschedules
+  // it, and it's torn down on change/unmount.
+  const [, bumpEnded] = useState(0);
+  useEffect(() => {
+    if (!activeAuction?.endTime) return;
+    const ms = activeAuction.endTime - serverNow();
+    if (ms <= 0) return; // already past end — this render already derives ended=true
+    if (ms > 2_147_483_647) return; // beyond setTimeout's 32-bit range; re-runs when endTime changes
+    const id = window.setTimeout(() => bumpEnded((n) => n + 1), ms + 50);
+    return () => window.clearTimeout(id);
+  }, [activeAuction?.id, activeAuction?.endTime, activeAuction?.status]);
+
+  // Memoized so the gallery source is rebuilt only when the media fields
+  // change — not on every price/bid tick that re-renders this page.
+  const media = useMemo(
+    () => getAuctionMedia(activeAuction),
+    [
+      activeAuction?.id,
+      activeAuction?.videoUrl,
+      activeAuction?.thumbnailUrl,
+      activeAuction?.imageUrl,
+      activeAuction?.mediaUrls,
+      activeAuction?.conciergePhotos,
+    ]
+  );
 
   // Persistent chat for the active lot (full log, not the ephemeral overlay).
-  const chatForLot = chatMessages.filter((m) => m.auctionId === activeAuction?.id);
+  // Memoized so the filter re-runs only when the chat log or lot changes.
+  const chatForLot = useMemo(
+    () => chatMessages.filter((m) => m.auctionId === activeAuction?.id),
+    [chatMessages, activeAuction?.id]
+  );
 
   // Trust / spec chips (real fields only — never fabricated).
   const isInspected = activeAuction?.approvalStatus === 'approved';
@@ -460,12 +463,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 <span className="block text-[10px] font-bold text-[#999] uppercase tracking-wide">
                   {isAr ? 'ينتهي خلال' : 'Ends in'}
                 </span>
-                <div
+                <CountdownPill
+                  variant="mobile"
+                  endTime={activeAuction?.endTime}
+                  status={activeAuction?.status}
+                  isAr={isAr}
                   className="text-[16px] font-black text-[#F05123] tabular-nums"
-                  dir="ltr"
-                >
-                  {ended ? (isAr ? 'انتهى' : 'Ended') : timeLeft}
-                </div>
+                />
               </div>
             </div>
             <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-[#ECECEA] text-[11px] font-semibold text-[#666]">
