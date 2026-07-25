@@ -11,6 +11,7 @@ import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
+import { useChat } from '../context/AppContext';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -78,7 +79,6 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   onPlayPauseToggle,
   onShareClick,
   isAr,
-  activeComments,
   activeActivities,
   commentText,
   setCommentText,
@@ -89,9 +89,17 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   onClose,
   onSaveToggle,
   isSaved,
+  showToast: feedbackToast,
 }) => {
   const reduce = useReducedMotion();
-  const { showToast } = useToast();
+  // `pushToast` = the global toast host (activity toasts below). The
+  // `feedbackToast` prop is the PARENT's error/feedback string channel
+  // (rejected bid, blocked, ended, watchlist, share) — rendered as a banner.
+  const { showToast: pushToast } = useToast();
+  // Persistent chat: the full Firestore-backed list, filtered to the active
+  // lot — NOT the reel's ephemeral `activeComments` (capped 5 / fades after 7s),
+  // so a posted comment stays in the log instead of vanishing.
+  const { chatMessages } = useChat();
 
   // ----- Single per-page countdown (ONE setInterval, cleaned up) -----
   // Today's reel screen runs ~4 timers; the product page runs exactly one.
@@ -124,6 +132,9 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   }, [activeAuction?.endTime]);
 
   const media = getAuctionMedia(activeAuction);
+
+  // Persistent chat for the active lot (full log, not the ephemeral overlay).
+  const chatForLot = chatMessages.filter((m) => m.auctionId === activeAuction?.id);
 
   // Trust / spec chips (real fields only — never fabricated).
   const isInspected = activeAuction?.approvalStatus === 'approved';
@@ -245,6 +256,20 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   const reserveToastedRef = useRef(false);
   const lastToastAtRef = useRef(0);
   const toastSeededRef = useRef(false);
+
+  // Reset the per-lot toast transition refs when the active lot changes (e.g.
+  // auto-jump when the viewed lot ends, or a deep-link nav). Declared BEFORE the
+  // toast effect so on a lot switch it un-seeds first; the toast effect then
+  // re-seeds against the new lot instead of firing a false "outbid"/"new bid"
+  // from carried-over state. (MediaGallery index/state is reset via its `key`.)
+  useEffect(() => {
+    toastSeededRef.current = false;
+    prevPriceRef.current = null;
+    prevWinnerRef.current = null;
+    reserveToastedRef.current = false;
+    lastToastAtRef.current = 0;
+  }, [activeAuction?.id]);
+
   useEffect(() => {
     const price = activePrice;
     const prevPrice = prevPriceRef.current;
@@ -265,7 +290,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
       const jod = isAr ? 'د.أ' : 'JOD';
       if (prevWinner === true && !isWinner && viewerId) {
         // Viewer was the top bidder and just lost the lead.
-        showToast({
+        pushToast({
           title: isAr ? '⚠️ تمت المزايدة عليك' : '⚠️ You were outbid',
           message: isAr
             ? `المزايدة الآن ${fmt(price)} ${jod}`
@@ -276,16 +301,21 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
       } else if (!reserveToastedRef.current && activeAuction?.reserveMet === true) {
         // Reserve just became met — fire once.
         reserveToastedRef.current = true;
-        showToast({
+        pushToast({
           title: isAr ? '✅ تم بلوغ السعر الاحتياطي' : '✅ Reserve met',
           type: 'success',
         });
         lastToastAtRef.current = now;
-      } else if (prevPrice != null && price > prevPrice) {
-        // A rival bid landed.
+      } else if (
+        prevPrice != null &&
+        price > prevPrice &&
+        activeAuction?.currentBidderId !== viewerId
+      ) {
+        // A RIVAL bid landed — never toast the viewer's own bid (the optimistic
+        // paint raises the price for the viewer too; only OTHER bidders toast).
         const name =
           activeAuction?.currentBidderName || (isAr ? 'مزايد' : 'A bidder');
-        showToast({
+        pushToast({
           title: isAr
             ? `🔥 ${name} زايد ${fmt(price)} ${jod}`
             : `🔥 ${name} just bid ${fmt(price)} ${jod}`,
@@ -304,10 +334,11 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
     isWinner,
     activeAuction?.reserveMet,
     activeAuction?.currentBidderName,
+    activeAuction?.currentBidderId,
     activeActivities.length,
     isAr,
     viewerId,
-    showToast,
+    pushToast,
   ]);
 
   return (
@@ -316,6 +347,22 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
       dir={isAr ? 'rtl' : 'ltr'}
       id="mobile-auction-view"
     >
+      {/* Parent feedback banner — the ONLY surface for a rejected/blocked/ended
+          bid, watchlist and share messages (parent's showToast string). Without
+          it a rejected bid's optimistic price bumps then reverts with no
+          explanation. Mirrors DesktopLiveAuctionLayout's banner. */}
+      {feedbackToast && (
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-[#E85D04] text-white px-5 py-2.5 rounded-xl text-[12px] font-black tracking-wide shadow-lg animate-fade-in text-center border border-white/10 max-w-[90%]"
+          style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
+          role="status"
+          aria-live="polite"
+          dir={isAr ? 'rtl' : 'ltr'}
+        >
+          {feedbackToast}
+        </div>
+      )}
+
       {/* ================= STICKY TOP BAR ================= */}
       <div
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur-md border-b border-[#ECECEA]"
@@ -347,9 +394,10 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         {/* ----- MEDIA ----- */}
         <div className="relative w-full h-[300px] bg-black" id="mobile-auction-media">
           <MediaGallery
+            key={activeAuction?.id}
             items={media}
             isActive
-            isPlaying={isPlaying}
+            isPlaying={isPlaying && !reduce}
             isMuted={isMuted}
             isAr={isAr}
             videoRef={videoRef}
@@ -521,7 +569,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
         {/* ----- CHAT SECTION (working composer + live messages) ----- */}
         <ChatSection
-          activeComments={activeComments}
+          messages={chatForLot}
           commentText={commentText}
           setCommentText={setCommentText}
           onCommentSubmit={onCommentSubmit}

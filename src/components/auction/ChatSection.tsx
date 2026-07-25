@@ -4,18 +4,21 @@ import { resolveAvatarUrl } from '../../utils/avatarPlaceholder';
 
 /* ======================================================================
    ChatSection — the Chat / comments block that lives LOWER on the mobile
-   product page (mockup frame 3), NOT overlaid on the media. It renders
-   the live `activeComments` list (system/bid rows styled distinctly from
-   member messages) and a composer bound to the EXISTING chat props
-   (commentText / setCommentText / onCommentSubmit) — the send path that
-   Task 2 fixed so member comments now round-trip and render.
+   product page (mockup frame 3), NOT overlaid on the media. It renders the
+   PERSISTENT chat `messages` for the active lot (system/bid rows styled
+   distinctly from member messages) — the full Firestore-backed list, NOT the
+   reel's ephemeral overlay buffer that auto-removes each entry after ~7s — and
+   a composer bound to the EXISTING chat props (commentText / setCommentText /
+   onCommentSubmit) — the send path that Task 2 fixed so member comments now
+   round-trip and render (and now persist in the log).
 
    Guests get the same signup gate the reel used (requestSignIn); signed-in
    members get a working input + send.
    ====================================================================== */
 
 interface ChatSectionProps {
-  activeComments: any[];
+  /** Persistent chat messages for the active lot (full list, not ephemeral). */
+  messages: any[];
   commentText: string;
   setCommentText: (text: string) => void;
   onCommentSubmit: (e: React.FormEvent) => void;
@@ -25,7 +28,7 @@ interface ChatSectionProps {
 }
 
 export const ChatSection: React.FC<ChatSectionProps> = ({
-  activeComments,
+  messages,
   commentText,
   setCommentText,
   onCommentSubmit,
@@ -33,7 +36,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
   requestSignIn,
   isAr,
 }) => {
-  const count = activeComments.length;
+  const count = messages.length;
 
   return (
     <section
@@ -66,7 +69,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
           </p>
         )}
 
-        {activeComments.map((msg) => {
+        {messages.map((msg) => {
           const isSystemRow = !!msg.isSystem || !!msg.isBid;
 
           if (isSystemRow) {

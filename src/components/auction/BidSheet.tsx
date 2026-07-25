@@ -88,6 +88,14 @@ export const BidSheet: React.FC<BidSheetProps> = ({
 
   const stageCustom = () => {
     if (submitting) return;
+    // Empty/untouched field: the CTA shows `chosen` (= minNext), so tapping it
+    // must stage that default min-next amount — never run validateCustomBid('')
+    // (which coerces to 0 → "invalid" and dead-ends the primary CTA).
+    if (customValue.trim() === '') {
+      setCustomError(null);
+      onStage(minNext);
+      return;
+    }
     const result = validateCustomBid(Number(customValue), minNext);
     if (result.ok === false) {
       setCustomError(result.reason);
