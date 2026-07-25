@@ -142,18 +142,18 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       titleFirst: "اعرِضها.",
       titleGradient: "بِعْها مباشرةً.",
       titleLast: "واقبِض بأمان.",
-      desc: "منصة المزادات الموثوقة في الأردن. نفحص سلعتك، ونعرضها على مشترين جادّين، ونضمن وصول أموالك بأمان.",
+      desc: "منصة المزادات الموثوقة في الأردن. نعرض سلعتك على مشترين جادّين ونضمن وصول أموالك بأمان — كل عملية بيع محمية للمشتري.",
       ctaPrimary: "اعرض سلعتك للبيع",
       ctaSecondary: "تصفّح المزادات المباشرة",
       proof: [
         { value: "١٥,٠٠٠+", label: "مشترٍ" },
         { value: "١,٢٥٠+", label: "سلعة مُباعة" },
-        { value: "٣,٤٠٠+", label: "سلعة مفحوصة" },
+        { value: "٣,٤٠٠+", label: "سلعة معروضة" },
       ],
       liveBadge: "مباشر الآن",
       verifiedSeller: "✓ بائع موثق",
       carTitle: "تويوتا كامري 2022",
-      carDetails: "فحص كامل · عمّان · مزاد مميز",
+      carDetails: "صور حقيقية · عمّان · مزاد مميز",
       currentPrice: "السعر الحالي",
       bidBtn: "زايد الآن (+250 د.أ)",
       features: ["🔒 دفع آمن", "🔥 منافسة حقيقية", "⏱ تمديد تلقائي للوقت"],
@@ -172,8 +172,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           icon: "📸",
-          title: "صور وفحص واضح",
-          desc: "تقرير فحص فني شامل وصور حقيقية عالية الجودة تغطي جميع جوانب وتفاصيل المنتج.",
+          title: "صور واضحة وحقيقية",
+          desc: "صور حقيقية عالية الجودة تغطي جميع جوانب وتفاصيل المنتج.",
         },
         {
           icon: "⚡",
@@ -231,7 +231,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🚗",
           title: "سيارات",
-          desc: "سيارات فحص كامل، تقرير شاصي واضح، وإجراءات نقل ملكية آمنة.",
+          desc: "سيارات بصور حقيقية وتفاصيل واضحة وإجراءات نقل ملكية آمنة.",
         },
         {
           icon: "🏠",
@@ -241,7 +241,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "💻",
           title: "إلكترونيات",
-          desc: "موبايلات مميزة، لابتوبات احترافية، وأجهزة ذكية بفحص معتمد.",
+          desc: "موبايلات مميزة، لابتوبات احترافية، وأجهزة ذكية بصور حقيقية.",
         },
         {
           icon: "🏗️",
@@ -266,7 +266,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       steps: [
         {
           title: "أنشئ مزادك",
-          desc: "ارفع الصور الحقيقية، حدد السعر الأدنى الذي تقبله، وأرفق تقرير الفحص المعتمد في دقائق معدودة.",
+          desc: "ارفع الصور الحقيقية، حدد السعر الأدنى الذي تقبله، وأدرج سلعتك في دقائق معدودة.",
         },
         {
           title: "نافس مباشرة",
@@ -309,8 +309,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
           a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فيحتفظ بها مزاد ولا تُحوَّل للبائع إلا بعد استلامك للقطعة وتأكيدك. تُضاف عمولة مشترٍ ٥٪ عند الفوز."
         },
         {
-          q: "ماذا تعني \"مفحوص من مزادو\"؟",
-          a: "فريقنا يفحص كل قطعة فعلياً ويتحقق منها ويصوّرها ويدرجها بنفسه. البائعون لا يكتبون إعلاناتهم — نحن من يفعل ذلك."
+          q: "ماذا تعني \"حماية المشتري من مزاد جو\"؟",
+          a: "نحتجز مبلغ الدفع حتى تستلم القطعة وتؤكد مطابقتها للوصف، ثم نحوّله للبائع. ويمكنك إدراج سلعتك بنفسك أو يساعدك فريقنا في تجهيزها وعرضها."
         },
         {
           q: "ماذا يمكنني أن أبيع؟",
@@ -338,7 +338,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     marketplace: {
       badge: "مباشر الآن",
       title: "مزادات مباشرة على مزاد الأردن الآن",
-      subtitle: "سلع مفحوصة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
+      subtitle: "سلع معروضة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
       currentBid: "أعلى مزايدة",
       bids: "مزايدة",
       verified: "موثّقة",
@@ -377,18 +377,18 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       titleFirst: "List it.",
       titleGradient: "Sell it live.",
       titleLast: "Get paid safely.",
-      desc: "Jordan's trusted auction platform. We inspect your item, put it in front of serious buyers, and make sure you get paid safely.",
+      desc: "Jordan's trusted auction platform. We put your item in front of serious buyers and make sure you get paid safely — every sale is buyer-protected.",
       ctaPrimary: "List your item",
       ctaSecondary: "Browse live auctions",
       proof: [
         { value: "15,000+", label: "buyers" },
         { value: "1,250+", label: "items sold" },
-        { value: "3,400+", label: "items inspected" },
+        { value: "3,400+", label: "items listed" },
       ],
       liveBadge: "Live Now",
       verifiedSeller: "✓ Verified Seller",
       carTitle: "Toyota Camry 2022",
-      carDetails: "Full Inspection · Amman · Premium Auction",
+      carDetails: "Real Photos · Amman · Premium Auction",
       currentPrice: "Current Price",
       bidBtn: "Bid Now (+250 JOD)",
       features: ["🔒 Secure Payment", "🔥 Real Competition", "⏱ Auto-Extension"],
@@ -407,8 +407,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           icon: "📸",
-          title: "Clear Photos & Inspection",
-          desc: "A comprehensive tech inspection report and high-res real photos covering all details and angles.",
+          title: "Clear, Real Photos",
+          desc: "High-res real photos covering every detail and angle.",
         },
         {
           icon: "⚡",
@@ -466,7 +466,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🚗",
           title: "Cars",
-          desc: "Full-inspection vehicles, clear chassis reports, and secure registration transfers.",
+          desc: "Detailed vehicle listings with real photos and secure registration transfers.",
         },
         {
           icon: "🏠",
@@ -501,7 +501,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       steps: [
         {
           title: "Create Your Auction",
-          desc: "Upload real pictures, set your reserve price, and attach the certified inspection report in minutes.",
+          desc: "Upload real pictures, set your reserve price, and list in minutes.",
         },
         {
           title: "Compete Live",
@@ -544,8 +544,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
           a: "Subscriptions are paid via CliQ. Auction payments are held by Mazad and are not transferred to the seller until you receive and approve the item. A 5% buyer's premium is added on winning bids."
         },
         {
-          q: "What does \"Verified by Mazadjo\" mean?",
-          a: "Our team physically inspects, verifies, photographs, and lists each item ourselves. Sellers do not write their own listings — we handle everything."
+          q: "What does \"buyer protection\" mean?",
+          a: "Mazad holds your payment until you receive and approve the item, then releases it to the seller. You can list your item yourself, or our team can help prepare and list it for you."
         },
         {
           q: "What can I sell?",
@@ -573,7 +573,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     marketplace: {
       badge: "Live now",
       title: "Live on Mazad JO right now",
-      subtitle: "Inspected items selling now — this is where your item shows up for buyers.",
+      subtitle: "Items selling now — this is where your item shows up for buyers.",
       currentBid: "Current bid",
       bids: "bids",
       verified: "Verified",
