@@ -1094,7 +1094,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] leading-[1.02] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start gap-1"
+                  className={`text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] text-[#0A0A0A] font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
