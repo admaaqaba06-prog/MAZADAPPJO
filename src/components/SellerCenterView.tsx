@@ -70,6 +70,9 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AuctionItem, Order, Review, Withdrawal } from '../types';
+import { deriveSellerActions, SellerAction } from './seller/sellerActions';
+import { bucketListings, filterListings, ListingBucketId } from './seller/sellerListings';
+import { Search, Truck, RotateCcw } from 'lucide-react';
 
 // Extend local translations for Seller Center Specific text
 const sellerTranslations: Record<string, Record<string, string>> = {
@@ -137,7 +140,60 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     all_notifs: 'جميع إشعارات البائع',
     resubmit: 'أعد الإرسال',
     no_listings_yet: 'ما عندك مزادات بعد — أضف أول منتج',
-    start_selling: 'ابدأ البيع'
+    start_selling: 'ابدأ البيع',
+    // Redesign — sections
+    overview: 'نظرة عامة',
+    listings: 'مزاداتي',
+    money: 'المالية والسحوبات',
+    // Overview — action hub
+    needs_action: 'يحتاج إلى إجرائك الآن',
+    all_caught_up: 'أحسنت! لا يوجد شيء يحتاج إجراءً حالياً.',
+    all_caught_up_sub: 'كل مزاداتك وطلباتك تحت السيطرة.',
+    recent_activity: 'آخر النشاطات',
+    active_listings: 'مزادات نشطة',
+    live_bids_now: 'مزايدات مباشرة الآن',
+    this_month_sales: 'مبيعات هذا الشهر',
+    view_details: 'عرض',
+    // Action item labels + CTAs (by kind)
+    act_ship_label: 'طلبات بانتظار الشحن',
+    act_ship_cta: 'جهّز للشحن',
+    act_relist_label: 'مزادات انتهت بدون بيع',
+    act_relist_cta: 'أعد النشر',
+    act_dispute_label: 'نزاعات بحاجة لحل',
+    act_dispute_cta: 'راجع النزاع',
+    act_payout_label: 'رصيد جاهز للسحب',
+    act_payout_cta: 'اسحب الآن',
+    act_verify_label: 'وثّق حسابك كبائع',
+    act_verify_cta: 'قدّم الآن',
+    // Listings workspace
+    new_listing: 'مزاد جديد',
+    search_listings: 'ابحث بعنوان المزاد...',
+    all_categories: 'كل الفئات',
+    bucket_live: 'مباشر',
+    bucket_scheduled: 'مجدول',
+    bucket_review: 'قيد المراجعة',
+    bucket_ended: 'انتهى / بدون بيع',
+    bucket_sold: 'مُباع',
+    bucket_rejected: 'مرفوض',
+    bucket_all: 'الكل',
+    time_left: 'الوقت المتبقي',
+    ended_label: 'منتهٍ',
+    relist: 'أعد النشر',
+    select_mode: 'تحديد متعدد',
+    exit_select: 'إنهاء التحديد',
+    selected_count: 'محدد',
+    relist_selected: 'أعد نشر المحدد',
+    cancel_selected: 'احذف المحدد',
+    confirm_cancel_selected: 'هل تريد حذف المزادات المحددة نهائياً؟ لا يمكن حذف مزاد عليه مزايدات.',
+    // Orders
+    ord_to_ship: 'بانتظار الشحن',
+    ord_shipped: 'تم الشحن',
+    ord_completed: 'مكتمل',
+    ord_disputed: 'نزاع',
+    ord_all: 'كل الطلبات',
+    // Analytics + reviews
+    performance: 'الأداء والتحليلات',
+    avg_rating_card: 'متوسط تقييم المشترين'
   },
   en: {
     seller_center: 'Seller Center',
@@ -203,7 +259,60 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     all_notifs: 'All Seller Notifications',
     resubmit: 'Resubmit',
     no_listings_yet: 'No listings yet — add your first',
-    start_selling: 'Start selling'
+    start_selling: 'Start selling',
+    // Redesign — sections
+    overview: 'Overview',
+    listings: 'Listings',
+    money: 'Money',
+    // Overview — action hub
+    needs_action: 'Needs your action',
+    all_caught_up: "You're all caught up",
+    all_caught_up_sub: 'Every listing and order is under control.',
+    recent_activity: 'Recent activity',
+    active_listings: 'Active listings',
+    live_bids_now: 'Live bids now',
+    this_month_sales: 'This-month sales',
+    view_details: 'View',
+    // Action item labels + CTAs (by kind)
+    act_ship_label: 'Orders to ship',
+    act_ship_cta: 'Prepare shipment',
+    act_relist_label: 'Auctions ended unsold',
+    act_relist_cta: 'Relist',
+    act_dispute_label: 'Disputes to resolve',
+    act_dispute_cta: 'Review dispute',
+    act_payout_label: 'Balance ready to withdraw',
+    act_payout_cta: 'Withdraw',
+    act_verify_label: 'Verify your seller account',
+    act_verify_cta: 'Apply now',
+    // Listings workspace
+    new_listing: 'New Listing',
+    search_listings: 'Search by title...',
+    all_categories: 'All categories',
+    bucket_live: 'Live',
+    bucket_scheduled: 'Scheduled',
+    bucket_review: 'In review',
+    bucket_ended: 'Ended / Unsold',
+    bucket_sold: 'Sold',
+    bucket_rejected: 'Rejected',
+    bucket_all: 'All',
+    time_left: 'Time left',
+    ended_label: 'Ended',
+    relist: 'Relist',
+    select_mode: 'Select',
+    exit_select: 'Done',
+    selected_count: 'selected',
+    relist_selected: 'Relist selected',
+    cancel_selected: 'Delete selected',
+    confirm_cancel_selected: 'Permanently delete the selected listings? Listings with bids cannot be deleted.',
+    // Orders
+    ord_to_ship: 'To ship',
+    ord_shipped: 'Shipped',
+    ord_completed: 'Completed',
+    ord_disputed: 'Disputed',
+    ord_all: 'All orders',
+    // Analytics + reviews
+    performance: 'Performance & Analytics',
+    avg_rating_card: 'Average buyer rating'
   }
 };
 
@@ -224,7 +333,7 @@ export const SellerCenterView: React.FC = () => {
   const isAr = language === 'ar';
   const st = isAr ? sellerTranslations.ar : sellerTranslations.en;
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'auctions' | 'orders' | 'payouts' | 'analytics' | 'reviews' | 'notifications'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'orders' | 'money' | 'analytics'>('overview');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewAuctionId, setViewAuctionId] = useState<string | null>(null);
 
@@ -246,6 +355,15 @@ export const SellerCenterView: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingAuction, setEditingAuction] = useState<AuctionItem | null>(null);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState<'bank' | 'cliq' | null>(null);
+
+  // Redesign — Listings workspace state
+  const [listingsQuery, setListingsQuery] = useState('');
+  const [listingsCategory, setListingsCategory] = useState<string>('all');
+  const [activeBucket, setActiveBucket] = useState<ListingBucketId | 'all'>('all');
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Redesign — Orders filter state
+  const [ordersFilter, setOrdersFilter] = useState<'all' | 'to_ship' | 'shipped' | 'completed' | 'disputed'>('all');
 
   // Form Fields for Editing
   const [editTitle, setEditTitle] = useState('');
@@ -437,28 +555,44 @@ export const SellerCenterView: React.FC = () => {
     };
   }, [myAuctions, myOrders, wallet, reviews]);
 
-  // My Auctions categorized — mutually exclusive status buckets, newest first.
-  // A resubmitted listing (status back to 'processing', approvalStatus stuck on
-  // 'rejected' — the rules deny sellers touching approvalStatus) must land in
-  // Pending review, not Rejected: status wins over approvalStatus.
-  const categorizedAuctions = useMemo(() => {
-    const newestFirst = [...myAuctions].sort(
-      (a, b) => ((b as any).createdAt || 0) - ((a as any).createdAt || 0)
-    );
-    const isPendingReview = (a: AuctionItem) =>
-      a.status === 'processing' || (a.status as string) === 'pending' ||
-      (a.status === 'upcoming' && a.approvalStatus === 'pending'); // legacy scheduled-but-unreviewed docs
-    return {
-      pending: newestFirst.filter(isPendingReview),
-      live: newestFirst.filter(a => a.status === 'live'),
-      upcoming: newestFirst.filter(a =>
-        a.status === 'upcoming' && a.approvalStatus !== 'rejected' && a.approvalStatus !== 'pending'
-      ),
-      completed: newestFirst.filter(a => a.status === 'completed'),
-      rejected: newestFirst.filter(a =>
-        a.status === 'rejected' || (a.status === 'upcoming' && a.approvalStatus === 'rejected')
-      )
-    };
+  // Lifecycle bucketing for Listings now lives in the pure `bucketListings`
+  // helper (src/components/seller/sellerListings.ts) — see listingBuckets below.
+
+  // Redesign — verification status (drives the "verify" action item)
+  const isVerified = useMemo(() => {
+    const myProfile = sellerProfiles?.find(p => p.userId === currentUser?.id);
+    const vStatus = myProfile?.verificationStatus || currentUser?.verificationStatus || 'not_verified';
+    return vStatus !== 'not_verified';
+  }, [sellerProfiles, currentUser]);
+
+  // Redesign — lifecycle buckets for the Listings workspace (pure helper)
+  const listingBuckets = useMemo(
+    () => bucketListings(myAuctions, myOrders),
+    [myAuctions, myOrders]
+  );
+
+  // Redesign — "Needs your action" hub items (pure helper)
+  const actionItems = useMemo(
+    () => deriveSellerActions({
+      myAuctions,
+      myOrders,
+      availableBalance: kpis.availableBalance,
+      isVerified,
+    }),
+    [myAuctions, myOrders, kpis.availableBalance, isVerified]
+  );
+
+  // Redesign — sum of bids on currently-live auctions (Overview metric)
+  const liveBidsNow = useMemo(
+    () => myAuctions.filter(a => a.status === 'live').reduce((sum, a) => sum + (a.totalBids || 0), 0),
+    [myAuctions]
+  );
+
+  // Redesign — categories present in the seller's listings (Listings filter)
+  const listingCategories = useMemo(() => {
+    const set = new Set<string>();
+    myAuctions.forEach(a => { if (a.category) set.add(a.category); });
+    return Array.from(set);
   }, [myAuctions]);
 
   // Chart Data Generation
@@ -744,7 +878,114 @@ export const SellerCenterView: React.FC = () => {
     }
   };
 
-  const [activeAuctionTab, setActiveAuctionTab] = useState<'upcoming' | 'live' | 'pending' | 'completed' | 'rejected'>('live');
+  // Redesign — route an Overview action item to its destination section.
+  const handleActionCta = (action: SellerAction) => {
+    setSelectedOrderId(null);
+    switch (action.ctaSection) {
+      case 'verify':
+        setIsVerRequestOpen(true);
+        break;
+      case 'orders':
+        setOrdersFilter(action.kind === 'dispute' ? 'disputed' : 'to_ship');
+        setActiveTab('orders');
+        break;
+      case 'listings':
+        setActiveBucket(action.kind === 'relist' ? 'endedUnsold' : 'all');
+        setActiveTab('listings');
+        break;
+      case 'money':
+        setActiveTab('money');
+        break;
+    }
+  };
+
+  // Redesign — bulk-selection helpers for the Listings workspace.
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const exitBulkMode = () => {
+    setBulkMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // Relist selected — loops the EXISTING per-item handleDuplicate.
+  const handleRelistSelected = async () => {
+    const targets = myAuctions.filter(a => selectedIds.has(a.id));
+    for (const a of targets) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleDuplicate(a);
+    }
+    exitBulkMode();
+  };
+
+  // Cancel selected — confirm once, then loop the EXISTING per-item handleDelete.
+  const handleCancelSelected = async () => {
+    if (!confirm(st.confirm_cancel_selected)) return;
+    const targets = myAuctions.filter(a => selectedIds.has(a.id) && (a.totalBids || 0) === 0);
+    for (const a of targets) {
+      try {
+        await deleteDoc(doc(db, 'auctions', a.id));
+        setAuctions(prev => prev.filter(x => x.id !== a.id));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    exitBulkMode();
+  };
+
+  // Redesign — the currently-shown listings after bucket + search + category filters.
+  const visibleListings = useMemo(() => {
+    const base = activeBucket === 'all'
+      ? [...myAuctions].sort((a, b) => ((b as any).createdAt || 0) - ((a as any).createdAt || 0))
+      : listingBuckets[activeBucket];
+    return filterListings(base, { query: listingsQuery, category: listingsCategory });
+  }, [activeBucket, myAuctions, listingBuckets, listingsQuery, listingsCategory]);
+
+  // Redesign — orders after the status filter.
+  const visibleOrders = useMemo(() => {
+    switch (ordersFilter) {
+      case 'to_ship':
+        return myOrders.filter(o => o.status === 'paid' || o.status === 'preparing_shipment');
+      case 'shipped':
+        return myOrders.filter(o => o.status === 'shipped' || o.status === 'delivered');
+      case 'completed':
+        return myOrders.filter(o => o.status === 'completed');
+      case 'disputed':
+        return myOrders.filter(o => o.status === 'disputed');
+      default:
+        return myOrders;
+    }
+  }, [myOrders, ordersFilter]);
+
+  // Redesign — average rating card value (folded into Analytics).
+  const avgRatingDisplay = kpis.avgRating;
+
+  // Redesign — compact time-left label for a listing row.
+  const timeLeftLabel = (a: AuctionItem): string => {
+    const endMs = (a as any).endTime || ((a as any).endsAt?.seconds ? (a as any).endsAt.seconds * 1000 : 0);
+    if (!endMs) return '—';
+    const diff = endMs - Date.now();
+    if (diff <= 0) return st.ended_label;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h >= 24) return `${Math.floor(h / 24)}${isAr ? 'ي' : 'd'} ${h % 24}${isAr ? 'س' : 'h'}`;
+    if (h > 0) return `${h}${isAr ? 'س' : 'h'} ${m}${isAr ? 'د' : 'm'}`;
+    return `${m}${isAr ? 'د' : 'm'}`;
+  };
+
+  // Redesign — bilingual metadata for each action-item kind.
+  const actionMeta: Record<SellerAction['kind'], { icon: React.ElementType; label: string; cta: string; tone: string; iconTone: string }> = {
+    dispute: { icon: AlertTriangle, label: st.act_dispute_label, cta: st.act_dispute_cta, tone: 'border-rose-200 bg-rose-50', iconTone: 'bg-rose-100 text-rose-600' },
+    ship: { icon: Truck, label: st.act_ship_label, cta: st.act_ship_cta, tone: 'border-orange-200 bg-orange-50', iconTone: 'bg-orange-100 text-[#FF6B00]' },
+    relist: { icon: RotateCcw, label: st.act_relist_label, cta: st.act_relist_cta, tone: 'border-amber-200 bg-amber-50', iconTone: 'bg-amber-100 text-amber-600' },
+    payout: { icon: Wallet, label: st.act_payout_label, cta: st.act_payout_cta, tone: 'border-emerald-200 bg-emerald-50', iconTone: 'bg-emerald-100 text-emerald-600' },
+    verify: { icon: ShieldCheck, label: st.act_verify_label, cta: st.act_verify_cta, tone: 'border-indigo-200 bg-indigo-50', iconTone: 'bg-indigo-100 text-indigo-600' },
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-[#F7F6F3] h-full overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] text-gray-900" id="seller-center-root">
@@ -827,13 +1068,11 @@ export const SellerCenterView: React.FC = () => {
         {/* SIDEBAR FOR LG+ */}
         <aside className="hidden lg:flex flex-col gap-1 w-[240px] shrink-0 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm h-fit sticky top-20">
           {[
-            { id: 'dashboard', label: st.dashboard, icon: Activity },
-            { id: 'auctions', label: st.my_auctions, icon: Store },
+            { id: 'overview', label: st.overview, icon: Activity, badge: actionItems.length },
+            { id: 'listings', label: st.listings, icon: Store },
             { id: 'orders', label: st.orders, icon: ShoppingBag },
-            { id: 'payouts', label: st.payouts, icon: Wallet },
-            { id: 'analytics', label: st.analytics, icon: BarChart3 },
-            { id: 'reviews', label: st.reviews, icon: Star },
-            { id: 'notifications', label: st.notifications, icon: Bell, badge: sellerNotifications.filter(n => !n.read).length }
+            { id: 'money', label: st.money, icon: Wallet },
+            { id: 'analytics', label: st.analytics, icon: BarChart3 }
           ].map((tab) => {
             const IconComponent = tab.icon;
             const isActive = activeTab === tab.id;
@@ -865,13 +1104,11 @@ export const SellerCenterView: React.FC = () => {
         {/* TOP SCROLLABLE NAVIGATION TABS FOR MOBILE/TABLET */}
         <div className="flex lg:hidden overflow-x-auto bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm scrollbar-none gap-1 w-full" id="seller-center-tabs">
           {[
-            { id: 'dashboard', label: st.dashboard, icon: Activity },
-            { id: 'auctions', label: st.my_auctions, icon: Store },
+            { id: 'overview', label: st.overview, icon: Activity, badge: actionItems.length },
+            { id: 'listings', label: st.listings, icon: Store },
             { id: 'orders', label: st.orders, icon: ShoppingBag },
-            { id: 'payouts', label: st.payouts, icon: Wallet },
-            { id: 'analytics', label: st.analytics, icon: BarChart3 },
-            { id: 'reviews', label: st.reviews, icon: Star },
-            { id: 'notifications', label: st.notifications, icon: Bell, badge: sellerNotifications.filter(n => !n.read).length }
+            { id: 'money', label: st.money, icon: Wallet },
+            { id: 'analytics', label: st.analytics, icon: BarChart3 }
           ].map((tab) => {
             const IconComponent = tab.icon;
             const isActive = activeTab === tab.id;
@@ -902,402 +1139,575 @@ export const SellerCenterView: React.FC = () => {
 
         {/* RENDER ACTIVE TAB MAIN PANE */}
         <div className="flex-1 min-w-0 min-h-[400px]">
-          {/* ======================= TAB 1: DASHBOARD ======================= */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6" id="tab-dashboard">
-              {/* KPI CARDS */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid">
+          {/* ======================= SECTION 1: OVERVIEW ======================= */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6" id="tab-overview">
+
+              {/* NEEDS YOUR ACTION — the hub */}
+              <div className="space-y-3" id="action-hub">
+                <h3 className="text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-2 px-1">
+                  <Activity className="w-4 h-4 text-[#FF6B00]" />
+                  <span>{st.needs_action}</span>
+                </h3>
+
+                {actionItems.length === 0 ? (
+                  <div className="bg-white rounded-3xl border border-emerald-100 p-8 text-center shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-2">
+                    <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                      <CheckCircle className="w-7 h-7 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-black text-gray-900">{st.all_caught_up}</p>
+                    <p className="text-xs text-gray-400 font-medium">{st.all_caught_up_sub}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5" id="action-items">
+                    {actionItems.map((action) => {
+                      const meta = actionMeta[action.kind];
+                      const ActionIcon = meta.icon;
+                      const countText = action.kind === 'payout'
+                        ? `${action.count.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JOD`
+                        : String(action.count);
+                      return (
+                        <button
+                          key={action.kind}
+                          onClick={() => handleActionCta(action)}
+                          className={`w-full flex items-center gap-3 p-4 rounded-2xl border ${meta.tone} hover:shadow-sm active:scale-[0.99] transition-all cursor-pointer text-left rtl:text-right`}
+                        >
+                          <span className={`p-2.5 rounded-xl shrink-0 ${meta.iconTone}`}>
+                            <ActionIcon className="w-5 h-5" />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black text-gray-900 truncate">{meta.label}</p>
+                            <p className="text-[11px] text-gray-500 font-bold tabular-nums">{countText}</p>
+                          </div>
+                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-white/80 border border-black/5 text-[11px] font-black text-gray-900">
+                            <span>{meta.cta}</span>
+                            <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* TIGHT METRIC ROW — 4 */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" id="metric-row">
                 {[
-                  { title: st.active_auctions, value: kpis.liveCount, icon: Store },
-                  { title: st.completed_sales, value: kpis.completedSalesCount, icon: CheckCircle },
-                  { title: st.pending_orders, value: kpis.pendingOrdersCount, icon: Clock },
-                  { title: st.total_revenue, value: `${kpis.totalRev.toLocaleString()} JOD`, icon: DollarSign },
-                  { title: st.wallet_balance, value: `${kpis.availableBalance.toLocaleString()} JOD`, icon: Wallet },
-                  { title: st.escrow_locked, value: `${kpis.escrowLocked.toLocaleString()} JOD`, icon: AlertTriangle },
-                  { title: st.monthly_sales, value: `${kpis.currentMonthSales.toLocaleString()} JOD`, icon: TrendingUp },
-                  { title: st.avg_rating, value: `${kpis.avgRating} / 5.0`, icon: Star }
-                ].map((kpi, idx) => {
-                  const KpiIcon = kpi.icon;
+                  { title: st.active_listings, value: kpis.liveCount.toLocaleString(), icon: Store },
+                  { title: st.live_bids_now, value: liveBidsNow.toLocaleString(), icon: Activity },
+                  { title: st.this_month_sales, value: `${kpis.currentMonthSales.toLocaleString()} JOD`, icon: TrendingUp },
+                  { title: st.available_balance, value: `${kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JOD`, icon: Wallet },
+                ].map((m, idx) => {
+                  const MIcon = m.icon;
                   return (
                     <div key={idx} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between gap-2">
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase leading-none">
-                          {kpi.title}
-                        </p>
-                        <p className="text-lg md:text-xl font-black text-gray-900 leading-tight">
-                          {kpi.value}
-                        </p>
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase leading-none truncate">{m.title}</p>
+                        <p className="text-base md:text-lg font-black text-gray-900 leading-tight tabular-nums">{m.value}</p>
                       </div>
                       <div className="p-2 rounded-xl bg-orange-50 text-[#FF6B00] shrink-0">
-                        <KpiIcon className="w-5 h-5 text-[#FF6B00]" />
+                        <MIcon className="w-5 h-5 text-[#FF6B00]" />
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-            {/* DASHBOARD GRID: RECENT ACTIONS, NOTIFICATIONS, RECENT REVIEWS */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Recent Orders Overview */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-[#FF6B00]" />
-                    <span>{isAr ? 'الطلبات والمبيعات الحديثة' : 'Recent Orders & Sales'}</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('orders')} className="text-xs text-[#FF6B00] font-bold hover:underline flex items-center gap-1 cursor-pointer">
-                    <span>{isAr ? 'عرض الكل' : 'View All'}</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {myOrders.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-xs">
-                    {st.no_orders}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {myOrders.slice(0, 4).map((order) => (
-                      <div key={order.id} className="py-3 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-gray-200">
-                            <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <p className="font-extrabold text-gray-900 truncate max-w-[150px] md:max-w-[200px]">{order.auctionTitle}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 8)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <p className="font-black text-gray-900">{order.winningBidAmount} JOD</p>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
-                            order.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                            order.status === 'disputed' ? 'bg-rose-50 text-rose-700' :
-                            'bg-orange-50 text-orange-700'
-                          }`}>
-                            {order.status}
+              {/* ONE CONSOLIDATED RECENT ACTIVITY FEED */}
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4" id="recent-activity">
+                <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-[#FF6B00]" />
+                  <span>{st.recent_activity}</span>
+                </h3>
+                {(() => {
+                  const entries: { id: string; ts: number; title: string; sub: string; kind: 'order' | 'notif' }[] = [];
+                  myOrders.forEach((o) => {
+                    const ts = typeof o.createdAt === 'number' ? o.createdAt : (o.createdAt?.seconds ? o.createdAt.seconds * 1000 : 0);
+                    entries.push({
+                      id: `o-${o.id}`,
+                      ts,
+                      title: `${o.auctionTitle} · ${o.winningBidAmount} JOD`,
+                      sub: `${isAr ? 'الحالة: ' : 'Status: '}${o.status}`,
+                      kind: 'order',
+                    });
+                  });
+                  sellerNotifications.forEach((n) => {
+                    entries.push({
+                      id: `n-${n.id}`,
+                      ts: n.timestamp || 0,
+                      title: (isAr ? n.titleAr : n.titleEn) || (isAr ? n.titleEn : n.titleAr) || '',
+                      sub: (isAr ? n.descriptionAr : n.descriptionEn) || '',
+                      kind: 'notif',
+                    });
+                  });
+                  entries.sort((a, b) => b.ts - a.ts);
+                  const top = entries.slice(0, 8);
+                  if (top.length === 0) {
+                    return <div className="text-center py-8 text-gray-400 text-xs">{st.no_notifications}</div>;
+                  }
+                  return (
+                    <div className="divide-y divide-gray-100">
+                      {top.map((e) => (
+                        <div key={e.id} className="py-2.5 flex items-start gap-3">
+                          <span className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${e.kind === 'order' ? 'bg-orange-50 text-[#FF6B00]' : 'bg-blue-50 text-blue-500'}`}>
+                            {e.kind === 'order' ? <Package className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
                           </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-black text-gray-900 truncate">{e.title}</p>
+                              <span className="text-[9px] text-gray-400 font-mono shrink-0">
+                                {e.ts ? new Date(e.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate">{e.sub}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
-
-              {/* Quick Seller Notifications */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#FF6B00]" />
-                    <span>{isAr ? 'آخر إشعارات المبيعات' : 'Latest Sales Notifications'}</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('notifications')} className="text-xs text-[#FF6B00] font-bold hover:underline flex items-center gap-1 cursor-pointer">
-                    <span>{isAr ? 'عرض الكل' : 'View All'}</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {sellerNotifications.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-xs">
-                    {st.no_notifications}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {sellerNotifications.slice(0, 4).map((notif) => (
-                      <div key={notif.id} className="py-2.5 flex flex-col gap-0.5">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-black text-gray-900">{isAr ? notif.titleAr : notif.titleEn}</p>
-                          <span className="text-[8px] text-gray-400 font-mono">
-                            {new Date(notif.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500">{isAr ? notif.descriptionAr : notif.descriptionEn}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ======================= TAB 2: MY AUCTIONS ======================= */}
-        {activeTab === 'auctions' && (
-          <div className="space-y-6" id="tab-auctions">
-            {/* SUB-TABS CATEGORY FILTER */}
-            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto">
-              {[
-                { id: 'upcoming', label: st.upcoming, count: categorizedAuctions.upcoming.length },
-                { id: 'live', label: st.live, count: categorizedAuctions.live.length },
-                { id: 'pending', label: st.pending_approval, count: categorizedAuctions.pending.length },
-                { id: 'completed', label: st.completed, count: categorizedAuctions.completed.length },
-                { id: 'rejected', label: st.rejected, count: categorizedAuctions.rejected.length }
-              ].map(sub => (
-                <button
-                  key={sub.id}
-                  onClick={() => setActiveAuctionTab(sub.id as any)}
-                  className={`flex-1 py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    activeAuctionTab === sub.id 
-                      ? 'bg-white text-gray-950 shadow-xs border border-gray-200' 
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  <span>{sub.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeAuctionTab === sub.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
-                    {sub.count}
-                  </span>
-                </button>
-              ))}
-            </div>
+          {/* ======================= SECTION 2: LISTINGS ======================= */}
+          {activeTab === 'listings' && (
+            <div className="space-y-4" id="tab-listings">
 
-            {/* AUCTION LISTINGS */}
-            {myAuctions.length === 0 ? (
-              /* No listings at all: point the seller at the unified Sell entry */
-              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4" id="seller-empty-state">
-                <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
-                  <PlusCircle className="w-7 h-7 text-[#FF6B00]" />
-                </div>
-                <p className="text-sm font-black text-gray-900">{st.no_listings_yet}</p>
+              {/* HEADER: + New Listing · search · category · bulk toggle */}
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
                 <button
                   onClick={() => setActiveView('upload')}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{st.start_selling}</span>
+                  <span>{st.new_listing}</span>
+                </button>
+                <div className="relative flex-1 min-w-0">
+                  <Search className="w-4 h-4 text-gray-400 absolute top-1/2 -translate-y-1/2 left-3 rtl:left-auto rtl:right-3" />
+                  <input
+                    type="text"
+                    value={listingsQuery}
+                    onChange={(e) => setListingsQuery(e.target.value)}
+                    placeholder={st.search_listings}
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-3 rounded-2xl border border-gray-200 bg-white outline-none focus:border-[#FF6B00] text-xs font-semibold text-gray-700"
+                  />
+                </div>
+                <select
+                  value={listingsCategory}
+                  onChange={(e) => setListingsCategory(e.target.value)}
+                  className="px-3 py-3 rounded-2xl border border-gray-200 bg-white outline-none focus:border-[#FF6B00] text-xs font-bold text-gray-700 cursor-pointer shrink-0"
+                >
+                  <option value="all">{st.all_categories}</option>
+                  {listingCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => (bulkMode ? exitBulkMode() : setBulkMode(true))}
+                  className={`px-4 py-3 rounded-2xl text-xs font-black transition-all active:scale-95 cursor-pointer shrink-0 border ${
+                    bulkMode ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {bulkMode ? st.exit_select : st.select_mode}
                 </button>
               </div>
-            ) : categorizedAuctions[activeAuctionTab].length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-400 text-sm">
-                {st.no_auctions}
+
+              {/* BUCKET CHIPS */}
+              <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto scrollbar-none">
+                {[
+                  { id: 'all', label: st.bucket_all, count: myAuctions.length },
+                  { id: 'live', label: st.bucket_live, count: listingBuckets.live.length },
+                  { id: 'scheduled', label: st.bucket_scheduled, count: listingBuckets.scheduled.length },
+                  { id: 'review', label: st.bucket_review, count: listingBuckets.review.length },
+                  { id: 'endedUnsold', label: st.bucket_ended, count: listingBuckets.endedUnsold.length },
+                  { id: 'sold', label: st.bucket_sold, count: listingBuckets.sold.length },
+                  { id: 'rejected', label: st.bucket_rejected, count: listingBuckets.rejected.length },
+                ].map((chip) => (
+                  <button
+                    key={chip.id}
+                    onClick={() => setActiveBucket(chip.id as any)}
+                    className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      activeBucket === chip.id ? 'bg-white text-gray-950 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    <span>{chip.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBucket === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
+                      {chip.count}
+                    </span>
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categorizedAuctions[activeAuctionTab].map((auction) => (
-                  <div key={auction.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] flex flex-col justify-between">
-                    <div>
-                      {/* Image Preview & Status Badge */}
-                      <div className="relative h-40 bg-zinc-100 overflow-hidden">
-                        <img 
-                          src={auction.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80'} 
-                          alt={auction.title} 
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider uppercase shadow-xs ${
-                            auction.status === 'live' ? 'bg-red-500 text-white' :
-                            auction.status === 'upcoming' ? 'bg-blue-500 text-white' :
-                            auction.status === 'completed' ? 'bg-emerald-500 text-white' :
-                            'bg-zinc-500 text-white'
-                          }`}>
-                            {auction.status}
-                          </span>
+
+              {/* LIST */}
+              {myAuctions.length === 0 ? (
+                <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4" id="seller-empty-state">
+                  <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                    <PlusCircle className="w-7 h-7 text-[#FF6B00]" />
+                  </div>
+                  <p className="text-sm font-black text-gray-900">{st.no_listings_yet}</p>
+                  <button
+                    onClick={() => setActiveView('upload')}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{st.start_selling}</span>
+                  </button>
+                </div>
+              ) : visibleListings.length === 0 ? (
+                <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-400 text-sm">
+                  {st.no_auctions}
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] divide-y divide-gray-100">
+                  {visibleListings.map((auction) => {
+                    const canEdit = auction.status === 'processing' || (auction.status as string) === 'pending' || auction.status === 'rejected';
+                    const canRelist = auction.status !== 'live' && auction.status !== 'upcoming';
+                    const isSelected = selectedIds.has(auction.id);
+                    return (
+                      <div key={auction.id} className="p-3.5 flex items-center gap-3 hover:bg-gray-50/50 transition-colors">
+                        {bulkMode && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(auction.id)}
+                            className="w-4 h-4 accent-[#FF6B00] shrink-0 cursor-pointer"
+                          />
+                        )}
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
+                          <img src={auction.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} alt={auction.title} className="w-full h-full object-cover" />
                         </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="p-4 space-y-2">
-                        <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase font-mono">{auction.category}</p>
-                        <h4 className="text-sm font-black text-gray-900 line-clamp-1">{auction.title}</h4>
-                        <p className="text-xs text-gray-500 line-clamp-2 min-h-[32px]">{auction.description}</p>
-
-                        {/* Rejection reason back to the seller (spec §6) + resubmit affordance */}
-                        {(auction.status === 'rejected' || auction.approvalStatus === 'rejected') && auction.rejectionReason && (
-                          <div className="text-[11px] text-rose-600 font-bold bg-rose-50 border border-rose-100 p-2 rounded-xl space-y-1.5">
-                            <p>{isAr ? 'سبب الرفض: ' : 'Rejection reason: '}{auction.rejectionReason}</p>
-                            {auction.status === 'rejected' && (
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-gray-900 truncate">{auction.title}</h4>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-wider uppercase shrink-0 ${
+                              auction.status === 'live' ? 'bg-red-500 text-white' :
+                              auction.status === 'upcoming' ? 'bg-blue-500 text-white' :
+                              auction.status === 'completed' ? 'bg-emerald-500 text-white' :
+                              auction.status === 'rejected' ? 'bg-rose-500 text-white' :
+                              'bg-zinc-500 text-white'
+                            }`}>
+                              {auction.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500 font-bold tabular-nums flex-wrap">
+                            <span className="text-gray-900 font-black">{auction.currentPrice || auction.startingPrice} JOD</span>
+                            <span>{auction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
+                            {auction.status === 'live' && (
+                              <span className="inline-flex items-center gap-1 text-[#FF6B00]"><Clock className="w-3 h-3" />{timeLeftLabel(auction)}</span>
+                            )}
+                          </div>
+                        </div>
+                        {!bulkMode && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => setViewAuctionId(auction.id)}
+                              className="p-2 rounded-xl text-[#FF6B00] bg-[#FF6B00]/10 hover:bg-[#FF6B00]/20 active:scale-95 transition-all cursor-pointer"
+                              title={st.view}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {canEdit && (
                               <button
                                 onClick={() => handleEditClick(auction)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
+                                className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                                title={auction.status === 'rejected' ? st.resubmit : st.edit}
                               >
-                                <RefreshCw className="w-3 h-3" />
-                                <span>{st.resubmit}</span>
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canRelist && (
+                              <button
+                                onClick={() => handleDuplicate(auction)}
+                                className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                                title={st.relist}
+                              >
+                                <Copy className="w-4 h-4" />
                               </button>
                             )}
                           </div>
                         )}
-
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500">
-                          <div>
-                            <p className="text-[10px] text-gray-400">{isAr ? 'السعر الحالي / الابتدائي' : 'Starting / Current Price'}</p>
-                            <p className="font-black text-gray-900 text-sm">{auction.currentPrice || auction.startingPrice} JOD</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400">{isAr ? 'عدد المزايدات' : 'Total Bids'}</p>
-                            <p className="font-black text-gray-900 text-sm">{auction.totalBids || 0}</p>
-                          </div>
-                        </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                    {/* Actions Panel */}
-                    <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between gap-1.5">
+              {/* STICKY BULK ACTION BAR */}
+              {bulkMode && selectedIds.size > 0 && (
+                <div className="sticky bottom-4 z-10 bg-gray-900 text-white rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-3" id="bulk-bar">
+                  <span className="text-xs font-black px-2 tabular-nums">{selectedIds.size} {st.selected_count}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRelistSelected}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-900 rounded-xl text-xs font-black hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{st.relist_selected}</span>
+                    </button>
+                    <button
+                      onClick={handleCancelSelected}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black hover:bg-rose-600 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{st.cancel_selected}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ======================= SECTION 3: ORDERS ======================= */}
+          {activeTab === 'orders' && (
+            <div className="space-y-4" id="tab-orders">
+              {selectedOrderId ? (
+                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
+                  <button
+                    onClick={() => setSelectedOrderId(null)}
+                    className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div className="pt-8">
+                    <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* STATUS FILTER CHIPS */}
+                  <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto scrollbar-none">
+                    {[
+                      { id: 'all', label: st.ord_all, count: myOrders.length },
+                      { id: 'to_ship', label: st.ord_to_ship, count: myOrders.filter(o => o.status === 'paid' || o.status === 'preparing_shipment').length },
+                      { id: 'shipped', label: st.ord_shipped, count: myOrders.filter(o => o.status === 'shipped' || o.status === 'delivered').length },
+                      { id: 'completed', label: st.ord_completed, count: myOrders.filter(o => o.status === 'completed').length },
+                      { id: 'disputed', label: st.ord_disputed, count: myOrders.filter(o => o.status === 'disputed').length },
+                    ].map((chip) => (
                       <button
-                        onClick={() => setViewAuctionId(auction.id)}
-                        className="flex-1 py-2 rounded-xl text-[10px] font-black uppercase text-center bg-[#FF6B00]/10 text-[#FF6B00] hover:bg-[#FF6B00]/20 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>{st.view}</span>
-                      </button>
-
-                      {/* Edit only while the seller still owns the doc per firestore.rules:
-                          under review ('processing'/legacy 'pending') or 'rejected' (resubmit
-                          path). Once approved ('live'/'upcoming') the rules DENY non-admin
-                          edits — the button would just error, so it's hidden. */}
-                      {(auction.status === 'processing' || (auction.status as string) === 'pending' || auction.status === 'rejected') && (
-                        <button
-                          onClick={() => handleEditClick(auction)}
-                          className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
-                          title={auction.status === 'rejected' ? st.resubmit : st.edit}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {/* Duplicate hidden on approved surfaces ('live'/'upcoming'). */}
-                      {auction.status !== 'live' && auction.status !== 'upcoming' && (
-                        <button
-                          onClick={() => handleDuplicate(auction)}
-                          className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
-                          title={st.duplicate}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleDelete(auction)}
-                        className={`p-2 rounded-xl cursor-pointer active:scale-95 transition-all border ${
-                          (auction.totalBids || 0) > 0 
-                            ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' 
-                            : 'bg-white border-rose-100 text-rose-500 hover:bg-rose-50'
+                        key={chip.id}
+                        onClick={() => setOrdersFilter(chip.id as any)}
+                        className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          ordersFilter === chip.id ? 'bg-white text-gray-950 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-900'
                         }`}
-                        disabled={(auction.totalBids || 0) > 0}
-                        title={st.delete}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <span>{chip.label}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ordersFilter === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
+                          {chip.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
+                    {myOrders.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400 text-sm">{st.no_orders}</div>
+                    ) : visibleOrders.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400 text-sm">{st.no_auctions}</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left rtl:text-right border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
+                              <th className="p-4">{isAr ? 'المنتج والمزاد' : 'Auction / Item'}</th>
+                              <th className="p-4">{st.buyer}</th>
+                              <th className="p-4">{st.price}</th>
+                              <th className="p-4">{st.status}</th>
+                              <th className="p-4">{st.payment}</th>
+                              <th className="p-4">{st.shipping}</th>
+                              <th className="p-4">{st.escrow}</th>
+                              <th className="p-4 text-center">{isAr ? 'الإجراء' : 'Actions'}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                            {visibleOrders.map((order) => (
+                              <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
+                                      <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="max-w-[150px] lg:max-w-[200px]">
+                                      <p className="font-extrabold text-gray-900 truncate">{order.auctionTitle}</p>
+                                      <p className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 8)}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <p className="text-gray-900 font-extrabold">{order.buyerName}</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">ID: {order.buyerId.substring(0, 8)}</p>
+                                </td>
+                                <td className="p-4 font-black text-gray-900">{order.winningBidAmount} JOD</td>
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${
+                                    order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                    order.status === 'disputed' ? 'bg-rose-50 text-rose-700 border border-rose-100 animate-pulse' :
+                                    order.status === 'cancelled' ? 'bg-zinc-100 text-zinc-500' :
+                                    'bg-orange-50 text-orange-700 border border-orange-100'
+                                  }`}>
+                                    {order.status}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                    order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                  }`}>
+                                    {order.paymentStatus}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                    order.shippingStatus === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
+                                    order.shippingStatus === 'shipped' ? 'bg-blue-50 text-blue-700' :
+                                    'bg-zinc-100 text-zinc-500'
+                                  }`}>
+                                    {order.shippingStatus}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                    order.escrowStatus === 'released' ? 'bg-emerald-50 text-emerald-700' :
+                                    order.escrowStatus === 'refunded' ? 'bg-rose-50 text-rose-700' :
+                                    'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {order.escrowStatus}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-center">
+                                  <button
+                                    onClick={() => setSelectedOrderId(order.id)}
+                                    className="px-3.5 py-2 bg-gradient-to-r from-[#FF6B00] to-orange-500 text-white rounded-xl font-bold hover:shadow-md hover:shadow-orange-500/10 active:scale-95 transition-all text-[11px] cursor-pointer"
+                                  >
+                                    {st.open_details}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ======================= SECTION 4: MONEY ======================= */}
+          {activeTab === 'money' && (
+            <div className="space-y-6" id="tab-money">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 text-emerald-50/40 transform translate-x-2 -translate-y-2">
+                    <Wallet className="w-24 h-24 stroke-[1]" />
+                  </div>
+                  <div className="space-y-4">
+                    <span className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl inline-block">
+                      <Wallet className="w-6 h-6" />
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.available_balance}</p>
+                      <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={() => setIsWithdrawModalOpen('bank')}
+                        className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-black hover:bg-black active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-black/10"
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>{st.withdraw_bank}</span>
+                      </button>
+                      <button
+                        onClick={() => setIsWithdrawModalOpen('cliq')}
+                        className="flex-1 py-2.5 bg-[#FF6B00] text-white rounded-xl text-xs font-black hover:bg-orange-600 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-[#FF6B00]/10"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>{st.withdraw_cliq}</span>
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                </div>
 
-        {/* ======================= TAB 3: ORDERS ======================= */}
-        {activeTab === 'orders' && (
-          <div className="space-y-6" id="tab-orders">
-            {selectedOrderId ? (
-              <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
-                <button 
-                  onClick={() => setSelectedOrderId(null)}
-                  className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <div className="pt-8">
-                  <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
+                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <span className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl inline-block">
+                    <Clock className="w-6 h-6" />
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.escrow_pending}</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.escrowLocked.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
+                    <p className="text-[10px] text-gray-400">
+                      {isAr ? 'أموال مبيعاتك المحتجزة بأمان في حساب الضمان لحين تأكيد التسليم.' : 'Funds held securely in Escrow until buyer inspection completed.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl inline-block">
+                    <CheckCircle className="w-6 h-6" />
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.funds_released}</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">
+                      {myOrders.filter(o => o.escrowStatus === 'released').reduce((sum, o) => sum + o.winningBidAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {isAr ? 'إجمالي الأموال التي تم تحريرها بالكامل من الضمان وإيداعها بنجاح.' : 'Total historical assets released and deposited successfully.'}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
-                {myOrders.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    {st.no_orders}
+
+              <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                  <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-[#FF6B00]" />
+                    <span>{st.withdrawal_history}</span>
+                  </h3>
+                </div>
+
+                {withdrawals.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-xs">
+                    {isAr ? 'لا يوجد عمليات سحب مالي مسجلة بعد.' : 'No withdrawals recorded yet.'}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left rtl:text-right border-collapse text-xs">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
-                          <th className="p-4">{isAr ? 'المنتج والمزاد' : 'Auction / Item'}</th>
-                          <th className="p-4">{st.buyer}</th>
-                          <th className="p-4">{st.price}</th>
-                          <th className="p-4">{st.status}</th>
-                          <th className="p-4">{st.payment}</th>
-                          <th className="p-4">{st.shipping}</th>
-                          <th className="p-4">{st.escrow}</th>
-                          <th className="p-4 text-center">{isAr ? 'الإجراء' : 'Actions'}</th>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black uppercase tracking-wider">
+                          <th className="p-4">{isAr ? 'رقم المعاملة' : 'Reference ID'}</th>
+                          <th className="p-4">{isAr ? 'التاريخ والوقت' : 'Date & Time'}</th>
+                          <th className="p-4">{isAr ? 'المبلغ' : 'Amount'}</th>
+                          <th className="p-4">{isAr ? 'وسيلة السحب' : 'Method'}</th>
+                          <th className="p-4">{isAr ? 'التفاصيل والوجهة' : 'Recipient Details'}</th>
+                          <th className="p-4">{isAr ? 'حالة الطلب' : 'Status'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                        {myOrders.map((order) => (
-                          <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                            {/* Auction Name */}
-                            <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
-                                  <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
-                                </div>
-                                <div className="max-w-[150px] lg:max-w-[200px]">
-                                  <p className="font-extrabold text-gray-900 truncate">{order.auctionTitle}</p>
-                                  <p className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 8)}</p>
-                                </div>
-                              </div>
+                        {withdrawals.map((w) => (
+                          <tr key={w.id} className="hover:bg-gray-50/30 transition-colors">
+                            <td className="p-4 font-mono font-black text-gray-900">{w.referenceId}</td>
+                            <td className="p-4 text-gray-500">
+                              {new Date(w.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </td>
-
-                            {/* Buyer info */}
+                            <td className="p-4 font-black text-gray-900 tabular-nums">{w.amount} JOD</td>
                             <td className="p-4">
-                              <p className="text-gray-900 font-extrabold">{order.buyerName}</p>
-                              <p className="text-[10px] text-gray-400 font-mono">ID: {order.buyerId.substring(0, 8)}</p>
+                              <span className="capitalize font-extrabold">{w.method === 'bank' ? (isAr ? 'تحويل بنكي' : 'Bank Wire') : 'CliQ'}</span>
                             </td>
-
-                            {/* Winning price */}
-                            <td className="p-4 font-black text-gray-900">
-                              {order.winningBidAmount} JOD
+                            <td className="p-4 text-gray-500 font-mono text-[11px] max-w-[200px] truncate">
+                              {w.method === 'bank' ? (
+                                <span>{w.details?.bankName} - {w.details?.iban}</span>
+                              ) : (
+                                <span>CliQ: {w.details?.cliqAlias || w.details?.phone}</span>
+                              )}
                             </td>
-
-                            {/* Order Status */}
                             <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${
-                                order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                order.status === 'disputed' ? 'bg-rose-50 text-rose-700 border border-rose-100 animate-pulse' :
-                                order.status === 'cancelled' ? 'bg-zinc-100 text-zinc-500' :
-                                'bg-orange-50 text-orange-700 border border-orange-100'
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
-
-                            {/* Payment Status */}
-                            <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                              }`}>
-                                {order.paymentStatus}
-                              </span>
-                            </td>
-
-                            {/* Shipping Status */}
-                            <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                order.shippingStatus === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
-                                order.shippingStatus === 'shipped' ? 'bg-blue-50 text-blue-700' :
-                                'bg-zinc-100 text-zinc-500'
-                              }`}>
-                                {order.shippingStatus}
-                              </span>
-                            </td>
-
-                            {/* Escrow Status */}
-                            <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                order.escrowStatus === 'released' ? 'bg-emerald-50 text-emerald-700' :
-                                order.escrowStatus === 'refunded' ? 'bg-rose-50 text-rose-700' :
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                w.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                                w.status === 'rejected' ? 'bg-rose-50 text-rose-700' :
                                 'bg-amber-50 text-amber-700'
                               }`}>
-                                {order.escrowStatus}
+                                {w.status}
                               </span>
-                            </td>
-
-                            {/* Open button */}
-                            <td className="p-4 text-center">
-                              <button
-                                onClick={() => setSelectedOrderId(order.id)}
-                                className="px-3.5 py-2 bg-gradient-to-r from-[#FF6B00] to-orange-500 text-white rounded-xl font-bold hover:shadow-md hover:shadow-orange-500/10 active:scale-95 transition-all text-[11px] cursor-pointer"
-                              >
-                                {st.open_details}
-                              </button>
                             </td>
                           </tr>
                         ))}
@@ -1306,354 +1716,188 @@ export const SellerCenterView: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* ======================= TAB 4: PAYOUTS ======================= */}
-        {activeTab === 'payouts' && (
-          <div className="space-y-6" id="tab-payouts">
-            {/* PAYOUT CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Available balance card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 text-emerald-50/40 transform translate-x-2 -translate-y-2">
-                  <Wallet className="w-24 h-24 stroke-[1]" />
-                </div>
-                <div className="space-y-4">
-                  <span className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl inline-block">
-                    <Wallet className="w-6 h-6" />
+          {/* ======================= SECTION 5: ANALYTICS (+ REVIEWS) ======================= */}
+          {activeTab === 'analytics' && (
+            <div className="space-y-6" id="tab-analytics">
+              {/* SUMMARY: avg rating card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                  <span className="p-3 bg-yellow-50 text-yellow-500 rounded-2xl inline-block">
+                    <Star className="w-6 h-6 fill-current" />
                   </span>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.available_balance}</p>
-                    <p className="text-2xl font-black text-gray-900">{kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
-                  </div>
-                  
-                  {/* Action buttons */}
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => setIsWithdrawModalOpen('bank')}
-                      className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-black hover:bg-black active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-black/10"
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>{st.withdraw_bank}</span>
-                    </button>
-                    <button
-                      onClick={() => setIsWithdrawModalOpen('cliq')}
-                      className="flex-1 py-2.5 bg-[#FF6B00] text-white rounded-xl text-xs font-black hover:bg-orange-600 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-[#FF6B00]/10"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>{st.withdraw_cliq}</span>
-                    </button>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.avg_rating_card}</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">{avgRatingDisplay} <span className="text-sm text-gray-400">/ 5.0</span></p>
+                    <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviews.length} {isAr ? 'تقييم' : 'reviews'}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Escrow pending balance card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <span className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl inline-block">
-                  <Clock className="w-6 h-6" />
-                </span>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.escrow_pending}</p>
-                  <p className="text-2xl font-black text-gray-900">{kpis.escrowLocked.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
-                  <p className="text-[10px] text-gray-400">
-                    {isAr ? 'أموال مبيعاتك المحتجزة بأمان في حساب الضمان لحين تأكيد التسليم.' : 'Funds held securely in Escrow until buyer inspection completed.'}
-                  </p>
+                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                  <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl inline-block">
+                    <CheckCircle className="w-6 h-6" />
+                  </span>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.completed_sales}</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.completedSalesCount}</p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                  <span className="p-3 bg-orange-50 text-[#FF6B00] rounded-2xl inline-block">
+                    <DollarSign className="w-6 h-6" />
+                  </span>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.total_revenue}</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.totalRev.toLocaleString()} JOD</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Released funds card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl inline-block">
-                  <CheckCircle className="w-6 h-6" />
-                </span>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.funds_released}</p>
-                  <p className="text-2xl font-black text-gray-900">
-                    {myOrders.filter(o => o.escrowStatus === 'released').reduce((sum, o) => sum + o.winningBidAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD
-                  </p>
-                  <p className="text-[10px] text-gray-400">
-                    {isAr ? 'إجمالي الأموال التي تم تحريرها بالكامل من الضمان وإيداعها بنجاح.' : 'Total historical assets released and deposited successfully.'}
-                  </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.daily_sales}</h4>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData.dailyData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                        <YAxis stroke="#94a3b8" fontSize={11} />
+                        <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'المبيعات' : 'Sales']} />
+                        <Bar dataKey="sales" fill="#FF6B00" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.monthly_rev}</h4>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData.monthlyData}>
+                        <defs>
+                          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                        <YAxis stroke="#94a3b8" fontSize={11} />
+                        <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'الإيرادات' : 'Revenue']} />
+                        <Area type="monotone" dataKey="revenue" stroke="#FF6B00" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.views_vs_bids}</h4>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData.viewsVsBidsData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
+                        <YAxis stroke="#94a3b8" fontSize={11} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="views" name={isAr ? 'المشاهدات' : 'Views'} fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="bids" name={isAr ? 'المزايدات' : 'Bids'} fill="#FF6B00" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.top_categories}</h4>
+                  <div className="h-64 w-full flex items-center justify-center">
+                    {chartData.categoryData.length === 0 ? (
+                      <p className="text-xs text-gray-400">{isAr ? 'لا يوجد بيانات كافية للفئات.' : 'No categories data.'}</p>
+                    ) : (
+                      <div className="flex flex-col md:flex-row items-center justify-around w-full">
+                        <div className="h-48 w-48 shrink-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={chartData.categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                {chartData.categoryData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => [`${value} ${isAr ? 'مزاد' : 'Auctions'}`, 'Count']} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 font-bold max-w-[200px] py-4">
+                          {chartData.categoryData.map((entry, index) => (
+                            <div key={entry.name} className="flex items-center gap-1.5">
+                              <span className="w-3 h-3 rounded" style={{ backgroundColor: chartData.COLORS[index % chartData.COLORS.length] }}></span>
+                              <span className="truncate max-w-[80px]">{entry.name}: {entry.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* WITHDRAWAL HISTORY TABLE */}
-            <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-[#FF6B00]" />
-                  <span>{st.withdrawal_history}</span>
+              {/* BUYER REVIEWS — folded in from the old Reviews tab */}
+              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
+                <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-[#FF6B00]" />
+                  <span>{st.buyer_feedback}</span>
                 </h3>
-              </div>
 
-              {withdrawals.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-xs">
-                  {isAr ? 'لا يوجد عمليات سحب مالي مسجلة بعد.' : 'No withdrawals recorded yet.'}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left rtl:text-right border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black uppercase tracking-wider">
-                        <th className="p-4">{isAr ? 'رقم المعاملة' : 'Reference ID'}</th>
-                        <th className="p-4">{isAr ? 'التاريخ والوقت' : 'Date & Time'}</th>
-                        <th className="p-4">{isAr ? 'المبلغ' : 'Amount'}</th>
-                        <th className="p-4">{isAr ? 'وسيلة السحب' : 'Method'}</th>
-                        <th className="p-4">{isAr ? 'التفاصيل والوجهة' : 'Recipient Details'}</th>
-                        <th className="p-4">{isAr ? 'حالة الطلب' : 'Status'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                      {withdrawals.map((w) => (
-                        <tr key={w.id} className="hover:bg-gray-50/30 transition-colors">
-                          <td className="p-4 font-mono font-black text-gray-900">{w.referenceId}</td>
-                          <td className="p-4 text-gray-500">
-                            {new Date(w.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td className="p-4 font-black text-gray-900">{w.amount} JOD</td>
-                          <td className="p-4">
-                            <span className="capitalize font-extrabold">{w.method === 'bank' ? (isAr ? 'تحويل بنكي' : 'Bank Wire') : 'CliQ'}</span>
-                          </td>
-                          <td className="p-4 text-gray-500 font-mono text-[11px] max-w-[200px] truncate">
-                            {w.method === 'bank' ? (
-                              <span>{w.details?.bankName} - {w.details?.iban}</span>
-                            ) : (
-                              <span>CliQ: {w.details?.cliqAlias || w.details?.phone}</span>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                              w.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                              w.status === 'rejected' ? 'bg-rose-50 text-rose-700' :
-                              'bg-amber-50 text-amber-700'
-                            }`}>
-                              {w.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ======================= TAB 5: ANALYTICS ======================= */}
-        {activeTab === 'analytics' && (
-          <div className="space-y-6" id="tab-analytics">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Daily Sales Chart */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.daily_sales}</h4>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData.dailyData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'المبيعات' : 'Sales']} />
-                      <Bar dataKey="sales" fill="#FF6B00" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Monthly Revenue Chart */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.monthly_rev}</h4>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData.monthlyData}>
-                      <defs>
-                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'الإيرادات' : 'Revenue']} />
-                      <Area type="monotone" dataKey="revenue" stroke="#FF6B00" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Views vs Bids */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.views_vs_bids}</h4>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData.viewsVsBidsData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="views" name={isAr ? 'المشاهدات' : 'Views'} fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="bids" name={isAr ? 'المزايدات' : 'Bids'} fill="#FF6B00" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Top Categories Pie Chart */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.top_categories}</h4>
-                <div className="h-64 w-full flex items-center justify-center">
-                  {chartData.categoryData.length === 0 ? (
-                    <p className="text-xs text-gray-400">{isAr ? 'لا يوجد بيانات كافية للفئات.' : 'No categories data.'}</p>
-                  ) : (
-                    <div className="flex flex-col md:flex-row items-center justify-around w-full">
-                      <div className="h-48 w-48 shrink-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={chartData.categoryData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {chartData.categoryData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value} ${isAr ? 'مزاد' : 'Auctions'}`, 'Count']} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 font-bold max-w-[200px] py-4">
-                        {chartData.categoryData.map((entry, index) => (
-                          <div key={entry.name} className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded" style={{ backgroundColor: chartData.COLORS[index % chartData.COLORS.length] }}></span>
-                            <span className="truncate max-w-[80px]">{entry.name}: {entry.value}</span>
+                {reviews.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">{st.no_reviews}</div>
+                ) : (
+                  <div className="space-y-5">
+                    {reviews.map((rev) => (
+                      <div key={rev.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/30 flex flex-col gap-3">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <img src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-gray-200" />
+                            <div>
+                              <p className="font-extrabold text-xs text-gray-900">{rev.buyerName}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">
+                                {new Date(rev.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </p>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ======================= TAB 6: REVIEWS ======================= */}
-        {activeTab === 'reviews' && (
-          <div className="space-y-6" id="tab-reviews">
-            <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
-              <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#FF6B00]" />
-                <span>{st.buyer_feedback}</span>
-              </h3>
-
-              {reviews.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">
-                  {st.no_reviews}
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {reviews.map((rev) => (
-                    <div key={rev.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/30 flex flex-col gap-3">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        {/* Reviewer Profile */}
-                        <div className="flex items-center gap-3">
-                          <img src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-gray-200" />
-                          <div>
-                            <p className="font-extrabold text-xs text-gray-900">{rev.buyerName}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">
-                              {new Date(rev.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                          <div className="flex flex-col items-start md:items-end gap-1">
+                            <div className="flex items-center gap-1 text-yellow-500">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current' : 'text-gray-200'}`} />
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-medium">
+                              {isAr ? 'المعاملة:' : 'Item:'} <span className="font-bold text-gray-600 font-mono">{rev.auctionTitle}</span>
                             </p>
                           </div>
                         </div>
 
-                        {/* Stars & Auction Reference */}
-                        <div className="flex flex-col items-start md:items-end gap-1">
-                          <div className="flex items-center gap-1 text-yellow-500">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current' : 'text-gray-200'}`} />
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-gray-400 font-medium">
-                            {isAr ? 'المعاملة:' : 'Item:'} <span className="font-bold text-gray-600 font-mono">{rev.auctionTitle}</span>
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Comment text */}
-                      <p className="text-xs text-gray-700 leading-relaxed font-semibold italic bg-white p-3 rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.005)]">
-                        "{rev.comment}"
-                      </p>
-
-                      {/* Reply / Response Section */}
-                      {rev.response ? (
-                        <div className="ml-6 rtl:ml-0 rtl:mr-6 p-3 bg-[#FF6B00]/5 rounded-xl border border-[#FF6B00]/10 space-y-1">
-                          <div className="flex items-center gap-1.5 text-[10px] text-[#FF6B00] font-black tracking-wider uppercase">
-                            <Store className="w-3.5 h-3.5" />
-                            <span>{isAr ? 'ردك المهني:' : 'Your Response:'}</span>
-                          </div>
-                          <p className="text-xs text-gray-700 leading-relaxed font-semibold">{rev.response}</p>
-                        </div>
-                      ) : (
-                        <ReviewResponseForm reviewId={rev.id} onReply={(text) => handleReviewReply(rev.id, text)} isAr={isAr} st={st} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ======================= TAB 7: NOTIFICATIONS ======================= */}
-        {activeTab === 'notifications' && (
-          <div className="space-y-6" id="tab-notifications">
-            <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
-              <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#FF6B00]" />
-                <span>{st.all_notifs}</span>
-              </h3>
-
-              {sellerNotifications.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">
-                  {st.no_notifications}
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {sellerNotifications.map((notif) => (
-                    <div key={notif.id} className="py-4 flex items-start gap-3">
-                      <span className="p-2 bg-[#FF6B00]/10 text-[#FF6B00] rounded-xl inline-block mt-0.5">
-                        <Bell className="w-4 h-4" />
-                      </span>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-black text-gray-900">{isAr ? notif.titleAr : notif.titleEn}</h4>
-                          <span className="text-[10px] text-gray-400 font-mono">
-                            {new Date(notif.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 font-semibold leading-relaxed">
-                          {isAr ? notif.descriptionAr : notif.descriptionEn}
+                        <p className="text-xs text-gray-700 leading-relaxed font-semibold italic bg-white p-3 rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.005)]">
+                          "{rev.comment}"
                         </p>
+
+                        {rev.response ? (
+                          <div className="ml-6 rtl:ml-0 rtl:mr-6 p-3 bg-[#FF6B00]/5 rounded-xl border border-[#FF6B00]/10 space-y-1">
+                            <div className="flex items-center gap-1.5 text-[10px] text-[#FF6B00] font-black tracking-wider uppercase">
+                              <Store className="w-3.5 h-3.5" />
+                              <span>{isAr ? 'ردك المهني:' : 'Your Response:'}</span>
+                            </div>
+                            <p className="text-xs text-gray-700 leading-relaxed font-semibold">{rev.response}</p>
+                          </div>
+                        ) : (
+                          <ReviewResponseForm reviewId={rev.id} onReply={(text) => handleReviewReply(rev.id, text)} isAr={isAr} st={st} />
+                        )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     </div>
 
