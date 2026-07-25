@@ -174,7 +174,6 @@ export const ProfileView: React.FC = () => {
               ref={avatarInputRef}
               type="file"
               accept="image/*"
-              capture="user"
               onChange={handleAvatarFile}
               className="hidden"
               aria-hidden="true"
