@@ -10,7 +10,7 @@
 //
 // ADDITIVE: nothing consumes this yet (Task 5 wires it into DiscoveryFeedView).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { AuctionItem } from '../types';
@@ -45,7 +45,7 @@ export function subscribeLiveAuction(id: string, listener: LiveListener): () => 
       doc(db, 'auctions', id),
       (snap) => {
         if (!snap.exists()) return;
-        const live = mapLiveAuctionFields(snap.data());
+        const live: Partial<AuctionItem> = { ...mapLiveAuctionFields(snap.data()), id };
         const e = registry.get(id);
         if (!e) return;
         e.last = live;
@@ -96,6 +96,7 @@ export function useVisibleAuctionLive(
   enabled: boolean
 ): Partial<AuctionItem> | null {
   const [live, setLive] = useState<Partial<AuctionItem> | null>(null);
+  const prevIdRef = useRef<string>('');
 
   useEffect(() => {
     if (!enabled || !id) return;
@@ -104,7 +105,12 @@ export function useVisibleAuctionLive(
     // Seed synchronously from the shared cache so a card re-entering the
     // viewport shows fresh values immediately, not on the next snapshot.
     const existing = registry.get(id);
-    if (existing?.last) setLive(existing.last);
+    if (prevIdRef.current !== id) {
+      prevIdRef.current = id;
+      setLive(existing?.last ?? null); // id changed → clear prior lot's value (seed from cache if present)
+    } else if (existing?.last) {
+      setLive(existing.last);          // same id re-enable → unchanged behavior
+    }
 
     const unsubscribe = subscribeLiveAuction(id, (v) => {
       if (active) setLive(v);

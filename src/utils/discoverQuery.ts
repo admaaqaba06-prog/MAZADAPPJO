@@ -131,6 +131,11 @@ export function mergeLiveIntoCard(
   live: Partial<AuctionItem> | null,
 ): AuctionItem {
   if (!live) return base;
+  // Never overlay a live value that belongs to a DIFFERENT lot (guards the
+  // bidding room's changing-id subscription against a one-render stale frame
+  // before the hook's state resets). A live value with no id (older callers)
+  // is allowed through for backward-compat.
+  if (live.id !== undefined && live.id !== base.id) return base;
   const out: AuctionItem = { ...base };
   for (const key of LIVE_OVERLAY_FIELDS) {
     const v = (live as any)[key];
