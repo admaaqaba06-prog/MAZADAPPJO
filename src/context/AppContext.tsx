@@ -12,6 +12,7 @@ import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
+import { resolveEndTime, filsToUnits } from '../utils/liveAuctionFields';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
@@ -70,31 +71,9 @@ const mapAuctionDoc = (
   itemsToResolve: { id: string; rawUrl: string; category: string }[]
 ): AuctionItem => {
   const data = docSnap.data();
-  const parseTimestamp = (val: any): number => {
-    if (!val) return Date.now() + 3600000;
-    if (typeof val === 'number') return val;
-    if (typeof val === 'string') {
-      const parsed = Date.parse(val);
-      return isNaN(parsed) ? Date.now() + 3600000 : parsed;
-    }
-    if (typeof val.toDate === 'function') {
-      return val.toDate().getTime();
-    }
-    if (val.seconds !== undefined) {
-      return val.seconds * 1000;
-    }
-    return Date.now() + 3600000;
-  };
-
-  let endTimeNum = Date.now() + 3600000;
-  if (data.endsAt) {
-    endTimeNum = parseTimestamp(data.endsAt);
-  } else if (data.endTime) {
-    endTimeNum = parseTimestamp(data.endTime);
-  }
-  if (isNaN(endTimeNum)) {
-    endTimeNum = Date.now() + 3600000;
-  }
+  // endTime/price mapping delegates to the shared `liveAuctionFields` helpers so
+  // the per-card live-on-visible subscription resolves these identically.
+  const endTimeNum = resolveEndTime(data);
   const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
   let finalThumbnail = rawThumbnail;
 
@@ -103,9 +82,9 @@ const mapAuctionDoc = (
     finalThumbnail = PLACEHOLDER_MEDIA;
   }
 
-  const startingPrice = (data.startingPriceFils !== undefined ? data.startingPriceFils / 1000 : (data.startingPrice ?? 0));
-  const currentPrice = (data.currentPriceFils !== undefined ? data.currentPriceFils / 1000 : (data.currentPrice ?? startingPrice));
-  const minIncrement = (data.minIncrementFils !== undefined ? data.minIncrementFils / 1000 : (data.minIncrement ?? 10));
+  const startingPrice = filsToUnits(data.startingPriceFils, data.startingPrice, 0);
+  const currentPrice = filsToUnits(data.currentPriceFils, data.currentPrice, startingPrice);
+  const minIncrement = filsToUnits(data.minIncrementFils, data.minIncrement, 10);
 
   const rawVideoUrl = data.videoUrl || '';
   const itemId = docSnap.id;

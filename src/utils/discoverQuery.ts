@@ -2,6 +2,8 @@
 // A hook translates these plain objects into real `query(...)` constraints;
 // keeping them pure keeps the query shape testable without touching Firestore.
 
+import { AuctionItem } from '../types';
+
 /** Page size for the paginated Discover feeds. */
 export const PAGE = 24;
 
@@ -86,4 +88,43 @@ export function isDisplayableLive(
   now: number,
 ): boolean {
   return a.status === 'live' && a.isSimulated !== true && (!a.endTime || a.endTime > now);
+}
+
+/**
+ * The fast-changing fields a live-on-visible subscription overlays onto an
+ * already-loaded (paginated) card. Kept in one place so the merge and the live
+ * mapper (`mapLiveAuctionFields`) stay in lock-step.
+ */
+export const LIVE_OVERLAY_FIELDS = [
+  'currentPrice',
+  'totalBids',
+  'currentBidderId',
+  'currentBidderName',
+  'reserveMet',
+  'status',
+  'endTime',
+] as const;
+
+/**
+ * Overlay a lot's live fields over its paginated card snapshot.
+ * - Returns `base` unchanged when there is no live value yet (`live == null`).
+ * - Copies each live field over `base` ONLY when it is defined, so a live doc
+ *   that omits a field (e.g. `reserveMet`) never clobbers the base with
+ *   `undefined`.
+ * - Never drops base-only fields (title, images, seller, …) — they are always
+ *   carried through.
+ */
+export function mergeLiveIntoCard(
+  base: AuctionItem,
+  live: Partial<AuctionItem> | null,
+): AuctionItem {
+  if (!live) return base;
+  const out: AuctionItem = { ...base };
+  for (const key of LIVE_OVERLAY_FIELDS) {
+    const v = (live as any)[key];
+    if (v !== undefined) {
+      (out as any)[key] = v;
+    }
+  }
+  return out;
 }
