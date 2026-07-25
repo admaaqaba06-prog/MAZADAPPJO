@@ -7,7 +7,7 @@ import {
   X
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
-import { MobileLiveAuctionLayout } from './MobileLiveAuctionLayout';
+import { MobileAuctionView } from './MobileAuctionView';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid, totalWithPremium, isViewerWinner } from '../utils/bidMath';
 import { translations } from '../utils/translations';
@@ -373,17 +373,24 @@ export const LiveStreamView: React.FC = () => {
     });
   }, [auctions]);
 
-  // Set initial active auction if none is set
-  useEffect(() => {
-    if (liveAuctions.length > 0 && !activeAuctionId) {
-      setActiveAuctionId(liveAuctions[0].id);
-    }
-  }, [liveAuctions, activeAuctionId, setActiveAuctionId]);
-
   // Active auction item helper
   const activeAuction = useMemo(() => {
     return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
   }, [liveAuctions, activeAuctionId]);
+
+  // Align activeAuctionId to the REAL resolved lot so every chat surface keys on
+  // one id. AppContext seeds activeAuctionId with the placeholder 'auction-rolex'
+  // (a truthy value the old `!activeAuctionId` guard never overrode), so
+  // `sendChatMessage` wrote — and the chat listener queried — auctionId
+  // 'auction-rolex', while the render filter below keys on `activeAuction.id`
+  // (the real fallback lot). Write/listener/filter disagreed and members' own
+  // comments were silently dropped. Syncing the id here makes all three agree.
+  // Guarded on inequality so it can't loop.
+  useEffect(() => {
+    if (activeAuction && activeAuctionId !== activeAuction.id) {
+      setActiveAuctionId(activeAuction.id);
+    }
+  }, [activeAuction, activeAuctionId, setActiveAuctionId]);
 
   // Reset the manual overlay dismissal on auction change. The finished state is
   // now DERIVED (isAuctionFinished) rather than latched, so there is nothing to
@@ -660,7 +667,7 @@ export const LiveStreamView: React.FC = () => {
   return (
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
       {isMobile ? (
-        <MobileLiveAuctionLayout
+        <MobileAuctionView
           liveAuctions={liveAuctions}
           activeAuctionId={activeAuctionId}
           onSelectAuction={(id) => setActiveAuctionId(id)}

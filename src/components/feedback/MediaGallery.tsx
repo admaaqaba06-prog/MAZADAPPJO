@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, Play, Maximize2, X, Volume2, VolumeX } from 'lucide-react';
+import { useReducedMotion } from 'motion/react';
 import type { AuctionMediaItem } from '../../utils/auctionMedia';
 
 /* ======================================================================
@@ -57,6 +59,20 @@ export interface MediaGalleryProps {
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   /** Tap on the video item (play/pause toggle in both layouts). */
   onVideoClick?: () => void;
+  /**
+   * OPT-IN (default false). Renders a small ⤢ expand button on the media that
+   * opens a fullscreen overlay of the CURRENT item (image fit-to-screen, or the
+   * video with a sound toggle). Closes on ✕, backdrop tap, or Esc. Existing
+   * desktop callers omit this, so their render is byte-unchanged.
+   */
+  expandable?: boolean;
+  /**
+   * OPT-IN (default false). When true AND the current item is an image AND the
+   * gallery isActive, auto-advances to the next media every ~4s. Pauses
+   * PERMANENTLY once the user manually swipes/interacts. NEVER auto-advances
+   * when the user prefers reduced motion.
+   */
+  autoAdvancePhotos?: boolean;
 }
 
 export const MediaGallery: React.FC<MediaGalleryProps> = ({
@@ -70,11 +86,20 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
   className = '',
   videoRef,
   onVideoClick,
+  expandable = false,
+  autoAdvancePhotos = false,
 }) => {
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [dragPx, setDragPx] = useState(0);
   const [dragging, setDragging] = useState(false);
+
+  // Opt-in fullscreen overlay + photo auto-advance (both default OFF so every
+  // existing caller renders exactly as before).
+  const [expanded, setExpanded] = useState(false);
+  const [overlayMuted, setOverlayMuted] = useState(false);
+  const [autoAdvancePaused, setAutoAdvancePaused] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const internalVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -120,6 +145,46 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
       internalVideoRef.current.muted = isMuted;
     }
   }, [isMuted]);
+
+  const currentIsImage = items[index]?.type === 'image';
+
+  // A real manual gesture (swipe / arrow / dot) permanently stops photo
+  // auto-advance so we never yank the media out from under the user.
+  const markManualInteraction = () => {
+    if (autoAdvancePhotos && !autoAdvancePaused) setAutoAdvancePaused(true);
+  };
+
+  // OPT-IN photo auto-advance. Only runs while the prop is on, the lot is
+  // active, the visible item is an image, the overlay is closed, the user hasn't
+  // taken over, and — critically — reduced-motion is NOT requested. Depending on
+  // `index` re-arms the 4s timer per item and naturally stops on a video item.
+  useEffect(() => {
+    if (
+      !autoAdvancePhotos ||
+      !isActive ||
+      !currentIsImage ||
+      autoAdvancePaused ||
+      expanded ||
+      reduceMotion ||
+      count < 2
+    ) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      setIndex(i => (i + 1) % count);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [autoAdvancePhotos, isActive, currentIsImage, autoAdvancePaused, expanded, reduceMotion, count, index]);
+
+  // Esc closes the fullscreen overlay.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded]);
 
   const applyDrag = (rawDx: number) => {
     // Rubber-band when dragging past either end.
@@ -167,6 +232,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > AXIS_LOCK_PX) {
         g.axis = 'h';
         didDragRef.current = true;
+        markManualInteraction();
         setDragging(true);
         try {
           viewportRef.current?.setPointerCapture(e.pointerId);
@@ -199,6 +265,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
 
   // Arrows navigate by VISUAL side (left arrow shows the item to the left).
   const goVisual = (side: 'left' | 'right') => {
+    markManualInteraction();
     const step = (side === 'left' ? -1 : 1) * (isAr ? -1 : 1);
     setIndex(i => clampIndex(i + step));
   };
@@ -214,12 +281,79 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
   const canGoVisualLeft = isAr ? index < count - 1 : index > 0;
   const canGoVisualRight = isAr ? index > 0 : index < count - 1;
 
+  const currentItem = items[index];
+
+  const overlay =
+    expandable && expanded && currentItem && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center"
+            dir={isAr ? 'rtl' : 'ltr'}
+            onClick={() => setExpanded(false)}
+            id="media-gallery-overlay"
+          >
+            {/* Close (✕) */}
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                setExpanded(false);
+              }}
+              className="absolute top-4 end-4 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label={isAr ? 'إغلاق' : 'Close'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {currentItem.type === 'video' ? (
+              <>
+                <video
+                  src={currentItem.url}
+                  autoPlay
+                  loop
+                  muted={overlayMuted}
+                  playsInline
+                  controls={false}
+                  className="max-w-full max-h-full object-contain"
+                  onClick={e => e.stopPropagation()}
+                />
+                {/* Sound toggle */}
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    setOverlayMuted(m => !m);
+                  }}
+                  className="absolute bottom-4 end-4 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+                  aria-label={
+                    overlayMuted ? (isAr ? 'تشغيل الصوت' : 'Unmute') : isAr ? 'كتم الصوت' : 'Mute'
+                  }
+                >
+                  {overlayMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+              </>
+            ) : (
+              <img
+                src={currentItem.url}
+                alt=""
+                className="max-w-full max-h-full object-contain"
+                draggable={false}
+                referrerPolicy="no-referrer"
+                onClick={e => e.stopPropagation()}
+              />
+            )}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div
       className={`flex flex-col min-h-0 ${className}`}
       dir={isAr ? 'rtl' : 'ltr'}
       id="media-gallery-root"
     >
+      {overlay}
       {/* Viewport — touch-action pan-y hands vertical panning to the browser */}
       <div
         ref={viewportRef}
@@ -294,6 +428,18 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
           </>
         )}
 
+        {/* Opt-in expand button (⤢) — opens the fullscreen overlay. */}
+        {expandable && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="absolute top-2 start-2 z-20 w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-black/65 transition-colors cursor-pointer"
+            aria-label={isAr ? 'تكبير' : 'Expand'}
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Counter chip + dots (only for real galleries) */}
         {count > 1 && (
           <>
@@ -305,7 +451,10 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setIndex(i)}
+                  onClick={() => {
+                    markManualInteraction();
+                    setIndex(i);
+                  }}
                   className={`pointer-events-auto w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
                     i === index ? 'bg-white scale-125' : 'bg-white/40'
                   }`}
