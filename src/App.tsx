@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect } from 'react';
-import { AppProvider, useApp, useAuctions } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from './utils/deepLink';
 import { resolveUnauthenticatedScreen, canGuestAccessView } from './utils/guestGate';
 import { isAdminUser } from './utils/adminAuth';
@@ -137,12 +137,15 @@ function MaintenanceView() {
  */
 function ReviewPromptHost() {
   const { reviewPromptOrderId, setReviewPromptOrderId, orders, currentUser, language } = useApp();
-  const { auctions } = useAuctions();
 
   const order = reviewPromptOrderId ? orders.find(o => o.id === reviewPromptOrderId) : undefined;
   if (!order || !currentUser?.id || order.buyerId !== currentUser.id) return null;
 
-  const vendorId = order.vendorId ?? auctions.find(a => a.id === order.auctionId)?.vendorId ?? null;
+  // vendorId comes off the order doc itself (its primary source). The old broad
+  // `auctions.find(...)` fallback scanned the public live-array purely as a
+  // belt-and-suspenders — dropped so this host no longer depends on the broad
+  // `useAuctions()` listener (Slice 1b re-source).
+  const vendorId = order.vendorId ?? null;
 
   return (
     <ReviewPrompt
