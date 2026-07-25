@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucide-react';
 import { CountUp, markFirstBidDone, useToast } from './feedback';
@@ -99,10 +99,26 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
     ? Math.floor((activeAuction.endTime - serverNow()) / 1000) <= 0
     : false;
 
-  const media = getAuctionMedia(activeAuction);
+  // Memoized so the gallery source is rebuilt only when the media fields
+  // change — not on every price/bid tick that re-renders this page.
+  const media = useMemo(
+    () => getAuctionMedia(activeAuction),
+    [
+      activeAuction?.id,
+      activeAuction?.videoUrl,
+      activeAuction?.thumbnailUrl,
+      activeAuction?.imageUrl,
+      activeAuction?.mediaUrls,
+      activeAuction?.conciergePhotos,
+    ]
+  );
 
   // Persistent chat for the active lot (full log, not the ephemeral overlay).
-  const chatForLot = chatMessages.filter((m) => m.auctionId === activeAuction?.id);
+  // Memoized so the filter re-runs only when the chat log or lot changes.
+  const chatForLot = useMemo(
+    () => chatMessages.filter((m) => m.auctionId === activeAuction?.id),
+    [chatMessages, activeAuction?.id]
+  );
 
   // Trust / spec chips (real fields only — never fabricated).
   const isInspected = activeAuction?.approvalStatus === 'approved';
