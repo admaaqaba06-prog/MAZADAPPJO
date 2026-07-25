@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Share2, CheckCircle2 } from 'lucide-react';
-import { CountUp } from './feedback';
+import { CountUp, markFirstBidDone } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
+import { BidSheet } from './auction/BidSheet';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
 import { serverNow } from '../utils/serverTime';
+import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
+import { minNextBid } from '../utils/bidMath';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -73,7 +76,8 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   onPlayPauseToggle,
   onShareClick,
   isAr,
-  nextBidAmount,
+  onBidExecute,
+  currentUser,
   videoRef,
   onClose,
 }) => {
@@ -128,6 +132,94 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
     : null;
 
   const BackIcon = isAr ? ChevronRight : ChevronLeft;
+
+  // ----- Place-Bid flow (mockup frame 2) -----
+  // Minimum next bid + increment, recomputed each render from the LIVE auction
+  // fields (currentPrice/totalBids update via the Firestore subscription), so
+  // `minNext` is always the latest minimum — the confirm step re-prompts against
+  // it if a rival outbids during the confirm window (resolveConfirm below).
+  const minNext = minNextBid(
+    activeAuction?.currentPrice ?? 0,
+    activeAuction?.minIncrement,
+    activeAuction?.totalBids ?? 0
+  );
+  const inc = activeAuction?.minIncrement && activeAuction.minIncrement > 0
+    ? activeAuction.minIncrement
+    : 10;
+
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [priceMoved, setPriceMoved] = useState(false);
+  const [showWinPill, setShowWinPill] = useState(false);
+  const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (winPillTimer.current) clearTimeout(winPillTimer.current);
+  }, []);
+
+  // Execute wraps the parent's onBidExecute (=executeBid → placeBid) ONLY to
+  // surface UI feedback (win pill + retire the first-bid coach) on success. It
+  // adds NO optimistic price layer — the parent already owns the optimistic
+  // paint + server round-trip; the bid still calls onBidExecute(amount) exactly
+  // as it does today.
+  const executeBid = async (amount: number) => {
+    const res = await onBidExecute(amount);
+    if (res && res.success) {
+      markFirstBidDone();
+      setShowWinPill(true);
+      if (winPillTimer.current) clearTimeout(winPillTimer.current);
+      winPillTimer.current = setTimeout(() => setShowWinPill(false), 1200);
+    }
+    return res;
+  };
+
+  const {
+    isGuest,
+    pendingBid,
+    submitting,
+    startBid,
+    confirmBid,
+    cancelBid,
+  } = useBidFlow(executeBid);
+
+  // Stage a chosen amount through the shared gate (guest→signup / membership /
+  // photo), resetting any stale "price moved" flag first.
+  const stageBid = (amount: number) => {
+    setPriceMoved(false);
+    startBid(amount);
+  };
+
+  // At confirm, recompute against the LATEST minimum: a rival outbid during the
+  // ≤10s confirm window bumps minNext above the staged amount, so re-prompt at
+  // the fresh minimum instead of sending a stale amount the server would reject.
+  const handleConfirm = (amount: number) => {
+    const decision = resolveConfirm(amount, minNext);
+    if (decision.action === 'reprompt') {
+      setPriceMoved(true);
+      startBid(decision.amount);
+      return;
+    }
+    setPriceMoved(false);
+    confirmBid(decision.amount);
+    setSheetOpen(false);
+  };
+
+  const handleCancel = () => {
+    setPriceMoved(false);
+    cancelBid();
+  };
+
+  // Sticky CTA: a guest taps straight into the signup gate (startBid routes it);
+  // a signed-in viewer opens the bid sheet.
+  const onPlaceBidTap = () => {
+    if (ended) return;
+    if (isGuest) {
+      stageBid(minNext);
+      return;
+    }
+    setSheetOpen(true);
+  };
+
+  const showCoach =
+    currentUser?.subscriptionStatus === 'active' && sheetOpen;
 
   return (
     <div
@@ -288,7 +380,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         </div>
       </div>
 
-      {/* ================= STICKY PLACE-BID CTA (stub → Task 5) ================= */}
+      {/* ================= STICKY PLACE-BID CTA ================= */}
       <div
         className="absolute bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-4 bg-gradient-to-t from-white via-white to-transparent"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
@@ -296,14 +388,41 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         <button
           type="button"
           disabled={ended}
+          onClick={onPlaceBidTap}
           className="w-full py-3.5 rounded-2xl bg-[#F05123] text-white font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(240,81,35,0.32)] disabled:opacity-50 active:scale-[0.99] transition-transform cursor-pointer"
         >
-          {isAr ? 'قدّم مزايدة' : 'Place Bid'}
-          <small className="font-bold opacity-85 text-[12px]" dir="ltr">
-            · {Math.round(nextBidAmount).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'} ›
-          </small>
+          {isGuest
+            ? (isAr ? 'سجّل مجاناً وزايد' : 'Sign up to bid')
+            : (isAr ? 'قدّم مزايدة' : 'Place Bid')}
+          {!isGuest && (
+            <small className="font-bold opacity-85 text-[12px]" dir="ltr">
+              · {Math.round(minNext).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'} ›
+            </small>
+          )}
         </button>
       </div>
+
+      {/* ================= PLACE-BID SHEET (mockup frame 2) ================= */}
+      <BidSheet
+        open={sheetOpen}
+        onClose={() => {
+          setSheetOpen(false);
+          if (pendingBid != null) cancelBid();
+        }}
+        isAr={isAr}
+        reduce={!!reduce}
+        currentPrice={activePrice}
+        minNext={minNext}
+        inc={inc}
+        submitting={submitting}
+        onStage={stageBid}
+        pendingBid={pendingBid}
+        priceMoved={priceMoved}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+        showCoach={showCoach}
+        showWinPill={showWinPill}
+      />
     </div>
   );
 };
