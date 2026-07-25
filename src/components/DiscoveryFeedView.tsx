@@ -1,5 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useCountdownSeconds, useIsOnScreen } from '../hooks/useCountdownSeconds';
+import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
+import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { useApp, useAuctions } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
@@ -48,6 +51,11 @@ interface PremiumAuctionCardProps {
   onSelectLot: (id: string) => void;
   setGlobalSelectedOrderId: (id: string) => void;
   setActiveView: (view: string) => void;
+  // Discover-pagination (Slice 1): opt this card into a per-card live-on-visible
+  // subscription. Only the flag-gated paginated path passes `true`; the legacy
+  // path leaves it undefined so the card behaves EXACTLY as before (the hook
+  // below is still called unconditionally, but stays inert when disabled).
+  liveEnabled?: boolean;
 }
 
 const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
@@ -61,6 +69,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   onSelectLot,
   setGlobalSelectedOrderId,
   setActiveView,
+  liveEnabled,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
@@ -71,7 +80,14 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   // fix, out of scope for this perf pass).
   const cardRef = useRef<HTMLDivElement>(null);
   const isOnScreen = useIsOnScreen(cardRef);
-  const liveSecondsLeft = useCountdownSeconds(item.endTime, isOnScreen);
+  // Live-on-visible (Slice 1): only the paginated path (`liveEnabled`) opts in;
+  // the subscription is inert (no snapshot) when disabled or off-screen. `d` is
+  // the card's DISPLAY item — the paginated snapshot with live fast-fields
+  // (price/bids/bidder/status/endTime) overlaid while visible. When `liveEnabled`
+  // is falsy, `d === item`, so the legacy path renders byte-identically to today.
+  const live = useVisibleAuctionLive(item.id, isOnScreen && !!liveEnabled);
+  const d = liveEnabled ? mergeLiveIntoCard(item, live) : item;
+  const liveSecondsLeft = useCountdownSeconds(d.endTime, isOnScreen);
   const secondsLeft = liveSecondsLeft ?? 120;
 
   const formatTime = (secs: number) => {
@@ -81,13 +97,13 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   };
 
   const hasUserBid = bids ? bids.some(b => b.auctionId === item.id && b.bidderId === currentUser?.id) : false;
-  const isUserWinner = hasUserBid && item.currentBidderId === currentUser?.id;
+  const isUserWinner = hasUserBid && d.currentBidderId === currentUser?.id;
   const isCritical = secondsLeft < 60;
 
-  const itemIsEnded = item.status === 'completed' || (item.endTime && item.endTime <= Date.now());
+  const itemIsEnded = d.status === 'completed' || (d.endTime && d.endTime <= Date.now());
 
   const handleCardClick = () => {
-    if (item.status === 'live') {
+    if (d.status === 'live') {
       onJoinLive(item.id);
     } else {
       onSelectLot(item.id);
@@ -99,7 +115,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   const isEndedWinner = !!(
     itemIsEnded &&
     currentUser?.id &&
-    item.currentBidderId === currentUser.id &&
+    d.currentBidderId === currentUser.id &&
     bids?.some(b => b.auctionId === item.id && b.bidderId === currentUser.id)
   );
 
@@ -138,7 +154,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Top-left: LIVE badge + (when relevant) your winning/outbid state */}
         <div className="absolute top-2.5 left-2.5 rtl:left-auto rtl:right-2.5 z-10 flex flex-col items-start gap-1.5">
-          {item.status === 'live' && (
+          {d.status === 'live' && (
             <div className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
               <span>{isAr ? 'مباشر' : 'LIVE'}</span>
@@ -177,11 +193,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           </h3>
           <div className="flex items-end justify-between gap-2 mt-1">
             <span className="text-lg font-black text-white leading-none flex items-baseline gap-1 drop-shadow-sm">
-              {item.currentPrice.toLocaleString()}
+              {d.currentPrice.toLocaleString()}
               <span className="text-[11px] text-[#FF8A3D] font-black">{isAr ? 'د.أ' : 'JOD'}</span>
             </span>
             <span className="text-[10px] text-white/70 font-bold shrink-0">
-              🔨 {item.totalBids || 0}
+              🔨 {d.totalBids || 0}
             </span>
           </div>
         </div>
@@ -190,7 +206,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
         {!itemIsEnded && (
           <div className="absolute inset-0 z-10 hidden lg:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <span className="bg-[#E85D04]/95 backdrop-blur-xs text-white text-xs font-black px-4 py-2 rounded-full shadow-lg">
-              {item.status === 'live' ? (isAr ? '🔴 دخول البث' : '🔴 Join live') : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
+              {d.status === 'live' ? (isAr ? '🔴 دخول البث' : '🔴 Join live') : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
             </span>
           </div>
         )}
@@ -294,9 +310,16 @@ export const DiscoveryFeedView: React.FC = () => {
     sellerProfiles,
     bids,
     orders,
-    setGlobalSelectedOrderId
+    setGlobalSelectedOrderId,
+    featureFlags
   } = useApp();
   const { auctions, auctionsLoaded } = useAuctions();
+
+  // Discover-pagination (Slice 1) master switch. Default OFF in prod: when false,
+  // EVERYTHING below renders exactly as today off the broad `useAuctions()` feed;
+  // the paginated hook is still called (hooks must be unconditional) but stays
+  // fully inert (no queries, no listener) because we pass `enabled = false`.
+  const usePaginated = featureFlags.enablePaginatedDiscover;
   
   const { showToast } = useToast();
   // Real social proof (spec §4): live bidders from the loaded auctions +
@@ -374,6 +397,61 @@ export const DiscoveryFeedView: React.FC = () => {
       ),
     };
   }, [auctions, searchTerm, selectedCategory, categoriesList]);
+
+  // --- Discover-pagination (Slice 1), flag-gated ---------------------------
+  // The paginated feed hook is ALWAYS called (React requires unconditional
+  // hooks) but only fetches when `usePaginated` is true. Category chips drive
+  // the SERVER re-query (`selectedCategory`); search still filters client-side
+  // over the loaded page (Slice 2 swaps to Algolia).
+  // Translate the selected chip into its CANONICAL stored category value(s)
+  // (its `match` alias list) so the server query uses `where('category','in',…)`
+  // — a raw chip name like `Cars`/`Phones` would never match the stored
+  // `Vehicles`/`Electronics` values and return an empty feed. `All` → null (no
+  // category clause). Reference is stable per chip (categoriesList is memoized).
+  const categoryMatches = React.useMemo<string[] | null>(() => {
+    if (selectedCategory === 'All') return null;
+    const pill = categoriesList.find((c) => c.name === selectedCategory);
+    return pill?.match ?? [selectedCategory];
+  }, [selectedCategory, categoriesList]);
+
+  const feed = useDiscoverFeed(categoryMatches, usePaginated);
+
+  const paginatedLists = React.useMemo(() => {
+    if (!usePaginated) return null;
+    const matchesSearch = (item: AuctionItem) => {
+      if (!searchTerm) return true;
+      return (item.title + item.description).toLowerCase().includes(searchTerm.toLowerCase());
+    };
+    return {
+      liveList: feed.liveItems.filter(matchesSearch),
+      upcomingList: feed.upcomingItems.filter(matchesSearch),
+    };
+  }, [usePaginated, feed.liveItems, feed.upcomingItems, searchTerm]);
+
+  // The lists + loading state the grid actually renders. OFF → the untouched
+  // `useAuctions()`-derived memos (identical to today). ON → the paginated feed.
+  const liveList = usePaginated ? (paginatedLists?.liveList ?? []) : liveAuctionsList;
+  const upcomingList = usePaginated ? (paginatedLists?.upcomingList ?? []) : upcomingAuctionsList;
+  const showSkeleton = usePaginated ? feed.loading : isLoading;
+
+  // Infinite-scroll sentinel for the paginated LIVE grid. When it scrolls into
+  // view (with headroom) and more pages exist, pull the next page.
+  const loadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!usePaginated) return;
+    const el = loadMoreSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && feed.hasMoreLive && !feed.loadingMore) {
+          feed.loadMore();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [usePaginated, feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
 
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
@@ -480,10 +558,10 @@ export const DiscoveryFeedView: React.FC = () => {
   // get a plain quick fade — no cascade replay on every keystroke.
   const gridStaggerDone = React.useRef(false);
   React.useEffect(() => {
-    if (!isLoading && (liveAuctionsList.length > 0 || upcomingAuctionsList.length > 0)) {
+    if (!showSkeleton && (liveList.length > 0 || upcomingList.length > 0)) {
       gridStaggerDone.current = true;
     }
-  }, [isLoading, liveAuctionsList.length, upcomingAuctionsList.length]);
+  }, [showSkeleton, liveList.length, upcomingList.length]);
 
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
@@ -815,15 +893,15 @@ export const DiscoveryFeedView: React.FC = () => {
       {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
           pinned sticky header (bar+search+pills ≈ 190px mobile / single filter row ≈ 60px desktop). */}
       <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-24" id="discover-feed-grid">
-        {isLoading ? (
+        {showSkeleton ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <AuctionCardSkeleton key={n} />
             ))}
           </div>
-        ) : (liveAuctionsList.length > 0 || upcomingAuctionsList.length > 0) ? (
+        ) : (liveList.length > 0 || upcomingList.length > 0 || (usePaginated && feed.hasMoreLive)) ? (
           <div className="space-y-10">
-            {liveAuctionsList.length > 0 && (
+            {liveList.length > 0 && (
               <section id="live-now-section">
                 <div className="flex items-center gap-2 mb-3">
                   <Flame className="w-4 h-4 text-[#E85D04] fill-[#E85D04] animate-pulse" />
@@ -831,11 +909,11 @@ export const DiscoveryFeedView: React.FC = () => {
                     {isAr ? 'مباشر الآن' : 'Live now'}
                   </h2>
                   <span className="text-[10px] font-mono font-black bg-red-600 text-white px-2 py-0.5 rounded-full">
-                    {liveAuctionsList.length}
+                    {liveList.length}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                  {liveAuctionsList.map((item, index) => (
+                  {liveList.map((item, index) => (
                     <div
                       key={item.id}
                       className="feed-card-in h-full"
@@ -854,6 +932,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         onSelectLot={setSelectedLotId}
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
+                        liveEnabled={usePaginated}
                       />
                     </div>
                   ))}
@@ -861,7 +940,20 @@ export const DiscoveryFeedView: React.FC = () => {
               </section>
             )}
 
-            {upcomingAuctionsList.length > 0 && (
+            {/* Infinite-scroll trigger (paginated path only). Mounts whenever
+                more live pages exist — even if this filtered page rendered
+                empty (e.g. a thin first page) — so the observer can still pull
+                the next page instead of stranding hidden live inventory. */}
+            {usePaginated && feed.hasMoreLive && (
+              <div ref={loadMoreSentinelRef} className="h-8" aria-hidden="true" />
+            )}
+            {usePaginated && feed.loadingMore && (
+              <div className="flex items-center justify-center py-4" id="discover-loading-more">
+                <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
+              </div>
+            )}
+
+            {upcomingList.length > 0 && (
               <section id="upcoming-drops-section">
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="w-4 h-4 text-gray-400" />
@@ -869,11 +961,11 @@ export const DiscoveryFeedView: React.FC = () => {
                     {isAr ? 'مواعيد قادمة' : 'Upcoming drops'}
                   </h2>
                   <span className="text-[10px] font-mono font-black bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                    {upcomingAuctionsList.length}
+                    {upcomingList.length}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                  {upcomingAuctionsList.map((item, index) => (
+                  {upcomingList.map((item, index) => (
                     <div
                       key={item.id}
                       className="feed-card-in h-full"
@@ -881,7 +973,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         animationDelay: `${
                           gridStaggerDone.current
                             ? 0
-                            : Math.min((liveAuctionsList.length + index) * 0.04, 0.32)
+                            : Math.min((liveList.length + index) * 0.04, 0.32)
                         }s`,
                       }}
                     >
@@ -896,6 +988,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         onSelectLot={setSelectedLotId}
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
+                        liveEnabled={usePaginated}
                       />
                     </div>
                   ))}
@@ -1055,6 +1148,24 @@ export const DiscoveryFeedView: React.FC = () => {
           isOpen={true}
           onClose={() => setSelectedProfileId(null)}
         />
+      )}
+
+      {/* New-drops pill (paginated path only): a single fresh-live lot arrived
+          after the loaded page. Tapping refreshes page 1 (which clears it).
+          Fixed + centered below the sticky header; bilingual/RTL. Smooth
+          ease-out entrance (no bouncy spring, per motion preference). */}
+      {usePaginated && feed.newDropsAvailable && (
+        <motion.button
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          onClick={() => feed.refresh()}
+          className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+7.5rem)] lg:top-24 z-50 flex items-center gap-1.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-full shadow-lg shadow-orange-900/25 active:scale-95 transition-colors cursor-pointer"
+          id="discover-new-drops-pill"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+          <span>{isAr ? 'دفعات جديدة' : 'New drops'}</span>
+        </motion.button>
       )}
 
       {/* Win celebration — always mounted; bursts on the win transition */}
