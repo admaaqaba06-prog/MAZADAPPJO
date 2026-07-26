@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { resolveBidGate } from '../utils/guestGate';
+import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
 
 type BidResult = { success: boolean; message: string } | void;
@@ -41,22 +41,28 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  * can branch on success/failure.
  */
 export function useBidFlow(execute: BidExecute) {
-  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, requestSignIn } = useApp();
+  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, requestSignIn } = useApp();
   const isMember = currentUser?.subscriptionStatus === 'active';
   const isGuest = !isAuthenticated;
   const hasPhoto = hasRealPhoto(currentUser);
+  const contactComplete = isContactComplete(currentUser);
 
   const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // E5: amount staged while the contact-completion gate is open. Once the account
+  // gains the missing channel (currentUser mirror updates -> contactComplete), the
+  // resume effect below stages the confirm at this originally-tapped amount.
+  const [pendingContactAmount, setPendingContactAmount] = useState<number | null>(null);
 
   // Ordered gate (resolveBidGate — pure, see utils/guestGate.test.ts):
   //   guest        -> SIGNUP (never a members-only sheet)
   //   non-member   -> subscription invite
   //   member, no photo -> "add a photo to bid" trust gate (client-side only)
-  //   member, photo    -> stage the confirm
+  //   member, photo, incomplete contact -> contact-completion modal
+  //   member, photo, complete contact    -> stage the confirm
   // The server bid path is untouched — this only decides whether to stage.
   const startBid = useCallback((amount: number) => {
-    const decision = resolveBidGate({ isAuthenticated, isMember, hasPhoto });
+    const decision = resolveBidGate({ isAuthenticated, isMember, hasPhoto, contactComplete });
     if (decision === 'signin') {
       requestSignIn();
       return;
@@ -69,8 +75,26 @@ export function useBidFlow(execute: BidExecute) {
       setShowPhotoGate(true);
       return;
     }
+    if (decision === 'contact') {
+      // Stash the amount + open the global contact modal; the resume effect stages
+      // the confirm once the account has both channels (matches the photo/membership
+      // gate mechanism, but resumes the original bid instead of dropping it).
+      setPendingContactAmount(amount);
+      setContactModalOpen(true);
+      return;
+    }
     setPendingBid(amount);
-  }, [isAuthenticated, isMember, hasPhoto, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate]);
+  }, [isAuthenticated, isMember, hasPhoto, contactComplete, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen]);
+
+  // E5 resume: once the contact modal completes (account now has phone + email),
+  // stage the confirm at the amount the user originally tapped. Only the surface
+  // that staged an amount resumes — other useBidFlow instances hold null.
+  useEffect(() => {
+    if (pendingContactAmount !== null && contactComplete) {
+      setPendingBid(pendingContactAmount);
+      setPendingContactAmount(null);
+    }
+  }, [pendingContactAmount, contactComplete]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 
