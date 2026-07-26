@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucid
 import { CountUp, markFirstBidDone, useToast } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
 import { BidSheet } from './auction/BidSheet';
+import AuctionRulesModal from './AuctionRulesModal';
 import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
@@ -172,6 +173,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
     : 10;
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
   const [priceMoved, setPriceMoved] = useState(false);
   const [showWinPill, setShowWinPill] = useState(false);
   const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -625,7 +627,11 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         onCancel={handleCancel}
         showCoach={showCoach}
         showWinPill={showWinPill}
+        onOpenRules={() => setRulesOpen(true)}
       />
+
+      {/* E4 — Auction Rules modal (opened from the bid sheet's "Rules" affordance) */}
+      <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
     </div>
   );
 };

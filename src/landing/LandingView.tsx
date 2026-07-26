@@ -43,6 +43,7 @@ import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
+import AuctionRulesModal from "../components/AuctionRulesModal";
 
 // Reveal scroll component
 function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number; key?: React.Key }) {
@@ -487,6 +488,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
   // Terms & Privacy modal state (public legal reachability from the landing footer)
   const [isTermsOpen, setIsTermsOpen] = useState<boolean>(false);
+  // E4 — plain-language Auction Rules modal (public reachability from the footer)
+  const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
 
   // Sticky Header state
   const [scrolled, setScrolled] = useState<boolean>(false);
@@ -2999,6 +3002,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               </a>
               <button
                 type="button"
+                onClick={() => setIsRulesOpen(true)}
+                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-gray-600"
+              >
+                {lang === "ar" ? "قواعد المزاد" : "Auction Rules"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsTermsOpen(true)}
                 className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-gray-600"
               >
@@ -3099,6 +3109,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
       {/* Terms of Use & Privacy Policy modal (opened from the footer) */}
       <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
+
+      {/* E4 — plain-language Auction Rules modal (opened from the footer) */}
+      <AuctionRulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} isAr={lang === "ar"} />
+
 
     </div>
   );

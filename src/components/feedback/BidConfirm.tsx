@@ -99,6 +99,10 @@ export default function BidConfirm({
               ? `المجموع عند الفوز ${totalWithPremium(amount).toLocaleString()} د.أ (شامل ٥٪)`
               : `Total if you win ${totalWithPremium(amount).toLocaleString()} JD (incl. 5%)`}
           </p>
+          {/* E4 — just-in-time binding reminder (copy only, no flow change) */}
+          <p className="text-[9.5px] text-amber-400 font-black text-center leading-snug">
+            {isAr ? 'هذه المزايدة مُلزِمة.' : 'This bid is binding.'}
+          </p>
           <div className="flex gap-2 w-full max-w-[280px] mt-1">
             <Pressable
               onClick={() => {

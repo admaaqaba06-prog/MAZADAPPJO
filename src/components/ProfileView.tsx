@@ -20,8 +20,10 @@ import {
   ExternalLink,
   Trophy,
   HelpCircle,
-  Camera
+  Camera,
+  ScrollText
 } from 'lucide-react';
+import AuctionRulesModal from './AuctionRulesModal';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
 const WON_ORDER_STATUSES: Order['status'][] = ['paid', 'preparing_shipment', 'shipped', 'delivered', 'completed'];
@@ -44,6 +46,7 @@ export const ProfileView: React.FC = () => {
   const [city, setCity] = useState(currentUser?.city || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
 
   // Avatar upload (tap-to-change control on the profile photo).
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -576,7 +579,32 @@ export const ProfileView: React.FC = () => {
           {isAr ? <ChevronLeft className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
         </button>
 
+        {/* E4 — Auction Rules entry point (account/help area) */}
+        <button
+          type="button"
+          onClick={() => setRulesOpen(true)}
+          className="w-full bg-white hover:bg-gray-50 border border-gray-200 rounded-3xl p-5 flex items-center justify-between gap-4 transition-colors cursor-pointer text-start"
+          id="profile-auction-rules-link"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00] shrink-0">
+              <ScrollText className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-sans font-black text-xs text-gray-900 uppercase tracking-wider truncate">
+                {isAr ? 'قواعد المزاد' : 'Auction Rules'}
+              </h3>
+              <p className="text-[9px] text-gray-500 truncate">
+                {isAr ? 'القواعد المبسّطة للمزايدة والدفع والإرجاع' : 'The plain-language bidding, payment & returns rules'}
+              </p>
+            </div>
+          </div>
+          {isAr ? <ChevronLeft className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+        </button>
+
       </div>
+
+      <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
     </div>
   );
 };

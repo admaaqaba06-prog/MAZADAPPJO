@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
+import AuctionRulesModal from './AuctionRulesModal';
 import {
   UserPlus,
   Gavel,
@@ -11,6 +12,7 @@ import {
   ShieldCheck,
   HelpCircle,
   Ban,
+  ScrollText,
 } from 'lucide-react';
 
 /**
@@ -119,6 +121,7 @@ export const HowItWorksView: React.FC = () => {
   const isAr = language === 'ar';
   const isMember = currentUser?.subscriptionStatus === 'active';
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
 
   const PrimaryCta = ({ id }: { id: string }) => (
     <button
@@ -223,6 +226,24 @@ export const HowItWorksView: React.FC = () => {
           </button>
         </motion.div>
 
+        {/* E4 — full auction rules entry point */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ ...easeOut, delay: 0.43 }}
+          className="text-center"
+        >
+          <button
+            type="button"
+            onClick={() => setRulesOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E85D04] hover:text-orange-600 transition-colors cursor-pointer"
+            id="how-it-works-auction-rules-link"
+          >
+            <ScrollText className="w-3.5 h-3.5" />
+            {isAr ? 'اقرأ قواعد المزاد كاملة' : 'Read the full auction rules'}
+          </button>
+        </motion.div>
+
         {/* FAQ */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -291,6 +312,8 @@ export const HowItWorksView: React.FC = () => {
         </motion.div>
 
       </div>
+
+      <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
     </div>
   );
 };

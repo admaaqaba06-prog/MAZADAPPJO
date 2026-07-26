@@ -4,6 +4,7 @@ import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
 import { SUBSCRIPTION_TIERS } from '../constants/subscriptionTiers';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
+import AuctionRulesModal from './AuctionRulesModal';
 import { ShieldCheck, Check, Copy, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
 
 // Helper to compress base64 images to stay under the 1MB Firestore limit
@@ -84,6 +85,10 @@ export const SubscriptionView: React.FC = () => {
   const [transferPhone, setTransferPhone] = useState('');
   const [copied, setCopied] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
+  // E4 — pay-to-bid acceptance gate for the Auction Rules.
+  const [acceptedRules, setAcceptedRules] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [showAcceptError, setShowAcceptError] = useState(false);
   const isAr = language === 'ar';
 
   // Tier rank for "show only higher tiers" upgrade logic.
@@ -178,6 +183,12 @@ export const SubscriptionView: React.FC = () => {
     }
     if (!paymentProofImage) {
       alert(isAr ? 'معذرة! يرجى رفع لقطة الشاشة/الإيصال لإثبات الدفع.' : 'Please upload payment screenshot proof to activate your executive bidding pass.');
+      return;
+    }
+    // E4 — must accept the Auction Rules before paying to bid.
+    if (!acceptedRules) {
+      setShowAcceptError(true);
+      alert(isAr ? 'الرجاء قراءة قواعد المزاد والموافقة عليها للمتابعة.' : 'Please read and accept the Auction Rules to continue.');
       return;
     }
     setLoading(true);
@@ -520,9 +531,54 @@ export const SubscriptionView: React.FC = () => {
           ))}
         </div>
 
+        {/* E4 — Auction Rules acceptance gate (required before paying to bid) */}
+        <div
+          className={`flex items-start gap-3 rounded-2xl border p-4 mb-4 transition-colors ${
+            showAcceptError && !acceptedRules
+              ? 'border-red-400 bg-red-50/60'
+              : acceptedRules
+                ? 'border-[#FF6B00]/40 bg-[#FFF8F3]'
+                : 'border-gray-200 bg-gray-50/50'
+          }`}
+          id="auction-rules-accept-gate"
+        >
+          <input
+            type="checkbox"
+            id="accept-auction-rules"
+            checked={acceptedRules}
+            onChange={(e) => {
+              setAcceptedRules(e.target.checked);
+              if (e.target.checked) setShowAcceptError(false);
+            }}
+            className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
+          />
+          <label htmlFor="accept-auction-rules" className="text-[11px] font-bold text-gray-700 leading-relaxed cursor-pointer">
+            {isAr ? 'لقد قرأت وأوافق على ' : 'I have read and accept the '}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); setRulesOpen(true); }}
+              className="text-[#FF6B00] font-black underline underline-offset-2 hover:text-[#e05e00] cursor-pointer"
+              id="open-auction-rules-link"
+            >
+              {isAr ? 'قواعد المزاد' : 'Auction Rules'}
+            </button>
+            {isAr ? '.' : '.'}
+            <span className="text-red-500"> *</span>
+            <span className="block mt-1 text-[10px] font-semibold text-gray-400">
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setRulesOpen(true); }}
+                className="underline underline-offset-2 hover:text-[#FF6B00] cursor-pointer"
+              >
+                {isAr ? 'اقرأ القواعد' : 'read the rules'}
+              </button>
+            </span>
+          </label>
+        </div>
+
         {/* Action Button */}
         {loading ? (
-          <button 
+          <button
             disabled
             className="w-full bg-gray-900 text-white font-extrabold text-xs py-4 rounded-xl flex items-center justify-center gap-2"
           >
@@ -530,9 +586,14 @@ export const SubscriptionView: React.FC = () => {
             <span>CONNECTING SECURE BANK ROUTE... (CliQ Jordan)</span>
           </button>
         ) : (
-          <button 
+          <button
             onClick={handlePay}
-            className="w-full bg-[#FF6B00] text-white font-black text-xs py-4 rounded-xl shadow-[0_4px_16px_rgba(255,107,0,0.3)] hover:brightness-105 transition-all flex items-center justify-center gap-1 border border-transparent"
+            disabled={!acceptedRules}
+            className={`w-full font-black text-xs py-4 rounded-xl transition-all flex items-center justify-center gap-1 border border-transparent ${
+              acceptedRules
+                ? 'bg-[#FF6B00] text-white shadow-[0_4px_16px_rgba(255,107,0,0.3)] hover:brightness-105 cursor-pointer'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
             id="activate-paywall-sub-btn"
           >
             <CreditCard className="w-4 h-4" />
@@ -548,9 +609,18 @@ export const SubscriptionView: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto">
-        {isAr ? 'الدفع عبر كليك • حماية المشتري من مزاد' : 'PAY VIA CLIQ • BUYER PROTECTION BY MAZAD'}
+      <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto flex flex-col items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setRulesOpen(true)}
+          className="text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer underline underline-offset-2 uppercase"
+        >
+          {isAr ? 'قواعد المزاد' : 'Auction Rules'}
+        </button>
+        <span>{isAr ? 'الدفع عبر كليك • حماية المشتري من مزاد' : 'PAY VIA CLIQ • BUYER PROTECTION BY MAZAD'}</span>
       </footer>
+
+      <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
     </div>
   );
 };
