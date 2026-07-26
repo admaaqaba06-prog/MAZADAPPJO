@@ -21,7 +21,11 @@ actually carries**, rather than a claim.
 
 It also closes the matching defect on the auction page itself: the desktop
 product-info row hardcodes `"NEW"`, `"Free Delivery"` and `"Amman, Jordan"` as
-literals for every lot (`docs/BACKLOG.md`; `DesktopLiveAuctionLayout.tsx:506/519/532`).
+literals for every lot (`DesktopLiveAuctionLayout.tsx:506/519/532`). The mobile
+redesign spec called for exactly this — "read condition/location/shipping from the
+auction doc; delete the hardcoded literals … never show fake"
+(`2026-07-25-mobile-auction-redesign-design.md`) — but that pass was mobile-only, so
+the desktop layout still carries them.
 
 ## Why per-lot, set at approval
 
@@ -133,6 +137,7 @@ hardcodes three literals for every lot. All three are fixed here:
 | Condition | always `"جديد ممتاز"` / `"NEW"` | reads `activeAuction.condition`, exactly as `MobileAuctionView` already does; hidden when unset |
 | Shipping | always `"توصيل مجاني"` / `"Free Delivery"` | **removed** — no shipping data backs it, so it is a delivery promise that may not be kept |
 | Location | always `"عمان، الأردن"` / `"Amman, Jordan"` | replaced by the viewing chip; hidden when `resolveViewing` returns null |
+| Auction ID | real (`activeAuction.id`) | unchanged — always shown |
 
 The row must lay out correctly at one, two, or zero blocks — its dividers are
 per-child borders, so blocks are rendered from a filtered array rather than as three
