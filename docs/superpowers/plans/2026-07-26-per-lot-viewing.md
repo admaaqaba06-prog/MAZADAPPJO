@@ -335,23 +335,101 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 4: Viewing selector on the admin approval card
 
 **Files:**
+- Create: `src/components/admin/ViewingSelector.tsx`
 - Modify: `src/components/admin/LaunchSection.tsx` — add local state near `repairResults` (~line 147), and replace the approve button block (~lines 276-283).
 
 **Interfaces:**
 - Consumes: `approveListing(id, viewing?, viewingPlace?)` from Task 3; `ViewingMode` from Task 1.
-- Produces: nothing consumed by later tasks.
+- Produces: `<ViewingSelector value onChange place onPlaceChange isAr accentClass />` from `src/components/admin/ViewingSelector.tsx` — **reused verbatim by Task 7**, which must import it rather than re-inline the markup.
 
 Note: `rejectingId` / `setRejectingId` arrive as props from the shell, but the new viewing state is per-card UI state nothing else needs, so it is **local** — matching `repairResults`, which is already local in this component.
 
-- [ ] **Step 1: Add the import**
+- [ ] **Step 1: Create the shared selector component**
+
+Both admin surfaces that set viewing (this approval card and the drop-builder in
+Task 7) need the same control, so it lives in one place. Create
+`src/components/admin/ViewingSelector.tsx`:
+
+```tsx
+import React from 'react';
+import type { ViewingMode } from '../../utils/viewing';
+
+/**
+ * Admin control for per-lot viewing. Shared by the approval card
+ * (LaunchSection) and the drop-builder so the two cannot drift.
+ *
+ * Deliberately OPTIONAL: `value === ''` means "not stated", and a lot approved
+ * that way renders no viewing claim at all. Tapping the selected chip clears
+ * back to that state — an admin who mis-clicks must be able to un-state it.
+ */
+
+const OPTIONS: { id: ViewingMode; ar: string; en: string }[] = [
+  { id: 'office', ar: 'بمكاتبنا', en: 'Our office' },
+  { id: 'store', ar: 'عند البائع', en: 'Seller store' },
+  { id: 'private', ar: 'بدون معاينة', en: 'No viewing' },
+];
+
+export interface ViewingSelectorProps {
+  value: ViewingMode | '';
+  onChange: (next: ViewingMode | '') => void;
+  place: string;
+  onPlaceChange: (next: string) => void;
+  isAr: boolean;
+  /** Selected-chip classes — the two admin surfaces use different accents. */
+  accentClass?: string;
+}
+
+export const ViewingSelector: React.FC<ViewingSelectorProps> = ({
+  value,
+  onChange,
+  place,
+  onPlaceChange,
+  isAr,
+  accentClass = 'bg-emerald-600 text-white border-emerald-600',
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <span className="text-[10px] font-bold text-gray-400 uppercase">
+      {isAr ? 'المعاينة (اختياري)' : 'Viewing (optional)'}
+    </span>
+    <div className="flex gap-1.5">
+      {OPTIONS.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => onChange(value === opt.id ? '' : opt.id)}
+          className={`flex-1 text-[10px] font-bold py-1.5 rounded-lg border transition-all ${
+            value === opt.id
+              ? accentClass
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          {isAr ? opt.ar : opt.en}
+        </button>
+      ))}
+    </div>
+    {value === 'store' && (
+      <input
+        type="text"
+        value={place}
+        onChange={(e) => onPlaceChange(e.target.value)}
+        placeholder={isAr ? 'اسم المحل والموقع' : 'Store name and location'}
+        className="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-emerald-500"
+      />
+    )}
+  </div>
+);
+```
+
+- [ ] **Step 2: Add the import**
 
 At the top of `src/components/admin/LaunchSection.tsx`, add:
 
 ```ts
 import type { ViewingMode } from '../../utils/viewing';
+import { ViewingSelector } from './ViewingSelector';
 ```
 
-- [ ] **Step 2: Add local state**
+- [ ] **Step 3: Add local state**
 
 Find:
 
@@ -369,7 +447,7 @@ Insert immediately after:
   const [viewingPlaceById, setViewingPlaceById] = useState<Record<string, string>>({});
 ```
 
-- [ ] **Step 3: Replace the approve button with selector + button**
+- [ ] **Step 4: Replace the approve button with selector + button**
 
 Find this block:
 
@@ -390,53 +468,22 @@ Replace with:
                         {/* Per-lot viewing. Optional: approving without a choice
                             leaves it unset, and the lot simply says nothing about
                             viewing rather than claiming a location. */}
-                        <div className="flex flex-col gap-1.5">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">
-                            {isAr ? 'المعاينة (اختياري)' : 'Viewing (optional)'}
-                          </span>
-                          <div className="flex gap-1.5">
-                            {([
-                              { id: 'office' as const, ar: 'بمكاتبنا', en: 'Our office' },
-                              { id: 'store' as const, ar: 'عند البائع', en: 'Seller store' },
-                              { id: 'private' as const, ar: 'بدون معاينة', en: 'No viewing' },
-                            ]).map((opt) => {
-                              const selected = viewingById[item.id] === opt.id;
-                              return (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setViewingById((prev) => {
-                                      const next = { ...prev };
-                                      // Tapping the selected chip clears it — back to "not stated".
-                                      if (next[item.id] === opt.id) delete next[item.id];
-                                      else next[item.id] = opt.id;
-                                      return next;
-                                    })
-                                  }
-                                  className={`flex-1 text-[10px] font-bold py-1.5 rounded-lg border transition-all ${
-                                    selected
-                                      ? 'bg-emerald-600 text-white border-emerald-600'
-                                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {isAr ? opt.ar : opt.en}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {viewingById[item.id] === 'store' && (
-                            <input
-                              type="text"
-                              value={viewingPlaceById[item.id] || ''}
-                              onChange={(e) =>
-                                setViewingPlaceById((prev) => ({ ...prev, [item.id]: e.target.value }))
-                              }
-                              placeholder={isAr ? 'اسم المحل والموقع' : 'Store name and location'}
-                              className="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-emerald-500"
-                            />
-                          )}
-                        </div>
+                        <ViewingSelector
+                          value={viewingById[item.id] || ''}
+                          onChange={(next) =>
+                            setViewingById((prev) => {
+                              const updated = { ...prev };
+                              if (next) updated[item.id] = next;
+                              else delete updated[item.id];
+                              return updated;
+                            })
+                          }
+                          place={viewingPlaceById[item.id] || ''}
+                          onPlaceChange={(next) =>
+                            setViewingPlaceById((prev) => ({ ...prev, [item.id]: next }))
+                          }
+                          isAr={isAr}
+                        />
 
                         <div className="flex gap-2">
                         <button
@@ -449,22 +496,22 @@ Replace with:
                         </button>
 ```
 
-- [ ] **Step 4: Close the extra wrapper**
+- [ ] **Step 5: Close the extra wrapper**
 
 The block above opened one extra `<div className="flex gap-2">`. Find the reject button that follows the approve button, and the `</div>` that closed the original `flex gap-2` wrapper. Add one more `</div>` after it so the new outer `flex flex-col gap-2` is closed too.
 
 Verify by typecheck rather than by eye — Step 5 catches an unbalanced tag as a JSX parse error.
 
-- [ ] **Step 5: Verify it typechecks and builds**
+- [ ] **Step 6: Verify it typechecks and builds**
 
 Run: `npm run lint && npm run build`
 Expected: `tsc` exits 0; build ends with `✓ built in …`. A JSX imbalance from Step 4 surfaces here as a parse error naming `LaunchSection.tsx`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/components/admin/LaunchSection.tsx
-git commit -m "feat(viewing): viewing selector on the admin approval card
+git add src/components/admin/ViewingSelector.tsx src/components/admin/LaunchSection.tsx
+git commit -m "feat(viewing): shared viewing selector + wire it into the approval card
 
 Three-way chip selector + a place input shown only for 'store'. Optional by
 design: approving without choosing leaves viewing unset, so the lot states
@@ -741,7 +788,7 @@ For lots Mazad creates directly, which never pass a separate approval step.
 - Modify: `src/components/AuctionDropBuilderView.tsx` — add state alongside the other field state, a selector in the form, and the fields in the `createListing` payload (~line 181-215).
 
 **Interfaces:**
-- Consumes: `ViewingMode` from Task 1; `AuctionItem.viewing`/`viewingPlace` from Task 2.
+- Consumes: `ViewingMode` from Task 1; `AuctionItem.viewing`/`viewingPlace` from Task 2; `<ViewingSelector />` from Task 4 — **import it, do not re-inline the markup**.
 - Produces: nothing.
 
 - [ ] **Step 1: Add the import**
@@ -750,6 +797,7 @@ Add to the imports at the top of `src/components/AuctionDropBuilderView.tsx`:
 
 ```ts
 import type { ViewingMode } from '../utils/viewing';
+import { ViewingSelector } from './admin/ViewingSelector';
 ```
 
 - [ ] **Step 2: Add state**
@@ -796,44 +844,16 @@ The component defines `const isAr = language === 'ar';` at line 49, so `isAr` be
 Find the JSX label/input group for the starting price field. Immediately after that group's closing tag, insert:
 
 ```tsx
-              {/* Per-lot viewing — optional. */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-gray-500 uppercase">
-                  {isAr ? 'المعاينة (اختياري)' : 'Viewing (optional)'}
-                </label>
-                <div className="flex gap-1.5">
-                  {([
-                    { id: 'office' as const, ar: 'بمكاتبنا', en: 'Our office' },
-                    { id: 'store' as const, ar: 'عند البائع', en: 'Seller store' },
-                    { id: 'private' as const, ar: 'بدون معاينة', en: 'No viewing' },
-                  ]).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setViewing((prev) => (prev === opt.id ? '' : opt.id))}
-                      className={`flex-1 text-[11px] font-bold py-2 rounded-lg border transition-all ${
-                        viewing === opt.id
-                          ? 'bg-[#F05123] text-white border-[#F05123]'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      {isAr ? opt.ar : opt.en}
-                    </button>
-                  ))}
-                </div>
-                {viewing === 'store' && (
-                  <input
-                    type="text"
-                    value={viewingPlace}
-                    onChange={(e) => setViewingPlace(e.target.value)}
-                    placeholder={isAr ? 'اسم المحل والموقع' : 'Store name and location'}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-[#F05123]"
-                  />
-                )}
-              </div>
+              {/* Per-lot viewing — optional. Same control as the approval card. */}
+              <ViewingSelector
+                value={viewing}
+                onChange={setViewing}
+                place={viewingPlace}
+                onPlaceChange={setViewingPlace}
+                isAr={isAr}
+                accentClass="bg-[#F05123] text-white border-[#F05123]"
+              />
 ```
-
-If the file's local variable for Arabic is not `isAr`, use whatever that component already uses for the same purpose — check the surrounding JSX before inserting.
 
 - [ ] **Step 5: Verify**
 
