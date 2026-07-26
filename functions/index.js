@@ -2386,8 +2386,10 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
     throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
   }
 
+  let bidderNotify = null;
   try {
-    return await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
+      bidderNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
       const auctionRef = db.collection('auctions').doc(auctionId);
       const orderRef = db.collection('orders').doc(auctionId);
       const callerRef = db.collection('users').doc(callerUserId);
@@ -2425,13 +2427,35 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       if (auctionSnap.exists && auctionSnap.data().belowReserveOffer) {
+        const auctionData = auctionSnap.data();
+        const offer = auctionData.belowReserveOffer;
         transaction.update(auctionRef, {
           'belowReserveOffer.status': 'declined',
           'belowReserveOffer.buyerDeclinedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
+        if (offer && offer.topBidderId) {
+          bidderNotify = {
+            topBidderId: offer.topBidderId,
+            auctionTitle: auctionData.title || auctionData.auctionTitle || '',
+          };
+        }
       }
       return { success: true, message: 'تم رفض العرض.' };
     });
+
+    if (bidderNotify) {
+      await notify({
+        uid: bidderNotify.topBidderId,
+        event: 'below_reserve_declined',
+        data: {
+          auctionId,
+          auctionTitle: bidderNotify.auctionTitle,
+          idempotencyKey: `${auctionId}_below_reserve_declined`,
+        },
+      });
+    }
+
+    return result;
   } catch (error) {
     if (error instanceof functions.https.HttpsError) throw error;
     console.error('Error in declineBelowReserve:', error);
