@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { minNextBid, totalWithPremium, isViewerWinner } from './bidMath';
+import { minNextBid, totalWithPremium, isViewerWinner, sellerNet } from './bidMath';
+
+describe('sellerNet (hammer − 5% commission)', () => {
+  it('nets 95 on a 100 sale', () => {
+    expect(sellerNet(100)).toBe(95);
+  });
+  it('buyer total and seller net bracket the hammer by ±5% (10% total take)', () => {
+    expect(totalWithPremium(100)).toBe(105);
+    expect(sellerNet(100)).toBe(95);
+    expect(totalWithPremium(100) - sellerNet(100)).toBe(10);
+  });
+  it('is 0 for non-positive', () => {
+    expect(sellerNet(0)).toBe(0);
+    expect(sellerNet(-5)).toBe(0);
+  });
+});
 
 describe('totalWithPremium', () => {
   // Double-round at fils (1/1000 JOD): matches the server order totalDue.
