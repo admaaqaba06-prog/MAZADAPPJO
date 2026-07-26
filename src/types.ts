@@ -383,6 +383,8 @@ export interface Order {
  * Two directions share the `reviews` collection:
  *  - buyer_rates_auction: buyer rates their won auction (buyerId == author uid, per firestore.rules)
  *  - mazad_rates_buyer:   admin one-tap buyer trust rating (buyerId = the rated buyer, ratedBy = admin uid)
+ *  - seller_rates_buyer:  E7 — seller rates the buyer after a completed order
+ *                         (buyerId = the rated buyer, ratedBy/sellerId = the seller uid)
  */
 export interface OrderReview {
   id: string;
@@ -391,7 +393,7 @@ export interface OrderReview {
   buyerId: string;
   stars: number;
   text: string;
-  direction: 'buyer_rates_auction' | 'mazad_rates_buyer';
+  direction: 'buyer_rates_auction' | 'mazad_rates_buyer' | 'seller_rates_buyer';
   vendorId?: string | null;
   ratedBy?: string;
   createdAt: any;

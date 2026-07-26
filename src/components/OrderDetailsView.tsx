@@ -52,7 +52,7 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn, sellerRespondToReturn } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn, sellerRespondToReturn, rateBuyer } = useApp();
   const isAr = language === 'ar';
   const t = translations[language as 'en' | 'ar'];
 
@@ -78,6 +78,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // Admin one-tap buyer rating (mazad_rates_buyer): existing stars for this order, if any.
   const [adminBuyerStars, setAdminBuyerStars] = useState<number | null>(null);
   const [adminRatingSaving, setAdminRatingSaving] = useState(false);
+
+  // E7 — seller rates the buyer (seller_rates_buyer): existing stars for this
+  // order (if already rated) + inline star-picker + comment state.
+  const [sellerBuyerStars, setSellerBuyerStars] = useState<number | null>(null);
+  const [sellerRatePick, setSellerRatePick] = useState(0);
+  const [sellerRateHover, setSellerRateHover] = useState(0);
+  const [sellerRateComment, setSellerRateComment] = useState('');
+  const [sellerRatingSaving, setSellerRatingSaving] = useState(false);
 
   // W4 — per-order delivery address + phone the buyer provides at the pay step.
   // Prefill governorate from the profile city and phone from the profile phone;
@@ -164,6 +172,41 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     } finally {
       setAdminRatingSaving(false);
     }
+  };
+
+  // E7 — look up an existing seller_rates_buyer review for this order (seller view
+  // only), so a repeat visit renders the read-only "you rated" state.
+  const isSellerViewer = !!order && currentUser?.id === order.sellerId;
+  useEffect(() => {
+    if (!order || !isSellerViewer) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'reviews'),
+          where('orderId', '==', order.id),
+          where('direction', '==', 'seller_rates_buyer'),
+          limit(1)
+        ));
+        if (!cancelled && !snap.empty) {
+          setSellerBuyerStars((snap.docs[0].data() as any).stars ?? null);
+        }
+      } catch (err) {
+        console.warn('Seller buyer-rating lookup failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order?.id, isSellerViewer]);
+
+  const handleSellerRateBuyer = async () => {
+    if (!order || sellerRatingSaving || sellerBuyerStars !== null || sellerRatePick < 1) return;
+    setSellerRatingSaving(true);
+    const chosen = sellerRatePick;
+    const result = await rateBuyer(order.id, { stars: chosen, comment: sellerRateComment.trim() || undefined });
+    if (result.success) {
+      setSellerBuyerStars(chosen);
+    }
+    setSellerRatingSaving(false);
   };
 
   // Subscribe to real-time order activity history from Firestore
@@ -1901,6 +1944,76 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <ShieldAlert className="w-4 h-4 text-red-500" />
                       <span>{isAr ? 'رفع نزاع رسمي ومشكلة الشحن' : 'File Formal Dispute'}</span>
                     </button>
+                  )}
+
+                  {/* E7 — seller rates the buyer once the order is completed */}
+                  {order.status === 'completed' && (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3 transition-all duration-200 ease-out" id="seller-rate-buyer-block">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                        <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                          {isAr ? 'قيّم المشتري' : 'Rate the buyer'}
+                        </h4>
+                      </div>
+
+                      {sellerBuyerStars !== null ? (
+                        <div className="flex items-center gap-1.5" dir="ltr">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              className={`w-6 h-6 ${n <= sellerBuyerStars ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`}
+                              strokeWidth={1.75}
+                            />
+                          ))}
+                          <span className="text-[9.5px] text-gray-400 font-mono font-bold ms-1">
+                            {isAr ? `قيّمتَ هذا المشتري ${sellerBuyerStars}/5` : `You rated this buyer ${sellerBuyerStars}/5`}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5" dir="ltr">
+                            {[1, 2, 3, 4, 5].map((n) => {
+                              const highlighted = n <= (sellerRateHover || sellerRatePick);
+                              return (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  disabled={sellerRatingSaving}
+                                  onClick={() => setSellerRatePick(n)}
+                                  onMouseEnter={() => setSellerRateHover(n)}
+                                  onMouseLeave={() => setSellerRateHover(0)}
+                                  aria-label={`${n}/5`}
+                                  className="p-0.5 transition-transform duration-150 ease-out hover:scale-110 active:scale-95 cursor-pointer disabled:cursor-default"
+                                  id={`seller-rate-buyer-star-${n}`}
+                                >
+                                  <Star
+                                    className={`w-7 h-7 transition-colors ${highlighted ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`}
+                                    strokeWidth={1.75}
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <textarea
+                            value={sellerRateComment}
+                            onChange={(e) => setSellerRateComment(e.target.value)}
+                            disabled={sellerRatingSaving}
+                            maxLength={500}
+                            rows={2}
+                            placeholder={isAr ? 'أضف تعليقاً (اختياري)' : 'Add a comment (optional)'}
+                            className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none transition-all duration-200 ease-out"
+                          />
+                          <button
+                            onClick={handleSellerRateBuyer}
+                            disabled={sellerRatingSaving || sellerRatePick < 1}
+                            className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-40"
+                          >
+                            <Star className="w-4 h-4" />
+                            <span>{sellerRatingSaving ? (isAr ? 'جارٍ الحفظ...' : 'Saving...') : (isAr ? 'إرسال التقييم' : 'Submit rating')}</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </>
               )}
