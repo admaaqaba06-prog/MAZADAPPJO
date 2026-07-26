@@ -1061,6 +1061,47 @@ exports.onOrderStatusChanged = functions.firestore
   });
 
 /**
+ * onUserBlockChanged
+ * Single choke point for ban apply/lift notifications. Fires on ANY isBlocked
+ * transition on users/{userId} regardless of writer — the paymentDefaultEnforcer
+ * (strike ladder + auto-expiry) AND client-side admin ban/unban (AppContext
+ * writes isBlocked via updateDoc) both flow through here, so there is exactly
+ * one notify per transition and no double-fire. Never throws.
+ */
+exports.onUserBlockChanged = functions.firestore
+  .document('users/{userId}')
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const wasBlocked = before.isBlocked === true;
+      const nowBlocked = after.isBlocked === true;
+      if (!wasBlocked && nowBlocked) {
+        const until = after.blockedUntil && typeof after.blockedUntil.toMillis === 'function'
+          ? after.blockedUntil.toMillis() : null;
+        await notify({
+          uid: context.params.userId,
+          event: 'account_banned',
+          data: {
+            reason: after.blockedReason || 'admin',
+            blockedUntil: until,
+            idempotencyKey: `${context.params.userId}_banned_${until || 'perm'}`,
+          },
+        });
+      } else if (wasBlocked && !nowBlocked) {
+        await notify({
+          uid: context.params.userId,
+          event: 'ban_lifted',
+          data: { idempotencyKey: `${context.params.userId}_lifted_${(before.blockedUntil && before.blockedUntil.toMillis && before.blockedUntil.toMillis()) || 'x'}` },
+        });
+      }
+    } catch (e) {
+      console.warn('[onUserBlockChanged]', e && e.message);
+    }
+    return null;
+  });
+
+/**
  * Shared bid helpers — extracted from placeBid so simulateBid applies the
  * EXACT same end-time resolution, min-next-bid pricing, and anti-snipe rules.
  */

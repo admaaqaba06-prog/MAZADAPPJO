@@ -52,7 +52,10 @@ function copyFor(event, data = {}) {
     order_refunded: { type: 'refund', title: 'تم الاسترجاع', description: `تمت إعادة مبلغ طلبك "${t}".` },
     membership_rejected: { type: 'subscription', title: 'مراجعة العضوية', description: data.reason || 'تم رفض طلب العضوية.' },
     order_payment_rejected: { type: 'order', title: 'رُفض إثبات الدفع', description: data.reason || 'يرجى إعادة إرسال إثبات الدفع.' },
-    account_banned: { type: 'alert', title: 'تم تقييد الحساب', description: data.reason === 'payment_default_repeat' ? 'تم تعليق حسابك ٣ أشهر لتكرار عدم الدفع.' : 'تم تقييد المزايدة ٤٨ ساعة بسبب عدم الدفع.' },
+    account_banned: { type: 'alert', title: 'تم تقييد الحساب', description:
+      data.reason === 'payment_default_repeat' ? 'تم تعليق حسابك ٣ أشهر لتكرار عدم الدفع.'
+      : data.reason === 'payment_default' ? 'تم تقييد المزايدة ٤٨ ساعة بسبب عدم الدفع.'
+      : 'تم تقييد حسابك. يرجى مراجعة الدعم لمزيد من التفاصيل.' },
     ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'يمكنك المزايدة مجدداً.' },
     seller_ship_nudge: { type: 'order', title: 'ذكّر بالشحن', description: `يرجى شحن الطلب "${t}".` },
     buyer_confirm_nudge: { type: 'order', title: 'أكّد الاستلام', description: `يرجى تأكيد استلام "${t}".` },

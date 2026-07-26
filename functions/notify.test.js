@@ -31,6 +31,13 @@ describe('copyFor', () => {
   it('account_banned maps to alert type', () => {
     expect(copyFor('account_banned', { reason: 'payment_default' }).type).toBe('alert');
   });
+  it('account_banned admin/permanent ban does NOT claim a 48h duration', () => {
+    const c = copyFor('account_banned', { reason: 'admin', blockedUntil: null });
+    expect(c.type).toBe('alert');
+    expect(c.description).not.toContain('٤٨');
+    expect(c.description).not.toContain('48');
+    expect(c.description.length).toBeGreaterThan(0);
+  });
   it('unknown event yields a safe info default', () => {
     const c = copyFor('mystery', {});
     expect(c.type).toBe('info');
