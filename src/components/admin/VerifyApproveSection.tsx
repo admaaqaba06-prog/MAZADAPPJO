@@ -290,6 +290,7 @@ export const VerifyApproveSection: React.FC<VerifyApproveSectionProps> = ({
                 expectedAmountJod={typeof o.totalDue === 'number' ? o.totalDue : Number(o.totalDue) || 0}
                 payerName={o.buyerName || '—'}
                 payerPhone={o.deliveryPhone}
+                cliqSenderPhone={o.cliqSenderPhone}
                 isDuplicateReceipt={isDup(o, orderDupFps)}
                 approveLabel={isAr ? 'تأكيد الدفع' : 'Mark verified'}
                 busy={busyId === o.id}

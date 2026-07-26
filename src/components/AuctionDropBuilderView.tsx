@@ -6,6 +6,7 @@ import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from
 import { parseAmmanLocalToMs, formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
+import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
 import type { AuctionItem } from '../types';
 
@@ -287,6 +288,16 @@ export default function AuctionDropBuilderView() {
 
           <label className="block text-sm">{isAr ? 'سعر البداية (دينار)' : 'Starting price (JOD)'}
             <input type="number" className="mt-1 w-full border rounded p-2" value={startingPrice} onChange={(e) => setStartingPrice(e.target.value)} />
+            {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
+            <span className="mt-1 block text-xs text-neutral-500">
+              {Number(startingPrice) > 0
+                ? (isAr
+                    ? `يستلم البائع ~${sellerNet(Number(startingPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
+                    : `Seller receives ~${sellerNet(Number(startingPrice)).toLocaleString('en-US')} JOD (~95% after 5% Mazad commission)`)
+                : (isAr
+                    ? 'يستلم البائع ~٩٥٪ من السعر النهائي (بعد عمولة مزاد ٥٪)'
+                    : 'Seller receives ~95% of the final price (after 5% Mazad commission)')}
+            </span>
           </label>
 
           <label className="block text-sm">{isAr ? 'سعر السوق (اختياري)' : 'Market price (optional)'}

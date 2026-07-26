@@ -15,6 +15,7 @@ export interface PaymentVerifyCardProps {
   amountMismatch?: boolean;             // caller-computed (e.g. sub price ≠ canonical tier price)
   payerName: string;
   payerPhone?: string;
+  cliqSenderPhone?: string;             // E1 — phone the CliQ transfer is coming FROM (match the incoming money)
   isDuplicateReceipt?: boolean;         // caller-computed via findDuplicateFingerprints
   approveLabel: string;                 // caller-localized ('Approve' / 'Mark verified')
   busy?: boolean;
@@ -36,6 +37,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   amountMismatch,
   payerName,
   payerPhone,
+  cliqSenderPhone,
   isDuplicateReceipt,
   approveLabel,
   busy,
@@ -101,6 +103,14 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
         <div className={isAr ? 'text-left' : 'text-right'}>
           <p className="text-xs font-bold text-gray-800">{payerName}</p>
           {payerPhone && <p className="text-[11px] text-gray-500 font-mono mt-0.5" dir="ltr">{payerPhone}</p>}
+          {/* E1 — the number the CliQ money is coming FROM (may differ from the
+              account/delivery phone; used to match the incoming transfer). */}
+          {cliqSenderPhone && (
+            <p className="text-[10px] text-[#FF6B00] font-mono font-bold mt-1">
+              <span className="text-gray-400 font-semibold">{isAr ? 'مُرسِل كليك:' : 'CliQ from:'}</span>{' '}
+              <span dir="ltr">{cliqSenderPhone}</span>
+            </p>
+          )}
         </div>
       </div>
 
