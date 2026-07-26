@@ -264,6 +264,23 @@ export interface AdminAction {
   details?: string;
 }
 
+/**
+ * E6 — buyer return claim. Raised by the buyer on a `shipped` order via the
+ * `requestReturn` callable, which freezes the order into a `disputed` state
+ * (disputeType: 'return') and stamps this claim onto the order.
+ */
+export type ReturnReason = 'not_as_described' | 'damaged';
+
+export interface ReturnClaim {
+  reason: ReturnReason;
+  description: string;
+  photoUrls: string[];
+  sellerPaysReturnShipping: boolean;
+  status: 'open' | 'accepted' | 'resolved_refunded' | 'resolved_denied';
+  createdAt: number;
+  sellerResponse?: string;
+}
+
 export interface Order {
   id: string;
   auctionId: string;
@@ -341,6 +358,14 @@ export interface Order {
   vendorId?: string | null;
   /** Simulator-created (simulateSettleNow) — see AuctionItem.isSimulated. */
   isSimulated?: boolean;
+  /**
+   * E6 — buyer return claim stamped by the `requestReturn` callable when the
+   * buyer reports a problem on a `shipped` order. Present on `disputed` orders
+   * that came through the return flow.
+   */
+  returnClaim?: ReturnClaim;
+  /** E6 — distinguishes a return-driven dispute from a generic manual dispute. */
+  disputeType?: 'return' | 'generic';
 }
 
 /**

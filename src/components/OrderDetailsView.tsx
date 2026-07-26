@@ -36,7 +36,7 @@ import {
   Mail,
   X
 } from 'lucide-react';
-import { Order } from '../types';
+import { Order, ReturnReason } from '../types';
 import { translations } from '../utils/translations';
 import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
 import { validateDeliveryAddress, sanitizeDeliveryAddress } from '../utils/deliveryAddress';
@@ -52,7 +52,7 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn } = useApp();
   const isAr = language === 'ar';
   const t = translations[language as 'en' | 'ar'];
 
@@ -101,6 +101,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // step; persisted as cliqSenderPhone so admin can match the incoming transfer.
   const [cliqSenderPhone, setCliqSenderPhone] = useState<string>(order?.cliqSenderPhone ?? '');
   const [cliqSenderPhoneError, setCliqSenderPhoneError] = useState(false);
+
+  // E6 — buyer "report a problem" / return claim form state.
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnReason, setReturnReason] = useState<ReturnReason>('not_as_described');
+  const [returnDescription, setReturnDescription] = useState('');
+  const [returnPhotos, setReturnPhotos] = useState<File[]>([]);
+  const [submittingReturn, setSubmittingReturn] = useState(false);
 
   const isAdminViewer = isAdminUser(currentUser);
 
@@ -487,6 +494,67 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       } finally {
         setIsUpdating(false);
       }
+    }
+  };
+
+  // E6 — buyer photo picker for the return claim (1–6 images, ≤10MB each).
+  const handleReturnPhotosPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files: File[] = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+    const images = files.filter(f => f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024);
+    setReturnPhotos(prev => [...prev, ...images].slice(0, 6));
+    // Reset the input so the same file can be re-picked after removal.
+    e.target.value = '';
+  };
+
+  const handleRemoveReturnPhoto = (index: number) => {
+    setReturnPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitReturn = async () => {
+    if (returnPhotos.length < 1 || returnPhotos.length > 6) {
+      alert(isAr ? 'أرفق من صورة واحدة إلى ست صور.' : 'Please attach between 1 and 6 photos.');
+      return;
+    }
+    if (!returnDescription.trim()) {
+      alert(isAr ? 'يرجى وصف المشكلة.' : 'Please describe the problem.');
+      return;
+    }
+    setSubmittingReturn(true);
+    try {
+      const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const { getFirebaseStorage } = await import('../services/firebase');
+      const storageInstance = await getFirebaseStorage();
+
+      const photoUrls: string[] = [];
+      for (let i = 0; i < returnPhotos.length; i++) {
+        const file = returnPhotos[i];
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `returns/${order.id}/${i}-${safeName}`;
+        const fileRef = storageRef(storageInstance, storagePath);
+        await uploadBytes(fileRef, file);
+        photoUrls.push(await getDownloadURL(fileRef));
+      }
+
+      const result = await requestReturn(order.id, {
+        reason: returnReason,
+        description: returnDescription.trim(),
+        photoUrls,
+      });
+
+      if (result.success) {
+        setShowReturnForm(false);
+        setReturnDescription('');
+        setReturnPhotos([]);
+        setReturnReason('not_as_described');
+      } else {
+        alert(result.message || (isAr ? 'تعذر تقديم طلب الإرجاع.' : 'Failed to submit return.'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر تقديم طلب الإرجاع: ${err.message}` : `Failed to submit return: ${err.message}`);
+    } finally {
+      setSubmittingReturn(false);
     }
   };
 
@@ -1405,14 +1473,218 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   )}
 
                   {order.status === 'shipped' && (
-                    <button
-                      onClick={handleConfirmDelivery}
-                      disabled={isUpdating}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{isAr ? 'تأكيد استلام الشحنة' : 'Confirm Parcel Received'}</span>
-                    </button>
+                    <div className="space-y-2.5">
+                      {/* Primary happy-path: everything's good, release payment */}
+                      <button
+                        onClick={handleConfirmDelivery}
+                        disabled={isUpdating || submittingReturn}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{isAr ? 'كل شيء ممتاز — حرّر الدفعة' : "Everything's good — release payment"}</span>
+                      </button>
+
+                      {/* Secondary: report a problem → opens the return claim form */}
+                      {!showReturnForm && (
+                        <button
+                          onClick={() => setShowReturnForm(true)}
+                          disabled={isUpdating || submittingReturn}
+                          className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                        >
+                          <AlertTriangle className="w-4 h-4 text-red-500" />
+                          <span>{isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}</span>
+                        </button>
+                      )}
+
+                      {/* Return claim form */}
+                      {showReturnForm && (
+                        <div
+                          className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-4 origin-top"
+                          style={{ animation: 'returnFormIn 240ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+                        >
+                          <style>{`@keyframes returnFormIn { from { opacity: 0; transform: translateY(-6px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
+
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                              {isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}
+                            </h4>
+                            <button
+                              onClick={() => setShowReturnForm(false)}
+                              disabled={submittingReturn}
+                              className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+                              aria-label={isAr ? 'إغلاق' : 'Close'}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Reason radios */}
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              {isAr ? 'سبب الإرجاع' : 'Reason'}
+                            </p>
+                            {([
+                              { value: 'not_as_described' as ReturnReason, en: 'Not as described', ar: 'مخالف للوصف' },
+                              { value: 'damaged' as ReturnReason, en: 'Arrived damaged', ar: 'وصل تالفاً' },
+                            ]).map(opt => (
+                              <label
+                                key={opt.value}
+                                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="return-reason"
+                                  value={opt.value}
+                                  checked={returnReason === opt.value}
+                                  onChange={() => setReturnReason(opt.value)}
+                                  className="accent-[#FF6B00]"
+                                />
+                                <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
+                              </label>
+                            ))}
+                          </div>
+
+                          {/* Description */}
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              {isAr ? 'وصف المشكلة' : 'Describe the problem'}
+                            </p>
+                            <textarea
+                              value={returnDescription}
+                              onChange={e => setReturnDescription(e.target.value)}
+                              rows={3}
+                              placeholder={isAr ? 'اشرح ما الخطأ في المنتج...' : "Explain what's wrong with the item..."}
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors resize-none"
+                            />
+                          </div>
+
+                          {/* Photos */}
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              {isAr ? `الصور (${returnPhotos.length}/6) — مطلوبة` : `Photos (${returnPhotos.length}/6) — required`}
+                            </p>
+                            {returnPhotos.length > 0 && (
+                              <div className="grid grid-cols-3 gap-2">
+                                {returnPhotos.map((file, i) => (
+                                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
+                                    <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                                    <button
+                                      onClick={() => handleRemoveReturnPhoto(i)}
+                                      disabled={submittingReturn}
+                                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors disabled:opacity-50"
+                                      aria-label={isAr ? 'إزالة' : 'Remove'}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {returnPhotos.length < 6 && (
+                              <label className="w-full border border-dashed border-gray-300 hover:border-[#FF6B00] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-gray-500 hover:text-[#FF6B00]">
+                                <UploadCloud className="w-4 h-4" />
+                                <span className="text-[11px] font-bold uppercase font-mono">
+                                  {isAr ? 'إضافة صور' : 'Add photos'}
+                                </span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handleReturnPhotosPicked}
+                                  disabled={submittingReturn}
+                                  className="hidden"
+                                />
+                              </label>
+                            )}
+                          </div>
+
+                          {/* Submit */}
+                          <button
+                            onClick={handleSubmitReturn}
+                            disabled={submittingReturn || returnPhotos.length < 1 || !returnDescription.trim()}
+                            className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {submittingReturn ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                <span>{isAr ? 'جارٍ الإرسال...' : 'Submitting...'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>{isAr ? 'تقديم طلب الإرجاع' : 'Submit return request'}</span>
+                              </>
+                            )}
+                          </button>
+                          <p className="text-[9.5px] text-gray-400 leading-relaxed">
+                            {isAr
+                              ? 'سيتم تجميد الطلب وإيقاف الدفعة للبائع ريثما يراجع الفريق طلب الإرجاع.'
+                              : 'The order will be frozen and the payout paused while the team reviews your return.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* E6 — buyer's submitted return claim on a disputed order */}
+                  {order.status === 'disputed' && order.returnClaim && (
+                    <div className="border border-amber-200 rounded-2xl p-4 bg-amber-50/60 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <h4 className="text-xs font-black uppercase font-mono text-amber-900">
+                          {isAr ? 'طلب الإرجاع الخاص بك' : 'Your return request'}
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
+                        <span className="font-bold text-gray-800">
+                          {order.returnClaim.reason === 'damaged'
+                            ? (isAr ? 'وصل تالفاً' : 'Arrived damaged')
+                            : (isAr ? 'مخالف للوصف' : 'Not as described')}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
+                        <span className="font-black text-amber-700 uppercase font-mono">
+                          {order.returnClaim.status === 'open' && (isAr ? 'قيد المراجعة' : 'Open')}
+                          {order.returnClaim.status === 'accepted' && (isAr ? 'مقبول' : 'Accepted')}
+                          {order.returnClaim.status === 'resolved_refunded' && (isAr ? 'تم الاسترداد' : 'Refunded')}
+                          {order.returnClaim.status === 'resolved_denied' && (isAr ? 'مرفوض' : 'Denied')}
+                        </span>
+                      </div>
+
+                      {order.returnClaim.description && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'الوصف' : 'Description'}</p>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
+                        </div>
+                      )}
+
+                      {order.returnClaim.photoUrls?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {order.returnClaim.photoUrls.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="aspect-square rounded-xl overflow-hidden border border-amber-200 block"
+                            >
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {order.returnClaim.sellerResponse && (
+                        <div className="space-y-1 pt-1 border-t border-amber-200">
+                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'رد البائع' : 'Seller response'}</p>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Open dispute */}
