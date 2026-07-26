@@ -383,11 +383,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               />
               <div className="min-w-0 text-left rtl:text-right">
                 <span className="text-[11px] font-bold text-gray-800 truncate block leading-tight">
-                  {activeSellerProfile.storeName || 'MAZAD JO Store'}
+                  {activeSellerProfile.storeName || activeAuction.sellerName}
                 </span>
-                <span className="text-[9px] text-[#E85D04] font-semibold block leading-none mt-1">
-                  {isAr ? 'حساب بائع موثق' : 'Verified Merchant'}
-                </span>
+                {/* Gated on the seller's REAL verificationStatus (isVerified, derived
+                    above) — this label used to render for every seller regardless,
+                    asserting a verification nobody had earned. Same rule as the
+                    seller card lower down. */}
+                {isVerified && (
+                  <span className="text-[9px] text-[#E85D04] font-semibold block leading-none mt-1">
+                    {isAr ? 'حساب بائع موثق' : 'Verified Merchant'}
+                  </span>
+                )}
               </div>
             </div>
             <span className="text-gray-400 font-sans text-xs">›</span>
@@ -483,9 +489,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {/* Auction and seller overlay */}
               <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
                 <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
+                {/* Real seller name, and the verified tick only when the seller
+                    actually is verified — both used to be unconditional. */}
                 <p className="text-[10px] text-white/80 font-bold mt-1 flex items-center gap-1">
-                  by {activeSellerProfile?.storeName || 'MAZAD JO Store'}
-                  <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
+                  by {activeSellerProfile?.storeName || activeAuction.sellerName}
+                  {isVerified && (
+                    <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
+                  )}
                 </p>
               </div>
             </div>
@@ -682,12 +692,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               )}
               <div className="text-left rtl:text-right min-w-0 flex-1">
                 <h4 className="text-xs font-black text-gray-900 leading-none flex items-center gap-1">
-                  <span className="truncate">{activeSellerProfile?.storeName || 'MAZAD JO Store'}</span>
+                  <span className="truncate">{activeSellerProfile?.storeName || activeAuction.sellerName}</span>
                   {isVerified && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />}
                 </h4>
                 {isVerified && (
                   <span className="text-[10px] text-emerald-500 font-bold block mt-1 leading-none">
-                    Verified Merchant Seller
+                    {isAr ? 'حساب بائع موثق' : 'Verified Merchant'}
                   </span>
                 )}
               </div>
