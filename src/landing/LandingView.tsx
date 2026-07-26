@@ -2614,10 +2614,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <div>
                       <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F05123]/20 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/30 mb-3">
                         <Building2 className="w-4 h-4" />
-                        {lang === "ar" ? "زيارة مكاتبنا والمعاينة" : "Office Visit & Viewing"}
+                        {lang === "ar" ? "المعاينة قبل المزايدة" : "Viewing before you bid"}
                       </span>
                       <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white font-ibmarabic leading-tight">
-                        {lang === "ar" ? "مش لازم تصدقنا بالكلام بس — تعال شوف بعينك." : "Don't just take our word for it — come see for yourself."}
+                        {lang === "ar" ? "مش لازم تصدقنا بالكلام بس — فلوسك محجوزة لحد ما تتأكد." : "Don't just take our word for it — your money is held until you're sure."}
                       </h2>
                     </div>
                   </Reveal>
@@ -2625,8 +2625,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <Reveal delay={0.1}>
                     <p className="text-gray-300 text-base sm:text-lg font-ibmarabic leading-relaxed">
                       {lang === "ar"
-                        ? "زورنا قبل ما تزايد — شوف المنتج بعينك، افحصه بنفسك، واسأل أي سؤال."
-                        : "Visit us before you bid — see the product with your own eyes, inspect it yourself, and ask any questions."}
+                        ? "بعض المنتجات بتقدر تعاينها قبل ما تزايد — إما بمكاتبنا أو عند البائع إذا كان عنده محل. وبكل الحالات، فلوسك محجوزة عندنا وما بتوصل البائع إلا بعد ما تستلم وتتأكد إن المنتج مطابق للوصف."
+                        : "Some products can be viewed before you bid — at our offices, or at the seller's store where they have one. And in every case, your money is held by us and does not reach the seller until you receive the product and confirm it matches the description."}
                     </p>
                   </Reveal>
 
@@ -2639,7 +2639,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white text-[#0A0A0A] hover:bg-gray-100 font-bold font-ibmarabic transition-all duration-300 hover:scale-105 shadow-md text-center"
                       >
                         <MapPin className="w-5 h-5 text-[#F05123]" />
-                        {lang === "ar" ? "زور مكتبنا" : "Visit Our Office"}
+                        {lang === "ar" ? "رتّب معاينة" : "Arrange a viewing"}
                       </a>
                       
                       {/* No live-status dot here: this is a visit-us invite, and the
