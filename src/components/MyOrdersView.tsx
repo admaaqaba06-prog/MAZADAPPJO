@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
+import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 import { OrderDetailsView } from './OrderDetailsView';
 import { winTotalDue } from './feedback';
 import { isViewerWinner } from '../utils/bidMath';
@@ -69,7 +70,10 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 
 export const MyOrdersView: React.FC = () => {
   const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
-  const { auctions } = useAuctions();
+  // Slice 1b Task 2: the just-won hint reads the SCOPED per-user "my lots"
+  // subscription (shared with win-detection), not the broad `useAuctions()`
+  // array — a won lot stays in this query when it completes.
+  const myWinLots = useMyAuctionLots(currentUser?.id);
   const isAr = language === 'ar';
   const t = translations[isAr ? 'ar' : 'en'];
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -96,7 +100,7 @@ export const MyOrdersView: React.FC = () => {
   // that never settled into an order from pinning a stale hint forever.
   const JUST_WON_WINDOW_MS = 10 * 60 * 1000;
   const nowMs = serverNow();
-  const hasUnsettledWin = (auctions || []).some((a: any) =>
+  const hasUnsettledWin = (myWinLots || []).some((a: any) =>
     isViewerWinner(a, currentUser?.id) &&
     isAuctionFinished(a, nowMs) &&
     typeof a.endTime === 'number' &&

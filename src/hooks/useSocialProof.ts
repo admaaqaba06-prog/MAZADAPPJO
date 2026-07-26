@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { getLiveAuctions } from '../utils/auctionPhase';
-import type { AuctionItem } from '../types';
+import { resolveEndTime } from '../utils/liveAuctionFields';
 
 /**
  * Real social proof from real data — never fabricated (spec §4).
  *
- * `liveBiddersNow` — derived from the auctions already loaded in AppContext
- * (zero extra Firestore reads, reactive to the live subscription):
+ * `liveBiddersNow` — a one-time, cheap scoped query (Slice 1b: no longer
+ * derived from the broad `auctions` listener, which is being removed so
+ * realtime cost scales with attention, not inventory). Point-in-time is fine
+ * for a trust badge; cached once per session like `recentWins` below:
  *   - `liveCount`: auctions genuinely live right now (status 'live' AND not
  *     past endTime — same dead-stream rule as auctionPhase).
  *   - `biddersNow`: the number of DISTINCT people currently leading a live
@@ -155,37 +157,72 @@ function fetchRecentWins(): Promise<Omit<RecentWin, 'when'>[]> {
   return recentWinsCache;
 }
 
+// One live-snapshot fetch per session, shared across the surfaces that mount
+// the hook — the Slice-1b replacement for deriving these off the broad
+// `auctions` listener. Point-in-time (a trust badge, not a live ticker);
+// capped at 50 so a business with a handful of concurrent drops reads exact
+// (and honestly caps at "50" in the extreme). Excludes simulated lots and
+// past-endTime "dead" lots (same rule as the removed derivation).
+let liveSnapshotCache: Promise<{ liveCount: number; biddersNow: number }> | null = null;
+
+function fetchLiveSnapshot(): Promise<{ liveCount: number; biddersNow: number }> {
+  if (!liveSnapshotCache) {
+    const q = query(
+      collection(db, 'auctions'),
+      where('status', '==', 'live'),
+      limit(50)
+    );
+    liveSnapshotCache = getDocs(q)
+      .then(snap => {
+        const mapped = snap.docs
+          .map(d => d.data())
+          .filter(a => a.isSimulated !== true)
+          .map(a => ({
+            status: (a.status as string) ?? 'live',
+            endTime: resolveEndTime(a),
+            currentBidderId: (a.currentBidderId || null) as string | null,
+          }));
+        const live = getLiveAuctions(mapped);
+        const distinct = new Set(
+          live.map(a => a.currentBidderId).filter((id): id is string => !!id)
+        );
+        return { liveCount: live.length, biddersNow: distinct.size };
+      })
+      .catch(err => {
+        console.warn('useSocialProof: live snapshot fetch failed:', err);
+        liveSnapshotCache = null; // allow a retry on next mount
+        return { liveCount: 0, biddersNow: 0 };
+      });
+  }
+  return liveSnapshotCache;
+}
+
 // ---------------------------------------------------------------------------
 
 export function useSocialProof(): SocialProof {
   const { language } = useApp();
-  const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
   const [rawWins, setRawWins] = useState<Omit<RecentWin, 'when'>[]>([]);
+  const [live, setLive] = useState<{ liveCount: number; biddersNow: number }>({
+    liveCount: 0,
+    biddersNow: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
     fetchRecentWins().then(wins => {
       if (!cancelled) setRawWins(wins);
     });
+    fetchLiveSnapshot().then(snap => {
+      if (!cancelled) setLive(snap);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const { liveCount, biddersNow } = useMemo(() => {
-    // Context `auctions` is already source-filtered for non-admins (Wave 3),
-    // but an admin with the simulator ON still receives simulated lots there —
-    // social proof must stay honest even then, so exclude them unconditionally.
-    const live = getLiveAuctions<AuctionItem>(
-      (auctions ?? []).filter(a => a.isSimulated !== true)
-    );
-    const distinctBidders = new Set(
-      live.map(a => a.currentBidderId).filter((id): id is string => !!id)
-    );
-    return { liveCount: live.length, biddersNow: distinctBidders.size };
-  }, [auctions]);
+  const { liveCount, biddersNow } = live;
 
   const recentWins = useMemo<RecentWin[]>(
     () => rawWins.map(w => ({ ...w, when: formatRelativeTime(w.whenTs, isAr) })),
