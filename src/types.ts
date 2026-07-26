@@ -3,6 +3,8 @@
  * Production-ready TypeScript Interfaces
  */
 
+import type { ViewingMode } from './utils/viewing';
+
 export interface User {
   id: string;
   uid?: string;
@@ -115,6 +117,14 @@ export interface AuctionItem {
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   /** Admin-entered reason shown to the seller when a listing is rejected. */
   rejectionReason?: string;
+  /**
+   * Where a buyer may physically view this lot before bidding. Set by an admin at
+   * the approval gate (or at admin drop-create). UNSET MEANS NOT STATED — the UI
+   * renders nothing rather than assuming a location. See utils/viewing.ts.
+   */
+  viewing?: ViewingMode;
+  /** Human-readable place, shown only when viewing === 'store'. Admin-entered. */
+  viewingPlace?: string;
   isFeatured: boolean;
   totalBids: number;
   viewersCount: number;

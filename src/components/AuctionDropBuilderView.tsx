@@ -8,6 +8,8 @@ import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
 import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
+import type { ViewingMode } from '../utils/viewing';
+import { ViewingSelector } from './admin/ViewingSelector';
 import type { AuctionItem } from '../types';
 
 const DURATION_PRESETS = [
@@ -50,6 +52,10 @@ export default function AuctionDropBuilderView() {
 
   const [productName, setProductName] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
+  // Per-lot viewing for admin-created drops. Optional — unset means the lot
+  // states nothing about viewing (renders nothing) rather than claiming a place.
+  const [viewing, setViewing] = useState<ViewingMode | ''>('');
+  const [viewingPlace, setViewingPlace] = useState('');
   const [marketPrice, setMarketPrice] = useState('');
   const [reservePrice, setReservePrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
@@ -206,6 +212,8 @@ export default function AuctionDropBuilderView() {
           scheduledStartAt: scheduledStartAtMs ?? Date.now(),
           // Conditional spread: Firestore setDoc rejects explicit `undefined` values
           // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
+          ...(viewing ? { viewing } : {}),
+          ...(viewing === 'store' && viewingPlace.trim() ? { viewingPlace: viewingPlace.trim() } : {}),
           ...(extraPhotoUrls.length > 0 ? { mediaUrls: extraPhotoUrls } : {}),
           ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
           // Reserve is admin-only: createListing strips it from the auction doc
@@ -223,6 +231,14 @@ export default function AuctionDropBuilderView() {
         'upcoming',
       );
       setCreatedId(newId);
+      // Viewing does NOT carry to the next drop, unlike the reserve/vendor/specs
+      // left standing above. Those are internal ops fields — a stale one is an
+      // admin's own problem. A stale `viewing` publishes a physical viewing claim
+      // about a DIFFERENT item to buyers, which is exactly the fabrication
+      // utils/viewing.ts exists to prevent. Back to "not stated": the next drop
+      // has to state it deliberately.
+      setViewing('');
+      setViewingPlace('');
     } catch (e: any) {
       setError(e?.message || (isAr ? 'فشل إنشاء المزاد' : 'Failed to create auction'));
     } finally {
@@ -244,6 +260,18 @@ export default function AuctionDropBuilderView() {
     setDurationSeconds(a.duration || durationSeconds);
     if (a.paymentWindowHours) setPaymentWindowHours(a.paymentWindowHours);
     if (a.antiSnipeWindowSec) setAntiSnipeSec(a.antiSnipeWindowSec);
+    // Viewing is always seeded from the SOURCE lot, never left as-is. The other
+    // fields above are internal, so a leftover is just an ops slip; a leftover
+    // `viewing` would sit highlighted on the new form looking like this lot's own
+    // claim and publish a place nobody stated for it. A relist is the same
+    // physical item, so the source's OWN recorded viewing is a real claim and is
+    // safe to carry — anything else (unset, or a value we don't recognise) fails
+    // closed to "not stated".
+    const sourceViewing = a.viewing;
+    const hasSourceViewing =
+      sourceViewing === 'office' || sourceViewing === 'store' || sourceViewing === 'private';
+    setViewing(hasSourceViewing ? sourceViewing : '');
+    setViewingPlace(hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '');
     setCreatedId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -307,6 +335,17 @@ export default function AuctionDropBuilderView() {
                     : 'Seller receives ~95% of the final price (after 5% Mazad commission)')}
             </span>
           </label>
+
+          {/* Per-lot viewing — optional. Same control as the approval card. */}
+          <ViewingSelector
+            value={viewing}
+            onChange={setViewing}
+            place={viewingPlace}
+            onPlaceChange={setViewingPlace}
+            isAr={isAr}
+            accentClass="bg-[#F05123] text-white border-[#F05123]"
+            focusClass="focus:border-[#F05123]"
+          />
 
           <label className="block text-sm">{isAr ? 'سعر السوق (اختياري)' : 'Market price (optional)'}
             <input type="number" className="mt-1 w-full border rounded p-2" value={marketPrice} onChange={(e) => setMarketPrice(e.target.value)} />

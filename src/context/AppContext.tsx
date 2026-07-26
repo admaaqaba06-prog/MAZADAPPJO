@@ -24,6 +24,8 @@ import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
 import { isEffectivelyBlocked } from '../utils/banStatus';
+import type { ViewingMode } from '../utils/viewing';
+import { viewingWritePayload } from '../utils/viewing';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -175,7 +177,7 @@ interface AppContextProps {
   markAllAsRead: () => void;
   
   // Admin Operations
-  approveListing: (id: string) => Promise<void>;
+  approveListing: (id: string, viewing?: ViewingMode, viewingPlace?: string) => Promise<void>;
   rejectListing: (id: string, reason?: string) => Promise<void>;
   verifySeller: (userId: string) => void;
   banUser: (userId: string) => void;
@@ -3729,7 +3731,7 @@ const fetchIP = async () => {
     });
   }, []);
 
-  const approveListing = useCallback(async (id: string) => {
+  const approveListing = useCallback(async (id: string, viewing?: ViewingMode, viewingPlace?: string) => {
     // Find the target auction to respect its duration (e.g. 6 hours / 10 minutes etc.)
     // Fall back to a direct Firestore read for admin surfaces (e.g. AdminPanel)
     // that render outside the context auctions subscription.
@@ -3757,6 +3759,13 @@ const fetchIP = async () => {
 
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
+      // Per-lot viewing, set by the admin on the approval card. An approval that
+      // does not set viewing spreads nothing, leaving the lot UNSET (renders
+      // nothing). When a mode IS chosen the helper always writes viewingPlace
+      // too — updateDoc merges, so omitting the place would let one from an
+      // earlier approval survive and advertise a shop nobody entered for this
+      // lot. Never emits `undefined`, which Firestore rejects.
+      ...viewingWritePayload(viewing, viewingPlace),
       status: 'live',
       approvalStatus: 'approved',
       isApproved: true,

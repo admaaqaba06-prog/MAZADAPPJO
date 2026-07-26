@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark, MapPin } from 'lucide-react';
 import { CountUp, markFirstBidDone, useToast } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
 import { BidSheet } from './auction/BidSheet';
@@ -8,6 +8,7 @@ import AuctionRulesModal from './AuctionRulesModal';
 import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
+import { conditionLabel } from '../utils/conditionLabel';
 import { serverNow } from '../utils/serverTime';
 import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { CountdownPill } from './auction/CountdownPill';
@@ -15,6 +16,7 @@ import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { useChat } from '../context/AppContext';
+import { resolveViewing } from '../utils/viewing';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -142,19 +144,15 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
   // Trust / spec chips (real fields only — never fabricated).
   const isInspected = activeAuction?.approvalStatus === 'approved';
-  const conditionChip =
-    activeAuction?.condition === 'new'
-      ? isAr
-        ? 'جديد'
-        : 'New'
-      : activeAuction?.condition === 'used'
-        ? isAr
-          ? 'مستعمل'
-          : 'Used'
-        : null;
+  // Shared with the desktop product-info row (utils/conditionLabel) so the two
+  // surfaces cannot drift. Null for unset/unknown — the chip is then omitted.
+  const conditionChip = conditionLabel(activeAuction?.condition, isAr);
   const categoryChip = activeAuction?.category
     ? categoryLabel(activeAuction.category, isAr)
     : null;
+  // Per-lot viewing. Null for private/unset — the row simply omits the chip
+  // rather than stating a location this lot never had.
+  const viewingChip = resolveViewing(activeAuction, isAr);
 
   const BackIcon = isAr ? ChevronRight : ChevronLeft;
 
@@ -436,6 +434,20 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             {conditionChip && (
               <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
                 {conditionChip}
+              </span>
+            )}
+            {/* max-w-full + truncate: unlike its siblings (New/Used/category,
+                short by construction) this label interpolates an admin-entered
+                place, so without a clamp a long one wraps INSIDE the pill and
+                rounded-full renders as a multi-line lozenge. title= keeps the
+                full text reachable. */}
+            {viewingChip && (
+              <span
+                title={viewingChip.label}
+                className="inline-flex items-center gap-1 max-w-full text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]"
+              >
+                <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{viewingChip.label}</span>
               </span>
             )}
           </div>

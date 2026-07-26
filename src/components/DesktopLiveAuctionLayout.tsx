@@ -21,7 +21,6 @@ import {
   Settings,
   HelpCircle,
   MapPin,
-  Truck,
   Copy,
   Smile,
   Star,
@@ -39,6 +38,8 @@ import { formatAmmanClock } from '../utils/ammanTime';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { MediaGallery } from './feedback/MediaGallery';
 import { CountdownPill } from './auction/CountdownPill';
+import { resolveViewing } from '../utils/viewing';
+import { conditionLabel } from '../utils/conditionLabel';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -506,72 +507,151 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           </div>
         </div>
 
-        {/* Product information row underneath video card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          
-          {/* Product Condition */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
-              <ShieldCheck className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'حالة المنتج' : 'Product Condition'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {isAr ? 'جديد ممتاز' : 'NEW'}
-              </span>
-            </div>
-          </div>
+        {/* Product information row underneath video card.
+            Every block here is REAL per-lot data. This row used to hardcode
+            "NEW" / "Free Delivery" / "Amman, Jordan" for every lot regardless of
+            the item. The 2026-07-25 mobile redesign spec called for deleting
+            exactly these literals, but that pass was mobile-only. Condition now
+            reads the auction field the
+            way MobileAuctionView already does, shipping is gone (no shipping data
+            backs it), and location is replaced by per-lot viewing. Blocks that
+            have no data are omitted, and the divider is applied by index so the
+            first VISIBLE block never carries a leading border.
+            Because every block is conditional, the row can collapse: with a
+            single block `justify-between` would edge-align it inside a wide
+            card (reads as broken), so the justify class is picked from
+            blocks.length — spread at 2+, centred at exactly 1. With zero
+            blocks the card is not rendered at all, since an empty bordered
+            card claims there is information when there is none. */}
+        {(() => {
+          // Shared with the mobile chip row (utils/conditionLabel) so the two
+          // surfaces cannot drift. Null for unset/unknown — block then omitted.
+          const conditionText = conditionLabel(activeAuction?.condition, isAr);
+          const viewing = resolveViewing(activeAuction, isAr);
 
-          {/* Shipping */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-[#E85D04]">
-              <Truck className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الشحن' : 'Shipping'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
-                {isAr ? 'توصيل مجاني' : 'Free Delivery'}
-              </span>
-            </div>
-          </div>
+          // `shrinkable` marks a block whose VALUE is free-form admin text and
+          // therefore clamps (truncate + title) instead of setting the row's
+          // width. Only such a block gets `min-w-0`: a flex item's automatic
+          // minimum size is its min-content width, so without it `truncate`
+          // never fires — the item just refuses to shrink and the long label
+          // wraps or overflows the card. Blocks with fixed-shape values keep
+          // the default min-width:auto floor so they are never squeezed below
+          // their own content by a long viewing place.
+          const blocks: {
+            key: string;
+            icon: React.ReactNode;
+            label: string;
+            value: React.ReactNode;
+            shrinkable?: boolean;
+          }[] = [];
 
-          {/* Location */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
-              <MapPin className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الموقع' : 'Location'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
-                {isAr ? 'عمان، الأردن' : 'Amman, Jordan'}
-              </span>
-            </div>
-          </div>
+          if (conditionText) {
+            blocks.push({
+              key: 'condition',
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                  <ShieldCheck className="w-4.5 h-4.5" />
+                </div>
+              ),
+              label: isAr ? 'حالة المنتج' : 'Product Condition',
+              value: (
+                <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {conditionText}
+                </span>
+              ),
+            });
+          }
 
-          {/* Auction ID */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
-              <Trophy className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'رقم المزاد' : 'Auction ID'}</span>
-              <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
-                <span>#{activeAuction.id?.slice(0, 8).toUpperCase() || 'AUC-78291'}</span>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(activeAuction.id || 'AUC-78291');
-                  }}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
-                  title="Copy"
+          if (viewing) {
+            blocks.push({
+              key: 'viewing',
+              // The label interpolates the admin-entered viewingPlace (capped at
+              // ViewingSelector's PLACE_MAX_LENGTH), so it is the one value here that
+              // can be arbitrarily long — mirrors the mobile chip's clamp
+              // (MobileAuctionView), where the same overflow was fixed: the icon
+              // holds its size, the text truncates to one line, and `title`
+              // keeps the full place reachable on hover.
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+                  <MapPin className="w-4.5 h-4.5" aria-hidden="true" />
+                </div>
+              ),
+              label: isAr ? 'المعاينة' : 'Viewing',
+              value: (
+                <span
+                  className="text-[11px] font-black text-gray-800 mt-1 leading-none block max-w-full truncate"
+                  title={viewing.label}
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            </div>
-          </div>
+                  {viewing.label}
+                </span>
+              ),
+              shrinkable: true,
+            });
+          }
 
-        </div>
+          const auctionId = activeAuction?.id;
+          if (auctionId) {
+            blocks.push({
+              key: 'auctionId',
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+                  <Trophy className="w-4.5 h-4.5" />
+                </div>
+              ),
+              label: isAr ? 'رقم المزاد' : 'Auction ID',
+              value: (
+                <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                  <span>#{auctionId.slice(0, 8).toUpperCase()}</span>
+                  <button
+                    onClick={() => {
+                      // The block only exists inside the `auctionId` guard, so
+                      // the id is known-present here — copy the FULL id even
+                      // though only the first 8 chars are displayed.
+                      navigator.clipboard.writeText(auctionId);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                    title="Copy"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ),
+            });
+          }
+
+          if (blocks.length === 0) return null;
+
+          return (
+            <div
+              className={`bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center ${
+                blocks.length > 1 ? 'justify-between' : 'justify-center'
+              } shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto`}
+              id="desktop-product-info-row"
+              style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            >
+              {blocks.map((block, i) => (
+                <div
+                  key={block.key}
+                  className={`flex items-center gap-2.5 ${block.shrinkable ? 'min-w-0' : ''} ${
+                    i > 0 ? 'border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4' : ''
+                  }`}
+                >
+                  {block.icon}
+                  {/* min-w-0 completes the shrink chain for a shrinkable block
+                      (row → block → this text column → the truncating value);
+                      for the others their parent never shrinks, so it is inert. */}
+                  <div className="text-left rtl:text-right min-w-0">
+                    <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">
+                      {block.label}
+                    </span>
+                    {block.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
       </main>
 
