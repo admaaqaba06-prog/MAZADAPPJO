@@ -11,6 +11,7 @@ import { PhotoGatePrompt } from './components/PhotoGatePrompt';
 import { BanNoticeModal } from './components/BanNoticeModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
+import { ContactCompletionModal } from './components/ContactCompletionModal';
 import { isProfileComplete } from './utils/jordanCities';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
 
@@ -181,7 +182,7 @@ function SimulatorOnBanner() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, contactModalOpen, setContactModalOpen, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
 
@@ -344,6 +345,15 @@ function MainAppShell() {
         {showPhotoGate && (
           <PhotoGatePrompt onClose={() => setShowPhotoGate(false)} />
         )}
+
+        {/* Global E5 contact-completion gate (member missing phone/email before a
+            bid/sell action). Mounted unconditionally — it self-hides when !open and
+            its recaptcha-cleanup effects rely on the open transition. */}
+        <ContactCompletionModal
+          open={contactModalOpen}
+          onClose={() => setContactModalOpen(false)}
+          onComplete={() => setContactModalOpen(false)}
+        />
 
         {/* Global E2 ban-ladder notice (blocked bid tap -> reason + when it lifts) */}
         {showBanNotice && (

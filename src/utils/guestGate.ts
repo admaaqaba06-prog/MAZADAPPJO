@@ -45,13 +45,15 @@ export function resolveGuestWriteAction(isAuthenticated: boolean): 'signup' | 'p
   return isAuthenticated ? 'proceed' : 'signup';
 }
 
-export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'proceed';
+export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'contact' | 'proceed';
 
 export interface BidGateArgs {
   isAuthenticated: boolean;
   isMember: boolean;
   /** Whether the user has a REAL uploaded/linked profile photo (see hasRealPhoto). */
   hasPhoto: boolean;
+  /** resolveMissingContact(user) shows nothing missing (verified phone + email). */
+  contactComplete: boolean;
 }
 
 /**
@@ -61,15 +63,17 @@ export interface BidGateArgs {
  *   1. signin     — a guest must sign up (wins over every later gate).
  *   2. membership — an authenticated non-member is invited to join.
  *   3. photo      — an authenticated member with NO real photo must add one.
- *   4. proceed    — member with a photo → stage the confirm.
+ *   4. contact    — a member with a photo but incomplete contact info must complete it.
+ *   5. proceed    — member with a photo and complete contact → stage the confirm.
  * A guest is always routed to sign-in first even if the (impossible) member/photo
  * flags say otherwise, so no members-only sheet can ever show to a logged-out tap.
  */
 export function resolveBidGate(args: BidGateArgs): BidGateDecision {
-  const { isAuthenticated, isMember, hasPhoto } = args;
+  const { isAuthenticated, isMember, hasPhoto, contactComplete } = args;
   if (!isAuthenticated) return 'signin';
   if (!isMember) return 'membership';
   if (!hasPhoto) return 'photo';
+  if (!contactComplete) return 'contact';
   return 'proceed';
 }
 
@@ -110,4 +114,32 @@ export function resolveUnauthenticatedScreen(args: UnauthScreenArgs): UnauthScre
   if (signInRequested) return 'login';
   if (!canGuestAccessView(activeView)) return 'login';
   return 'browse';
+}
+
+export interface ContactUser {
+  phoneNumber?: string;
+  phone?: string;
+  email?: string;
+}
+export interface MissingContact {
+  needsPhone: boolean;
+  needsEmail: boolean;
+}
+
+// Deliberately loose email check: block only obviously-broken input (no @, no
+// dot-suffix). Email is UNVERIFIED in E5, so this just catches typos/blanks.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function resolveMissingContact(user: ContactUser | null | undefined): MissingContact {
+  const phone = ((user?.phoneNumber || user?.phone || '') as string).trim();
+  const email = ((user?.email || '') as string).trim();
+  return {
+    needsPhone: phone.length === 0,
+    needsEmail: !EMAIL_RE.test(email),
+  };
+}
+
+export function isContactComplete(user: ContactUser | null | undefined): boolean {
+  const m = resolveMissingContact(user);
+  return !m.needsPhone && !m.needsEmail;
 }

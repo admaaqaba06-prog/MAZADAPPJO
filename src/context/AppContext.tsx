@@ -51,10 +51,12 @@ import {
   signInWithRedirect,
   getRedirectResult,
   onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  updateProfile 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  PhoneAuthProvider,
+  linkWithCredential
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, deleteField, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { 
@@ -234,6 +236,16 @@ interface AppContextProps {
   registerUser: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; message: string }>;
   loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
+
+  // Contact completion (E5): ATTACH a missing phone/email to the CURRENT signed-in
+  // account (same uid — never sign into a separate phone account, which would orphan
+  // the user's wallet/history). Consumed by ContactCompletionModal.
+  linkPhoneSendCode: (e164Phone: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<string>;
+  linkPhoneToAccount: (verificationId: string, code: string) => Promise<void>;
+  saveEmail: (email: string) => Promise<void>;
+  // Whether the contact-completion modal is open (mounted by the bid/sell gates in A4).
+  contactModalOpen: boolean;
+  setContactModalOpen: (open: boolean) => void;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
   
   // Profile Completion (Auth/KYC Wave 2)
@@ -584,6 +596,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [showPhotoGate, setShowPhotoGate] = useState<boolean>(false);
   // E2 ban ladder: a blocked bid tap opens the BanNoticeModal (rendered at App root).
   const [showBanNotice, setShowBanNotice] = useState<boolean>(false);
+  // E5 contact completion: a member with a photo but a missing contact channel
+  // (phone or email) who taps bid/sell is shown the ContactCompletionModal (A4 mounts it).
+  const [contactModalOpen, setContactModalOpen] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
@@ -2412,6 +2427,46 @@ const fetchIP = async () => {
       return { success: false, message: mapAuthError(e, language === 'ar') };
     }
   }, [language]);
+
+  // --- E5 contact completion -------------------------------------------------
+  // These ATTACH a missing contact channel to the CURRENT account. Phone uses
+  // PhoneAuthProvider + linkWithCredential (NOT signInWithPhoneNumber) so the
+  // uid — and therefore the wallet/history — is preserved. reCAPTCHA plumbing
+  // mirrors LoginView: the modal builds the invisible verifier and hands it in.
+
+  // Step 1 (send code): reuse the invisible-reCAPTCHA verifier the modal built
+  // and return the verificationId for the confirm step.
+  const linkPhoneSendCode = useCallback(async (
+    e164Phone: string,
+    appVerifier: import('firebase/auth').ApplicationVerifier
+  ): Promise<string> => {
+    const provider = new PhoneAuthProvider(auth);
+    const verificationId = await provider.verifyPhoneNumber(e164Phone, appVerifier);
+    return verificationId; // hand back to the modal for the confirm step
+  }, []);
+
+  // Step 2 (verify + link to THIS uid, not a new phone account). Throws on
+  // failure so the modal can inspect err.code (e.g. auth/credential-already-in-use).
+  const linkPhoneToAccount = useCallback(async (verificationId: string, code: string): Promise<void> => {
+    const cred = PhoneAuthProvider.credential(verificationId, code);
+    await linkWithCredential(auth.currentUser!, cred); // same UID keeps wallet/history
+    const digits = auth.currentUser!.phoneNumber || '';
+    const normalizedPhone = digits.replace(/\D/g, '');
+    await setDoc(doc(db, 'users', auth.currentUser!.uid), {
+      phoneNumber: digits, phone: digits, normalizedPhone,
+    }, { merge: true });
+    // Mirror into local state so resolveMissingContact(currentUser) clears the
+    // phone requirement immediately and the modal can call onComplete().
+    setCurrentUser(prev => ({ ...prev, phoneNumber: digits, phone: digits }));
+    setUsers(prev => prev.map(u => (u.id === auth.currentUser!.uid ? { ...u, phoneNumber: digits, phone: digits } : u)));
+  }, []);
+
+  const saveEmail = useCallback(async (email: string): Promise<void> => {
+    const trimmed = email.trim();
+    await setDoc(doc(db, 'users', auth.currentUser!.uid), { email: trimmed }, { merge: true });
+    setCurrentUser(prev => ({ ...prev, email: trimmed }));
+    setUsers(prev => prev.map(u => (u.id === auth.currentUser!.uid ? { ...u, email: trimmed } : u)));
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -4873,6 +4928,11 @@ const fetchIP = async () => {
       loginWithGoogle,
       loginWithPhone,
       confirmPhoneCode,
+      linkPhoneSendCode,
+      linkPhoneToAccount,
+      saveEmail,
+      contactModalOpen,
+      setContactModalOpen,
       logout,
       registerUser,
       subscribeUser,
@@ -4921,7 +4981,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, watchlist, autoBids,
-    showSubscriptionPrompt, showPhotoGate, showBanNotice, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, addNotification, markAsRead,
@@ -4929,7 +4989,8 @@ const fetchIP = async () => {
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
     createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
-    confirmPhoneCode, logout, registerUser, subscribeUser, updateOwnProfile,
+    confirmPhoneCode, linkPhoneSendCode, linkPhoneToAccount, saveEmail,
+    logout, registerUser, subscribeUser, updateOwnProfile,
     completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
     updateFeatureFlag, logSystemHealth, submitVerificationRequest,

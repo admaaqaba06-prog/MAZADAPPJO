@@ -7,6 +7,8 @@ import {
   resolveBidGate,
   resolveGuestWriteAction,
   resolveUnauthenticatedScreen,
+  resolveMissingContact,
+  isContactComplete,
 } from './guestGate';
 
 describe('isGuestSession', () => {
@@ -38,18 +40,18 @@ describe('resolveBidTap — the "should this tap sign up or proceed" decision', 
 
 describe('resolveBidGate — ordered signin → membership → photo → proceed', () => {
   it('guest → signin (regardless of member/photo flags)', () => {
-    expect(resolveBidGate({ isAuthenticated: false, isMember: false, hasPhoto: false })).toBe('signin');
-    expect(resolveBidGate({ isAuthenticated: false, isMember: true, hasPhoto: true })).toBe('signin');
+    expect(resolveBidGate({ isAuthenticated: false, isMember: false, hasPhoto: false, contactComplete: false })).toBe('signin');
+    expect(resolveBidGate({ isAuthenticated: false, isMember: true, hasPhoto: true, contactComplete: true })).toBe('signin');
   });
   it('authenticated non-member → membership', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: true })).toBe('membership');
-    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: false })).toBe('membership');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: true, contactComplete: true })).toBe('membership');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: false, contactComplete: false })).toBe('membership');
   });
   it('member without a real photo → photo', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: false })).toBe('photo');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: false, contactComplete: true })).toBe('photo');
   });
-  it('member with a real photo → proceed', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: true })).toBe('proceed');
+  it('member with a real photo and complete contact → proceed', () => {
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: true, contactComplete: true })).toBe('proceed');
   });
 });
 
@@ -155,5 +157,50 @@ describe('resolveUnauthenticatedScreen — what a logged-out visitor sees', () =
     expect(
       resolveUnauthenticatedScreen({ ...base, activeView: 'about' })
     ).toBe('browse');
+  });
+});
+
+describe('resolveMissingContact', () => {
+  it('phone-OTP user (email empty) needs email only', () => {
+    expect(resolveMissingContact({ phoneNumber: '+962790000000', email: '' }))
+      .toEqual({ needsPhone: false, needsEmail: true });
+  });
+  it('Google user (no phone) needs phone only', () => {
+    expect(resolveMissingContact({ phoneNumber: '', email: 'a@b.com' }))
+      .toEqual({ needsPhone: true, needsEmail: false });
+  });
+  it('complete user needs nothing', () => {
+    expect(resolveMissingContact({ phoneNumber: '+962790000000', email: 'a@b.com' }))
+      .toEqual({ needsPhone: false, needsEmail: false });
+  });
+  it('falls back to phone mirror field', () => {
+    expect(resolveMissingContact({ phone: '+962790000000', email: 'a@b.com' }).needsPhone).toBe(false);
+  });
+  it('treats whitespace + malformed email as missing', () => {
+    expect(resolveMissingContact({ phoneNumber: '   ', email: 'not-an-email' }))
+      .toEqual({ needsPhone: true, needsEmail: true });
+  });
+  it('null user needs both', () => {
+    expect(resolveMissingContact(null)).toEqual({ needsPhone: true, needsEmail: true });
+  });
+  it('isContactComplete is true only when nothing missing', () => {
+    expect(isContactComplete({ phoneNumber: '+962790000000', email: 'a@b.com' })).toBe(true);
+    expect(isContactComplete({ phoneNumber: '', email: 'a@b.com' })).toBe(false);
+  });
+});
+
+describe('resolveBidGate — contact step', () => {
+  const base = { isAuthenticated: true, isMember: true, hasPhoto: true, contactComplete: true };
+  it('member with photo but incomplete contact -> contact', () => {
+    expect(resolveBidGate({ ...base, contactComplete: false })).toBe('contact');
+  });
+  it('complete member -> proceed', () => {
+    expect(resolveBidGate(base)).toBe('proceed');
+  });
+  it('photo still precedes contact', () => {
+    expect(resolveBidGate({ ...base, hasPhoto: false, contactComplete: false })).toBe('photo');
+  });
+  it('guest still routes to signin regardless of contact', () => {
+    expect(resolveBidGate({ ...base, isAuthenticated: false, contactComplete: false })).toBe('signin');
   });
 });

@@ -5,6 +5,7 @@ import { ListingWizardView } from './ListingWizardView';
 import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
 import { resizeImage } from '../utils/resizeImage';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
+import { isContactComplete } from '../utils/guestGate';
 import { sellerNet } from '../utils/bidMath';
 import {
   Store,
@@ -35,7 +36,7 @@ type SellMode = 'choose' | 'wizard' | 'concierge' | 'success';
  * Selling never requires the bidding membership — the approval gate is the quality control.
  */
 export const SellView: React.FC = () => {
-  const { createListing, setActiveView, currentUser, language, setShowPhotoGate } = useApp();
+  const { createListing, setActiveView, currentUser, language, setShowPhotoGate, setContactModalOpen } = useApp();
   const isAr = language === 'ar';
   const canList = hasRealPhoto(currentUser);
 
@@ -47,6 +48,14 @@ export const SellView: React.FC = () => {
   const startPath = (id: 'wizard' | 'concierge') => {
     if (!canList) {
       setShowPhotoGate(true);
+      return;
+    }
+    // E5 contact gate: before the seller reaches the listing/upload flow, the
+    // ACCOUNT must have both channels (phone + email) so we can reach them about
+    // their listing. The concierge form's conciergeContact does NOT populate the
+    // account, so the gate is enforced here regardless of path.
+    if (!isContactComplete(currentUser)) {
+      setContactModalOpen(true);
       return;
     }
     setMode(id);
