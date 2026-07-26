@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useCountdownSeconds, useIsOnScreen } from '../hooks/useCountdownSeconds';
 import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
 import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
+import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { useApp, useAuctions } from '../context/AppContext';
 import { AuctionItem } from '../types';
@@ -320,7 +321,12 @@ export const DiscoveryFeedView: React.FC = () => {
   // the paginated hook is still called (hooks must be unconditional) but stays
   // fully inert (no queries, no listener) because we pass `enabled = false`.
   const usePaginated = featureFlags.enablePaginatedDiscover;
-  
+
+  // Algolia-backed search (Slice 2), flag-gated. Default OFF ⇒ the hook is fully
+  // inert (no debounce, no provider call) and the search box keeps driving
+  // today's client-side `.includes` filter below — byte-identical to today.
+  const algoliaEnabled = featureFlags.enableAlgoliaSearch;
+
   const { showToast } = useToast();
   // Real social proof (spec §4): live bidders from the loaded auctions +
   // recent wins from a one-time cached query. Never fabricated.
@@ -433,6 +439,13 @@ export const DiscoveryFeedView: React.FC = () => {
   const liveList = usePaginated ? (paginatedLists?.liveList ?? []) : liveAuctionsList;
   const upcomingList = usePaginated ? (paginatedLists?.upcomingList ?? []) : upcomingAuctionsList;
   const showSkeleton = usePaginated ? feed.loading : isLoading;
+
+  // Algolia search results (Slice 2). Called unconditionally (hooks rule); stays
+  // INERT while the flag is OFF or the box is empty (`searchMode.active` false ⇒
+  // no provider call). When active, the category chips act as the facet filter
+  // (`selectedCategory` is passed straight through). When inactive, the feed
+  // below renders exactly today's path.
+  const searchMode = useAlgoliaSearch(searchTerm, selectedCategory, algoliaEnabled);
 
   // Infinite-scroll sentinel for the paginated LIVE grid. When it scrolls into
   // view (with headroom) and more pages exist, pull the next page.
@@ -893,7 +906,72 @@ export const DiscoveryFeedView: React.FC = () => {
       {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
           pinned sticky header (bar+search+pills ≈ 190px mobile / single filter row ≈ 60px desktop). */}
       <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-24" id="discover-feed-grid">
-        {showSkeleton ? (
+        {searchMode.active ? (
+          /* ---- Algolia search results (Slice 2, flag-gated) ----------------
+             Replaces the live/upcoming feed sections while the search box is
+             non-empty AND the flag is ON. Reuses the SAME PremiumAuctionCard
+             with liveEnabled so each on-screen result gets the live-on-visible
+             overlay (fresh price/bids). Category chips above act as the facet
+             filter (passed to the hook as `selectedCategory`). */
+          <div className="space-y-4" id="discover-search-results">
+            {searchMode.loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6" id="discover-search-loading">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <AuctionCardSkeleton key={n} />
+                ))}
+              </div>
+            ) : searchMode.results.length === 0 ? (
+              <div className="min-h-[58vh] flex items-center justify-center">
+                <div
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
+                  id="discover-search-empty"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                    <Search className="w-6 h-6 stroke-[1.5]" />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                    {isAr
+                      ? `لا نتائج لـ "${searchTerm.trim()}"`
+                      : `No matches for "${searchTerm.trim()}"`}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                    {isAr
+                      ? 'جرّب كلمة أبسط أو غيّر الفئة.'
+                      : 'Try a simpler word or a different category.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider" id="discover-search-count">
+                  {isAr
+                    ? `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'نتيجة' : 'نتيجة'}`
+                    : `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'result' : 'results'}`}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {searchMode.results.map((item) => (
+                    <div key={item.id} className="h-full">
+                      <PremiumAuctionCard
+                        item={item}
+                        currentUser={currentUser}
+                        bids={bids}
+                        orders={orders}
+                        sellerProfiles={sellerProfiles}
+                        isAr={isAr}
+                        onJoinLive={handleJoinLive}
+                        onSelectLot={setSelectedLotId}
+                        setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                        setActiveView={setActiveView}
+                        liveEnabled={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : showSkeleton ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <AuctionCardSkeleton key={n} />
