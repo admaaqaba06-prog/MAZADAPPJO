@@ -45,13 +45,15 @@ export function resolveGuestWriteAction(isAuthenticated: boolean): 'signup' | 'p
   return isAuthenticated ? 'proceed' : 'signup';
 }
 
-export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'proceed';
+export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'contact' | 'proceed';
 
 export interface BidGateArgs {
   isAuthenticated: boolean;
   isMember: boolean;
   /** Whether the user has a REAL uploaded/linked profile photo (see hasRealPhoto). */
   hasPhoto: boolean;
+  /** resolveMissingContact(user) shows nothing missing (verified phone + email). */
+  contactComplete: boolean;
 }
 
 /**
@@ -61,15 +63,17 @@ export interface BidGateArgs {
  *   1. signin     — a guest must sign up (wins over every later gate).
  *   2. membership — an authenticated non-member is invited to join.
  *   3. photo      — an authenticated member with NO real photo must add one.
- *   4. proceed    — member with a photo → stage the confirm.
+ *   4. contact    — a member with a photo but incomplete contact info must complete it.
+ *   5. proceed    — member with a photo and complete contact → stage the confirm.
  * A guest is always routed to sign-in first even if the (impossible) member/photo
  * flags say otherwise, so no members-only sheet can ever show to a logged-out tap.
  */
 export function resolveBidGate(args: BidGateArgs): BidGateDecision {
-  const { isAuthenticated, isMember, hasPhoto } = args;
+  const { isAuthenticated, isMember, hasPhoto, contactComplete } = args;
   if (!isAuthenticated) return 'signin';
   if (!isMember) return 'membership';
   if (!hasPhoto) return 'photo';
+  if (!contactComplete) return 'contact';
   return 'proceed';
 }
 
