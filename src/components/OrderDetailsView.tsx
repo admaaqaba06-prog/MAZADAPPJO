@@ -52,7 +52,7 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn, sellerRespondToReturn } = useApp();
   const isAr = language === 'ar';
   const t = translations[language as 'en' | 'ar'];
 
@@ -108,6 +108,10 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [returnDescription, setReturnDescription] = useState('');
   const [returnPhotos, setReturnPhotos] = useState<File[]>([]);
   const [submittingReturn, setSubmittingReturn] = useState(false);
+  // E6 B1 — seller accept/contest of a buyer return claim
+  const [showSellerContest, setShowSellerContest] = useState(false);
+  const [sellerContestNote, setSellerContestNote] = useState('');
+  const [respondingReturn, setRespondingReturn] = useState(false);
 
   const isAdminViewer = isAdminUser(currentUser);
 
@@ -555,6 +559,33 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       alert(isAr ? `تعذر تقديم طلب الإرجاع: ${err.message}` : `Failed to submit return: ${err.message}`);
     } finally {
       setSubmittingReturn(false);
+    }
+  };
+
+  // E6 B1 — seller accepts (accept=true) or contests (accept=false + note) the
+  // buyer's return claim. Advisory only; the admin still executes any refund.
+  const handleRespondToReturn = async (accept: boolean) => {
+    if (!accept && !sellerContestNote.trim()) {
+      alert(isAr ? 'يرجى كتابة سبب الاعتراض.' : 'Please add a note explaining your objection.');
+      return;
+    }
+    setRespondingReturn(true);
+    try {
+      const result = await sellerRespondToReturn(order.id, {
+        accept,
+        note: sellerContestNote.trim() || undefined,
+      });
+      if (result.success) {
+        setShowSellerContest(false);
+        setSellerContestNote('');
+      } else {
+        alert(result.message || (isAr ? 'تعذر إرسال الرد.' : 'Failed to respond.'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر إرسال الرد: ${err.message}` : `Failed to respond: ${err.message}`);
+    } finally {
+      setRespondingReturn(false);
     }
   };
 
@@ -1704,6 +1735,131 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {/* Seller specific operations */}
               {isSeller && (
                 <>
+                  {/* E6 B1 — seller's view of the buyer's return claim + accept/contest */}
+                  {order.disputeType === 'return' && order.returnClaim && (
+                    <div className="border border-amber-200 rounded-2xl p-4 bg-amber-50/60 space-y-3 transition-all duration-200 ease-out">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <h4 className="text-xs font-black uppercase font-mono text-amber-900">
+                          {isAr ? 'طلب إرجاع من المشتري' : 'Buyer return request'}
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
+                        <span className="font-bold text-gray-800">
+                          {order.returnClaim.reason === 'damaged'
+                            ? (isAr ? 'وصل تالفاً' : 'Arrived damaged')
+                            : (isAr ? 'مخالف للوصف' : 'Not as described')}
+                        </span>
+                      </div>
+
+                      {order.returnClaim.description && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'الوصف' : 'Description'}</p>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
+                        </div>
+                      )}
+
+                      {order.returnClaim.photoUrls?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {order.returnClaim.photoUrls.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="aspect-square rounded-xl overflow-hidden border border-amber-200 block"
+                            >
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-2 bg-white/70 border border-amber-200 rounded-xl p-2.5">
+                        <Truck className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-amber-900 leading-relaxed">
+                          {isAr
+                            ? 'أنت مسؤول عن أجور شحن الإرجاع في حال كان الطلب صحيحاً.'
+                            : 'You are responsible for return shipping on a valid claim.'}
+                        </p>
+                      </div>
+
+                      {order.returnClaim.status === 'open' ? (
+                        <>
+                          {!showSellerContest && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => handleRespondToReturn(true)}
+                                disabled={respondingReturn}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>{isAr ? 'قبول الإرجاع' : 'Accept return'}</span>
+                              </button>
+                              <button
+                                onClick={() => setShowSellerContest(true)}
+                                disabled={respondingReturn}
+                                className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                              >
+                                <ShieldAlert className="w-4 h-4 text-red-500" />
+                                <span>{isAr ? 'اعتراض' : 'Contest'}</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {showSellerContest && (
+                            <div className="space-y-2.5 pt-1 transition-all duration-200 ease-out">
+                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'سبب الاعتراض' : 'Your note'}</p>
+                              <textarea
+                                value={sellerContestNote}
+                                onChange={(e) => setSellerContestNote(e.target.value)}
+                                rows={3}
+                                disabled={respondingReturn}
+                                placeholder={isAr ? 'اشرح سبب اعتراضك على طلب الإرجاع...' : 'Explain why you are contesting this return...'}
+                                className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={() => { setShowSellerContest(false); setSellerContestNote(''); }}
+                                  disabled={respondingReturn}
+                                  className="bg-white hover:bg-gray-50 text-gray-500 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out cursor-pointer uppercase font-mono disabled:opacity-50"
+                                >
+                                  {isAr ? 'إلغاء' : 'Cancel'}
+                                </button>
+                                <button
+                                  onClick={() => handleRespondToReturn(false)}
+                                  disabled={respondingReturn || !sellerContestNote.trim()}
+                                  className="bg-[#121318] hover:bg-gray-900 text-white font-black py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                                >
+                                  {respondingReturn ? (isAr ? 'جارٍ الإرسال...' : 'Sending...') : (isAr ? 'إرسال الاعتراض' : 'Submit contest')}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="space-y-2 pt-1 border-t border-amber-200">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
+                            <span className="font-black text-amber-700 uppercase font-mono">
+                              {order.returnClaim.status === 'accepted' && (isAr ? 'مقبول' : 'Accepted')}
+                              {order.returnClaim.status === 'resolved_refunded' && (isAr ? 'تم الاسترداد' : 'Refunded')}
+                              {order.returnClaim.status === 'resolved_denied' && (isAr ? 'مرفوض' : 'Denied')}
+                            </span>
+                          </div>
+                          {order.returnClaim.sellerResponse && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'ردك' : 'Your response'}</p>
+                              <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {order.status === 'paid' && (
                     <button
                       onClick={handlePrepareShipment}

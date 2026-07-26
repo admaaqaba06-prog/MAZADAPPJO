@@ -175,6 +175,11 @@ interface AppContextProps {
     orderId: string,
     input: { reason: ReturnReason; description: string; photoUrls: string[] }
   ) => Promise<{ success: boolean; message: string }>;
+  // E6 B1 — seller responds to an open return claim (advisory; no money)
+  sellerRespondToReturn: (
+    orderId: string,
+    input: { accept: boolean; note?: string }
+  ) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -3412,6 +3417,38 @@ const fetchIP = async () => {
     }
   }, [addNotification, showToast, language]);
 
+  // E6 B1 — seller accepts or contests an open return claim. Advisory only: the
+  // callable writes only the returnClaim sub-fields; no money moves (admin still
+  // executes any refund via the escrow callables).
+  const sellerRespondToReturn = useCallback(async (
+    orderId: string,
+    input: { accept: boolean; note?: string }
+  ) => {
+    try {
+      const callable = await getCallableFunction<
+        { orderId: string; accept: boolean; note?: string },
+        { success: boolean; message: string }
+      >('respondToReturn');
+      const result = await callable({ orderId, accept: input.accept, note: input.note });
+      if (result.data?.success) {
+        addNotification(
+          input.accept
+            ? (language === 'ar' ? 'تم قبول طلب الإرجاع' : 'Return Accepted')
+            : (language === 'ar' ? 'تم إرسال ردك' : 'Response Sent'),
+          result.data.message || (language === 'ar' ? 'تم تسجيل ردك على طلب الإرجاع.' : 'Your response to the return has been recorded.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to respond to return.' };
+    } catch (error: any) {
+      console.error('Cloud function respondToReturn failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر إرسال الرد على طلب الإرجاع.' : 'Failed to respond to return.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
     const newMsg: ChatMessage = {
@@ -4935,6 +4972,7 @@ const fetchIP = async () => {
       confirmBelowReserve,
       declineBelowReserve,
       requestReturn,
+      sellerRespondToReturn,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -5019,7 +5057,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

@@ -2614,6 +2614,105 @@ exports.requestReturn = functions.runWith({ cors: true }).https.onCall(async (da
 });
 
 /**
+ * E6 Task B1 — respondToReturn (NO money movement).
+ * The SELLER responds to an OPEN return claim: either accepts it (agreeing the
+ * return is valid) or contests it with a note. This is ADVISORY ONLY — it writes
+ * NOTHING but the returnClaim sub-fields (sellerResponse + optional
+ * status:'accepted'). No wallet/ledger/escrow writes happen here; the admin
+ * still executes any actual refund/release via refundOrderEscrow /
+ * releaseOrderEscrow. Precondition (re-checked in the txn): the order carries a
+ * returnClaim with status==='open' — a non-open claim aborts.
+ */
+exports.respondToReturn = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const { orderId, accept, note } = data || {};
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+  if (typeof accept !== 'boolean') {
+    throw new functions.https.HttpsError('invalid-argument', 'يجب تحديد قبول أو اعتراض على طلب الإرجاع.');
+  }
+  const cleanNote = typeof note === 'string' ? note.trim() : '';
+
+  try {
+    let adminNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      adminNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      // Auth: only the SELLER of this order may respond to its return claim.
+      if (!orderData.sellerId || orderData.sellerId !== callerUserId) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+      }
+
+      // Precondition (re-checked inside the txn): an OPEN return claim must exist.
+      const claim = orderData.returnClaim;
+      if (!claim || claim.status !== 'open') {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يوجد طلب إرجاع مفتوح لهذا الطلب.');
+      }
+
+      // Advisory write ONLY — the returnClaim sub-fields via dot-paths. NO wallet/
+      // ledger/escrow writes: escrow stays exactly as it was, the admin still
+      // executes any refund/release.
+      const updates = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (cleanNote) {
+        updates['returnClaim.sellerResponse'] = cleanNote;
+      }
+      if (accept === true) {
+        updates['returnClaim.status'] = 'accepted';
+      }
+      transaction.update(orderRef, updates);
+
+      adminNotify = {
+        accept: accept === true,
+        note: cleanNote,
+        buyerName: orderData.buyerName || orderData.buyerId || '',
+        auctionTitle: orderData.auctionTitle || '',
+      };
+      return {
+        success: true,
+        message: accept === true
+          ? 'تم قبول طلب الإرجاع. سيتولى الفريق تنفيذ الاسترداد.'
+          : 'تم إرسال ردك على طلب الإرجاع للمراجعة.',
+      };
+    });
+
+    // Post-commit, never-throws: surface the seller's response to admins. A
+    // system_health write failure must not roll back a recorded response.
+    if (adminNotify) {
+      try {
+        await db.collection('system_health').add({
+          type: 'return_seller_response',
+          title: `Return ${adminNotify.accept ? 'accepted' : 'contested'} by seller`,
+          details: `Order ${orderId} (${adminNotify.auctionTitle || ''}) — seller ${adminNotify.accept ? 'ACCEPTED' : 'CONTESTED'} the return from ${adminNotify.buyerName}.${adminNotify.note ? ` Note: ${adminNotify.note}` : ''} Advisory only — no money moved; admin still executes any refund/release.`,
+          source: 'respondToReturn',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (incErr) {
+        console.warn('[respondToReturn] system_health write failed:', incErr && incErr.message);
+      }
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in respondToReturn:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر إرسال الرد على طلب الإرجاع.');
+  }
+});
+
+/**
  * 12. releaseOrderEscrow Callable Cloud Function (CRITICAL FIX PHASE 1)
  * Moves the financial logic of escrow release to a secure transactional server-side environment.
  * Ensures order completion, escrow release, wallet updates, and double-entry ledger logs are performed atomically.
