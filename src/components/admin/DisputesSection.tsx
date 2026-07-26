@@ -203,7 +203,7 @@ const DisputeRow: React.FC<{
 
       {/* Resolution buttons */}
       <div className="flex items-center gap-2 flex-wrap">
-        {RESOLUTIONS.map((r) => {
+        {RESOLUTIONS.filter((r) => !(isReturn && r.id === 'resume')).map((r) => {
           const active = selected === r.id;
           return (
             <button
