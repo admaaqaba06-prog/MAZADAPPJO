@@ -116,6 +116,39 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
     return profile?.rating || 0;
   }, [realReputation, sellerReviews, profile]);
 
+  // E7 B2 — the reviews query keys on sellerId, which now also matches lightweight
+  // buyer_rates_auction docs ({ stars, text, buyerId, createdAt, direction }). Normalize
+  // every loaded doc into the rich display shape so real ratings render (with a generic
+  // buyer name) instead of malformed 0-star / "Invalid Date" cards.
+  const normalizedReviews = useMemo(() => {
+    return sellerReviews
+      .map((rev) => {
+        const r = rev as any;
+        const rating = (typeof r.rating === 'number' ? r.rating : r.stars) || 0;
+        const comment = r.comment ?? r.text ?? '';
+        const buyerName = r.buyerName || (isAr ? 'مشترٍ' : 'Buyer');
+        const buyerAvatar = r.buyerAvatar || '';
+        const timestamp =
+          typeof r.timestamp === 'number'
+            ? r.timestamp
+            : (r.createdAt?.toMillis?.() ?? (r.createdAt?.seconds ? r.createdAt.seconds * 1000 : 0));
+        return {
+          id: r.id as string,
+          rating,
+          comment,
+          buyerName,
+          buyerAvatar,
+          buyerId: r.buyerId as string | undefined,
+          auctionTitle: r.auctionTitle as string | undefined,
+          photos: r.photos as string[] | undefined,
+          response: r.response as string | undefined,
+          responseAt: r.responseAt as number | undefined,
+          timestamp,
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [sellerReviews, isAr]);
+
   // Dynamic Trust Score
   const trustScore = useMemo(() => {
     if (!profile) return 50;
@@ -373,7 +406,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
               </p>
             ) : (
               <div className="space-y-4">
-                {sellerReviews.map((rev) => (
+                {normalizedReviews.map((rev) => (
                   <div key={rev.id} className="bg-zinc-900/40 p-4 rounded-2xl border border-white/5">
                     <div className="flex items-center gap-3 mb-2.5">
                       <img 

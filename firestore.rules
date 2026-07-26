@@ -362,7 +362,8 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && (
         (request.resource.data.buyerId == request.auth.uid &&
-          request.resource.data.direction != 'mazad_rates_buyer') ||
+          request.resource.data.direction != 'mazad_rates_buyer' &&
+          request.resource.data.direction != 'seller_rates_buyer') ||
         (isAdmin() && request.resource.data.direction == 'mazad_rates_buyer')
       );
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
