@@ -40,6 +40,7 @@ import {
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
+import { matchesAuctionSearch } from '../utils/auctionSearch';
 import AuctionRulesModal from './AuctionRulesModal';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
@@ -405,10 +406,9 @@ export const DiscoveryFeedView: React.FC = () => {
   const feed = useDiscoverFeed(categoryMatches);
 
   const paginatedLists = React.useMemo(() => {
-    const matchesSearch = (item: AuctionItem) => {
-      if (!searchTerm) return true;
-      return (item.title + item.description).toLowerCase().includes(searchTerm.toLowerCase());
-    };
+    // Covers the auction NUMBER as well as title/description — "#2002" and
+    // "2002" both land on that lot. See utils/auctionSearch.
+    const matchesSearch = (item: AuctionItem) => matchesAuctionSearch(item, searchTerm);
     return {
       liveList: feed.liveItems.filter(matchesSearch),
       upcomingList: feed.upcomingItems.filter(matchesSearch),
