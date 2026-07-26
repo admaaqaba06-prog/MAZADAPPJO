@@ -1431,7 +1431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // attention, not inventory. Only the admin tooling still needs the broad
   // list; everything else maps to 'none' (opens nothing, clears the state).
   const auctionSubMode: 'admin' | 'none' =
-    activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin'
+    activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin' || activeView === 'auction-drop-builder'
       ? 'admin'
       : 'none';
 
