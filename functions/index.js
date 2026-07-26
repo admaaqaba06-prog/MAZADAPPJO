@@ -615,6 +615,13 @@ exports.autoRelistSweep = functions.pubsub
             const secretSnap = await tx.get(db.collection('auctionSecrets').doc(origId));
             if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
 
+            // A below-reserve offer that the seller accepted but the buyer never
+            // confirmed leaves a stale pending order. We only reach here once the
+            // offer window lapsed (shouldAutoRelist blocks a live offer), so cancel
+            // that zombie order and expire the offer as we relist — no orphan +
+            // duplicate-listing pair. (reads before writes.)
+            const origOrderSnap = await tx.get(db.collection('orders').doc(origId));
+
             const nowMs = Date.now();
             const durationSec = Number(d.duration) > 0 ? Number(d.duration) : 600;
             const startMode = d.startMode === 'first_bid' ? 'first_bid' : 'scheduled';
@@ -674,8 +681,17 @@ exports.autoRelistSweep = functions.pubsub
               child.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
             }
 
-            // (a) mark the ORIGINAL relisted (idempotency — fires once)
-            tx.update(origRef, { relisted: true });
+            // (a) mark the ORIGINAL relisted (idempotency — fires once); expire a
+            // still-open below-reserve offer so it can't be acted on post-relist.
+            const origUpdate = { relisted: true };
+            if (d.belowReserveOffer && (d.belowReserveOffer.status === 'pending_seller' || d.belowReserveOffer.status === 'pending_buyer')) {
+              origUpdate['belowReserveOffer.status'] = 'expired';
+            }
+            tx.update(origRef, origUpdate);
+            // (a2) cancel a stale seller-accepted-but-unconfirmed order.
+            if (origOrderSnap.exists && origOrderSnap.data().status === 'pending_buyer_confirmation') {
+              tx.update(origOrderSnap.ref, { status: 'cancelled', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            }
             // (b) create the fresh listing
             tx.set(newRef, child);
             created = true;
@@ -2096,6 +2112,7 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
   try {
     let buyerNotify = null;
     const result = await db.runTransaction(async (transaction) => {
+      buyerNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
       const auctionRef = db.collection('auctions').doc(auctionId);
       const orderRef = db.collection('orders').doc(auctionId);
       const callerRef = db.collection('users').doc(callerUserId);
@@ -2172,6 +2189,10 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
       transaction.update(auctionRef, {
         'belowReserveOffer.status': 'pending_buyer',
         'belowReserveOffer.sellerAcceptedAt': admin.firestore.FieldValue.serverTimestamp(),
+        // Give the buyer a FRESH 24h window to confirm (not the residual of the
+        // seller's window) — keeps the confirm window fair and keeps
+        // belowReserveBlocksRelist blocking a relist until the buyer's window lapses.
+        'belowReserveOffer.expiresAt': admin.firestore.Timestamp.fromMillis(belowReserveExpiryMs(Date.now())),
       });
 
       buyerNotify = {
@@ -2233,6 +2254,7 @@ exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
   try {
     let buyerNotify = null;
     const result = await db.runTransaction(async (transaction) => {
+      buyerNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
       const auctionRef = db.collection('auctions').doc(auctionId);
       const orderRef = db.collection('orders').doc(auctionId);
       const callerRef = db.collection('users').doc(callerUserId);
