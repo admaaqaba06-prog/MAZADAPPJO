@@ -14,6 +14,7 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
+const { channelsFor, copyFor } = require('./notify');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -50,6 +51,38 @@ async function postToN8n(event, payload) {
     });
   } catch (e) {
     console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
+  }
+}
+
+// Single notification choke point (E5). Resolves the event's channels, writes
+// the in-app bell doc, and hands phone+email+channels to n8n for WhatsApp/email
+// fan-out. NEVER throws — same money-path safety contract as postToN8n.
+async function notify({ uid, event, data = {} }) {
+  const channels = channelsFor(event);
+  let user = {};
+  if (uid) {
+    try {
+      const s = await db.collection('users').doc(uid).get();
+      if (s.exists) user = s.data() || {};
+    } catch (e) { console.warn(`[notify] user lookup ${uid} failed:`, e && e.message); }
+  }
+  if (channels.inapp && uid) {
+    try {
+      const c = copyFor(event, data);
+      await db.collection('notifications').add({
+        userId: uid, type: c.type, title: c.title, description: c.description,
+        timestamp: Date.now(), read: false, priority: data.priority || 'medium',
+        ...(data.auctionId ? { auctionId: data.auctionId } : {}),
+      });
+    } catch (e) { console.warn(`[notify] in-app ${event} failed:`, e && e.message); }
+  }
+  if (channels.whatsapp || channels.email) {
+    await postToN8n(event, {
+      phone: user.phoneNumber || user.phone || data.phone || '',
+      email: user.email || data.email || '',
+      name: user.name || data.name || '',
+      channels, ...data,
+    });
   }
 }
 
