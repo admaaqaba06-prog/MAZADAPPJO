@@ -58,6 +58,7 @@ async function postToN8n(event, payload) {
 // the in-app bell doc, and hands phone+email+channels to n8n for WhatsApp/email
 // fan-out. NEVER throws — same money-path safety contract as postToN8n.
 async function notify({ uid, event, data = {} }) {
+  const d = data || {};
   const channels = channelsFor(event);
   let user = {};
   if (uid) {
@@ -68,20 +69,20 @@ async function notify({ uid, event, data = {} }) {
   }
   if (channels.inapp && uid) {
     try {
-      const c = copyFor(event, data);
+      const c = copyFor(event, d);
       await db.collection('notifications').add({
         userId: uid, type: c.type, title: c.title, description: c.description,
-        timestamp: Date.now(), read: false, priority: data.priority || 'medium',
-        ...(data.auctionId ? { auctionId: data.auctionId } : {}),
+        timestamp: Date.now(), read: false, priority: d.priority || 'medium',
+        ...(d.auctionId ? { auctionId: d.auctionId } : {}),
       });
     } catch (e) { console.warn(`[notify] in-app ${event} failed:`, e && e.message); }
   }
   if (channels.whatsapp || channels.email) {
     await postToN8n(event, {
-      phone: user.phoneNumber || user.phone || data.phone || '',
-      email: user.email || data.email || '',
-      name: user.name || data.name || '',
-      channels, ...data,
+      phone: user.phoneNumber || user.phone || d.phone || '',
+      email: user.email || d.email || '',
+      name: user.name || d.name || '',
+      channels, ...d,
     });
   }
 }

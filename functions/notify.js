@@ -56,7 +56,7 @@ function copyFor(event, data = {}) {
       data.reason === 'payment_default_repeat' ? 'تم تعليق حسابك ٣ أشهر لتكرار عدم الدفع.'
       : data.reason === 'payment_default' ? 'تم تقييد المزايدة ٤٨ ساعة بسبب عدم الدفع.'
       : 'تم تقييد حسابك. يرجى مراجعة الدعم لمزيد من التفاصيل.' },
-    ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'يمكنك المزايدة مجدداً.' },
+    ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'تم رفع التقييد عن حسابك.' },
     seller_ship_nudge: { type: 'order', title: 'ذكّر بالشحن', description: `يرجى شحن الطلب "${t}".` },
     buyer_confirm_nudge: { type: 'order', title: 'أكّد الاستلام', description: `يرجى تأكيد استلام "${t}".` },
   };
