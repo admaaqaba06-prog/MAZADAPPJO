@@ -15,6 +15,7 @@ const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSni
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
+const { buildReturnClaim, canRequestReturn } = require('./returns');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -2499,6 +2500,116 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
     if (error instanceof functions.https.HttpsError) throw error;
     console.error('Error in declineBelowReserve:', error);
     throw new functions.https.HttpsError('internal', error.message || 'تعذر رفض العرض.');
+  }
+});
+
+/**
+ * E6 Task A3 — requestReturn (NO money movement).
+ * The BUYER opens a not-as-described/damaged return on a shipped order. This
+ * FREEZES the order into a `disputed` status with a structured returnClaim and
+ * NOTHING else: escrow stays `locked`, no wallet/ledger/escrow writes happen
+ * here. Money moves later ONLY through the admin refundOrderEscrow /
+ * releaseOrderEscrow callables. Idempotent: a re-run on an order that already
+ * carries a returnClaim aborts inside the transaction.
+ */
+exports.requestReturn = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const { orderId, reason, description, photoUrls } = data || {};
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+
+  // Sanitize photoUrls up front — coerce to an array of non-empty strings.
+  // The pure helper silently drops falsy entries; reject junk here instead.
+  const cleanPhotoUrls = (Array.isArray(photoUrls) ? photoUrls : [])
+    .filter((u) => typeof u === 'string' && u.trim().length > 0)
+    .map((u) => u.trim());
+
+  // Build (and validate) the claim BEFORE the transaction. The helper throws a
+  // plain Error with code 'invalid-argument' on bad input; surface it as such.
+  let returnClaim;
+  try {
+    returnClaim = buildReturnClaim({ reason, description, photoUrls: cleanPhotoUrls }, Date.now());
+  } catch (e) {
+    throw new functions.https.HttpsError('invalid-argument', e.message || 'بيانات الإرجاع غير صحيحة.');
+  }
+
+  try {
+    let sellerNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      sellerNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      // Auth: only the buyer of this order may open a return.
+      if (!orderData.buyerId || orderData.buyerId !== callerUserId) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Guard (re-checked inside the txn for idempotency): must be shipped and
+      // have no existing returnClaim.
+      if (!canRequestReturn(orderData)) {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يمكن طلب الإرجاع لهذا الطلب في حالته الحالية.');
+      }
+
+      // Freeze the order. STATUS + claim ONLY — escrow stays locked, no wallet/
+      // ledger/escrow writes.
+      transaction.update(orderRef, {
+        status: 'disputed',
+        disputeType: 'return',
+        disputeReason: `إرجاع (${reason}): ${description}`,
+        returnClaim,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      sellerNotify = {
+        sellerId: orderData.sellerId || '',
+        auctionId: orderData.auctionId || '',
+        auctionTitle: orderData.auctionTitle || '',
+        buyerName: orderData.buyerName || orderData.buyerId || '',
+      };
+      return { success: true, message: 'تم فتح طلب الإرجاع.' };
+    });
+
+    // Post-commit, never-throws: notify the seller + surface to admins. A webhook
+    // or admin-doc failure must not roll back an accepted return claim.
+    if (sellerNotify) {
+      await notify({
+        uid: sellerNotify.sellerId,
+        event: 'return_requested',
+        data: {
+          auctionId: sellerNotify.auctionId,
+          auctionTitle: sellerNotify.auctionTitle,
+          orderId,
+          idempotencyKey: `${orderId}_return_requested`,
+        },
+      });
+      try {
+        await db.collection('system_health').add({
+          type: 'return_requested',
+          title: `Return opened — ${reason}`,
+          details: `Order ${orderId} (${sellerNotify.auctionTitle || ''}) buyer ${sellerNotify.buyerName} opened a ${reason} return. Escrow frozen (locked); awaiting admin refund/release decision.`,
+          source: 'requestReturn',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (incErr) {
+        console.warn('[requestReturn] system_health write failed:', incErr && incErr.message);
+      }
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in requestReturn:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر فتح طلب الإرجاع.');
   }
 });
 
