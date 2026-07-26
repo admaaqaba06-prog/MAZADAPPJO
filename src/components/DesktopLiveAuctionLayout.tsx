@@ -515,7 +515,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             way MobileAuctionView already does, shipping is gone (no shipping data
             backs it), and location is replaced by per-lot viewing. Blocks that
             have no data are omitted, and the divider is applied by index so the
-            first VISIBLE block never carries a leading border. */}
+            first VISIBLE block never carries a leading border.
+            Because every block is conditional, the row can collapse: with a
+            single block `justify-between` would edge-align it inside a wide
+            card (reads as broken), so the justify class is picked from
+            blocks.length — spread at 2+, centred at exactly 1. With zero
+            blocks the card is not rendered at all, since an empty bordered
+            card claims there is information when there is none. */}
         {(() => {
           const conditionLabel =
             activeAuction?.condition === 'new'
@@ -562,33 +568,40 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             });
           }
 
-          blocks.push({
-            key: 'auctionId',
-            icon: (
-              <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
-                <Trophy className="w-4.5 h-4.5" />
-              </div>
-            ),
-            label: isAr ? 'رقم المزاد' : 'Auction ID',
-            value: (
-              <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
-                <span>#{activeAuction.id?.slice(0, 8).toUpperCase() || 'AUC-78291'}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(activeAuction.id || '');
-                  }}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
-                  title="Copy"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            ),
-          });
+          const auctionId = activeAuction?.id;
+          if (auctionId) {
+            blocks.push({
+              key: 'auctionId',
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+                  <Trophy className="w-4.5 h-4.5" />
+                </div>
+              ),
+              label: isAr ? 'رقم المزاد' : 'Auction ID',
+              value: (
+                <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                  <span>#{auctionId.slice(0, 8).toUpperCase()}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(activeAuction.id || '');
+                    }}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                    title="Copy"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ),
+            });
+          }
+
+          if (blocks.length === 0) return null;
 
           return (
             <div
-              className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto"
+              className={`bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center ${
+                blocks.length > 1 ? 'justify-between' : 'justify-center'
+              } shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto`}
               id="desktop-product-info-row"
               style={{ direction: isAr ? 'rtl' : 'ltr' }}
             >
