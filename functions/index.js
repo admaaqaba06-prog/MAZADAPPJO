@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -214,8 +214,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           buyerId: winnerId,
           buyerName: winnerName,
           winningBidAmount: finalPrice,
-          buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-          totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+          buyersPremium: buyerPremiumJod(finalPrice),
+          totalDue: totalDueJod(finalPrice),
           sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
           sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
           paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
@@ -246,22 +246,17 @@ async function settleAuctionTxn(auctionRef, auctionData) {
 
       console.log(`[settleAuctionTxn] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
 
-      // Notify winner via FCM (winnerSnap was read above, before writes)
-      // (notify) capture for post-commit webhook
+      // (notify) capture the winner's contact details for the post-commit
+      // side effects (FCM push + webhooks). NOTHING is sent from in here:
+      // Firestore retries this callback on contention — and a last-second bid
+      // on a settling auction is exactly that — so a send inside the txn fires
+      // the winner's "you won 🎉" push once per retry. Capture in, send out.
+      const winnerData = (winnerSnap && winnerSnap.exists) ? winnerSnap.data() : null;
       notifyData = {
-        phone: (winnerSnap && winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
-        winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+        phone: (winnerData && winnerData.phoneNumber) || '',
+        fcmToken: (winnerData && winnerData.fcmToken) || '',
+        winnerId, winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
       };
-      if (winnerSnap && winnerSnap.exists && winnerSnap.data().fcmToken) {
-        const token = winnerSnap.data().fcmToken;
-        await admin.messaging().send({
-          token: token,
-          notification: {
-            title: 'تهانينا! لقد فزت بالمزاد 🎉',
-            body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
-          }
-        }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
-      }
     } else if (decision.outcome === 'reserve_not_met') {
       // A winner exists but the top bid never cleared the hidden reserve.
       // Per spec: NO sale, NO order, NO wonCount. Relist-able.
@@ -285,12 +280,25 @@ async function settleAuctionTxn(auctionRef, auctionData) {
   // (notify) post-commit: fire ONLY when this run actually settled a winner.
   // Outside the transaction so retries never double-send; postToN8n never throws.
   if (notifyData) {
+    // Winner push. Post-commit for the same reason as the webhooks below — a
+    // retried transaction must never re-send it. Never throws: a dead FCM token
+    // must not fail a settlement that has already committed.
+    if (notifyData.fcmToken) {
+      await admin.messaging().send({
+        token: notifyData.fcmToken,
+        notification: {
+          title: 'تهانينا! لقد فزت بالمزاد 🎉',
+          body: `مبروك! لقد انتهى المزاد على "${notifyData.auctionTitle}" بعرضك الفائز بقيمة ${notifyData.finalPrice.toLocaleString()} دينار أردني.`
+        }
+      }).catch(err => console.warn(`FCM error for winner ${notifyData.winnerId}: ${err.message}`));
+    }
+
     await postToN8n('auction_won', {
       phone: notifyData.phone, name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
-      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(notifyData.finalPrice),
+      totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
     });
@@ -298,8 +306,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       phone: notifyData.phone, name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
-      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(notifyData.finalPrice),
+      totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
     });
@@ -1708,8 +1716,8 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       buyerId: winnerId,
       buyerName: winnerName,
       winningBidAmount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
       sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
       sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
       paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
@@ -1739,16 +1747,16 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     await postToN8n('auction_won', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_payment_due`,
     });

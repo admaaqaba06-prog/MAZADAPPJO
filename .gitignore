@@ -8,6 +8,10 @@ coverage/
 .env*
 !.env.example
 
+# Local agent/tooling scratch — kept out of git so `git add -A` can't sweep it in
+.claude/
+.superpowers/
+
 # Service-account keys — NEVER commit (full prod admin)
 *firebase-adminsdk*.json
 *-serviceaccount*.json

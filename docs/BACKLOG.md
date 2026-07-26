@@ -30,8 +30,8 @@ _Compiled 2026-07-18 after the end-to-end production dress rehearsal. Grouped by
 16. **"by MAZAD JO Store"** on auctions — show the real seller/creator name.
 17. **Generic "User" name** — prompt for a name during onboarding.
 18. **Timer counts past zero** — frontend countdown doesn't stop at auction end.
-19. **FCM send inside the settlement txn** — on retry, duplicate "you won" push; move post-commit next to the n8n calls.
-20. **Premium fils formula duplicated 6×** _(functions)_ — extract a `premiumFils(price)` helper before the 5% rate ever changes.
+19. ~~**FCM send inside the settlement txn** — on retry, duplicate "you won" push; move post-commit next to the n8n calls.~~ ✅ **Fixed 2026-07-26** — the winner push now fires post-commit alongside the n8n webhooks; the token is captured inside the txn. Guarded by `functions/txnPurity.test.js`, which fails if any non-idempotent send (FCM or `postToN8n`) is reintroduced inside *any* transaction callback.
+20. ~~**Premium fils formula duplicated 6×** _(functions)_ — extract a `premiumFils(price)` helper before the 5% rate ever changes.~~ ✅ **Fixed 2026-07-26** — was 12 sites, not 6. Extracted `premiumFils`/`totalDueFils` (+ `buyerPremiumJod`/`totalDueJod` wrappers) and `BUYER_PREMIUM_RATE` into `functions/settlement.js`, beside the seller helpers. Note: `src/utils/bidMath.ts` still carries the frontend's own copy of the 5% — it agrees today, but a rate change is a two-file edit.
 21. **Mixed numerals** — premium disclosure uses Western digits while the button uses Arabic-Indic; make consistent.
 
 ## 🧰 Infra / runbook
