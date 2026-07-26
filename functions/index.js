@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
@@ -841,11 +841,10 @@ function applyBidWrites(transaction, auctionRef, auctionData, bid) {
   }
   transaction.set(bidRef, bidDoc);
 
-  // Anti-sniping (soft close) and pricing: a bid inside the final `window`
-  // resets the clock to `extend` remaining (per-auction, default 30s/30s).
+  // End time after this bid. 'first_bid' listings start their clock on the FIRST
+  // bid (now + duration); every other bid applies the anti-snipe soft close.
   const nowMs = Date.now();
-  const { windowMs, extendMs } = resolveAntiSnipe(auctionData);
-  const finalEndTime = computeSoftCloseEnd(bid.endTimeMs || nowMs, nowMs, windowMs, extendMs);
+  const finalEndTime = computeBidEndTime(auctionData, totalBids, bid.endTimeMs, nowMs);
 
   transaction.update(auctionRef, {
     currentPrice: bid.amountJod,

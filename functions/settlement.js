@@ -79,6 +79,29 @@ function computeSoftCloseEnd(currentEndMs, nowMs, windowMs, extendMs) {
   return currentEndMs;
 }
 
+// Start modes (E3): 'scheduled' (default) runs a fixed window; 'first_bid' goes
+// live immediately with NO end time and starts the clock on the FIRST bid
+// (endsAt = now + duration). `duration` is in seconds.
+const DEFAULT_DURATION_SEC = 1800;
+function firstBidStartEndMs(auctionData, nowMs) {
+  const raw = Number(auctionData && auctionData.duration);
+  const durSec = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : DEFAULT_DURATION_SEC;
+  return nowMs + durSec * 1000;
+}
+
+/**
+ * The auction's end time AFTER a bid. First bid on a 'first_bid' listing starts
+ * the clock (now + duration, no anti-snipe on that opening bid); every other bid
+ * applies the anti-snipe soft close to the existing end.
+ */
+function computeBidEndTime(auctionData, totalBidsBefore, currentEndMs, nowMs) {
+  if (auctionData && auctionData.startMode === 'first_bid' && (totalBidsBefore === 0 || !currentEndMs)) {
+    return firstBidStartEndMs(auctionData, nowMs);
+  }
+  const { windowMs, extendMs } = resolveAntiSnipe(auctionData);
+  return computeSoftCloseEnd(currentEndMs || nowMs, nowMs, windowMs, extendMs);
+}
+
 // Buyer's premium: 5% ADDED on top of the hammer, so a 100 JOD win costs 105.
 // Integer fils, rounded once — the money math never touches floats twice.
 //
@@ -140,6 +163,9 @@ module.exports = {
   MAX_PAYMENT_WINDOW_HOURS,
   resolveAntiSnipe,
   computeSoftCloseEnd,
+  firstBidStartEndMs,
+  computeBidEndTime,
+  DEFAULT_DURATION_SEC,
   DEFAULT_ANTISNIPE_WINDOW_SEC,
   DEFAULT_ANTISNIPE_EXTEND_SEC,
   MIN_ANTISNIPE_SEC,

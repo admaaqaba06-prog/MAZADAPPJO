@@ -14,6 +14,8 @@ const {
   MAX_ANTISNIPE_SEC,
   sellerCommissionFils,
   sellerNetFils,
+  computeBidEndTime,
+  DEFAULT_DURATION_SEC,
   BUYER_PREMIUM_RATE,
   premiumFils,
   totalDueFils,
@@ -209,5 +211,28 @@ describe('computeSoftCloseEnd', () => {
     expect(computeSoftCloseEnd(now + 20000, now, 30000, 15000)).toBe(now + 20000);
     // bid at 8s remaining, same config: now+15 is later -> extend to now+15
     expect(computeSoftCloseEnd(now + 8000, now, 30000, 15000)).toBe(now + 15000);
+  });
+});
+
+describe('computeBidEndTime (start modes)', () => {
+  const NOW = 1_000_000_000_000;
+  it('first_bid mode: the FIRST bid starts the clock at now + duration (no anti-snipe)', () => {
+    const a = { startMode: 'first_bid', duration: 600 }; // 10 min
+    expect(computeBidEndTime(a, 0, null, NOW)).toBe(NOW + 600_000);
+  });
+  it('first_bid mode: later bids apply the normal soft close to the existing end', () => {
+    const a = { startMode: 'first_bid', duration: 600, antiSnipeWindowSec: 30, antiSnipeExtendSec: 30 };
+    // 2nd bid, 8s left → soft-close extends to now+30s
+    expect(computeBidEndTime(a, 1, NOW + 8000, NOW)).toBe(NOW + 30_000);
+    // 2nd bid, plenty of time left → unchanged
+    expect(computeBidEndTime(a, 1, NOW + 500_000, NOW)).toBe(NOW + 500_000);
+  });
+  it('scheduled mode (default/absent): always the soft-close path, never first-bid start', () => {
+    const scheduled = { duration: 600, antiSnipeWindowSec: 30, antiSnipeExtendSec: 30 };
+    expect(computeBidEndTime(scheduled, 0, NOW + 500_000, NOW)).toBe(NOW + 500_000);
+    expect(computeBidEndTime(scheduled, 0, NOW + 8000, NOW)).toBe(NOW + 30_000);
+  });
+  it('first_bid with a missing duration falls back to the default window', () => {
+    expect(computeBidEndTime({ startMode: 'first_bid' }, 0, null, NOW)).toBe(NOW + DEFAULT_DURATION_SEC * 1000);
   });
 });
