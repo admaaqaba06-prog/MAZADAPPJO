@@ -210,6 +210,13 @@ export default function AuctionDropBuilderView() {
           // No schedule = open now: the opener cron only flips auctions that
           // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
           scheduledStartAt: scheduledStartAtMs ?? Date.now(),
+          // Mazad's own inventory: every drop built here sells as the MazadJo
+          // store, not as the individual admin who happened to build it.
+          // createListing turns this into the buyer-facing sellerName/sellerLogo
+          // (gated on isAdminUser); sellerId/createdById stay the real uid so
+          // orders, payouts and the ownership rules are untouched. Vendor-sourced
+          // drops included — vendorName stays internal-only.
+          soldByMazad: true,
           // Conditional spread: Firestore setDoc rejects explicit `undefined` values
           // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
           ...(viewing ? { viewing } : {}),
