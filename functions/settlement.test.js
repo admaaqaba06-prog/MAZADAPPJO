@@ -21,6 +21,8 @@ const {
   totalDueFils,
   buyerPremiumJod,
   totalDueJod,
+  MAX_AUTO_RELISTS,
+  shouldAutoRelist,
 } = require('./settlement');
 
 describe("buyer's premium (5% added to the winner's total)", () => {
@@ -211,6 +213,30 @@ describe('computeSoftCloseEnd', () => {
     expect(computeSoftCloseEnd(now + 20000, now, 30000, 15000)).toBe(now + 20000);
     // bid at 8s remaining, same config: now+15 is later -> extend to now+15
     expect(computeSoftCloseEnd(now + 8000, now, 30000, 15000)).toBe(now + 15000);
+  });
+});
+
+describe('shouldAutoRelist (auto-relist eligibility)', () => {
+  const NOW = 1_000_000_000_000;
+  it('cap is 2', () => {
+    expect(MAX_AUTO_RELISTS).toBe(2);
+  });
+  it('true when opted in and under the cap', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 0 }, NOW)).toBe(true);
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 1 }, NOW)).toBe(true);
+    expect(shouldAutoRelist({ autoRelist: true }, NOW)).toBe(true); // count defaults to 0
+  });
+  it('false at the cap', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 2 }, NOW)).toBe(false);
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 3 }, NOW)).toBe(false);
+  });
+  it('false when the original was already relisted (idempotency mark)', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 0, relisted: true }, NOW)).toBe(false);
+  });
+  it('false when not opted in', () => {
+    expect(shouldAutoRelist({ autoRelist: false, autoRelistCount: 0 }, NOW)).toBe(false);
+    expect(shouldAutoRelist({ autoRelistCount: 0 }, NOW)).toBe(false); // unset
+    expect(shouldAutoRelist(null, NOW)).toBe(false);
   });
 });
 

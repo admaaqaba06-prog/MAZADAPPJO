@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
@@ -88,6 +88,20 @@ async function deleteRefsInBatches(refs) {
     count += chunk.length;
   }
   return count;
+}
+
+/**
+ * E3 Slice B — mutate a settlement `update` object in place to stamp
+ * `relistEligibleAt` (auction end + 24h) when the listing opted in to auto-relist
+ * and is under the cap. Only called from the unsold / reserve_not_met branches —
+ * NEVER on a sold outcome. `freshData` is the authoritative in-txn snapshot (used
+ * for the eligibility fields + end time); `auctionData` is the sweep snapshot
+ * fallback for the end time. No-op when not eligible (leaves `update` untouched).
+ */
+function addRelistEligibility(update, freshData, auctionData) {
+  if (!shouldAutoRelist(freshData, Date.now())) return;
+  const endMs = resolveAuctionEndMs(freshData) || resolveAuctionEndMs(auctionData || {}) || Date.now();
+  update.relistEligibleAt = admin.firestore.Timestamp.fromMillis(endMs + 24 * 3600 * 1000);
 }
 
 /**
@@ -267,18 +281,26 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     } else if (decision.outcome === 'reserve_not_met') {
       // A winner exists but the top bid never cleared the hidden reserve.
       // Per spec: NO sale, NO order, NO wonCount. Relist-able.
-      transaction.update(auctionRef, {
+      const rnmUpdate = {
         status: 'reserve_not_met',
         settledAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      // E3 Slice B — stamp auto-relist eligibility (24h after the auction end)
+      // when the seller opted in and the cap isn't hit. autoRelistSweep picks
+      // these up. NEVER stamped on a sold outcome (that branch is above).
+      addRelistEligibility(rnmUpdate, freshData, auctionData);
+      transaction.update(auctionRef, rnmUpdate);
       settled = true;
       console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
     } else {
       // Close without bidder
-      transaction.update(auctionRef, {
+      const unsoldUpdate = {
         status: 'ended',
         settledAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      // E3 Slice B — same auto-relist eligibility stamp for a truly unsold lot.
+      addRelistEligibility(unsoldUpdate, freshData, auctionData);
+      transaction.update(auctionRef, unsoldUpdate);
       settled = true;
       console.log(`[settleAuctionTxn] Closed unsold auction ${auctionId}`);
     }
@@ -385,6 +407,11 @@ exports.scheduledAuctionCloser = functions.pubsub
 
         // 3. Check if active/live auction has expired
         const isLive = auctionData.status === 'active' || auctionData.status === 'live';
+        // E3 first_bid safety: a 'first_bid' lot goes live with NO endTime and
+        // starts its clock only on the first bid. Until then endsAtMs is 0, so
+        // `isExpired` is false and it is never settled/closed — it stays open
+        // indefinitely awaiting that first bid. Once a bid sets endsAt, normal
+        // expiry applies. This guard makes that intent explicit (endsAtMs > 0).
         const isExpired = endsAtMs > 0 && endsAtMs <= nowMs;
 
         if (isLive && isExpired) {
@@ -440,27 +467,177 @@ exports.scheduledAuctionOpener = functions.pubsub
           const fresh = await tx.get(docSnap.ref);
           const fd = fresh.data();
           if (!fd || fd.status !== 'upcoming') return; // already opened / changed
-          const openMs = admin.firestore.Timestamp.now().toMillis();
-          const endMs = openMs + durationSec * 1000;
-          tx.update(docSnap.ref, {
+          // Mirror approveListing's go-live fields so an auto-opened auction is
+          // NOT left counted as a pending approval (AdminDashboardView badge,
+          // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
+          const goLive = {
             status: 'live',
-            // Mirror approveListing's go-live fields so an auto-opened auction is
-            // NOT left counted as a pending approval (AdminDashboardView badge,
-            // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
             approvalStatus: 'approved',
             isApproved: true,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
             approvedBy: 'scheduledAuctionOpener',
             openedAt: admin.firestore.FieldValue.serverTimestamp(),
-            endTime: endMs,
-            endsAt: admin.firestore.Timestamp.fromMillis(endMs),
-          });
+          };
+          // E3 first_bid: go live NOW but leave endTime/endsAt absent — the
+          // duration clock starts on the first bid (applyBidWrites/computeBidEndTime).
+          // Scheduled lots reset their countdown from `duration` at open time.
+          if (fd.startMode !== 'first_bid') {
+            const openMs = admin.firestore.Timestamp.now().toMillis();
+            const endMs = openMs + durationSec * 1000;
+            goLive.endTime = endMs;
+            goLive.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
+          }
+          tx.update(docSnap.ref, goLive);
         }).catch((err) => console.error(`[scheduledAuctionOpener] open failed for ${docSnap.id}`, err));
       });
 
       await Promise.all(promises);
     } catch (err) {
       console.error('[scheduledAuctionOpener]', err);
+    }
+    return null;
+  });
+
+/**
+ * autoRelistSweep (E3 Slice B)
+ * Every 60 minutes: finds auctions whose `relistEligibleAt` (stamped 24h after an
+ * unsold / reserve-not-met settlement, seller opted in) has passed and creates a
+ * FRESH listing for each — a brand-new auction doc copying the sale-relevant
+ * fields, with autoRelistCount incremented.
+ *
+ * IDEMPOTENCY / anti-spam (three layers):
+ *  1. The stamp only lands when the seller opted in AND autoRelistCount < cap
+ *     (settleAuctionTxn → addRelistEligibility → shouldAutoRelist).
+ *  2. Each relist runs in a transaction that RE-READS the original and bails
+ *     unless shouldAutoRelist is still true, then marks the ORIGINAL
+ *     `{ relisted: true }`. That mark makes shouldAutoRelist false forever after,
+ *     so a later sweep (or an overlapping run — the tx reads the original, so a
+ *     concurrent writer forces a retry that then sees relisted:true) never
+ *     re-processes it. Exactly one replacement per original.
+ *  3. autoRelistCount carries onto the child (prev+1); once it reaches the cap
+ *     the child never gets a stamp, so the chain terminates at MAX_AUTO_RELISTS.
+ */
+exports.autoRelistSweep = functions.pubsub
+  .schedule('every 60 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    try {
+      const snap = await db.collection('auctions')
+        .where('relistEligibleAt', '<=', now)
+        .get();
+      if (snap.empty) {
+        console.log('[autoRelistSweep] Nothing eligible for relist.');
+        return null;
+      }
+      console.log(`[autoRelistSweep] ${snap.size} candidate(s) past relistEligibleAt.`);
+
+      const promises = snap.docs.map(async (docSnap) => {
+        const origRef = docSnap.ref;
+        const origId = origRef.id;
+        // Pre-generate the child ref so a tx retry reuses the SAME id (no dupes).
+        const newRef = db.collection('auctions').doc();
+        const newId = newRef.id;
+        try {
+          let created = false;
+          let reservePrice = null;
+          await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(origRef);
+            if (!fresh.exists) return;
+            const d = fresh.data();
+            // Re-check under the transaction: opted in, under cap, not already
+            // relisted. The `relisted` mark below makes this false on any retry
+            // or later sweep — exactly-once.
+            if (!shouldAutoRelist(d, Date.now())) return;
+
+            // Reserve copy: read the admin-only secret INSIDE the tx (all reads
+            // before writes). Absent = no reserve; nothing to copy.
+            const secretSnap = await tx.get(db.collection('auctionSecrets').doc(origId));
+            if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+
+            const nowMs = Date.now();
+            const durationSec = Number(d.duration) > 0 ? Number(d.duration) : 600;
+            const startMode = d.startMode === 'first_bid' ? 'first_bid' : 'scheduled';
+            const startingPrice = d.startingPrice;
+
+            const child = {
+              id: newId,
+              title: d.title || '',
+              description: d.description || '',
+              category: d.category || '',
+              channel: d.channel || 'misc',
+              thumbnailUrl: d.thumbnailUrl || '',
+              startingPrice: startingPrice,
+              currentPrice: startingPrice,
+              minIncrement: d.minIncrement ?? 10,
+              duration: durationSec,
+              sellerId: d.sellerId || '',
+              sellerName: d.sellerName || 'Seller',
+              createdById: d.createdById || d.sellerId || '',
+              startMode: startMode,
+              autoRelist: true,
+              autoRelistCount: (d.autoRelistCount || 0) + 1,
+              relistedFrom: origId, // provenance (audit / analytics)
+              totalBids: 0,
+              currentBidderId: null,
+              currentBidderName: null,
+              isApproved: true,
+              approvalStatus: 'approved',
+              status: startMode === 'first_bid' ? 'live' : 'upcoming',
+              // Open promptly: scheduled lots are flipped live by the opener on
+              // its next run; first_bid lots are already live here.
+              scheduledStartAt: nowMs,
+              createdAt: nowMs,
+              createdByName: d.createdByName || d.sellerName || 'Seller',
+              paymentWindowHours: resolvePaymentWindowHours(d.paymentWindowHours),
+              openedAt: admin.firestore.FieldValue.serverTimestamp(),
+              approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+              approvedBy: 'autoRelistSweep',
+            };
+            // Conditional / optional sale fields — Firestore rejects explicit
+            // undefined, so only copy when present.
+            if (typeof startingPrice === 'number') child.currentPriceFils = Math.round(startingPrice * 1000);
+            if (Array.isArray(d.mediaUrls) && d.mediaUrls.length > 0) child.mediaUrls = d.mediaUrls;
+            if (d.imageUrl) child.imageUrl = d.imageUrl;
+            if (typeof d.marketPrice === 'number') child.marketPrice = d.marketPrice;
+            if (d.antiSnipeWindowSec != null) child.antiSnipeWindowSec = d.antiSnipeWindowSec;
+            if (d.antiSnipeExtendSec != null) child.antiSnipeExtendSec = d.antiSnipeExtendSec;
+            if (d.vendorId != null) child.vendorId = d.vendorId;
+            if (d.vendorName) child.vendorName = d.vendorName;
+            if (d.condition) child.condition = d.condition;
+            if (reservePrice && reservePrice > 0) child.reserveMet = false;
+            // first_bid: NO endTime/endsAt (clock starts on the first bid).
+            // scheduled: fixed window from now.
+            if (startMode !== 'first_bid') {
+              const endMs = nowMs + durationSec * 1000;
+              child.endTime = endMs;
+              child.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
+            }
+
+            // (a) mark the ORIGINAL relisted (idempotency — fires once)
+            tx.update(origRef, { relisted: true });
+            // (b) create the fresh listing
+            tx.set(newRef, child);
+            created = true;
+          });
+
+          // Copy the reserve secret for the new listing (outside the tx: it's a
+          // different collection doc and non-critical to the atomic relist mark).
+          if (created && reservePrice && reservePrice > 0) {
+            await db.collection('auctionSecrets').doc(newId).set({ reservePrice })
+              .catch((e) => console.warn(`[autoRelistSweep] reserve copy failed for ${newId}:`, e));
+          }
+          if (created) {
+            console.log(`[autoRelistSweep] Relisted ${origId} -> ${newId} (cap ${MAX_AUTO_RELISTS}).`);
+          }
+        } catch (relErr) {
+          console.error(`[autoRelistSweep] Relist failed for ${origId} — will retry next sweep:`, relErr);
+        }
+      });
+
+      await Promise.all(promises);
+      console.log('[autoRelistSweep] Sweep complete.');
+    } catch (err) {
+      console.error('[autoRelistSweep Global Error]', err);
     }
     return null;
   });

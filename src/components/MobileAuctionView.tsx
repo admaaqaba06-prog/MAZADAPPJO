@@ -9,6 +9,7 @@ import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
 import { serverNow } from '../utils/serverTime';
+import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { CountdownPill } from './auction/CountdownPill';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
@@ -470,6 +471,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                   endTime={activeAuction?.endTime}
                   status={activeAuction?.status}
                   isAr={isAr}
+                  awaitingFirstBid={isAwaitingFirstBid(activeAuction)}
                   className="text-[16px] font-black text-[#F05123] tabular-nums"
                 />
               </div>

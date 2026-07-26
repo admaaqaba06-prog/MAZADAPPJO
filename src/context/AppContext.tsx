@@ -3496,6 +3496,12 @@ const fetchIP = async () => {
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
 
+    // E3 Slice A — first-bid start mode: the listing goes live immediately with
+    // NO endTime/endsAt (the duration clock starts on the first bid, server-side
+    // in applyBidWrites). scheduledStartAt = now so the opener cron flips it live
+    // on its next run. Scheduled listings keep their computed end time.
+    const isFirstBid = (listingData as any).startMode === 'first_bid';
+
     // Admin drop-builder auctions get a sequential number from the atomic counter.
     // (Seller-wizard 'processing' submissions don't — they're numbered at approval time, later slice.)
     let assignedAuctionNumber: number | undefined;
@@ -3527,7 +3533,7 @@ const fetchIP = async () => {
       // completes details before approving. Defaults to false.
       isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
-      scheduledStartAt: listingData.scheduledStartAt ?? null,
+      scheduledStartAt: isFirstBid ? Date.now() : (listingData.scheduledStartAt ?? null),
       // Wave 4 (seller-KYC groundwork): listing-time ownership + legality
       // attestation. Both sell paths (wizard + concierge) require the checkbox
       // before submit can reach here; the stamp survives on the doc for audit.
@@ -3545,9 +3551,17 @@ const fetchIP = async () => {
       createdByName: currentUser.name || 'Seller JO',
       videoUrl: finalVideoUrl,
       thumbnailUrl: finalThumbnailUrl,
-      endTime: endTimeMs,
-      endsAt: Timestamp.fromMillis(endTimeMs)
+      // first_bid: omit endTime/endsAt entirely (the clock starts on the first bid).
+      ...(isFirstBid ? {} : { endTime: endTimeMs, endsAt: Timestamp.fromMillis(endTimeMs) })
     };
+
+    // first_bid: the caller (drop-builder) still passes an `endTime`/`endsAt` in
+    // listingData, which the `...auctionInput` spread above would carry onto the
+    // doc. Strip them so a first_bid lot truly has NO end until the first bid.
+    if (isFirstBid) {
+      delete newListing.endTime;
+      delete newListing.endsAt;
+    }
 
     // Save directly to Firestore for real-time synchronization
     const docRef = doc(db, 'auctions', newListingId);

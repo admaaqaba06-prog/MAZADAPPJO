@@ -130,6 +130,19 @@ export interface AuctionItem {
   reserveMet?: boolean;
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
+  /**
+   * E3 Slice A — start mode. 'scheduled' (default/unset): fixed window opened by
+   * scheduledStartAt. 'first_bid': goes live immediately with NO endTime; the
+   * duration clock starts on the first bid (endsAt = now + duration).
+   */
+  startMode?: 'scheduled' | 'first_bid';
+  /**
+   * E3 Slice B — seller opt-in: auto-relist the listing (up to MAX_AUTO_RELISTS)
+   * if it ends unsold / reserve-not-met. Default false (off).
+   */
+  autoRelist?: boolean;
+  /** E3 Slice B — how many times this listing has already been auto-relisted. */
+  autoRelistCount?: number;
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
   vendorId?: string | null;
   vendorName?: string;

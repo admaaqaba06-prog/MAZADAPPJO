@@ -3,7 +3,7 @@ import { useApp, useAuctions, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
-import { isAuctionOpen } from '../utils/auctionPhase';
+import { isAuctionOpen, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { minNextBid } from '../utils/bidMath';
 import { resolveConfirm } from '../hooks/useBidFlow';
@@ -62,6 +62,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   React.useEffect(() => {
     if (!currentItem) return;
     const interval = setInterval(() => {
+      // E3 first_bid: a live lot with no clock yet shows the awaiting label, not a timer.
+      if (isAwaitingFirstBid(currentItem)) {
+        setTimeLeftStr(isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid');
+        return;
+      }
       // Pre-open auctions count down to their scheduled start; open auctions count down to the end.
       const open = isAuctionOpen(currentItem.status);
       const target = !open && currentItem.scheduledStartAt ? currentItem.scheduledStartAt : currentItem.endTime;

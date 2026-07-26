@@ -145,9 +145,25 @@ function sellerNetFils(hammerFils) {
   return h - sellerCommissionFils(h);
 }
 
+// Auto-relist (E3 Slice B): a seller can opt a listing in to being automatically
+// relisted if it ends unsold / reserve-not-met. Capped so a chronically-unsold
+// lot can't loop forever. `relisted` marks the ORIGINAL once its replacement has
+// been created (idempotency — the sweep fires exactly once per original).
+const MAX_AUTO_RELISTS = 2;
+function shouldAutoRelist(auction, nowMs) { // eslint-disable-line no-unused-vars
+  if (!auction) return false;
+  return (
+    auction.autoRelist === true &&
+    (auction.autoRelistCount || 0) < MAX_AUTO_RELISTS &&
+    auction.relisted !== true
+  );
+}
+
 module.exports = {
   reserveMet,
   resolveSettlement,
+  MAX_AUTO_RELISTS,
+  shouldAutoRelist,
   nextAuctionNumber,
   SELLER_COMMISSION_RATE,
   sellerCommissionFils,

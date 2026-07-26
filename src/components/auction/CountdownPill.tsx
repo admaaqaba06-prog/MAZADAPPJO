@@ -33,6 +33,12 @@ interface CountdownPillProps {
   variant: 'mobile' | 'desktop';
   /** Desktop pre-open lots count down to their scheduled start instead of endTime. */
   scheduledStartAt?: number;
+  /**
+   * E3 Slice A — a live 'first_bid' lot whose clock hasn't started (no endTime,
+   * no bids yet): show "Awaiting first bid" instead of a timer. See
+   * utils/auctionPhase.isAwaitingFirstBid.
+   */
+  awaitingFirstBid?: boolean;
 }
 
 const pad = (n: number) => n.toString().padStart(2, '0');
@@ -50,6 +56,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
   className,
   variant,
   scheduledStartAt,
+  awaitingFirstBid = false,
 }) => {
   // A single per-second `now` drives every derived value below; this leaf
   // re-renders once per second (by design), the parent layout does not.
@@ -60,6 +67,15 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
     return () => window.clearInterval(id);
     // Primitive deps only (PF7) — no teardown on unrelated re-renders.
   }, [endTime, status, scheduledStartAt]);
+
+  if (awaitingFirstBid) {
+    // E3 first_bid: the clock hasn't started — no timer, just the awaiting label.
+    return (
+      <span className={className} dir={isAr ? 'rtl' : 'ltr'}>
+        {isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid'}
+      </span>
+    );
+  }
 
   if (variant === 'mobile') {
     // Mobile counts down to endTime only. When there is no endTime, show
