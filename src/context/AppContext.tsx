@@ -11,6 +11,7 @@ import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
+import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
 import { mapAuctionDocFull, PLACEHOLDER_MEDIA } from '../utils/auctionDocMap';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
@@ -3593,6 +3594,11 @@ const fetchIP = async () => {
       }
     }
 
+    // Is this one of Mazad's OWN drops? Only the admin drop-builder sets
+    // soldByMazad, and the isAdminUser gate means a forged flag on a
+    // seller-facing path cannot dress a third-party lot up as Mazad's.
+    const sellsAsMazad = (listingData as any).soldByMazad === true && isAdminUser(currentUser);
+
     const newListing: any = {
       ...auctionInput,
       ...(assignedAuctionNumber != null ? { auctionNumber: assignedAuctionNumber } : {}),
@@ -3603,9 +3609,21 @@ const fetchIP = async () => {
       ...(reservePrice && reservePrice > 0 ? { reserveMet: false } : {}),
       id: newListingId,
       currentPrice: listingData.startingPrice,
+      // sellerId stays the REAL creating uid even for Mazad's own drops: orders,
+      // payouts, seller notifications, reviews and the firestore.rules ownership
+      // checks are all keyed on it. Only the buyer-facing DISPLAY identity below
+      // changes. Same for createdById further down.
       sellerId: currentUser.id,
-      sellerName: currentUser.name || sellerProfile?.storeName || 'Custom Merchant',
-      sellerLogo: currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
+      // Mazad's own drops (admin drop-builder, soldByMazad) sell as the MazadJo
+      // store, not as the individual admin who happened to build them — that is
+      // what a buyer is actually transacting with. Gated on isAdminUser so a
+      // forged flag from a seller-facing path cannot claim Mazad's identity.
+      sellerName: sellsAsMazad
+        ? MAZAD_STORE_NAME
+        : (currentUser.name || sellerProfile?.storeName || 'Custom Merchant'),
+      sellerLogo: sellsAsMazad
+        ? MAZAD_STORE_LOGO
+        : (currentUser.avatar || sellerProfile?.storeLogo || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80'),
       status: initialStatus, // Save under the requested status (default 'processing' = awaiting Mazad review) so Admin can approve/reject
       // Concierge flag (a.k.a. listedByMazad): true only when the seller asked
       // Mazad to build the listing — the admin queue badges these so the team

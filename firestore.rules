@@ -129,6 +129,11 @@ service cloud.firestore {
           // claim would otherwise survive the review untouched and go live.
           (!('viewing' in request.resource.data)) &&
           (!('viewingPlace' in request.resource.data)) &&
+          // Selling AS MazadJo is Mazad's identity, not a seller's to assume.
+          // createListing turns this flag into the buyer-facing sellerName/
+          // sellerLogo, so a forged one would let a seller present their own lot
+          // as Mazad's own inventory. Only the admin drop builder sets it.
+          (!('soldByMazad' in request.resource.data)) &&
           (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false) &&
           (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus == 'pending') &&
           (!('currentPrice' in request.resource.data) || request.resource.data.currentPrice == request.resource.data.startingPrice)
@@ -153,7 +158,8 @@ service cloud.firestore {
             'winnerEmail', 'winnerPhone', 'winnerCity', 'currentPrice',
             'totalBids', 'scheduledStartAt', 'approvalStatus', 'isApproved',
             'approvedAt', 'approvedBy', 'createdById', 'paymentWindowHours',
-            'antiSnipeWindowSec', 'antiSnipeExtendSec', 'viewing', 'viewingPlace'
+            'antiSnipeWindowSec', 'antiSnipeExtendSec', 'viewing', 'viewingPlace',
+            'soldByMazad'
           ])
         )
       );
