@@ -183,6 +183,11 @@ interface AppContextProps {
     orderId: string,
     input: { accept: boolean; note?: string }
   ) => Promise<{ success: boolean; message: string }>;
+  // E7 — seller rates the buyer after a completed order (no money)
+  rateBuyer: (
+    orderId: string,
+    input: { stars: number; comment?: string }
+  ) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -3459,6 +3464,35 @@ const fetchIP = async () => {
     }
   }, [addNotification, showToast, language]);
 
+  // E7 — seller rates the buyer on a completed order. The callable is seller-only,
+  // one-per-order (deterministic review id), and never moves money.
+  const rateBuyer = useCallback(async (
+    orderId: string,
+    input: { stars: number; comment?: string }
+  ) => {
+    try {
+      const callable = await getCallableFunction<
+        { orderId: string; stars: number; comment?: string },
+        { success: boolean; message: string }
+      >('rateBuyer');
+      const result = await callable({ orderId, stars: input.stars, comment: input.comment });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? 'تم تقييم المشتري' : 'Buyer Rated',
+          result.data.message || (language === 'ar' ? 'تم حفظ تقييمك للمشتري.' : 'Your rating of the buyer has been saved.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to rate buyer.' };
+    } catch (error: any) {
+      console.error('Cloud function rateBuyer failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر حفظ التقييم.' : 'Failed to rate buyer.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
     const newMsg: ChatMessage = {
@@ -5044,6 +5078,7 @@ const fetchIP = async () => {
       declineBelowReserve,
       requestReturn,
       sellerRespondToReturn,
+      rateBuyer,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -5129,7 +5164,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, rateBuyer, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

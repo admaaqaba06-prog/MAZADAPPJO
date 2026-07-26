@@ -7,6 +7,10 @@ import { isViewerWinner } from '../utils/bidMath';
 import { isAuctionFinished, serverNow } from '../utils/serverTime';
 import { translations } from '../utils/translations';
 import { Order } from '../types';
+import { db } from '../services/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { buyerReputation } from '../utils/reputation';
+import { StarRating } from './ui/StarRating';
 import { ShoppingBag, Clock, ChevronLeft, ChevronRight, Sparkles, Star } from 'lucide-react';
 
 /** Session guard: auto-open the review prompt at most once per browser session. */
@@ -104,6 +108,34 @@ export const MyOrdersView: React.FC = () => {
     .filter((o: Order) => o.buyerId === currentUser?.id)
     .sort((a: Order, b: Order) => toMillis(b.createdAt) - toMillis(a.createdAt));
 
+  // E7 B2 — the buyer's own received reputation (seller_rates_buyer). Loaded
+  // on-demand; the badge is hidden entirely until there is at least one rating.
+  const [myBuyerReviews, setMyBuyerReviews] = useState<any[] | null>(null);
+  useEffect(() => {
+    const uid = currentUser?.id;
+    if (!uid) { setMyBuyerReviews(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'reviews'),
+          where('buyerId', '==', uid),
+          where('direction', '==', 'seller_rates_buyer')
+        ));
+        if (!cancelled) {
+          const rows: any[] = [];
+          snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+          setMyBuyerReviews(rows);
+        }
+      } catch (err) {
+        console.warn('Buyer self-rating lookup failed:', err);
+        if (!cancelled) setMyBuyerReviews([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
+  const myBuyerRep = buyerReputation(myBuyerReviews, currentUser?.id || '');
+
   // Wave 1 settlement-lag hint: the closer cron creates the order up to ~60s
   // after an auction ends, so a winner following "Complete payment" can land
   // here before their order doc exists. Detect a RECENTLY finished auction
@@ -163,9 +195,21 @@ export const MyOrdersView: React.FC = () => {
             <ShoppingBag className="w-4 h-4 text-[#FF6B00]" />
             <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
           </h2>
-          <span className="text-[10px] bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/20 font-mono font-black px-2.5 py-0.5 rounded-full">
-            {myOrders.length} {isAr ? 'طلبات' : 'Orders'}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* E7 B2 — buyer's own rating badge; hidden until they've been rated. */}
+            {myBuyerRep.average !== null && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 font-mono font-black px-2.5 py-1 rounded-full"
+                title={isAr ? 'تقييمك كمشتري' : 'Your buyer rating'}
+              >
+                <span>{isAr ? 'تقييمك' : 'Your rating'}</span>
+                <StarRating value={myBuyerRep.average} count={myBuyerRep.count} size={12} />
+              </span>
+            )}
+            <span className="text-[10px] bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/20 font-mono font-black px-2.5 py-0.5 rounded-full">
+              {myOrders.length} {isAr ? 'طلبات' : 'Orders'}
+            </span>
+          </div>
         </div>
 
         {/* Settlement-lag hint: just-won auction whose order the cron (≤60s)
