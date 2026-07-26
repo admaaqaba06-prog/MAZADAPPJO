@@ -14,11 +14,20 @@ const {
   MAX_ANTISNIPE_SEC,
   sellerCommissionFils,
   sellerNetFils,
+  computeBidEndTime,
+  DEFAULT_DURATION_SEC,
   BUYER_PREMIUM_RATE,
   premiumFils,
   totalDueFils,
   buyerPremiumJod,
   totalDueJod,
+  MAX_AUTO_RELISTS,
+  shouldAutoRelist,
+  BELOW_RESERVE_WINDOW_HOURS,
+  belowReserveExpiryMs,
+  tsToMillis,
+  isBelowReserveOfferExpired,
+  belowReserveBlocksRelist,
 } = require('./settlement');
 
 describe("buyer's premium (5% added to the winner's total)", () => {
@@ -209,5 +218,137 @@ describe('computeSoftCloseEnd', () => {
     expect(computeSoftCloseEnd(now + 20000, now, 30000, 15000)).toBe(now + 20000);
     // bid at 8s remaining, same config: now+15 is later -> extend to now+15
     expect(computeSoftCloseEnd(now + 8000, now, 30000, 15000)).toBe(now + 15000);
+  });
+});
+
+describe('shouldAutoRelist (auto-relist eligibility)', () => {
+  const NOW = 1_000_000_000_000;
+  it('cap is 2', () => {
+    expect(MAX_AUTO_RELISTS).toBe(2);
+  });
+  it('true when opted in and under the cap', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 0 }, NOW)).toBe(true);
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 1 }, NOW)).toBe(true);
+    expect(shouldAutoRelist({ autoRelist: true }, NOW)).toBe(true); // count defaults to 0
+  });
+  it('false at the cap', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 2 }, NOW)).toBe(false);
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 3 }, NOW)).toBe(false);
+  });
+  it('false when the original was already relisted (idempotency mark)', () => {
+    expect(shouldAutoRelist({ autoRelist: true, autoRelistCount: 0, relisted: true }, NOW)).toBe(false);
+  });
+  it('false when not opted in', () => {
+    expect(shouldAutoRelist({ autoRelist: false, autoRelistCount: 0 }, NOW)).toBe(false);
+    expect(shouldAutoRelist({ autoRelistCount: 0 }, NOW)).toBe(false); // unset
+    expect(shouldAutoRelist(null, NOW)).toBe(false);
+  });
+});
+
+describe('computeBidEndTime (start modes)', () => {
+  const NOW = 1_000_000_000_000;
+  it('first_bid mode: the FIRST bid starts the clock at now + duration (no anti-snipe)', () => {
+    const a = { startMode: 'first_bid', duration: 600 }; // 10 min
+    expect(computeBidEndTime(a, 0, null, NOW)).toBe(NOW + 600_000);
+  });
+  it('first_bid mode: later bids apply the normal soft close to the existing end', () => {
+    const a = { startMode: 'first_bid', duration: 600, antiSnipeWindowSec: 30, antiSnipeExtendSec: 30 };
+    // 2nd bid, 8s left → soft-close extends to now+30s
+    expect(computeBidEndTime(a, 1, NOW + 8000, NOW)).toBe(NOW + 30_000);
+    // 2nd bid, plenty of time left → unchanged
+    expect(computeBidEndTime(a, 1, NOW + 500_000, NOW)).toBe(NOW + 500_000);
+  });
+  it('scheduled mode (default/absent): always the soft-close path, never first-bid start', () => {
+    const scheduled = { duration: 600, antiSnipeWindowSec: 30, antiSnipeExtendSec: 30 };
+    expect(computeBidEndTime(scheduled, 0, NOW + 500_000, NOW)).toBe(NOW + 500_000);
+    expect(computeBidEndTime(scheduled, 0, NOW + 8000, NOW)).toBe(NOW + 30_000);
+  });
+  it('first_bid with a missing duration falls back to the default window', () => {
+    expect(computeBidEndTime({ startMode: 'first_bid' }, 0, null, NOW)).toBe(NOW + DEFAULT_DURATION_SEC * 1000);
+  });
+});
+
+describe('below-reserve near-miss (E3 Slice C)', () => {
+  const NOW = 1_700_000_000_000;
+
+  describe('belowReserveExpiryMs', () => {
+    it('defaults to a 24h window from now', () => {
+      expect(belowReserveExpiryMs(NOW)).toBe(NOW + 24 * 3600 * 1000);
+      expect(BELOW_RESERVE_WINDOW_HOURS).toBe(24);
+    });
+    it('honors an explicit window', () => {
+      expect(belowReserveExpiryMs(NOW, 1)).toBe(NOW + 3600 * 1000);
+    });
+  });
+
+  describe('tsToMillis', () => {
+    it('passes a number through', () => {
+      expect(tsToMillis(NOW)).toBe(NOW);
+    });
+    it('reads a Firestore-like Timestamp (.toMillis)', () => {
+      expect(tsToMillis({ toMillis: () => NOW })).toBe(NOW);
+    });
+    it('reads {seconds} and {_seconds}', () => {
+      expect(tsToMillis({ seconds: 1000 })).toBe(1_000_000);
+      expect(tsToMillis({ _seconds: 1000 })).toBe(1_000_000);
+    });
+    it('returns NaN for null/garbage', () => {
+      expect(Number.isNaN(tsToMillis(null))).toBe(true);
+      expect(Number.isNaN(tsToMillis({}))).toBe(true);
+    });
+  });
+
+  describe('isBelowReserveOfferExpired', () => {
+    it('true once now reaches expiresAt', () => {
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW }, NOW)).toBe(true);
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW - 1 }, NOW)).toBe(true);
+    });
+    it('false while still inside the window', () => {
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW + 1000 }, NOW)).toBe(false);
+    });
+    it('fails open (not expired) on a missing/garbage expiresAt', () => {
+      expect(isBelowReserveOfferExpired({ }, NOW)).toBe(false);
+      expect(isBelowReserveOfferExpired(null, NOW)).toBe(false);
+    });
+  });
+
+  describe('belowReserveBlocksRelist', () => {
+    const live = (status) => ({ status, expiresAt: NOW + 3600_000 });
+    const expired = (status) => ({ status, expiresAt: NOW - 1 });
+    it('blocks while an offer is live and pending', () => {
+      expect(belowReserveBlocksRelist(live('pending_seller'), NOW)).toBe(true);
+      expect(belowReserveBlocksRelist(live('pending_buyer'), NOW)).toBe(true);
+    });
+    it('blocks forever once confirmed (a real sale)', () => {
+      expect(belowReserveBlocksRelist({ status: 'confirmed' }, NOW)).toBe(true);
+    });
+    it('does NOT block an expired pending offer (treated as declined)', () => {
+      expect(belowReserveBlocksRelist(expired('pending_seller'), NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(expired('pending_buyer'), NOW)).toBe(false);
+    });
+    it('does NOT block a declined offer, or no offer', () => {
+      expect(belowReserveBlocksRelist({ status: 'declined' }, NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(null, NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(undefined, NOW)).toBe(false);
+    });
+  });
+
+  describe('shouldAutoRelist integrates the below-reserve block', () => {
+    it('opted-in lot with a LIVE pending offer waits (no relist)', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'pending_seller', expiresAt: NOW + 3600_000 } };
+      expect(shouldAutoRelist(a, NOW)).toBe(false);
+    });
+    it('opted-in lot relists once the offer is declined', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'declined' } };
+      expect(shouldAutoRelist(a, NOW)).toBe(true);
+    });
+    it('opted-in lot relists once a pending offer has expired', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'pending_buyer', expiresAt: NOW - 1 } };
+      expect(shouldAutoRelist(a, NOW)).toBe(true);
+    });
+    it('never relists a confirmed below-reserve sale', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'confirmed' } };
+      expect(shouldAutoRelist(a, NOW)).toBe(false);
+    });
   });
 });

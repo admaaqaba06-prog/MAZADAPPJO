@@ -70,8 +70,11 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
       return;
     }
     const update = () => {
-      if (activeAuctionStatus === 'live') {
-        const remainingMs = (activeAuctionEndTime ?? 0) - serverNow();
+      // E3 first_bid: a live lot with no endTime hasn't started its clock — keep
+      // the countdown null so the final-10s overlay never fires on a 0-derived
+      // remaining (the clock starts server-side on the first bid).
+      if (activeAuctionStatus === 'live' && activeAuctionEndTime) {
+        const remainingMs = activeAuctionEndTime - serverNow();
         setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
       } else {
         setSecondsRemaining(null);

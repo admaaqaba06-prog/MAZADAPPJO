@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
@@ -77,6 +77,16 @@ async function assertAdmin(context) {
   return context.auth.uid;
 }
 
+// Shared caller-is-admin check for callables that already read the caller's
+// user doc inside their transaction (mirrors the inline check in
+// releaseOrderEscrow). `callerData` is users/{uid}.data(); `tokenEmail` is
+// context.auth.token.email. Kept tiny + pure so the below-reserve callables and
+// the escrow callables agree on who counts as an admin.
+function callerIsAdmin(callerData, tokenEmail) {
+  const d = callerData || {};
+  return d.role === 'admin' || d.isAdmin === true || (tokenEmail || '').toLowerCase() === 'admaaqaba06@gmail.com';
+}
+
 // Delete a list of document refs in chunks (Firestore batches cap at 500 writes).
 async function deleteRefsInBatches(refs) {
   let count = 0;
@@ -88,6 +98,20 @@ async function deleteRefsInBatches(refs) {
     count += chunk.length;
   }
   return count;
+}
+
+/**
+ * E3 Slice B — mutate a settlement `update` object in place to stamp
+ * `relistEligibleAt` (auction end + 24h) when the listing opted in to auto-relist
+ * and is under the cap. Only called from the unsold / reserve_not_met branches —
+ * NEVER on a sold outcome. `freshData` is the authoritative in-txn snapshot (used
+ * for the eligibility fields + end time); `auctionData` is the sweep snapshot
+ * fallback for the end time. No-op when not eligible (leaves `update` untouched).
+ */
+function addRelistEligibility(update, freshData, auctionData) {
+  if (!shouldAutoRelist(freshData, Date.now())) return;
+  const endMs = resolveAuctionEndMs(freshData) || resolveAuctionEndMs(auctionData || {}) || Date.now();
+  update.relistEligibleAt = admin.firestore.Timestamp.fromMillis(endMs + 24 * 3600 * 1000);
 }
 
 /**
@@ -162,10 +186,14 @@ async function settleAuctionTxn(auctionRef, auctionData) {
 
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
+  // (notify) E3 Slice C — set when a reserve_not_met settlement stamps a fresh
+  // below-reserve offer, so the seller is prompted post-commit to accept.
+  let belowReserveNotify = null;
   let settled = false;
   let settledOrderId = null;
   await db.runTransaction(async (transaction) => {
     notifyData = null; // reset each attempt — transactions retry on contention
+    belowReserveNotify = null;
     settled = false;
     settledOrderId = null;
     const freshDoc = await transaction.get(auctionRef);
@@ -267,18 +295,53 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     } else if (decision.outcome === 'reserve_not_met') {
       // A winner exists but the top bid never cleared the hidden reserve.
       // Per spec: NO sale, NO order, NO wonCount. Relist-able.
-      transaction.update(auctionRef, {
+      const rnmUpdate = {
         status: 'reserve_not_met',
         settledAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      // E3 Slice C — below-reserve near-miss: a real bidder exists but never
+      // cleared the reserve. Stamp a bounded (24h) offer so the seller can
+      // one-tap accept the top bid (then the buyer confirms). NO order + NO
+      // wallet movement here — that only happens on seller-accept / buyer-
+      // confirm via the acceptBelowReserve / confirmBelowReserve callables.
+      // reserve_not_met already implies totalBids>0 && winnerId, so there is
+      // always a real top bid to offer.
+      if (winnerId) {
+        rnmUpdate.belowReserveOffer = {
+          topBid: finalPrice,
+          topBidderId: winnerId,
+          topBidderName: winnerName,
+          expiresAt: admin.firestore.Timestamp.fromMillis(belowReserveExpiryMs(Date.now())),
+          status: 'pending_seller',
+        };
+      }
+      // E3 Slice B — stamp auto-relist eligibility (24h after the auction end)
+      // when the seller opted in and the cap isn't hit. autoRelistSweep picks
+      // these up but WAITS while a below-reserve offer is still live
+      // (shouldAutoRelist → belowReserveBlocksRelist). NEVER on a sold outcome.
+      addRelistEligibility(rnmUpdate, freshData, auctionData);
+      transaction.update(auctionRef, rnmUpdate);
       settled = true;
-      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
+      // (notify) capture the seller prompt — sent post-commit (never inside the
+      // retrying txn). Seller phone is fetched post-commit only when set.
+      if (winnerId) {
+        belowReserveNotify = {
+          sellerId: auctionData.sellerId || freshData.sellerId || '',
+          auctionId,
+          auctionTitle: auctionData.title || freshData.title || '',
+          topBid: finalPrice,
+        };
+      }
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — below-reserve offer opened, no order created`);
     } else {
       // Close without bidder
-      transaction.update(auctionRef, {
+      const unsoldUpdate = {
         status: 'ended',
         settledAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      // E3 Slice B — same auto-relist eligibility stamp for a truly unsold lot.
+      addRelistEligibility(unsoldUpdate, freshData, auctionData);
+      transaction.update(auctionRef, unsoldUpdate);
       settled = true;
       console.log(`[settleAuctionTxn] Closed unsold auction ${auctionId}`);
     }
@@ -317,6 +380,26 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
+    });
+  }
+
+  // (notify) E3 Slice C — prompt the seller that a below-reserve offer is open.
+  // Post-commit + never-throws for the same reason as the win webhooks above.
+  if (belowReserveNotify) {
+    let sellerPhone = '';
+    if (belowReserveNotify.sellerId) {
+      try {
+        const sSnap = await db.collection('users').doc(belowReserveNotify.sellerId).get();
+        sellerPhone = (sSnap.exists && sSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve seller phone lookup failed:', e && e.message); }
+    }
+    await postToN8n('below_reserve_offer', {
+      phone: sellerPhone,
+      sellerId: belowReserveNotify.sellerId,
+      auctionId: belowReserveNotify.auctionId,
+      auctionTitle: belowReserveNotify.auctionTitle,
+      topBid: belowReserveNotify.topBid,
+      idempotencyKey: `${belowReserveNotify.auctionId}_below_reserve_offer`,
     });
   }
 
@@ -385,6 +468,11 @@ exports.scheduledAuctionCloser = functions.pubsub
 
         // 3. Check if active/live auction has expired
         const isLive = auctionData.status === 'active' || auctionData.status === 'live';
+        // E3 first_bid safety: a 'first_bid' lot goes live with NO endTime and
+        // starts its clock only on the first bid. Until then endsAtMs is 0, so
+        // `isExpired` is false and it is never settled/closed — it stays open
+        // indefinitely awaiting that first bid. Once a bid sets endsAt, normal
+        // expiry applies. This guard makes that intent explicit (endsAtMs > 0).
         const isExpired = endsAtMs > 0 && endsAtMs <= nowMs;
 
         if (isLive && isExpired) {
@@ -440,27 +528,193 @@ exports.scheduledAuctionOpener = functions.pubsub
           const fresh = await tx.get(docSnap.ref);
           const fd = fresh.data();
           if (!fd || fd.status !== 'upcoming') return; // already opened / changed
-          const openMs = admin.firestore.Timestamp.now().toMillis();
-          const endMs = openMs + durationSec * 1000;
-          tx.update(docSnap.ref, {
+          // Mirror approveListing's go-live fields so an auto-opened auction is
+          // NOT left counted as a pending approval (AdminDashboardView badge,
+          // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
+          const goLive = {
             status: 'live',
-            // Mirror approveListing's go-live fields so an auto-opened auction is
-            // NOT left counted as a pending approval (AdminDashboardView badge,
-            // SellerCenterView bucket) and sorts correctly (LiveStreamView uses approvedAt).
             approvalStatus: 'approved',
             isApproved: true,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
             approvedBy: 'scheduledAuctionOpener',
             openedAt: admin.firestore.FieldValue.serverTimestamp(),
-            endTime: endMs,
-            endsAt: admin.firestore.Timestamp.fromMillis(endMs),
-          });
+          };
+          // E3 first_bid: go live NOW but leave endTime/endsAt absent — the
+          // duration clock starts on the first bid (applyBidWrites/computeBidEndTime).
+          // Scheduled lots reset their countdown from `duration` at open time.
+          if (fd.startMode !== 'first_bid') {
+            const openMs = admin.firestore.Timestamp.now().toMillis();
+            const endMs = openMs + durationSec * 1000;
+            goLive.endTime = endMs;
+            goLive.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
+          }
+          tx.update(docSnap.ref, goLive);
         }).catch((err) => console.error(`[scheduledAuctionOpener] open failed for ${docSnap.id}`, err));
       });
 
       await Promise.all(promises);
     } catch (err) {
       console.error('[scheduledAuctionOpener]', err);
+    }
+    return null;
+  });
+
+/**
+ * autoRelistSweep (E3 Slice B)
+ * Every 60 minutes: finds auctions whose `relistEligibleAt` (stamped 24h after an
+ * unsold / reserve-not-met settlement, seller opted in) has passed and creates a
+ * FRESH listing for each — a brand-new auction doc copying the sale-relevant
+ * fields, with autoRelistCount incremented.
+ *
+ * IDEMPOTENCY / anti-spam (three layers):
+ *  1. The stamp only lands when the seller opted in AND autoRelistCount < cap
+ *     (settleAuctionTxn → addRelistEligibility → shouldAutoRelist).
+ *  2. Each relist runs in a transaction that RE-READS the original and bails
+ *     unless shouldAutoRelist is still true, then marks the ORIGINAL
+ *     `{ relisted: true }`. That mark makes shouldAutoRelist false forever after,
+ *     so a later sweep (or an overlapping run — the tx reads the original, so a
+ *     concurrent writer forces a retry that then sees relisted:true) never
+ *     re-processes it. Exactly one replacement per original.
+ *  3. autoRelistCount carries onto the child (prev+1); once it reaches the cap
+ *     the child never gets a stamp, so the chain terminates at MAX_AUTO_RELISTS.
+ */
+exports.autoRelistSweep = functions.pubsub
+  .schedule('every 60 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    try {
+      const snap = await db.collection('auctions')
+        .where('relistEligibleAt', '<=', now)
+        .get();
+      if (snap.empty) {
+        console.log('[autoRelistSweep] Nothing eligible for relist.');
+        return null;
+      }
+      console.log(`[autoRelistSweep] ${snap.size} candidate(s) past relistEligibleAt.`);
+
+      const promises = snap.docs.map(async (docSnap) => {
+        const origRef = docSnap.ref;
+        const origId = origRef.id;
+        // Pre-generate the child ref so a tx retry reuses the SAME id (no dupes).
+        const newRef = db.collection('auctions').doc();
+        const newId = newRef.id;
+        try {
+          let created = false;
+          let reservePrice = null;
+          await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(origRef);
+            if (!fresh.exists) return;
+            const d = fresh.data();
+            // Re-check under the transaction: opted in, under cap, not already
+            // relisted. The `relisted` mark below makes this false on any retry
+            // or later sweep — exactly-once.
+            if (!shouldAutoRelist(d, Date.now())) return;
+
+            // Reserve copy: read the admin-only secret INSIDE the tx (all reads
+            // before writes). Absent = no reserve; nothing to copy.
+            const secretSnap = await tx.get(db.collection('auctionSecrets').doc(origId));
+            if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+
+            // A below-reserve offer that the seller accepted but the buyer never
+            // confirmed leaves a stale pending order. We only reach here once the
+            // offer window lapsed (shouldAutoRelist blocks a live offer), so cancel
+            // that zombie order and expire the offer as we relist — no orphan +
+            // duplicate-listing pair. (reads before writes.)
+            const origOrderSnap = await tx.get(db.collection('orders').doc(origId));
+
+            const nowMs = Date.now();
+            const durationSec = Number(d.duration) > 0 ? Number(d.duration) : 600;
+            const startMode = d.startMode === 'first_bid' ? 'first_bid' : 'scheduled';
+            const startingPrice = d.startingPrice;
+
+            const child = {
+              id: newId,
+              title: d.title || '',
+              description: d.description || '',
+              category: d.category || '',
+              channel: d.channel || 'misc',
+              thumbnailUrl: d.thumbnailUrl || '',
+              startingPrice: startingPrice,
+              currentPrice: startingPrice,
+              minIncrement: d.minIncrement ?? 10,
+              duration: durationSec,
+              sellerId: d.sellerId || '',
+              sellerName: d.sellerName || 'Seller',
+              createdById: d.createdById || d.sellerId || '',
+              startMode: startMode,
+              autoRelist: true,
+              autoRelistCount: (d.autoRelistCount || 0) + 1,
+              relistedFrom: origId, // provenance (audit / analytics)
+              totalBids: 0,
+              currentBidderId: null,
+              currentBidderName: null,
+              isApproved: true,
+              approvalStatus: 'approved',
+              status: startMode === 'first_bid' ? 'live' : 'upcoming',
+              // Open promptly: scheduled lots are flipped live by the opener on
+              // its next run; first_bid lots are already live here.
+              scheduledStartAt: nowMs,
+              createdAt: nowMs,
+              createdByName: d.createdByName || d.sellerName || 'Seller',
+              paymentWindowHours: resolvePaymentWindowHours(d.paymentWindowHours),
+              openedAt: admin.firestore.FieldValue.serverTimestamp(),
+              approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+              approvedBy: 'autoRelistSweep',
+            };
+            // Conditional / optional sale fields — Firestore rejects explicit
+            // undefined, so only copy when present.
+            if (typeof startingPrice === 'number') child.currentPriceFils = Math.round(startingPrice * 1000);
+            if (Array.isArray(d.mediaUrls) && d.mediaUrls.length > 0) child.mediaUrls = d.mediaUrls;
+            if (d.imageUrl) child.imageUrl = d.imageUrl;
+            if (typeof d.marketPrice === 'number') child.marketPrice = d.marketPrice;
+            if (d.antiSnipeWindowSec != null) child.antiSnipeWindowSec = d.antiSnipeWindowSec;
+            if (d.antiSnipeExtendSec != null) child.antiSnipeExtendSec = d.antiSnipeExtendSec;
+            if (d.vendorId != null) child.vendorId = d.vendorId;
+            if (d.vendorName) child.vendorName = d.vendorName;
+            if (d.condition) child.condition = d.condition;
+            if (reservePrice && reservePrice > 0) child.reserveMet = false;
+            // first_bid: NO endTime/endsAt (clock starts on the first bid).
+            // scheduled: fixed window from now.
+            if (startMode !== 'first_bid') {
+              const endMs = nowMs + durationSec * 1000;
+              child.endTime = endMs;
+              child.endsAt = admin.firestore.Timestamp.fromMillis(endMs);
+            }
+
+            // (a) mark the ORIGINAL relisted (idempotency — fires once); expire a
+            // still-open below-reserve offer so it can't be acted on post-relist.
+            const origUpdate = { relisted: true };
+            if (d.belowReserveOffer && (d.belowReserveOffer.status === 'pending_seller' || d.belowReserveOffer.status === 'pending_buyer')) {
+              origUpdate['belowReserveOffer.status'] = 'expired';
+            }
+            tx.update(origRef, origUpdate);
+            // (a2) cancel a stale seller-accepted-but-unconfirmed order.
+            if (origOrderSnap.exists && origOrderSnap.data().status === 'pending_buyer_confirmation') {
+              tx.update(origOrderSnap.ref, { status: 'cancelled', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            }
+            // (b) create the fresh listing
+            tx.set(newRef, child);
+            created = true;
+          });
+
+          // Copy the reserve secret for the new listing (outside the tx: it's a
+          // different collection doc and non-critical to the atomic relist mark).
+          if (created && reservePrice && reservePrice > 0) {
+            await db.collection('auctionSecrets').doc(newId).set({ reservePrice })
+              .catch((e) => console.warn(`[autoRelistSweep] reserve copy failed for ${newId}:`, e));
+          }
+          if (created) {
+            console.log(`[autoRelistSweep] Relisted ${origId} -> ${newId} (cap ${MAX_AUTO_RELISTS}).`);
+          }
+        } catch (relErr) {
+          console.error(`[autoRelistSweep] Relist failed for ${origId} — will retry next sweep:`, relErr);
+        }
+      });
+
+      await Promise.all(promises);
+      console.log('[autoRelistSweep] Sweep complete.');
+    } catch (err) {
+      console.error('[autoRelistSweep Global Error]', err);
     }
     return null;
   });
@@ -841,11 +1095,10 @@ function applyBidWrites(transaction, auctionRef, auctionData, bid) {
   }
   transaction.set(bidRef, bidDoc);
 
-  // Anti-sniping (soft close) and pricing: a bid inside the final `window`
-  // resets the clock to `extend` remaining (per-auction, default 30s/30s).
+  // End time after this bid. 'first_bid' listings start their clock on the FIRST
+  // bid (now + duration); every other bid applies the anti-snipe soft close.
   const nowMs = Date.now();
-  const { windowMs, extendMs } = resolveAntiSnipe(auctionData);
-  const finalEndTime = computeSoftCloseEnd(bid.endTimeMs || nowMs, nowMs, windowMs, extendMs);
+  const finalEndTime = computeBidEndTime(auctionData, totalBids, bid.endTimeMs, nowMs);
 
   transaction.update(auctionRef, {
     currentPrice: bid.amountJod,
@@ -1832,6 +2085,334 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
   } catch (error) {
     console.error('Error in repairEndedAuctionOrder:', error);
     throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * E3 Slice C — acceptBelowReserve (money-path).
+ * The auction ended reserve_not_met with a real top bid; settleAuctionTxn
+ * stamped a `belowReserveOffer` (status 'pending_seller'). The SELLER (or an
+ * admin) one-taps to accept that top bid. This creates a PENDING order that the
+ * top BIDDER must still confirm — so NO payment deadline, NO escrow lock, and
+ * NO wallet movement happen here. Fees are the SAME as a normal sale, computed
+ * from the below-reserve top bid via the shared settlement helpers (never
+ * recomputed inline). Idempotent: an existing order short-circuits.
+ */
+exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    let buyerNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      buyerNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!auctionSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'المزاد غير موجود.');
+      }
+      const auctionData = auctionSnap.data();
+      const offer = auctionData.belowReserveOffer;
+      if (!offer) {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يوجد عرض أقل من السعر المطلوب لهذا المزاد.');
+      }
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;
+      if (!isAdmin && !isSeller) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+      }
+
+      // Idempotency: an order already exists (this call already ran, or the
+      // buyer already confirmed) — do not double-create or reopen.
+      if (orderSnap.exists) {
+        return { success: true, alreadyAccepted: true, message: 'تم قبول العرض مسبقاً.' };
+      }
+
+      if (offer.status !== 'pending_seller') {
+        throw new functions.https.HttpsError('failed-precondition', 'العرض لم يعد بانتظار موافقة البائع.');
+      }
+      if (isBelowReserveOfferExpired(offer, Date.now())) {
+        throw new functions.https.HttpsError('failed-precondition', 'انتهت مهلة قبول هذا العرض.');
+      }
+
+      const topBid = offer.topBid;
+      const topBidderId = offer.topBidderId;
+      const topBidderName = offer.topBidderName || 'Buyer';
+
+      // Money-path: fees on the below-reserve top bid, computed with the SAME
+      // shared helpers the sold path uses (buyer +5%, seller net 95%). PENDING —
+      // no paymentDeadlineAt, no escrow lock. escrowStatus is a status field only.
+      const orderPayload = {
+        id: auctionId,
+        auctionId: auctionId,
+        auctionTitle: auctionData.title || '',
+        auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
+        sellerId: auctionData.sellerId || '',
+        sellerName: auctionData.sellerName || 'Seller',
+        buyerId: topBidderId,
+        buyerName: topBidderName,
+        winningBidAmount: topBid,
+        buyersPremium: buyerPremiumJod(topBid),
+        totalDue: totalDueJod(topBid),
+        sellerCommission: sellerCommissionFils(Math.round(topBid * 1000)) / 1000,
+        sellerNet: sellerNetFils(Math.round(topBid * 1000)) / 1000,
+        status: 'pending_buyer_confirmation',
+        paymentStatus: 'unpaid',
+        shippingStatus: 'not_started',
+        escrowStatus: 'pending',
+        belowReserve: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (auctionData.isSimulated === true) {
+        orderPayload.isSimulated = true;
+      }
+
+      transaction.set(orderRef, orderPayload);
+      transaction.update(auctionRef, {
+        'belowReserveOffer.status': 'pending_buyer',
+        'belowReserveOffer.sellerAcceptedAt': admin.firestore.FieldValue.serverTimestamp(),
+        // Give the buyer a FRESH 24h window to confirm (not the residual of the
+        // seller's window) — keeps the confirm window fair and keeps
+        // belowReserveBlocksRelist blocking a relist until the buyer's window lapses.
+        'belowReserveOffer.expiresAt': admin.firestore.Timestamp.fromMillis(belowReserveExpiryMs(Date.now())),
+      });
+
+      buyerNotify = {
+        buyerId: topBidderId,
+        buyerName: topBidderName,
+        auctionId,
+        auctionTitle: auctionData.title || '',
+        topBid,
+      };
+      return { success: true, message: 'تم قبول العرض. بانتظار تأكيد المشتري.' };
+    });
+
+    // (notify) prompt the buyer to confirm. Post-commit, never-throws — a webhook
+    // failure must not roll back an accepted offer.
+    if (buyerNotify) {
+      let buyerPhone = '';
+      try {
+        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
+        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve buyer phone lookup failed:', e && e.message); }
+      await postToN8n('below_reserve_seller_accepted', {
+        phone: buyerPhone,
+        name: buyerNotify.buyerName,
+        buyerId: buyerNotify.buyerId,
+        auctionId: buyerNotify.auctionId,
+        auctionTitle: buyerNotify.auctionTitle,
+        topBid: buyerNotify.topBid,
+        idempotencyKey: `${buyerNotify.auctionId}_below_reserve_accepted`,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in acceptBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر قبول العرض.');
+  }
+});
+
+/**
+ * E3 Slice C — confirmBelowReserve (money-path).
+ * The seller accepted; the top BIDDER (or admin) confirms, turning the pending
+ * order into a real obligation: status 'waiting_payment', escrowStatus 'locked'
+ * (status field only — actual wallet movement stays with the existing
+ * pay → verify → releaseOrderEscrow flow), and a 24h payment deadline via the
+ * SAME paymentDeadlineFromNow helper a normal win uses. Idempotent.
+ */
+exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    let buyerNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      buyerNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+      const auctionData = auctionSnap.exists ? auctionSnap.data() : {};
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
+      if (!isAdmin && !isBuyer) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Idempotency: already confirmed (or beyond) — the obligation already exists.
+      if (orderData.status !== 'pending_buyer_confirmation') {
+        if (orderData.status === 'waiting_payment') {
+          return { success: true, alreadyConfirmed: true, message: 'تم تأكيد الشراء مسبقاً.' };
+        }
+        throw new functions.https.HttpsError('failed-precondition', 'لا يمكن تأكيد هذا الطلب في حالته الحالية.');
+      }
+
+      // Guard the offer window: an expired offer can't be turned into a sale.
+      const offer = auctionData.belowReserveOffer;
+      if (offer && isBelowReserveOfferExpired(offer, Date.now())) {
+        throw new functions.https.HttpsError('failed-precondition', 'انتهت مهلة تأكيد هذا العرض.');
+      }
+
+      transaction.update(orderRef, {
+        status: 'waiting_payment',
+        escrowStatus: 'locked',
+        paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
+        paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (auctionSnap.exists) {
+        transaction.update(auctionRef, {
+          'belowReserveOffer.status': 'confirmed',
+          'belowReserveOffer.buyerConfirmedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      buyerNotify = {
+        buyerId: orderData.buyerId,
+        buyerName: orderData.buyerName || 'Buyer',
+        auctionId,
+        auctionTitle: orderData.auctionTitle || '',
+        amount: orderData.winningBidAmount,
+        paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+      };
+      return { success: true, message: 'تم تأكيد الشراء. يرجى إتمام الدفع.' };
+    });
+
+    // (notify) same auction_won + payment_due events a normal win fires — the
+    // buyer now owes payment. Post-commit, never-throws.
+    if (buyerNotify) {
+      let buyerPhone = '';
+      try {
+        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
+        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve confirm phone lookup failed:', e && e.message); }
+      const payload = {
+        phone: buyerPhone, name: buyerNotify.buyerName,
+        auctionId: buyerNotify.auctionId, auctionTitle: buyerNotify.auctionTitle,
+        amount: buyerNotify.amount,
+        buyersPremium: buyerPremiumJod(buyerNotify.amount),
+        totalDue: totalDueJod(buyerNotify.amount),
+        paymentHours: buyerNotify.paymentHours,
+      };
+      await postToN8n('auction_won', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_auction_won` });
+      await postToN8n('payment_due', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_payment_due` });
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in confirmBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر تأكيد الشراء.');
+  }
+});
+
+/**
+ * E3 Slice C — declineBelowReserve. The top BIDDER (or admin) declines the
+ * seller-accepted offer: the pending order is cancelled and the offer marked
+ * 'declined'. The auction stays reserve_not_met, so auto-relist (if the seller
+ * opted in) picks it up — shouldAutoRelist stops blocking once status='declined'.
+ * No wallet movement (nothing was ever locked). Idempotent.
+ */
+exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
+      if (!isAdmin && !isBuyer) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Idempotency: already declined/cancelled.
+      if (orderData.status === 'cancelled') {
+        return { success: true, alreadyDeclined: true, message: 'تم رفض العرض مسبقاً.' };
+      }
+      // Only a still-pending (un-confirmed) offer can be declined. A confirmed
+      // (waiting_payment) obligation can't be walked back here.
+      if (orderData.status !== 'pending_buyer_confirmation') {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يمكن رفض هذا الطلب في حالته الحالية.');
+      }
+
+      transaction.update(orderRef, {
+        status: 'cancelled',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (auctionSnap.exists && auctionSnap.data().belowReserveOffer) {
+        transaction.update(auctionRef, {
+          'belowReserveOffer.status': 'declined',
+          'belowReserveOffer.buyerDeclinedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      return { success: true, message: 'تم رفض العرض.' };
+    });
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in declineBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر رفض العرض.');
   }
 });
 

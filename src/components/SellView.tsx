@@ -62,6 +62,8 @@ export const SellView: React.FC = () => {
   const [cPhotos, setCPhotos] = useState<{ file: File; url: string }[]>([]);
   // Wave 4: required listing-time ownership + legality attestation
   const [cAttested, setCAttested] = useState(false);
+  // E3 Slice B — seller opt-in auto-relist (off by default)
+  const [cAutoRelist, setCAutoRelist] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [cError, setCError] = useState<string | null>(null);
@@ -167,7 +169,10 @@ export const SellView: React.FC = () => {
           // Admin concierge queue keeps reading conciergePhotos; the live-room
           // media gallery reads mediaUrls (Wave 2) — write both.
           conciergePhotos: extraPhotoUrls,
-          mediaUrls: extraPhotoUrls
+          mediaUrls: extraPhotoUrls,
+          // E3 Slice B — carries onto the doc; auto-relist honored once the
+          // listing goes live and later settles unsold.
+          autoRelist: cAutoRelist
         } as any,
         null,
         cPhotos[0].file,
@@ -465,6 +470,21 @@ export const SellView: React.FC = () => {
                   {isAr
                     ? 'أُقرّ بأن هذا الغرض ملكي وقانوني للبيع في الأردن'
                     : 'I confirm I own this item and it is legal to sell in Jordan.'}
+                </span>
+              </label>
+
+              {/* E3 Slice B — auto-relist opt-in */}
+              <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cAutoRelist}
+                  onChange={(e) => setCAutoRelist(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
+                />
+                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                  {isAr
+                    ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)'
+                    : 'Auto-relist if unsold (up to 2×)'}
                 </span>
               </label>
 

@@ -79,6 +79,29 @@ function computeSoftCloseEnd(currentEndMs, nowMs, windowMs, extendMs) {
   return currentEndMs;
 }
 
+// Start modes (E3): 'scheduled' (default) runs a fixed window; 'first_bid' goes
+// live immediately with NO end time and starts the clock on the FIRST bid
+// (endsAt = now + duration). `duration` is in seconds.
+const DEFAULT_DURATION_SEC = 1800;
+function firstBidStartEndMs(auctionData, nowMs) {
+  const raw = Number(auctionData && auctionData.duration);
+  const durSec = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : DEFAULT_DURATION_SEC;
+  return nowMs + durSec * 1000;
+}
+
+/**
+ * The auction's end time AFTER a bid. First bid on a 'first_bid' listing starts
+ * the clock (now + duration, no anti-snipe on that opening bid); every other bid
+ * applies the anti-snipe soft close to the existing end.
+ */
+function computeBidEndTime(auctionData, totalBidsBefore, currentEndMs, nowMs) {
+  if (auctionData && auctionData.startMode === 'first_bid' && (totalBidsBefore === 0 || !currentEndMs)) {
+    return firstBidStartEndMs(auctionData, nowMs);
+  }
+  const { windowMs, extendMs } = resolveAntiSnipe(auctionData);
+  return computeSoftCloseEnd(currentEndMs || nowMs, nowMs, windowMs, extendMs);
+}
+
 // Buyer's premium: 5% ADDED on top of the hammer, so a 100 JOD win costs 105.
 // Integer fils, rounded once — the money math never touches floats twice.
 //
@@ -122,9 +145,90 @@ function sellerNetFils(hammerFils) {
   return h - sellerCommissionFils(h);
 }
 
+// Auto-relist (E3 Slice B): a seller can opt a listing in to being automatically
+// relisted if it ends unsold / reserve-not-met. Capped so a chronically-unsold
+// lot can't loop forever. `relisted` marks the ORIGINAL once its replacement has
+// been created (idempotency — the sweep fires exactly once per original).
+const MAX_AUTO_RELISTS = 2;
+
+// Below-reserve near-miss (E3 Slice C): when an auction ends with real bids but
+// the top bid is under the hidden reserve, the seller gets a bounded window to
+// accept that top bid; the top bidder must then confirm before it becomes a
+// real purchase. The offer state machine lives on the auction doc as
+// `belowReserveOffer` and moves:
+//   pending_seller -> pending_buyer -> confirmed   (the sale happens)
+//   pending_seller | pending_buyer -> declined     (dead; relist can proceed)
+// The seller-decision window is 24h from settlement.
+const BELOW_RESERVE_WINDOW_HOURS = 24;
+
+/** Milliseconds at which a below-reserve offer opened at `nowMs` expires. */
+function belowReserveExpiryMs(nowMs, hours = BELOW_RESERVE_WINDOW_HOURS) {
+  return nowMs + hours * 3600 * 1000;
+}
+
+/**
+ * Normalize a Firestore Timestamp | {seconds}/{_seconds} | epoch-ms number to
+ * epoch ms. Pure (no firebase dep) so the guards below stay unit-testable.
+ * Returns NaN when it can't derive a millis value.
+ */
+function tsToMillis(ts) {
+  if (ts == null) return NaN;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000 + (Number(ts.nanoseconds) || 0) / 1e6;
+  if (typeof ts._seconds === 'number') return ts._seconds * 1000;
+  return NaN;
+}
+
+/**
+ * A below-reserve offer is "expired" once now has passed its expiresAt. An
+ * offer with no/undecodable expiresAt is treated as NOT expired (never block a
+ * legitimate accept/confirm on a malformed timestamp — fail open on the guard,
+ * the caller's status check still gates it).
+ */
+function isBelowReserveOfferExpired(offer, nowMs) {
+  if (!offer) return false;
+  const expMs = tsToMillis(offer.expiresAt);
+  if (!Number.isFinite(expMs)) return false;
+  return nowMs >= expMs;
+}
+
+/**
+ * Does an in-flight below-reserve offer BLOCK auto-relist of the original?
+ * - confirmed: a real sale happened / is happening — never relist.
+ * - pending_seller / pending_buyer AND still within the window: wait, the seller
+ *   or buyer may still turn it into a sale — don't relist yet.
+ * - pending_* but EXPIRED, or declined, or no offer: does not block (relist ok).
+ */
+function belowReserveBlocksRelist(offer, nowMs) {
+  if (!offer || !offer.status) return false;
+  if (offer.status === 'confirmed') return true;
+  if (offer.status === 'pending_seller' || offer.status === 'pending_buyer') {
+    return !isBelowReserveOfferExpired(offer, nowMs);
+  }
+  return false; // 'declined' or anything terminal
+}
+
+function shouldAutoRelist(auction, nowMs) {
+  if (!auction) return false;
+  return (
+    auction.autoRelist === true &&
+    (auction.autoRelistCount || 0) < MAX_AUTO_RELISTS &&
+    auction.relisted !== true &&
+    !belowReserveBlocksRelist(auction.belowReserveOffer, nowMs)
+  );
+}
+
 module.exports = {
   reserveMet,
   resolveSettlement,
+  MAX_AUTO_RELISTS,
+  shouldAutoRelist,
+  BELOW_RESERVE_WINDOW_HOURS,
+  belowReserveExpiryMs,
+  tsToMillis,
+  isBelowReserveOfferExpired,
+  belowReserveBlocksRelist,
   nextAuctionNumber,
   SELLER_COMMISSION_RATE,
   sellerCommissionFils,
@@ -140,6 +244,9 @@ module.exports = {
   MAX_PAYMENT_WINDOW_HOURS,
   resolveAntiSnipe,
   computeSoftCloseEnd,
+  firstBidStartEndMs,
+  computeBidEndTime,
+  DEFAULT_DURATION_SEC,
   DEFAULT_ANTISNIPE_WINDOW_SEC,
   DEFAULT_ANTISNIPE_EXTEND_SEC,
   MIN_ANTISNIPE_SEC,

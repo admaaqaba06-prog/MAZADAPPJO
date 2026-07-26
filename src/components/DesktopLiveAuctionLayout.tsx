@@ -31,7 +31,7 @@ import { SwipeToBid } from './SwipeToBid';
 import AuctionRulesModal from './AuctionRulesModal';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
-import { isAuctionOpen } from '../utils/auctionPhase';
+import { isAuctionOpen, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
 import { isEffectivelyBlocked } from '../utils/banStatus';
 import { compactJod } from '../utils/bidFormat';
@@ -801,9 +801,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 {/* Time Remaining */}
                 <div className="flex flex-col items-center justify-center border-x border-gray-100 px-2">
                   <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
-                    {!isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
-                      ? (isAr ? 'يبدأ خلال' : 'Starts in')
-                      : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
+                    {isAwaitingFirstBid(activeAuction)
+                      ? (isAr ? 'الحالة' : 'Status')
+                      : !isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
+                        ? (isAr ? 'يبدأ خلال' : 'Starts in')
+                        : (isAr ? 'الوقت المتبقي' : 'Time Remaining')}
                   </span>
                   <CountdownPill
                     variant="desktop"
@@ -811,11 +813,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     status={activeAuction?.status}
                     scheduledStartAt={activeAuction?.scheduledStartAt}
                     isAr={isAr}
+                    awaitingFirstBid={isAwaitingFirstBid(activeAuction)}
                     className="text-sm font-bold font-mono tracking-wider"
                   />
-                  <span className="text-[8px] text-gray-400 tracking-widest uppercase mt-0.5">
-                    HRS : MIN : SEC
-                  </span>
+                  {!isAwaitingFirstBid(activeAuction) && (
+                    <span className="text-[8px] text-gray-400 tracking-widest uppercase mt-0.5">
+                      HRS : MIN : SEC
+                    </span>
+                  )}
                 </div>
 
                 {/* Top Bidder */}

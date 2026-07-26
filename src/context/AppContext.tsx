@@ -193,6 +193,10 @@ interface AppContextProps {
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
+  // E3 Slice C — below-reserve near-miss
+  acceptBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  confirmBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  declineBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -3301,6 +3305,72 @@ const fetchIP = async () => {
     }
   }, [currentUser, addNotification, showToast, language]);
 
+  // E3 Slice C — below-reserve near-miss callables. Thin wrappers over the
+  // money-path Cloud Functions (mirroring requestWithdrawal / placeBid): all
+  // validation, order creation and escrow status live server-side.
+  const acceptBelowReserve = useCallback(async (auctionId: string) => {
+    try {
+      const callable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string; alreadyAccepted?: boolean }>('acceptBelowReserve');
+      const result = await callable({ auctionId });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? '✅ تم قبول العرض' : '✅ Offer Accepted',
+          result.data.message || (language === 'ar' ? 'تم قبول العرض. بانتظار تأكيد المشتري.' : 'Offer accepted. Awaiting buyer confirmation.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to accept offer.' };
+    } catch (error: any) {
+      console.error('Cloud function acceptBelowReserve failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر قبول العرض.' : 'Failed to accept offer.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
+  const confirmBelowReserve = useCallback(async (auctionId: string) => {
+    try {
+      const callable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string; alreadyConfirmed?: boolean }>('confirmBelowReserve');
+      const result = await callable({ auctionId });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? '🛒 تم تأكيد الشراء' : '🛒 Purchase Confirmed',
+          result.data.message || (language === 'ar' ? 'تم تأكيد الشراء. يرجى إتمام الدفع.' : 'Purchase confirmed. Please complete payment.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to confirm purchase.' };
+    } catch (error: any) {
+      console.error('Cloud function confirmBelowReserve failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر تأكيد الشراء.' : 'Failed to confirm purchase.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
+  const declineBelowReserve = useCallback(async (auctionId: string) => {
+    try {
+      const callable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string; alreadyDeclined?: boolean }>('declineBelowReserve');
+      const result = await callable({ auctionId });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? 'تم رفض العرض' : 'Offer Declined',
+          result.data.message || (language === 'ar' ? 'تم رفض العرض.' : 'Offer declined.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to decline offer.' };
+    } catch (error: any) {
+      console.error('Cloud function declineBelowReserve failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر رفض العرض.' : 'Failed to decline offer.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
     const newMsg: ChatMessage = {
@@ -3496,6 +3566,12 @@ const fetchIP = async () => {
 
     const endTimeMs = (listingData as any).endTime || (listingData as any).endsAt || (Date.now() + 3600 * 1000);
 
+    // E3 Slice A — first-bid start mode: the listing goes live immediately with
+    // NO endTime/endsAt (the duration clock starts on the first bid, server-side
+    // in applyBidWrites). scheduledStartAt = now so the opener cron flips it live
+    // on its next run. Scheduled listings keep their computed end time.
+    const isFirstBid = (listingData as any).startMode === 'first_bid';
+
     // Admin drop-builder auctions get a sequential number from the atomic counter.
     // (Seller-wizard 'processing' submissions don't — they're numbered at approval time, later slice.)
     let assignedAuctionNumber: number | undefined;
@@ -3527,7 +3603,7 @@ const fetchIP = async () => {
       // completes details before approving. Defaults to false.
       isConcierge: (listingData as any).isConcierge === true,
       channel: listingData.channel ?? 'misc',
-      scheduledStartAt: listingData.scheduledStartAt ?? null,
+      scheduledStartAt: isFirstBid ? Date.now() : (listingData.scheduledStartAt ?? null),
       // Wave 4 (seller-KYC groundwork): listing-time ownership + legality
       // attestation. Both sell paths (wizard + concierge) require the checkbox
       // before submit can reach here; the stamp survives on the doc for audit.
@@ -3545,9 +3621,17 @@ const fetchIP = async () => {
       createdByName: currentUser.name || 'Seller JO',
       videoUrl: finalVideoUrl,
       thumbnailUrl: finalThumbnailUrl,
-      endTime: endTimeMs,
-      endsAt: Timestamp.fromMillis(endTimeMs)
+      // first_bid: omit endTime/endsAt entirely (the clock starts on the first bid).
+      ...(isFirstBid ? {} : { endTime: endTimeMs, endsAt: Timestamp.fromMillis(endTimeMs) })
     };
+
+    // first_bid: the caller (drop-builder) still passes an `endTime`/`endsAt` in
+    // listingData, which the `...auctionInput` spread above would carry onto the
+    // doc. Strip them so a first_bid lot truly has NO end until the first bid.
+    if (isFirstBid) {
+      delete newListing.endTime;
+      delete newListing.endsAt;
+    }
 
     // Save directly to Firestore for real-time synchronization
     const docRef = doc(db, 'auctions', newListingId);
@@ -4806,6 +4890,9 @@ const fetchIP = async () => {
       globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
       requestWithdrawal,
+      acceptBelowReserve,
+      confirmBelowReserve,
+      declineBelowReserve,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -4885,7 +4972,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

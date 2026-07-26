@@ -6,6 +6,23 @@ export function isAuctionOpen(status: string | null | undefined): boolean {
 
 type LiveCheckable = { status: string; endTime?: number | null };
 
+/**
+ * E3 Slice A — a live 'first_bid' listing whose clock hasn't started yet: it is
+ * open and accepting bids but has NO endTime, and no bid has landed. UI shows
+ * "Awaiting first bid" instead of a countdown timer until the first bid starts
+ * the clock (server sets endsAt = now + duration on that bid).
+ */
+export function isAwaitingFirstBid(
+  auction: { startMode?: string; endTime?: number | null; totalBids?: number } | null | undefined,
+): boolean {
+  if (!auction) return false;
+  return (
+    auction.startMode === 'first_bid' &&
+    !auction.endTime &&
+    (auction.totalBids || 0) === 0
+  );
+}
+
 /** Genuinely live right now: status 'live' AND not past its end time. */
 export function isLiveNow(auction: LiveCheckable, now: number = Date.now()): boolean {
   return auction.status === 'live' && (!auction.endTime || auction.endTime > now);

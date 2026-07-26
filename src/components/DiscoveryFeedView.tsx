@@ -10,7 +10,7 @@ import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
-import { getFirstLiveAuction, getLiveAuctions } from '../utils/auctionPhase';
+import { getFirstLiveAuction, getLiveAuctions, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { unreadUserFacingCount } from '../utils/notifications';
 import { isAdminUser } from '../utils/adminAuth';
 import { useSocialProof } from '../hooks/useSocialProof';
@@ -104,6 +104,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   const isCritical = secondsLeft < 60;
 
   const itemIsEnded = d.status === 'completed' || (d.endTime && d.endTime <= Date.now());
+  const awaitingFirstBid = isAwaitingFirstBid(d);
 
   const handleCardClick = () => {
     if (d.status === 'live') {
@@ -178,6 +179,10 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
         {itemIsEnded ? (
           <div className="absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 bg-zinc-800/85 text-zinc-300 px-2.5 py-1 rounded-full text-[9px] font-black shadow-md backdrop-blur-xs">
             🏁 {isAr ? 'انتهى' : 'ENDED'}
+          </div>
+        ) : awaitingFirstBid ? (
+          <div className="absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 bg-black/75 text-white border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-black flex items-center gap-1 shadow-md backdrop-blur-xs">
+            <span>⏳ {isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid'}</span>
           </div>
         ) : (
           <div className={`absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 px-2.5 py-1 rounded-full text-[10px] font-mono font-black flex items-center gap-1 shadow-md border ${

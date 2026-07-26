@@ -53,6 +53,8 @@ export default function AuctionDropBuilderView() {
   const [marketPrice, setMarketPrice] = useState('');
   const [reservePrice, setReservePrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
+  const [startMode, setStartMode] = useState<'scheduled' | 'first_bid'>('scheduled'); // E3 Slice A
+  const [autoRelist, setAutoRelist] = useState(false); // E3 Slice B — off by default
   const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
   const [durationSeconds, setDurationSeconds] = useState(1800);
   const [paymentWindowHours, setPaymentWindowHours] = useState(24);
@@ -144,7 +146,7 @@ export default function AuctionDropBuilderView() {
       setError(isAr ? 'أدخل اسم المنتج وسعر البداية' : 'Enter a product name and starting price');
       return;
     }
-    if (scheduledStartAtMs != null && scheduledStartAtMs <= Date.now()) {
+    if (startMode === 'scheduled' && scheduledStartAtMs != null && scheduledStartAtMs <= Date.now()) {
       setError(isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future');
       return;
     }
@@ -193,6 +195,12 @@ export default function AuctionDropBuilderView() {
           antiSnipeWindowSec: antiSnipeSec,
           antiSnipeExtendSec: antiSnipeSec,
           channel,
+          // E3 Slice A — start mode. first_bid: createListing omits endTime/endsAt
+          // and forces scheduledStartAt = now (goes live on the next opener run,
+          // clock starts on the first bid). scheduled: unchanged.
+          startMode,
+          // E3 Slice B — seller opt-in auto-relist (up to MAX_AUTO_RELISTS server-side).
+          autoRelist,
           // No schedule = open now: the opener cron only flips auctions that
           // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
           scheduledStartAt: scheduledStartAtMs ?? Date.now(),
@@ -324,17 +332,43 @@ export default function AuctionDropBuilderView() {
             </select>
           </label>
 
-          <label className="block text-sm">{isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
-            <input
-              type="datetime-local"
-              className="mt-1 w-full border rounded p-2"
-              value={scheduledLocal}
-              onChange={(e) => setScheduledLocal(e.target.value)}
-            />
-            <span className="mt-1 block text-xs text-neutral-500">
-              {isAr ? 'اتركه فارغاً ليفتح المزاد فوراً (خلال دقيقة)' : 'Leave empty to open immediately (within a minute)'}
-            </span>
-          </label>
+          <div className="block text-sm">
+            <span>{isAr ? 'وضع البدء' : 'Start mode'}</span>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStartMode('scheduled')}
+                className={`border rounded p-2 text-sm ${startMode === 'scheduled' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-neutral-700'}`}
+              >
+                {isAr ? 'مجدول' : 'Scheduled'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStartMode('first_bid')}
+                className={`border rounded p-2 text-sm ${startMode === 'first_bid' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-neutral-700'}`}
+              >
+                {isAr ? 'أول مزايدة' : 'First bid'}
+              </button>
+            </div>
+          </div>
+
+          {startMode === 'scheduled' ? (
+            <label className="block text-sm">{isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
+              <input
+                type="datetime-local"
+                className="mt-1 w-full border rounded p-2"
+                value={scheduledLocal}
+                onChange={(e) => setScheduledLocal(e.target.value)}
+              />
+              <span className="mt-1 block text-xs text-neutral-500">
+                {isAr ? 'اتركه فارغاً ليفتح المزاد فوراً (خلال دقيقة)' : 'Leave empty to open immediately (within a minute)'}
+              </span>
+            </label>
+          ) : (
+            <p className="text-xs text-neutral-500 bg-neutral-50 border rounded p-2">
+              {isAr ? 'يبدأ فوراً — يبدأ العدّاد مع أول مزايدة' : 'Goes live now — the timer starts on the first bid'}
+            </p>
+          )}
 
           <label className="block text-sm">{isAr ? 'المدة' : 'Duration'}
             <select className="mt-1 w-full border rounded p-2" value={durationSeconds} onChange={(e) => setDurationSeconds(Number(e.target.value))}>
@@ -367,6 +401,24 @@ export default function AuctionDropBuilderView() {
               {isAr
                 ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي ٣٠ ثانية.'
                 : 'Bids in the final seconds extend the clock. Default 30s.'}
+            </span>
+          </label>
+
+          {/* E3 Slice B — auto-relist opt-in */}
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={autoRelist}
+              onChange={(e) => setAutoRelist(e.target.checked)}
+            />
+            <span>
+              {isAr ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)' : 'Auto-relist if unsold (up to 2×)'}
+              <span className="mt-0.5 block text-xs text-neutral-400">
+                {isAr
+                  ? 'يُعاد إدراج المنتج تلقائياً بعد ٢٤ ساعة إن انتهى دون بيع.'
+                  : 'The item is automatically relisted 24h after it ends unsold.'}
+              </span>
             </span>
           </label>
         </section>
