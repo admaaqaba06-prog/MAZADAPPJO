@@ -425,7 +425,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             {isInspected && (
               <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#12B76A]/12 text-[#0a7a48]">
                 <CheckCircle2 className="w-3 h-3" />
-                {isAr ? 'مفحوص من مزادو ✓' : 'Inspected by Mazad ✓'}
+                {isAr ? 'صور حقيقية ✓' : 'Real photos ✓'}
               </span>
             )}
             {categoryChip && (
@@ -552,7 +552,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                       {activeAuction.sellerName}
                     </span>
                     <span className="block text-[10px] font-bold text-[#F05123] leading-none mt-1">
-                      {isAr ? 'بائع في مزادو' : 'Seller on Mazad'}
+                      {isAr ? 'بائع في مزاد جو' : 'Seller on MazadJo'}
                     </span>
                   </div>
                 </div>

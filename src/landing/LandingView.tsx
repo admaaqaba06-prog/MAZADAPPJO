@@ -187,11 +187,11 @@ const ACTIVE_ITEMS = [
     icon: "🚗",
     titleAr: "تويوتا كامري 2022",
     titleEn: "Toyota Camry 2022",
-    detailsAr: "فحص كامل · عمّان · مزاد مميز",
-    detailsEn: "Full Inspection · Amman · Premium Auction",
+    detailsAr: "صور حقيقية · عمّان · مزاد مميز",
+    detailsEn: "Real photos · Amman · Premium Auction",
     image: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=800&q=80",
-    badgeAr: "فحص كامل",
-    badgeEn: "Passed",
+    badgeAr: "صور حقيقية",
+    badgeEn: "Real photos",
     basePrice: 14250,
     stepPrice: 250,
     timerStart: 138
@@ -215,11 +215,11 @@ const ACTIVE_ITEMS = [
     icon: "⌚",
     titleAr: "رولكس ديت جست ٤١",
     titleEn: "Rolex Datejust 41",
-    detailsAr: "٤١ ملم · ستيل · بالكرت والعلبة · مفحوصة",
-    detailsEn: "41mm · Oystersteel · Box & Papers · Inspected",
+    detailsAr: "٤١ ملم · ستيل · بالكرت والعلبة · صور حقيقية",
+    detailsEn: "41mm · Oystersteel · Box & Papers · Real photos",
     image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=800&q=80",
-    badgeAr: "موثّقة",
-    badgeEn: "Authenticated",
+    badgeAr: "صور حقيقية",
+    badgeEn: "Real photos",
     basePrice: 2150,
     stepPrice: 50,
     timerStart: 120
@@ -1543,7 +1543,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         {lang === "ar" ? "تصفح وافحص" : "Browse & Inspect"}
                       </h3>
                       <p className="text-sm text-gray-600 font-ibmarabic leading-relaxed">
-                        {lang === "ar" ? "شوف تقرير الفحص الكامل لكل منتج قبل ما تزايد" : "Check the comprehensive inspection report for each item before you bid."}
+                        {lang === "ar" ? "شوف الصور والتفاصيل الكاملة لكل منتج قبل ما تزايد" : "See the full photos and details for each product before you bid."}
                       </p>
                       
                       <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
@@ -1646,7 +1646,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <Wrench className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-[#0A0A0A] font-ibmarabic mb-2">
-                        {lang === "ar" ? "نفحصه ونوثقه" : "Verify & Inspect"}
+                        {lang === "ar" ? "نجهّزه ونعرضه" : "Prepare & List"}
                       </h3>
                       <p className="text-sm text-gray-600 font-ibmarabic leading-relaxed">
                         {lang === "ar" ? "فريقنا يتأكد من دقة ووصف المنتج" : "Our expert team verifies the accuracy and description of the product."}
@@ -1881,8 +1881,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   nameEn: "Ahmad M. — Amman"
                 },
                 {
-                  ar: "اشتريت آيفون واستلمته مطابق تماماً للفحص. ما دفعت للبائع إلا بعد ما تأكدت بنفسي.",
-                  en: "I bought an iPhone and received it exactly matching the inspection. I didn't pay the seller until I verified it myself.",
+                  ar: "اشتريت آيفون واستلمته مطابق تماماً للوصف. ما دفعت للبائع إلا بعد ما تأكدت بنفسي.",
+                  en: "I bought an iPhone and received it exactly matching the description. I didn't pay the seller until I verified it myself.",
                   nameAr: "سارة. ح — إربد",
                   nameEn: "Sarah H. — Irbid"
                 },
@@ -1930,8 +1930,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     {
                       arVal: "٣,٤٠٠+",
                       enVal: "3,400+",
-                      arLabel: "منتج مفحوص",
-                      enLabel: "Inspected Items"
+                      arLabel: "منتج معروض",
+                      enLabel: "Listed Items"
                     },
                     {
                       arVal: "١٥,٠٠٠+",
@@ -2219,16 +2219,16 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد بتحتفظ بالمبلغ",
-                        enTitle: "Mazad holds the payment",
-                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
+                        arTitle: "مزاد جو بتحتفظ بالمبلغ",
+                        enTitle: "MazadJo holds the payment",
+                        arDesc: "مزاد جو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "MazadJo holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,
                         arTitle: "المشتري يفحص المنتج فعلياً",
                         enTitle: "Buyer physically inspects the item",
-                        arDesc: "يلتقي الطرفان للمعاينة الأخيرة ومطابقة تقرير الفحص المعتمد.",
+                        arDesc: "يلتقي الطرفان للمعاينة الأخيرة ومطابقة المنتج للوصف.",
                         enDesc: "Both parties meet for physical inspection and specs verification."
                       },
                       {
@@ -2565,7 +2565,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
                   {/* Corner Badge - Orange Gradient */}
                   <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
-                    {lang === "ar" ? "رسوم إدراج ٠ دينار — لفترة محدودة" : "Listing fee 0 JOD — Limited time"}
+                    {lang === "ar" ? "اعرض منتجك مجاناً — لفترة محدودة" : "Free to list — Limited time"}
                   </div>
 
                   <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
@@ -2575,8 +2575,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
-                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
+                          ? "بدون رسوم عرض حالياً. لا رسوم إذا لم يُبَع المنتج. عمولة ٥٪ فقط عندما يجد منتجك مشتريه."
+                          : "No listing fees right now. No fees if the product is not sold. Just 5% commission when your product finds a buyer."}
                       </p>
                     </div>
 
@@ -2600,7 +2600,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 2.7 Section: Office Visit & Physical Inspection (زيارة مكاتبنا) */}
+        {/* 2.7 Section: Office Visit & Viewing (زيارة مكاتبنا) — the BUYER comes
+            and inspects. We do not claim to inspect every lot ourselves. */}
         <section id="office-visit" className="py-[96px] bg-[#0A0A0A] text-white relative overflow-hidden">
           {/* Subtle abstract glow in the background */}
           <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[400px] h-[400px] bg-[#F05123]/10 rounded-full blur-[120px] pointer-events-none" />
@@ -2616,10 +2617,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <div>
                       <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F05123]/20 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/30 mb-3">
                         <Building2 className="w-4 h-4" />
-                        {lang === "ar" ? "زيارة مكاتبنا والفحص الميداني" : "Office Visit & Physical Inspection"}
+                        {lang === "ar" ? "المعاينة قبل المزايدة" : "Viewing before you bid"}
                       </span>
                       <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white font-ibmarabic leading-tight">
-                        {lang === "ar" ? "مش لازم تصدقنا بالكلام بس — تعال شوف بعينك." : "Don't just take our word for it — come see for yourself."}
+                        {lang === "ar" ? "مش لازم تصدقنا بالكلام بس — فلوسك محجوزة لحد ما تتأكد." : "Don't just take our word for it — your money is held until you're sure."}
                       </h2>
                     </div>
                   </Reveal>
@@ -2627,8 +2628,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <Reveal delay={0.1}>
                     <p className="text-gray-300 text-base sm:text-lg font-ibmarabic leading-relaxed">
                       {lang === "ar"
-                        ? "كل منتج بنعرضه فحصناه فعلياً بمكاتبنا. زورنا، افحص، واسأل أي سؤال قبل ما تزايد."
-                        : "Every product listed on our platform is physically inspected at our offices. Visit us to inspect, feel, and ask any questions before you make your bid."}
+                        ? "بعض المنتجات بتقدر تعاينها قبل ما تزايد — إما بمكاتبنا أو عند البائع إذا كان عنده محل. وبكل الحالات، فلوسك محجوزة عندنا وما بتوصل البائع إلا بعد ما تستلم وتتأكد إن المنتج مطابق للوصف."
+                        : "Some products can be viewed before you bid — at our offices, or at the seller's store where they have one. And in every case, your money is held by us and does not reach the seller until you receive the product and confirm it matches the description."}
                     </p>
                   </Reveal>
 
@@ -2641,13 +2642,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white text-[#0A0A0A] hover:bg-gray-100 font-bold font-ibmarabic transition-all duration-300 hover:scale-105 shadow-md text-center"
                       >
                         <MapPin className="w-5 h-5 text-[#F05123]" />
-                        {lang === "ar" ? "زور مكتبنا" : "Visit Our Office"}
+                        {lang === "ar" ? "رتّب معاينة" : "Arrange a viewing"}
                       </a>
                       
+                      {/* No live-status dot here: this is a visit-us invite, and the
+                          office is not open around the clock. A pulsing green dot
+                          read as "we are open right now" regardless of the hour. */}
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 self-center">
-                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
                         <span className="text-xs text-gray-300 font-ibmarabic">
-                          {lang === "ar" ? "مفتوحون الآن لاستقبالكم" : "We are open and welcoming visitors"}
+                          {lang === "ar" ? "نسعد بزيارتكم" : "We'd be delighted to have you visit"}
                         </span>
                       </div>
                     </div>

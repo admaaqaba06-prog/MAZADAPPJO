@@ -296,7 +296,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               }`}
             >
               <PlusCircle className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>{isAr ? 'إنشاء إدراج' : 'Sell'}</span>
+              <span>{isAr ? 'بيع منتجك' : 'Sell'}</span>
             </button>
 
             <button
