@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useApp, useAuctions } from '../context/AppContext';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useApp } from '../context/AppContext';
+import { AuctionItem } from '../types';
+import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { translations } from '../utils/translations';
 import { ContextualHint } from './ContextualHint';
 import { 
@@ -25,17 +28,26 @@ import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
 
 interface AuctionDetailsModalProps {
-  auctionId: string | null;
+  auction: AuctionItem;
   onClose: () => void;
 }
 
-export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctionId, onClose }) => {
+export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auction: auctionProp, onClose }) => {
   const { currentUser, placeBid, wallet, activeView, setActiveView, language, setActiveAuctionId } = useApp();
-  const { auctions } = useAuctions();
   const isAr = language === 'ar';
   const t = translations[language];
 
-  const auction = auctions.find(a => a.id === auctionId);
+  // Re-sourced off the broad `useAuctions()` array (1b Task 4): the opener passes
+  // the full lot in hand and we keep its live fields (price/status/endTime/
+  // bidder/totalBids/reserveMet) fresh via ONE shared single-doc subscription —
+  // the same infra the paginated Discover cards use. `mergeLiveIntoCard` overlays
+  // only defined live fields, so static lot fields are always preserved. Shadowed
+  // as `auction` so every downstream read below is unchanged.
+  const liveOverlay = useVisibleAuctionLive(auctionProp.id, true);
+  const auction = useMemo(
+    () => mergeLiveIntoCard(auctionProp, liveOverlay),
+    [auctionProp, liveOverlay],
+  );
   const [biddingAmount, setBiddingAmount] = useState<string>('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'err'; msg: string } | null>(null);
   const [timeLeftStr, setTimeLeftStr] = useState<string>('00:00:00');

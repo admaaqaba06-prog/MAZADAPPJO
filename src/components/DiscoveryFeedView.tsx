@@ -1138,13 +1138,21 @@ export const DiscoveryFeedView: React.FC = () => {
         )}
       </div>
 
-      {/* Render specification details slide modal */}
-      {selectedLotId && (
-        <AuctionDetailsModal 
-          auctionId={selectedLotId} 
-          onClose={() => setSelectedLotId(null)} 
-        />
-      )}
+      {/* Render specification details slide modal — resolve the lot from the
+          feed's own displayed lists (paginated or OFF path), off the broad
+          array (1b Task 4). Mount only when the lot is in hand. */}
+      {(() => {
+        if (!selectedLotId) return null;
+        const detailsLot = liveList.find(a => a.id === selectedLotId)
+          ?? upcomingList.find(a => a.id === selectedLotId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal
+            auction={detailsLot}
+            onClose={() => setSelectedLotId(null)}
+          />
+        );
+      })()}
 
       {/* Render Seller complete profile modal */}
       {selectedProfileId && (

@@ -749,13 +749,20 @@ export const LiveStreamView: React.FC = () => {
         />
       )}
 
-      {/* Slide-up lot specifications sheet details modal */}
-      {selectedLotDetailsId && (
-        <AuctionDetailsModal
-          auctionId={selectedLotDetailsId}
-          onClose={() => setSelectedLotDetailsId(null)} 
-        />
-      )}
+      {/* Slide-up lot specifications sheet details modal — resolve the lot from
+          `liveAuctions` (already in scope), off the broad array (1b Task 4).
+          Mount only when the lot is in hand. */}
+      {(() => {
+        if (!selectedLotDetailsId) return null;
+        const detailsLot = liveAuctions.find(a => a.id === selectedLotDetailsId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal
+            auction={detailsLot}
+            onClose={() => setSelectedLotDetailsId(null)}
+          />
+        );
+      })()}
 
       {/* Premium Final Countdown Overlay — isolated so its 1s tick re-renders
           only itself, not this whole live room. */}

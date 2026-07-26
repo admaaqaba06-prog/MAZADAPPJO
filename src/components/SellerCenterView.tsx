@@ -1901,10 +1901,17 @@ export const SellerCenterView: React.FC = () => {
       </div>
     </div>
 
-      {/* RENDER DYNAMIC REUSABLE VIEW MODALS */}
-      {viewAuctionId && (
-        <AuctionDetailsModal auctionId={viewAuctionId} onClose={() => setViewAuctionId(null)} />
-      )}
+      {/* RENDER DYNAMIC REUSABLE VIEW MODALS — resolve the lot from the admin
+          auctions list (admin listener out of 1b scope), off the broad array
+          for the modal itself (1b Task 4). Mount only when the lot is in hand. */}
+      {(() => {
+        if (!viewAuctionId) return null;
+        const detailsLot = auctions.find(a => a.id === viewAuctionId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal auction={detailsLot} onClose={() => setViewAuctionId(null)} />
+        );
+      })()}
 
       {/* WITHDRAWAL FORM MODAL */}
       {isWithdrawModalOpen && (
