@@ -1977,19 +1977,22 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           timestamp: Date.now()
         });
 
-        // Mazad's 5% seller commission — an audit line (money retained by Mazad,
-        // not credited to any wallet). Only when there is a commission to record.
+        // Mazad's 5% seller commission — the CREDIT leg to the platform revenue
+        // account, so the release event's double-entry balances to zero
+        // (buyer escrow −hammer, seller +net, platform +commission) and the
+        // seller's own ledger sums to exactly what their wallet was credited (net).
         if (commissionFils > 0) {
           const commissionLedgerRef = db.collection('ledger').doc();
           transaction.set(commissionLedgerRef, {
             id: commissionLedgerRef.id,
-            userId: sellerId,
+            userId: 'mazad-platform', // synthetic platform revenue account, not the seller
+            sellerId: sellerId,
             orderId: orderId,
             auctionId: auctionId,
-            amount: -commissionJOD,
-            amountFils: -commissionFils,
+            amount: commissionJOD,
+            amountFils: commissionFils,
             type: 'seller_commission',
-            direction: 'debit',
+            direction: 'credit',
             titleAr: 'عمولة مزاد جو (٥٪)',
             titleEn: 'Mazad Commission (5%)',
             descriptionAr: `عمولة المنصة ٥٪ بقيمة ${commissionJOD} د.أ على سعر البيع.`,
