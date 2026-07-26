@@ -44,3 +44,36 @@ export function resolveViewing(
   // nothing to act on, and escrow already covers that case.
   return null;
 }
+
+/**
+ * The write-side twin of resolveViewing: turns an admin's approval choice into the
+ * exact fields to merge into the lot's document.
+ *
+ * Firestore's updateDoc MERGES — a key you leave out keeps whatever was stored
+ * there before. Lots get approved more than once (rejected → resubmitted →
+ * approved again), so "only write the place when we actually have one" quietly
+ * revives the place from an EARLIER approval: approve as store/"Shop 12", then
+ * re-approve as store with the place field blank, and the lot still advertises
+ * Shop 12 — a viewing claim nobody made for it. So whenever a mode is chosen we
+ * write BOTH keys, using '' to positively erase a place rather than omitting it.
+ *
+ * The one case that must stay a no-op is "the admin said nothing about viewing":
+ * that has to leave both fields exactly as they were, which is what keeps every
+ * pre-existing lot rendering nothing.
+ *
+ * Never returns a key whose value is `undefined` — Firestore rejects explicit
+ * undefined (ignoreUndefinedProperties is off) and would throw on the write.
+ */
+export function viewingWritePayload(
+  viewing?: ViewingMode | '',
+  viewingPlace?: string,
+): { viewing?: ViewingMode; viewingPlace?: string } {
+  // No decision made → touch nothing.
+  if (!viewing) return {};
+
+  // A place only means anything for 'store'; every other mode clears it.
+  const place =
+    viewing === 'store' && typeof viewingPlace === 'string' ? viewingPlace.trim() : '';
+
+  return { viewing, viewingPlace: place };
+}

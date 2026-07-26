@@ -25,6 +25,7 @@ import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
 import { isEffectivelyBlocked } from '../utils/banStatus';
 import type { ViewingMode } from '../utils/viewing';
+import { viewingWritePayload } from '../utils/viewing';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -3722,13 +3723,13 @@ const fetchIP = async () => {
 
     const docRef = doc(db, 'auctions', id);
     updateDoc(docRef, {
-      // Per-lot viewing, set by the admin on the approval card. Conditional spread:
-      // Firestore rejects explicit `undefined`, and an approval that does not set
-      // viewing must LEAVE IT UNSET (renders nothing) rather than write a value.
-      ...(viewing ? { viewing } : {}),
-      ...(viewing === 'store' && viewingPlace && viewingPlace.trim()
-        ? { viewingPlace: viewingPlace.trim() }
-        : {}),
+      // Per-lot viewing, set by the admin on the approval card. An approval that
+      // does not set viewing spreads nothing, leaving the lot UNSET (renders
+      // nothing). When a mode IS chosen the helper always writes viewingPlace
+      // too — updateDoc merges, so omitting the place would let one from an
+      // earlier approval survive and advertise a shop nobody entered for this
+      // lot. Never emits `undefined`, which Firestore rejects.
+      ...viewingWritePayload(viewing, viewingPlace),
       status: 'live',
       approvalStatus: 'approved',
       isApproved: true,

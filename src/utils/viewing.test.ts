@@ -3,7 +3,7 @@
 // because a fabricated viewing claim is exactly the bug this feature exists to
 // kill (see docs/superpowers/specs/2026-07-26-per-lot-viewing-design.md).
 import { describe, it, expect } from 'vitest';
-import { resolveViewing } from './viewing';
+import { resolveViewing, viewingWritePayload } from './viewing';
 
 describe('resolveViewing', () => {
   it('office: says the item is at our office, both languages', () => {
@@ -57,5 +57,90 @@ describe('resolveViewing', () => {
   it('never throws on a null/undefined auction', () => {
     expect(resolveViewing(null, true)).toBeNull();
     expect(resolveViewing(undefined, false)).toBeNull();
+  });
+});
+
+// The write side of the same rule. Firestore updateDoc MERGES, so an omitted key
+// leaves whatever was stored there before. A lot can be approved more than once
+// (rejected → resubmitted → approved again), so "only write the place when we
+// have one" silently revives the place from an EARLIER approval — the lot then
+// advertises a shop nobody entered for it. That is the exact fabricated-claim
+// bug this module exists to kill, arriving through the back door.
+describe('viewingWritePayload', () => {
+  it('no viewing: writes NEITHER key, so an unset lot stays unset', () => {
+    expect(viewingWritePayload()).toEqual({});
+    expect(viewingWritePayload(undefined)).toEqual({});
+    expect(viewingWritePayload('')).toEqual({});
+    // Even when a place is somehow supplied, no mode means no claim at all.
+    expect(viewingWritePayload(undefined, 'محل الأمين')).toEqual({});
+    expect(viewingWritePayload('', 'محل الأمين')).toEqual({});
+  });
+
+  it('store with a place: writes the trimmed place', () => {
+    expect(viewingWritePayload('store', '  محل الأمين  ')).toEqual({
+      viewing: 'store',
+      viewingPlace: 'محل الأمين',
+    });
+  });
+
+  it('store with no place: writes an EMPTY place rather than omitting the key', () => {
+    // Omitting it would leave a place from a previous approval in the document.
+    expect(viewingWritePayload('store')).toEqual({ viewing: 'store', viewingPlace: '' });
+    expect(viewingWritePayload('store', '')).toEqual({ viewing: 'store', viewingPlace: '' });
+  });
+
+  it('store with a whitespace-only place is treated as no place', () => {
+    expect(viewingWritePayload('store', '   ')).toEqual({ viewing: 'store', viewingPlace: '' });
+    expect(viewingWritePayload('store', '\n\t ')).toEqual({ viewing: 'store', viewingPlace: '' });
+  });
+
+  it('office/private: always clears the place, even if one was passed', () => {
+    expect(viewingWritePayload('office')).toEqual({ viewing: 'office', viewingPlace: '' });
+    expect(viewingWritePayload('private')).toEqual({ viewing: 'private', viewingPlace: '' });
+    expect(viewingWritePayload('office', 'محل الأمين')).toEqual({
+      viewing: 'office',
+      viewingPlace: '',
+    });
+    expect(viewingWritePayload('private', 'محل الأمين')).toEqual({
+      viewing: 'private',
+      viewingPlace: '',
+    });
+  });
+
+  it('never emits a key whose value is undefined (Firestore rejects those)', () => {
+    const cases = [
+      viewingWritePayload(),
+      viewingWritePayload(''),
+      viewingWritePayload(undefined, 'محل الأمين'),
+      viewingWritePayload('store'),
+      viewingWritePayload('store', ''),
+      viewingWritePayload('store', '   '),
+      viewingWritePayload('store', 'محل الأمين'),
+      viewingWritePayload('office'),
+      viewingWritePayload('office', 'محل الأمين'),
+      viewingWritePayload('private'),
+    ];
+    for (const payload of cases) {
+      for (const key of Object.keys(payload)) {
+        expect(payload[key as keyof typeof payload]).not.toBeUndefined();
+      }
+    }
+  });
+
+  it('closes the stale-place hole end to end: re-approving store with a blank place '
+    + 'no longer advertises the old shop', () => {
+    // 1. First approval: store at "Shop 12".
+    let stored: { viewing?: string; viewingPlace?: string } = {};
+    stored = { ...stored, ...viewingWritePayload('store', 'Shop 12') };
+    expect(resolveViewing(stored, false)).toEqual({ label: 'Viewable at the seller: Shop 12' });
+
+    // 2. Re-approved as office — the place must not linger.
+    stored = { ...stored, ...viewingWritePayload('office') };
+    expect(resolveViewing(stored, false)).toEqual({ label: 'Viewable at our office' });
+
+    // 3. Re-approved as store with NO place entered: unnamed seller, not "Shop 12".
+    stored = { ...stored, ...viewingWritePayload('store', '') };
+    expect(resolveViewing(stored, false)).toEqual({ label: 'Viewable at the seller' });
+    expect(resolveViewing(stored, true)).toEqual({ label: 'معاينة عند البائع' });
   });
 });
