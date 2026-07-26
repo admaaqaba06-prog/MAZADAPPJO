@@ -23,6 +23,7 @@ import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch
 import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
+import { isEffectivelyBlocked } from '../utils/banStatus';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -282,6 +283,11 @@ interface AppContextProps {
   // Trust gate: "add a real photo to bid/sell" prompt
   showPhotoGate: boolean;
   setShowPhotoGate: (show: boolean) => void;
+
+  // E2 ban ladder: opens the BanNoticeModal when an effectively-blocked user taps
+  // a bid action (reason + when the restriction lifts, or "permanent").
+  showBanNotice: boolean;
+  setShowBanNotice: (show: boolean) => void;
 
   // Live Chat Comments System
   sendChatMessage: (text: string) => void;
@@ -605,6 +611,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Trust gate: a member without a real profile photo who taps bid/sell is shown
   // the "add a photo" sheet (mirrors the subscription prompt plumbing).
   const [showPhotoGate, setShowPhotoGate] = useState<boolean>(false);
+  // E2 ban ladder: a blocked bid tap opens the BanNoticeModal (rendered at App root).
+  const [showBanNotice, setShowBanNotice] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
   const [globalSelectedOrderId, setGlobalSelectedOrderId] = useState<string | null>(null);
@@ -1314,6 +1322,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: (fbData.isSeller === true || fbData.role === 'seller') ? 'seller' : (fbData.role || currentUser.role),
           isVerified: fbData.isVerified !== undefined ? fbData.isVerified : currentUser.isVerified,
           isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : currentUser.isBlocked,
+          // E2 ban ladder: carry the graduated/auto-expiring block fields through
+          // live sync so a ban, unban, or cooldown expiry reflects WITHOUT a refresh.
+          blockedUntil: fbData.blockedUntil !== undefined ? fbData.blockedUntil : currentUser.blockedUntil,
+          blockedReason: fbData.blockedReason !== undefined ? fbData.blockedReason : currentUser.blockedReason,
+          strikeCount: fbData.strikeCount !== undefined ? fbData.strikeCount : currentUser.strikeCount,
           subscriptionStatus: fbData.subscriptionStatus || currentUser.subscriptionStatus || 'none',
           subscriptionExpiry: fbData.subscriptionExpiry || currentUser.subscriptionExpiry || null,
           phoneNumber: fbData.phoneNumber || currentUser.phoneNumber || '',
@@ -3085,8 +3098,11 @@ const fetchIP = async () => {
 
     const now = Date.now();
 
-    // 1. Double check blocking status
-    if (currentUser.isBlocked) {
+    // 1. Double check blocking status. E2: an EXPIRED cooldown no longer blocks
+    // (matches the server placeBid gate); a permanent/active block still does and
+    // opens the BanNoticeModal instead of a terse toast.
+    if (isEffectivelyBlocked(currentUser, now)) {
+      setShowBanNotice(true);
       return { success: false, message: '🚫 Account restricted. Bidding disabled.' };
     }
     if (currentUser.subscriptionStatus !== 'active') {
@@ -4834,6 +4850,8 @@ const fetchIP = async () => {
       setShowSubscriptionPrompt,
       showPhotoGate,
       setShowPhotoGate,
+      showBanNotice,
+      setShowBanNotice,
       showNotifications,
       setShowNotifications,
       sendChatMessage,
@@ -4864,7 +4882,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, watchlist, autoBids,
-    showSubscriptionPrompt, showPhotoGate, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, showPhotoGate, showBanNotice, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, requestWithdrawal, addNotification, markAsRead,

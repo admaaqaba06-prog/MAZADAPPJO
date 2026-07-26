@@ -10,6 +10,7 @@ import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { MobileAuctionView } from './MobileAuctionView';
 import { DesktopLiveAuctionLayout } from './DesktopLiveAuctionLayout';
 import { minNextBid, totalWithPremium, isViewerWinner } from '../utils/bidMath';
+import { isEffectivelyBlocked } from '../utils/banStatus';
 import { translations } from '../utils/translations';
 import { formatMoney } from '../utils/formatMoney';
 import { effectivePrice, optimisticResolved, type OptimisticBid } from '../utils/optimisticBid';
@@ -325,7 +326,8 @@ export const LiveStreamView: React.FC = () => {
     orders,
     setGlobalSelectedOrderId,
     isAuthenticated,
-    requestSignIn
+    requestSignIn,
+    setShowBanNotice
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
@@ -549,9 +551,11 @@ export const LiveStreamView: React.FC = () => {
   };
 
   const executeBid = async (amount: number): Promise<{ success: boolean; message: string }> => {
-    if (currentUser?.isBlocked) {
+    // E2: only an ACTIVE/permanent block gates bidding (an expired cooldown does
+    // not — matches the server). Show the ban notice instead of a terse toast.
+    if (isEffectivelyBlocked(currentUser)) {
+      setShowBanNotice(true);
       const message = isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!';
-      triggerToast(message);
       return { success: false, message };
     }
 

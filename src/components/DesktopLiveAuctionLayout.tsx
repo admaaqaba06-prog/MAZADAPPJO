@@ -33,6 +33,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { isEffectivelyBlocked } from '../utils/banStatus';
 import { compactJod } from '../utils/bidFormat';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { getAuctionMedia } from '../utils/auctionMedia';
@@ -98,7 +99,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   recentBids = [],
   allActivities = [],
 }) => {
-  const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId, isAuthenticated, requestSignIn } = useApp();
+  const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId, isAuthenticated, requestSignIn, setShowBanNotice } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
   const { showToast: pushToast } = useToast();
@@ -127,6 +128,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
       requestSignIn();
       return;
     }
+    // E2: an active/permanent block opens the ban notice; an expired cooldown
+    // falls through and bids normally (matches the server gate).
+    if (isEffectivelyBlocked(currentUser)) {
+      setShowBanNotice(true);
+      return;
+    }
     setPendingBid(null);
     const res = await onBidExecute(amount);
     if (res && res.success) {
@@ -149,6 +156,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     // Guest browsing: a bid tap signs the guest up instead of staging a confirm.
     if (!isAuthenticated) {
       requestSignIn();
+      return;
+    }
+    // E2: a blocked tap opens the ban notice instead of staging a confirm.
+    if (isEffectivelyBlocked(currentUser)) {
+      setShowBanNotice(true);
       return;
     }
     setPriceMoved(false);
@@ -885,7 +897,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       amount={nextBidAmount}
                       onSwipeSuccess={() => runBid(nextBidAmount)}
                       onTap={() => openConfirm(nextBidAmount)}
-                      disabled={currentUser?.isBlocked}
+                      // E2: not hard-disabled on a block — the tap/swipe handlers
+                      // open BanNoticeModal; an expired cooldown bids normally.
+                      disabled={false}
                       language={isAr ? 'ar' : 'en'}
                     />
                     <p className="text-[11px] text-gray-400 text-center mt-1">
