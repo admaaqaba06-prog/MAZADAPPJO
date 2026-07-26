@@ -442,10 +442,18 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 {conditionChip}
               </span>
             )}
+            {/* max-w-full + truncate: unlike its siblings (New/Used/category,
+                short by construction) this label interpolates an admin-entered
+                place, so without a clamp a long one wraps INSIDE the pill and
+                rounded-full renders as a multi-line lozenge. title= keeps the
+                full text reachable. */}
             {viewingChip && (
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
-                <MapPin className="w-3 h-3" />
-                {viewingChip.label}
+              <span
+                title={viewingChip.label}
+                className="inline-flex items-center gap-1 max-w-full text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]"
+              >
+                <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{viewingChip.label}</span>
               </span>
             )}
           </div>
