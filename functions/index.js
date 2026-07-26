@@ -14,7 +14,7 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
-const { channelsFor, copyFor } = require('./notify');
+const { channelsFor, copyFor, dueReminders } = require('./notify');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -838,6 +838,44 @@ exports.paymentDefaultEnforcer = functions.pubsub
       }
     } catch (err) {
       console.error('[paymentDefaultEnforcer]', err);
+    }
+    return null;
+  });
+
+// E5 — nudge buyers with an unpaid order still inside its payment window. One
+// reminder at ~50% remaining, a final one ~2h before expiry; idempotent via
+// remind50Sent/remindFinalSent flags. Expired orders are the enforcer's job.
+exports.paymentReminderSweep = functions.pubsub
+  .schedule('every 30 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const nowMs = now.toMillis();
+    try {
+      const snap = await db.collection('orders')
+        .where('status', '==', 'waiting_payment')
+        .where('paymentDeadlineAt', '>', now)
+        .get();
+      for (const doc of snap.docs) {
+        const o = doc.data();
+        const due = dueReminders(o, nowMs);
+        if (due.length === 0) continue;
+        await notify({
+          uid: o.buyerId,
+          event: 'payment_reminder',
+          data: {
+            auctionId: o.auctionId, auctionTitle: o.auctionTitle,
+            totalDue: o.totalDue || o.winningBidAmount,
+            paymentHours: resolvePaymentWindowHours(o.paymentWindowHours),
+            idempotencyKey: `${doc.id}_payment_reminder_${due[0]}`,
+          },
+        });
+        const flags = due[0] === 'final'
+          ? { remind50Sent: true, remindFinalSent: true }
+          : { remind50Sent: true };
+        await doc.ref.set(flags, { merge: true });
+      }
+    } catch (err) {
+      console.error('[paymentReminderSweep]', err);
     }
     return null;
   });
