@@ -23,6 +23,11 @@ const {
   totalDueJod,
   MAX_AUTO_RELISTS,
   shouldAutoRelist,
+  BELOW_RESERVE_WINDOW_HOURS,
+  belowReserveExpiryMs,
+  tsToMillis,
+  isBelowReserveOfferExpired,
+  belowReserveBlocksRelist,
 } = require('./settlement');
 
 describe("buyer's premium (5% added to the winner's total)", () => {
@@ -260,5 +265,90 @@ describe('computeBidEndTime (start modes)', () => {
   });
   it('first_bid with a missing duration falls back to the default window', () => {
     expect(computeBidEndTime({ startMode: 'first_bid' }, 0, null, NOW)).toBe(NOW + DEFAULT_DURATION_SEC * 1000);
+  });
+});
+
+describe('below-reserve near-miss (E3 Slice C)', () => {
+  const NOW = 1_700_000_000_000;
+
+  describe('belowReserveExpiryMs', () => {
+    it('defaults to a 24h window from now', () => {
+      expect(belowReserveExpiryMs(NOW)).toBe(NOW + 24 * 3600 * 1000);
+      expect(BELOW_RESERVE_WINDOW_HOURS).toBe(24);
+    });
+    it('honors an explicit window', () => {
+      expect(belowReserveExpiryMs(NOW, 1)).toBe(NOW + 3600 * 1000);
+    });
+  });
+
+  describe('tsToMillis', () => {
+    it('passes a number through', () => {
+      expect(tsToMillis(NOW)).toBe(NOW);
+    });
+    it('reads a Firestore-like Timestamp (.toMillis)', () => {
+      expect(tsToMillis({ toMillis: () => NOW })).toBe(NOW);
+    });
+    it('reads {seconds} and {_seconds}', () => {
+      expect(tsToMillis({ seconds: 1000 })).toBe(1_000_000);
+      expect(tsToMillis({ _seconds: 1000 })).toBe(1_000_000);
+    });
+    it('returns NaN for null/garbage', () => {
+      expect(Number.isNaN(tsToMillis(null))).toBe(true);
+      expect(Number.isNaN(tsToMillis({}))).toBe(true);
+    });
+  });
+
+  describe('isBelowReserveOfferExpired', () => {
+    it('true once now reaches expiresAt', () => {
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW }, NOW)).toBe(true);
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW - 1 }, NOW)).toBe(true);
+    });
+    it('false while still inside the window', () => {
+      expect(isBelowReserveOfferExpired({ expiresAt: NOW + 1000 }, NOW)).toBe(false);
+    });
+    it('fails open (not expired) on a missing/garbage expiresAt', () => {
+      expect(isBelowReserveOfferExpired({ }, NOW)).toBe(false);
+      expect(isBelowReserveOfferExpired(null, NOW)).toBe(false);
+    });
+  });
+
+  describe('belowReserveBlocksRelist', () => {
+    const live = (status) => ({ status, expiresAt: NOW + 3600_000 });
+    const expired = (status) => ({ status, expiresAt: NOW - 1 });
+    it('blocks while an offer is live and pending', () => {
+      expect(belowReserveBlocksRelist(live('pending_seller'), NOW)).toBe(true);
+      expect(belowReserveBlocksRelist(live('pending_buyer'), NOW)).toBe(true);
+    });
+    it('blocks forever once confirmed (a real sale)', () => {
+      expect(belowReserveBlocksRelist({ status: 'confirmed' }, NOW)).toBe(true);
+    });
+    it('does NOT block an expired pending offer (treated as declined)', () => {
+      expect(belowReserveBlocksRelist(expired('pending_seller'), NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(expired('pending_buyer'), NOW)).toBe(false);
+    });
+    it('does NOT block a declined offer, or no offer', () => {
+      expect(belowReserveBlocksRelist({ status: 'declined' }, NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(null, NOW)).toBe(false);
+      expect(belowReserveBlocksRelist(undefined, NOW)).toBe(false);
+    });
+  });
+
+  describe('shouldAutoRelist integrates the below-reserve block', () => {
+    it('opted-in lot with a LIVE pending offer waits (no relist)', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'pending_seller', expiresAt: NOW + 3600_000 } };
+      expect(shouldAutoRelist(a, NOW)).toBe(false);
+    });
+    it('opted-in lot relists once the offer is declined', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'declined' } };
+      expect(shouldAutoRelist(a, NOW)).toBe(true);
+    });
+    it('opted-in lot relists once a pending offer has expired', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'pending_buyer', expiresAt: NOW - 1 } };
+      expect(shouldAutoRelist(a, NOW)).toBe(true);
+    });
+    it('never relists a confirmed below-reserve sale', () => {
+      const a = { autoRelist: true, autoRelistCount: 0, belowReserveOffer: { status: 'confirmed' } };
+      expect(shouldAutoRelist(a, NOW)).toBe(false);
+    });
   });
 });

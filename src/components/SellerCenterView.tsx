@@ -327,6 +327,7 @@ export const SellerCenterView: React.FC = () => {
     sellerProfiles,
     submitVerificationRequest,
     requestWithdrawal,
+    acceptBelowReserve,
     setActiveView
   } = useApp();
   const { auctions, setAuctions } = useAuctions();
@@ -745,6 +746,19 @@ export const SellerCenterView: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       alert(isAr ? 'فشل تعديل المزاد.' : 'Failed to update auction.');
+    }
+  };
+
+  // E3 Slice C — seller accepts a below-reserve top bid. Delegates to the
+  // money-path callable; the pending order + buyer-confirm step live server-side.
+  const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
+  const handleAcceptBelowReserve = async (auctionId: string) => {
+    if (acceptingOfferId) return;
+    setAcceptingOfferId(auctionId);
+    try {
+      await acceptBelowReserve(auctionId);
+    } finally {
+      setAcceptingOfferId(null);
     }
   };
 
@@ -1367,8 +1381,17 @@ export const SellerCenterView: React.FC = () => {
                     const canEdit = auction.status === 'processing' || (auction.status as string) === 'pending' || auction.status === 'rejected';
                     const canRelist = auction.status !== 'live' && auction.status !== 'upcoming';
                     const isSelected = selectedIds.has(auction.id);
+                    // E3 Slice C — below-reserve near-miss: offer awaiting THIS
+                    // seller's decision and still within its 24h window.
+                    const offer = auction.belowReserveOffer;
+                    const offerExpMs = offer?.expiresAt
+                      ? (typeof offer.expiresAt?.toMillis === 'function' ? offer.expiresAt.toMillis()
+                        : offer.expiresAt?.seconds ? offer.expiresAt.seconds * 1000 : 0)
+                      : 0;
+                    const showAcceptOffer = offer?.status === 'pending_seller' && (!offerExpMs || offerExpMs > Date.now());
                     return (
-                      <div key={auction.id} className="p-3.5 flex items-center gap-3 hover:bg-gray-50/50 transition-colors">
+                      <div key={auction.id} className="hover:bg-gray-50/50 transition-colors">
+                      <div className="p-3.5 flex items-center gap-3">
                         {bulkMode && (
                           <input
                             type="checkbox"
@@ -1431,6 +1454,40 @@ export const SellerCenterView: React.FC = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* E3 Slice C — below-reserve near-miss: accept the top bid */}
+                      {showAcceptOffer && (
+                        <div className="mx-3.5 mb-3.5 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 space-y-2.5" id={`below-reserve-offer-${auction.id}`}>
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="text-[11.5px] font-black text-amber-900 leading-snug">
+                                {isAr
+                                  ? `أعلى مزايدة ${(offer!.topBid).toLocaleString()} د.أ — أقل من السعر المطلوب. تقبلها؟`
+                                  : `Top bid was ${(offer!.topBid).toLocaleString()} JOD — below your reserve. Accept it?`}
+                              </p>
+                              <p className="text-[10px] text-amber-700/90 font-semibold leading-relaxed">
+                                {isAr
+                                  ? 'عند القبول، يُرسل العرض للمشتري ليؤكد الشراء قبل أن يصبح طلباً نهائياً.'
+                                  : 'If you accept, the offer goes to the buyer to confirm before it becomes a final order.'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAcceptBelowReserve(auction.id)}
+                            disabled={acceptingOfferId === auction.id}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black text-xs rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                            id={`accept-below-reserve-${auction.id}`}
+                          >
+                            <span>
+                              {acceptingOfferId === auction.id
+                                ? (isAr ? 'جارٍ...' : 'Accepting...')
+                                : (isAr ? 'اقبل آخر سعر' : 'Accept last price')}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     );
                   })}
                 </div>

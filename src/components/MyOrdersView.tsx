@@ -22,6 +22,7 @@ const toMillis = (raw: any): number => {
 };
 
 const STATUS_CHIP: Record<string, { ar: string; en: string; cls: string }> = {
+  pending_buyer_confirmation: { ar: 'بانتظار تأكيدك', en: 'Confirm to Buy', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   waiting_payment: { ar: 'بانتظار الدفع', en: 'Waiting Payment', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   paid: { ar: 'تم الدفع', en: 'Paid', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   preparing_shipment: { ar: 'جاري التجهيز', en: 'Preparing Shipment', cls: 'bg-orange-50 text-orange-700 border-orange-200' },
@@ -69,7 +70,19 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 };
 
 export const MyOrdersView: React.FC = () => {
-  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId } = useApp();
+  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId, confirmBelowReserve, declineBelowReserve } = useApp();
+  // E3 Slice C — which below-reserve order is mid-confirm/decline (disables its buttons).
+  const [belowReserveBusyId, setBelowReserveBusyId] = useState<string | null>(null);
+  const handleConfirmBelowReserve = async (auctionId: string) => {
+    if (belowReserveBusyId) return;
+    setBelowReserveBusyId(auctionId);
+    try { await confirmBelowReserve(auctionId); } finally { setBelowReserveBusyId(null); }
+  };
+  const handleDeclineBelowReserve = async (auctionId: string) => {
+    if (belowReserveBusyId) return;
+    setBelowReserveBusyId(auctionId);
+    try { await declineBelowReserve(auctionId); } finally { setBelowReserveBusyId(null); }
+  };
   // Slice 1b Task 2: the just-won hint reads the SCOPED per-user "my lots"
   // subscription (shared with win-detection), not the broad `useAuctions()`
   // array — a won lot stays in this query when it completes.
@@ -230,6 +243,38 @@ export const MyOrdersView: React.FC = () => {
 
                     {order.status === 'waiting_payment' && (
                       <PaymentCountdown deadline={order.paymentDeadlineAt} isAr={isAr} />
+                    )}
+
+                    {/* E3 Slice C — below-reserve near-miss: the seller accepted
+                        this bidder's below-reserve bid; buyer confirms or declines. */}
+                    {order.status === 'pending_buyer_confirmation' && (
+                      <div className="space-y-2 pt-0.5" id={`below-reserve-confirm-${order.id}`}>
+                        <p className="text-[10.5px] text-purple-700 font-bold leading-relaxed">
+                          {isAr
+                            ? `قبل البائع مزايدتك بقيمة ${order.winningBidAmount.toLocaleString()} د.أ — أكّد للشراء أو ارفض.`
+                            : `The seller accepted your bid of ${order.winningBidAmount.toLocaleString()} JOD — confirm to buy or decline.`}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleConfirmBelowReserve(order.auctionId); }}
+                            disabled={belowReserveBusyId === order.auctionId}
+                            className="inline-flex items-center gap-1.5 bg-[#FF6B00] hover:bg-[#FF8000] disabled:opacity-60 text-white font-black text-[10.5px] px-3.5 py-2 rounded-xl transition-all cursor-pointer active:scale-[0.98] uppercase font-mono"
+                            id={`confirm-below-reserve-${order.id}`}
+                          >
+                            {belowReserveBusyId === order.auctionId ? (isAr ? '...' : '...') : (isAr ? 'أكّد الشراء' : 'Confirm')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDeclineBelowReserve(order.auctionId); }}
+                            disabled={belowReserveBusyId === order.auctionId}
+                            className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 border border-gray-200 font-black text-[10.5px] px-3.5 py-2 rounded-xl transition-all cursor-pointer active:scale-[0.98] uppercase font-mono"
+                            id={`decline-below-reserve-${order.id}`}
+                          >
+                            {isAr ? 'ارفض' : 'Decline'}
+                          </button>
+                        </div>
+                      </div>
                     )}
 
                     {isReviewable(order) && (

@@ -143,6 +143,24 @@ export interface AuctionItem {
   autoRelist?: boolean;
   /** E3 Slice B — how many times this listing has already been auto-relisted. */
   autoRelistCount?: number;
+  /**
+   * E3 Slice C — below-reserve near-miss offer. Stamped by settleAuctionTxn when
+   * the auction ends `reserve_not_met` with a real top bid: the seller can accept
+   * that top bid (acceptBelowReserve) and the top bidder then confirms
+   * (confirmBelowReserve) or declines (declineBelowReserve). Money-path lives in
+   * the callables; this is display + gating state only.
+   */
+  belowReserveOffer?: {
+    topBid: number;
+    topBidderId: string;
+    topBidderName: string;
+    /** Firestore Timestamp — seller/buyer decision window (24h from settlement). */
+    expiresAt: any;
+    status: 'pending_seller' | 'pending_buyer' | 'confirmed' | 'declined';
+    sellerAcceptedAt?: any;
+    buyerConfirmedAt?: any;
+    buyerDeclinedAt?: any;
+  };
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
   vendorId?: string | null;
   vendorName?: string;
@@ -256,10 +274,12 @@ export interface Order {
   buyerId: string;
   buyerName: string;
   winningBidAmount: number;
-  status: "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
+  status: "pending_buyer_confirmation" | "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
   paymentStatus: "unpaid" | "paid";
   shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
-  escrowStatus: "pending" | "released" | "refunded";
+  escrowStatus: "pending" | "locked" | "released" | "refunded";
+  /** E3 Slice C — this order came from a below-reserve near-miss (seller accepted the top bid). */
+  belowReserve?: boolean;
   createdAt: any;
   updatedAt: any;
   // Money model (set by Cloud Functions on order creation):

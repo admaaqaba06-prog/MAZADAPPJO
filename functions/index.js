@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
@@ -75,6 +75,16 @@ async function assertAdmin(context) {
     throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
   }
   return context.auth.uid;
+}
+
+// Shared caller-is-admin check for callables that already read the caller's
+// user doc inside their transaction (mirrors the inline check in
+// releaseOrderEscrow). `callerData` is users/{uid}.data(); `tokenEmail` is
+// context.auth.token.email. Kept tiny + pure so the below-reserve callables and
+// the escrow callables agree on who counts as an admin.
+function callerIsAdmin(callerData, tokenEmail) {
+  const d = callerData || {};
+  return d.role === 'admin' || d.isAdmin === true || (tokenEmail || '').toLowerCase() === 'admaaqaba06@gmail.com';
 }
 
 // Delete a list of document refs in chunks (Firestore batches cap at 500 writes).
@@ -176,10 +186,14 @@ async function settleAuctionTxn(auctionRef, auctionData) {
 
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
+  // (notify) E3 Slice C — set when a reserve_not_met settlement stamps a fresh
+  // below-reserve offer, so the seller is prompted post-commit to accept.
+  let belowReserveNotify = null;
   let settled = false;
   let settledOrderId = null;
   await db.runTransaction(async (transaction) => {
     notifyData = null; // reset each attempt — transactions retry on contention
+    belowReserveNotify = null;
     settled = false;
     settledOrderId = null;
     const freshDoc = await transaction.get(auctionRef);
@@ -285,13 +299,40 @@ async function settleAuctionTxn(auctionRef, auctionData) {
         status: 'reserve_not_met',
         settledAt: admin.firestore.FieldValue.serverTimestamp()
       };
+      // E3 Slice C — below-reserve near-miss: a real bidder exists but never
+      // cleared the reserve. Stamp a bounded (24h) offer so the seller can
+      // one-tap accept the top bid (then the buyer confirms). NO order + NO
+      // wallet movement here — that only happens on seller-accept / buyer-
+      // confirm via the acceptBelowReserve / confirmBelowReserve callables.
+      // reserve_not_met already implies totalBids>0 && winnerId, so there is
+      // always a real top bid to offer.
+      if (winnerId) {
+        rnmUpdate.belowReserveOffer = {
+          topBid: finalPrice,
+          topBidderId: winnerId,
+          topBidderName: winnerName,
+          expiresAt: admin.firestore.Timestamp.fromMillis(belowReserveExpiryMs(Date.now())),
+          status: 'pending_seller',
+        };
+      }
       // E3 Slice B — stamp auto-relist eligibility (24h after the auction end)
       // when the seller opted in and the cap isn't hit. autoRelistSweep picks
-      // these up. NEVER stamped on a sold outcome (that branch is above).
+      // these up but WAITS while a below-reserve offer is still live
+      // (shouldAutoRelist → belowReserveBlocksRelist). NEVER on a sold outcome.
       addRelistEligibility(rnmUpdate, freshData, auctionData);
       transaction.update(auctionRef, rnmUpdate);
       settled = true;
-      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — no order created`);
+      // (notify) capture the seller prompt — sent post-commit (never inside the
+      // retrying txn). Seller phone is fetched post-commit only when set.
+      if (winnerId) {
+        belowReserveNotify = {
+          sellerId: auctionData.sellerId || freshData.sellerId || '',
+          auctionId,
+          auctionTitle: auctionData.title || freshData.title || '',
+          topBid: finalPrice,
+        };
+      }
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — below-reserve offer opened, no order created`);
     } else {
       // Close without bidder
       const unsoldUpdate = {
@@ -339,6 +380,26 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
+    });
+  }
+
+  // (notify) E3 Slice C — prompt the seller that a below-reserve offer is open.
+  // Post-commit + never-throws for the same reason as the win webhooks above.
+  if (belowReserveNotify) {
+    let sellerPhone = '';
+    if (belowReserveNotify.sellerId) {
+      try {
+        const sSnap = await db.collection('users').doc(belowReserveNotify.sellerId).get();
+        sellerPhone = (sSnap.exists && sSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve seller phone lookup failed:', e && e.message); }
+    }
+    await postToN8n('below_reserve_offer', {
+      phone: sellerPhone,
+      sellerId: belowReserveNotify.sellerId,
+      auctionId: belowReserveNotify.auctionId,
+      auctionTitle: belowReserveNotify.auctionTitle,
+      topBid: belowReserveNotify.topBid,
+      idempotencyKey: `${belowReserveNotify.auctionId}_below_reserve_offer`,
     });
   }
 
@@ -2008,6 +2069,328 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
   } catch (error) {
     console.error('Error in repairEndedAuctionOrder:', error);
     throw new functions.https.HttpsError('internal', error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * E3 Slice C — acceptBelowReserve (money-path).
+ * The auction ended reserve_not_met with a real top bid; settleAuctionTxn
+ * stamped a `belowReserveOffer` (status 'pending_seller'). The SELLER (or an
+ * admin) one-taps to accept that top bid. This creates a PENDING order that the
+ * top BIDDER must still confirm — so NO payment deadline, NO escrow lock, and
+ * NO wallet movement happen here. Fees are the SAME as a normal sale, computed
+ * from the below-reserve top bid via the shared settlement helpers (never
+ * recomputed inline). Idempotent: an existing order short-circuits.
+ */
+exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    let buyerNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!auctionSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'المزاد غير موجود.');
+      }
+      const auctionData = auctionSnap.data();
+      const offer = auctionData.belowReserveOffer;
+      if (!offer) {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يوجد عرض أقل من السعر المطلوب لهذا المزاد.');
+      }
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;
+      if (!isAdmin && !isSeller) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+      }
+
+      // Idempotency: an order already exists (this call already ran, or the
+      // buyer already confirmed) — do not double-create or reopen.
+      if (orderSnap.exists) {
+        return { success: true, alreadyAccepted: true, message: 'تم قبول العرض مسبقاً.' };
+      }
+
+      if (offer.status !== 'pending_seller') {
+        throw new functions.https.HttpsError('failed-precondition', 'العرض لم يعد بانتظار موافقة البائع.');
+      }
+      if (isBelowReserveOfferExpired(offer, Date.now())) {
+        throw new functions.https.HttpsError('failed-precondition', 'انتهت مهلة قبول هذا العرض.');
+      }
+
+      const topBid = offer.topBid;
+      const topBidderId = offer.topBidderId;
+      const topBidderName = offer.topBidderName || 'Buyer';
+
+      // Money-path: fees on the below-reserve top bid, computed with the SAME
+      // shared helpers the sold path uses (buyer +5%, seller net 95%). PENDING —
+      // no paymentDeadlineAt, no escrow lock. escrowStatus is a status field only.
+      const orderPayload = {
+        id: auctionId,
+        auctionId: auctionId,
+        auctionTitle: auctionData.title || '',
+        auctionImage: auctionData.thumbnailUrl || auctionData.imageUrl || '',
+        sellerId: auctionData.sellerId || '',
+        sellerName: auctionData.sellerName || 'Seller',
+        buyerId: topBidderId,
+        buyerName: topBidderName,
+        winningBidAmount: topBid,
+        buyersPremium: buyerPremiumJod(topBid),
+        totalDue: totalDueJod(topBid),
+        sellerCommission: sellerCommissionFils(Math.round(topBid * 1000)) / 1000,
+        sellerNet: sellerNetFils(Math.round(topBid * 1000)) / 1000,
+        status: 'pending_buyer_confirmation',
+        paymentStatus: 'unpaid',
+        shippingStatus: 'not_started',
+        escrowStatus: 'pending',
+        belowReserve: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (auctionData.isSimulated === true) {
+        orderPayload.isSimulated = true;
+      }
+
+      transaction.set(orderRef, orderPayload);
+      transaction.update(auctionRef, {
+        'belowReserveOffer.status': 'pending_buyer',
+        'belowReserveOffer.sellerAcceptedAt': admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      buyerNotify = {
+        buyerId: topBidderId,
+        buyerName: topBidderName,
+        auctionId,
+        auctionTitle: auctionData.title || '',
+        topBid,
+      };
+      return { success: true, message: 'تم قبول العرض. بانتظار تأكيد المشتري.' };
+    });
+
+    // (notify) prompt the buyer to confirm. Post-commit, never-throws — a webhook
+    // failure must not roll back an accepted offer.
+    if (buyerNotify) {
+      let buyerPhone = '';
+      try {
+        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
+        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve buyer phone lookup failed:', e && e.message); }
+      await postToN8n('below_reserve_seller_accepted', {
+        phone: buyerPhone,
+        name: buyerNotify.buyerName,
+        buyerId: buyerNotify.buyerId,
+        auctionId: buyerNotify.auctionId,
+        auctionTitle: buyerNotify.auctionTitle,
+        topBid: buyerNotify.topBid,
+        idempotencyKey: `${buyerNotify.auctionId}_below_reserve_accepted`,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in acceptBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر قبول العرض.');
+  }
+});
+
+/**
+ * E3 Slice C — confirmBelowReserve (money-path).
+ * The seller accepted; the top BIDDER (or admin) confirms, turning the pending
+ * order into a real obligation: status 'waiting_payment', escrowStatus 'locked'
+ * (status field only — actual wallet movement stays with the existing
+ * pay → verify → releaseOrderEscrow flow), and a 24h payment deadline via the
+ * SAME paymentDeadlineFromNow helper a normal win uses. Idempotent.
+ */
+exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    let buyerNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+      const auctionData = auctionSnap.exists ? auctionSnap.data() : {};
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
+      if (!isAdmin && !isBuyer) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Idempotency: already confirmed (or beyond) — the obligation already exists.
+      if (orderData.status !== 'pending_buyer_confirmation') {
+        if (orderData.status === 'waiting_payment') {
+          return { success: true, alreadyConfirmed: true, message: 'تم تأكيد الشراء مسبقاً.' };
+        }
+        throw new functions.https.HttpsError('failed-precondition', 'لا يمكن تأكيد هذا الطلب في حالته الحالية.');
+      }
+
+      // Guard the offer window: an expired offer can't be turned into a sale.
+      const offer = auctionData.belowReserveOffer;
+      if (offer && isBelowReserveOfferExpired(offer, Date.now())) {
+        throw new functions.https.HttpsError('failed-precondition', 'انتهت مهلة تأكيد هذا العرض.');
+      }
+
+      transaction.update(orderRef, {
+        status: 'waiting_payment',
+        escrowStatus: 'locked',
+        paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
+        paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (auctionSnap.exists) {
+        transaction.update(auctionRef, {
+          'belowReserveOffer.status': 'confirmed',
+          'belowReserveOffer.buyerConfirmedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      buyerNotify = {
+        buyerId: orderData.buyerId,
+        buyerName: orderData.buyerName || 'Buyer',
+        auctionId,
+        auctionTitle: orderData.auctionTitle || '',
+        amount: orderData.winningBidAmount,
+        paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+      };
+      return { success: true, message: 'تم تأكيد الشراء. يرجى إتمام الدفع.' };
+    });
+
+    // (notify) same auction_won + payment_due events a normal win fires — the
+    // buyer now owes payment. Post-commit, never-throws.
+    if (buyerNotify) {
+      let buyerPhone = '';
+      try {
+        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
+        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
+      } catch (e) { console.warn('[n8n] below-reserve confirm phone lookup failed:', e && e.message); }
+      const payload = {
+        phone: buyerPhone, name: buyerNotify.buyerName,
+        auctionId: buyerNotify.auctionId, auctionTitle: buyerNotify.auctionTitle,
+        amount: buyerNotify.amount,
+        buyersPremium: buyerPremiumJod(buyerNotify.amount),
+        totalDue: totalDueJod(buyerNotify.amount),
+        paymentHours: buyerNotify.paymentHours,
+      };
+      await postToN8n('auction_won', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_auction_won` });
+      await postToN8n('payment_due', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_payment_due` });
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in confirmBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر تأكيد الشراء.');
+  }
+});
+
+/**
+ * E3 Slice C — declineBelowReserve. The top BIDDER (or admin) declines the
+ * seller-accepted offer: the pending order is cancelled and the offer marked
+ * 'declined'. The auction stays reserve_not_met, so auto-relist (if the seller
+ * opted in) picks it up — shouldAutoRelist stops blocking once status='declined'.
+ * No wallet movement (nothing was ever locked). Idempotent.
+ */
+exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
+      if (!isAdmin && !isBuyer) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Idempotency: already declined/cancelled.
+      if (orderData.status === 'cancelled') {
+        return { success: true, alreadyDeclined: true, message: 'تم رفض العرض مسبقاً.' };
+      }
+      // Only a still-pending (un-confirmed) offer can be declined. A confirmed
+      // (waiting_payment) obligation can't be walked back here.
+      if (orderData.status !== 'pending_buyer_confirmation') {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يمكن رفض هذا الطلب في حالته الحالية.');
+      }
+
+      transaction.update(orderRef, {
+        status: 'cancelled',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (auctionSnap.exists && auctionSnap.data().belowReserveOffer) {
+        transaction.update(auctionRef, {
+          'belowReserveOffer.status': 'declined',
+          'belowReserveOffer.buyerDeclinedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      return { success: true, message: 'تم رفض العرض.' };
+    });
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in declineBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر رفض العرض.');
   }
 });
 
