@@ -63,4 +63,31 @@ function copyFor(event, data = {}) {
   return M[event] || { type: 'info', title: 'تنبيه', description: '' };
 }
 
-module.exports = { channelsFor, copyFor };
+function toMs(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Which unpaid-order reminders are due now (and not already sent). 'final' (last
+// 2h) supersedes '50' so a late first-run sends one message, not two. The cron
+// (index.js) marks both flags when it sends 'final'.
+function dueReminders(order, nowMs) {
+  if (!order || order.status !== 'waiting_payment') return [];
+  const deadline = toMs(order.paymentDeadlineAt);
+  if (deadline == null || nowMs >= deadline) return [];
+  const hours = Number(order.paymentWindowHours) > 0 ? Number(order.paymentWindowHours) : 24;
+  const windowMs = hours * 3600 * 1000;
+  const finalThreshold = deadline - 2 * 3600 * 1000;
+  const halfway = deadline - windowMs / 2;
+  // Inside the final window, 'final' supersedes '50': never fall back to '50'
+  // once we've reached the last 2h (the cron marks both flags when it sends final).
+  if (nowMs >= finalThreshold) return order.remindFinalSent ? [] : ['final'];
+  if (!order.remind50Sent && nowMs >= halfway) return ['50'];
+  return [];
+}
+
+module.exports = { channelsFor, copyFor, dueReminders };
