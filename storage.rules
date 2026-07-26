@@ -71,6 +71,19 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+    // 4. Return-claim Photos (E6). Buyer uploads 1–6 evidence images when
+    // reporting a problem on a shipped order. The authoritative buyer-ownership
+    // check lives in the requestReturn callable; the Storage rule gates writes on
+    // any authenticated user (image-only, ≤10MB) and lets authenticated users
+    // read so seller/admin can review the claim.
+    match /returns/{orderId}/{fileName=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+                    && request.resource.contentType.matches('image/.*')
+                    && request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+
     // Standard reject-all fallthrough
     match /{allPaths=**} {
       allow read, write: if false;

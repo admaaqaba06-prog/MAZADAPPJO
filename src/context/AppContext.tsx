@@ -65,7 +65,7 @@ import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTim
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
-  Review, VerificationRequest, SellerReport, Dispute, OrderReview
+  Review, VerificationRequest, SellerReport, Dispute, OrderReview, ReturnReason
 } from '../types';
 
 // Maps a raw Firestore auction doc → AuctionItem (thumbnail/video fallbacks,
@@ -173,6 +173,16 @@ interface AppContextProps {
   acceptBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   confirmBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   declineBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  // E6 — buyer return flow
+  requestReturn: (
+    orderId: string,
+    input: { reason: ReturnReason; description: string; photoUrls: string[] }
+  ) => Promise<{ success: boolean; message: string }>;
+  // E6 B1 — seller responds to an open return claim (advisory; no money)
+  sellerRespondToReturn: (
+    orderId: string,
+    input: { accept: boolean; note?: string }
+  ) => Promise<{ success: boolean; message: string }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -3381,6 +3391,67 @@ const fetchIP = async () => {
     }
   }, [addNotification, showToast, language]);
 
+  // E6 — buyer opens a return claim on a shipped order. The callable is
+  // buyer-only and freezes the order into a return-typed dispute.
+  const requestReturn = useCallback(async (
+    orderId: string,
+    input: { reason: ReturnReason; description: string; photoUrls: string[] }
+  ) => {
+    try {
+      const callable = await getCallableFunction<
+        { orderId: string; reason: ReturnReason; description: string; photoUrls: string[] },
+        { success: boolean; message: string }
+      >('requestReturn');
+      const result = await callable({ orderId, ...input });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? 'تم تقديم طلب الإرجاع' : 'Return Requested',
+          result.data.message || (language === 'ar' ? 'تم تجميد الطلب ريثما يراجع الفريق طلب الإرجاع.' : 'The order is frozen while the team reviews your return.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to submit return.' };
+    } catch (error: any) {
+      console.error('Cloud function requestReturn failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر تقديم طلب الإرجاع.' : 'Failed to submit return.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
+  // E6 B1 — seller accepts or contests an open return claim. Advisory only: the
+  // callable writes only the returnClaim sub-fields; no money moves (admin still
+  // executes any refund via the escrow callables).
+  const sellerRespondToReturn = useCallback(async (
+    orderId: string,
+    input: { accept: boolean; note?: string }
+  ) => {
+    try {
+      const callable = await getCallableFunction<
+        { orderId: string; accept: boolean; note?: string },
+        { success: boolean; message: string }
+      >('respondToReturn');
+      const result = await callable({ orderId, accept: input.accept, note: input.note });
+      if (result.data?.success) {
+        addNotification(
+          input.accept
+            ? (language === 'ar' ? 'تم قبول طلب الإرجاع' : 'Return Accepted')
+            : (language === 'ar' ? 'تم إرسال ردك' : 'Response Sent'),
+          result.data.message || (language === 'ar' ? 'تم تسجيل ردك على طلب الإرجاع.' : 'Your response to the return has been recorded.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to respond to return.' };
+    } catch (error: any) {
+      console.error('Cloud function respondToReturn failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر إرسال الرد على طلب الإرجاع.' : 'Failed to respond to return.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
     const newMsg: ChatMessage = {
@@ -4927,6 +4998,8 @@ const fetchIP = async () => {
       acceptBelowReserve,
       confirmBelowReserve,
       declineBelowReserve,
+      requestReturn,
+      sellerRespondToReturn,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -5011,7 +5084,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

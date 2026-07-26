@@ -26,6 +26,8 @@ const CHANNEL_POLICY = {
   ban_lifted: ALL,
   seller_ship_nudge: INAPP_WA,
   buyer_confirm_nudge: INAPP_WA,
+  return_requested: ALL,
+  return_resolved: ALL,
 };
 
 function channelsFor(event) {
@@ -59,6 +61,11 @@ function copyFor(event, data = {}) {
     ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'تم رفع التقييد عن حسابك.' },
     seller_ship_nudge: { type: 'order', title: 'ذكّر بالشحن', description: `يرجى شحن الطلب "${t}".` },
     buyer_confirm_nudge: { type: 'order', title: 'أكّد الاستلام', description: `يرجى تأكيد استلام "${t}".` },
+    return_requested: { type: 'order', title: 'طلب إرجاع', description: `تم فتح طلب إرجاع على "${t}". يرجى المراجعة.` },
+    return_resolved: { type: 'order', title: 'نتيجة طلب الإرجاع',
+      description: data.outcome === 'refunded'
+        ? `تمت الموافقة على إرجاع "${t}" وسيُعاد المبلغ إلى محفظتك.`
+        : `تمت مراجعة طلب إرجاع "${t}" ولم تتم الموافقة عليه.` },
   };
   return M[event] || { type: 'info', title: 'تنبيه', description: '' };
 }

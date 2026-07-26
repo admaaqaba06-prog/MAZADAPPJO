@@ -50,6 +50,12 @@ const TONE_CLASSES: Record<'emerald' | 'red' | 'gray', string> = {
   gray: 'bg-gray-900 hover:bg-black text-white',
 };
 
+// Bilingual labels for the structured return-claim reason codes (functions/returns.js).
+const RETURN_REASON_LABELS: Record<string, { ar: string; en: string }> = {
+  not_as_described: { ar: 'ليس كما وُصف', en: 'Not as described' },
+  damaged: { ar: 'تالف / متضرر', en: 'Damaged' },
+};
+
 /**
  * One dispute row. Owns its own selected-resolution + note + busy + feedback
  * state — mirrors FulfillmentSection's per-row busy/feedback idiom and
@@ -94,6 +100,15 @@ const DisputeRow: React.FC<{
     : (isAr ? 'لم يُسجَّل سبب' : 'No reason recorded');
   const selectedConfig = RESOLUTIONS.find((r) => r.id === selected);
 
+  const isReturn = order.disputeType === 'return';
+  const claim = isReturn ? (order.returnClaim || {}) : null;
+  const claimReasonLabel = claim && RETURN_REASON_LABELS[claim.reason]
+    ? (isAr ? RETURN_REASON_LABELS[claim.reason].ar : RETURN_REASON_LABELS[claim.reason].en)
+    : (isAr ? 'إرجاع' : 'Return');
+  const claimPhotos: string[] = claim && Array.isArray(claim.photoUrls)
+    ? claim.photoUrls.filter((u: any) => typeof u === 'string' && u.trim())
+    : [];
+
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
       {/* Header: title + age */}
@@ -126,9 +141,69 @@ const DisputeRow: React.FC<{
         <p className="text-xs text-gray-800 leading-relaxed">{reason}</p>
       </div>
 
+      {/* Return-claim context — only for disputeType === 'return' */}
+      {isReturn && claim && (
+        <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-black rounded-full px-2 py-0.5 bg-indigo-600 text-white uppercase whitespace-nowrap">
+              {isAr ? 'طلب إرجاع' : 'Return claim'}
+            </span>
+            <span className="text-[11px] font-bold text-indigo-800">{claimReasonLabel}</span>
+            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
+              {isAr ? 'البائع يتحمّل شحن الإرجاع' : 'Seller pays return shipping'}
+            </span>
+          </div>
+
+          {claim.description && String(claim.description).trim() && (
+            <div>
+              <p className="text-[10px] font-bold text-indigo-500 uppercase mb-0.5">
+                {isAr ? 'وصف المشتري' : 'Buyer description'}
+              </p>
+              <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap">{claim.description}</p>
+            </div>
+          )}
+
+          {claimPhotos.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-indigo-500 uppercase mb-1">
+                {isAr ? `الصور (${claimPhotos.length})` : `Photos (${claimPhotos.length})`}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {claimPhotos.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-16 h-16 rounded-lg overflow-hidden border border-indigo-200 bg-white hover:ring-2 hover:ring-indigo-300 transition-all"
+                  >
+                    <img src={url} alt={isAr ? `صورة ${i + 1}` : `Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {claim.sellerResponse && String(claim.sellerResponse).trim() && (
+            <div>
+              <p className="text-[10px] font-bold text-indigo-500 uppercase mb-0.5">
+                {isAr ? 'رد البائع' : 'Seller response'}
+              </p>
+              <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap">{claim.sellerResponse}</p>
+            </div>
+          )}
+
+          <p className="text-[10px] font-bold text-indigo-700/80 leading-relaxed border-t border-indigo-100 pt-2">
+            {isAr
+              ? 'استرداد للمشتري = الموافقة على الإرجاع · تحرير للبائع = رفض الإرجاع'
+              : 'Refund buyer = approve the return · Release to seller = deny the return'}
+          </p>
+        </div>
+      )}
+
       {/* Resolution buttons */}
       <div className="flex items-center gap-2 flex-wrap">
-        {RESOLUTIONS.map((r) => {
+        {RESOLUTIONS.filter((r) => !(isReturn && r.id === 'resume')).map((r) => {
           const active = selected === r.id;
           return (
             <button

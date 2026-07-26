@@ -71,3 +71,22 @@ describe('dueReminders', () => {
     expect(dueReminders(order({ status: 'paid' }), D - 1 * H)).toEqual([]);
   });
 });
+
+describe('E6 return events', () => {
+  it('return_requested → all channels', () => {
+    expect(channelsFor('return_requested')).toEqual({ inapp: true, whatsapp: true, email: true });
+  });
+  it('return_resolved → all channels', () => {
+    expect(channelsFor('return_resolved')).toEqual({ inapp: true, whatsapp: true, email: true });
+  });
+  it('return_requested copy is an order-type with the title', () => {
+    const c = copyFor('return_requested', { auctionTitle: 'ساعة' });
+    expect(c.type).toBe('order');
+    expect(c.description).toContain('ساعة');
+  });
+  it('return_resolved copy branches on outcome', () => {
+    const refunded = copyFor('return_resolved', { auctionTitle: 'ساعة', outcome: 'refunded' });
+    const denied = copyFor('return_resolved', { auctionTitle: 'ساعة', outcome: 'denied' });
+    expect(refunded.description).not.toEqual(denied.description);
+  });
+});
