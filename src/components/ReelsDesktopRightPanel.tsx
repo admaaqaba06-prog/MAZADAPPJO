@@ -10,6 +10,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
+import { isEffectivelyBlocked } from '../utils/banStatus';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
   const {
@@ -21,7 +22,8 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     currentUser,
     placeBid,
     isAuthenticated,
-    requestSignIn
+    requestSignIn,
+    setShowBanNotice
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
@@ -163,8 +165,8 @@ export const ReelsDesktopRightPanel: React.FC = () => {
               requestSignIn();
               return;
             }
-            if (currentUser.isBlocked) {
-              alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
+            if (isEffectivelyBlocked(currentUser)) {
+              setShowBanNotice(true);
               return;
             }
             await placeBid(currentItem.id, nextBidAmount);
@@ -175,14 +177,17 @@ export const ReelsDesktopRightPanel: React.FC = () => {
               requestSignIn();
               return;
             }
-            if (currentUser.isBlocked) {
-              alert(isAr ? '❌ حسابك محظور من المزايدة حالياً!' : '❌ Your account is blocked from bidding!');
+            if (isEffectivelyBlocked(currentUser)) {
+              setShowBanNotice(true);
               return;
             }
             setPriceMoved(false); // fresh confirm: no stale "price moved" copy
             setPendingBid(nextBidAmount);
           }}
-          disabled={currentUser.isBlocked || (currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
+          // E2: a blocked user is NOT hard-disabled here — the tap handlers above
+          // catch isEffectivelyBlocked and open BanNoticeModal (explains why/when
+          // it lifts). An expired cooldown falls through and bids normally.
+          disabled={(currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
         />
         {/* Inline confirm for the click fallback (anchored to this card).

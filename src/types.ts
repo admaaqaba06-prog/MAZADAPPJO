@@ -15,6 +15,12 @@ export interface User {
   isVerified: boolean;
   verificationStatus?: 'not_verified' | 'pending' | 'verified' | 'premium_verified';
   isBlocked: boolean;
+  // E2 ban ladder: graduated, auto-expiring blocks. `blockedUntil` is the epoch
+  // ms (or Firestore Timestamp) the block lifts; null/undefined = permanent.
+  // `blockedReason` keys the ban-notice copy; `strikeCount` is the ladder rung.
+  blockedUntil?: number | { toMillis?: () => number; seconds?: number } | null;
+  blockedReason?: string;
+  strikeCount?: number;
   phoneNumber?: string;
   phone?: string;
   city?: string;
