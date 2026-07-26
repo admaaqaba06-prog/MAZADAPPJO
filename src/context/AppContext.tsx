@@ -3768,7 +3768,14 @@ const fetchIP = async () => {
       }
     }
 
-    setAuctions(prev => [newListing, ...prev]);
+    // De-dupe by id. Firestore latency-compensates: the local onSnapshot fires
+    // the moment the write is issued, so by the time the awaited setDoc above
+    // resolves `prev` USUALLY ALREADY CONTAINS this lot. Unconditionally
+    // unshifting it produced two entries sharing one id — the drop-builder list
+    // rendered the same lot twice, both showing the same auction number, until
+    // the next snapshot rebuilt the array. The optimistic insert still matters
+    // for the case where the snapshot has not landed yet.
+    setAuctions(prev => (prev.some(a => a.id === newListingId) ? prev : [newListing, ...prev]));
     
     if (language === 'ar') {
       addNotification(

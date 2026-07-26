@@ -222,11 +222,22 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                 pendingListingDrops.map((item) => (
                   <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs transition-all hover:border-gray-200">
                     <div className="flex gap-4">
-                      <img 
-                        src={item.thumbnailUrl} 
-                        alt="Lot Cover" 
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 shrink-0 shadow-xs"
-                      />
+                      {/* Click to open full size. A 64px object-cover crop hides
+                          both detail and framing, so an approver could not
+                          actually inspect what they were approving. */}
+                      <a
+                        href={item.thumbnailUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={isAr ? 'فتح الصورة بالحجم الكامل' : 'Open full size'}
+                        className="shrink-0 cursor-zoom-in"
+                      >
+                        <img
+                          src={item.thumbnailUrl}
+                          alt="Lot Cover"
+                          className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-xs hover:border-gray-400 transition-colors"
+                        />
+                      </a>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="bg-orange-50 text-[#FF6B00] border border-orange-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
@@ -264,11 +275,18 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                         <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
                           🎥 {isAr ? 'معاينة محتوى الفيديو المرفق' : 'ATTACHED DEMO VIDEO'}
                         </span>
-                        <div className="w-full bg-black rounded-lg overflow-hidden aspect-video relative max-h-[160px] flex items-center justify-center border border-gray-200 shadow-inner">
-                          <video 
-                            src={item.videoUrl} 
-                            controls 
-                            className="w-full h-full max-h-[158px] object-contain rounded-lg"
+                        {/* NO forced aspect ratio. This used to be `aspect-video`
+                            (16:9) capped at 160px tall, but sellers shoot PORTRAIT
+                            phone video — object-contain then squeezed it into a
+                            thin sliver between two black bars, which is exactly
+                            what an approver cannot judge a lot from. Let the media
+                            keep its own shape and give it real height: portrait
+                            renders tall, landscape still fills the width. */}
+                        <div className="w-full bg-black rounded-lg overflow-hidden flex items-center justify-center border border-gray-200 shadow-inner">
+                          <video
+                            src={item.videoUrl}
+                            controls
+                            className="max-h-[420px] w-auto max-w-full object-contain rounded-lg"
                             playsInline
                             preload="metadata"
                           />

@@ -606,6 +606,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           }
 
           const auctionId = activeAuction?.id;
+          // Prefer the human auction NUMBER (#2002) — that is what the team and
+          // customers quote, it is what Discover search now matches, and
+          // MobileAuctionView already shows it. The Firestore doc-id prefix
+          // shown here before was an internal identifier nobody uses. Falls
+          // back to the doc id for legacy lots created before numbering.
+          const auctionNumberLabel = typeof activeAuction?.auctionNumber === 'number'
+            ? String(activeAuction.auctionNumber)
+            : (auctionId ? auctionId.slice(0, 8).toUpperCase() : '');
           if (auctionId) {
             blocks.push({
               key: 'auctionId',
@@ -617,13 +625,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               label: isAr ? 'رقم المزاد' : 'Auction ID',
               value: (
                 <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
-                  <span>#{auctionId.slice(0, 8).toUpperCase()}</span>
+                  <span>#{auctionNumberLabel}</span>
                   <button
                     onClick={() => {
-                      // The block only exists inside the `auctionId` guard, so
-                      // the id is known-present here — copy the FULL id even
-                      // though only the first 8 chars are displayed.
-                      navigator.clipboard.writeText(auctionId);
+                      // Copy exactly what is displayed, so pasting it straight
+                      // into Discover search finds this lot.
+                      navigator.clipboard.writeText(auctionNumberLabel);
                     }}
                     className="text-gray-400 hover:text-gray-600 cursor-pointer"
                     title="Copy"
