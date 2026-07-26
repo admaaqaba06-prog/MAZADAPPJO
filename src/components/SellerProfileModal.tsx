@@ -5,7 +5,9 @@ import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Review } from '../types';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
-import { 
+import { sellerReputation } from '../utils/reputation';
+import { StarRating } from './ui/StarRating';
+import {
   X, ShieldCheck, MapPin, Calendar, Award, Star, 
   Users, Percent, Clock, AlertTriangle, MessageSquare, 
   ThumbsUp, Sparkles, ShieldAlert
@@ -97,10 +99,22 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
 
   const disputesLostCount = 0;
 
+  // E7 B2 — prefer the real computed reputation (buyer_rates_auction reviews) when
+  // there is at least one real rating; otherwise fall back to the seeded profile
+  // rating so seeded/new sellers still render a sensible value.
+  const realReputation = useMemo(
+    () => sellerReputation(sellerReviews, profile?.userId || sellerId),
+    [sellerReviews, profile?.userId, sellerId],
+  );
   const averageRating = useMemo(() => {
-    if (sellerReviews.length === 0) return profile?.rating || 0;
-    return parseFloat((sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length).toFixed(1));
-  }, [sellerReviews, profile]);
+    if (realReputation.count >= 1 && realReputation.average !== null) {
+      return parseFloat(realReputation.average.toFixed(1));
+    }
+    if (sellerReviews.length > 0) {
+      return parseFloat((sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length).toFixed(1));
+    }
+    return profile?.rating || 0;
+  }, [realReputation, sellerReviews, profile]);
 
   // Dynamic Trust Score
   const trustScore = useMemo(() => {
@@ -243,10 +257,15 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
               </div>
               <div className="mt-2.5">
                 <span className="text-2xl font-black text-white">{averageRating}</span>
-                <span className="text-zinc-500 text-xs font-bold"> ({sellerReviews.length} {isAr ? 'تقييم' : 'reviews'})</span>
+                <span className="text-zinc-500 text-xs font-bold"> ({realReputation.count >= 1 ? realReputation.count : sellerReviews.length} {isAr ? 'تقييم' : 'reviews'})</span>
+              </div>
+              <div className="mt-1.5">
+                <StarRating value={averageRating} size={13} showValue={false} />
               </div>
               <p className="text-[10px] text-zinc-400 font-bold mt-2">
-                {isAr ? 'تحديث تلقائي فوري' : 'Dynamic Auto-Updated'}
+                {realReputation.count >= 1
+                  ? (isAr ? 'تقييمات حقيقية من المشترين' : 'Real buyer ratings')
+                  : (isAr ? 'تحديث تلقائي فوري' : 'Dynamic Auto-Updated')}
               </p>
             </div>
 

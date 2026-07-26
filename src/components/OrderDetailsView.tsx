@@ -45,6 +45,8 @@ import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
 import { sellerNet } from '../utils/bidMath';
+import { buyerReputation } from '../utils/reputation';
+import { StarRating } from './ui/StarRating';
 
 interface OrderDetailsViewProps {
   orderId: string;
@@ -174,6 +176,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     }
   };
 
+  // E7 B2 — buyer reputation shown to the seller/admin on the order view. Loaded
+  // on-demand: all seller_rates_buyer reviews for this buyer (aggregate rating,
+  // NOT tied to this one order). Intentionally NOT rendered in any live-auction /
+  // bidding surface — a buyer's rating must never leak during active bidding.
+  const [buyerRepReviews, setBuyerRepReviews] = useState<any[] | null>(null);
+
   // E7 — look up an existing seller_rates_buyer review for this order (seller view
   // only), so a repeat visit renders the read-only "you rated" state.
   const isSellerViewer = !!order && currentUser?.id === order.sellerId;
@@ -197,6 +205,32 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     })();
     return () => { cancelled = true; };
   }, [order?.id, isSellerViewer]);
+
+  // E7 B2 — load the buyer's received seller ratings (aggregate) for the
+  // seller/admin viewing this order. On-demand query, same pattern as the
+  // per-order lookup above.
+  useEffect(() => {
+    if (!order || !(isSellerViewer || isAdminViewer)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'reviews'),
+          where('buyerId', '==', order.buyerId),
+          where('direction', '==', 'seller_rates_buyer')
+        ));
+        if (!cancelled) {
+          const rows: any[] = [];
+          snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+          setBuyerRepReviews(rows);
+        }
+      } catch (err) {
+        console.warn('Buyer reputation lookup failed:', err);
+        if (!cancelled) setBuyerRepReviews([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order?.id, order?.buyerId, isSellerViewer, isAdminViewer]);
 
   const handleSellerRateBuyer = async () => {
     if (!order || sellerRatingSaving || sellerBuyerStars !== null || sellerRatePick < 1) return;
@@ -2152,6 +2186,24 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                 <p className="text-[9px] text-gray-400 font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
                 </p>
+                {/* E7 B2 — buyer reputation, seller/admin only (never during bidding). */}
+                {(isSeller || isAdmin) && (() => {
+                  const rep = buyerReputation(buyerRepReviews, order.buyerId);
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[9px] text-gray-400 font-mono font-black uppercase">
+                        {isAr ? 'تقييم المشتري' : 'Buyer rating'}
+                      </span>
+                      {rep.average !== null ? (
+                        <StarRating value={rep.average} count={rep.count} size={12} />
+                      ) : (
+                        <span className="text-[9px] text-gray-400 font-bold">
+                          {isAr ? 'لا يوجد تقييم بعد' : 'No ratings yet'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
