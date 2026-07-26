@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useApp, useAuctions, useChat } from '../context/AppContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { useApp, useChat } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FolderLock,
@@ -18,9 +18,9 @@ import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
-import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useAuctionDoc } from '../hooks/useAuctionDoc';
+import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
 import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
-import { mergeLiveIntoCard } from '../utils/discoverQuery';
 
 /* ======================================================================
    ISOLATED COUNTDOWN LAYER (Wave 4)
@@ -329,12 +329,10 @@ export const LiveStreamView: React.FC = () => {
     requestSignIn,
     setShowBanNotice
   } = useApp();
-  const { auctions } = useAuctions();
   const { chatMessages } = useChat();
   // Slice 1b Task 2: win-detection reads from a SCOPED per-user "my lots"
   // subscription (not the broad `auctions` array, whose `[live,upcoming]` query
-  // drops a won lot as `removed` before any `completed` snapshot). The broad
-  // `auctions` above still drives the room grid + `activeAuctionBase`.
+  // drops a won lot as `removed` before any `completed` snapshot).
   const myWinLots = useMyAuctionLots(currentUser?.id);
 
   const isAr = language === 'ar';
@@ -360,45 +358,27 @@ export const LiveStreamView: React.FC = () => {
   // only the infrequently-changing dismissal flag stays here.
   const [isOverlayDismissed, setIsOverlayDismissed] = useState<boolean>(false);
 
-  // Get live and upcoming auctions
-  const liveAuctions = useMemo(() => {
-    const filtered = auctions.filter(a =>
-      (a.status === 'live' || a.status === 'upcoming') &&
-      (!a.endTime || a.endTime > serverNow())
-    );
-    // Fallback (nothing live/upcoming): never leak unapproved lots — a
-    // 'processing' (awaiting Mazad review), legacy 'pending' or 'rejected'
-    // listing must stay invisible to buyers on every surface (spec §6). Also
-    // exclude finished lots ('completed'/'ended') so the fallback never shows a
-    // dead auction as if it were watchable.
-    const approvedOnly = auctions.filter(a =>
-      a.status !== 'processing' && a.status !== 'pending' && a.status !== 'rejected' &&
-      a.status !== 'completed' && a.status !== 'ended' && a.status !== 'reserve_not_met'
-    );
-    const displayList = filtered.length > 0 ? filtered : approvedOnly;
-    return [...displayList].sort((a, b) => {
-      const tA = a.approvedAt ? (a.approvedAt.seconds ? a.approvedAt.seconds * 1000 : Number(a.approvedAt)) : (a.createdAt || 0);
-      const tB = b.approvedAt ? (b.approvedAt.seconds ? b.approvedAt.seconds * 1000 : Number(b.approvedAt)) : (b.createdAt || 0);
-      return tB - tA;
-    });
-  }, [auctions]);
+  // Slice 1b Task 5a-3: the desktop "Live Auctions" rail sources its list from
+  // the room's OWN paginated ending-soon feed (`useDiscoverFeed`), not the broad
+  // `auctions` array — so a viewer in the room no longer needs all ~80 lots to
+  // stream. `null` category = the 'All' feed (the room has no category chip).
+  // Kept under the name `liveAuctions` so every rail/details pass-site is
+  // unchanged. NOTE: this is LIVE-only (upcoming lots are a separate feed list);
+  // the old array included 'upcoming' in the rail.
+  const feedLive = useDiscoverFeed(null, true).liveItems;
+  const liveAuctions = feedLive;
 
-  // Active auction item helper
-  const activeAuctionBase = useMemo(() => {
-    return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
-  }, [liveAuctions, activeAuctionId]);
-
-  // Slice 1b-A: the open lot gets its OWN single-doc realtime subscription
-  // (ref-counted, leak-safe) instead of reading its live data out of the broad
-  // 80-lot array. `mergeLiveIntoCard` overlays only the authoritative live
-  // fields (currentPrice, totalBids, currentBidder*, reserveMet, status,
-  // endTime) onto the array-derived base, preserving identity + all static
-  // fields, so every downstream `activeAuction` read is unchanged.
-  const openLive = useVisibleAuctionLive(activeAuctionBase?.id ?? '', !!activeAuctionBase?.id);
-  const activeAuction = useMemo(
-    () => (activeAuctionBase ? mergeLiveIntoCard(activeAuctionBase, openLive) : activeAuctionBase),
-    [activeAuctionBase, openLive],
-  );
+  // Slice 1b Task 5a-3: the active lot gets its OWN single-doc realtime
+  // subscription (`useAuctionDoc`, ref-counted + leak-safe) returning the FULL
+  // live+static object — this replaces the old `activeAuctionBase` (from the
+  // broad array) + `useVisibleAuctionLive` overlay. `useAuctionDoc` fetches the
+  // lot directly by id, so a deep-link to a lot NOT on the feed's first page
+  // still resolves. AppContext seeds `activeAuctionId` with a placeholder that
+  // isn't a real doc → `useAuctionDoc` returns null → we fall back to the first
+  // live feed lot; the id-sync effect below then sets `activeAuctionId` to that
+  // real lot and `useAuctionDoc` picks it up on the next render.
+  const docLot = useAuctionDoc(activeAuctionId);
+  const activeAuction = docLot ?? feedLive.find(a => a.id === activeAuctionId) ?? feedLive[0];
 
   // Align activeAuctionId to the REAL resolved lot so every chat surface keys on
   // one id. AppContext seeds activeAuctionId with the placeholder 'auction-rolex'
@@ -641,13 +621,10 @@ export const LiveStreamView: React.FC = () => {
     setCommentText('');
   };
 
-  const hasLiveAuctions = useMemo(() => {
-    // An upcoming-only room is still an active room — gating on 'live' alone
-    // made a room that only holds scheduled lots render "No live auctions".
-    return auctions.some(a =>
-      (a.status === 'live' || a.status === 'upcoming') && (!a.endTime || a.endTime > serverNow())
-    );
-  }, [auctions]);
+  // The room is "active" when its own live feed has lots OR a specific active lot
+  // resolved (a deep-link to an off-page lot loads via `useAuctionDoc` even
+  // before the feed page arrives — so `activeAuction` alone keeps that room up).
+  const hasLiveAuctions = feedLive.length > 0 || !!activeAuction;
 
   // Must stay above the no-live-auctions early return: the branch switch on
   // the last auction completing would otherwise change the hook order.
@@ -694,7 +671,6 @@ export const LiveStreamView: React.FC = () => {
     <div className="w-full h-full relative" id="live-stream-viewport-wrapper">
       {isMobile ? (
         <MobileAuctionView
-          liveAuctions={liveAuctions}
           activeAuctionId={activeAuctionId}
           onSelectAuction={(id) => setActiveAuctionId(id)}
           activeAuction={activeAuction}
@@ -754,7 +730,7 @@ export const LiveStreamView: React.FC = () => {
       )}
 
       {/* Slide-up lot specifications sheet details modal — resolve the lot from
-          `liveAuctions` (already in scope), off the broad array (1b Task 4).
+          `liveAuctions` (= the room's own `useDiscoverFeed` live list, Task 5a-3).
           Mount only when the lot is in hand. */}
       {(() => {
         if (!selectedLotDetailsId) return null;
