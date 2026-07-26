@@ -429,6 +429,22 @@ import type { ViewingMode } from '../../utils/viewing';
 import { ViewingSelector } from './ViewingSelector';
 ```
 
+- [ ] **Step 2b: Widen the pass-through prop type**
+
+`LaunchSection` receives `approveListing` as a prop, and that prop is currently typed for one argument only — so the three-argument call in Step 4 would not compile. Find, in the props interface (~line 121):
+
+```ts
+  onApproveListing: (auctionId: string) => void | Promise<any>;                              // approveListing
+```
+
+Replace with:
+
+```ts
+  onApproveListing: (auctionId: string, viewing?: ViewingMode, viewingPlace?: string) => void | Promise<any>; // approveListing
+```
+
+This matches the widened `approveListing` signature from Task 3. `AdminDashboardView` passes the context function straight through, so no change is needed there.
+
 - [ ] **Step 3: Add local state**
 
 Find:
