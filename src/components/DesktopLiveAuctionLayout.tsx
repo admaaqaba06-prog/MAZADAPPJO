@@ -39,6 +39,7 @@ import { getAuctionMedia } from '../utils/auctionMedia';
 import { MediaGallery } from './feedback/MediaGallery';
 import { CountdownPill } from './auction/CountdownPill';
 import { resolveViewing } from '../utils/viewing';
+import { conditionLabel } from '../utils/conditionLabel';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -523,12 +524,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             blocks the card is not rendered at all, since an empty bordered
             card claims there is information when there is none. */}
         {(() => {
-          const conditionLabel =
-            activeAuction?.condition === 'new'
-              ? (isAr ? 'جديد' : 'New')
-              : activeAuction?.condition === 'used'
-                ? (isAr ? 'مستعمل' : 'Used')
-                : null;
+          // Shared with the mobile chip row (utils/conditionLabel) so the two
+          // surfaces cannot drift. Null for unset/unknown — block then omitted.
+          const conditionText = conditionLabel(activeAuction?.condition, isAr);
           const viewing = resolveViewing(activeAuction, isAr);
 
           // `shrinkable` marks a block whose VALUE is free-form admin text and
@@ -547,7 +545,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             shrinkable?: boolean;
           }[] = [];
 
-          if (conditionLabel) {
+          if (conditionText) {
             blocks.push({
               key: 'condition',
               icon: (
@@ -559,7 +557,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               value: (
                 <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  {conditionLabel}
+                  {conditionText}
                 </span>
               ),
             });
@@ -569,7 +567,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             blocks.push({
               key: 'viewing',
               // The label interpolates the admin-entered viewingPlace (capped at
-              // 120 chars in ViewingSelector), so it is the one value here that
+              // ViewingSelector's PLACE_MAX_LENGTH), so it is the one value here that
               // can be arbitrarily long — mirrors the mobile chip's clamp
               // (MobileAuctionView), where the same overflow was fixed: the icon
               // holds its size, the text truncates to one line, and `title`

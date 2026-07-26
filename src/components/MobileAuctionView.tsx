@@ -8,6 +8,7 @@ import AuctionRulesModal from './AuctionRulesModal';
 import { ChatSection } from './auction/ChatSection';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
+import { conditionLabel } from '../utils/conditionLabel';
 import { serverNow } from '../utils/serverTime';
 import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { CountdownPill } from './auction/CountdownPill';
@@ -143,16 +144,9 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
   // Trust / spec chips (real fields only — never fabricated).
   const isInspected = activeAuction?.approvalStatus === 'approved';
-  const conditionChip =
-    activeAuction?.condition === 'new'
-      ? isAr
-        ? 'جديد'
-        : 'New'
-      : activeAuction?.condition === 'used'
-        ? isAr
-          ? 'مستعمل'
-          : 'Used'
-        : null;
+  // Shared with the desktop product-info row (utils/conditionLabel) so the two
+  // surfaces cannot drift. Null for unset/unknown — the chip is then omitted.
+  const conditionChip = conditionLabel(activeAuction?.condition, isAr);
   const categoryChip = activeAuction?.category
     ? categoryLabel(activeAuction.category, isAr)
     : null;

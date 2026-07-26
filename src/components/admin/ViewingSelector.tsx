@@ -20,8 +20,12 @@ const OPTIONS: { id: ViewingMode; ar: string; en: string }[] = [
  * Enough for a shop name plus a street/area line, short enough that the
  * buyer-facing `معاينة عند البائع · {place}` label stays on one or two lines.
  * Same spirit as the 300-char cap on the rejection reason next door.
+ *
+ * Exported so the render surfaces that clamp this text
+ * (DesktopLiveAuctionLayout / MobileAuctionView) can point at the symbol
+ * instead of restating the number in a comment that nothing keeps true.
  */
-const PLACE_MAX_LENGTH = 120;
+export const PLACE_MAX_LENGTH = 120;
 
 export interface ViewingSelectorProps {
   value: ViewingMode | '';
