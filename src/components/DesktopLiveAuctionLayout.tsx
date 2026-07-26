@@ -383,7 +383,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               />
               <div className="min-w-0 text-left rtl:text-right">
                 <span className="text-[11px] font-bold text-gray-800 truncate block leading-tight">
-                  {activeSellerProfile.storeName || activeAuction.sellerName}
+                  {activeSellerProfile.storeName || 'MAZAD JO Store'}
                 </span>
                 {/* Gated on the seller's REAL verificationStatus (isVerified, derived
                     above) — this label used to render for every seller regardless,
@@ -489,10 +489,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {/* Auction and seller overlay */}
               <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
                 <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
-                {/* Real seller name, and the verified tick only when the seller
-                    actually is verified — both used to be unconditional. */}
+                {/* The verified tick renders only when the seller actually is
+                    verified — it used to be unconditional. NOTE: the store-name
+                    fallback below is intentionally left as-is; MazadJo really is
+                    the seller on its own drops, so it is not a fabrication. The
+                    correct fix is at save time (the drop-builder should store
+                    MazadJo as the seller instead of the admin's personal name),
+                    not a guess at render time. */}
                 <p className="text-[10px] text-white/80 font-bold mt-1 flex items-center gap-1">
-                  by {activeSellerProfile?.storeName || activeAuction.sellerName}
+                  by {activeSellerProfile?.storeName || 'MAZAD JO Store'}
                   {isVerified && (
                     <ShieldCheck className="w-3 h-3 text-emerald-400 fill-emerald-500/20 shrink-0" />
                   )}
@@ -692,7 +697,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               )}
               <div className="text-left rtl:text-right min-w-0 flex-1">
                 <h4 className="text-xs font-black text-gray-900 leading-none flex items-center gap-1">
-                  <span className="truncate">{activeSellerProfile?.storeName || activeAuction.sellerName}</span>
+                  <span className="truncate">{activeSellerProfile?.storeName || 'MAZAD JO Store'}</span>
                   {isVerified && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />}
                 </h4>
                 {isVerified && (
