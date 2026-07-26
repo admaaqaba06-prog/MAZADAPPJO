@@ -32,4 +32,32 @@ function channelsFor(event) {
   return CHANNEL_POLICY[event] || INAPP_ONLY;
 }
 
-module.exports = { channelsFor };
+// Bilingual (Arabic-primary) in-app copy map. Terse; interpolates from `data`.
+// Every CHANNEL_POLICY event has an entry; unknown → safe info default.
+// `type` must be one of the Notification union in src/types.ts.
+function copyFor(event, data = {}) {
+  const t = data.auctionTitle || data.orderId || '';
+  const M = {
+    auction_won:  { type: 'win',   title: 'فزت بالمزاد 🎉',   description: `مبروك! ربحت "${t}". المبلغ المستحق ${data.totalDue || ''} د.أ.` },
+    payment_due:  { type: 'order', title: 'دفعة مستحقة',       description: `يرجى دفع "${t}" خلال ${data.paymentHours || 24} ساعة.` },
+    payment_reminder: { type: 'order', title: 'تذكير بالدفع',  description: `ما زال "${t}" بانتظار الدفع. بادر قبل انتهاء المهلة.` },
+    below_reserve_offer: { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على "${t}" ${data.topBid || ''} د.أ — تقبل؟` },
+    below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على "${t}". أكّد للشراء.` },
+    below_reserve_declined: { type: 'loss', title: 'لم يُقبل العرض', description: `لم يقبل البائع مزايدتك على "${t}".` },
+    outbid: { type: 'outbid', title: 'تمت المزايدة عليك', description: `تجاوزك أحدهم على "${t}".` },
+    order_preparing: { type: 'order', title: 'يتم التجهيز', description: `طلبك "${t}" قيد التجهيز.` },
+    order_shipped: { type: 'order', title: 'تم الشحن', description: `تم شحن طلبك "${t}".` },
+    order_delivered: { type: 'order', title: 'تم التوصيل', description: `تم توصيل طلبك "${t}".` },
+    order_completed: { type: 'order', title: 'اكتمل الطلب', description: `اكتمل طلبك "${t}".` },
+    order_refunded: { type: 'refund', title: 'تم الاسترجاع', description: `تمت إعادة مبلغ طلبك "${t}".` },
+    membership_rejected: { type: 'subscription', title: 'مراجعة العضوية', description: data.reason || 'تم رفض طلب العضوية.' },
+    order_payment_rejected: { type: 'order', title: 'رُفض إثبات الدفع', description: data.reason || 'يرجى إعادة إرسال إثبات الدفع.' },
+    account_banned: { type: 'alert', title: 'تم تقييد الحساب', description: data.reason === 'payment_default_repeat' ? 'تم تعليق حسابك ٣ أشهر لتكرار عدم الدفع.' : 'تم تقييد المزايدة ٤٨ ساعة بسبب عدم الدفع.' },
+    ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'يمكنك المزايدة مجدداً.' },
+    seller_ship_nudge: { type: 'order', title: 'ذكّر بالشحن', description: `يرجى شحن الطلب "${t}".` },
+    buyer_confirm_nudge: { type: 'order', title: 'أكّد الاستلام', description: `يرجى تأكيد استلام "${t}".` },
+  };
+  return M[event] || { type: 'info', title: 'تنبيه', description: '' };
+}
+
+module.exports = { channelsFor, copyFor };
