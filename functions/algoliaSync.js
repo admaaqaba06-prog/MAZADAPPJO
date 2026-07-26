@@ -24,15 +24,26 @@
  */
 'use strict';
 
-const functions = require('firebase-functions');
-const { defineSecret } = require('firebase-functions/params');
-const { algoliasearch } = require('algoliasearch');
+// firebase-functions / algoliasearch are only present in the Cloud Functions
+// runtime (functions/node_modules), NOT in the repo-root unit-test env. The pure
+// helpers below (isIndexable/buildAlgoliaRecord/resolveEndMs) intentionally have
+// no firebase/algolia dependency, so guard these requires: when they're absent
+// the module still LOADS for its pure-helper tests and only the cloud-function
+// export is skipped. In the deployed runtime they resolve normally.
+let functions, defineSecret, algoliasearch, ALGOLIA_ADMIN_KEY;
+try {
+  functions = require('firebase-functions');
+  ({ defineSecret } = require('firebase-functions/params'));
+  ({ algoliasearch } = require('algoliasearch'));
+} catch (_) {
+  functions = null;
+}
 
 // App ID + index name are PUBLIC, non-secret constants (they also ship in the
 // client). Only the admin key is a secret.
 const ALGOLIA_APP_ID = 'O45I2Z57QS';
 const ALGOLIA_INDEX = 'auctions';
-const ALGOLIA_ADMIN_KEY = defineSecret('ALGOLIA_ADMIN_KEY');
+if (defineSecret) ALGOLIA_ADMIN_KEY = defineSecret('ALGOLIA_ADMIN_KEY');
 
 /**
  * isIndexable — only public, non-simulated, live/upcoming lots are searchable
@@ -106,25 +117,29 @@ function buildAlgoliaRecord(id, data) {
  * reconciles it). deleteObject on a non-existent objectID is a safe Algolia
  * no-op.
  */
-exports.onAuctionWriteAlgolia = functions
-  .runWith({ secrets: [ALGOLIA_ADMIN_KEY] })
-  .firestore.document('auctions/{auctionId}')
-  .onWrite(async (change, context) => {
-    const id = context.params.auctionId;
-    const after = change.after.exists ? change.after.data() : null;
-    try {
-      const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY.value());
-      if (!after || !isIndexable(after)) {
-        await client.deleteObject({ indexName: ALGOLIA_INDEX, objectID: id });
-      } else {
-        await client.saveObject({ indexName: ALGOLIA_INDEX, body: buildAlgoliaRecord(id, after) });
+// Only registered in the Cloud Functions runtime (where firebase-functions +
+// algoliasearch resolve); skipped in the pure-helper unit-test env.
+if (functions && algoliasearch && ALGOLIA_ADMIN_KEY) {
+  exports.onAuctionWriteAlgolia = functions
+    .runWith({ secrets: [ALGOLIA_ADMIN_KEY] })
+    .firestore.document('auctions/{auctionId}')
+    .onWrite(async (change, context) => {
+      const id = context.params.auctionId;
+      const after = change.after.exists ? change.after.data() : null;
+      try {
+        const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY.value());
+        if (!after || !isIndexable(after)) {
+          await client.deleteObject({ indexName: ALGOLIA_INDEX, objectID: id });
+        } else {
+          await client.saveObject({ indexName: ALGOLIA_INDEX, body: buildAlgoliaRecord(id, after) });
+        }
+      } catch (err) {
+        // Swallow — never throw (avoids infinite Cloud Functions retry storms).
+        console.error('[algoliaSync] index write failed for', id, err);
       }
-    } catch (err) {
-      // Swallow — never throw (avoids infinite Cloud Functions retry storms).
-      console.error('[algoliaSync] index write failed for', id, err);
-    }
-    return null;
-  });
+      return null;
+    });
+}
 
 module.exports.isIndexable = isIndexable;
 module.exports.buildAlgoliaRecord = buildAlgoliaRecord;
