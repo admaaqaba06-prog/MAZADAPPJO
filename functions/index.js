@@ -396,44 +396,36 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       }).catch(err => console.warn(`FCM error for winner ${notifyData.winnerId}: ${err.message}`));
     }
 
-    await postToN8n('auction_won', {
-      phone: notifyData.phone, name: notifyData.winnerName,
+    await notify({ uid: notifyData.winnerId, event: 'auction_won', data: {
+      name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
       buyersPremium: buyerPremiumJod(notifyData.finalPrice),
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
-    });
-    await postToN8n('payment_due', {
-      phone: notifyData.phone, name: notifyData.winnerName,
+    } });
+    await notify({ uid: notifyData.winnerId, event: 'payment_due', data: {
+      name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
       buyersPremium: buyerPremiumJod(notifyData.finalPrice),
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
-    });
+    } });
   }
 
   // (notify) E3 Slice C — prompt the seller that a below-reserve offer is open.
   // Post-commit + never-throws for the same reason as the win webhooks above.
   if (belowReserveNotify) {
-    let sellerPhone = '';
-    if (belowReserveNotify.sellerId) {
-      try {
-        const sSnap = await db.collection('users').doc(belowReserveNotify.sellerId).get();
-        sellerPhone = (sSnap.exists && sSnap.data().phoneNumber) || '';
-      } catch (e) { console.warn('[n8n] below-reserve seller phone lookup failed:', e && e.message); }
-    }
-    await postToN8n('below_reserve_offer', {
-      phone: sellerPhone,
+    await notify({ uid: belowReserveNotify.sellerId, event: 'below_reserve_offer', data: {
       sellerId: belowReserveNotify.sellerId,
       auctionId: belowReserveNotify.auctionId,
       auctionTitle: belowReserveNotify.auctionTitle,
       topBid: belowReserveNotify.topBid,
       idempotencyKey: `${belowReserveNotify.auctionId}_below_reserve_offer`,
-    });
+    } });
   }
 
   return { settled, orderId: settledOrderId };
@@ -1021,14 +1013,13 @@ exports.onBidCreated = functions.firestore
           }
 
           // (notify) WhatsApp outbid — fires even without an FCM token; never throws.
-          await postToN8n('outbid', {
-            phone: (prevUserData && prevUserData.phoneNumber) || '',
+          await notify({ uid: previousBidderId, event: 'outbid', data: {
             name: (prevUserData && prevUserData.name) || 'Bidder',
             auctionId: auctionId,
             auctionTitle: (auctionData && auctionData.title) || '',
             amount: amount,
             idempotencyKey: `outbid_${context.params.bidId}`,
-          });
+          } });
         }
       }
     } catch (err) {
@@ -1059,20 +1050,13 @@ exports.onOrderStatusChanged = functions.firestore
     };
     const event = NOTIFY[after.status];
     if (!event) return null;
-    let phone = '';
-    try {
-      if (after.buyerId) {
-        const u = await db.collection('users').doc(after.buyerId).get();
-        phone = (u.exists && u.data().phoneNumber) || '';
-      }
-    } catch (e) { console.warn('[n8n] order phone lookup failed:', e && e.message); }
-    await postToN8n(event, {
-      phone, name: after.buyerName || 'Buyer',
+    await notify({ uid: after.buyerId, event, data: {
+      name: after.buyerName || 'Buyer',
       orderId: context.params.orderId, auctionId: after.auctionId || '',
       auctionTitle: after.auctionTitle || '', amount: after.winningBidAmount || 0,
       status: after.status, trackingNumber: after.trackingNumber || '',
       idempotencyKey: `${context.params.orderId}_${after.status}`,
-    });
+    } });
     return null;
   });
 
@@ -1733,23 +1717,15 @@ exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(asyn
     const deps = { db, Timestamp: admin.firestore.Timestamp };
     const result = await rejectSubscriptionRequest(deps, { reqId, userId, reason });
     console.log(`[rejectSubscription] Rejected (reqId=${result.reqId || 'direct'}, userId=${result.userId}, downgraded=${result.userDowngraded}) by ${context.auth.uid}`);
-    let phone = '';
-    let userSnap = null;
-    try {
-      userSnap = result.userId ? await db.collection('users').doc(result.userId).get() : null;
-      phone = userSnap && userSnap.exists ? (userSnap.data().phoneNumber || '') : '';
-    } catch (e) { console.warn('[rejectSubscription] phone lookup failed:', e); }
     // Only notify on a real reviewed request rejection (reqId). A bare
     // direct-downgrade admin action returns reqId: null and must stay silent —
     // it predates this slice and was never meant to trigger a rejection message.
     if (result.reqId) {
-      await postToN8n('membership_rejected', {
-        phone,
-        name: (userSnap && userSnap.exists ? (userSnap.data().name || 'Member') : 'Member'),
+      await notify({ uid: result.userId, event: 'membership_rejected', data: {
         reason: result.reason || '',
         reqId: result.reqId || null,
         idempotencyKey: `membership_rejected_${result.reqId || result.userId}`,
-      });
+      } });
     }
     return { success: true, ...result };
   } catch (error) {
@@ -1781,15 +1757,10 @@ exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     }
     const result = await rejectOrderPaymentTxn(deps, { orderId, adminUid: context.auth.uid, reason });
     // Post-commit, best-effort: tell the buyer why, so they can resubmit.
-    let phone = '';
-    try {
-      const buyerSnap = result.buyerId ? await db.collection('users').doc(result.buyerId).get() : null;
-      phone = buyerSnap && buyerSnap.exists ? (buyerSnap.data().phoneNumber || '') : '';
-    } catch (e) { console.warn('[verifyOrderPayment] buyer phone lookup failed:', e); }
-    await postToN8n('order_payment_rejected', {
-      phone, name: result.buyerName, reason: result.reason, orderId,
+    await notify({ uid: result.buyerId, event: 'order_payment_rejected', data: {
+      name: result.buyerName, reason: result.reason, orderId,
       idempotencyKey: `order_payment_rejected_${orderId}`,
-    });
+    } });
     return { success: true, ...result };
   } catch (error) {
     console.error('Error in verifyOrderPayment:', error);
@@ -1811,21 +1782,15 @@ exports.sendFulfillmentNudge = functions.runWith({ cors: true }).https.onCall(as
     const deps = { db, Timestamp: admin.firestore.Timestamp };
     const result = await sendFulfillmentNudgeTxn(deps, { orderId, kind, adminUid: context.auth.uid });
 
-    let phone = '';
-    try {
-      const targetSnap = result.targetUserId ? await db.collection('users').doc(result.targetUserId).get() : null;
-      phone = targetSnap && targetSnap.exists ? (targetSnap.data().phoneNumber || '') : '';
-    } catch (e) { console.warn('[sendFulfillmentNudge] target phone lookup failed:', e); }
-
     const event = kind === 'ship' ? 'seller_ship_nudge' : 'buyer_confirm_nudge';
     // Hour-bucketed key: dedupes accidental same-click retries within a clock-hour,
     // but still lets a deliberately-later repeat nudge (a spec requirement) through;
     // the exact window is tunable once the n8n Switch branches + real dedup are wired.
     const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
-    await postToN8n(event, {
-      phone, name: result.targetUserName, orderId,
+    await notify({ uid: result.targetUserId, event, data: {
+      name: result.targetUserName, orderId,
       idempotencyKey: `${event}_${orderId}_${hourBucket}`,
-    });
+    } });
 
     console.log(`[sendFulfillmentNudge] ${kind} nudge sent for order=${orderId} by ${context.auth.uid}`);
     return { success: true, ...result };
@@ -2091,27 +2056,22 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
 
     // (notify) mirror the closer: an admin-repaired win still owes payment, so
     // send the same auction_won + payment_due WhatsApp events. Never throws.
-    let winnerPhone = '';
-    try {
-      const wSnap = await db.collection('users').doc(winnerId).get();
-      winnerPhone = (wSnap.exists && wSnap.data().phoneNumber) || '';
-    } catch (e) { console.warn('[n8n] repair phone lookup failed:', e && e.message); }
-    await postToN8n('auction_won', {
-      phone: winnerPhone, name: winnerName,
+    await notify({ uid: winnerId, event: 'auction_won', data: {
+      name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: buyerPremiumJod(finalPrice),
       totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_auction_won`,
-    });
-    await postToN8n('payment_due', {
-      phone: winnerPhone, name: winnerName,
+    } });
+    await notify({ uid: winnerId, event: 'payment_due', data: {
+      name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: buyerPremiumJod(finalPrice),
       totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_payment_due`,
-    });
+    } });
 
     return { success: true, message: `Successfully created repaired order for auction ${auctionId}.`, orderId: auctionId };
 
@@ -2241,20 +2201,14 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
     // (notify) prompt the buyer to confirm. Post-commit, never-throws — a webhook
     // failure must not roll back an accepted offer.
     if (buyerNotify) {
-      let buyerPhone = '';
-      try {
-        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
-        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
-      } catch (e) { console.warn('[n8n] below-reserve buyer phone lookup failed:', e && e.message); }
-      await postToN8n('below_reserve_seller_accepted', {
-        phone: buyerPhone,
+      await notify({ uid: buyerNotify.buyerId, event: 'below_reserve_seller_accepted', data: {
         name: buyerNotify.buyerName,
         buyerId: buyerNotify.buyerId,
         auctionId: buyerNotify.auctionId,
         auctionTitle: buyerNotify.auctionTitle,
         topBid: buyerNotify.topBid,
         idempotencyKey: `${buyerNotify.auctionId}_below_reserve_accepted`,
-      });
+      } });
     }
 
     return result;
@@ -2353,21 +2307,16 @@ exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
     // (notify) same auction_won + payment_due events a normal win fires — the
     // buyer now owes payment. Post-commit, never-throws.
     if (buyerNotify) {
-      let buyerPhone = '';
-      try {
-        const bSnap = await db.collection('users').doc(buyerNotify.buyerId).get();
-        buyerPhone = (bSnap.exists && bSnap.data().phoneNumber) || '';
-      } catch (e) { console.warn('[n8n] below-reserve confirm phone lookup failed:', e && e.message); }
       const payload = {
-        phone: buyerPhone, name: buyerNotify.buyerName,
+        name: buyerNotify.buyerName,
         auctionId: buyerNotify.auctionId, auctionTitle: buyerNotify.auctionTitle,
         amount: buyerNotify.amount,
         buyersPremium: buyerPremiumJod(buyerNotify.amount),
         totalDue: totalDueJod(buyerNotify.amount),
         paymentHours: buyerNotify.paymentHours,
       };
-      await postToN8n('auction_won', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_auction_won` });
-      await postToN8n('payment_due', { ...payload, idempotencyKey: `${buyerNotify.auctionId}_payment_due` });
+      await notify({ uid: buyerNotify.buyerId, event: 'auction_won', data: { ...payload, idempotencyKey: `${buyerNotify.auctionId}_auction_won` } });
+      await notify({ uid: buyerNotify.buyerId, event: 'payment_due', data: { ...payload, idempotencyKey: `${buyerNotify.auctionId}_payment_due` } });
     }
 
     return result;
