@@ -18,6 +18,7 @@ import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
 import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
 
 /* ======================================================================
@@ -328,6 +329,11 @@ export const LiveStreamView: React.FC = () => {
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
+  // Slice 1b Task 2: win-detection reads from a SCOPED per-user "my lots"
+  // subscription (not the broad `auctions` array, whose `[live,upcoming]` query
+  // drops a won lot as `removed` before any `completed` snapshot). The broad
+  // `auctions` above still drives the room grid + `activeAuctionBase`.
+  const myWinLots = useMyAuctionLots(currentUser?.id);
 
   const isAr = language === 'ar';
   // Optimistic bid overlay: the price paints my bid instantly (before the
@@ -425,10 +431,12 @@ export const LiveStreamView: React.FC = () => {
   // Win celebration: fires only on the status *transition* to 'completed'
   // while this user holds the highest bid (per-id previous-status ref inside
   // the hook — never fires on mount into an already-completed auction).
-  // Watch ALL auctions (not just the active lot): a won auction drops out of
-  // liveAuctions the moment it flips to completed, so watching only the active
-  // lot would miss the winning edge whenever another live lot exists.
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
+  // Fed the SCOPED `myWinLots` (not the active lot, not the broad array): a
+  // won lot keeps `currentBidderId==me` and STAYS in that per-user query when
+  // it completes, so the winning `live→completed` edge is observable — which
+  // the broad `[live,upcoming]` array can never deliver (it drops the lot as
+  // `removed` first).
+  const { win, clearWin } = useWinDetection(myWinLots, currentUser?.id, currentUser?.email);
 
   // De-dup rule (Wave 1): WinCelebration is THE payment-first surface for the
   // winner the moment the win transition fires — the ended card defers to it.

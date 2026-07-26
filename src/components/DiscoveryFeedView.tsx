@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useCountdownSeconds, useIsOnScreen } from '../hooks/useCountdownSeconds';
 import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { useApp, useAuctions } from '../context/AppContext';
@@ -348,7 +349,11 @@ export const DiscoveryFeedView: React.FC = () => {
   // Win celebration: fires only when a watched auction *transitions* to
   // 'completed' while this user is the highest bidder (per-id previous-status
   // ref inside the hook — never on mount into already-completed auctions).
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
+  // Slice 1b Task 2: fed the SCOPED per-user `myWinLots` (not the broad
+  // `auctions` array, which drops a won lot as `removed` before any `completed`
+  // snapshot). The broad `auctions` above still drives the OFF-path grid.
+  const myWinLots = useMyAuctionLots(currentUser?.id);
+  const { win, clearWin } = useWinDetection(myWinLots, currentUser?.id, currentUser?.email);
   const handleWinPay = () => {
     const wonAuctionId = win?.auctionId;
     clearWin();
