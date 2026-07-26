@@ -3,6 +3,8 @@ import { Tv, CheckCircle, Trash2 } from 'lucide-react';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import type { ViewingMode } from '../../utils/viewing';
+import { ViewingSelector } from './ViewingSelector';
 
 /**
  * Launch (Job 6): the seller-listing lifecycle console — behavior-preserving
@@ -118,7 +120,7 @@ export interface LaunchSectionProps {
   setRejectingId: (id: string | null) => void;
   rejectionReason: string;
   setRejectionReason: (reason: string) => void;
-  onApproveListing: (auctionId: string) => void | Promise<any>;                              // approveListing
+  onApproveListing: (auctionId: string, viewing?: ViewingMode, viewingPlace?: string) => void | Promise<any>; // approveListing
   onRejectListing: (auctionId: string, reason?: string) => void | Promise<any>;              // rejectListing
   onRepairOrder: (auctionId: string) => Promise<{ success: boolean; message?: string }>;     // repairEndedAuctionOrder
   onRepairEscrow: (auctionId: string) => Promise<{ success: boolean; message?: string }>;    // repairStuckEscrowsForEndedAuction
@@ -145,6 +147,11 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
   onCreateDrop,
 }) => {
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
+  // Per-lot viewing, chosen per pending card before approving. Local because no
+  // other surface needs it. Keyed by auction id so several cards can be staged
+  // independently. Unset = approve without stating viewing (renders nothing).
+  const [viewingById, setViewingById] = useState<Record<string, ViewingMode>>({});
+  const [viewingPlaceById, setViewingPlaceById] = useState<Record<string, string>>({});
   // Aliases keep the moved JSX byte-identical to the former listings body.
   const approveListing = onApproveListing;
   const rejectListing = onRejectListing;
@@ -274,9 +281,32 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2">
+                        {/* Per-lot viewing. Optional: approving without a choice
+                            leaves it unset, and the lot simply says nothing about
+                            viewing rather than claiming a location. */}
+                        <ViewingSelector
+                          value={viewingById[item.id] || ''}
+                          onChange={(next) =>
+                            setViewingById((prev) => {
+                              const updated = { ...prev };
+                              if (next) updated[item.id] = next;
+                              else delete updated[item.id];
+                              return updated;
+                            })
+                          }
+                          place={viewingPlaceById[item.id] || ''}
+                          onPlaceChange={(next) =>
+                            setViewingPlaceById((prev) => ({ ...prev, [item.id]: next }))
+                          }
+                          isAr={isAr}
+                        />
+
+                        <div className="flex gap-2">
                         <button
-                          onClick={() => approveListing(item.id)}
+                          onClick={() =>
+                            approveListing(item.id, viewingById[item.id], viewingPlaceById[item.id])
+                          }
                           className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
                         >
                           {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
@@ -290,6 +320,7 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                         >
                           {isAr ? 'رفض الطلب' : 'REJECT'}
                         </button>
+                        </div>
                       </div>
                     )}
                   </div>
