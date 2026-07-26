@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, CheckCircle2, Bookmark, MapPin } from 'lucide-react';
 import { CountUp, markFirstBidDone, useToast } from './feedback';
 import { MediaGallery } from './feedback/MediaGallery';
 import { BidSheet } from './auction/BidSheet';
@@ -15,6 +15,7 @@ import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { useChat } from '../context/AppContext';
+import { resolveViewing } from '../utils/viewing';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -155,6 +156,9 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   const categoryChip = activeAuction?.category
     ? categoryLabel(activeAuction.category, isAr)
     : null;
+  // Per-lot viewing. Null for private/unset — the row simply omits the chip
+  // rather than stating a location this lot never had.
+  const viewingChip = resolveViewing(activeAuction, isAr);
 
   const BackIcon = isAr ? ChevronRight : ChevronLeft;
 
@@ -436,6 +440,12 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             {conditionChip && (
               <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
                 {conditionChip}
+              </span>
+            )}
+            {viewingChip && (
+              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
+                <MapPin className="w-3 h-3" />
+                {viewingChip.label}
               </span>
             )}
           </div>
