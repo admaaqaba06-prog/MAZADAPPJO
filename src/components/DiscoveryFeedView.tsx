@@ -1143,8 +1143,13 @@ export const DiscoveryFeedView: React.FC = () => {
           array (1b Task 4). Mount only when the lot is in hand. */}
       {(() => {
         if (!selectedLotId) return null;
+        // Resolve from every displayed source, incl. the empty-state
+        // `upcomingPreview` slice — a "Next drops" tap sets `selectedLotId` from
+        // it while liveList/upcomingList are empty, so without it the modal
+        // would silently never open (dead click).
         const detailsLot = liveList.find(a => a.id === selectedLotId)
-          ?? upcomingList.find(a => a.id === selectedLotId);
+          ?? upcomingList.find(a => a.id === selectedLotId)
+          ?? upcomingPreview.find(a => a.id === selectedLotId);
         if (!detailsLot) return null;
         return (
           <AuctionDetailsModal
