@@ -5,7 +5,7 @@ import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
 import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
 import { motion } from 'motion/react';
@@ -321,13 +321,11 @@ export const DiscoveryFeedView: React.FC = () => {
     setGlobalSelectedOrderId,
     featureFlags
   } = useApp();
-  const { auctions, auctionsLoaded } = useAuctions();
-
-  // Discover-pagination (Slice 1) master switch. Default OFF in prod: when false,
-  // EVERYTHING below renders exactly as today off the broad `useAuctions()` feed;
-  // the paginated hook is still called (hooks must be unconditional) but stays
-  // fully inert (no queries, no listener) because we pass `enabled = false`.
-  const usePaginated = featureFlags.enablePaginatedDiscover;
+  // Discover is now ALWAYS the paginated feed (`useDiscoverFeed`) — the broad
+  // `useAuctions()` array + its `enablePaginatedDiscover` OFF fallback were
+  // removed (1b Task 5b) so realtime read-cost scales with attention, not
+  // inventory. Live/upcoming lists, the live-now strip and the empty-state
+  // preview all source off the paginated feed below.
 
   // Algolia-backed search (Slice 2), flag-gated. Default OFF ⇒ the hook is fully
   // inert (no debounce, no provider call) and the search box keeps driving
@@ -351,11 +349,6 @@ export const DiscoveryFeedView: React.FC = () => {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
 
-  // Skeletons only while genuinely waiting on the first auctions snapshot —
-  // tab/category/search changes filter in-memory data and render instantly
-  // (the old synthetic 550ms delay is gone).
-  const isLoading = !auctionsLoaded;
-
   const t = translations[language];
   const isAr = language === 'ar';
 
@@ -364,7 +357,8 @@ export const DiscoveryFeedView: React.FC = () => {
   // ref inside the hook — never on mount into already-completed auctions).
   // Slice 1b Task 2: fed the SCOPED per-user `myWinLots` (not the broad
   // `auctions` array, which drops a won lot as `removed` before any `completed`
-  // snapshot). The broad `auctions` above still drives the OFF-path grid.
+  // snapshot). The broad array is fully removed in Task 5b — the feed grid now
+  // sources exclusively off `useDiscoverFeed`.
   const myWinLots = useMyAuctionLots(currentUser?.id);
   const { win, clearWin } = useWinDetection(myWinLots, currentUser?.id, currentUser?.email);
   const handleWinPay = () => {
@@ -387,40 +381,9 @@ export const DiscoveryFeedView: React.FC = () => {
     { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات', match: ['Electronics'] }
   ], []);
 
-  // Sections, not tabs: live and upcoming are NOT equal modes — live is the
-  // page, upcoming is anticipation content that should always be visible
-  // below it (hiding it behind an unselected tab buried the FOMO driver).
-  // One search+category pass, then split by status.
-  const { liveAuctionsList, upcomingAuctionsList } = React.useMemo(() => {
-    const matchesFilters = (item: AuctionItem) => {
-      if (searchTerm) {
-        const matchText = (item.title + item.description).toLowerCase();
-        if (!matchText.includes(searchTerm.toLowerCase())) return false;
-      }
-      if (selectedCategory !== 'All') {
-        const pill = categoriesList.find(c => c.name === selectedCategory);
-        const matches = pill?.match || [selectedCategory];
-        if (!matches.includes(item.category)) return false;
-      }
-      return true;
-    };
-    return {
-      liveAuctionsList: auctions.filter(item =>
-        item.status === 'live' &&
-        !(item.endTime && item.endTime <= Date.now()) &&
-        matchesFilters(item)
-      ),
-      upcomingAuctionsList: auctions.filter(item =>
-        item.status === 'upcoming' && matchesFilters(item)
-      ),
-    };
-  }, [auctions, searchTerm, selectedCategory, categoriesList]);
-
-  // --- Discover-pagination (Slice 1), flag-gated ---------------------------
-  // The paginated feed hook is ALWAYS called (React requires unconditional
-  // hooks) but only fetches when `usePaginated` is true. Category chips drive
-  // the SERVER re-query (`selectedCategory`); search still filters client-side
-  // over the loaded page (Slice 2 swaps to Algolia).
+  // --- Discover-pagination (Slice 1), the sole feed path -------------------
+  // Category chips drive the SERVER re-query (`selectedCategory`); search still
+  // filters client-side over the loaded page (Slice 2 swaps to Algolia).
   // Translate the selected chip into its CANONICAL stored category value(s)
   // (its `match` alias list) so the server query uses `where('category','in',…)`
   // — a raw chip name like `Cars`/`Phones` would never match the stored
@@ -432,10 +395,9 @@ export const DiscoveryFeedView: React.FC = () => {
     return pill?.match ?? [selectedCategory];
   }, [selectedCategory, categoriesList]);
 
-  const feed = useDiscoverFeed(categoryMatches, usePaginated);
+  const feed = useDiscoverFeed(categoryMatches);
 
   const paginatedLists = React.useMemo(() => {
-    if (!usePaginated) return null;
     const matchesSearch = (item: AuctionItem) => {
       if (!searchTerm) return true;
       return (item.title + item.description).toLowerCase().includes(searchTerm.toLowerCase());
@@ -444,13 +406,14 @@ export const DiscoveryFeedView: React.FC = () => {
       liveList: feed.liveItems.filter(matchesSearch),
       upcomingList: feed.upcomingItems.filter(matchesSearch),
     };
-  }, [usePaginated, feed.liveItems, feed.upcomingItems, searchTerm]);
+  }, [feed.liveItems, feed.upcomingItems, searchTerm]);
 
-  // The lists + loading state the grid actually renders. OFF → the untouched
-  // `useAuctions()`-derived memos (identical to today). ON → the paginated feed.
-  const liveList = usePaginated ? (paginatedLists?.liveList ?? []) : liveAuctionsList;
-  const upcomingList = usePaginated ? (paginatedLists?.upcomingList ?? []) : upcomingAuctionsList;
-  const showSkeleton = usePaginated ? feed.loading : isLoading;
+  // The lists + loading state the grid actually renders — the paginated feed is
+  // now the only source (category chips drive the server re-query; search
+  // filters the loaded page).
+  const liveList = paginatedLists.liveList;
+  const upcomingList = paginatedLists.upcomingList;
+  const showSkeleton = feed.loading;
 
   // Algolia search results (Slice 2). Called unconditionally (hooks rule); stays
   // INERT while the flag is OFF or the box is empty (`searchMode.active` false ⇒
@@ -463,7 +426,6 @@ export const DiscoveryFeedView: React.FC = () => {
   // view (with headroom) and more pages exist, pull the next page.
   const loadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    if (!usePaginated) return;
     const el = loadMoreSentinelRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
@@ -476,7 +438,7 @@ export const DiscoveryFeedView: React.FC = () => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [usePaginated, feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
+  }, [feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
 
   // Infinite-scroll sentinel for the Algolia SEARCH results (Slice 2). Same
   // IntersectionObserver pattern as the paginated feed above: when the sentinel
@@ -560,9 +522,13 @@ export const DiscoveryFeedView: React.FC = () => {
 
   // Genuinely live right now (status 'live' AND not past endTime) — drives the
   // live-now strip, the primary route into the bidding room from Discover.
+  // Sourced off the paginated feed's live page (1b Task 5b): the broad
+  // `useAuctions()` array is gone, so this now reflects the currently-loaded
+  // live lots (category-scoped when a chip is active — the 'All' chip is the
+  // unfiltered set). `getLiveAuctions` re-applies the dead-stream guard.
   const liveNowAuctions = React.useMemo(
-    () => getLiveAuctions<AuctionItem>(auctions),
-    [auctions]
+    () => getLiveAuctions<AuctionItem>(feed.liveItems),
+    [feed.liveItems]
   );
 
   // Hottest live auction for the spotlight strip: the one with the most bids
@@ -583,11 +549,11 @@ export const DiscoveryFeedView: React.FC = () => {
   // Next scheduled drops (soonest first, unscheduled last) — previewed inline
   // in the empty state so a quiet feed still shows what's coming.
   const upcomingPreview = React.useMemo(() => {
-    return auctions
+    return feed.upcomingItems
       .filter(a => a.status === 'upcoming')
       .sort((a, b) => (a.scheduledStartAt ?? Infinity) - (b.scheduledStartAt ?? Infinity))
       .slice(0, 3);
-  }, [auctions]);
+  }, [feed.upcomingItems]);
 
   const formatUpcomingWhen = (item: AuctionItem) => {
     if (!item.scheduledStartAt) return isAr ? 'قريباً' : 'Soon';
@@ -614,7 +580,7 @@ export const DiscoveryFeedView: React.FC = () => {
   const handleWatchLive = () => {
     // Explicit type arg: useApp() is untyped here (circular import), so
     // inference would otherwise collapse to the helper's constraint.
-    const firstLive = getFirstLiveAuction<AuctionItem>(auctions);
+    const firstLive = getFirstLiveAuction<AuctionItem>(feed.liveItems);
     if (firstLive) {
       setActiveAuctionId(firstLive.id);
       setActiveView('live');
@@ -1046,7 +1012,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <AuctionCardSkeleton key={n} />
             ))}
           </div>
-        ) : (liveList.length > 0 || upcomingList.length > 0 || (usePaginated && feed.hasMoreLive)) ? (
+        ) : (liveList.length > 0 || upcomingList.length > 0 || feed.hasMoreLive) ? (
           <div className="space-y-10">
             {liveList.length > 0 && (
               <section id="live-now-section">
@@ -1079,7 +1045,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         onSelectLot={setSelectedLotId}
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
-                        liveEnabled={usePaginated}
+                        liveEnabled={true}
                       />
                     </div>
                   ))}
@@ -1091,10 +1057,10 @@ export const DiscoveryFeedView: React.FC = () => {
                 more live pages exist — even if this filtered page rendered
                 empty (e.g. a thin first page) — so the observer can still pull
                 the next page instead of stranding hidden live inventory. */}
-            {usePaginated && feed.hasMoreLive && (
+            {feed.hasMoreLive && (
               <div ref={loadMoreSentinelRef} className="h-8" aria-hidden="true" />
             )}
-            {usePaginated && feed.loadingMore && (
+            {feed.loadingMore && (
               <div className="flex items-center justify-center py-4" id="discover-loading-more">
                 <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
               </div>
@@ -1135,7 +1101,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         onSelectLot={setSelectedLotId}
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
-                        liveEnabled={usePaginated}
+                        liveEnabled={true}
                       />
                     </div>
                   ))}
@@ -1329,7 +1295,7 @@ export const DiscoveryFeedView: React.FC = () => {
           after the loaded page. Tapping refreshes page 1 (which clears it).
           Fixed + centered below the sticky header; bilingual/RTL. Smooth
           ease-out entrance (no bouncy spring, per motion preference). */}
-      {usePaginated && feed.newDropsAvailable && (
+      {feed.newDropsAvailable && (
         <motion.button
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
