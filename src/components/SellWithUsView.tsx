@@ -21,8 +21,8 @@ export const SellWithUsView: React.FC = () => {
 
         <p className="text-sm text-gray-500 font-medium leading-relaxed">
           {isAr
-            ? 'فريقنا بفحص كل قطعة قبل عرضها — تواصل معنا على واتساب ونرتب لك كل شي.'
-            : "Our team inspects every item before listing — message us on WhatsApp and we'll handle everything."}
+            ? 'فريقنا بساعدك تجهّز منتجك وتعرضه — تواصل معنا على واتساب ونرتب لك كل شي.'
+            : "Our team helps you prepare and list your product — message us on WhatsApp and we'll handle everything."}
         </p>
 
         <a
