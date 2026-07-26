@@ -21,7 +21,6 @@ import {
   Settings,
   HelpCircle,
   MapPin,
-  Truck,
   Copy,
   Smile,
   Star,
@@ -39,6 +38,7 @@ import { formatAmmanClock } from '../utils/ammanTime';
 import { getAuctionMedia } from '../utils/auctionMedia';
 import { MediaGallery } from './feedback/MediaGallery';
 import { CountdownPill } from './auction/CountdownPill';
+import { resolveViewing } from '../utils/viewing';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -506,61 +506,76 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           </div>
         </div>
 
-        {/* Product information row underneath video card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto" id="desktop-product-info-row" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          
-          {/* Product Condition */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
-              <ShieldCheck className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'حالة المنتج' : 'Product Condition'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {isAr ? 'جديد ممتاز' : 'NEW'}
-              </span>
-            </div>
-          </div>
+        {/* Product information row underneath video card.
+            Every block here is REAL per-lot data. This row used to hardcode
+            "NEW" / "Free Delivery" / "Amman, Jordan" for every lot regardless of
+            the item. The 2026-07-25 mobile redesign spec called for deleting
+            exactly these literals, but that pass was mobile-only. Condition now
+            reads the auction field the
+            way MobileAuctionView already does, shipping is gone (no shipping data
+            backs it), and location is replaced by per-lot viewing. Blocks that
+            have no data are omitted, and the divider is applied by index so the
+            first VISIBLE block never carries a leading border. */}
+        {(() => {
+          const conditionLabel =
+            activeAuction?.condition === 'new'
+              ? (isAr ? 'جديد' : 'New')
+              : activeAuction?.condition === 'used'
+                ? (isAr ? 'مستعمل' : 'Used')
+                : null;
+          const viewing = resolveViewing(activeAuction, isAr);
 
-          {/* Shipping */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-[#E85D04]">
-              <Truck className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الشحن' : 'Shipping'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
-                {isAr ? 'توصيل مجاني' : 'Free Delivery'}
-              </span>
-            </div>
-          </div>
+          const blocks: { key: string; icon: React.ReactNode; label: string; value: React.ReactNode }[] = [];
 
-          {/* Location */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
-              <MapPin className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'الموقع' : 'Location'}</span>
-              <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
-                {isAr ? 'عمان، الأردن' : 'Amman, Jordan'}
-              </span>
-            </div>
-          </div>
+          if (conditionLabel) {
+            blocks.push({
+              key: 'condition',
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                  <ShieldCheck className="w-4.5 h-4.5" />
+                </div>
+              ),
+              label: isAr ? 'حالة المنتج' : 'Product Condition',
+              value: (
+                <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {conditionLabel}
+                </span>
+              ),
+            });
+          }
 
-          {/* Auction ID */}
-          <div className="flex items-center gap-2.5 border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4">
-            <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
-              <Trophy className="w-4.5 h-4.5" />
-            </div>
-            <div className="text-left rtl:text-right">
-              <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">{isAr ? 'رقم المزاد' : 'Auction ID'}</span>
+          if (viewing) {
+            blocks.push({
+              key: 'viewing',
+              icon: (
+                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                  <MapPin className="w-4.5 h-4.5" />
+                </div>
+              ),
+              label: isAr ? 'المعاينة' : 'Viewing',
+              value: (
+                <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
+                  {viewing.label}
+                </span>
+              ),
+            });
+          }
+
+          blocks.push({
+            key: 'auctionId',
+            icon: (
+              <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+                <Trophy className="w-4.5 h-4.5" />
+              </div>
+            ),
+            label: isAr ? 'رقم المزاد' : 'Auction ID',
+            value: (
               <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
                 <span>#{activeAuction.id?.slice(0, 8).toUpperCase() || 'AUC-78291'}</span>
-                <button 
+                <button
                   onClick={() => {
-                    navigator.clipboard.writeText(activeAuction.id || 'AUC-78291');
+                    navigator.clipboard.writeText(activeAuction.id || '');
                   }}
                   className="text-gray-400 hover:text-gray-600 cursor-pointer"
                   title="Copy"
@@ -568,10 +583,34 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <Copy className="w-3.5 h-3.5" />
                 </button>
               </span>
-            </div>
-          </div>
+            ),
+          });
 
-        </div>
+          return (
+            <div
+              className="bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center justify-between shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto"
+              id="desktop-product-info-row"
+              style={{ direction: isAr ? 'rtl' : 'ltr' }}
+            >
+              {blocks.map((block, i) => (
+                <div
+                  key={block.key}
+                  className={`flex items-center gap-2.5 ${
+                    i > 0 ? 'border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4' : ''
+                  }`}
+                >
+                  {block.icon}
+                  <div className="text-left rtl:text-right">
+                    <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">
+                      {block.label}
+                    </span>
+                    {block.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
       </main>
 
