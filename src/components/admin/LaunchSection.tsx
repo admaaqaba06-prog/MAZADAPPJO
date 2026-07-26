@@ -125,6 +125,7 @@ export interface LaunchSectionProps {
   onRepairOrder: (auctionId: string) => Promise<{ success: boolean; message?: string }>;     // repairEndedAuctionOrder
   onRepairEscrow: (auctionId: string) => Promise<{ success: boolean; message?: string }>;    // repairStuckEscrowsForEndedAuction
   onDeleteAuction: (auctionId: string) => void | Promise<any>;                               // deleteAuction
+  onSetViewing: (auctionId: string, viewing: ViewingMode | '', viewingPlace: string) => Promise<{ success: boolean; message?: string }>; // setAuctionViewing
   onCreateDrop: () => void;                                                                   // setActiveView('auction-drop-builder')
 }
 
@@ -144,12 +145,22 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
   onRepairOrder,
   onRepairEscrow,
   onDeleteAuction,
+  onSetViewing,
   onCreateDrop,
 }) => {
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
   // Per-lot viewing, chosen per pending card before approving. Local because no
   // other surface needs it. Keyed by auction id so several cards can be staged
   // independently. Unset = approve without stating viewing (renders nothing).
+  // Master-directory viewing CORRECTION (distinct from the staging state above,
+  // which belongs to the pending-approval cards). Keyed by auction id; a row is
+  // only in the map while its editor is open.
+  const [editViewingId, setEditViewingId] = useState<string | null>(null);
+  const [editViewing, setEditViewing] = useState<ViewingMode | ''>('');
+  const [editPlace, setEditPlace] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editResult, setEditResult] = useState<string | null>(null);
+
   const [viewingById, setViewingById] = useState<Record<string, ViewingMode>>({});
   const [viewingPlaceById, setViewingPlaceById] = useState<Record<string, string>>({});
   // A resubmitted listing reuses the same doc id, so a staged choice left over
@@ -526,11 +537,11 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                       statusColor = 'bg-blue-50 text-blue-800 border border-blue-100';
                     }
 
+                    const editing = editViewingId === item.id;
+
                     return (
-                      <div 
-                        key={item.id} 
-                        className="p-3 flex items-center justify-between gap-3 text-left transition-colors hover:bg-gray-50/55"
-                      >
+                      <div key={item.id} className="text-left transition-colors hover:bg-gray-50/55">
+                      <div className="p-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <img 
                             src={item.thumbnailUrl} 
@@ -568,6 +579,76 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                         >
                           <span>{isAr ? 'مسح' : 'Erase'}</span>
                         </button>
+                      </div>
+
+                      {/* Viewing CORRECTION. approveListing can only set viewing at
+                          the moment of approval, and a live lot has left the
+                          pending queue — so without this a wrong place was only
+                          fixable from the Firebase console. Clearing (no chip
+                          selected) removes the claim entirely. */}
+                      <div className="px-3 pb-3 -mt-1">
+                        {!editing ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditViewingId(item.id);
+                              setEditViewing(
+                                item.viewing === 'office' || item.viewing === 'store' || item.viewing === 'private'
+                                  ? item.viewing
+                                  : ''
+                              );
+                              setEditPlace(typeof item.viewingPlace === 'string' ? item.viewingPlace : '');
+                              setEditResult(null);
+                            }}
+                            className="text-[10px] font-bold text-gray-500 hover:text-gray-800 underline underline-offset-2 cursor-pointer"
+                          >
+                            {isAr ? 'تعديل المعاينة' : 'Edit viewing'}
+                            {item.viewing ? ` · ${item.viewing}` : ''}
+                          </button>
+                        ) : (
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 space-y-2">
+                            <ViewingSelector
+                              value={editViewing}
+                              onChange={setEditViewing}
+                              place={editPlace}
+                              onPlaceChange={setEditPlace}
+                              isAr={isAr}
+                            />
+                            {editResult && (
+                              <p className="text-[10px] font-bold text-gray-600">{editResult}</p>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={editSaving}
+                                onClick={async () => {
+                                  setEditSaving(true);
+                                  setEditResult(null);
+                                  const res = await onSetViewing(item.id, editViewing, editPlace);
+                                  setEditSaving(false);
+                                  if (res.success) {
+                                    setEditViewingId(null);
+                                  } else {
+                                    setEditResult(res.message || (isAr ? 'فشل الحفظ.' : 'Save failed.'));
+                                  }
+                                }}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[10px] py-1.5 rounded-lg transition-all cursor-pointer"
+                              >
+                                {editSaving
+                                  ? (isAr ? 'جارٍ الحفظ…' : 'Saving…')
+                                  : (isAr ? 'حفظ' : 'Save')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setEditViewingId(null); setEditResult(null); }}
+                                className="flex-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-[10px] py-1.5 rounded-lg transition-all cursor-pointer"
+                              >
+                                {isAr ? 'إلغاء' : 'Cancel'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       </div>
                     );
                   })}
