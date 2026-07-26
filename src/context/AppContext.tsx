@@ -283,9 +283,6 @@ interface AppContextProps {
     // .enableGuestBrowsing to false to restore the login-gated front door
     // instantly in production, no redeploy).
     enableGuestBrowsing: boolean;
-    // Paginated Discover feed (Slice 1). Default OFF — reads
-    // siteSettings/featureFlags.enablePaginatedDiscover === true to opt in.
-    enablePaginatedDiscover: boolean;
     // Algolia-backed Discovery search (Slice 2). Default OFF — reads
     // siteSettings/featureFlags.enableAlgoliaSearch === true to opt in. Stays
     // dormant until the index is backfilled; OFF = today's client-side search.
@@ -398,7 +395,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enableWallets: true,
     enablePushNotifications: true,
     enableGuestBrowsing: true,
-    enablePaginatedDiscover: false,
     enableAlgoliaSearch: false
   });
 
@@ -1198,7 +1194,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableWallets: data.enableWallets !== false,
           enablePushNotifications: data.enablePushNotifications !== false,
           enableGuestBrowsing: readGuestBrowsingFlag(data),
-          enablePaginatedDiscover: data.enablePaginatedDiscover === true,
           enableAlgoliaSearch: data.enableAlgoliaSearch === true,
         });
       } else {
@@ -1208,7 +1203,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enableWallets: true,
           enablePushNotifications: true,
           enableGuestBrowsing: true,
-          enablePaginatedDiscover: false,
           enableAlgoliaSearch: false,
         });
       }
@@ -1375,20 +1369,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated, currentUser?.id]);
 
-  // Real-time auctions synchronization with Firestore.
+  // Real-time auctions synchronization with Firestore (ADMIN mode only).
   //
-  // PERF (Wave 4): this effect keys off a derived SUBSCRIPTION MODE, not the raw
-  // activeView. The two buyer surfaces — 'discovery' and 'live' — share the exact
-  // same query, so swiping between them must NOT tear down and rebuild the
-  // Firestore listener (which also re-ran every video-URL resolution for all 80
-  // lots). By collapsing them to a single 'buyer' mode the subscription stays
-  // MOUNTED across the whole live room; the effect only re-subscribes when the
-  // mode genuinely changes (buyer ↔ admin ↔ none). Because the query is chosen
-  // from the stable `mode` (not the exact activeView), there is no stale-closure
-  // hazard: every view inside a mode maps to the identical query.
+  // PERF (Wave 4 → 1b Task 5b): this effect keys off a derived SUBSCRIPTION
+  // MODE, not the raw activeView, so the listener only re-subscribes when the
+  // mode genuinely changes (admin ↔ none) rather than on every view swipe.
+  // Task 5b removed the broad PUBLIC buyer listener entirely — buyer surfaces
+  // (discovery/live) now map to 'none' and read the paginated `useDiscoverFeed`
+  // (feed grid) + `useAuctionDoc` (bidding room) instead, so realtime read-cost
+  // scales with attention, not the whole ~80-lot inventory. The ONLY remaining
+  // broad read is the admin approval/management list below.
   //
-  // 'about' now renders its own HowItWorksView (Wave C) — it no longer needs
-  // the auctions subscription, so it maps to 'none'.
   // 'admin' IS required ('admin' mode): the AdminDashboardView approval queue
   // (pendingListingDrops) filters this context state — without the
   // subscription the queue is always empty and the reject-with-reason
@@ -1434,12 +1425,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const auctionSubMode: 'buyer' | 'admin' | 'none' =
-    activeView === 'discovery' || activeView === 'live'
-      ? 'buyer'
-      : activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin'
-        ? 'admin'
-        : 'none';
+  // 1b Task 5b: buyer surfaces (discovery/live) no longer open a broad
+  // `auctions` subscription — the feed reads `useDiscoverFeed` and the bidding
+  // room reads `useAuctionDoc` (Task 5a), so realtime cost scales with
+  // attention, not inventory. Only the admin tooling still needs the broad
+  // list; everything else maps to 'none' (opens nothing, clears the state).
+  const auctionSubMode: 'admin' | 'none' =
+    activeView === 'seller-center' || activeView === 'drop-builder' || activeView === 'admin'
+      ? 'admin'
+      : 'none';
 
   // PF5: the previous output of the auctions-snapshot sync below — NOT a mirror
   // of the `auctions` state (other, optimistic writers touch that). Keeping the
@@ -1463,33 +1457,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     auctionsSnapSyncRef.current = [];
 
     const auctionsRefCol = collection(db, 'auctions');
-    let q;
-    if (auctionSubMode === 'admin') {
-      // In Seller Center, Drop Builder & Admin dashboard, fetch auctions of
-      // EVERY status (incl. 'processing'/'rejected'/'completed') capped at 100 —
-      // the admin approval queue and winners panel need the full set. Order by
-      // newest first so a fresh 'processing' listing always lands inside the
-      // window: with no ordering, an unbounded read past 100 auctions could
-      // strand a new listing outside the cap and it would never surface for
-      // approval.
-      q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(100));
-    } else {
-      // On Discovery / Live views, the PUBLIC grid subscribes ONLY to
-      // approved, active lots. 'processing' is deliberately excluded here —
-      // a seller's own under-review listing is surfaced separately via the
-      // targeted own-pending subscription below (never leaked to buyers).
-      // PF10: order newest-first BEFORE the cap so a fresh drop always lands
-      // inside the 80-lot window instead of being stranded outside an arbitrary
-      // (unordered) slice. Backed by the existing composite index
-      // (auctions: status ASC, createdAt DESC) in firestore.indexes.json — the
-      // admin query above relies on the same ordering, so this is established-safe.
-      q = query(
-        auctionsRefCol,
-        where('status', 'in', ['live', 'upcoming']),
-        orderBy('createdAt', 'desc'),
-        limit(80)
-      );
-    }
+    // Only ADMIN mode reaches here (buyer surfaces map to 'none' and returned
+    // above — 1b Task 5b removed the broad public buyer listener). In Seller
+    // Center, Drop Builder & Admin dashboard, fetch auctions of EVERY status
+    // (incl. 'processing'/'rejected'/'completed') capped at 100 — the admin
+    // approval queue and winners panel need the full set. Order by newest first
+    // so a fresh 'processing' listing always lands inside the window: with no
+    // ordering, an unbounded read past 100 auctions could strand a new listing
+    // outside the cap and it would never surface for approval.
+    const q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(100));
     const unsub = onSnapshot(q, (snap) => {
       setAuctionsLoaded(true);
       if (snap.empty) {
@@ -1567,11 +1543,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Seller-own pending: targeted read of THIS user's own 'processing' listings,
   // merged into visibleAuctions so a seller still sees their under-review lot in
-  // the feed even though the public grid query dropped 'processing' (E1). Only
-  // runs in buyer mode — admin mode already fetches every status, so keeping
-  // this off there prevents a duplicate render of the seller's own lot.
+  // the feed even though the public grid query dropped 'processing' (E1).
+  // 1b Task 5b: `auctionSubMode` no longer has a 'buyer' value (the broad buyer
+  // listener was removed), so this is re-gated on the actual condition it needs
+  // — a signed-in user on a buyer surface (discovery/live) — preserving its
+  // prior trigger exactly. Kept OFF in admin mode (which fetches every status,
+  // so it would otherwise double-render the seller's own lot) and everywhere
+  // else. Tiny per-user query; the broad public read is what Task 5b removed.
+  const isBuyerSurface = activeView === 'discovery' || activeView === 'live';
   useEffect(() => {
-    if (auctionSubMode !== 'buyer' || !isAuthenticated || !currentUser?.id) {
+    if (!isBuyerSurface || !isAuthenticated || !currentUser?.id) {
       setOwnPendingAuctions([]);
       return;
     }
@@ -1608,7 +1589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOwnPendingAuctions([]);
     });
     return () => unsubOwn();
-  }, [auctionSubMode, isAuthenticated, currentUser?.id]);
+  }, [isBuyerSurface, isAuthenticated, currentUser?.id]);
 
   // Real-time escrows synchronization with Firestore
   useEffect(() => {
