@@ -2991,6 +2991,20 @@ const fetchIP = async () => {
         price
       });
 
+      // E4 — record the Auction Rules acceptance captured at the pay-to-bid gate.
+      // Owner-writable fields on the user's own doc (NOT subscription-grant fields,
+      // so no rules change is required). Non-fatal: a failure here must never fail
+      // the subscribe flow — the request itself already succeeded above.
+      try {
+        const { RULES_VERSION } = await import('../content/auctionRules');
+        await updateDoc(doc(db, 'users', currentUser.id), {
+          acceptedAuctionRulesAt: Date.now(),
+          acceptedAuctionRulesVersion: RULES_VERSION,
+        });
+      } catch (rulesErr) {
+        console.warn('[subscribeUser] Auction Rules acceptance persist failed (non-fatal):', rulesErr);
+      }
+
       // Mirror the server helper (userStatusForSubscriptionRequest): an already-
       // active member submitting an UPGRADE must NOT be downgraded to 'pending'
       // — bidding is gated on this LOCAL subscriptionStatus, so flipping it would

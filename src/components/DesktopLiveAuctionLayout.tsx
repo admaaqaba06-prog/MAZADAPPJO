@@ -24,9 +24,11 @@ import {
   Truck,
   Copy,
   Smile,
-  Star
+  Star,
+  Info
 } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
+import AuctionRulesModal from './AuctionRulesModal';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen } from '../utils/auctionPhase';
@@ -98,6 +100,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 }) => {
   const { sellerProfiles, setActiveView, bids, orders, setGlobalSelectedOrderId, isAuthenticated, requestSignIn } = useApp();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
   const { showToast: pushToast } = useToast();
 
   // PERF (Wave 4): the desktop HH:MM:SS pill now lives in <CountdownPill> (a
@@ -890,6 +893,16 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
                         : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
                     </p>
+                    {/* E4 — subtle Auction Rules affordance near the bid dock */}
+                    <button
+                      type="button"
+                      onClick={() => setRulesOpen(true)}
+                      className="mx-auto mt-1.5 flex items-center gap-1 text-[10.5px] font-bold text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer"
+                      id="desktop-bid-rules-link"
+                    >
+                      <Info className="w-3 h-3" />
+                      {isAr ? 'القواعد' : 'Rules'}
+                    </button>
                   </>
                 )}
               </div>
@@ -907,6 +920,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
           {/* Winning pill: pops over the panel on a successful bid */}
           <WinningPill show={showWinPill} isAr={isAr} />
+
+          {/* E4 — Auction Rules modal (opened from the bid-dock "Rules" affordance) */}
+          <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
         </div>
 
         {/* Card 3: Bid History Card */}

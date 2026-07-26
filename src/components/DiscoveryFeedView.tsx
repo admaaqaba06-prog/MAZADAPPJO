@@ -37,6 +37,7 @@ import {
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
+import AuctionRulesModal from './AuctionRulesModal';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
 
@@ -336,6 +337,7 @@ export const DiscoveryFeedView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
 
   // Skeletons only while genuinely waiting on the first auctions snapshot —
   // tab/category/search changes filter in-memory data and render instantly
@@ -1133,13 +1135,28 @@ export const DiscoveryFeedView: React.FC = () => {
         )}
       </div>
 
+      {/* E4 — app footer: always-reachable Auction Rules entry point */}
+      <footer className="px-4 pt-2 pb-6 text-center">
+        <button
+          type="button"
+          onClick={() => setRulesOpen(true)}
+          className="text-[11px] font-bold text-gray-400 hover:text-[#FF6B00] underline underline-offset-2 decoration-gray-200 hover:decoration-[#FF6B00] transition-colors cursor-pointer"
+          id="discover-footer-auction-rules-link"
+        >
+          {isAr ? 'قواعد المزاد' : 'Auction Rules'}
+        </button>
+      </footer>
+
       {/* Render specification details slide modal */}
       {selectedLotId && (
-        <AuctionDetailsModal 
-          auctionId={selectedLotId} 
-          onClose={() => setSelectedLotId(null)} 
+        <AuctionDetailsModal
+          auctionId={selectedLotId}
+          onClose={() => setSelectedLotId(null)}
         />
       )}
+
+      {/* E4 — Auction Rules modal (opened from the footer link) */}
+      <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
 
       {/* Render Seller complete profile modal */}
       {selectedProfileId && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Info } from 'lucide-react';
 import { BidConfirm, WinningPill, FirstBidCoach, Pressable } from '../feedback';
 import { totalWithPremium } from '../../utils/bidMath';
 import { validateCustomBid } from '../../utils/auctionBid';
@@ -42,6 +42,8 @@ interface BidSheetProps {
   showCoach: boolean;
   /** Pop the "you're winning" pill over the sheet on a successful bid. */
   showWinPill: boolean;
+  /** E4 — open the Auction Rules modal from the subtle "Rules" affordance. */
+  onOpenRules?: () => void;
 }
 
 export const BidSheet: React.FC<BidSheetProps> = ({
@@ -60,6 +62,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
   onCancel,
   showCoach,
   showWinPill,
+  onOpenRules,
 }) => {
   const [customValue, setCustomValue] = useState('');
   const [customError, setCustomError] = useState<'too_low' | 'invalid' | null>(null);
@@ -154,9 +157,22 @@ export const BidSheet: React.FC<BidSheetProps> = ({
               <X className="w-4 h-4" />
             </button>
 
-            <h3 className="text-[15px] font-black text-[#0A0A0A]">
-              {isAr ? 'قدّم مزايدتك' : 'Place your bid'}
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[15px] font-black text-[#0A0A0A]">
+                {isAr ? 'قدّم مزايدتك' : 'Place your bid'}
+              </h3>
+              {onOpenRules && (
+                <button
+                  type="button"
+                  onClick={onOpenRules}
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#999] hover:text-[#F05123] transition-colors cursor-pointer shrink-0"
+                  id="bidsheet-rules-link"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  {isAr ? 'القواعد' : 'Rules'}
+                </button>
+              )}
+            </div>
             <p className="text-[12px] text-[#666] font-semibold mt-0.5" dir="ltr">
               {isAr
                 ? `المزايدة الحالية ${fmt(currentPrice)} د.أ · الحد الأدنى التالي ${fmt(minNext)} د.أ`
