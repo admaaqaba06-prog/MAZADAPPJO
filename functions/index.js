@@ -1897,6 +1897,21 @@ exports.stampDisputeResolution = functions.runWith({ cors: true }).https.onCall(
     const deps = { db, Timestamp: admin.firestore.Timestamp };
     const result = await stampDisputeResolutionTxn(deps, { orderId, resolutionType, adminUid: context.auth.uid, notes });
     console.log(`[stampDisputeResolution] ${resolutionType} note stamped for order=${orderId} by ${context.auth.uid}`);
+
+    // Return-type dispute: the stamp already closed out returnClaim.status (no
+    // money moved — the refund/release ran before this). Notify the buyer of the
+    // outcome. notify() never throws and runs AFTER the txn — a webhook hiccup
+    // must not undo the resolution stamp.
+    if (result.isReturn) {
+      await notify({ uid: result.buyerId, event: 'return_resolved', data: {
+        auctionId: result.auctionId,
+        auctionTitle: result.auctionTitle,
+        orderId,
+        outcome: result.outcome,
+        idempotencyKey: `${orderId}_return_resolved`,
+      } });
+    }
+
     return { success: true, ...result };
   } catch (error) {
     console.error('Error in stampDisputeResolution:', error);

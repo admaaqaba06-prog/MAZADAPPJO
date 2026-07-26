@@ -2,7 +2,7 @@
 // This module only records an admin's note AFTER the real resolution has already
 // succeeded via the untouched executeOrderTransition('resolve_dispute') path.
 import { describe, it, expect } from 'vitest';
-const { stampDisputeResolution } = require('./disputeResolution');
+const { stampDisputeResolution, returnStatusFor } = require('./disputeResolution');
 
 const NOW_MS = 1750000000000;
 
@@ -52,6 +52,58 @@ function deps(db) {
   return { db, Timestamp: FakeTimestamp, now: () => NOW_MS };
 }
 
+describe('returnStatusFor', () => {
+  it('maps refund → resolved_refunded', () => {
+    expect(returnStatusFor('refund')).toBe('resolved_refunded');
+  });
+  it('maps release → resolved_denied', () => {
+    expect(returnStatusFor('release')).toBe('resolved_denied');
+  });
+  it('maps resume (and anything else) → null', () => {
+    expect(returnStatusFor('resume')).toBe(null);
+    expect(returnStatusFor('bogus')).toBe(null);
+    expect(returnStatusFor(undefined)).toBe(null);
+  });
+});
+
+describe('stampDisputeResolution return-type stamping', () => {
+  it('stamps returnClaim.status + returns notify info for a return refund', async () => {
+    const db = makeFakeDb({ 'orders/r1': {
+      status: 'disputed', disputeType: 'return',
+      buyerId: 'buyer1', auctionId: 'auc1', auctionTitle: 'ساعة',
+      returnClaim: { status: 'open' },
+    } });
+    const res = await stampDisputeResolution(deps(db), { orderId: 'r1', resolutionType: 'refund', adminUid: 'a', notes: 'Approved return.' });
+    const write = db._writes.find((w) => w.path === 'orders/r1');
+    expect(write.data['returnClaim.status']).toBe('resolved_refunded');
+    expect(res).toMatchObject({ isReturn: true, outcome: 'refunded', buyerId: 'buyer1', auctionId: 'auc1', auctionTitle: 'ساعة' });
+  });
+  it('stamps resolved_denied + outcome denied for a return release', async () => {
+    const db = makeFakeDb({ 'orders/r2': {
+      status: 'disputed', disputeType: 'return',
+      buyerId: 'buyer2', auctionId: 'auc2', auctionTitle: 'خاتم',
+      returnClaim: { status: 'open' },
+    } });
+    const res = await stampDisputeResolution(deps(db), { orderId: 'r2', resolutionType: 'release', adminUid: 'a', notes: 'Denied.' });
+    expect(db._writes[0].data['returnClaim.status']).toBe('resolved_denied');
+    expect(res).toMatchObject({ isReturn: true, outcome: 'denied', buyerId: 'buyer2' });
+  });
+  it('does NOT stamp returnClaim.status for a return resume (null mapping)', async () => {
+    const db = makeFakeDb({ 'orders/r3': {
+      status: 'disputed', disputeType: 'return', buyerId: 'b', returnClaim: { status: 'open' },
+    } });
+    const res = await stampDisputeResolution(deps(db), { orderId: 'r3', resolutionType: 'resume', adminUid: 'a', notes: 'Proceed.' });
+    expect(db._writes[0].data['returnClaim.status']).toBeUndefined();
+    expect(res.isReturn).toBe(false);
+  });
+  it('does NOT stamp returnClaim.status for a non-return dispute', async () => {
+    const db = makeFakeDb({ 'orders/n1': { status: 'disputed', buyerId: 'b' } });
+    const res = await stampDisputeResolution(deps(db), { orderId: 'n1', resolutionType: 'refund', adminUid: 'a', notes: 'x' });
+    expect(db._writes[0].data['returnClaim.status']).toBeUndefined();
+    expect(res.isReturn).toBe(false);
+  });
+});
+
 describe('stampDisputeResolution', () => {
   it('stamps all four fields on a successful release resolution', async () => {
     const db = makeFakeDb({ 'orders/o1': { status: 'completed' } });
@@ -61,7 +113,7 @@ describe('stampDisputeResolution', () => {
     expect(write.data.disputeResolvedBy).toBe('admin1');
     expect(write.data.disputeResolvedAt._ms).toBe(NOW_MS);
     expect(write.data.disputeResolutionType).toBe('release');
-    expect(res).toEqual({ orderId: 'o1', resolutionType: 'release', notes: 'Seller shipped correct item, buyer confirmed in chat.' });
+    expect(res).toMatchObject({ orderId: 'o1', resolutionType: 'release', notes: 'Seller shipped correct item, buyer confirmed in chat.', isReturn: false });
   });
   it('accepts refund and resume as valid resolutionTypes', async () => {
     const db1 = makeFakeDb({ 'orders/o2': { status: 'refunded' } });
