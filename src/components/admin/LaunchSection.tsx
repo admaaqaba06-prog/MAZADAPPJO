@@ -152,6 +152,24 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
   // independently. Unset = approve without stating viewing (renders nothing).
   const [viewingById, setViewingById] = useState<Record<string, ViewingMode>>({});
   const [viewingPlaceById, setViewingPlaceById] = useState<Record<string, string>>({});
+  // A resubmitted listing reuses the same doc id, so a staged choice left over
+  // from the previous version would sit pre-selected on the new card and an
+  // inattentive approve would write a claim meant for the old lot. Drop the
+  // staged choice once a verdict is in — approve or reject.
+  const clearStagedViewing = (auctionId: string) => {
+    setViewingById((prev) => {
+      if (!(auctionId in prev)) return prev;
+      const updated = { ...prev };
+      delete updated[auctionId];
+      return updated;
+    });
+    setViewingPlaceById((prev) => {
+      if (!(auctionId in prev)) return prev;
+      const updated = { ...prev };
+      delete updated[auctionId];
+      return updated;
+    });
+  };
   // Aliases keep the moved JSX byte-identical to the former listings body.
   const approveListing = onApproveListing;
   const rejectListing = onRejectListing;
@@ -262,6 +280,7 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                           <button
                             onClick={() => {
                               rejectListing(item.id, rejectionReason.trim() || undefined);
+                              clearStagedViewing(item.id);
                               setRejectingId(null);
                               setRejectionReason('');
                             }}
@@ -304,9 +323,19 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
 
                         <div className="flex gap-2">
                         <button
-                          onClick={() =>
-                            approveListing(item.id, viewingById[item.id], viewingPlaceById[item.id])
-                          }
+                          onClick={async () => {
+                            // Same call, same arguments — the args are read
+                            // before anything is cleared. Only the cleanup is new.
+                            try {
+                              await approveListing(item.id, viewingById[item.id], viewingPlaceById[item.id]);
+                            } catch (err) {
+                              // Approve blew up: keep the staged choice so the
+                              // admin can retry without re-picking it.
+                              console.error('Approve listing failed; keeping staged viewing choice:', err);
+                              return;
+                            }
+                            clearStagedViewing(item.id);
+                          }}
                           className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
                         >
                           {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
