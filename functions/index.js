@@ -12,6 +12,7 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
+const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
 admin.initializeApp();
@@ -474,19 +475,46 @@ exports.paymentDefaultEnforcer = functions.pubsub
   .schedule('every 30 minutes')
   .onRun(async () => {
     const now = admin.firestore.Timestamp.now();
+    const nowMs = now.toMillis();
     try {
+      // A. Auto-expiry: lift any cooldown whose blockedUntil has elapsed so the
+      // user regains bidding and the UI/ban banner clears without a bid attempt.
+      // Permanent bans have no blockedUntil, so they never match this query.
+      const expiredSnap = await db.collection('users')
+        .where('blockedUntil', '<=', now)
+        .get();
+      for (const uDoc of expiredSnap.docs) {
+        const u = uDoc.data();
+        if (u.isBlocked === true) {
+          await uDoc.ref.set(
+            { isBlocked: false, blockedUntil: admin.firestore.FieldValue.delete() },
+            { merge: true }
+          );
+          console.log(`[paymentDefaultEnforcer] cooldown expired — unblocked ${uDoc.id}`);
+        }
+      }
+
+      // B. Default any order past its payment deadline and advance the buyer's
+      // strike ladder (1st = 48h, repeat = 3-month). Group by buyer so a buyer
+      // with N newly-defaulted orders advances N strikes computed once.
       const snap = await db.collection('orders')
         .where('status', '==', 'waiting_payment')
         .where('paymentDeadlineAt', '<=', now)
         .get();
       if (snap.empty) return null;
+
+      const ordersByBuyer = new Map();
+      const noBuyer = [];
       for (const doc of snap.docs) {
+        const buyerId = doc.data().buyerId;
+        if (!buyerId) { noBuyer.push(doc); continue; }
+        if (!ordersByBuyer.has(buyerId)) ordersByBuyer.set(buyerId, []);
+        ordersByBuyer.get(buyerId).push(doc);
+      }
+
+      const markDefaulted = (batch, doc) => {
         const o = doc.data();
-        const batch = db.batch();
         batch.update(doc.ref, { status: 'defaulted', defaultedAt: admin.firestore.FieldValue.serverTimestamp() });
-        if (o.buyerId) {
-          batch.set(db.collection('users').doc(o.buyerId), { isBlocked: true, blockedReason: 'payment_default' }, { merge: true });
-        }
         batch.set(db.collection('system_health').doc(), {
           type: 'payment_fail',
           title: `Order defaulted (${resolvePaymentWindowHours(o.paymentWindowHours)}h unpaid)`,
@@ -494,8 +522,32 @@ exports.paymentDefaultEnforcer = functions.pubsub
           source: 'paymentDefaultEnforcer',
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
+      };
+
+      for (const [buyerId, docs] of ordersByBuyer.entries()) {
+        const userRef = db.collection('users').doc(buyerId);
+        const userSnap = await userRef.get();
+        const currentStrikes = userSnap.exists ? (Number(userSnap.data().strikeCount) || 0) : 0;
+        const newStrikes = currentStrikes + docs.length;
+        const { blockedUntil, blockedReason } = resolvePaymentDefaultBan(newStrikes, nowMs);
+
+        const batch = db.batch();
+        for (const doc of docs) markDefaulted(batch, doc);
+        batch.set(userRef, {
+          isBlocked: true,
+          blockedUntil: admin.firestore.Timestamp.fromMillis(blockedUntil),
+          blockedReason,
+          strikeCount: newStrikes,
+        }, { merge: true });
         await batch.commit();
-        console.log(`[paymentDefaultEnforcer] defaulted order ${doc.id}, blocked ${o.buyerId}`);
+        console.log(`[paymentDefaultEnforcer] buyer ${buyerId}: +${docs.length} strike(s) → ${newStrikes}, ${blockedReason} until ${new Date(blockedUntil).toISOString()}`);
+      }
+
+      // Orders with no buyer id: still default them (no strike to apply).
+      for (const doc of noBuyer) {
+        const batch = db.batch();
+        markDefaulted(batch, doc);
+        await batch.commit();
       }
     } catch (err) {
       console.error('[paymentDefaultEnforcer]', err);
@@ -861,7 +913,7 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
         return { success: false, message: 'يرجى الانتظار لحظة قبل المزايدة مرة أخرى' };
       }
 
-      if (userData.isBlocked) {
+      if (isEffectivelyBlocked(userData, Date.now())) {
         return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
       const subExpiry = userData.subscriptionExpiry;
