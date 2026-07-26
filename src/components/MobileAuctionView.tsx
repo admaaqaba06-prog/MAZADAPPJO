@@ -33,7 +33,6 @@ import { useChat } from '../context/AppContext';
    ====================================================================== */
 
 interface MobileAuctionViewProps {
-  liveAuctions: any[];
   activeAuctionId: string;
   onSelectAuction: (id: string) => void;
   activeAuction: any;

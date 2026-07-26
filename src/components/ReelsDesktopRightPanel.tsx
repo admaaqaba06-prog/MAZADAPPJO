@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp, useAuctions, useChat } from '../context/AppContext';
+import { useApp, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
 import { BidConfirm } from './feedback';
@@ -8,8 +8,7 @@ import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { minNextBid } from '../utils/bidMath';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
-import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
-import { mergeLiveIntoCard } from '../utils/discoverQuery';
+import { useAuctionDoc } from '../hooks/useAuctionDoc';
 import { isEffectivelyBlocked } from '../utils/banStatus';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
@@ -25,21 +24,15 @@ export const ReelsDesktopRightPanel: React.FC = () => {
     requestSignIn,
     setShowBanNotice
   } = useApp();
-  const { auctions } = useAuctions();
   const { chatMessages } = useChat();
   const isAr = language === 'ar';
 
-  const currentItemBase = auctions.find(a => a.id === activeAuctionId) || auctions[0];
-
-  // Slice 1b-A: overlay the open lot's own single-doc realtime snapshot onto the
-  // array-derived base, so this panel's live fields no longer depend on the lot
-  // being inside the broad newest-80 window (prerequisite for removing the broad
-  // listener). `mergeLiveIntoCard` preserves identity + all static fields.
-  const openLive = useVisibleAuctionLive(currentItemBase?.id ?? '', !!currentItemBase?.id);
-  const currentItem = React.useMemo(
-    () => (currentItemBase ? mergeLiveIntoCard(currentItemBase, openLive) : currentItemBase),
-    [currentItemBase, openLive],
-  );
+  // Slice 1b Task 5a-3: the active lot comes from its OWN single-doc realtime
+  // subscription (`useAuctionDoc`, ref-counted + leak-safe), returning the FULL
+  // live+static object — no longer read out of the broad `auctions` array. The
+  // null guard below renders the "select an auction" empty state until the doc
+  // arrives (the placeholder seed id resolves to no doc → null).
+  const currentItem = useAuctionDoc(activeAuctionId);
 
   const [timeLeftStr, setTimeLeftStr] = React.useState<string>('00:00:00');
 

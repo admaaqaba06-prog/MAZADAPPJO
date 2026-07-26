@@ -12,7 +12,7 @@ import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { filterSimulated } from '../utils/simVisibility';
-import { resolveEndTime, filsToUnits } from '../utils/liveAuctionFields';
+import { mapAuctionDocFull, PLACEHOLDER_MEDIA } from '../utils/auctionDocMap';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
@@ -42,7 +42,8 @@ const attemptedSellerIds = new Set<string>();
 // (Unsplash images / Google `gtv-videos` sample MP4s) which added uncontrolled
 // per-render bandwidth and latency (bad for load and for a load test). A single
 // local asset is cached after first paint and never leaves the origin.
-const PLACEHOLDER_MEDIA = '/placeholder-media.svg';
+// NOTE: the constant now lives in `utils/auctionDocMap` (single source of truth,
+// shared with the pure mapper) and is re-imported above.
 
 import { 
   GoogleAuthProvider, 
@@ -72,66 +73,36 @@ const mapAuctionDoc = (
   itemsToResolve: { id: string; rawUrl: string; category: string }[]
 ): AuctionItem => {
   const data = docSnap.data();
-  // endTime/price mapping delegates to the shared `liveAuctionFields` helpers so
-  // the per-card live-on-visible subscription resolves these identically.
-  const endTimeNum = resolveEndTime(data);
-  const rawThumbnail = data.thumbnailUrl || data.imageUrl || '';
-  let finalThumbnail = rawThumbnail;
-
-  if (!rawThumbnail || rawThumbnail === '' || rawThumbnail.startsWith('blob:')) {
-    // Local bundled poster instead of per-category third-party (Unsplash) images.
-    finalThumbnail = PLACEHOLDER_MEDIA;
-  }
-
-  const startingPrice = filsToUnits(data.startingPriceFils, data.startingPrice, 0);
-  const currentPrice = filsToUnits(data.currentPriceFils, data.currentPrice, startingPrice);
-  const minIncrement = filsToUnits(data.minIncrementFils, data.minIncrement, 10);
-
-  const rawVideoUrl = data.videoUrl || '';
   const itemId = docSnap.id;
-  let finalVideoUrl = rawVideoUrl;
 
+  // Pure synchronous base (every static/live/timestamp/fils field) — shared with
+  // the upcoming per-doc `useAuctionDoc` hook so a room lot maps identically to
+  // the broad feed. Byte-identical to the old inline object (same fallbacks, same
+  // trailing `...data` override, same post-spread thumbnail/image assignment).
+  const item = mapAuctionDocFull(itemId, data);
+
+  // Async storage video-URL resolution side effects — INTENTIONALLY kept in this
+  // wrapper (not in the pure mapper). This block only writes the resolved-URL
+  // cache and queues blob videos onto `itemsToResolve` for the caller's async
+  // pass; it does NOT change `item.videoUrl` here. That matches the prior
+  // behavior exactly: the old inline object also had its computed `finalVideoUrl`
+  // overridden by the trailing `...data` spread (→ `data.videoUrl` when present,
+  // else ''), so the synchronous `videoUrl` never depended on the cache — the
+  // cache lookup only governed whether a lot was queued for async resolution.
+  const rawVideoUrl = data.videoUrl || '';
   const cached = videoUrlCache.get(itemId);
   if (cached && cached.rawUrl === rawVideoUrl) {
-    finalVideoUrl = cached.resolvedUrl;
+    // Already resolved & cached — nothing to queue.
   } else if (rawVideoUrl && !rawVideoUrl.startsWith('blob:')) {
-    // It's a direct network URL, resolve synchronously
-    finalVideoUrl = rawVideoUrl;
+    // Direct network URL — cache it as its own resolution; no async work needed.
     videoUrlCache.set(itemId, { rawUrl: rawVideoUrl, resolvedUrl: rawVideoUrl });
   } else {
-    // No resolvable network URL yet. Keep it empty (no remote video element) so
-    // the UI paints the local thumbnail fallback instead of streaming a
-    // third-party sample clip. The blob resolver may still fill this in async.
-    finalVideoUrl = '';
+    // No resolvable network URL yet (blob:/empty). Queue for async blob resolution
+    // so the resolver may fill the video in later via setState.
     itemsToResolve.push({ id: itemId, rawUrl: rawVideoUrl, category: data.category || 'Luxury' });
   }
 
-  const itemWithFallback = {
-    id: itemId,
-    title: data.title || '',
-    description: data.description || '',
-    category: data.category || 'Luxury',
-    startingPrice,
-    currentPrice,
-    minIncrement,
-    currentBidderId: data.currentBidderId || null,
-    currentBidderName: data.currentBidderName || null,
-    videoUrl: finalVideoUrl,
-    endTime: endTimeNum,
-    duration: data.duration ?? 3600,
-    sellerId: data.sellerId || 'seller-system',
-    sellerName: data.sellerName || data.createdByName || 'Seller JO',
-    sellerLogo: data.sellerLogo || PLACEHOLDER_MEDIA,
-    status: data.status || 'live',
-    isFeatured: data.isFeatured ?? false,
-    totalBids: data.totalBids ?? 0,
-    viewersCount: data.viewersCount ?? 0,
-    ...data
-  } as any;
-
-  itemWithFallback.thumbnailUrl = finalThumbnail;
-  itemWithFallback.imageUrl = finalThumbnail;
-  return itemWithFallback as AuctionItem;
+  return item;
 };
 
 interface AppContextProps {
