@@ -189,6 +189,13 @@ interface AppContextProps {
   
   // Admin Operations
   approveListing: (id: string, viewing?: ViewingMode, viewingPlace?: string) => Promise<void>;
+  /**
+   * Correct a lot's viewing AFTER approval. `approveListing` can only set it at
+   * the moment of approval, and a live lot has already left the pending queue —
+   * so without this a wrong place (typo, shop moved) was only fixable from the
+   * Firebase console. Passing '' CLEARS the claim back to "not stated".
+   */
+  setAuctionViewing: (id: string, viewing: ViewingMode | '', viewingPlace: string) => Promise<{ success: boolean; message?: string }>;
   rejectListing: (id: string, reason?: string) => Promise<void>;
   verifySeller: (userId: string) => void;
   banUser: (userId: string) => void;
@@ -3820,6 +3827,43 @@ const fetchIP = async () => {
     });
   }, []);
 
+  /**
+   * Correct a lot's viewing after it has been approved.
+   *
+   * `approveListing` writes viewing only at the moment of approval, and once a
+   * lot is live it has left the pending queue entirely — so a wrong place (a
+   * typo, or a shop that moved) had no in-product fix at all and needed the
+   * Firebase console. This is that fix.
+   *
+   * Deliberately NOT routed through `viewingWritePayload`: that helper returns
+   * `{}` for an empty mode, meaning "leave untouched", which is right for an
+   * approval that states nothing but makes clearing impossible here. An admin
+   * correcting a claim must be able to REMOVE it, so '' writes '' — which
+   * `resolveViewing` treats as not-stated and renders as nothing.
+   */
+  const setAuctionViewing = useCallback(async (
+    id: string,
+    viewing: ViewingMode | '',
+    viewingPlace: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!isAdminUser(currentUser)) {
+      return { success: false, message: 'Admins only.' };
+    }
+    try {
+      // Always write both keys so a stale place can never outlive a mode change
+      // (the same revival hazard viewingWritePayload guards on the approval path).
+      // Place is only meaningful for 'store'; anything else clears it.
+      await updateDoc(doc(db, 'auctions', id), {
+        viewing,
+        viewingPlace: viewing === 'store' ? (viewingPlace || '').trim() : '',
+      });
+      return { success: true };
+    } catch (err: any) {
+      console.error('[setAuctionViewing] failed:', err);
+      return { success: false, message: err?.message || 'Update failed.' };
+    }
+  }, [currentUser]);
+
   const approveListing = useCallback(async (id: string, viewing?: ViewingMode, viewingPlace?: string) => {
     // Find the target auction to respect its duration (e.g. 6 hours / 10 minutes etc.)
     // Fall back to a direct Firestore read for admin surfaces (e.g. AdminPanel)
@@ -5004,6 +5048,7 @@ const fetchIP = async () => {
       markAsRead,
       markAllAsRead,
       approveListing,
+      setAuctionViewing,
       rejectListing,
       verifySeller,
       banUser,

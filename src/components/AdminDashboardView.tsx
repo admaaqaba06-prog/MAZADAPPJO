@@ -82,7 +82,8 @@ export const AdminDashboardView: React.FC = () => {
     usersTotalCount,
     escrows,
     orders,
-    approveListing, 
+    approveListing,
+    setAuctionViewing, 
     rejectListing, 
     verifySeller, 
     banUser, 
@@ -790,6 +791,7 @@ export const AdminDashboardView: React.FC = () => {
               onRepairOrder={repairEndedAuctionOrder}
               onRepairEscrow={repairStuckEscrowsForEndedAuction}
               onDeleteAuction={deleteAuction}
+              onSetViewing={setAuctionViewing}
               onCreateDrop={() => setActiveView('auction-drop-builder')}
             />
           </React.Suspense>
