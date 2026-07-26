@@ -2216,10 +2216,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد بتحتفظ بالمبلغ",
-                        enTitle: "Mazad holds the payment",
-                        arDesc: "مزاد بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        enDesc: "Mazad holds your payment and does not release it to the seller until you receive the item and confirm it matches."
+                        arTitle: "مزاد جو بتحتفظ بالمبلغ",
+                        enTitle: "MazadJo holds the payment",
+                        arDesc: "مزاد جو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "MazadJo holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,
@@ -2562,7 +2562,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
                   {/* Corner Badge - Orange Gradient */}
                   <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
-                    {lang === "ar" ? "رسوم إدراج ٠ دينار — لفترة محدودة" : "Listing fee 0 JOD — Limited time"}
+                    {lang === "ar" ? "اعرض منتجك مجاناً — لفترة محدودة" : "Free to list — Limited time"}
                   </div>
 
                   <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
@@ -2572,8 +2572,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       </h3>
                       <p className="text-gray-400 text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "بدون رسوم إدراج حالياً. لا رسوم إذا لم تُبع القطعة. عمولة ٥٪ فقط عندما تجد قطعتك مشتريها."
-                          : "No listing fees right now. No fees if the item is not sold. Just 5% commission when your item finds a buyer."}
+                          ? "بدون رسوم عرض حالياً. لا رسوم إذا لم يُبَع المنتج. عمولة ٥٪ فقط عندما يجد منتجك مشتريه."
+                          : "No listing fees right now. No fees if the product is not sold. Just 5% commission when your product finds a buyer."}
                       </p>
                     </div>
 
@@ -2644,7 +2644,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 self-center">
                         <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
                         <span className="text-xs text-gray-300 font-ibmarabic">
-                          {lang === "ar" ? "مفتوحون الآن لاستقبالكم" : "We are open and welcoming visitors"}
+                          {lang === "ar" ? "نسعد بزيارتكم" : "We'd be delighted to have you visit"}
                         </span>
                       </div>
                     </div>

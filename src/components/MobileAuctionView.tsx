@@ -549,7 +549,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                       {activeAuction.sellerName}
                     </span>
                     <span className="block text-[10px] font-bold text-[#F05123] leading-none mt-1">
-                      {isAr ? 'بائع في مزادو' : 'Seller on Mazad'}
+                      {isAr ? 'بائع في مزاد جو' : 'Seller on MazadJo'}
                     </span>
                   </div>
                 </div>

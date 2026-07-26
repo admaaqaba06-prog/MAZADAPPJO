@@ -94,7 +94,7 @@ function MaintenanceView() {
         {/* Title */}
         <div className="space-y-3">
           <h1 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
-            {isAr ? 'منصة مزاد الأردن | صيانة طارئة' : 'MAZAD JO | System Maintenance'}
+            {isAr ? 'منصة مزاد جو | صيانة طارئة' : 'MAZAD JO | System Maintenance'}
           </h1>
           <p className="text-gray-400 text-sm font-medium">
             {isAr 

@@ -535,7 +535,7 @@ export const SellView: React.FC = () => {
                   desc: isAr
                     ? 'صوّر منتجك، حدد السعر والمدة، وابعثه للمراجعة — كله بإيدك.'
                     : 'Shoot your item, set the price and duration, and submit it for review — all in your hands.',
-                  cta: isAr ? 'ابدأ الإدراج' : 'Start listing'
+                  cta: isAr ? 'ابدأ البيع' : 'Start listing'
                 },
                 {
                   id: 'concierge' as const,

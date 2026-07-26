@@ -119,7 +119,7 @@ export const WalletView: React.FC = () => {
     try {
       const storeName = currentUser.name ? (isAr ? `متجر ${currentUser.name}` : `${currentUser.name}'s Store`) : (isAr ? 'متجري الخاص' : 'My Store');
       const location = isAr ? 'عمان، الأردن' : 'Amman, Jordan';
-      const about = isAr ? 'أهلاً بكم في متجري الخاص على مزاد الأردن.' : 'Welcome to my official store on MAZAD JO.';
+      const about = isAr ? 'أهلاً بكم في متجري الخاص على مزاد جو.' : 'Welcome to my official store on MAZAD JO.';
 
       const sellerPayload = {
         isSeller: true,
@@ -185,7 +185,7 @@ export const WalletView: React.FC = () => {
 
       const sellerOkTitle = isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated';
       const sellerOkMsg = isAr
-        ? 'تهانينا! تم تفعيل حساب البائع الخاص بك بنجاح. يمكنك الآن الانتقال إلى مركز البائع وإدراج المزادات.'
+        ? 'تهانينا! تم تفعيل حساب البائع الخاص بك بنجاح. يمكنك الآن الانتقال إلى مركز البائع وعرض منتجاتك للمزاد.'
         : 'Congratulations! Your seller account is active. You can now visit the Seller Center to manage your business.';
       addNotification(sellerOkTitle, sellerOkMsg, 'info');
       // 'info' is hidden from the user bell (Wave D) — confirm transiently.
