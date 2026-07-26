@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
@@ -49,10 +49,6 @@ export function useBidFlow(execute: BidExecute) {
 
   const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // E5: amount staged while the contact-completion gate is open. Once the account
-  // gains the missing channel (currentUser mirror updates -> contactComplete), the
-  // resume effect below stages the confirm at this originally-tapped amount.
-  const [pendingContactAmount, setPendingContactAmount] = useState<number | null>(null);
 
   // Ordered gate (resolveBidGate — pure, see utils/guestGate.test.ts):
   //   guest        -> SIGNUP (never a members-only sheet)
@@ -76,25 +72,16 @@ export function useBidFlow(execute: BidExecute) {
       return;
     }
     if (decision === 'contact') {
-      // Stash the amount + open the global contact modal; the resume effect stages
-      // the confirm once the account has both channels (matches the photo/membership
-      // gate mechanism, but resumes the original bid instead of dropping it).
-      setPendingContactAmount(amount);
+      // Open the contact-completion modal and stop, exactly like the photo/membership
+      // gates above: the bid is dropped, and the user re-taps Bid after completing
+      // their contact info. No amount is stashed and there is no auto-resume — that
+      // avoided a stale amount resuming on the wrong auction across concurrent
+      // useBidFlow instances (reel view + details overlay).
       setContactModalOpen(true);
       return;
     }
     setPendingBid(amount);
   }, [isAuthenticated, isMember, hasPhoto, contactComplete, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen]);
-
-  // E5 resume: once the contact modal completes (account now has phone + email),
-  // stage the confirm at the amount the user originally tapped. Only the surface
-  // that staged an amount resumes — other useBidFlow instances hold null.
-  useEffect(() => {
-    if (pendingContactAmount !== null && contactComplete) {
-      setPendingBid(pendingContactAmount);
-      setPendingContactAmount(null);
-    }
-  }, [pendingContactAmount, contactComplete]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 
