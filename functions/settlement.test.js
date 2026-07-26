@@ -14,7 +14,54 @@ const {
   MAX_ANTISNIPE_SEC,
   sellerCommissionFils,
   sellerNetFils,
+  BUYER_PREMIUM_RATE,
+  premiumFils,
+  totalDueFils,
+  buyerPremiumJod,
+  totalDueJod,
 } = require('./settlement');
+
+describe("buyer's premium (5% added to the winner's total)", () => {
+  it('adds 5 JOD on a 100 JOD hammer (100000 fils)', () => {
+    expect(premiumFils(100000)).toBe(5000);
+    expect(totalDueFils(100000)).toBe(105000);
+  });
+  it('total due is always hammer + premium', () => {
+    for (const h of [1, 999, 1000, 1001, 12345, 500000, 7777777]) {
+      expect(totalDueFils(h)).toBe(Math.round(h) + premiumFils(h));
+    }
+  });
+  it('rounds the premium to whole fils (odd amounts)', () => {
+    // 1234 * 0.05 = 61.7 -> 62
+    expect(premiumFils(1234)).toBe(62);
+    expect(totalDueFils(1234)).toBe(1296);
+  });
+  it('is 0 for non-positive / junk input (same guard as the seller helpers)', () => {
+    expect(premiumFils(0)).toBe(0);
+    expect(premiumFils(-5)).toBe(0);
+    expect(premiumFils(NaN)).toBe(0);
+    expect(totalDueFils(undefined)).toBe(0);
+  });
+
+  // The JOD wrappers are what index.js writes onto orders / n8n payloads.
+  it('JOD wrappers double-round exactly like the inlined formula they replace', () => {
+    for (const jod of [0.5, 1, 7.35, 100, 249.99, 1234.567]) {
+      const inlined = Math.round(Math.round(jod * 1000) * 0.05) / 1000;
+      const inlinedTotal = (Math.round(jod * 1000) + Math.round(Math.round(jod * 1000) * 0.05)) / 1000;
+      expect(buyerPremiumJod(jod)).toBe(inlined);
+      expect(totalDueJod(jod)).toBe(inlinedTotal);
+    }
+  });
+  it('exposes the rate so a change lands in ONE place', () => {
+    expect(BUYER_PREMIUM_RATE).toBe(0.05);
+  });
+  it('10% total take reconstitutes from the two helpers', () => {
+    const hammer = 100000;
+    expect(totalDueFils(hammer) - sellerNetFils(hammer)).toBe(
+      premiumFils(hammer) + sellerCommissionFils(hammer)
+    );
+  });
+});
 
 describe('seller commission (5% deducted from payout)', () => {
   it('nets the seller 95 on a 100 JOD hammer (100000 fils)', () => {

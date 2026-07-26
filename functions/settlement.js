@@ -79,10 +79,37 @@ function computeSoftCloseEnd(currentEndMs, nowMs, windowMs, extendMs) {
   return currentEndMs;
 }
 
-// Seller commission: Mazad's total take is 10% — a 5% BUYER premium (added to the
-// winner's total, computed elsewhere) PLUS a 5% SELLER commission deducted from the
-// seller's payout, so a 100 JOD hammer nets the seller 95. Integer fils, matching the
-// double-round style used for the buyer premium.
+// Buyer's premium: 5% ADDED on top of the hammer, so a 100 JOD win costs 105.
+// Integer fils, rounded once — the money math never touches floats twice.
+//
+// This used to be inlined as `Math.round(Math.round(price*1000)*0.05)/1000` at
+// twelve call sites in index.js (six premium/total pairs). One source of truth
+// so the next rate change is a one-line edit, not a twelve-site sweep that
+// silently leaves a couple behind.
+const BUYER_PREMIUM_RATE = 0.05;
+function premiumFils(hammerFils) {
+  const h = Math.round(Number(hammerFils) || 0);
+  if (h <= 0) return 0;
+  return Math.round(h * BUYER_PREMIUM_RATE);
+}
+function totalDueFils(hammerFils) {
+  const h = Math.round(Number(hammerFils) || 0);
+  if (h <= 0) return 0;
+  return h + premiumFils(h);
+}
+
+// JOD-denominated wrappers — orders and n8n payloads carry JOD, not fils. These
+// reproduce the old inlined double-round exactly (JOD -> fils -> round -> JOD).
+function buyerPremiumJod(hammerJod) {
+  return premiumFils(Math.round(Number(hammerJod) * 1000)) / 1000;
+}
+function totalDueJod(hammerJod) {
+  return totalDueFils(Math.round(Number(hammerJod) * 1000)) / 1000;
+}
+
+// Seller commission: Mazad's total take is 10% — the 5% BUYER premium above PLUS
+// a 5% SELLER commission deducted from the seller's payout, so a 100 JOD hammer
+// nets the seller 95. Integer fils, matching the buyer-premium style.
 const SELLER_COMMISSION_RATE = 0.05;
 function sellerCommissionFils(hammerFils) {
   const h = Math.round(Number(hammerFils) || 0);
@@ -102,6 +129,11 @@ module.exports = {
   SELLER_COMMISSION_RATE,
   sellerCommissionFils,
   sellerNetFils,
+  BUYER_PREMIUM_RATE,
+  premiumFils,
+  totalDueFils,
+  buyerPremiumJod,
+  totalDueJod,
   resolvePaymentWindowHours,
   DEFAULT_PAYMENT_WINDOW_HOURS,
   MIN_PAYMENT_WINDOW_HOURS,
