@@ -120,6 +120,15 @@ service cloud.firestore {
           // the standard 30s; only the admin drop builder tunes it.
           (!('antiSnipeWindowSec' in request.resource.data) || request.resource.data.antiSnipeWindowSec == 30) &&
           (!('antiSnipeExtendSec' in request.resource.data) || request.resource.data.antiSnipeExtendSec == 30) &&
+          // Where an item may be physically viewed is a Mazad ops decision, not a
+          // seller's claim to make. Only the admin sets it — at the approval gate
+          // or the drop builder (isAdmin branch above) — so a seller may not set
+          // these at ANY value: no declaring that buyers may visit them, and
+          // certainly not that the lot sits at our office. Approval deliberately
+          // writes neither key when no viewing is stated, so a seller-authored
+          // claim would otherwise survive the review untouched and go live.
+          (!('viewing' in request.resource.data)) &&
+          (!('viewingPlace' in request.resource.data)) &&
           (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false) &&
           (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus == 'pending') &&
           (!('currentPrice' in request.resource.data) || request.resource.data.currentPrice == request.resource.data.startingPrice)
@@ -129,9 +138,10 @@ service cloud.firestore {
       // edit while under review ('processing'/legacy 'pending') or resubmit a
       // 'rejected' listing back into review — NEVER move a doc to a
       // buyer-visible/terminal status ('upcoming'/'live'/'active'/'completed'),
-      // and never touch winner/bidder/price-race or approval-gate fields
-      // (forged social-proof wins / self-approval). Only isAdmin() — or the
-      // Cloud Functions service path, which bypasses rules — may do those.
+      // and never touch winner/bidder/price-race, approval-gate or ops-owned
+      // fields (forged social-proof wins / self-approval / a self-declared
+      // viewing claim). Only isAdmin() — or the Cloud Functions service path,
+      // which bypasses rules — may do those.
       allow update: if isSignedIn() && (
         isAdmin() ||
         (
@@ -143,7 +153,7 @@ service cloud.firestore {
             'winnerEmail', 'winnerPhone', 'winnerCity', 'currentPrice',
             'totalBids', 'scheduledStartAt', 'approvalStatus', 'isApproved',
             'approvedAt', 'approvedBy', 'createdById', 'paymentWindowHours',
-            'antiSnipeWindowSec', 'antiSnipeExtendSec'
+            'antiSnipeWindowSec', 'antiSnipeExtendSec', 'viewing', 'viewingPlace'
           ])
         )
       );

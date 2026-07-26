@@ -64,8 +64,27 @@ fabricate" rule the mobile trust chips already follow.
 
 ### Firestore
 
-No index or rules change. These are two optional scalar fields on documents in
-`auctions`, written through the existing `createListing` / `approveListing` paths.
+No index change, but `firestore.rules` **must** change. These are two optional
+scalar fields on documents in `auctions`, written through the existing
+`createListing` / `approveListing` paths — and they are admin-owned. Hiding the
+selector from `ListingWizardView` and the concierge form is a UI decision only; the
+raw SDK is still reachable, so the rules have to carry the guarantee. Both write
+paths on the `auctions` match need to cover them:
+
+- **create** — the non-admin branch denies the keys outright, in the same style as
+  the `paymentWindowHours` / anti-snipe ops-decision guards:
+  `(!('viewing' in request.resource.data)) && (!('viewingPlace' in request.resource.data))`.
+  A seller may not set them at *any* value.
+- **update** — `'viewing'` and `'viewingPlace'` join the creator-branch
+  `affectedKeys().hasAny([...])` denylist, alongside `approvalStatus` /
+  `paymentWindowHours` / the anti-snipe fields.
+
+Without both, the promise that the app never shows a viewing claim staff did not set
+is unenforced: `approveListing` deliberately writes *neither* key when the admin
+states no viewing (that is what makes unset lots render nothing), so a seller-authored
+claim on their own `processing`/`rejected` listing survives approval untouched and
+goes live. The `isAdmin()` branches are unchanged — admins keep full write access.
+
 `setDoc` rejects explicit `undefined` (the project does not enable
 `ignoreUndefinedProperties`), so writers MUST omit the keys rather than pass
 `undefined` — the same conditional-spread pattern `AuctionDropBuilderView` already
