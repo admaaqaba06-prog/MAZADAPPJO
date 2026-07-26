@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
 admin.initializeApp();
@@ -220,8 +220,10 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           buyerId: winnerId,
           buyerName: winnerName,
           winningBidAmount: finalPrice,
-          buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-          totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+          buyersPremium: buyerPremiumJod(finalPrice),
+          totalDue: totalDueJod(finalPrice),
+          sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
+          sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
           paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
           paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
           status: "waiting_payment",
@@ -250,22 +252,17 @@ async function settleAuctionTxn(auctionRef, auctionData) {
 
       console.log(`[settleAuctionTxn] Settled completed auction ${auctionId} - Winner: ${winnerName} (${winnerId}) at ${finalPrice} JOD`);
 
-      // Notify winner via FCM (winnerSnap was read above, before writes)
-      // (notify) capture for post-commit webhook
+      // (notify) capture the winner's contact details for the post-commit
+      // side effects (FCM push + webhooks). NOTHING is sent from in here:
+      // Firestore retries this callback on contention — and a last-second bid
+      // on a settling auction is exactly that — so a send inside the txn fires
+      // the winner's "you won 🎉" push once per retry. Capture in, send out.
+      const winnerData = (winnerSnap && winnerSnap.exists) ? winnerSnap.data() : null;
       notifyData = {
-        phone: (winnerSnap && winnerSnap.exists ? (winnerSnap.data().phoneNumber || '') : ''),
-        winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+        phone: (winnerData && winnerData.phoneNumber) || '',
+        fcmToken: (winnerData && winnerData.fcmToken) || '',
+        winnerId, winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
       };
-      if (winnerSnap && winnerSnap.exists && winnerSnap.data().fcmToken) {
-        const token = winnerSnap.data().fcmToken;
-        await admin.messaging().send({
-          token: token,
-          notification: {
-            title: 'تهانينا! لقد فزت بالمزاد 🎉',
-            body: `مبروك! لقد انتهى المزاد على "${auctionData.title}" بعرضك الفائز بقيمة ${finalPrice.toLocaleString()} دينار أردني.`
-          }
-        }).catch(err => console.warn(`FCM error for winner ${winnerId}: ${err.message}`));
-      }
     } else if (decision.outcome === 'reserve_not_met') {
       // A winner exists but the top bid never cleared the hidden reserve.
       // Per spec: NO sale, NO order, NO wonCount. Relist-able.
@@ -289,12 +286,25 @@ async function settleAuctionTxn(auctionRef, auctionData) {
   // (notify) post-commit: fire ONLY when this run actually settled a winner.
   // Outside the transaction so retries never double-send; postToN8n never throws.
   if (notifyData) {
+    // Winner push. Post-commit for the same reason as the webhooks below — a
+    // retried transaction must never re-send it. Never throws: a dead FCM token
+    // must not fail a settlement that has already committed.
+    if (notifyData.fcmToken) {
+      await admin.messaging().send({
+        token: notifyData.fcmToken,
+        notification: {
+          title: 'تهانينا! لقد فزت بالمزاد 🎉',
+          body: `مبروك! لقد انتهى المزاد على "${notifyData.auctionTitle}" بعرضك الفائز بقيمة ${notifyData.finalPrice.toLocaleString()} دينار أردني.`
+        }
+      }).catch(err => console.warn(`FCM error for winner ${notifyData.winnerId}: ${err.message}`));
+    }
+
     await postToN8n('auction_won', {
       phone: notifyData.phone, name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
-      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(notifyData.finalPrice),
+      totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
     });
@@ -302,8 +312,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       phone: notifyData.phone, name: notifyData.winnerName,
       auctionId: notifyData.auctionId, auctionTitle: notifyData.auctionTitle,
       amount: notifyData.finalPrice,
-      buyersPremium: Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(notifyData.finalPrice * 1000) + Math.round(Math.round(notifyData.finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(notifyData.finalPrice),
+      totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
     });
@@ -1712,8 +1722,10 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       buyerId: winnerId,
       buyerName: winnerName,
       winningBidAmount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
+      sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
+      sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
       paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
       paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       status: "waiting_payment",
@@ -1741,16 +1753,16 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     await postToN8n('auction_won', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_auction_won`,
     });
     await postToN8n('payment_due', {
       phone: winnerPhone, name: winnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
-      buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
-      totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      buyersPremium: buyerPremiumJod(finalPrice),
+      totalDue: totalDueJod(finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       idempotencyKey: `${auctionId}_payment_due`,
     });
@@ -1892,9 +1904,15 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
         const newBuyerTotal = oldBuyerAvail + newBuyerEscrow;
 
+        // Seller receives the hammer MINUS Mazad's 5% seller commission (net 95 on
+        // a 100 sale). The buyer's escrow is still debited the full hammer; the 5%
+        // commission is retained by Mazad (not credited to the seller) — mirroring
+        // how the 5% buyer premium is retained. Recorded on the ledger below.
+        const commissionFils = sellerCommissionFils(amountFils);
+        const sellerNetCreditFils = sellerNetFils(amountFils);
         const oldSellerAvail = sellerWalletSnap.exists ? (sellerWalletSnap.data().availableBalance || 0) : 0;
         const oldSellerEscrow = sellerWalletSnap.exists ? (sellerWalletSnap.data().escrowBalance || 0) : 0;
-        const newSellerAvail = oldSellerAvail + amountFils;
+        const newSellerAvail = oldSellerAvail + sellerNetCreditFils;
         const newSellerTotal = newSellerAvail + oldSellerEscrow;
 
         // Execute Writes in Transaction
@@ -1955,21 +1973,47 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           timestamp: Date.now()
         });
 
+        const sellerNetJOD = sellerNetCreditFils / 1000;
+        const commissionJOD = commissionFils / 1000;
         transaction.set(sellerLedgerRef, {
           id: sellerLedgerRef.id,
           userId: sellerId,
           orderId: orderId,
           auctionId: auctionId,
-          amount: winningAmountJOD,
-          amountFils: amountFils,
+          amount: sellerNetJOD,
+          amountFils: sellerNetCreditFils,
           type: 'sale_payment_received',
           direction: 'credit',
           titleAr: 'تحصيل دفعة مبيعات',
           titleEn: 'Sale Payment Received',
-          descriptionAr: `تم استلام مبلغ ${winningAmountJOD} د.أ في رصيدك بعد تحرير ضمان المبيعات.`,
-          descriptionEn: `Received ${winningAmountJOD} JOD into your available balance from order escrow.`,
+          descriptionAr: `تم استلام ${sellerNetJOD} د.أ (بعد خصم عمولة مزاد جو ٥٪) في رصيدك.`,
+          descriptionEn: `Received ${sellerNetJOD} JOD (after 5% Mazad commission) into your available balance.`,
           timestamp: Date.now()
         });
+
+        // Mazad's 5% seller commission — the CREDIT leg to the platform revenue
+        // account, so the release event's double-entry balances to zero
+        // (buyer escrow −hammer, seller +net, platform +commission) and the
+        // seller's own ledger sums to exactly what their wallet was credited (net).
+        if (commissionFils > 0) {
+          const commissionLedgerRef = db.collection('ledger').doc();
+          transaction.set(commissionLedgerRef, {
+            id: commissionLedgerRef.id,
+            userId: 'mazad-platform', // synthetic platform revenue account, not the seller
+            sellerId: sellerId,
+            orderId: orderId,
+            auctionId: auctionId,
+            amount: commissionJOD,
+            amountFils: commissionFils,
+            type: 'seller_commission',
+            direction: 'credit',
+            titleAr: 'عمولة مزاد جو (٥٪)',
+            titleEn: 'Mazad Commission (5%)',
+            descriptionAr: `عمولة المنصة ٥٪ بقيمة ${commissionJOD} د.أ على سعر البيع.`,
+            descriptionEn: `5% platform commission (${commissionJOD} JOD) on the sale price.`,
+            timestamp: Date.now()
+          });
+        }
 
         // 11. Create audit log
         const auditLogRef = db.collection('financialAuditLogs').doc();

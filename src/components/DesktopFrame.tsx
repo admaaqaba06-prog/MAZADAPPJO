@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { useApp, useAuctions } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
+import { useOwnsListing } from '../hooks/useOwnsListing';
 import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
@@ -78,7 +79,6 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     isGuest,
     requestSignIn
   } = useApp();
-  const { auctions } = useAuctions();
 
   // Real social proof for the new-user right rail (spec §4): live bidders
   // from the loaded auctions + recent wins (one-time cached query).
@@ -100,11 +100,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   // listing. createListing never grants isSeller (the only granting code path
   // is dead), so without this a first-time seller has NO route to the Pending
   // status tab — the Discover pending-box that used to cover that gap was
-  // removed in the Discover redesign.
-  const ownsListing = React.useMemo(() => {
-    const uid = currentUser?.id;
-    return uid ? (auctions || []).some(a => a.sellerId === uid) : false;
-  }, [auctions, currentUser?.id]);
+  // removed in the Discover redesign. Scoped per-user listener (Slice 1b) so
+  // this no longer scans the broad `auctions` array.
+  const ownsListing = useOwnsListing(currentUser?.id);
   const isSeller = isAdminOrSeller(currentUser) || ownsListing;
 
   // Wave D (spec §5): the right rail shows the user's OWN relevant alerts —

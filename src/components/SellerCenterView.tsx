@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp, useAuctions } from '../context/AppContext';
 import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
+import { sellerNet } from '../utils/bidMath';
 import { OrderDetailsView } from './OrderDetailsView';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
@@ -515,10 +516,12 @@ export const SellerCenterView: React.FC = () => {
       ['waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'disputed'].includes(o.status)
     ).length;
 
-    // Total Revenue: sum of winningBidAmount of completed or paid orders
+    // Total Revenue: seller earnings on completed/paid orders — NET of Mazad's
+    // 5% seller commission (uses the server-stamped sellerNet when present, else
+    // the display helper). E1 money model: this is what the seller actually keeps.
     const totalRev = myOrders
       .filter(o => o.status === 'completed' || o.paymentStatus === 'paid')
-      .reduce((sum, o) => sum + (o.winningBidAmount || 0), 0);
+      .reduce((sum, o) => sum + (o.sellerNet ?? sellerNet(o.winningBidAmount || 0)), 0);
 
     // Wallet balance
     const availableBalance = wallet?.availableBalance || 0;
@@ -1636,7 +1639,7 @@ export const SellerCenterView: React.FC = () => {
                     <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.escrow_pending}</p>
                     <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.escrowLocked.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
                     <p className="text-[10px] text-gray-400">
-                      {isAr ? 'أموال مبيعاتك المحتجزة بأمان في حساب الضمان لحين تأكيد التسليم.' : 'Funds held securely in Escrow until buyer inspection completed.'}
+                      {isAr ? 'أموال مبيعاتك المحتجزة بأمان في حساب الضمان لحين تأكيد التسليم — ستستلم صافي بعد عمولة ٥٪.' : 'Funds held securely in Escrow until buyer inspection completed — you receive the net after 5% commission.'}
                     </p>
                   </div>
                 </div>
@@ -1648,10 +1651,10 @@ export const SellerCenterView: React.FC = () => {
                   <div className="space-y-1">
                     <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.funds_released}</p>
                     <p className="text-2xl font-black text-gray-900 tabular-nums">
-                      {myOrders.filter(o => o.escrowStatus === 'released').reduce((sum, o) => sum + o.winningBidAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD
+                      {myOrders.filter(o => o.escrowStatus === 'released').reduce((sum, o) => sum + (o.sellerNet ?? sellerNet(o.winningBidAmount)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD
                     </p>
                     <p className="text-[10px] text-gray-400">
-                      {isAr ? 'إجمالي الأموال التي تم تحريرها بالكامل من الضمان وإيداعها بنجاح.' : 'Total historical assets released and deposited successfully.'}
+                      {isAr ? 'إجمالي الأموال التي تم تحريرها بالكامل من الضمان وإيداعها بنجاح — صافي بعد عمولة ٥٪.' : 'Total historical assets released and deposited successfully — net of 5% commission.'}
                     </p>
                   </div>
                 </div>
@@ -1749,7 +1752,8 @@ export const SellerCenterView: React.FC = () => {
                   </span>
                   <div>
                     <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.total_revenue}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.totalRev.toLocaleString()} JOD</p>
+                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.totalRev.toLocaleString(undefined, { maximumFractionDigits: 2 })} JOD</p>
+                    <p className="text-[9.5px] text-gray-400 font-bold">{isAr ? 'صافي بعد عمولة ٥٪' : 'net of 5% commission'}</p>
                   </div>
                 </div>
               </div>
@@ -1901,10 +1905,17 @@ export const SellerCenterView: React.FC = () => {
       </div>
     </div>
 
-      {/* RENDER DYNAMIC REUSABLE VIEW MODALS */}
-      {viewAuctionId && (
-        <AuctionDetailsModal auctionId={viewAuctionId} onClose={() => setViewAuctionId(null)} />
-      )}
+      {/* RENDER DYNAMIC REUSABLE VIEW MODALS — resolve the lot from the admin
+          auctions list (admin listener out of 1b scope), off the broad array
+          for the modal itself (1b Task 4). Mount only when the lot is in hand. */}
+      {(() => {
+        if (!viewAuctionId) return null;
+        const detailsLot = auctions.find(a => a.id === viewAuctionId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal auction={detailsLot} onClose={() => setViewAuctionId(null)} />
+        );
+      })()}
 
       {/* WITHDRAWAL FORM MODAL */}
       {isWithdrawModalOpen && (

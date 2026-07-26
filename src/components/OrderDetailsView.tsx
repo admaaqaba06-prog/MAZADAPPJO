@@ -44,6 +44,7 @@ import { executeOrderTransition } from '../utils/orderWorkflow';
 import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
+import { sellerNet } from '../utils/bidMath';
 
 interface OrderDetailsViewProps {
   orderId: string;
@@ -94,6 +95,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     order?.deliveryPhone ?? currentUser?.phoneNumber ?? currentUser?.phone ?? ''
   );
   const [deliveryErrors, setDeliveryErrors] = useState<{ governorate?: boolean; area?: boolean; phone?: boolean }>({});
+
+  // E1 — the phone number the CliQ transfer is coming FROM (may differ from the
+  // buyer's account number, e.g. a family member sends it). Required at the pay
+  // step; persisted as cliqSenderPhone so admin can match the incoming transfer.
+  const [cliqSenderPhone, setCliqSenderPhone] = useState<string>(order?.cliqSenderPhone ?? '');
+  const [cliqSenderPhoneError, setCliqSenderPhoneError] = useState(false);
 
   const isAdminViewer = isAdminUser(currentUser);
 
@@ -344,6 +351,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       alert(isAr ? 'الرجاء إرفاق لقطة شاشة لإيصال حوالة كليك أولاً.' : 'Please attach your CliQ transfer receipt screenshot first.');
       return;
     }
+    // E1 — the CliQ sender phone is required so admin can match the transfer.
+    if (!cliqSenderPhone.trim()) {
+      setCliqSenderPhoneError(true);
+      alert(isAr ? 'الرجاء إدخال رقم الهاتف الذي يُرسل منه الدفع عبر كليك.' : 'Please enter the phone number the CliQ payment is coming from.');
+      return;
+    }
+    setCliqSenderPhoneError(false);
     setIsUpdating(true);
     try {
       const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
@@ -362,6 +376,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       // flip to 'paid' happens in the separate 'pay' transition below.
       await updateDoc(doc(db, 'orders', order.id), {
         paymentProofUrl: proofUrl,
+        cliqSenderPhone: cliqSenderPhone.trim(),
         deliveryAddress: sanitizeDeliveryAddress(addressInput),
         deliveryPhone: addressCheck.normalizedPhone,
         updatedAt: Timestamp.now()
@@ -859,6 +874,24 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                 </div>
               </div>
             </div>
+
+            {/* E1 — seller "you'll receive" = hammer net of Mazad's 5% seller
+                commission. Seller-only; the buyer keeps seeing hammer + premium. */}
+            {isSeller && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between gap-3" id="seller-net-line">
+                <div className="space-y-0.5 min-w-0">
+                  <span className="text-[9px] text-emerald-700/70 uppercase font-black font-mono block">
+                    {isAr ? 'ستستلم' : "YOU'LL RECEIVE"}
+                  </span>
+                  <span className="text-lg font-black text-emerald-700 font-mono">
+                    {(order.sellerNet ?? sellerNet(order.winningBidAmount)).toLocaleString('en-US')} JOD
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-emerald-700/70 font-bold text-right shrink-0 max-w-[45%] leading-snug">
+                  {isAr ? 'بعد عمولة مزاد ٥٪' : 'after 5% Mazad commission'}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* SECTION 5: Payment protection card — honest Mazad-holds-funds model
@@ -1010,6 +1043,25 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   <span className="text-[9px] text-gray-400 italic block text-center mt-2">{isAr ? 'غير متوفر بعد' : 'Not available yet'}</span>
                 )}
               </div>
+
+              {/* E1 — CliQ sender phone, shown to admin so they can match the
+                  incoming transfer to this order (the number the money came from). */}
+              {isAdmin && order.cliqSenderPhone && (
+                <div className="bg-[#FAF9F6] border border-gray-100 p-4 rounded-2xl space-y-3 flex flex-col justify-between" id="admin-cliq-sender-phone">
+                  <div className="space-y-1.5">
+                    <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <h5 className="font-black text-gray-900 text-xs">{isAr ? 'هاتف مُرسِل حوالة كليك' : 'CliQ Sender Phone'}</h5>
+                    <p className="text-[9px] text-gray-400 leading-tight">
+                      {isAr ? 'الرقم الذي حُوّل منه الدفع — طابقه مع الحوالة الواردة' : 'The number the payment was sent from — match it to the incoming transfer'}
+                    </p>
+                  </div>
+                  <span className="font-mono font-black text-gray-900 text-sm select-all block mt-2" dir="ltr">
+                    {order.cliqSenderPhone}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1226,6 +1278,41 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             </p>
                             <p className="text-[9px] text-gray-400 font-mono">PNG, JPG</p>
                           </div>
+                        )}
+                      </div>
+
+                      {/* E1 — CliQ sender phone (required). The transfer may come
+                          from a number different than the buyer's account (family
+                          transfers); admin uses this to match the incoming money. */}
+                      <div className="space-y-1.5" id="cliq-sender-phone-field">
+                        <label
+                          htmlFor="cliq-sender-phone-input"
+                          className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5"
+                        >
+                          <CreditCard className="w-3.5 h-3.5 text-[#FF6B00]" />
+                          <span>{isAr ? 'رقم الهاتف الذي يُرسل منه الدفع عبر كليك' : 'Phone number the CliQ payment is coming from'}</span>
+                        </label>
+                        <input
+                          type="tel"
+                          dir="ltr"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          value={cliqSenderPhone}
+                          onChange={e => { setCliqSenderPhone(e.target.value); if (cliqSenderPhoneError) setCliqSenderPhoneError(false); }}
+                          placeholder="07XXXXXXXX"
+                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${cliqSenderPhoneError ? 'border-red-300' : 'border-gray-200'}`}
+                          id="cliq-sender-phone-input"
+                          aria-label={isAr ? 'رقم الهاتف الذي يُرسل منه الدفع عبر كليك' : 'Phone number the CliQ payment is coming from'}
+                        />
+                        <p className="text-[9.5px] text-gray-500 font-bold">
+                          {isAr
+                            ? 'قد يختلف عن رقم حسابك — إذا حوّل لك أحد أفراد العائلة، اكتب الرقم الذي أرسل منه فعلياً حتى نطابق الحوالة.'
+                            : 'This may differ from your account number — if a family member transfers for you, enter the number the money is actually sent from so we can match it.'}
+                        </p>
+                        {cliqSenderPhoneError && (
+                          <p className="text-[9.5px] text-red-500 font-bold">
+                            {isAr ? 'الرجاء إدخال رقم الهاتف الذي يُرسل منه الدفع.' : 'Please enter the phone number the payment is sent from.'}
+                          </p>
                         )}
                       </div>
 

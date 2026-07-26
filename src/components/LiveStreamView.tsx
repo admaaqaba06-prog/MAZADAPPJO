@@ -17,6 +17,9 @@ import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
+import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
+import { mergeLiveIntoCard } from '../utils/discoverQuery';
 
 /* ======================================================================
    ISOLATED COUNTDOWN LAYER (Wave 4)
@@ -326,6 +329,11 @@ export const LiveStreamView: React.FC = () => {
   } = useApp();
   const { auctions } = useAuctions();
   const { chatMessages } = useChat();
+  // Slice 1b Task 2: win-detection reads from a SCOPED per-user "my lots"
+  // subscription (not the broad `auctions` array, whose `[live,upcoming]` query
+  // drops a won lot as `removed` before any `completed` snapshot). The broad
+  // `auctions` above still drives the room grid + `activeAuctionBase`.
+  const myWinLots = useMyAuctionLots(currentUser?.id);
 
   const isAr = language === 'ar';
   // Optimistic bid overlay: the price paints my bid instantly (before the
@@ -374,9 +382,21 @@ export const LiveStreamView: React.FC = () => {
   }, [auctions]);
 
   // Active auction item helper
-  const activeAuction = useMemo(() => {
+  const activeAuctionBase = useMemo(() => {
     return liveAuctions.find(a => a.id === activeAuctionId) || liveAuctions[0];
   }, [liveAuctions, activeAuctionId]);
+
+  // Slice 1b-A: the open lot gets its OWN single-doc realtime subscription
+  // (ref-counted, leak-safe) instead of reading its live data out of the broad
+  // 80-lot array. `mergeLiveIntoCard` overlays only the authoritative live
+  // fields (currentPrice, totalBids, currentBidder*, reserveMet, status,
+  // endTime) onto the array-derived base, preserving identity + all static
+  // fields, so every downstream `activeAuction` read is unchanged.
+  const openLive = useVisibleAuctionLive(activeAuctionBase?.id ?? '', !!activeAuctionBase?.id);
+  const activeAuction = useMemo(
+    () => (activeAuctionBase ? mergeLiveIntoCard(activeAuctionBase, openLive) : activeAuctionBase),
+    [activeAuctionBase, openLive],
+  );
 
   // Align activeAuctionId to the REAL resolved lot so every chat surface keys on
   // one id. AppContext seeds activeAuctionId with the placeholder 'auction-rolex'
@@ -411,10 +431,12 @@ export const LiveStreamView: React.FC = () => {
   // Win celebration: fires only on the status *transition* to 'completed'
   // while this user holds the highest bid (per-id previous-status ref inside
   // the hook — never fires on mount into an already-completed auction).
-  // Watch ALL auctions (not just the active lot): a won auction drops out of
-  // liveAuctions the moment it flips to completed, so watching only the active
-  // lot would miss the winning edge whenever another live lot exists.
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
+  // Fed the SCOPED `myWinLots` (not the active lot, not the broad array): a
+  // won lot keeps `currentBidderId==me` and STAYS in that per-user query when
+  // it completes, so the winning `live→completed` edge is observable — which
+  // the broad `[live,upcoming]` array can never deliver (it drops the lot as
+  // `removed` first).
+  const { win, clearWin } = useWinDetection(myWinLots, currentUser?.id, currentUser?.email);
 
   // De-dup rule (Wave 1): WinCelebration is THE payment-first surface for the
   // winner the moment the win transition fires — the ended card defers to it.
@@ -727,13 +749,20 @@ export const LiveStreamView: React.FC = () => {
         />
       )}
 
-      {/* Slide-up lot specifications sheet details modal */}
-      {selectedLotDetailsId && (
-        <AuctionDetailsModal
-          auctionId={selectedLotDetailsId}
-          onClose={() => setSelectedLotDetailsId(null)} 
-        />
-      )}
+      {/* Slide-up lot specifications sheet details modal — resolve the lot from
+          `liveAuctions` (already in scope), off the broad array (1b Task 4).
+          Mount only when the lot is in hand. */}
+      {(() => {
+        if (!selectedLotDetailsId) return null;
+        const detailsLot = liveAuctions.find(a => a.id === selectedLotDetailsId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal
+            auction={detailsLot}
+            onClose={() => setSelectedLotDetailsId(null)}
+          />
+        );
+      })()}
 
       {/* Premium Final Countdown Overlay — isolated so its 1s tick re-renders
           only itself, not this whole live room. */}
