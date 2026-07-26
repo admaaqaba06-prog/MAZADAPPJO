@@ -1,40 +1,63 @@
 # Mazad JO — Backlog & Launch Punch-List
 
-_Compiled 2026-07-18 after the end-to-end production dress rehearsal. Grouped by priority. This is the board; work top-down._
+_Compiled 2026-07-18 after the end-to-end production dress rehearsal; **re-audited 2026-07-26 item-by-item against the code**. Verify before working an item — this list went ~85% stale in eight days, and two entries turned out to describe deliberate design, not defects._
 
 ---
 
-## 🔴 P0 — Blockers before real customers bid
+## ✅ Verified fixed (re-audited 2026-07-26 against the code, not the doc)
 
-1. **Accidental-bid buttons** _(bidding room)_ — the quick-bid amounts (20/25/30) sit inside the stats row and read as amount *selectors*, but tapping one places an instant bid. In a money app that's an accidental payment obligation. Fix: make them labeled bid actions with a 1-tap confirm ("Confirm: 20 JD, total 21 incl. 5%"), OR make them pure selectors that set the swipe amount and keep swipe as the only commit. One bid pattern, not two.
-2. **Stale-snapshot winner race** _(functions/index.js, closer)_ — winner/price are read from the sweep query snapshot, not the fresh in-txn read; a last-second bid can settle to the previous bidder at the previous price. Fix: derive `winnerId`/`finalPrice`/`totalBids` from `freshData` inside the transaction.
-3. **Immediate auctions never open** _(drop-builder)_ — the builder always creates status `upcoming`; the opener only flips auctions that have a `scheduledStartAt`. A drop created "now" with no schedule stays upcoming forever. Fix: if no schedule, create as `live` (or set scheduledStartAt = now).
-4. **Live room dies without a video** — `videoUrl` is empty (builder never collects one) → black screen + "NO LIVE AUCTIONS" even when an auction is live. Fix: fall back to the thumbnail + keep the bid panel; make video optional.
+Each of these was checked individually. The 2026-07-18 list had gone ~85% stale — working
+top-down from it wasted time on problems that no longer existed.
 
-## 🟠 P1 — Customer-facing / conversion
+1. ~~Accidental-bid buttons~~ — a quick-step chip now calls `onStage`, which renders the shared
+   `BidConfirm` overlay. Both surfaces have a confirm step; there is one bid pattern.
+2. ~~Stale-snapshot winner race~~ — `winnerId`/`finalPrice`/`totalBids` derive from `freshData`
+   inside the transaction (`functions/index.js`).
+3. ~~Immediate auctions never open~~ — the builder defaults `scheduledStartAt` to now.
+4. ~~Live room dies without a video~~ — `getAuctionMedia` falls back to the thumbnail; video optional.
+5. ~~Subscription submit is broken UX~~ — `isPendingReview` in `SubscriptionView` explicitly kills
+   the silent-success → duplicate-click loop; no client-side write remains.
+6. ~~Membership status needs a refresh~~ — the current user doc is live-subscribed (`AppContext.tsx`).
+7. ~~Two navigation bars~~ — no sidebar remains in `DesktopFrame`.
+8. ~~"SYSTEM CRITICAL" label~~ — gone from the codebase.
+9. ~~Fake "2.1K" viewer count~~ — gone; no viewer count renders in the auction room.
+10. ~~"No bidder / No bids yet" display bug~~ — explicitly guarded in `DesktopLiveAuctionLayout`.
+11. ~~Raw Firebase errors~~ — `LoginView` maps them ("Never show raw Firebase strings").
+13. ~~Landing says 7.5% seller fee / `#coming-soon`~~ — neither exists.
+14. ~~Identical Sign up / Log in tabs~~ — removed with the phone-only auth pass.
+16. ~~"by MAZAD JO Store"~~ — fixed at SAVE time: the drop-builder stamps `soldByMazad` and
+    `createListing` stores the MazadJo store identity. See 2026-07-26 commits.
+17. ~~Generic "User" name~~ — NOT a bug. `'User'` is a deliberate placeholder (never leak the phone
+    number as a public bidder name) and `ProfileCompletionModal` gates on `isProfileComplete`.
+18. ~~Timer counts past zero~~ — `useCountdownSeconds` unsubscribes at `<= 0`.
+19. ~~FCM send inside the settlement txn~~ — fires post-commit; guarded by `functions/txnPurity.test.js`.
+20. ~~Premium fils formula duplicated~~ — was 12 sites; extracted into `functions/settlement.js`.
+    Cross-checked against the frontend copy by `src/utils/moneyParity.test.ts`.
+21. ~~Mixed numerals~~ — NOT a bug. The house convention is amounts in Western digits
+    (`toLocaleString('en-US')`) and percentages/small quantities in Arabic-Indic prose, applied
+    consistently across 19 component files. Within `BidSheet` every amount is already Western.
+    Changing it is an app-wide localization decision, not a fix.
+22. ~~Hardcoded lot details on the DESKTOP auction page~~ — the product-info row renders real
+    per-lot data only. See `docs/superpowers/specs/2026-07-26-per-lot-viewing-design.md`.
+23. ~~"Verified Merchant" shown for every seller~~ — gated on the real `verificationStatus`.
+24. ~~Bulk relist aborts on first failure~~ — NOT a bug. `handleDuplicate` catches internally and
+    alerts rather than throwing, so the loop continues. Real (cosmetic) issue: N failures produce
+    N blocking `alert()` dialogs.
 
-5. **Subscription submit is broken UX** — silent success (no confirmation → users re-click → **duplicate requests**); every submit **double-writes** (client + Cloud Function); server-written requests show **"Invalid Date"**; **rejecting a duplicate request wipes an already-active membership**. Fix the whole flow: one write, loading→success state, dedupe, and never downgrade an active member on reject.
-6. **Membership status needs a refresh to show** — approving/activating doesn't reflect live in the header chip.
-7. **Two navigation bars** — top bar + left sidebar duplicate each other. Keep top, remove left sidebar (mobile keeps bottom bar).
-8. **"SYSTEM CRITICAL" red label** next to the user name (admin-only leftover) — reads like an error. Remove/relabel.
-9. **Fake "2.1K" live-chat viewer count** — residual theater; show real presence or nothing.
-10. **"No bidder / No bids yet" display bug** — shows even when a bid exists (data is correct; display is wrong).
-11. **Raw Firebase errors shown to users** (e.g. "Hostname match not found (auth/captcha-check-failed)") — map to friendly AR/EN messages.
-12. **Bot ~33% failure rate** _(WhatsApp AI Reply Agent, pre-existing)_ — separate from our pipe; needs a dedicated dig (mohammad's bot).
+## 🔴 Open — verified real
 
-## 🟡 P2 — Polish
+15. ~~**`misc` lots are unfindable and mislabelled**~~ ✅ **Fixed 2026-07-26.** Two halves:
+    `channelToCategory` sends the `misc` drop channel to the stored value `Fashion`, and no
+    discovery chip matched it (chips were All / Cars / Real Estate / Phones / Watches /
+    Electronics) — so every misc lot was reachable only under "All", invisible to anyone using a
+    category filter. Separately, `categoryLabel` rendered that bucket as "أزياء / Fashion" while
+    the seller's own picker in `ListingWizardView` calls it "أخرى / Other", so a mixed bag of
+    goods was presented to buyers as clothing. Added an "Other / أخرى" chip matching
+    `['Fashion','Misc']` and relabelled the bucket. The stored value is unchanged — renaming it
+    would orphan every existing lot.
 
-13. **Landing still says 7.5% seller fee** — must be 5% + 5%; kill the `#coming-soon` dead-end CTAs; remove pre-launch copy.
-14. **Collapse identical Sign up / Log in tabs** (now that auth is phone-only they're the same).
-15. **`misc` drop-channel → "Fashion" category** — invisible under the new category pills; add a "Misc" mapping or pill.
-16. ~~**"by MAZAD JO Store"** on auctions — show the real seller/creator name.~~ ✅ **Fixed 2026-07-26** — the root cause was at SAVE time, not display: `createListing` stored `sellerName: currentUser.name`, so an admin-built drop was saved under the admin's *personal* name, and the desktop page papered over it with a hardcoded `'MAZAD JO Store'` fallback that was right for Mazad's own drops and wrong for any third-party seller missing a store name. The drop-builder now stamps `soldByMazad`, and `createListing` stores the MazadJo store name + real app icon as the buyer-facing identity (gated on `isAdminUser`; `soldByMazad` is admin-only in `firestore.rules`). `sellerId`/`createdById` deliberately unchanged — orders, payouts, reviews and ownership rules are keyed on them. A render-time swap to `activeAuction.sellerName` was tried first and reverted: it would have shown buyers the admin's personal name.
-17. **Generic "User" name** — prompt for a name during onboarding.
-18. **Timer counts past zero** — frontend countdown doesn't stop at auction end.
-19. ~~**FCM send inside the settlement txn** — on retry, duplicate "you won" push; move post-commit next to the n8n calls.~~ ✅ **Fixed 2026-07-26** — the winner push now fires post-commit alongside the n8n webhooks; the token is captured inside the txn. Guarded by `functions/txnPurity.test.js`, which fails if any non-idempotent send (FCM or `postToN8n`) is reintroduced inside *any* transaction callback.
-20. ~~**Premium fils formula duplicated 6×** _(functions)_ — extract a `premiumFils(price)` helper before the 5% rate ever changes.~~ ✅ **Fixed 2026-07-26** — was 12 sites, not 6. Extracted `premiumFils`/`totalDueFils` (+ `buyerPremiumJod`/`totalDueJod` wrappers) and `BUYER_PREMIUM_RATE` into `functions/settlement.js`, beside the seller helpers. Note: `src/utils/bidMath.ts` still carries the frontend's own copy of the 5% — it agrees today, but a rate change is a two-file edit.
-21. **Mixed numerals** — premium disclosure uses Western digits while the button uses Arabic-Indic; make consistent.
-22. ~~**Hardcoded lot details on the DESKTOP auction page** — condition "NEW", "Free Delivery" and "Amman, Jordan" were string literals shown for every lot. The 2026-07-25 mobile redesign deleted these on mobile only.~~ ✅ **Fixed 2026-07-26** — the desktop product-info row now renders real per-lot data only: condition from `activeAuction.condition`, and location replaced by the new per-lot `viewing` field. "Free Delivery" is gone — no shipping data backed it. Blocks with no data are omitted, and the row is suppressed entirely when nothing qualifies. See `docs/superpowers/specs/2026-07-26-per-lot-viewing-design.md`.
-23. ~~**"Verified Merchant" shown for every seller**~~ ✅ **Fixed 2026-07-26** — the label and the `ShieldCheck` tick are now gated on the seller's real `verificationStatus`, via the `isVerified` value the component already derived but ignored at two of three sites. The seller-card copy was also English-only inside an otherwise bilingual component; it is bilingual now.
+12. **Bot ~33% failure rate** _(WhatsApp AI Reply Agent)_ — **cannot be verified from this repo**;
+    it is Mohammad's bot and lives outside this codebase. Needs a dedicated dig there.
 
 ## 🧰 Infra / runbook
 

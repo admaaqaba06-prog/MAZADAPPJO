@@ -9,7 +9,13 @@ describe('categoryLabel', () => {
   it('maps the known categories to Arabic', () => {
     expect(categoryLabel('Electronics', true)).toBe('إلكترونيات');
     expect(categoryLabel('Vehicles', true)).toBe('سيارات');
-    expect(categoryLabel('Fashion', true)).toBe('أزياء');
+    // 'Fashion' is the CATCH-ALL bucket (channelToCategory sends the misc drop
+    // channel here), not a clothing category — so it reads "Other", matching
+    // the seller's own picker in ListingWizardView.
+    expect(categoryLabel('Fashion', true)).toBe('أخرى');
+    expect(categoryLabel('Fashion', false)).toBe('Other');
+    // Categories with no English override still fall through to the raw value.
+    expect(categoryLabel('Electronics', false)).toBe('Electronics');
   });
   it('matches case-insensitively and maps legacy values', () => {
     expect(categoryLabel('electronics', true)).toBe('إلكترونيات');
