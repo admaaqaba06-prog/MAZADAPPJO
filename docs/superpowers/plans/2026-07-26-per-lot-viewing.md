@@ -868,6 +868,7 @@ Find the JSX label/input group for the starting price field. Immediately after t
                 onPlaceChange={setViewingPlace}
                 isAr={isAr}
                 accentClass="bg-[#F05123] text-white border-[#F05123]"
+                focusClass="focus:border-[#F05123]"
               />
 ```
 
