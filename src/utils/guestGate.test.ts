@@ -7,6 +7,8 @@ import {
   resolveBidGate,
   resolveGuestWriteAction,
   resolveUnauthenticatedScreen,
+  resolveMissingContact,
+  isContactComplete,
 } from './guestGate';
 
 describe('isGuestSession', () => {
@@ -155,5 +157,34 @@ describe('resolveUnauthenticatedScreen — what a logged-out visitor sees', () =
     expect(
       resolveUnauthenticatedScreen({ ...base, activeView: 'about' })
     ).toBe('browse');
+  });
+});
+
+describe('resolveMissingContact', () => {
+  it('phone-OTP user (email empty) needs email only', () => {
+    expect(resolveMissingContact({ phoneNumber: '+962790000000', email: '' }))
+      .toEqual({ needsPhone: false, needsEmail: true });
+  });
+  it('Google user (no phone) needs phone only', () => {
+    expect(resolveMissingContact({ phoneNumber: '', email: 'a@b.com' }))
+      .toEqual({ needsPhone: true, needsEmail: false });
+  });
+  it('complete user needs nothing', () => {
+    expect(resolveMissingContact({ phoneNumber: '+962790000000', email: 'a@b.com' }))
+      .toEqual({ needsPhone: false, needsEmail: false });
+  });
+  it('falls back to phone mirror field', () => {
+    expect(resolveMissingContact({ phone: '+962790000000', email: 'a@b.com' }).needsPhone).toBe(false);
+  });
+  it('treats whitespace + malformed email as missing', () => {
+    expect(resolveMissingContact({ phoneNumber: '   ', email: 'not-an-email' }))
+      .toEqual({ needsPhone: true, needsEmail: true });
+  });
+  it('null user needs both', () => {
+    expect(resolveMissingContact(null)).toEqual({ needsPhone: true, needsEmail: true });
+  });
+  it('isContactComplete is true only when nothing missing', () => {
+    expect(isContactComplete({ phoneNumber: '+962790000000', email: 'a@b.com' })).toBe(true);
+    expect(isContactComplete({ phoneNumber: '', email: 'a@b.com' })).toBe(false);
   });
 });

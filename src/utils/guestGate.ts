@@ -111,3 +111,31 @@ export function resolveUnauthenticatedScreen(args: UnauthScreenArgs): UnauthScre
   if (!canGuestAccessView(activeView)) return 'login';
   return 'browse';
 }
+
+export interface ContactUser {
+  phoneNumber?: string;
+  phone?: string;
+  email?: string;
+}
+export interface MissingContact {
+  needsPhone: boolean;
+  needsEmail: boolean;
+}
+
+// Deliberately loose email check: block only obviously-broken input (no @, no
+// dot-suffix). Email is UNVERIFIED in E5, so this just catches typos/blanks.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function resolveMissingContact(user: ContactUser | null | undefined): MissingContact {
+  const phone = ((user?.phoneNumber || user?.phone || '') as string).trim();
+  const email = ((user?.email || '') as string).trim();
+  return {
+    needsPhone: phone.length === 0,
+    needsEmail: !EMAIL_RE.test(email),
+  };
+}
+
+export function isContactComplete(user: ContactUser | null | undefined): boolean {
+  const m = resolveMissingContact(user);
+  return !m.needsPhone && !m.needsEmail;
+}
