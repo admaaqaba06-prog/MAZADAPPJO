@@ -22,6 +22,7 @@ import {
   Plus, 
   Car,
   Laptop,
+  Package,
   Building2,
   Smartphone,
   Watch,
@@ -378,7 +379,13 @@ export const DiscoveryFeedView: React.FC = () => {
     { name: 'Real Estate', icon: <Building2 className="w-3.5 h-3.5" />, arName: 'عقارات', match: ['Real Estate'] },
     { name: 'Phones', icon: <Smartphone className="w-3.5 h-3.5" />, arName: 'هواتف', match: ['Phones', 'Electronics'] },
     { name: 'Watches', icon: <Watch className="w-3.5 h-3.5" />, arName: 'ساعات', match: ['Watches'] },
-    { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات', match: ['Electronics'] }
+    { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات', match: ['Electronics'] },
+    // The catch-all bucket. channelToCategory sends the `misc` drop channel to
+    // the stored value 'Fashion', and until this chip existed NO chip matched
+    // it — so every misc lot was reachable only under 'All', invisible to
+    // anyone using a category filter. Labelled 'Other' to match both the
+    // seller's own picker in ListingWizardView and categoryLabel.
+    { name: 'Other', icon: <Package className="w-3.5 h-3.5" />, arName: 'أخرى', match: ['Fashion', 'Misc'] }
   ], []);
 
   // --- Discover-pagination (Slice 1), the sole feed path -------------------
