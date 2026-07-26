@@ -12,9 +12,15 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod } = require('./settlement');
+const { onAuctionWriteAlgolia } = require('./algoliaSync');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Firestore → Algolia search mirror (defined in ./algoliaSync with its own
+// ALGOLIA_ADMIN_KEY secret + runWith). Re-exported here so it deploys with the
+// rest of the functions bundle.
+exports.onAuctionWriteAlgolia = onAuctionWriteAlgolia;
 
 // Per-auction payment window: hours the winner has to pay before the
 // paymentDefaultEnforcer blocks them. Set at auction creation; clamp + 24h
