@@ -26,8 +26,6 @@ function getClient() {
   return client;
 }
 
-const EMPTY: SearchResult = { hits: [], nbHits: 0, page: 0, nbPages: 0 };
-
 export const algoliaProvider: SearchProvider = {
   async search(query: string, opts?: SearchOptions): Promise<SearchResult> {
     try {
@@ -50,10 +48,13 @@ export const algoliaProvider: SearchProvider = {
         nbPages: res?.nbPages ?? 0,
       };
     } catch (err) {
-      // Never throw a search failure into the UI — log and return an honest
-      // empty page so Discovery can render a "no matches" state.
+      // Log then RE-THROW a genuine outage. `useAlgoliaSearch` catches this out
+      // of the render path and flips its `error` flag, so Discovery can show a
+      // distinct "search temporarily unavailable" state instead of rendering an
+      // outage identically to a legitimate "no matches". The throw never reaches
+      // the UI directly — the hook is the only caller and it always catches.
       console.error('[algoliaProvider] search failed:', err);
-      return EMPTY;
+      throw err;
     }
   },
 };

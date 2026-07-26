@@ -466,6 +466,27 @@ export const DiscoveryFeedView: React.FC = () => {
     return () => obs.disconnect();
   }, [usePaginated, feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
 
+  // Infinite-scroll sentinel for the Algolia SEARCH results (Slice 2). Same
+  // IntersectionObserver pattern as the paginated feed above: when the sentinel
+  // scrolls into view (with headroom) and more pages of results exist, append
+  // the next page so every one of `nbHits` results is reachable.
+  const searchLoadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!searchMode.active) return;
+    const el = searchLoadMoreSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && searchMode.hasMore && !searchMode.loadingMore) {
+          searchMode.loadMore();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [searchMode.active, searchMode.hasMore, searchMode.loadingMore, searchMode.loadMore, searchMode.results.length]);
+
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
     if (!item.endTime) return '12:30';
@@ -920,6 +941,30 @@ export const DiscoveryFeedView: React.FC = () => {
                   <AuctionCardSkeleton key={n} />
                 ))}
               </div>
+            ) : searchMode.error ? (
+              /* Distinct from "no matches": a real search outage. The provider
+                 re-throws and the hook catches it into `error`, so we can tell
+                 an outage apart from a legitimate empty result set. Calm + on
+                 brand; bilingual/RTL. */
+              <div className="min-h-[58vh] flex items-center justify-center">
+                <div
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
+                  id="discover-search-error"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                    <Search className="w-6 h-6 stroke-[1.5]" />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                    {isAr ? 'البحث غير متاح مؤقتاً' : 'Search is temporarily unavailable'}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                    {isAr
+                      ? 'صار خلل بسيط بالبحث. جرّب مرة ثانية بعد لحظات.'
+                      : 'Something went wrong with search. Please try again in a moment.'}
+                  </p>
+                </div>
+              </div>
             ) : searchMode.results.length === 0 ? (
               <div className="min-h-[58vh] flex items-center justify-center">
                 <div
@@ -968,6 +1013,18 @@ export const DiscoveryFeedView: React.FC = () => {
                     </div>
                   ))}
                 </div>
+
+                {/* Infinite-scroll trigger: appends the next page while more
+                    results remain, so the honest `nbHits` count above stays
+                    fully reachable (not just the first page of cards). */}
+                {searchMode.hasMore && (
+                  <div ref={searchLoadMoreSentinelRef} className="h-8" aria-hidden="true" />
+                )}
+                {searchMode.loadingMore && (
+                  <div className="flex items-center justify-center py-4" id="discover-search-loading-more">
+                    <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
+                  </div>
+                )}
               </>
             )}
           </div>

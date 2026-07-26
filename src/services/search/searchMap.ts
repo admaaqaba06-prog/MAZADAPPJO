@@ -40,7 +40,10 @@ export function algoliaHitToAuction(hit: any): AuctionItem {
     id: h.objectID ?? h.id ?? '',
     title: h.title || '',
     description: h.description || '',
-    category: h.category || 'Luxury',
+    // A missing/empty category maps to '' (neutral) rather than a real chip
+    // value — a lot with no category must NOT be mislabeled (e.g. as 'Luxury')
+    // on the card. The card renders category-agnostically, so '' is safe.
+    category: h.category || '',
     status: h.status || 'live',
     sellerName: h.sellerName || '',
     thumbnailUrl: h.thumbnailUrl || '',

@@ -68,6 +68,20 @@ describe('algoliaHitToAuction', () => {
   it('resolves currentPrice from plain currentPrice when no *Fils field', () => {
     expect(algoliaHitToAuction({ objectID: 'x', currentPrice: 42 }).currentPrice).toBe(42);
   });
+
+  it('defaults a missing category to "" (neutral), NOT "Luxury"', () => {
+    // A lot with no stored category must not be mislabeled on the card.
+    expect(algoliaHitToAuction({ objectID: 'no-cat' }).category).toBe('');
+    expect(algoliaHitToAuction({ objectID: 'no-cat' }).category).not.toBe('Luxury');
+  });
+
+  it('defaults an empty-string category to "" (not "Luxury")', () => {
+    expect(algoliaHitToAuction({ objectID: 'empty-cat', category: '' }).category).toBe('');
+  });
+
+  it('preserves a present category unchanged', () => {
+    expect(algoliaHitToAuction({ objectID: 'c', category: 'Cars' }).category).toBe('Cars');
+  });
 });
 
 describe('buildFacetFilters', () => {
