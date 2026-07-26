@@ -663,6 +663,18 @@ exports.autoRelistSweep = functions.pubsub
             };
             // Conditional / optional sale fields — Firestore rejects explicit
             // undefined, so only copy when present.
+            //
+            // `viewing` / `viewingPlace` are DELIBERATELY absent from this
+            // whitelist — do not "fix" that by adding them. The drop-builder
+            // relist carries them because it is ATTENDED: an admin is looking at
+            // the seeded chip and can change or clear it before the lot is
+            // created. This sweep is UNATTENDED and stamps the child
+            // isApproved: true, so it never re-enters the approval queue — no
+            // human ever sees the claim it would be republishing. Auto-carrying
+            // a physical-viewing claim onto a new lot with no human touchpoint
+            // is exactly the fabrication utils/viewing.ts exists to prevent.
+            // Omitting fails safe: resolveViewing returns null and the child
+            // renders no viewing claim at all until staff state one.
             if (typeof startingPrice === 'number') child.currentPriceFils = Math.round(startingPrice * 1000);
             if (Array.isArray(d.mediaUrls) && d.mediaUrls.length > 0) child.mediaUrls = d.mediaUrls;
             if (d.imageUrl) child.imageUrl = d.imageUrl;

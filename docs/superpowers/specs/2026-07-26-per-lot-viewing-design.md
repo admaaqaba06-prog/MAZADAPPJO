@@ -142,6 +142,26 @@ builds directly. Written via the conditional-spread pattern noted above.
 Sellers should not self-declare that buyers may visit them; the admin sets it at
 approval, which every listing passes through regardless.
 
+### Relist paths: attended carries, unattended does not
+
+The three relist paths deliberately do **not** behave the same, because they differ
+in whether a human sees the claim before the new lot exists:
+
+| Path | Attended? | Carries `viewing`? |
+|---|---|---|
+| `AuctionDropBuilderView.handleRelist` | Yes — seeds an admin form field the admin can change or clear before submitting | **Yes** |
+| `autoRelistSweep` (`functions/index.js`) | No — a cron creates the child with `isApproved: true`, so it never re-enters the approval queue | **No** |
+| `SellerCenterView.handleDuplicate` | N/A — a seller-authored create, and `viewing` is admin-owned | **No** (stripped; the copy re-earns it at approval) |
+
+`autoRelistSweep`'s field whitelist omitting `viewing`/`viewingPlace` is the
+intended behaviour, not an oversight: propagating a physical-location claim onto a
+new lot with zero human touchpoint is the exact failure this feature exists to
+prevent. Omitting fails safe — the child renders nothing until staff state it.
+
+`handleDuplicate` additionally *must* strip both keys: `firestore.rules` denies a
+non-admin create that merely carries either key (a presence check, not a value
+check), so leaving them on the copy makes seller relist fail `permission-denied`.
+
 ## Where it renders
 
 **Mobile — `MobileAuctionView`.** A chip in the existing trust-chip row, beside
