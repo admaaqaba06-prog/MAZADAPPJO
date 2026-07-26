@@ -5,6 +5,7 @@ import { ListingWizardView } from './ListingWizardView';
 import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
 import { resizeImage } from '../utils/resizeImage';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
+import { sellerNet } from '../utils/bidMath';
 import {
   Store,
   Handshake,
@@ -385,6 +386,16 @@ export const SellView: React.FC = () => {
                   placeholder="100"
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors"
                 />
+                {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
+                <p className="text-[11px] text-gray-400 font-medium">
+                  {Number(cPrice) > 0
+                    ? (isAr
+                        ? `ستستلم ~${sellerNet(Number(cPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
+                        : `You'll receive ~${sellerNet(Number(cPrice)).toLocaleString('en-US')} JOD (~95% after 5% Mazad commission)`)
+                    : (isAr
+                        ? 'ستستلم ~٩٥٪ من السعر النهائي (بعد عمولة مزاد ٥٪)'
+                        : "You'll receive ~95% of the final price (after 5% Mazad commission)")}
+                </p>
               </div>
 
               {/* Photos (1–3) */}

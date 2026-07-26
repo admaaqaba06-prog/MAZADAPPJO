@@ -248,8 +248,22 @@ export interface Order {
   // bank transfer within paymentDeadlineAt (24h), then uploads a receipt.
   buyersPremium?: number;
   totalDue?: number;
+  /**
+   * E1 money model — seller economics stamped server-side at settlement.
+   * sellerCommission = 5% of the hammer (winningBidAmount); sellerNet = hammer
+   * minus that commission (what the seller actually receives). Display only —
+   * the payout math lives in functions/settlement.js.
+   */
+  sellerCommission?: number;
+  sellerNet?: number;
   paymentDeadlineAt?: any;
   paymentProofUrl?: string;
+  /**
+   * E1 — the phone number the buyer's CliQ transfer is coming FROM (may differ
+   * from their account number, e.g. a family member pays). Buyer-writable on
+   * their own order at the pay step; surfaced to admin to match the transfer.
+   */
+  cliqSenderPhone?: string;
   /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
   paymentVerified?: boolean;
   /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */

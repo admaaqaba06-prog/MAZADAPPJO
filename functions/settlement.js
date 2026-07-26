@@ -79,10 +79,29 @@ function computeSoftCloseEnd(currentEndMs, nowMs, windowMs, extendMs) {
   return currentEndMs;
 }
 
+// Seller commission: Mazad's total take is 10% — a 5% BUYER premium (added to the
+// winner's total, computed elsewhere) PLUS a 5% SELLER commission deducted from the
+// seller's payout, so a 100 JOD hammer nets the seller 95. Integer fils, matching the
+// double-round style used for the buyer premium.
+const SELLER_COMMISSION_RATE = 0.05;
+function sellerCommissionFils(hammerFils) {
+  const h = Math.round(Number(hammerFils) || 0);
+  if (h <= 0) return 0;
+  return Math.round(h * SELLER_COMMISSION_RATE);
+}
+function sellerNetFils(hammerFils) {
+  const h = Math.round(Number(hammerFils) || 0);
+  if (h <= 0) return 0;
+  return h - sellerCommissionFils(h);
+}
+
 module.exports = {
   reserveMet,
   resolveSettlement,
   nextAuctionNumber,
+  SELLER_COMMISSION_RATE,
+  sellerCommissionFils,
+  sellerNetFils,
   resolvePaymentWindowHours,
   DEFAULT_PAYMENT_WINDOW_HOURS,
   MIN_PAYMENT_WINDOW_HOURS,

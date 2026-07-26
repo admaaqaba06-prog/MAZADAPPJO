@@ -11,7 +11,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, sellerCommissionFils, sellerNetFils } = require('./settlement');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -216,6 +216,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           winningBidAmount: finalPrice,
           buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
           totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+          sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
+          sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
           paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
           paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
           status: "waiting_payment",
@@ -1708,6 +1710,8 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       winningBidAmount: finalPrice,
       buyersPremium: Math.round(Math.round(finalPrice * 1000) * 0.05) / 1000,
       totalDue: (Math.round(finalPrice * 1000) + Math.round(Math.round(finalPrice * 1000) * 0.05)) / 1000,
+      sellerCommission: sellerCommissionFils(Math.round(finalPrice * 1000)) / 1000,
+      sellerNet: sellerNetFils(Math.round(finalPrice * 1000)) / 1000,
       paymentDeadlineAt: paymentDeadlineFromNow(auctionData),
       paymentWindowHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
       status: "waiting_payment",
@@ -1886,9 +1890,15 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         const newBuyerEscrow = Math.max(0, oldBuyerEscrow - amountFils);
         const newBuyerTotal = oldBuyerAvail + newBuyerEscrow;
 
+        // Seller receives the hammer MINUS Mazad's 5% seller commission (net 95 on
+        // a 100 sale). The buyer's escrow is still debited the full hammer; the 5%
+        // commission is retained by Mazad (not credited to the seller) — mirroring
+        // how the 5% buyer premium is retained. Recorded on the ledger below.
+        const commissionFils = sellerCommissionFils(amountFils);
+        const sellerNetCreditFils = sellerNetFils(amountFils);
         const oldSellerAvail = sellerWalletSnap.exists ? (sellerWalletSnap.data().availableBalance || 0) : 0;
         const oldSellerEscrow = sellerWalletSnap.exists ? (sellerWalletSnap.data().escrowBalance || 0) : 0;
-        const newSellerAvail = oldSellerAvail + amountFils;
+        const newSellerAvail = oldSellerAvail + sellerNetCreditFils;
         const newSellerTotal = newSellerAvail + oldSellerEscrow;
 
         // Execute Writes in Transaction
@@ -1949,21 +1959,47 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           timestamp: Date.now()
         });
 
+        const sellerNetJOD = sellerNetCreditFils / 1000;
+        const commissionJOD = commissionFils / 1000;
         transaction.set(sellerLedgerRef, {
           id: sellerLedgerRef.id,
           userId: sellerId,
           orderId: orderId,
           auctionId: auctionId,
-          amount: winningAmountJOD,
-          amountFils: amountFils,
+          amount: sellerNetJOD,
+          amountFils: sellerNetCreditFils,
           type: 'sale_payment_received',
           direction: 'credit',
           titleAr: 'تحصيل دفعة مبيعات',
           titleEn: 'Sale Payment Received',
-          descriptionAr: `تم استلام مبلغ ${winningAmountJOD} د.أ في رصيدك بعد تحرير ضمان المبيعات.`,
-          descriptionEn: `Received ${winningAmountJOD} JOD into your available balance from order escrow.`,
+          descriptionAr: `تم استلام ${sellerNetJOD} د.أ (بعد خصم عمولة مزاد جو ٥٪) في رصيدك.`,
+          descriptionEn: `Received ${sellerNetJOD} JOD (after 5% Mazad commission) into your available balance.`,
           timestamp: Date.now()
         });
+
+        // Mazad's 5% seller commission — the CREDIT leg to the platform revenue
+        // account, so the release event's double-entry balances to zero
+        // (buyer escrow −hammer, seller +net, platform +commission) and the
+        // seller's own ledger sums to exactly what their wallet was credited (net).
+        if (commissionFils > 0) {
+          const commissionLedgerRef = db.collection('ledger').doc();
+          transaction.set(commissionLedgerRef, {
+            id: commissionLedgerRef.id,
+            userId: 'mazad-platform', // synthetic platform revenue account, not the seller
+            sellerId: sellerId,
+            orderId: orderId,
+            auctionId: auctionId,
+            amount: commissionJOD,
+            amountFils: commissionFils,
+            type: 'seller_commission',
+            direction: 'credit',
+            titleAr: 'عمولة مزاد جو (٥٪)',
+            titleEn: 'Mazad Commission (5%)',
+            descriptionAr: `عمولة المنصة ٥٪ بقيمة ${commissionJOD} د.أ على سعر البيع.`,
+            descriptionEn: `5% platform commission (${commissionJOD} JOD) on the sale price.`,
+            timestamp: Date.now()
+          });
+        }
 
         // 11. Create audit log
         const auditLogRef = db.collection('financialAuditLogs').doc();

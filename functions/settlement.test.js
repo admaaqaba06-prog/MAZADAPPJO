@@ -12,7 +12,42 @@ const {
   DEFAULT_ANTISNIPE_WINDOW_SEC,
   MIN_ANTISNIPE_SEC,
   MAX_ANTISNIPE_SEC,
+  sellerCommissionFils,
+  sellerNetFils,
 } = require('./settlement');
+
+describe('seller commission (5% deducted from payout)', () => {
+  it('nets the seller 95 on a 100 JOD hammer (100000 fils)', () => {
+    expect(sellerCommissionFils(100000)).toBe(5000);
+    expect(sellerNetFils(100000)).toBe(95000);
+  });
+  it('commission + net always reconstitute the hammer', () => {
+    for (const h of [1, 999, 1000, 1001, 12345, 500000, 7777777]) {
+      expect(sellerCommissionFils(h) + sellerNetFils(h)).toBe(Math.round(h));
+    }
+  });
+  it('rounds the commission to whole fils (odd amounts)', () => {
+    // 1234 * 0.05 = 61.7 -> 62; net 1172
+    expect(sellerCommissionFils(1234)).toBe(62);
+    expect(sellerNetFils(1234)).toBe(1172);
+  });
+  it('is 0 for non-positive / junk input', () => {
+    expect(sellerCommissionFils(0)).toBe(0);
+    expect(sellerNetFils(0)).toBe(0);
+    expect(sellerCommissionFils(-5)).toBe(0);
+    expect(sellerNetFils(NaN)).toBe(0);
+  });
+  it('10% total take: buyer +5% and seller -5% on a 100 hammer', () => {
+    const hammer = 100000;
+    const buyerPremium = Math.round(hammer * 0.05); // 5000 (same formula as index.js)
+    const buyerPays = hammer + buyerPremium; // 105000
+    const sellerNets = sellerNetFils(hammer); // 95000
+    const mazadTake = buyerPays - sellerNets; // 10000
+    expect(buyerPays).toBe(105000);
+    expect(sellerNets).toBe(95000);
+    expect(mazadTake).toBe(10000);
+  });
+});
 
 describe('reserveMet', () => {
   it('is true when no reserve is set', () => {

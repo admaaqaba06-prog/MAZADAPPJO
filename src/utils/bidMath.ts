@@ -16,6 +16,18 @@ export function totalWithPremium(priceJod: number): number {
 }
 
 /**
+ * Seller net proceeds on a sale: hammer price MINUS Mazad's 5% seller commission
+ * (95 on a 100 sale). Mirrors sellerNetFils in functions/settlement.js — the
+ * display counterpart of totalWithPremium. Mazad's total take is 10% (buyer +5%,
+ * seller -5%).
+ */
+export function sellerNet(priceJod: number): number {
+  const fils = Math.round(priceJod * 1000);
+  if (fils <= 0) return 0;
+  return (fils - Math.round(fils * 0.05)) / 1000;
+}
+
+/**
  * Did this viewer win the auction? Server-authoritative check: the highest
  * bidder recorded ON THE AUCTION DOC (`currentBidderId`) is the winner.
  * Deliberately does NOT consult the local `bids` cache — that list is
