@@ -50,6 +50,7 @@ export default function ReviewPrompt({
         stars,
         text: text.trim() || '',
         direction: 'buyer_rates_auction',
+        sellerId: order.sellerId || null,
         vendorId: order.vendorId || vendorId || null,
         createdAt: serverTimestamp(),
       });

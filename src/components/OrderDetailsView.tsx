@@ -85,7 +85,6 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // order (if already rated) + inline star-picker + comment state.
   const [sellerBuyerStars, setSellerBuyerStars] = useState<number | null>(null);
   const [sellerRatePick, setSellerRatePick] = useState(0);
-  const [sellerRateHover, setSellerRateHover] = useState(0);
   const [sellerRateComment, setSellerRateComment] = useState('');
   const [sellerRatingSaving, setSellerRatingSaving] = useState(false);
 
@@ -2005,29 +2004,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-1.5" dir="ltr">
-                            {[1, 2, 3, 4, 5].map((n) => {
-                              const highlighted = n <= (sellerRateHover || sellerRatePick);
-                              return (
-                                <button
-                                  key={n}
-                                  type="button"
-                                  disabled={sellerRatingSaving}
-                                  onClick={() => setSellerRatePick(n)}
-                                  onMouseEnter={() => setSellerRateHover(n)}
-                                  onMouseLeave={() => setSellerRateHover(0)}
-                                  aria-label={`${n}/5`}
-                                  className="p-0.5 transition-transform duration-150 ease-out hover:scale-110 active:scale-95 cursor-pointer disabled:cursor-default"
-                                  id={`seller-rate-buyer-star-${n}`}
-                                >
-                                  <Star
-                                    className={`w-7 h-7 transition-colors ${highlighted ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`}
-                                    strokeWidth={1.75}
-                                  />
-                                </button>
-                              );
-                            })}
-                          </div>
+                          <StarRating value={sellerRatePick} onChange={setSellerRatePick} size={28} />
                           <textarea
                             value={sellerRateComment}
                             onChange={(e) => setSellerRateComment(e.target.value)}

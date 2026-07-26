@@ -1,9 +1,9 @@
 export interface Reputation { average: number | null; count: number; }
-interface AnyReview { direction?: string; stars?: number; buyerId?: string; vendorId?: string; }
+interface AnyReview { direction?: string; stars?: number; buyerId?: string; vendorId?: string; sellerId?: string; }
 
 export function computeReputation(
   reviews: AnyReview[] | null | undefined,
-  opts: { subjectField: 'buyerId' | 'vendorId'; subjectId: string; directions: string[] },
+  opts: { subjectField: 'buyerId' | 'vendorId' | 'sellerId'; subjectId: string; directions: string[] },
 ): Reputation {
   const rows = (reviews || []).filter(
     (r) => r && opts.directions.includes(r.direction || '') &&
@@ -24,5 +24,5 @@ export function buyerReputation(
 }
 
 export function sellerReputation(reviews: AnyReview[] | null | undefined, sellerId: string): Reputation {
-  return computeReputation(reviews, { subjectField: 'vendorId', subjectId: sellerId, directions: ['buyer_rates_auction'] });
+  return computeReputation(reviews, { subjectField: 'sellerId', subjectId: sellerId, directions: ['buyer_rates_auction'] });
 }

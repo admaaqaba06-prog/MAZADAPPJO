@@ -5,8 +5,8 @@ const R = [
   { direction: 'seller_rates_buyer', buyerId: 'b1', stars: 5 },
   { direction: 'seller_rates_buyer', buyerId: 'b1', stars: 3 },
   { direction: 'mazad_rates_buyer',  buyerId: 'b1', stars: 1 },
-  { direction: 'buyer_rates_auction', vendorId: 's1', stars: 4 },
-  { direction: 'buyer_rates_auction', vendorId: 's1', stars: 2 },
+  { direction: 'buyer_rates_auction', sellerId: 's1', stars: 4 },
+  { direction: 'buyer_rates_auction', sellerId: 's1', stars: 2 },
 ];
 
 describe('buyerReputation', () => {
@@ -22,7 +22,7 @@ describe('buyerReputation', () => {
 });
 
 describe('sellerReputation', () => {
-  it('averages buyer_rates_auction by vendorId', () => {
+  it('averages buyer_rates_auction by sellerId', () => {
     expect(sellerReputation(R, 's1')).toEqual({ average: 3, count: 2 });
   });
 });
