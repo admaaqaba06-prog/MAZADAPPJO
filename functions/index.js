@@ -487,7 +487,11 @@ exports.paymentDefaultEnforcer = functions.pubsub
         const u = uDoc.data();
         if (u.isBlocked === true) {
           await uDoc.ref.set(
-            { isBlocked: false, blockedUntil: admin.firestore.FieldValue.delete() },
+            {
+              isBlocked: false,
+              blockedUntil: admin.firestore.FieldValue.delete(),
+              blockedReason: admin.firestore.FieldValue.delete(),
+            },
             { merge: true }
           );
           console.log(`[paymentDefaultEnforcer] cooldown expired — unblocked ${uDoc.id}`);
@@ -528,7 +532,11 @@ exports.paymentDefaultEnforcer = functions.pubsub
         const userRef = db.collection('users').doc(buyerId);
         const userSnap = await userRef.get();
         const currentStrikes = userSnap.exists ? (Number(userSnap.data().strikeCount) || 0) : 0;
-        const newStrikes = currentStrikes + docs.length;
+        // A "miss" is one occasion, not one-per-order: multiple unpaid wins
+        // lapsing in the SAME run count as a single strike, so a first-time
+        // defaulter with several same-night wins still gets the 48h tier (not
+        // an instant 3-month suspension). Advance at most +1 per enforcer run.
+        const newStrikes = currentStrikes + 1;
         const { blockedUntil, blockedReason } = resolvePaymentDefaultBan(newStrikes, nowMs);
 
         const batch = db.batch();
@@ -540,7 +548,7 @@ exports.paymentDefaultEnforcer = functions.pubsub
           strikeCount: newStrikes,
         }, { merge: true });
         await batch.commit();
-        console.log(`[paymentDefaultEnforcer] buyer ${buyerId}: +${docs.length} strike(s) → ${newStrikes}, ${blockedReason} until ${new Date(blockedUntil).toISOString()}`);
+        console.log(`[paymentDefaultEnforcer] buyer ${buyerId}: +1 strike (${docs.length} order(s) defaulted) → ${newStrikes}, ${blockedReason} until ${new Date(blockedUntil).toISOString()}`);
       }
 
       // Orders with no buyer id: still default them (no strike to apply).
