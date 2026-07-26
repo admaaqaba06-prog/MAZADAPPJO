@@ -531,7 +531,21 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 : null;
           const viewing = resolveViewing(activeAuction, isAr);
 
-          const blocks: { key: string; icon: React.ReactNode; label: string; value: React.ReactNode }[] = [];
+          // `shrinkable` marks a block whose VALUE is free-form admin text and
+          // therefore clamps (truncate + title) instead of setting the row's
+          // width. Only such a block gets `min-w-0`: a flex item's automatic
+          // minimum size is its min-content width, so without it `truncate`
+          // never fires — the item just refuses to shrink and the long label
+          // wraps or overflows the card. Blocks with fixed-shape values keep
+          // the default min-width:auto floor so they are never squeezed below
+          // their own content by a long viewing place.
+          const blocks: {
+            key: string;
+            icon: React.ReactNode;
+            label: string;
+            value: React.ReactNode;
+            shrinkable?: boolean;
+          }[] = [];
 
           if (conditionLabel) {
             blocks.push({
@@ -554,17 +568,27 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           if (viewing) {
             blocks.push({
               key: 'viewing',
+              // The label interpolates the admin-entered viewingPlace (capped at
+              // 120 chars in ViewingSelector), so it is the one value here that
+              // can be arbitrarily long — mirrors the mobile chip's clamp
+              // (MobileAuctionView), where the same overflow was fixed: the icon
+              // holds its size, the text truncates to one line, and `title`
+              // keeps the full place reachable on hover.
               icon: (
-                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
-                  <MapPin className="w-4.5 h-4.5" />
+                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+                  <MapPin className="w-4.5 h-4.5" aria-hidden="true" />
                 </div>
               ),
               label: isAr ? 'المعاينة' : 'Viewing',
               value: (
-                <span className="text-[11px] font-black text-gray-800 mt-1 leading-none">
+                <span
+                  className="text-[11px] font-black text-gray-800 mt-1 leading-none block max-w-full truncate"
+                  title={viewing.label}
+                >
                   {viewing.label}
                 </span>
               ),
+              shrinkable: true,
             });
           }
 
@@ -583,7 +607,10 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <span>#{auctionId.slice(0, 8).toUpperCase()}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(activeAuction.id || '');
+                      // The block only exists inside the `auctionId` guard, so
+                      // the id is known-present here — copy the FULL id even
+                      // though only the first 8 chars are displayed.
+                      navigator.clipboard.writeText(auctionId);
                     }}
                     className="text-gray-400 hover:text-gray-600 cursor-pointer"
                     title="Copy"
@@ -608,12 +635,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {blocks.map((block, i) => (
                 <div
                   key={block.key}
-                  className={`flex items-center gap-2.5 ${
+                  className={`flex items-center gap-2.5 ${block.shrinkable ? 'min-w-0' : ''} ${
                     i > 0 ? 'border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4' : ''
                   }`}
                 >
                   {block.icon}
-                  <div className="text-left rtl:text-right">
+                  {/* min-w-0 completes the shrink chain for a shrinkable block
+                      (row → block → this text column → the truncating value);
+                      for the others their parent never shrinks, so it is inert. */}
+                  <div className="text-left rtl:text-right min-w-0">
                     <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">
                       {block.label}
                     </span>
