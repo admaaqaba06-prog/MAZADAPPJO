@@ -8,6 +8,8 @@ import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
 import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
+import type { ViewingMode } from '../utils/viewing';
+import { ViewingSelector } from './admin/ViewingSelector';
 import type { AuctionItem } from '../types';
 
 const DURATION_PRESETS = [
@@ -50,6 +52,10 @@ export default function AuctionDropBuilderView() {
 
   const [productName, setProductName] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
+  // Per-lot viewing for admin-created drops. Optional — unset means the lot
+  // states nothing about viewing (renders nothing) rather than claiming a place.
+  const [viewing, setViewing] = useState<ViewingMode | ''>('');
+  const [viewingPlace, setViewingPlace] = useState('');
   const [marketPrice, setMarketPrice] = useState('');
   const [reservePrice, setReservePrice] = useState('');
   const [channel, setChannel] = useState<DropChannel>('misc');
@@ -206,6 +212,8 @@ export default function AuctionDropBuilderView() {
           scheduledStartAt: scheduledStartAtMs ?? Date.now(),
           // Conditional spread: Firestore setDoc rejects explicit `undefined` values
           // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
+          ...(viewing ? { viewing } : {}),
+          ...(viewing === 'store' && viewingPlace.trim() ? { viewingPlace: viewingPlace.trim() } : {}),
           ...(extraPhotoUrls.length > 0 ? { mediaUrls: extraPhotoUrls } : {}),
           ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
           // Reserve is admin-only: createListing strips it from the auction doc
@@ -307,6 +315,17 @@ export default function AuctionDropBuilderView() {
                     : 'Seller receives ~95% of the final price (after 5% Mazad commission)')}
             </span>
           </label>
+
+          {/* Per-lot viewing — optional. Same control as the approval card. */}
+          <ViewingSelector
+            value={viewing}
+            onChange={setViewing}
+            place={viewingPlace}
+            onPlaceChange={setViewingPlace}
+            isAr={isAr}
+            accentClass="bg-[#F05123] text-white border-[#F05123]"
+            focusClass="focus:border-[#F05123]"
+          />
 
           <label className="block text-sm">{isAr ? 'سعر السوق (اختياري)' : 'Market price (optional)'}
             <input type="number" className="mt-1 w-full border rounded p-2" value={marketPrice} onChange={(e) => setMarketPrice(e.target.value)} />
