@@ -8,6 +8,8 @@ import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { minNextBid } from '../utils/bidMath';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
+import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { mergeLiveIntoCard } from '../utils/discoverQuery';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
   const {
@@ -25,7 +27,17 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   const { chatMessages } = useChat();
   const isAr = language === 'ar';
 
-  const currentItem = auctions.find(a => a.id === activeAuctionId) || auctions[0];
+  const currentItemBase = auctions.find(a => a.id === activeAuctionId) || auctions[0];
+
+  // Slice 1b-A: overlay the open lot's own single-doc realtime snapshot onto the
+  // array-derived base, so this panel's live fields no longer depend on the lot
+  // being inside the broad newest-80 window (prerequisite for removing the broad
+  // listener). `mergeLiveIntoCard` preserves identity + all static fields.
+  const openLive = useVisibleAuctionLive(currentItemBase?.id ?? '', !!currentItemBase?.id);
+  const currentItem = React.useMemo(
+    () => (currentItemBase ? mergeLiveIntoCard(currentItemBase, openLive) : currentItemBase),
+    [currentItemBase, openLive],
+  );
 
   const [timeLeftStr, setTimeLeftStr] = React.useState<string>('00:00:00');
 

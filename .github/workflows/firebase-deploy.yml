@@ -32,6 +32,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+
+      # GATE: never ship Cloud Functions to production on a red suite. This job
+      # deploys settlement, bidding, and payout code straight to prod, so the
+      # money tests run FIRST and a failure aborts the deploy. CI runs the same
+      # suite at PR time; this is the last line of defence for anything that
+      # reaches main another way (direct push, hotfix, manual dispatch).
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
 
       - name: Install Cloud Functions dependencies
         # functions/ has no package-lock.json, so use `npm install` (not `npm ci`).

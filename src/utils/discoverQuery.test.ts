@@ -253,4 +253,24 @@ describe('mergeLiveIntoCard', () => {
     expect(merged).not.toBe(base);
     expect(base.currentPrice).toBe(100);
   });
+
+  it('overlays when the live value matches the base lot id', () => {
+    const baseB: AuctionItem = { ...base, id: 'B' };
+    const merged = mergeLiveIntoCard(baseB, { id: 'B', currentPrice: 999 });
+    expect(merged.currentPrice).toBe(999);
+    expect(merged.id).toBe('B');
+  });
+
+  it('rejects a live value that belongs to a different lot (cross-lot guard)', () => {
+    const baseB: AuctionItem = { ...base, id: 'B' };
+    const merged = mergeLiveIntoCard(baseB, { id: 'A', currentPrice: 999 });
+    // A different-lot live value must not overlay: base values are preserved.
+    expect(merged.currentPrice).toBe(100);
+    expect(merged.id).toBe('B');
+  });
+
+  it('overlays a live value with NO id (backward-compat for older callers)', () => {
+    const merged = mergeLiveIntoCard(base, { currentPrice: 999 });
+    expect(merged.currentPrice).toBe(999);
+  });
 });

@@ -1,0 +1,51 @@
+name: CI (typecheck, tests, build)
+
+# The repo has a real test suite (functions/ money + settlement logic, src/
+# hooks and utils) but nothing was running it. firebase-deploy.yml ships Cloud
+# Functions to production on every merge to main that touches functions/** —
+# so before this workflow existed, a broken settlement function could reach
+# prod without a single test having run.
+#
+# This gates every PR. firebase-deploy.yml runs the same suite again before it
+# deploys, so a red main can't ship either.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  # Cancel superseded runs on the same branch/PR — the newest commit is the
+  # only one whose result matters.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Typecheck before tests: a type error is the cheapest failure to read.
+      - name: Typecheck
+        run: npm run lint
+
+      # Covers functions/ (settlement, money, subscriptions, disputes) AND src/.
+      - name: Tests
+        run: npm test
+
+      # Catches what tsc alone misses — bad imports, failed chunking, Vite
+      # config drift. Vercel builds main on merge; this catches it at PR time.
+      - name: Build
+        run: npm run build

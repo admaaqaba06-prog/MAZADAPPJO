@@ -305,6 +305,10 @@ interface AppContextProps {
     // Paginated Discover feed (Slice 1). Default OFF — reads
     // siteSettings/featureFlags.enablePaginatedDiscover === true to opt in.
     enablePaginatedDiscover: boolean;
+    // Algolia-backed Discovery search (Slice 2). Default OFF — reads
+    // siteSettings/featureFlags.enableAlgoliaSearch === true to opt in. Stays
+    // dormant until the index is backfilled; OFF = today's client-side search.
+    enableAlgoliaSearch: boolean;
   };
   updateMaintenanceMode: (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => Promise<void>;
   updateFeatureFlag: (flag: string, value: boolean) => Promise<void>;
@@ -413,7 +417,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enableWallets: true,
     enablePushNotifications: true,
     enableGuestBrowsing: true,
-    enablePaginatedDiscover: false
+    enablePaginatedDiscover: false,
+    enableAlgoliaSearch: false
   });
 
   const [systemHealthLogs, setSystemHealthLogs] = useState<any[]>([]);
@@ -1211,6 +1216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enablePushNotifications: data.enablePushNotifications !== false,
           enableGuestBrowsing: readGuestBrowsingFlag(data),
           enablePaginatedDiscover: data.enablePaginatedDiscover === true,
+          enableAlgoliaSearch: data.enableAlgoliaSearch === true,
         });
       } else {
         setFeatureFlags({
@@ -1220,6 +1226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enablePushNotifications: true,
           enableGuestBrowsing: true,
           enablePaginatedDiscover: false,
+          enableAlgoliaSearch: false,
         });
       }
     }, (err) => {

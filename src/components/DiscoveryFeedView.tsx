@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useCountdownSeconds, useIsOnScreen } from '../hooks/useCountdownSeconds';
 import { useVisibleAuctionLive } from '../hooks/useVisibleAuctionLive';
+import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
+import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { useApp, useAuctions } from '../context/AppContext';
 import { AuctionItem } from '../types';
@@ -321,7 +323,12 @@ export const DiscoveryFeedView: React.FC = () => {
   // the paginated hook is still called (hooks must be unconditional) but stays
   // fully inert (no queries, no listener) because we pass `enabled = false`.
   const usePaginated = featureFlags.enablePaginatedDiscover;
-  
+
+  // Algolia-backed search (Slice 2), flag-gated. Default OFF ⇒ the hook is fully
+  // inert (no debounce, no provider call) and the search box keeps driving
+  // today's client-side `.includes` filter below — byte-identical to today.
+  const algoliaEnabled = featureFlags.enableAlgoliaSearch;
+
   const { showToast } = useToast();
   // Real social proof (spec §4): live bidders from the loaded auctions +
   // recent wins from a one-time cached query. Never fabricated.
@@ -350,7 +357,11 @@ export const DiscoveryFeedView: React.FC = () => {
   // Win celebration: fires only when a watched auction *transitions* to
   // 'completed' while this user is the highest bidder (per-id previous-status
   // ref inside the hook — never on mount into already-completed auctions).
-  const { win, clearWin } = useWinDetection(auctions, currentUser?.id, currentUser?.email);
+  // Slice 1b Task 2: fed the SCOPED per-user `myWinLots` (not the broad
+  // `auctions` array, which drops a won lot as `removed` before any `completed`
+  // snapshot). The broad `auctions` above still drives the OFF-path grid.
+  const myWinLots = useMyAuctionLots(currentUser?.id);
+  const { win, clearWin } = useWinDetection(myWinLots, currentUser?.id, currentUser?.email);
   const handleWinPay = () => {
     const wonAuctionId = win?.auctionId;
     clearWin();
@@ -436,6 +447,13 @@ export const DiscoveryFeedView: React.FC = () => {
   const upcomingList = usePaginated ? (paginatedLists?.upcomingList ?? []) : upcomingAuctionsList;
   const showSkeleton = usePaginated ? feed.loading : isLoading;
 
+  // Algolia search results (Slice 2). Called unconditionally (hooks rule); stays
+  // INERT while the flag is OFF or the box is empty (`searchMode.active` false ⇒
+  // no provider call). When active, the category chips act as the facet filter
+  // (`selectedCategory` is passed straight through). When inactive, the feed
+  // below renders exactly today's path.
+  const searchMode = useAlgoliaSearch(searchTerm, selectedCategory, algoliaEnabled);
+
   // Infinite-scroll sentinel for the paginated LIVE grid. When it scrolls into
   // view (with headroom) and more pages exist, pull the next page.
   const loadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
@@ -454,6 +472,27 @@ export const DiscoveryFeedView: React.FC = () => {
     obs.observe(el);
     return () => obs.disconnect();
   }, [usePaginated, feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
+
+  // Infinite-scroll sentinel for the Algolia SEARCH results (Slice 2). Same
+  // IntersectionObserver pattern as the paginated feed above: when the sentinel
+  // scrolls into view (with headroom) and more pages of results exist, append
+  // the next page so every one of `nbHits` results is reachable.
+  const searchLoadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!searchMode.active) return;
+    const el = searchLoadMoreSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && searchMode.hasMore && !searchMode.loadingMore) {
+          searchMode.loadMore();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [searchMode.active, searchMode.hasMore, searchMode.loadingMore, searchMode.loadMore, searchMode.results.length]);
 
   const formatItemTimeLeft = (item?: AuctionItem) => {
     if (!item) return '12:30';
@@ -895,7 +934,108 @@ export const DiscoveryFeedView: React.FC = () => {
       {/* scroll-mt offsets the hero Browse CTA's scrollIntoView target below the
           pinned sticky header (bar+search+pills ≈ 190px mobile / single filter row ≈ 60px desktop). */}
       <div className="flex-grow px-4 pb-12 scroll-mt-48 lg:scroll-mt-24" id="discover-feed-grid">
-        {showSkeleton ? (
+        {searchMode.active ? (
+          /* ---- Algolia search results (Slice 2, flag-gated) ----------------
+             Replaces the live/upcoming feed sections while the search box is
+             non-empty AND the flag is ON. Reuses the SAME PremiumAuctionCard
+             with liveEnabled so each on-screen result gets the live-on-visible
+             overlay (fresh price/bids). Category chips above act as the facet
+             filter (passed to the hook as `selectedCategory`). */
+          <div className="space-y-4" id="discover-search-results">
+            {searchMode.loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6" id="discover-search-loading">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <AuctionCardSkeleton key={n} />
+                ))}
+              </div>
+            ) : searchMode.error ? (
+              /* Distinct from "no matches": a real search outage. The provider
+                 re-throws and the hook catches it into `error`, so we can tell
+                 an outage apart from a legitimate empty result set. Calm + on
+                 brand; bilingual/RTL. */
+              <div className="min-h-[58vh] flex items-center justify-center">
+                <div
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
+                  id="discover-search-error"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                    <Search className="w-6 h-6 stroke-[1.5]" />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                    {isAr ? 'البحث غير متاح مؤقتاً' : 'Search is temporarily unavailable'}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                    {isAr
+                      ? 'صار خلل بسيط بالبحث. جرّب مرة ثانية بعد لحظات.'
+                      : 'Something went wrong with search. Please try again in a moment.'}
+                  </p>
+                </div>
+              </div>
+            ) : searchMode.results.length === 0 ? (
+              <div className="min-h-[58vh] flex items-center justify-center">
+                <div
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  style={{ direction: isAr ? 'rtl' : 'ltr' }}
+                  id="discover-search-empty"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                    <Search className="w-6 h-6 stroke-[1.5]" />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                    {isAr
+                      ? `لا نتائج لـ "${searchTerm.trim()}"`
+                      : `No matches for "${searchTerm.trim()}"`}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                    {isAr
+                      ? 'جرّب كلمة أبسط أو غيّر الفئة.'
+                      : 'Try a simpler word or a different category.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider" id="discover-search-count">
+                  {isAr
+                    ? `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'نتيجة' : 'نتيجة'}`
+                    : `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'result' : 'results'}`}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {searchMode.results.map((item) => (
+                    <div key={item.id} className="h-full">
+                      <PremiumAuctionCard
+                        item={item}
+                        currentUser={currentUser}
+                        bids={bids}
+                        orders={orders}
+                        sellerProfiles={sellerProfiles}
+                        isAr={isAr}
+                        onJoinLive={handleJoinLive}
+                        onSelectLot={setSelectedLotId}
+                        setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                        setActiveView={setActiveView}
+                        liveEnabled={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Infinite-scroll trigger: appends the next page while more
+                    results remain, so the honest `nbHits` count above stays
+                    fully reachable (not just the first page of cards). */}
+                {searchMode.hasMore && (
+                  <div ref={searchLoadMoreSentinelRef} className="h-8" aria-hidden="true" />
+                )}
+                {searchMode.loadingMore && (
+                  <div className="flex items-center justify-center py-4" id="discover-search-loading-more">
+                    <span className="w-5 h-5 rounded-full border-2 border-[#E85D04]/30 border-t-[#E85D04] animate-spin" />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : showSkeleton ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <AuctionCardSkeleton key={n} />
@@ -1147,13 +1287,26 @@ export const DiscoveryFeedView: React.FC = () => {
         </button>
       </footer>
 
-      {/* Render specification details slide modal */}
-      {selectedLotId && (
-        <AuctionDetailsModal
-          auctionId={selectedLotId}
-          onClose={() => setSelectedLotId(null)}
-        />
-      )}
+      {/* Render specification details slide modal — resolve the lot from the
+          feed's own displayed lists (paginated or OFF path), off the broad
+          array (1b Task 4). Mount only when the lot is in hand. */}
+      {(() => {
+        if (!selectedLotId) return null;
+        // Resolve from every displayed source, incl. the empty-state
+        // `upcomingPreview` slice — a "Next drops" tap sets `selectedLotId` from
+        // it while liveList/upcomingList are empty, so without it the modal
+        // would silently never open (dead click).
+        const detailsLot = liveList.find(a => a.id === selectedLotId)
+          ?? upcomingList.find(a => a.id === selectedLotId)
+          ?? upcomingPreview.find(a => a.id === selectedLotId);
+        if (!detailsLot) return null;
+        return (
+          <AuctionDetailsModal
+            auction={detailsLot}
+            onClose={() => setSelectedLotId(null)}
+          />
+        );
+      })()}
 
       {/* E4 — Auction Rules modal (opened from the footer link) */}
       <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
