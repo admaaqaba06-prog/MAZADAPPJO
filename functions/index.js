@@ -16,6 +16,7 @@ const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder'
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
+const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -2736,6 +2737,92 @@ exports.respondToReturn = functions.runWith({ cors: true }).https.onCall(async (
     if (error instanceof functions.https.HttpsError) throw error;
     console.error('Error in respondToReturn:', error);
     throw new functions.https.HttpsError('internal', error.message || 'تعذر إرسال الرد على طلب الإرجاع.');
+  }
+});
+
+/**
+ * E7 Task A2 — rateBuyer (NO money movement).
+ * The SELLER rates the BUYER after a COMPLETED order. This writes EXACTLY ONE
+ * new doc to the `reviews` collection and nothing else — no wallet/ledger/escrow
+ * writes ever happen here; ratings never touch money. Idempotency is guaranteed
+ * by a deterministic review doc id (`${orderId}_seller_rates_buyer`): the txn
+ * reads that ref, and a double-submit hits failed-precondition. No notification.
+ */
+exports.rateBuyer = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const { orderId, stars, comment } = data || {};
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+
+  // Pre-check auth against the order before opening the txn (mirrors how other
+  // callables here gate before the transaction).
+  const orderRef = db.collection('orders').doc(orderId);
+  const preSnap = await orderRef.get();
+  if (!preSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+  }
+  const preOrder = preSnap.data();
+  if (!preOrder.sellerId || preOrder.sellerId !== callerUserId) {
+    throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+  }
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      // Reads-before-writes: re-read the order, then read the deterministic
+      // review ref that makes double-submit safe.
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      // Auth (re-checked inside the txn): only the SELLER of this order may rate.
+      if (!orderData.sellerId || orderData.sellerId !== callerUserId) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+      }
+
+      const reviewRef = db.collection('reviews').doc(`${orderId}_seller_rates_buyer`);
+      const reviewSnap = await transaction.get(reviewRef);
+      const existing = reviewSnap.exists ? reviewSnap.data() : null;
+
+      // Guard: order completed, caller is seller, and no rating exists yet.
+      if (!canSellerRateOrder(orderData, callerUserId, existing)) {
+        throw new functions.https.HttpsError('failed-precondition', 'already rated or not completed');
+      }
+
+      // Validate/normalize the rating input via the pure helper.
+      let built;
+      try {
+        built = buildBuyerRating({ stars, comment }, Date.now());
+      } catch (e) {
+        throw new functions.https.HttpsError('invalid-argument', e.message);
+      }
+
+      // Write EXACTLY ONE new reviews doc. NO wallet/ledger/escrow writes.
+      transaction.set(reviewRef, {
+        orderId,
+        auctionId: orderData.auctionId,
+        buyerId: orderData.buyerId,
+        sellerId: orderData.sellerId,
+        ratedBy: orderData.sellerId,
+        stars: built.stars,
+        text: built.text,
+        direction: 'seller_rates_buyer',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, message: 'تم تقييم المشتري.' };
+    });
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in rateBuyer:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر حفظ التقييم.');
   }
 });
 
