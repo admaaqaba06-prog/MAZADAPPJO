@@ -155,7 +155,7 @@ export function useAlgoliaSearch(
 
     const timer = setTimeout(() => {
       searchProvider
-        .search(query, { category: cat, page: 0 })
+        .search(query, { category: cat, statuses: ['live', 'upcoming'], page: 0 })
         .then((res) => {
           // Drop if unmounted OR superseded by a newer request.
           if (cancelled || reqId !== requestIdRef.current) return;
@@ -209,7 +209,7 @@ export function useAlgoliaSearch(
     setState((prev) => ({ ...prev, loadingMore: true }));
 
     searchProvider
-      .search(cur.query, { category: cur.cat, page: nextPage })
+      .search(cur.query, { category: cur.cat, statuses: ['live', 'upcoming'], page: nextPage })
       .then((res) => {
         // Drop a late page whose query has been superseded — it must NOT append
         // onto a newer query's list.

@@ -112,4 +112,24 @@ describe('buildFacetFilters', () => {
       ['category:Phones', 'category:Electronics'],
     ]);
   });
+
+  it('builds a status-only OR group when statuses given without a category', () => {
+    expect(buildFacetFilters({ statuses: ['live', 'upcoming'] })).toEqual([
+      ['status:live', 'status:upcoming'],
+    ]);
+  });
+
+  it('combines category + statuses as two AND-ed groups (category ORs AND status ORs)', () => {
+    expect(buildFacetFilters({ category: 'Cars', statuses: ['live', 'upcoming'] })).toEqual([
+      ['category:Cars', 'category:Vehicles'],
+      ['status:live', 'status:upcoming'],
+    ]);
+  });
+
+  it('ignores an empty statuses array (no status group)', () => {
+    expect(buildFacetFilters({ statuses: [] })).toBeUndefined();
+    expect(buildFacetFilters({ category: 'Watches', statuses: [] })).toEqual([
+      ['category:Watches'],
+    ]);
+  });
 });

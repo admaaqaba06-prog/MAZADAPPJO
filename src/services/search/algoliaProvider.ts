@@ -34,7 +34,7 @@ export const algoliaProvider: SearchProvider = {
           {
             indexName: INDEX,
             query,
-            facetFilters: buildFacetFilters({ category: opts?.category }),
+            facetFilters: buildFacetFilters({ category: opts?.category, statuses: opts?.statuses }),
             page: opts?.page ?? 0,
             hitsPerPage: opts?.hitsPerPage ?? 24,
           },

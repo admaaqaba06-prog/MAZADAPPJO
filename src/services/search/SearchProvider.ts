@@ -9,6 +9,10 @@ import { AuctionItem } from '../../types';
  */
 export interface SearchOptions {
   category?: string;
+  // Optional status whitelist. Omitted = no status filter (all statuses); the
+  // public Discover search passes ['live','upcoming'] so buyers only ever see
+  // biddable lots even once closed auctions are indexed for admin lookup.
+  statuses?: string[];
   page?: number;
   hitsPerPage?: number;
 }
