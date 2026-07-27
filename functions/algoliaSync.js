@@ -5,11 +5,13 @@
  * secret (`ALGOLIA_ADMIN_KEY`, defineSecret) used ONLY here + the backfill
  * script — it is NEVER in client code or hardcoded anywhere.
  *
- * We index only PUBLIC, non-simulated inventory that a shopper can actually act
- * on: status in ['live','upcoming']. Anything else (processing/rejected/ended/
- * completed/reserve_not_met, or a simulated lot) is deleted from the index on
- * the write that transitions it out — so search never surfaces a dead or fake
- * lot.
+ * We index EVERY real (non-simulated) auction, regardless of status — including
+ * closed lots (ended/completed/reserve_not_met). This keeps closed lots in the
+ * index so the ADMIN lookup can find any auction (e.g. by title or auction
+ * number). The PUBLIC Discover search restricts results to biddable inventory
+ * (live/upcoming) CLIENT-side, so buyers never see closed lots even though they
+ * are indexed. Only a SIMULATED lot (or a deleted doc) is kept out of / removed
+ * from the index — a simulated or fake lot must never be searchable at all.
  *
  * algoliasearch is v5 (flattened API, NOT v4 — there is no initIndex). Verified
  * method shapes against the installed package:
@@ -46,13 +48,15 @@ const ALGOLIA_INDEX = 'auctions';
 if (defineSecret) ALGOLIA_ADMIN_KEY = defineSecret('ALGOLIA_ADMIN_KEY');
 
 /**
- * isIndexable — only public, non-simulated, live/upcoming lots are searchable
- * inventory. Everything else is either not-yet-public (processing), rejected,
- * already over (ended/completed/reserve_not_met), or fake (simulated) and must
- * NOT appear in search results. Null-safe: a missing doc is not indexable.
+ * isIndexable — every real (non-simulated) auction is indexed, regardless of
+ * status. Closed lots (ended/completed/reserve_not_met) stay in the index so the
+ * ADMIN lookup can search them (by title, auction number, etc.); the PUBLIC
+ * Discover search restricts to biddable statuses (live/upcoming) client-side, so
+ * indexing closed lots never leaks them to buyers. Only a SIMULATED lot is kept
+ * out — it must never be searchable. Null-safe: a missing doc is not indexable.
  */
 function isIndexable(data) {
-  return !!data && data.isSimulated !== true && ['live', 'upcoming'].includes(data.status);
+  return !!data && data.isSimulated !== true;
 }
 
 /**
@@ -104,6 +108,8 @@ function buildAlgoliaRecord(id, data) {
     endsAt: endMs,
     sellerName: d.sellerName ?? '',
     thumbnailUrl: d.thumbnailUrl ?? '',
+    auctionNumber: d.auctionNumber ?? null,
+    currentBidderName: d.currentBidderName ?? '',
   };
 }
 
