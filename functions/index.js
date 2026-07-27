@@ -72,10 +72,15 @@ async function postToN8n(event, payload) {
 // postToN8n's contract: bounded 5s wait, NEVER throws (a relay failure must not
 // break the auth callable — the code is already persisted), no-op + warn if the
 // webhook URL is unconfigured.
+// The OTP relay webhook (n8n → WaSender). Not a secret + stable, so it defaults
+// to the live endpoint and works out of the box; N8N_OTP_WEBHOOK_URL overrides it
+// if ever needed. Same fallback pattern as the Firebase config in services/firebase.
+const OTP_RELAY_URL = 'https://mazadjo.app.n8n.cloud/webhook/send-otp';
+
 async function postOtpToRelay(phone, code) {
-  const url = process.env.N8N_OTP_WEBHOOK_URL;
+  const url = process.env.N8N_OTP_WEBHOOK_URL || OTP_RELAY_URL;
   if (!url) {
-    console.warn('[otp] N8N_OTP_WEBHOOK_URL unset — skipping OTP relay send');
+    console.warn('[otp] OTP relay URL unset — skipping OTP relay send');
     return;
   }
   try {
