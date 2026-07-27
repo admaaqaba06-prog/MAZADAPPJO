@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useApp, useAuctions } from '../context/AppContext';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
-import { DROP_CHANNELS, channelLabel, channelToCategory, type DropChannel } from '../utils/dropChannel';
+import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
+import { buildDropPayload } from '../utils/dropPayload';
 import { parseAmmanLocalToMs, formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
@@ -34,16 +35,6 @@ const ANTI_SNIPE_PRESETS = [
   { sec: 30, label: '30 ثانية', en: '30s' },
   { sec: 60, label: '60 ثانية', en: '60s' },
 ];
-
-/** Internal vendor slug: lowercase, dashes, keeps Arabic/Latin letters + digits. */
-const slugifyVendor = (name: string): string =>
-  name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}-]/gu, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 
 export default function AuctionDropBuilderView() {
   const { language, currentUser, createListing } = useApp();
@@ -183,55 +174,27 @@ export default function AuctionDropBuilderView() {
         }
       }
 
-      const priceNum = Number(startingPrice);
       const newId = await createListing(
-        {
-          title: productName.trim(),
-          description: productName.trim(),
-          category: channelToCategory(channel),
-          startingPrice: priceNum,
-          minIncrement: Math.max(5, Math.round(priceNum * 0.05)),
-          currentBidderId: null,
-          currentBidderName: null,
-          videoUrl: '',
-          thumbnailUrl: '',
-          endTime: (scheduledStartAtMs ?? Date.now()) + durationSeconds * 1000,
-          duration: durationSeconds,
-          paymentWindowHours,
-          antiSnipeWindowSec: antiSnipeSec,
-          antiSnipeExtendSec: antiSnipeSec,
-          channel,
-          // E3 Slice A — start mode. first_bid: createListing omits endTime/endsAt
-          // and forces scheduledStartAt = now (goes live on the next opener run,
-          // clock starts on the first bid). scheduled: unchanged.
-          startMode,
-          // E3 Slice B — seller opt-in auto-relist (up to MAX_AUTO_RELISTS server-side).
-          autoRelist,
-          // No schedule = open now: the opener cron only flips auctions that
-          // HAVE a scheduledStartAt, so a null here would stay upcoming forever.
-          scheduledStartAt: scheduledStartAtMs ?? Date.now(),
-          // Mazad's own inventory: every drop built here sells as the MazadJo
-          // store, not as the individual admin who happened to build it.
-          // createListing turns this into the buyer-facing sellerName/sellerLogo
-          // (gated on isAdminUser); sellerId/createdById stay the real uid so
-          // orders, payouts and the ownership rules are untouched. Vendor-sourced
-          // drops included — vendorName stays internal-only.
-          soldByMazad: true,
-          // Conditional spread: Firestore setDoc rejects explicit `undefined` values
-          // (ignoreUndefinedProperties is not enabled), so omit the key when blank.
-          ...(viewing ? { viewing } : {}),
-          ...(viewing === 'store' && viewingPlace.trim() ? { viewingPlace: viewingPlace.trim() } : {}),
-          ...(extraPhotoUrls.length > 0 ? { mediaUrls: extraPhotoUrls } : {}),
-          ...(Number(marketPrice) > 0 ? { marketPrice: Number(marketPrice) } : {}),
-          // Reserve is admin-only: createListing strips it from the auction doc
-          // and writes it to auctionSecrets. It isn't in createListing's param
-          // type, hence the cast below.
-          ...(Number(reservePrice) > 0 ? { reservePrice: Number(reservePrice) } : {}),
-          // Internal vendor tracking (spec: auctions.vendorId — never shown to buyers in v1).
-          ...(vendorName.trim()
-            ? { vendorName: vendorName.trim(), vendorId: slugifyVendor(vendorName) || null }
-            : {}),
-        } as any,
+        buildDropPayload(
+          {
+            productName,
+            startingPrice,
+            channel,
+            durationSeconds,
+            paymentWindowHours,
+            antiSnipeSec,
+            startMode,
+            scheduledStartAtMs,
+            autoRelist,
+            viewing,
+            viewingPlace,
+            marketPrice,
+            reservePrice,
+            vendorName,
+            extraPhotoUrls,
+          },
+          Date.now(),
+        ) as any,
         videoFile ?? undefined,
         thumbnailFile ?? undefined,
         undefined,
