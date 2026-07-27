@@ -11,6 +11,7 @@ import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
+import { blockedApprovalReason } from '../utils/approvalGuard';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
 import { mapAuctionDocFull, PLACEHOLDER_MEDIA } from '../utils/auctionDocMap';
@@ -3993,6 +3994,26 @@ const fetchIP = async () => {
         if (snap.exists()) targetA = { id: snap.id, ...snap.data() };
       } catch { /* defaults below still apply */ }
     }
+    // REFUSE to re-open an auction that already settled. A winner defaulting
+    // leaves a dead lot in the queue and "Approve & go live" is the obvious
+    // button — but re-approving recalculates endTime and flips status back to
+    // 'live' while leaving settledAt, currentPrice and currentBidderId intact,
+    // so new bidders have to outbid the defaulter's phantom bid. Worse, orders
+    // are keyed by the AUCTION id and settleAuctionTxn only creates one
+    // `if (!orderSnap.exists)` — the defaulted order still occupies that id, so
+    // the next winner would get NO order at all. Re-running has to mean a NEW
+    // auction doc, which is what the relist paths already do.
+    if (blockedApprovalReason(targetA) === 'already_settled') {
+      addNotification(
+        language === 'ar' ? '⚠️ هذا المزاد انتهى بالفعل' : '⚠️ This auction has already settled',
+        language === 'ar'
+          ? 'لا يمكن إعادة تشغيل مزاد منتهٍ — أعد إدراجه كمزاد جديد بدلاً من ذلك.'
+          : 'A settled auction cannot be re-opened — relist it as a new auction instead.',
+        'error'
+      );
+      return;
+    }
+
     const durationSec = targetA?.duration ? Number(targetA.duration) : 600; // fallback to 10 minutes (600s)
     const freshEndTime = Date.now() + durationSec * 1000;
     const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
