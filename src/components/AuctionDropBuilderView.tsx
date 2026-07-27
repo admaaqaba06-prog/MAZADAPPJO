@@ -1,18 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useApp, useAuctions } from '../context/AppContext';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
 import { buildDropPayload } from '../utils/dropPayload';
-import { parseAmmanLocalToMs, formatAmmanClock } from '../utils/ammanTime';
+import { INITIAL_FORM, type DropFormValues } from '../utils/dropFormState';
+import { resolveOpens, validateOpens, type OpensMode } from '../utils/opensMode';
+import { formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
 import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
 import MediaPicker from './ui/MediaPicker';
+import MoreSettingsDrawer from './admin/MoreSettingsDrawer';
 import type { PickedPhoto } from '../utils/mediaPickerState';
-import type { ViewingMode } from '../utils/viewing';
-import { ViewingSelector } from './admin/ViewingSelector';
 import type { AuctionItem } from '../types';
 
 const DURATION_PRESETS = [
@@ -21,21 +22,10 @@ const DURATION_PRESETS = [
   { seconds: 1800, label: '30 دقيقة', en: '30 min' },
 ];
 
-// How long the winner has to pay before the payment-default enforcer blocks
-// them. Mirrors DEFAULT_PAYMENT_WINDOW_HOURS in functions/index.js (24h).
-const PAYMENT_WINDOW_PRESETS = [
-  { hours: 12, label: '12 ساعة', en: '12 hours' },
-  { hours: 24, label: '24 ساعة', en: '24 hours' },
-  { hours: 48, label: '48 ساعة', en: '48 hours' },
-  { hours: 72, label: '72 ساعة', en: '72 hours' },
-];
-
-// Anti-snipe soft-close window: a bid in the final N seconds resets the clock
-// to N seconds. Value tunes both window + extend (kept symmetric for v1).
-const ANTI_SNIPE_PRESETS = [
-  { sec: 15, label: '15 ثانية', en: '15s' },
-  { sec: 30, label: '30 ثانية', en: '30s' },
-  { sec: 60, label: '60 ثانية', en: '60s' },
+const OPENS_OPTIONS: { id: OpensMode; ar: string; en: string }[] = [
+  { id: 'now', ar: 'الآن', en: 'Now' },
+  { id: 'scheduled', ar: 'بوقت محدد', en: 'At a set time' },
+  { id: 'first_bid', ar: 'مع أول مزايدة', en: 'On first bid' },
 ];
 
 export default function AuctionDropBuilderView() {
@@ -43,24 +33,17 @@ export default function AuctionDropBuilderView() {
   const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
-  const [productName, setProductName] = useState('');
-  const [startingPrice, setStartingPrice] = useState('');
-  // Per-lot viewing for admin-created drops. Optional — unset means the lot
-  // states nothing about viewing (renders nothing) rather than claiming a place.
-  const [viewing, setViewing] = useState<ViewingMode | ''>('');
-  const [viewingPlace, setViewingPlace] = useState('');
-  const [marketPrice, setMarketPrice] = useState('');
-  const [reservePrice, setReservePrice] = useState('');
-  const [channel, setChannel] = useState<DropChannel>('misc');
-  const [startMode, setStartMode] = useState<'scheduled' | 'first_bid'>('scheduled'); // E3 Slice A
-  const [autoRelist, setAutoRelist] = useState(false); // E3 Slice B — off by default
-  const [scheduledLocal, setScheduledLocal] = useState(''); // "YYYY-MM-DDTHH:mm" (Amman)
-  const [durationSeconds, setDurationSeconds] = useState(1800);
-  const [paymentWindowHours, setPaymentWindowHours] = useState(24);
-  const [antiSnipeSec, setAntiSnipeSec] = useState(30);
-  const [condition, setCondition] = useState('جديدة كلياً');
-  const [vendorName, setVendorName] = useState(''); // internal-only, never buyer-facing
-  const [specsText, setSpecsText] = useState(''); // one spec per line
+  // Every text/select value the form holds lives in one object. The old form
+  // carried sixteen parallel useState calls, which is what made "reset for the
+  // next drop" and "prefill from a relist" each have to remember all sixteen.
+  const [form, setForm] = useState<DropFormValues>(INITIAL_FORM);
+  const setField = useCallback(
+    <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) =>
+      setForm((prev) => ({ ...prev, [key]: value })),
+    [],
+  );
+
+  // Media are File objects, not serialisable form state, so they stay separate.
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
   const [extraPhotos, setExtraPhotos] = useState<PickedPhoto[]>([]);
@@ -71,20 +54,24 @@ export default function AuctionDropBuilderView() {
   const [error, setError] = useState('');
 
   const specs = useMemo(
-    () => specsText.split('\n').map((s) => s.trim()).filter(Boolean),
-    [specsText],
+    () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
+    [form.specsText],
   );
 
-  const scheduledStartAtMs = useMemo(() => parseAmmanLocalToMs(scheduledLocal), [scheduledLocal]);
+  const opens = useMemo(
+    () => resolveOpens(form.opensMode, form.scheduledLocal),
+    [form.opensMode, form.scheduledLocal],
+  );
+  const scheduledStartAtMs = opens.scheduledStartAtMs;
   const startTimeDisplay = useMemo(
     () => (scheduledStartAtMs != null ? formatAmmanClock(scheduledStartAtMs) : '—'),
     [scheduledStartAtMs],
   );
 
   const durationLabel = useMemo(() => {
-    const p = DURATION_PRESETS.find((d) => d.seconds === durationSeconds);
-    return p ? p.label : `${Math.round(durationSeconds / 60)} دقيقة`;
-  }, [durationSeconds]);
+    const p = DURATION_PRESETS.find((d) => d.seconds === form.durationSeconds);
+    return p ? p.label : `${Math.round(form.durationSeconds / 60)} دقيقة`;
+  }, [form.durationSeconds]);
 
   // The auction number is allocated server-side by createListing; post-create
   // it flows back through the auctions collection in context.
@@ -106,13 +93,13 @@ export default function AuctionDropBuilderView() {
         auctionNumber: assignedNumber ?? '—',
         startTime: startTimeDisplay,
         durationLabel,
-        startingPriceJod: Number(startingPrice) || 0,
-        productName: productName.trim() || '—',
+        startingPriceJod: Number(form.startingPrice) || 0,
+        productName: form.productName.trim() || '—',
         specs,
-        condition: condition.trim(),
+        condition: form.condition.trim(),
         deepLink,
       }),
-    [assignedNumber, startTimeDisplay, durationLabel, startingPrice, productName, specs, condition, deepLink],
+    [assignedNumber, startTimeDisplay, durationLabel, form.startingPrice, form.productName, specs, form.condition, deepLink],
   );
 
   const copy = async (text: string) => {
@@ -125,11 +112,21 @@ export default function AuctionDropBuilderView() {
 
   const handleCreate = async () => {
     setError('');
-    if (!productName.trim() || !Number(startingPrice)) {
+    if (!form.productName.trim() || !Number(form.startingPrice)) {
       setError(isAr ? 'أدخل اسم المنتج وسعر البداية' : 'Enter a product name and starting price');
       return;
     }
-    if (startMode === 'scheduled' && scheduledStartAtMs != null && scheduledStartAtMs <= Date.now()) {
+    // validateOpens, NOT resolveOpens, is what makes "At a set time" mean it.
+    // resolveOpens returns scheduledStartAtMs: null for a blank/unparseable
+    // time, and buildDropPayload's `?? now` would then open the lot
+    // immediately — the exact silent degrade the old Scheduled-with-no-time
+    // field had. Blocking here is the only thing between the two.
+    const opensError = validateOpens(form.opensMode, form.scheduledLocal, Date.now());
+    if (opensError === 'REQUIRED') {
+      setError(isAr ? 'اختر وقت بدء المزاد' : 'Pick a start time');
+      return;
+    }
+    if (opensError === 'PAST') {
       setError(isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future');
       return;
     }
@@ -163,20 +160,20 @@ export default function AuctionDropBuilderView() {
       const newId = await createListing(
         buildDropPayload(
           {
-            productName,
-            startingPrice,
-            channel,
-            durationSeconds,
-            paymentWindowHours,
-            antiSnipeSec,
-            startMode,
+            productName: form.productName,
+            startingPrice: form.startingPrice,
+            channel: form.channel,
+            durationSeconds: form.durationSeconds,
+            paymentWindowHours: form.paymentWindowHours,
+            antiSnipeSec: form.antiSnipeSec,
+            startMode: opens.startMode,
             scheduledStartAtMs,
-            autoRelist,
-            viewing,
-            viewingPlace,
-            marketPrice,
-            reservePrice,
-            vendorName,
+            autoRelist: form.autoRelist,
+            viewing: form.viewing,
+            viewingPlace: form.viewingPlace,
+            marketPrice: form.marketPrice,
+            reservePrice: form.reservePrice,
+            vendorName: form.vendorName,
             extraPhotoUrls,
           },
           Date.now(),
@@ -193,8 +190,7 @@ export default function AuctionDropBuilderView() {
       // about a DIFFERENT item to buyers, which is exactly the fabrication
       // utils/viewing.ts exists to prevent. Back to "not stated": the next drop
       // has to state it deliberately.
-      setViewing('');
-      setViewingPlace('');
+      setForm((prev) => ({ ...prev, viewing: '', viewingPlace: '' }));
     } catch (e: any) {
       setError(e?.message || (isAr ? 'فشل إنشاء المزاد' : 'Failed to create auction'));
     } finally {
@@ -204,20 +200,15 @@ export default function AuctionDropBuilderView() {
 
   const finalLink = createdId ? buildAuctionUrl(createdId, window.location.origin) : '';
   const sectionHeader = 'text-xs font-bold text-neutral-400 uppercase tracking-wide';
+  const label = 'block text-sm font-bold text-gray-800';
+  const field =
+    'mt-1 w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:outline-none focus:border-[#FF6B00]';
 
   // Relist prefills the form from a past drop. The reserve is intentionally NOT
   // carried over — it lives in the admin-only secrets doc and isn't readable here.
   const handleRelist = (a: AuctionItem) => {
-    setProductName(a.title);
-    setStartingPrice(String(a.startingPrice));
-    setCondition(a.condition ?? condition);
-    if (a.channel) setChannel(a.channel);
-    if (a.marketPrice) setMarketPrice(String(a.marketPrice));
-    setDurationSeconds(a.duration || durationSeconds);
-    if (a.paymentWindowHours) setPaymentWindowHours(a.paymentWindowHours);
-    if (a.antiSnipeWindowSec) setAntiSnipeSec(a.antiSnipeWindowSec);
     // Viewing is always seeded from the SOURCE lot, never left as-is. The other
-    // fields above are internal, so a leftover is just an ops slip; a leftover
+    // fields below are internal, so a leftover is just an ops slip; a leftover
     // `viewing` would sit highlighted on the new form looking like this lot's own
     // claim and publish a place nobody stated for it. A relist is the same
     // physical item, so the source's OWN recorded viewing is a real claim and is
@@ -226,8 +217,20 @@ export default function AuctionDropBuilderView() {
     const sourceViewing = a.viewing;
     const hasSourceViewing =
       sourceViewing === 'office' || sourceViewing === 'store' || sourceViewing === 'private';
-    setViewing(hasSourceViewing ? sourceViewing : '');
-    setViewingPlace(hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '');
+
+    setForm((prev) => ({
+      ...prev,
+      productName: a.title,
+      startingPrice: String(a.startingPrice),
+      condition: a.condition ?? prev.condition,
+      channel: a.channel || prev.channel,
+      marketPrice: a.marketPrice ? String(a.marketPrice) : prev.marketPrice,
+      durationSeconds: a.duration || prev.durationSeconds,
+      paymentWindowHours: a.paymentWindowHours || prev.paymentWindowHours,
+      antiSnipeSec: a.antiSnipeWindowSec || prev.antiSnipeSec,
+      viewing: hasSourceViewing ? sourceViewing : '',
+      viewingPlace: hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '',
+    }));
     setCreatedId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -237,188 +240,7 @@ export default function AuctionDropBuilderView() {
       <div className="space-y-6">
         <h1 className="text-xl font-bold">{isAr ? 'إنشاء مزاد جديد' : 'Create a Drop'}</h1>
 
-        {/* ITEM */}
-        <section className="space-y-3">
-          <h2 className={sectionHeader}>{isAr ? 'المنتج' : 'Item'}</h2>
-
-          <label className="block text-sm">{isAr ? 'رقم المزاد' : 'Auction number'}
-            <input
-              className="mt-1 w-full border rounded p-2 bg-neutral-100 text-neutral-500"
-              value={assignedNumber != null ? String(assignedNumber) : (isAr ? 'تلقائي' : 'Auto')}
-              readOnly
-            />
-            <span className="mt-1 block text-xs text-neutral-500">
-              {isAr ? 'يُخصَّص تلقائياً عند الإنشاء' : 'Assigned automatically on create'}
-            </span>
-          </label>
-
-          <label className="block text-sm">{isAr ? 'اسم المنتج' : 'Product name'}
-            <input className="mt-1 w-full border rounded p-2" value={productName} onChange={(e) => setProductName(e.target.value)} />
-          </label>
-
-          <label className="block text-sm">{isAr ? 'الحالة' : 'Condition'}
-            <input className="mt-1 w-full border rounded p-2" value={condition} onChange={(e) => setCondition(e.target.value)} />
-          </label>
-
-          <label className="block text-sm">{isAr ? 'المواصفات (سطر لكل مواصفة)' : 'Specs (one per line)'}
-            <textarea className="mt-1 w-full border rounded p-2 h-28" value={specsText} onChange={(e) => setSpecsText(e.target.value)} />
-          </label>
-
-          <label className="block text-sm">{isAr ? 'المورّد (داخلي)' : 'Vendor (internal)'}
-            <input
-              className="mt-1 w-full border rounded p-2"
-              value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)}
-              placeholder={isAr ? 'اختياري — لا يظهر للمشترين' : 'Optional — never shown to buyers'}
-            />
-          </label>
-        </section>
-
-        {/* PRICING */}
-        <section className="space-y-3">
-          <h2 className={sectionHeader}>{isAr ? 'التسعير' : 'Pricing'}</h2>
-
-          <label className="block text-sm">{isAr ? 'سعر البداية (دينار)' : 'Starting price (JOD)'}
-            <input type="number" className="mt-1 w-full border rounded p-2" value={startingPrice} onChange={(e) => setStartingPrice(e.target.value)} />
-            {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
-            <span className="mt-1 block text-xs text-neutral-500">
-              {Number(startingPrice) > 0
-                ? (isAr
-                    ? `يستلم البائع ~${sellerNet(Number(startingPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
-                    : `Seller receives ~${sellerNet(Number(startingPrice)).toLocaleString('en-US')} JOD (~95% after 5% Mazad commission)`)
-                : (isAr
-                    ? 'يستلم البائع ~٩٥٪ من السعر النهائي (بعد عمولة مزاد ٥٪)'
-                    : 'Seller receives ~95% of the final price (after 5% Mazad commission)')}
-            </span>
-          </label>
-
-          {/* Per-lot viewing — optional. Same control as the approval card. */}
-          <ViewingSelector
-            value={viewing}
-            onChange={setViewing}
-            place={viewingPlace}
-            onPlaceChange={setViewingPlace}
-            isAr={isAr}
-            accentClass="bg-[#F05123] text-white border-[#F05123]"
-            focusClass="focus:border-[#F05123]"
-          />
-
-          <label className="block text-sm">{isAr ? 'سعر السوق (اختياري)' : 'Market price (optional)'}
-            <input type="number" className="mt-1 w-full border rounded p-2" value={marketPrice} onChange={(e) => setMarketPrice(e.target.value)} />
-          </label>
-
-          <label className="block text-sm">{isAr ? 'السعر الاحتياطي (اختياري — مخفي عن المزايدين)' : 'Reserve price (optional — hidden from bidders)'}
-            <input type="number" className="mt-1 w-full border rounded p-2" value={reservePrice} onChange={(e) => setReservePrice(e.target.value)} />
-            <span className="mt-1 block text-xs text-neutral-500">
-              {isAr ? 'لن يُباع المنتج إذا لم تصل المزايدة لهذا السعر' : "Item won't sell if bidding doesn't reach this"}
-            </span>
-          </label>
-        </section>
-
-        {/* TIMING */}
-        <section className="space-y-3">
-          <h2 className={sectionHeader}>{isAr ? 'التوقيت' : 'Timing'}</h2>
-
-          <label className="block text-sm">{isAr ? 'القناة' : 'Channel'}
-            <select className="mt-1 w-full border rounded p-2" value={channel} onChange={(e) => setChannel(e.target.value as DropChannel)}>
-              {DROP_CHANNELS.map((c) => (
-                <option key={c.value} value={c.value}>{channelLabel(c.value, isAr ? 'ar' : 'en')}</option>
-              ))}
-            </select>
-          </label>
-
-          <div className="block text-sm">
-            <span>{isAr ? 'وضع البدء' : 'Start mode'}</span>
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setStartMode('scheduled')}
-                className={`border rounded p-2 text-sm ${startMode === 'scheduled' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-neutral-700'}`}
-              >
-                {isAr ? 'مجدول' : 'Scheduled'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setStartMode('first_bid')}
-                className={`border rounded p-2 text-sm ${startMode === 'first_bid' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-neutral-700'}`}
-              >
-                {isAr ? 'أول مزايدة' : 'First bid'}
-              </button>
-            </div>
-          </div>
-
-          {startMode === 'scheduled' ? (
-            <label className="block text-sm">{isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
-              <input
-                type="datetime-local"
-                className="mt-1 w-full border rounded p-2"
-                value={scheduledLocal}
-                onChange={(e) => setScheduledLocal(e.target.value)}
-              />
-              <span className="mt-1 block text-xs text-neutral-500">
-                {isAr ? 'اتركه فارغاً ليفتح المزاد فوراً (خلال دقيقة)' : 'Leave empty to open immediately (within a minute)'}
-              </span>
-            </label>
-          ) : (
-            <p className="text-xs text-neutral-500 bg-neutral-50 border rounded p-2">
-              {isAr ? 'يبدأ فوراً — يبدأ العدّاد مع أول مزايدة' : 'Goes live now — the timer starts on the first bid'}
-            </p>
-          )}
-
-          <label className="block text-sm">{isAr ? 'المدة' : 'Duration'}
-            <select className="mt-1 w-full border rounded p-2" value={durationSeconds} onChange={(e) => setDurationSeconds(Number(e.target.value))}>
-              {DURATION_PRESETS.map((d) => (
-                <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block text-sm">{isAr ? 'مهلة الدفع' : 'Payment window'}
-            <select className="mt-1 w-full border rounded p-2" value={paymentWindowHours} onChange={(e) => setPaymentWindowHours(Number(e.target.value))}>
-              {PAYMENT_WINDOW_PRESETS.map((p) => (
-                <option key={p.hours} value={p.hours}>{isAr ? p.label : p.en}</option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs text-neutral-400">
-              {isAr
-                ? 'الوقت المتاح للفائز للدفع قبل تقييد الحساب. الافتراضي 24 ساعة.'
-                : 'Time the winner has to pay before their account is restricted. Default 24h.'}
-            </span>
-          </label>
-
-          <label className="block text-sm">{isAr ? 'الحماية من القنص' : 'Anti-snipe'}
-            <select className="mt-1 w-full border rounded p-2" value={antiSnipeSec} onChange={(e) => setAntiSnipeSec(Number(e.target.value))}>
-              {ANTI_SNIPE_PRESETS.map((p) => (
-                <option key={p.sec} value={p.sec}>{isAr ? p.label : p.en}</option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs text-neutral-400">
-              {isAr
-                ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي ٣٠ ثانية.'
-                : 'Bids in the final seconds extend the clock. Default 30s.'}
-            </span>
-          </label>
-
-          {/* E3 Slice B — auto-relist opt-in */}
-          <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={autoRelist}
-              onChange={(e) => setAutoRelist(e.target.checked)}
-            />
-            <span>
-              {isAr ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)' : 'Auto-relist if unsold (up to 2×)'}
-              <span className="mt-0.5 block text-xs text-neutral-400">
-                {isAr
-                  ? 'يُعاد إدراج المنتج تلقائياً بعد ٢٤ ساعة إن انتهى دون بيع.'
-                  : 'The item is automatically relisted 24h after it ends unsold.'}
-              </span>
-            </span>
-          </label>
-        </section>
-
-        {/* MEDIA */}
+        {/* MEDIA — first, the team is holding the item */}
         <section className="space-y-3">
           <h2 className={sectionHeader}>{isAr ? 'الوسائط' : 'Media'}</h2>
           <MediaPicker
@@ -439,6 +261,101 @@ export default function AuctionDropBuilderView() {
             onVideoChange={setVideoFile}
           />
         </section>
+
+        <label className={label}>
+          {isAr ? 'اسم المنتج' : 'Product name'} <span className="text-[#FF6B00]">*</span>
+          <input
+            className={field}
+            value={form.productName}
+            onChange={(e) => setField('productName', e.target.value)}
+          />
+        </label>
+
+        <label className={label}>
+          {isAr ? 'سعر البداية (دينار)' : 'Starting price (JOD)'} <span className="text-[#FF6B00]">*</span>
+          <input
+            type="number"
+            className={field}
+            value={form.startingPrice}
+            onChange={(e) => setField('startingPrice', e.target.value)}
+          />
+          {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
+          <span className="mt-1 block text-[11px] text-gray-400">
+            {Number(form.startingPrice) > 0
+              ? (isAr
+                  ? `يستلم البائع ~${sellerNet(Number(form.startingPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
+                  : `Seller receives ~${sellerNet(Number(form.startingPrice)).toLocaleString('en-US')} JOD (~95% after 5% Mazad commission)`)
+              : (isAr
+                  ? 'يستلم البائع ~٩٥٪ من السعر النهائي (بعد عمولة مزاد ٥٪)'
+                  : 'Seller receives ~95% of the final price (after 5% Mazad commission)')}
+          </span>
+        </label>
+
+        <div>
+          <span className={label}>{isAr ? 'يفتح' : 'Opens'}</span>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {OPENS_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setField('opensMode', o.id)}
+                className={`border rounded-xl p-2.5 text-xs font-bold transition-colors ${
+                  form.opensMode === o.id
+                    ? 'bg-[#FF6B00] text-white border-[#FF6B00]'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {isAr ? o.ar : o.en}
+              </button>
+            ))}
+          </div>
+
+          {form.opensMode === 'scheduled' && (
+            <label className={`${label} mt-3`}>
+              {isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
+              <input
+                type="datetime-local"
+                className={field}
+                value={form.scheduledLocal}
+                onChange={(e) => setField('scheduledLocal', e.target.value)}
+              />
+            </label>
+          )}
+
+          {form.opensMode === 'first_bid' && (
+            <p className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+              {isAr ? 'يبدأ فوراً — يبدأ العدّاد مع أول مزايدة' : 'Goes live now — the timer starts on the first bid'}
+            </p>
+          )}
+        </div>
+
+        <label className={label}>
+          {isAr ? 'مدة المزاد' : 'Runs for'}
+          <select
+            className={field}
+            value={form.durationSeconds}
+            onChange={(e) => setField('durationSeconds', Number(e.target.value))}
+          >
+            {DURATION_PRESETS.map((d) => (
+              <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className={label}>
+          {isAr ? 'القناة' : 'Channel'}
+          <select
+            className={field}
+            value={form.channel}
+            onChange={(e) => setField('channel', e.target.value as DropChannel)}
+          >
+            {DROP_CHANNELS.map((c) => (
+              <option key={c.value} value={c.value}>{channelLabel(c.value, isAr ? 'ar' : 'en')}</option>
+            ))}
+          </select>
+        </label>
+
+        <MoreSettingsDrawer isAr={isAr} values={form} onChange={setField} />
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <button disabled={submitting} onClick={handleCreate} className="w-full bg-amber-600 text-white rounded p-3 disabled:opacity-50">
