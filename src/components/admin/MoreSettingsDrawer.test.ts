@@ -1,6 +1,36 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { summarizeSettings } from './MoreSettingsDrawer';
 import { INITIAL_FORM } from '../../utils/dropFormState';
+
+describe('summarizeSettings — numerals go through the one formatter', () => {
+  // Western digits in Arabic means `formatNumeral(n, true)` and `${n}` render
+  // the same today, so no assertion on the summary text can tell whether this
+  // file still routes through the shared module. Standing the formatter in for
+  // a marker pins the wiring itself — which is what CF3 actually asked for.
+  it('formats every number with formatNumeral, in both languages', async () => {
+    vi.resetModules();
+    vi.doMock('../../utils/arabicNumerals', () => ({
+      formatNumeral: (value: number | string) => `«${value}»`,
+    }));
+    try {
+      const mod = await import('./MoreSettingsDrawer');
+      const values = { ...INITIAL_FORM, reservePrice: '300' };
+      const ar = mod.summarizeSettings(values, true);
+      expect(ar).toContain('«30» دقيقة');
+      expect(ar).toContain('مهلة الدفع «24» ساعة');
+      expect(ar).toContain('حماية من القنص «30» ثانية');
+      expect(ar).toContain('سعر احتياطي «300» دينار');
+      const en = mod.summarizeSettings(values, false);
+      expect(en).toContain('«30» min');
+      expect(en).toContain('pay within «24»h');
+      expect(en).toContain('anti-snipe «30»s');
+      expect(en).toContain('reserve «300» JOD');
+    } finally {
+      vi.doUnmock('../../utils/arabicNumerals');
+      vi.resetModules();
+    }
+  });
+});
 
 describe('summarizeSettings — the line under the collapsed drawer', () => {
   it('describes the shipped defaults in English', () => {
@@ -12,9 +42,25 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
   it('describes the shipped defaults in Arabic', () => {
     // Pins the Arabic ORDER and separator too, not just membership. The English
     // exact-match above cannot catch an Arabic-only reordering.
+    //
+    // The payment window was '٢٤' here and Western either side of it, which is
+    // the mixed-numeral line utils/arabicNumerals.ts now removes. Every number
+    // on this line is Western, matching formatMoney's app-wide decision.
     expect(summarizeSettings(INITIAL_FORM, true)).toBe(
-      'جديدة كلياً · 30 دقيقة · مهلة الدفع ٢٤ ساعة · حماية من القنص 30 ثانية · بدون سعر احتياطي · المعاينة غير محددة',
+      'جديدة كلياً · 30 دقيقة · مهلة الدفع 24 ساعة · حماية من القنص 30 ثانية · بدون سعر احتياطي · المعاينة غير محددة',
     );
+  });
+
+  it('never mixes digit systems on the Arabic line', () => {
+    // The regression this guards is subtler than a wrong number: one part in a
+    // different numeral system than its neighbours on the SAME line.
+    for (const values of [
+      INITIAL_FORM,
+      { ...INITIAL_FORM, paymentWindowHours: 24, antiSnipeSec: 30 },
+      { ...INITIAL_FORM, paymentWindowHours: 72, antiSnipeSec: 15, reservePrice: '300' },
+    ]) {
+      expect(summarizeSettings(values, true)).not.toMatch(/[٠-٩۰-۹]/);
+    }
   });
 
   it('reports a reserve once one is set', () => {
@@ -36,7 +82,7 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
   it('renders in Arabic when asked', () => {
     const s = summarizeSettings(INITIAL_FORM, true);
     expect(s).toContain('بدون سعر احتياطي');
-    expect(s).toContain('مهلة الدفع ٢٤ ساعة');
+    expect(s).toContain('مهلة الدفع 24 ساعة');
   });
 
   // --- condition: the carry-forward requirement from Task 3 ---------------

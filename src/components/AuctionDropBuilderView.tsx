@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useApp, useAuctions } from '../context/AppContext';
 import { db } from '../services/firebase';
@@ -78,6 +78,40 @@ export default function AuctionDropBuilderView() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   // What the submit button says mid-upload. Empty outside a submit.
   const [progressLabel, setProgressLabel] = useState('');
+
+  // THE scrolling element for this view. DesktopFrame is `overflow-hidden` and
+  // every in-frame view owns its own scroll, so the document itself never
+  // moves: `window.scrollTo` here is a silent no-op, which is what left the
+  // admin looking at the middle of a form after "create another". Every
+  // programmatic scroll below goes through this ref instead.
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  /**
+   * Centre a field inside the scroll container.
+   *
+   * `scrollIntoView` walks up to the nearest scrollable ancestor, which USUALLY
+   * resolves to the same div — but "usually" is doing real work in a view that
+   * lives inside a fixed frame and gains a sticky footer below `md`. Measuring
+   * against the container we already hold a ref to removes the guess. Falls
+   * back to `scrollIntoView` if the ref is somehow not attached, so the worst
+   * case is the previous behaviour rather than no scroll at all.
+   */
+  const scrollFieldIntoView = useCallback((el: HTMLElement) => {
+    const container = scrollRef.current;
+    if (!container) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const containerBox = container.getBoundingClientRect();
+    const elBox = el.getBoundingClientRect();
+    const centred =
+      container.scrollTop + (elBox.top - containerBox.top) - (container.clientHeight - elBox.height) / 2;
+    container.scrollTo({ top: Math.max(0, centred), behavior: 'smooth' });
+  }, []);
 
   const specs = useMemo(
     () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -163,8 +197,12 @@ export default function AuctionDropBuilderView() {
       // so that clicking it says what is wrong, and a message rendered below the
       // fold says nothing.
       const el = document.getElementById(`field-${firstKey}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el?.focus?.();
+      if (el) {
+        scrollFieldIntoView(el);
+        // preventScroll, or the focus call scrolls the container itself — the
+        // browser's own instant jump landing on top of the smooth one above.
+        el.focus?.({ preventScroll: true });
+      }
       return;
     }
     setSubmitting(true);
@@ -270,7 +308,7 @@ export default function AuctionDropBuilderView() {
     setErrors({});
     setError('');
     setCopyImageMsg('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop();
   };
 
   /**
@@ -433,11 +471,21 @@ export default function AuctionDropBuilderView() {
     // save bar Task 10 hangs off `editing` would sit over a prefilled form with
     // no created id to save to.
     setEditing(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Same container, same reason as handleCreateAnother: a relist prefills the
+    // form at the top of the view and the window never scrolls here.
+    scrollToTop();
   };
 
   return (
-    <div style={{ direction: isAr ? 'rtl' : 'ltr' }} className="h-full overflow-y-auto max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    // h-full overflow-y-auto, never min-h-screen: DesktopFrame is
+    // overflow-hidden, so this div is the scrollport for the whole view. The
+    // bottom padding clears the frame's nav AND the sticky submit bar below md,
+    // so the last field is never parked underneath the Create button.
+    <div
+      ref={scrollRef}
+      style={{ direction: isAr ? 'rtl' : 'ltr' }}
+      className="h-full overflow-y-auto max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2 pb-[calc(7rem+env(safe-area-inset-bottom))]"
+    >
       {/* Success REPLACES the form, in place. The old build reported a create
           as one green line in the column to the right, which on a phone sits
           below the entire form — the admin's most-repeated action of the day
@@ -554,13 +602,23 @@ export default function AuctionDropBuilderView() {
 
         <div>
           <span className={label}>{isAr ? 'يفتح' : 'Opens'}</span>
-          <div className="mt-1 grid grid-cols-3 gap-2">
+          {/* Three equal segments that survive both languages. «مع أول مزايدة»
+              is more than three times the width of «الآن», so on a phone the
+              third label wraps while its neighbours stay on one line.
+              `whitespace-nowrap` is the wrong fix — it would overflow the
+              column instead. So: let it wrap, but make the wrap harmless.
+              `items-stretch` + `min-h-11` keeps all three the same height
+              whether one line or two, the inner flex centres the label
+              vertically and horizontally in both directions (no `text-left`
+              that RTL would have to undo), and `leading-tight` keeps two lines
+              inside the pill. min-h-11 is also the 44px tap target. */}
+          <div className="mt-1 grid grid-cols-3 gap-2 items-stretch">
             {OPENS_OPTIONS.map((o) => (
               <button
                 key={o.id}
                 type="button"
                 onClick={() => setField('opensMode', o.id)}
-                className={`border rounded-xl p-2.5 text-xs font-bold transition-colors ${
+                className={`flex items-center justify-center text-center min-h-11 px-1.5 py-2 border rounded-xl text-xs font-bold leading-tight transition-colors cursor-pointer ${
                   form.opensMode === o.id
                     ? 'bg-[#FF6B00] text-white border-[#FF6B00]'
                     : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
@@ -628,6 +686,13 @@ export default function AuctionDropBuilderView() {
             Deliberately NOT disabled on an incomplete form: clicking it is what
             reveals the missing fields, and a disabled button that won't say why
             is the failure mode being removed. */}
+        {/* Below md the bar pins to the bottom of the scrollport so Create is
+            reachable from anywhere in a long form; from md up it is static and
+            simply ends the column. `-mx-4 px-4` makes it full-bleed against the
+            root's p-4 on phones only. The error line lives INSIDE the bar: it is
+            the message the button just produced, and left outside it would
+            render below the fold the bar is covering. */}
+        <div className="sticky bottom-0 z-10 md:static -mx-4 md:mx-0 px-4 md:px-0 py-3 md:py-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-0 border-t md:border-t-0 border-gray-200 bg-white/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none space-y-2">
         {editing ? (
           <div className="flex gap-2">
             <button
@@ -658,6 +723,7 @@ export default function AuctionDropBuilderView() {
           </button>
         )}
         {error && <p className="text-rose-600 text-sm font-bold">{error}</p>}
+        </div>
       </div>
       )}
 

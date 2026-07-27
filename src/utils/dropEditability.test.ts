@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   bidCountOf,
   canEditDrop,
@@ -118,18 +118,97 @@ describe('cancelConfirmMessage', () => {
 
   // The count is the whole point of the sentence: an admin about to destroy
   // four people's bids must read the number before they click.
+  //
+  // The Arabic assertion here previously pinned '4 شخص زايد' — the singular
+  // noun with a singular verb, which is wrong for 4. Four falls in Arabic's
+  // 3–10 range and takes the plural of paucity with a plural verb. This is a
+  // deliberate correction of an existing assertion, not a new expectation
+  // bolted onto working behaviour.
   it('states the bid count and what cancelling destroys', () => {
     expect(cancelConfirmMessage({ status: 'live', totalBids: 4 }, false)).toBe(
       '4 people have bid on this. Cancelling removes the auction and their bids. Are you sure?',
     );
     expect(cancelConfirmMessage({ status: 'live', totalBids: 4 }, true)).toBe(
-      '4 شخص زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟',
+      '4 أشخاص زايدوا على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟',
     );
   });
 
   it('says "person has" for exactly one bid and "people have" for more', () => {
     expect(cancelConfirmMessage({ totalBids: 1 }, false)).toContain('1 person has bid on this.');
     expect(cancelConfirmMessage({ totalBids: 2 }, false)).toContain('2 people have bid on this.');
+  });
+
+  // --- Arabic counted-noun agreement: four ranges, not two -------------------
+  // English needs one branch (1 vs many). Arabic needs four, and the verb and
+  // the possessive pronoun in the second clause have to agree with each.
+
+  it('uses the singular for exactly one bidder', () => {
+    // "واحد" carries the count, so the numeral is NOT repeated in front of it.
+    expect(cancelConfirmMessage({ totalBids: 1 }, true)).toBe(
+      'شخص واحد زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداته. هل أنت متأكد؟',
+    );
+  });
+
+  it('uses the dual — not the plural — for exactly two bidders', () => {
+    // Arabic's dual is its own grammatical number: شخصان with the dual verb
+    // زايدا and the dual possessive هما. "2 أشخاص" would be wrong.
+    expect(cancelConfirmMessage({ totalBids: 2 }, true)).toBe(
+      'شخصان زايدا على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهما. هل أنت متأكد؟',
+    );
+  });
+
+  it('uses the plural of paucity and the plural verb for three to ten', () => {
+    expect(cancelConfirmMessage({ totalBids: 5 }, true)).toBe(
+      '5 أشخاص زايدوا على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟',
+    );
+  });
+
+  it('returns to the singular accusative from eleven up', () => {
+    // The form that looks wrong to an English reader and is what MSA requires:
+    // 15 takes شخصاً (singular, accusative تمييز) with a singular verb.
+    expect(cancelConfirmMessage({ totalBids: 15 }, true)).toBe(
+      '15 شخصاً زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟',
+    );
+  });
+
+  it('switches form at every boundary of the four ranges', () => {
+    // Pins WHERE the branches change, which the per-count assertions above
+    // cannot: an off-by-one in any bound leaves them all passing.
+    expect(cancelConfirmMessage({ totalBids: 3 }, true)).toContain('3 أشخاص زايدوا');
+    expect(cancelConfirmMessage({ totalBids: 10 }, true)).toContain('10 أشخاص زايدوا');
+    expect(cancelConfirmMessage({ totalBids: 11 }, true)).toContain('11 شخصاً زايد ');
+    expect(cancelConfirmMessage({ totalBids: 100 }, true)).toContain('100 شخصاً زايد ');
+  });
+
+  it('names the count in every Arabic branch that does not spell it out', () => {
+    for (const bids of [3, 4, 9, 12, 40]) {
+      expect(cancelConfirmMessage({ totalBids: bids }, true)).toContain(String(bids));
+    }
+  });
+
+  it('keeps Arabic numerals Western, matching the rest of the builder', () => {
+    for (const bids of [1, 2, 5, 15, 100]) {
+      expect(cancelConfirmMessage({ totalBids: bids }, true)).not.toMatch(/[٠-٩۰-۹]/);
+    }
+  });
+
+  // Western-in-Arabic makes formatNumeral and `${n}` identical today, so the
+  // exact-string assertions above cannot tell whether the count still routes
+  // through the shared formatter. This pins the wiring, not the output.
+  it('formats the count with the shared numeral formatter', async () => {
+    vi.resetModules();
+    vi.doMock('./arabicNumerals', () => ({
+      formatNumeral: (value: number | string) => `«${value}»`,
+    }));
+    try {
+      const mod = await import('./dropEditability');
+      expect(mod.cancelConfirmMessage({ totalBids: 5 }, true)).toContain('«5» أشخاص زايدوا');
+      expect(mod.cancelConfirmMessage({ totalBids: 15 }, true)).toContain('«15» شخصاً زايد ');
+      expect(mod.cancelConfirmMessage({ totalBids: 5 }, false)).toContain('«5» people have bid');
+    } finally {
+      vi.doUnmock('./arabicNumerals');
+      vi.resetModules();
+    }
   });
 
   it('ships both languages for every branch — neither is a fallback', () => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ViewingSelector } from './ViewingSelector';
+import { formatNumeral } from '../../utils/arabicNumerals';
 import type { DropFormValues } from '../../utils/dropFormState';
 import type { ViewingMode } from '../../utils/viewing';
 
@@ -38,16 +39,22 @@ const VIEWING_SUMMARY: Record<ViewingMode, { en: string; ar: string }> = {
 
 export function summarizeSettings(v: DropFormValues, isAr: boolean): string {
   const parts: string[] = [];
+  // Every number on this line goes through the one formatter. It used to
+  // hardcode '٢٤' for the default payment window while the duration and the
+  // anti-snipe window either side of it interpolated Western digits, so the
+  // shipped default read "… 30 دقيقة · مهلة الدفع ٢٤ ساعة · حماية من القنص 30 ثانية".
+  const num = (value: number) => formatNumeral(value, isAr);
 
   parts.push(v.condition.trim() || (isAr ? 'الحالة غير محددة' : 'condition not set'));
-  parts.push(isAr ? `${Math.round(v.durationSeconds / 60)} دقيقة` : `${Math.round(v.durationSeconds / 60)} min`);
-  parts.push(isAr ? `مهلة الدفع ${v.paymentWindowHours === 24 ? '٢٤' : v.paymentWindowHours} ساعة` : `pay within ${v.paymentWindowHours}h`);
-  parts.push(isAr ? `حماية من القنص ${v.antiSnipeSec} ثانية` : `anti-snipe ${v.antiSnipeSec}s`);
+  const minutes = num(Math.round(v.durationSeconds / 60));
+  parts.push(isAr ? `${minutes} دقيقة` : `${minutes} min`);
+  parts.push(isAr ? `مهلة الدفع ${num(v.paymentWindowHours)} ساعة` : `pay within ${num(v.paymentWindowHours)}h`);
+  parts.push(isAr ? `حماية من القنص ${num(v.antiSnipeSec)} ثانية` : `anti-snipe ${num(v.antiSnipeSec)}s`);
 
   const reserve = Number(v.reservePrice);
   parts.push(
     reserve > 0
-      ? (isAr ? `سعر احتياطي ${reserve} دينار` : `reserve ${reserve} JOD`)
+      ? (isAr ? `سعر احتياطي ${num(reserve)} دينار` : `reserve ${num(reserve)} JOD`)
       : (isAr ? 'بدون سعر احتياطي' : 'no reserve'),
   );
 
@@ -89,7 +96,15 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
         className="w-full text-start px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <span className="flex items-center gap-2 text-sm font-black text-gray-900">
-          <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
+          {/* A VERTICAL disclosure pair, not a rotated ▸. CSS `rotate-90` is a
+              geometric transform: it is not mirrored by `direction: rtl`, so
+              the collapsed arrow pointed rightwards — into the Arabic text it
+              was labelling — instead of away from it. ▾/▴ point along the
+              vertical axis, which RTL does not flip, so the same two glyphs
+              read correctly in both languages with no direction-aware CSS at
+              all. aria-hidden because `aria-expanded` on the button already
+              says open/closed to assistive tech. */}
+          <span aria-hidden="true" className="text-[10px] leading-none">{open ? '▴' : '▾'}</span>
           {isAr ? 'إعدادات إضافية' : 'More settings'}
         </span>
         <span className="block mt-1 text-[11px] text-gray-400 leading-relaxed">
@@ -194,7 +209,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
             </select>
             <span className="mt-1 block text-[11px] text-gray-400">
               {isAr
-                ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي ٣٠ ثانية.'
+                ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي 30 ثانية.'
                 : 'Bids in the final seconds extend the clock. Default 30s.'}
             </span>
           </label>
@@ -210,7 +225,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
               {isAr ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)' : 'Auto-relist if unsold (up to 2×)'}
               <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
                 {isAr
-                  ? 'يُعاد إدراج المنتج تلقائياً بعد ٢٤ ساعة إن انتهى دون بيع.'
+                  ? 'يُعاد إدراج المنتج تلقائياً بعد 24 ساعة إن انتهى دون بيع.'
                   : 'The item is automatically relisted 24h after it ends unsold.'}
               </span>
             </span>

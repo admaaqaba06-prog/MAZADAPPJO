@@ -9,6 +9,8 @@
  * run and orders exist.
  */
 
+import { formatNumeral } from './arabicNumerals';
+
 export interface DropEditabilitySource {
   status?: string | null;
   totalBids?: number | null;
@@ -47,6 +49,38 @@ export function cancelWarnsAboutBids(a: DropEditabilitySource): boolean {
 }
 
 /**
+ * "N people bid on this", in Arabic.
+ *
+ * Arabic does not have English's one/many split. The counted noun changes form
+ * across FOUR ranges, and the verb and the possessive have to agree with it, so
+ * the old single `${bids} شخص زايد` was wrong for every count it was used for:
+ *
+ *   1      شخص واحد زايد     singular; the word "واحد" carries the count, so the
+ *                            numeral is not repeated in front of it
+ *   2      شخصان زايدا       dual — a distinct grammatical number, with its own
+ *                            dual verb ending, not a plural
+ *   3–10   N أشخاص زايدوا    plural of paucity, with the plural verb
+ *   11+    N شخصاً زايد      singular in the accusative (تمييز), verb back to
+ *                            singular — the form that looks most "wrong" to an
+ *                            English reader and is the one MSA requires
+ *
+ * The possessive on "their bids" follows the same three-way split (his / their
+ * two / their), because a sentence reading "شخص واحد زايد … ومزايداتهم" mixes a
+ * singular subject with a plural pronoun in its own second clause.
+ *
+ * Written out as branches rather than an Intl.PluralRules lookup on purpose:
+ * `Intl.PluralRules('ar')` gives the CATEGORY (one/two/few/many/other) but not
+ * the noun, verb and pronoun forms, so the table would still have to live here.
+ */
+function arabicBidderClause(n: number): string {
+  const count = formatNumeral(n, true);
+  if (n === 1) return 'شخص واحد زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداته.';
+  if (n === 2) return 'شخصان زايدا على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهما.';
+  if (n <= 10) return `${count} أشخاص زايدوا على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم.`;
+  return `${count} شخصاً زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم.`;
+}
+
+/**
  * The confirm text shown before a cancel. Cancelling deletes the auction doc,
  * so any bids on it go with it — the count has to be in the sentence, not
  * implied by a warning triangle, and in both languages because the ops team is
@@ -58,8 +92,8 @@ export function cancelConfirmMessage(a: DropEditabilitySource, isAr: boolean): s
     return isAr ? 'هل تريد إلغاء هذا المزاد وحذفه؟' : 'Cancel this drop and delete it?';
   }
   return isAr
-    ? `${bids} شخص زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟`
-    : `${bids} ${bids === 1 ? 'person has' : 'people have'} bid on this. Cancelling removes the auction and their bids. Are you sure?`;
+    ? `${arabicBidderClause(bids)} هل أنت متأكد؟`
+    : `${formatNumeral(bids, false)} ${bids === 1 ? 'person has' : 'people have'} bid on this. Cancelling removes the auction and their bids. Are you sure?`;
 }
 
 /**

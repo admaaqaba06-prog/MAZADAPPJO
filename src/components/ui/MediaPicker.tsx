@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatNumeral } from '../../utils/arabicNumerals';
 import {
   MAX_GALLERY_PHOTOS,
   addGalleryPhotos,
@@ -96,8 +97,8 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
       <div className="space-y-2">
         <span className="block text-xs font-extrabold text-gray-900">
           {isAr
-            ? `صور إضافية (حتى ${MAX_GALLERY_PHOTOS} — اختياري)`
-            : `Extra photos (up to ${MAX_GALLERY_PHOTOS} — optional)`}
+            ? `صور إضافية (حتى ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — اختياري)`
+            : `Extra photos (up to ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — optional)`}
         </span>
         <div className="grid grid-cols-3 gap-2">
           {gallery.map((photo, idx) => (

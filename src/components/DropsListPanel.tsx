@@ -48,9 +48,37 @@ export default function DropsListPanel({ onRelist }: { onRelist?: (a: AuctionIte
     [auctions],
   );
 
+  // Collapsed by default on phones ONLY. On a phone the builder is one column,
+  // so this list sits under the whole form and the preview — pushing the drop
+  // the admin just created off the bottom of a very long page. From md up the
+  // list is a second column with room of its own, so it is always open and the
+  // toggle is not rendered at all: nothing here is collapsible on desktop.
+  const [openOnMobile, setOpenOnMobile] = useState(false);
+
   return (
-    <div className="space-y-4" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-      <h2 className="text-lg font-semibold">{isAr ? 'مزاداتك' : 'Your drops'}</h2>
+    <div style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+      <button
+        type="button"
+        onClick={() => setOpenOnMobile((o) => !o)}
+        aria-expanded={openOnMobile}
+        aria-controls="drops-list-body"
+        className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-200 rounded-2xl text-sm font-black text-gray-900 bg-white cursor-pointer"
+      >
+        <span>{isAr ? 'مزاداتك' : 'Your drops'}</span>
+        {/* ▾/▴ rather than a rotated ▸: CSS rotation is geometric and is NOT
+            mirrored by `direction: rtl`, so a rotated right-chevron points into
+            the Arabic label instead of away from it. The vertical axis is the
+            one RTL leaves alone. Matches MoreSettingsDrawer's disclosure. */}
+        <span aria-hidden="true" className="text-[10px] leading-none">{openOnMobile ? '▴' : '▾'}</span>
+      </button>
+
+      <div
+        id="drops-list-body"
+        className={`${openOnMobile ? 'block' : 'hidden'} md:block space-y-4 mt-3 md:mt-0`}
+      >
+      {/* The desktop heading. Hidden below md because the toggle above already
+          carries the same words — two "Your drops" in a row is not a header. */}
+      <h2 className="hidden md:block text-lg font-semibold">{isAr ? 'مزاداتك' : 'Your drops'}</h2>
       {grouped.map((g) => (
         <div key={g.key} className="space-y-2">
           <h3 className="text-xs font-bold text-neutral-400 uppercase">
@@ -90,6 +118,7 @@ export default function DropsListPanel({ onRelist }: { onRelist?: (a: AuctionIte
           ))}
         </div>
       ))}
+      </div>
     </div>
   );
 }

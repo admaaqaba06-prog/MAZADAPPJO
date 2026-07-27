@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { photoUploadLabel, uploadStageLabel, type UploadStage } from './dropProgress';
 
 const STAGES: UploadStage[] = ['video', 'thumbnail', 'saving'];
@@ -85,6 +85,29 @@ describe('uploadStageLabel', () => {
   it('never returns the same sentence for both languages, in any stage', () => {
     for (const stage of STAGES) {
       expect(uploadStageLabel(50, stage, true)).not.toBe(uploadStageLabel(50, stage, false));
+    }
+  });
+
+  // The app renders Western digits in Arabic, so `formatNumeral(n, isAr)` and
+  // a bare `${n}` produce identical output today — meaning no assertion on the
+  // labels above can tell whether this module still routes through the shared
+  // formatter. Standing the formatter in for a marker is what makes the WIRING
+  // testable, so a future flip of ARABIC_UI_DIGITS cannot leave this file
+  // silently behind on Western digits.
+  it('routes every number through the shared numeral formatter', async () => {
+    vi.resetModules();
+    vi.doMock('./arabicNumerals', () => ({
+      formatNumeral: (value: number | string) => `«${value}»`,
+    }));
+    try {
+      const mod = await import('./dropProgress');
+      expect(mod.photoUploadLabel(0, 3, true)).toBe('جارٍ رفع الصورة «1» من «3»…');
+      expect(mod.photoUploadLabel(0, 3, false)).toBe('Uploading photo «1» of «3»…');
+      expect(mod.uploadStageLabel(42, 'video', true)).toBe('جارٍ رفع الفيديو… «42»%');
+      expect(mod.uploadStageLabel(7, 'thumbnail', false)).toBe('Uploading cover… «7»%');
+    } finally {
+      vi.doUnmock('./arabicNumerals');
+      vi.resetModules();
     }
   });
 

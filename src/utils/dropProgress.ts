@@ -8,6 +8,8 @@
  * labels are the only signal that the thing is still moving.
  */
 
+import { formatNumeral } from './arabicNumerals';
+
 /** The stages createListing's own onProgress callback reports. */
 export type UploadStage = 'video' | 'thumbnail' | 'saving';
 
@@ -28,9 +30,11 @@ function percent(progress: number): number {
  * callback. `index` is zero-based; the label is one-based for humans.
  */
 export function photoUploadLabel(index: number, total: number, isAr: boolean): string {
+  const position = formatNumeral(index + 1, isAr);
+  const count = formatNumeral(total, isAr);
   return isAr
-    ? `جارٍ رفع الصورة ${index + 1} من ${total}…`
-    : `Uploading photo ${index + 1} of ${total}…`;
+    ? `جارٍ رفع الصورة ${position} من ${count}…`
+    : `Uploading photo ${position} of ${count}…`;
 }
 
 /**
@@ -39,15 +43,16 @@ export function photoUploadLabel(index: number, total: number, isAr: boolean): s
  * so it gets a plain sentence instead of a misleading number.
  */
 export function uploadStageLabel(progress: number, stage: UploadStage, isAr: boolean): string {
+  const pct = formatNumeral(percent(progress), isAr);
   if (stage === 'video') {
     return isAr
-      ? `جارٍ رفع الفيديو… ${percent(progress)}%`
-      : `Uploading video… ${percent(progress)}%`;
+      ? `جارٍ رفع الفيديو… ${pct}%`
+      : `Uploading video… ${pct}%`;
   }
   if (stage === 'thumbnail') {
     return isAr
-      ? `جارٍ رفع صورة الغلاف… ${percent(progress)}%`
-      : `Uploading cover… ${percent(progress)}%`;
+      ? `جارٍ رفع صورة الغلاف… ${pct}%`
+      : `Uploading cover… ${pct}%`;
   }
   return isAr ? 'جارٍ إنشاء المزاد…' : 'Creating auction…';
 }
