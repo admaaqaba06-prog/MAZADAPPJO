@@ -43,6 +43,28 @@ describe('algoliaHitToAuction', () => {
     expect(item.endTime).toBe(endMs);
   });
 
+  it('carries the admin-lookup fields (auctionNumber, currentBidderName) when the index has them', () => {
+    const item = algoliaHitToAuction({
+      objectID: 'auc-3',
+      auctionNumber: 137,
+      currentBidderName: 'Layla',
+    });
+    expect(item.auctionNumber).toBe(137);
+    expect(item.currentBidderName).toBe('Layla');
+  });
+
+  it('defaults the admin-lookup fields when absent (pre-backfill index)', () => {
+    // Until the backend indexes them these are simply not present: number → undefined,
+    // winner name → null. The section hides both when falsy, so this renders cleanly.
+    const item = algoliaHitToAuction({ objectID: 'auc-4' });
+    expect(item.auctionNumber).toBeUndefined();
+    expect(item.currentBidderName).toBeNull();
+  });
+
+  it('ignores a non-numeric auctionNumber (no string posing as a real number)', () => {
+    expect(algoliaHitToAuction({ objectID: 'auc-5', auctionNumber: 'NaN' as any }).auctionNumber).toBeUndefined();
+  });
+
   it('prefers objectID but falls back to hit.id', () => {
     expect(algoliaHitToAuction({ id: 'from-id' }).id).toBe('from-id');
     expect(algoliaHitToAuction({ objectID: 'from-obj', id: 'from-id' }).id).toBe('from-obj');

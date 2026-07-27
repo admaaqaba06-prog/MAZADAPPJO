@@ -39,7 +39,7 @@ describe('migrateStoredAdminTab', () => {
 describe('tab groups', () => {
   it('primary then reference cover the nav set with no overlap', () => {
     expect(ADMIN_PRIMARY_TABS).toEqual(['home','verify','fulfillment','disputes','payouts','launch']);
-    expect(ADMIN_REFERENCE_TABS).toEqual(['orders','members','system']);
+    expect(ADMIN_REFERENCE_TABS).toEqual(['orders','members','auction-lookup','system']);
     expect(ADMIN_PRIMARY_TABS.some(t => ADMIN_REFERENCE_TABS.includes(t))).toBe(false);
   });
 });

@@ -28,6 +28,7 @@ const PayoutsSection = React.lazy(() => import('./admin/PayoutsSection'));
 const LaunchSection = React.lazy(() => import('./admin/LaunchSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
+const AuctionLookupSection = React.lazy(() => import('./admin/AuctionLookupSection'));
 const SystemSection = React.lazy(() => import('./admin/SystemSection'));
 
 /**
@@ -73,6 +74,7 @@ const TAB_META: Record<AdminTabId, { ar: string; en: string }> = {
   launch: { ar: 'إطلاق المزادات', en: 'LAUNCH' },
   orders: { ar: 'الطلبات', en: 'ORDERS' },
   members: { ar: 'الأعضاء', en: 'MEMBERS' },
+  'auction-lookup': { ar: 'بحث المزادات', en: 'Auction Lookup' },
   system: { ar: 'النظام', en: 'SYSTEM' },
 };
 
@@ -944,6 +946,21 @@ export const AdminDashboardView: React.FC = () => {
               onApprove={approveWithdrawal}
               onReject={rejectWithdrawal}
             />
+          </React.Suspense>
+        )}
+
+        {/* ==========================================
+            TAB: AUCTION LOOKUP (admin search — all statuses, incl. closed)
+            ========================================== */}
+        {activeTab === 'auction-lookup' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <AuctionLookupSection isAr={isAr} />
           </React.Suspense>
         )}
 

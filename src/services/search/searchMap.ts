@@ -50,6 +50,13 @@ export function algoliaHitToAuction(hit: any): AuctionItem {
     currentPrice: filsToUnits(h.currentPriceFils, h.currentPrice, startingPrice),
     startingPrice,
     endTime: resolveEndTime(h),
+    // Admin Auction Lookup fields. Additive + defensive: the public AuctionCard
+    // never reads these, and they stay absent (undefined/null) until the backend
+    // sync indexes them — at which point the admin search lights them up with no
+    // further change here. A number-guard keeps a stray string from posing as a
+    // real auction number.
+    auctionNumber: typeof h.auctionNumber === 'number' ? h.auctionNumber : undefined,
+    currentBidderName: h.currentBidderName ?? null,
   } as AuctionItem;
 }
 
