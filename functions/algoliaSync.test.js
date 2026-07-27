@@ -2,24 +2,27 @@ import { describe, it, expect } from 'vitest';
 const { isIndexable, buildAlgoliaRecord, resolveEndMs } = require('./algoliaSync');
 
 describe('isIndexable', () => {
-  it('is true only for public, non-simulated live/upcoming lots', () => {
+  it('is true for any non-simulated auction regardless of status (incl. closed)', () => {
     expect(isIndexable({ status: 'live' })).toBe(true);
     expect(isIndexable({ status: 'upcoming' })).toBe(true);
     expect(isIndexable({ status: 'live', isSimulated: false })).toBe(true);
+    // Closed lots stay indexed so the admin lookup can find them (public search
+    // filters to live/upcoming client-side).
+    expect(isIndexable({ status: 'completed' })).toBe(true);
+    expect(isIndexable({ status: 'ended' })).toBe(true);
+    expect(isIndexable({ status: 'reserve_not_met' })).toBe(true);
   });
-  it('is false for a simulated lot even when live/upcoming', () => {
+  it('is false for a simulated lot regardless of status', () => {
     expect(isIndexable({ status: 'live', isSimulated: true })).toBe(false);
     expect(isIndexable({ status: 'upcoming', isSimulated: true })).toBe(false);
+    expect(isIndexable({ status: 'completed', isSimulated: true })).toBe(false);
   });
-  it('is false for non-public / non-searchable statuses', () => {
-    for (const status of ['processing', 'rejected', 'ended', 'completed', 'reserve_not_met', 'active']) {
-      expect(isIndexable({ status })).toBe(false);
-    }
-  });
-  it('is false / null-safe for missing data or missing status', () => {
+  it('is false / null-safe for missing data', () => {
     expect(isIndexable(null)).toBe(false);
     expect(isIndexable(undefined)).toBe(false);
-    expect(isIndexable({})).toBe(false);
+  });
+  it('is true for a doc with no status (any real auction is indexable)', () => {
+    expect(isIndexable({})).toBe(true);
   });
 });
 
@@ -53,6 +56,8 @@ describe('buildAlgoliaRecord', () => {
       endTime: 1_800_000_000_000,
       sellerName: 'MJ',
       thumbnailUrl: 'https://x/y.jpg',
+      auctionNumber: 42,
+      currentBidderName: 'Bidder Bob',
     });
     expect(rec).toEqual({
       objectID: 'auc1',
@@ -67,6 +72,8 @@ describe('buildAlgoliaRecord', () => {
       endsAt: 1_800_000_000_000,
       sellerName: 'MJ',
       thumbnailUrl: 'https://x/y.jpg',
+      auctionNumber: 42,
+      currentBidderName: 'Bidder Bob',
     });
   });
 
@@ -90,7 +97,18 @@ describe('buildAlgoliaRecord', () => {
       endsAt: 0,
       sellerName: '',
       thumbnailUrl: '',
+      auctionNumber: null,
+      currentBidderName: '',
     });
+  });
+
+  it('maps auctionNumber and currentBidderName; defaults them to null / empty when absent', () => {
+    const withFields = buildAlgoliaRecord('a', { status: 'completed', auctionNumber: 7, currentBidderName: 'Winner W' });
+    expect(withFields.auctionNumber).toBe(7);
+    expect(withFields.currentBidderName).toBe('Winner W');
+    const without = buildAlgoliaRecord('b', { status: 'live' });
+    expect(without.auctionNumber).toBe(null);
+    expect(without.currentBidderName).toBe('');
   });
 
   it('resolves endTime from an endsAt Timestamp when the numeric endTime is absent', () => {
