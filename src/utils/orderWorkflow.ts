@@ -226,15 +226,29 @@ export async function executeOrderTransition(
 
     case 'mark_shipped':
       toStatus = 'shipped';
-      const tracking = extraFields?.trackingNumber || 'MJ-' + Math.floor(100000 + Math.random() * 900000);
+      // NEVER FABRICATE A TRACKING NUMBER. This used to fall back to a random
+      // `MJ-######`, which was then interpolated into the activity messages the
+      // BUYER and SELLER read — a tracking ID that tracks nothing. The admin
+      // relay (handleAdvanceOrder) passes only `{ note }`, so that fallback was
+      // the default for every admin-driven "Out for delivery". The parcel really
+      // is in transit, so say exactly that and omit the ID we do not have.
+      const tracking = typeof extraFields?.trackingNumber === 'string'
+        ? extraFields.trackingNumber.trim()
+        : '';
       updateFields = {
         status: 'shipped',
         shippingStatus: 'shipped',
-        trackingNumber: tracking
+        // Conditional spread: Firestore rejects an explicit `undefined`, and
+        // writing an empty string would clobber a tracking number set earlier.
+        ...(tracking ? { trackingNumber: tracking } : {})
       };
       activityType = 'Package Shipped';
-      activityMessageAr = `تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ${tracking}`;
-      activityMessageEn = `Parcel in transit with courier. Tracking ID: ${tracking}`;
+      activityMessageAr = tracking
+        ? `تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ${tracking}`
+        : 'تم شحن الطرد بنجاح مع شركة التوصيل.';
+      activityMessageEn = tracking
+        ? `Parcel in transit with courier. Tracking ID: ${tracking}`
+        : 'Parcel in transit with courier.';
       break;
 
     case 'mark_delivered':

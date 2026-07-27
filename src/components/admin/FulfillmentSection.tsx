@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   bucketOrder,
   isOverdue,
@@ -240,12 +240,21 @@ const FulfillmentRow: React.FC<{
               type="button"
               disabled={busy || !note.trim()}
               onClick={async () => {
+                // try/finally, matching run() above: onAdvance is injected, and
+                // if it is ever changed to throw instead of returning
+                // { success: false }, a bare setBusy(false) would be skipped and
+                // the row would stay disabled until remount.
                 setBusy(true);
                 setControlError(null);
-                const res = await onAdvance(order, note.trim());
-                setBusy(false);
-                if (res.success) setNote('');
-                else setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                try {
+                  const res = await onAdvance(order, note.trim());
+                  if (res.success) setNote('');
+                  else setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                } catch (err: any) {
+                  setControlError(err?.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                } finally {
+                  setBusy(false);
+                }
               }}
               className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[11px] py-1.5 rounded-lg transition-all cursor-pointer"
             >
@@ -273,11 +282,18 @@ const FulfillmentRow: React.FC<{
           onChange={async (e) => {
             const adminId = e.target.value;
             const adminName = adminUsers.find((a) => a.id === adminId)?.name || '';
+            // try/finally for the same reason as the advance button above — a
+            // throwing onAssign must not leave the row permanently disabled.
             setBusy(true);
             setControlError(null);
-            const res = await onAssign(order.id, adminId, adminName);
-            setBusy(false);
-            if (!res.success) setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+            try {
+              const res = await onAssign(order.id, adminId, adminName);
+              if (!res.success) setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+            } catch (err: any) {
+              setControlError(err?.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+            } finally {
+              setBusy(false);
+            }
           }}
           className="flex-1 min-w-0 text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-700 font-bold outline-none focus:border-emerald-500 cursor-pointer disabled:opacity-50"
         >
@@ -315,6 +331,14 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
   // "Only the orders I own" — off by default so the queue still reads as the
   // whole team's board unless the admin narrows it.
   const [mineOnly, setMineOnly] = useState(false);
+
+  // Sign-out / role change empties currentAdminId. The filter below would then
+  // compare every assignedToId against '' and empty all four buckets, while the
+  // checkbox that could undo it is no longer rendered — an unrecoverable blank
+  // board. Drop back to the whole-team view whenever there is no signed-in admin.
+  useEffect(() => {
+    if (!currentAdminId) setMineOnly(false);
+  }, [currentAdminId]);
 
   // Bucket + sort oldest-first once per render. isOverdue re-derives the
   // bucket internally; we pass the normalized updatedAtMs it needs.
@@ -357,9 +381,11 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
           <span className="text-xs font-black text-gray-500 font-mono">{totalCount}</span>
         </div>
         <p className="text-xs text-gray-500">
+          {/* Honest about all four buckets: the first one is UNPAID orders, and
+              it has neither a nudge nor a release — only the relay controls. */}
           {isAr
-            ? 'الطلبات المدفوعة قيد التنفيذ — نبّه البائع/المشتري أو حرّر الضمان عند التسليم.'
-            : 'Paid orders in motion — nudge the seller/buyer or release escrow once delivered.'}
+            ? 'الطلبات العالقة: بانتظار الدفع، أو الشحن، أو التسليم، أو تحرير الضمان. سجّل تقدّم المرحلة مع ملاحظة، ونبّه البائع/المشتري أو حرّر الضمان حيثما توفّر ذلك.'
+            : 'Stuck orders: awaiting payment, shipment, delivery, or escrow release. Record a stage advance with a note, and nudge the seller/buyer or release escrow where those apply.'}
         </p>
         {currentAdminId && (
           <label className="flex items-center gap-2 pt-1 cursor-pointer w-fit">

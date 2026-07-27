@@ -1591,144 +1591,161 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <span>{isAr ? 'كل شيء ممتاز — حرّر الدفعة' : "Everything's good — release payment"}</span>
                       </button>
 
-                      {/* Secondary: report a problem → opens the return claim form */}
-                      {!showReturnForm && (
-                        <button
-                          onClick={() => setShowReturnForm(true)}
-                          disabled={isUpdating || submittingReturn}
-                          className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
-                        >
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                          <span>{isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}</span>
-                        </button>
-                      )}
+                      {/*
+                        Secondary: report a problem → opens the return claim form.
 
-                      {/* Return claim form */}
-                      {showReturnForm && (
-                        <div
-                          className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-4 origin-top"
-                          style={{ animation: 'returnFormIn 240ms cubic-bezier(0.16, 1, 0.3, 1)' }}
-                        >
-                          <style>{`@keyframes returnFormIn { from { opacity: 0; transform: translateY(-6px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
-
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-black uppercase font-mono text-gray-900">
-                              {isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}
-                            </h4>
-                            <button
-                              onClick={() => setShowReturnForm(false)}
-                              disabled={submittingReturn}
-                              className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
-                              aria-label={isAr ? 'إغلاق' : 'Close'}
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Reason radios */}
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
-                              {isAr ? 'سبب الإرجاع' : 'Reason'}
-                            </p>
-                            {([
-                              { value: 'not_as_described' as ReturnReason, en: 'Not as described', ar: 'مخالف للوصف' },
-                              { value: 'damaged' as ReturnReason, en: 'Arrived damaged', ar: 'وصل تالفاً' },
-                            ]).map(opt => (
-                              <label
-                                key={opt.value}
-                                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="return-reason"
-                                  value={opt.value}
-                                  checked={returnReason === opt.value}
-                                  onChange={() => setReturnReason(opt.value)}
-                                  className="accent-[#FF6B00]"
-                                />
-                                <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
-                              </label>
-                            ))}
-                          </div>
-
-                          {/* Description */}
-                          <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
-                              {isAr ? 'وصف المشكلة' : 'Describe the problem'}
-                            </p>
-                            <textarea
-                              value={returnDescription}
-                              onChange={e => setReturnDescription(e.target.value)}
-                              rows={3}
-                              placeholder={isAr ? 'اشرح ما الخطأ في المنتج...' : "Explain what's wrong with the item..."}
-                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors resize-none"
-                            />
-                          </div>
-
-                          {/* Photos */}
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
-                              {isAr ? `الصور (${returnPhotos.length}/6) — مطلوبة` : `Photos (${returnPhotos.length}/6) — required`}
-                            </p>
-                            {returnPhotos.length > 0 && (
-                              <div className="grid grid-cols-3 gap-2">
-                                {returnPhotos.map((file, i) => (
-                                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
-                                    <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-                                    <button
-                                      onClick={() => handleRemoveReturnPhoto(i)}
-                                      disabled={submittingReturn}
-                                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors disabled:opacity-50"
-                                      aria-label={isAr ? 'إزالة' : 'Remove'}
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {returnPhotos.length < 6 && (
-                              <label className="w-full border border-dashed border-gray-300 hover:border-[#FF6B00] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-gray-500 hover:text-[#FF6B00]">
-                                <UploadCloud className="w-4 h-4" />
-                                <span className="text-[11px] font-bold uppercase font-mono">
-                                  {isAr ? 'إضافة صور' : 'Add photos'}
-                                </span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={handleReturnPhotosPicked}
-                                  disabled={submittingReturn}
-                                  className="hidden"
-                                />
-                              </label>
-                            )}
-                          </div>
-
-                          {/* Submit */}
+                        SHIPPED-ONLY, deliberately narrower than the block above.
+                        The server guard `canRequestReturn` in functions/returns.js
+                        rejects anything that is not `shipped` with
+                        failed-precondition. handleSubmitReturn uploads every
+                        selected photo to Storage BEFORE it calls requestReturn, so
+                        offering this entry point at `delivered` would burn the
+                        buyer's uploads on a call that can only fail and leave
+                        orphaned Storage objects they cannot delete. The accept
+                        button above stays on shipped||delivered; a delivered buyer
+                        who has a problem uses the "File Formal Dispute" button below.
+                      */}
+                      {order.status === 'shipped' && (
+                        <>
+                        {!showReturnForm && (
                           <button
-                            onClick={handleSubmitReturn}
-                            disabled={submittingReturn || returnPhotos.length < 1 || !returnDescription.trim()}
-                            className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => setShowReturnForm(true)}
+                            disabled={isUpdating || submittingReturn}
+                            className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                           >
-                            {submittingReturn ? (
-                              <>
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                <span>{isAr ? 'جارٍ الإرسال...' : 'Submitting...'}</span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertTriangle className="w-4 h-4" />
-                                <span>{isAr ? 'تقديم طلب الإرجاع' : 'Submit return request'}</span>
-                              </>
-                            )}
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <span>{isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}</span>
                           </button>
-                          <p className="text-[9.5px] text-gray-400 leading-relaxed">
-                            {isAr
-                              ? 'سيتم تجميد الطلب وإيقاف الدفعة للبائع ريثما يراجع الفريق طلب الإرجاع.'
-                              : 'The order will be frozen and the payout paused while the team reviews your return.'}
-                          </p>
-                        </div>
+                        )}
+
+                        {/* Return claim form */}
+                        {showReturnForm && (
+                          <div
+                            className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-4 origin-top"
+                            style={{ animation: 'returnFormIn 240ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+                          >
+                            <style>{`@keyframes returnFormIn { from { opacity: 0; transform: translateY(-6px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
+
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                                {isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}
+                              </h4>
+                              <button
+                                onClick={() => setShowReturnForm(false)}
+                                disabled={submittingReturn}
+                                className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+                                aria-label={isAr ? 'إغلاق' : 'Close'}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Reason radios */}
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                                {isAr ? 'سبب الإرجاع' : 'Reason'}
+                              </p>
+                              {([
+                                { value: 'not_as_described' as ReturnReason, en: 'Not as described', ar: 'مخالف للوصف' },
+                                { value: 'damaged' as ReturnReason, en: 'Arrived damaged', ar: 'وصل تالفاً' },
+                              ]).map(opt => (
+                                <label
+                                  key={opt.value}
+                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="return-reason"
+                                    value={opt.value}
+                                    checked={returnReason === opt.value}
+                                    onChange={() => setReturnReason(opt.value)}
+                                    className="accent-[#FF6B00]"
+                                  />
+                                  <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
+                                </label>
+                              ))}
+                            </div>
+
+                            {/* Description */}
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                                {isAr ? 'وصف المشكلة' : 'Describe the problem'}
+                              </p>
+                              <textarea
+                                value={returnDescription}
+                                onChange={e => setReturnDescription(e.target.value)}
+                                rows={3}
+                                placeholder={isAr ? 'اشرح ما الخطأ في المنتج...' : "Explain what's wrong with the item..."}
+                                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors resize-none"
+                              />
+                            </div>
+
+                            {/* Photos */}
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                                {isAr ? `الصور (${returnPhotos.length}/6) — مطلوبة` : `Photos (${returnPhotos.length}/6) — required`}
+                              </p>
+                              {returnPhotos.length > 0 && (
+                                <div className="grid grid-cols-3 gap-2">
+                                  {returnPhotos.map((file, i) => (
+                                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
+                                      <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                                      <button
+                                        onClick={() => handleRemoveReturnPhoto(i)}
+                                        disabled={submittingReturn}
+                                        className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors disabled:opacity-50"
+                                        aria-label={isAr ? 'إزالة' : 'Remove'}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {returnPhotos.length < 6 && (
+                                <label className="w-full border border-dashed border-gray-300 hover:border-[#FF6B00] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-gray-500 hover:text-[#FF6B00]">
+                                  <UploadCloud className="w-4 h-4" />
+                                  <span className="text-[11px] font-bold uppercase font-mono">
+                                    {isAr ? 'إضافة صور' : 'Add photos'}
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleReturnPhotosPicked}
+                                    disabled={submittingReturn}
+                                    className="hidden"
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            {/* Submit */}
+                            <button
+                              onClick={handleSubmitReturn}
+                              disabled={submittingReturn || returnPhotos.length < 1 || !returnDescription.trim()}
+                              className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {submittingReturn ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  <span>{isAr ? 'جارٍ الإرسال...' : 'Submitting...'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertTriangle className="w-4 h-4" />
+                                  <span>{isAr ? 'تقديم طلب الإرجاع' : 'Submit return request'}</span>
+                                </>
+                              )}
+                            </button>
+                            <p className="text-[9.5px] text-gray-400 leading-relaxed">
+                              {isAr
+                                ? 'سيتم تجميد الطلب وإيقاف الدفعة للبائع ريثما يراجع الفريق طلب الإرجاع.'
+                                : 'The order will be frozen and the payout paused while the team reviews your return.'}
+                            </p>
+                          </div>
+                        )}
+                        </>
                       )}
                     </div>
                   )}

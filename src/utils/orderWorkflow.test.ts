@@ -462,3 +462,94 @@ describe('executeOrderTransition — bookkeeping failures never fail a committed
     await expect(executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN)).rejects.toThrow('activity write denied');
   });
 });
+
+// ---------------------------------------------------------------------------
+// mark_shipped — never hand the buyer a tracking number that tracks nothing.
+//
+// The case body used to fall back to `'MJ-' + random6digits` whenever no
+// trackingNumber was supplied, then interpolate it into activityMessageAr /
+// activityMessageEn — messages the BUYER and the SELLER read. The admin relay
+// (handleAdvanceOrder) passes only `{ note }`, so that fabricated branch was the
+// DEFAULT for every admin-driven "Out for delivery".
+//
+// The absence assertion uses `'trackingNumber' in obj === false` rather than
+// toBeUndefined() for the same reason as the note tests above: Firestore rejects
+// an explicit undefined, so only the `in` form proves the key was never written.
+// ---------------------------------------------------------------------------
+
+const PREPARING_ORDER = {
+  ...(SHIPPED_ORDER as unknown as Record<string, unknown>),
+  status: 'preparing_shipment',
+  shippingStatus: 'preparing',
+} as unknown as Order;
+
+describe('executeOrderTransition — mark_shipped never fabricates a tracking number', () => {
+  const colPath = (ref: any) => (ref && ref.__path) || '';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockImplementation((_db: unknown, ...path: string[]) => ({ __path: path.join('/') }));
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  const orderPayload = () => mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>;
+  const activityRecord = () =>
+    mocks.addDoc.mock.calls.find((c) => colPath(c[0]) === 'orders/order-123/activity')![1] as Record<string, unknown>;
+
+  it('writes NO trackingNumber key at all when none is supplied', async () => {
+    // The admin relay path: `{ note }` only, no tracking number.
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', ADMIN, { note: 'courier collected' });
+
+    const payload = orderPayload();
+    expect(payload.status).toBe('shipped');
+    expect(payload.shippingStatus).toBe('shipped');
+    // NOT toBeUndefined(): `{ trackingNumber: undefined }` is exactly what
+    // Firestore rejects, and would still satisfy toBeUndefined().
+    expect('trackingNumber' in payload).toBe(false);
+  });
+
+  it('mentions no tracking ID in either language when none is supplied', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', ADMIN, { note: 'courier collected' });
+
+    const activity = activityRecord();
+    expect(activity.type).toBe('Package Shipped');
+    // The fabricated fallback was always `MJ-######`.
+    expect(activity.messageAr).not.toContain('MJ-');
+    expect(activity.messageEn).not.toContain('MJ-');
+    expect(activity.messageAr).toBe('تم شحن الطرد بنجاح مع شركة التوصيل.');
+    expect(activity.messageEn).toBe('Parcel in transit with courier.');
+    expect(activity.message).toBe('Parcel in transit with courier.');
+  });
+
+  it('writes no trackingNumber and no fake ID when extraFields are omitted entirely', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', SELLER);
+
+    expect('trackingNumber' in orderPayload()).toBe(false);
+    expect(activityRecord().messageAr).not.toContain('MJ-');
+    expect(activityRecord().messageEn).not.toContain('MJ-');
+  });
+
+  it('writes no trackingNumber for a whitespace-only tracking number', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', SELLER, { trackingNumber: '   ' });
+
+    expect('trackingNumber' in orderPayload()).toBe(false);
+    expect(activityRecord().messageEn).toBe('Parcel in transit with courier.');
+  });
+
+  it('KEEPS a real tracking number, in the order doc and in both messages', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', SELLER, { trackingNumber: 'ARX-99881' });
+
+    expect(orderPayload().trackingNumber).toBe('ARX-99881');
+
+    const activity = activityRecord();
+    expect(activity.messageAr).toContain('ARX-99881');
+    expect(activity.messageEn).toContain('ARX-99881');
+    expect(activity.messageAr).toBe('تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ARX-99881');
+    expect(activity.messageEn).toBe('Parcel in transit with courier. Tracking ID: ARX-99881');
+  });
+});
