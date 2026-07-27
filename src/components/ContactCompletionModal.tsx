@@ -89,6 +89,9 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
       // rendered" on retries) — same approach as LoginView.
       clearRecaptcha();
       recaptchaRef.current = new RecaptchaVerifier(auth, 'contact-recaptcha-container', { size: 'invisible' });
+      // Render (load grecaptcha + register the widget) before verify() runs — else
+      // the invisible reCAPTCHA can silently fail to fire. Same fix as LoginView.
+      await recaptchaRef.current.render();
       const id = await linkPhoneSendCode(e164, recaptchaRef.current);
       setVerificationId(id);
     } catch (e: any) {

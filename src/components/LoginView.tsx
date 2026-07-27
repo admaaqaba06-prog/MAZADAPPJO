@@ -126,6 +126,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       // rendered in this element" on retries and the Enterprise->v2 fallback.
       clearRecaptcha();
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      // Force grecaptcha to load + register the widget BEFORE signInWithPhoneNumber
+      // triggers verify(). Without this, an invisible reCAPTCHA can be verify()'d
+      // before the script/widget is ready and the challenge silently never fires —
+      // the intermittent "reCAPTCHA doesn't fire" bug (worse cold / on slow networks).
+      await recaptchaRef.current.render();
       const result = await loginWithPhone(e164, recaptchaRef.current);
       setConfirmation(result);
       startCooldown(); // (re)start the 60s resend window on every successful send
