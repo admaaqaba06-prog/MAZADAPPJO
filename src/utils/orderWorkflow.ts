@@ -7,9 +7,16 @@ export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "s
 
 // Allowed transitions mapping (Finite State Machine)
 export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  waiting_payment: ['paid', 'cancelled'],
+  // A dispute must be openable from EVERY live state. OrderDetailsView offers
+  // "File Formal Dispute" at any non-terminal status, open_dispute is not
+  // intercepted by either Cloud Function block, and opening one writes no money
+  // field — so a status missing 'disputed' here does not protect anything, it
+  // just throws a raw `Illegal state transition` alert at the buyer. That was
+  // the case in `preparing_shipment`, which is where the admin relay parks
+  // orders while it phones the seller: the queue's normal resting state.
+  waiting_payment: ['paid', 'cancelled', 'disputed'],
   paid: ['preparing_shipment', 'refunded', 'disputed'],
-  preparing_shipment: ['shipped'],
+  preparing_shipment: ['shipped', 'disputed'],
   shipped: ['delivered', 'disputed'],
   delivered: ['completed', 'disputed'],
   disputed: ['completed', 'refunded', 'paid'], // Admin resolutions

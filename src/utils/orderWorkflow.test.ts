@@ -60,6 +60,25 @@ describe('orderWorkflow — dispute transitions (Slice D regression guard)', () 
   it('validateTransition does not throw for paid -> disputed', () => {
     expect(() => validateTransition('paid', 'disputed')).not.toThrow();
   });
+
+  // The buyer's "File Formal Dispute" button is rendered at EVERY status that
+  // is not completed/disputed/cancelled/refunded, and open_dispute reaches
+  // validateTransition unintercepted. Any live status missing 'disputed' below
+  // is therefore a button that throws `Illegal state transition` at the buyer —
+  // notably preparing_shipment, where the admin relay parks orders while it
+  // phones the seller.
+  const LIVE_STATUSES = ['waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered'] as const;
+
+  it.each(LIVE_STATUSES)('a dispute can be opened from %s', (status) => {
+    expect(VALID_TRANSITIONS[status]).toContain('disputed');
+    expect(() => validateTransition(status, 'disputed')).not.toThrow();
+  });
+
+  it('terminal statuses still refuse a dispute', () => {
+    for (const status of ['completed', 'cancelled', 'refunded'] as const) {
+      expect(() => validateTransition(status, 'disputed')).toThrow();
+    }
+  });
 });
 
 describe('mark_delivered — delivery WITHOUT releasing money', () => {
