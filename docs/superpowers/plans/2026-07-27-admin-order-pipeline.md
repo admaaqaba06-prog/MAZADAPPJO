@@ -1048,9 +1048,78 @@ and pass them at the single place the section renders a row, alongside the props
 
 Read the existing `<FulfillmentRow ... />` call before editing — forward the new props without disturbing the ones already there.
 
-- [ ] **Step 3: Show the last note inline**
+- [ ] **Step 3: Let an admin READ the notes they have been writing**
 
-The full activity trail lives in a subcollection this section does not subscribe to. Rather than add a listener per row, surface what the order doc already carries. Inside `FulfillmentRow`, below the owner picker:
+The notes now live in `orders/{orderId}/adminNotes`, a subcollection with
+admin-only read AND write rules (they were moved off the activity record because
+buyers and sellers can read that one). Nothing reads them yet, so today they are
+write-only — which defeats the point: the next person is meant to pick the order
+up warm.
+
+`FulfillmentSection` documents that it creates **NO Firestore listeners**, and that
+property is worth keeping — a live subscription per row would regress admin
+performance badly. So fetch **on demand, once, when a row is expanded**: a one-shot
+`getDocs`, not `onSnapshot`.
+
+Add to `FulfillmentRow`:
+
+```tsx
+const [notes, setNotes] = useState<any[] | null>(null);
+const [notesOpen, setNotesOpen] = useState(false);
+
+const loadNotes = async () => {
+  setNotesOpen((open) => !open);
+  if (notes !== null) return; // already fetched once — do not re-hit Firestore
+  try {
+    const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
+    const { db } = await import('../../services/firebase');
+    // One-shot read. This section deliberately creates no listeners; a live
+    // subscription per row would mean one socket per visible order.
+    const snap = await getDocs(
+      query(collection(db, 'orders', order.id, 'adminNotes'), orderBy('timestamp', 'desc'), limit(10)),
+    );
+    setNotes(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    console.warn('[FulfillmentRow] admin notes fetch failed:', err);
+    setNotes([]);
+  }
+};
+```
+
+and render:
+
+```tsx
+<button
+  type="button"
+  onClick={loadNotes}
+  className="mt-1.5 text-[9px] font-bold text-gray-400 hover:text-gray-700 underline underline-offset-2 cursor-pointer"
+>
+  {notesOpen ? (isAr ? 'إخفاء الملاحظات' : 'Hide notes') : (isAr ? 'عرض الملاحظات' : 'Show notes')}
+</button>
+{notesOpen && (
+  <div className="mt-1.5 space-y-1">
+    {notes === null && (
+      <p className="text-[9px] text-gray-400">{isAr ? 'جارٍ التحميل…' : 'Loading…'}</p>
+    )}
+    {notes?.length === 0 && (
+      <p className="text-[9px] text-gray-400">{isAr ? 'لا توجد ملاحظات بعد.' : 'No notes yet.'}</p>
+    )}
+    {notes?.map((n, i) => (
+      <p key={i} className="text-[9px] text-gray-600 leading-snug">
+        <span className="font-bold">{n.performedByName || '—'}</span>
+        {n.note ? ` — ${n.note}` : ''}
+      </p>
+    ))}
+  </div>
+)}
+```
+
+Note in your report that these notes are **admin-only by rules**, so this control
+must never be rendered on a buyer- or seller-facing surface.
+
+- [ ] **Step 3b: Show the owner inline**
+
+Inside `FulfillmentRow`, below the owner picker:
 
 ```tsx
 {order.assignedToName && (
