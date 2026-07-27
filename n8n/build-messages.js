@@ -2,7 +2,7 @@
 //
 // MIRRORS functions/notify.js -> copyFor() in the mazadjo repo. Same wording,
 // same interpolation. If you edit copy there, edit it here too (and vice versa).
-// Covers all 21 events in CHANNEL_POLICY; unknown events fall back to the same
+// Covers all 20 events in CHANNEL_POLICY; unknown events fall back to the same
 // safe default as the app ({ title: 'تنبيه', description: '' }).
 //
 // Channel gating is NOT decided here — Cloud Functions already resolved it and

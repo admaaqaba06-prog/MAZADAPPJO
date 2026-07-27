@@ -28,7 +28,7 @@ so n8n failure-rate monitoring sees it.
 **Copy lives in two places and must stay in sync**: `functions/notify.js`
 → `copyFor()` (in-app bell) and `n8n/build-messages.js` (WhatsApp + email).
 `build-messages.js` is a verbatim port — same wording, same interpolation.
-It covers all 21 events in `CHANNEL_POLICY`.
+It covers all 20 events in `CHANNEL_POLICY`.
 
 Channel policy is *not* decided in n8n. Functions resolve it via `channelsFor()`
 and send `channels: {inapp, whatsapp, email}` on every payload; n8n only honours
