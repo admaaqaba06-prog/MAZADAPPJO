@@ -1,6 +1,18 @@
+const crypto = require('crypto');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const {
+  normalizeJordanPhone,
+  generateOtpCode,
+  hashOtp,
+  canSendOtp,
+  checkOtp,
+  OTP_TTL_MS,
+  SEND_COOLDOWN_MS,
+  MAX_SENDS_PER_HOUR,
+  MAX_ATTEMPTS,
+} = require('./whatsappOtp');
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
   approveSubscriptionRequest,
@@ -53,6 +65,28 @@ async function postToN8n(event, payload) {
     });
   } catch (e) {
     console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
+  }
+}
+
+// Hand a freshly-minted OTP to the n8n relay for WhatsApp delivery. Mirrors
+// postToN8n's contract: bounded 5s wait, NEVER throws (a relay failure must not
+// break the auth callable — the code is already persisted), no-op + warn if the
+// webhook URL is unconfigured.
+async function postOtpToRelay(phone, code) {
+  const url = process.env.N8N_OTP_WEBHOOK_URL;
+  if (!url) {
+    console.warn('[otp] N8N_OTP_WEBHOOK_URL unset — skipping OTP relay send');
+    return;
+  }
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {
+    console.warn('[otp] relay send failed:', e && e.message);
   }
 }
 
@@ -4532,6 +4566,197 @@ exports.simulateCleanup = functions.runWith({ cors: true }).https.onCall(async (
     console.error('[simulateCleanup]', error);
     throw new functions.https.HttpsError('internal', error.message || 'simulateCleanup failed.');
   }
+});
+
+
+// ─── WhatsApp OTP auth (unauthenticated gate to every account) ───────────────
+// These two callables ARE the login. They mint no wallet/ledger/escrow state —
+// a custom token is issued ONLY after checkOtp passes. Rate-limit + attempt
+// bookkeeping lives in the whatsappOtps/{e164digits} doc (admin-SDK only; the
+// firestore rule denies all client access). Responses are deliberately generic
+// (ok:false / ok:true) so neither callable leaks whether an account exists.
+const OTP_WINDOW_MS = 60 * 60 * 1000; // 1 hour rolling send window
+
+// Firestore doc id for a normalized +962… number: digits only, no leading '+'.
+function otpDocId(e164) {
+  return e164.replace(/[^\d]/g, '');
+}
+
+// Step 2: request an OTP. UNauthenticated by design.
+exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+
+  // Atomic gate+write: a concurrent burst can't slip past the cooldown /
+  // per-hour cap, because the read, the canSendOtp check, and the record
+  // write all happen inside one Firestore transaction (retries on contention).
+  let sendCode = null;
+  let retryAfterSec = Math.ceil(SEND_COOLDOWN_MS / 1000);
+  await db.runTransaction(async (tx) => {
+    sendCode = null; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const gate = canSendOtp(record, Date.now(), {
+      cooldownMs: SEND_COOLDOWN_MS,
+      windowMs: OTP_WINDOW_MS,
+      maxPerWindow: MAX_SENDS_PER_HOUR,
+    });
+    if (!gate.ok) {
+      retryAfterSec = gate.retryAfterSec;
+      return;
+    }
+
+    const now = Date.now();
+    const code = generateOtpCode();
+    const salt = crypto.randomBytes(16).toString('hex');
+
+    // Rolling-window bookkeeping: fresh window on first send or after it elapses.
+    let windowStartAt;
+    let sendCount;
+    if (record && now - (record.windowStartAt || 0) < OTP_WINDOW_MS) {
+      windowStartAt = record.windowStartAt || now;
+      sendCount = (record.sendCount || 0) + 1;
+    } else {
+      windowStartAt = now;
+      sendCount = 1;
+    }
+
+    // set fully replaces the old doc (resets attempts, drops any stale hash),
+    // so a previously-issued code can never verify.
+    tx.set(ref, {
+      codeHash: hashOtp(code, salt),
+      salt,
+      expiresAt: now + OTP_TTL_MS,
+      attempts: 0,
+      lastSentAt: now,
+      windowStartAt,
+      sendCount,
+    });
+    sendCode = code;
+  });
+
+  if (!sendCode) {
+    // UX, not an error: tell the client to wait — never throw.
+    return { ok: false, retryAfterSec };
+  }
+
+  await postOtpToRelay(e164, sendCode); // never throws — do it AFTER commit
+
+  return { ok: true, retryAfterSec: Math.ceil(SEND_COOLDOWN_MS / 1000) };
+});
+
+// Step 3: verify an OTP and mint a custom token. UNauthenticated by design.
+exports.verifyWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+
+  // Atomic read→check→(increment | single-use-delete): a concurrent burst can't
+  // exceed the MAX_ATTEMPTS lockout, and two racing verifies of the same code
+  // can't both consume it (only one delete wins) — so a token is minted at most
+  // once per issued code. The auth/token ops run OUTSIDE the txn, AFTER commit.
+  let verified = false;
+  await db.runTransaction(async (tx) => {
+    verified = false; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const res = checkOtp(record, data && data.code, Date.now());
+    if (res.ok) {
+      tx.delete(ref);       // single-use — atomic, so concurrent verifies can't double-mint
+      verified = true;
+    } else if (record) {
+      // Attempt increment feeds the MAX_ATTEMPTS lockout. Generic ok:false — no leak.
+      tx.update(ref, { attempts: (record.attempts || 0) + 1 });
+    }
+  });
+
+  if (!verified) return { ok: false };
+
+  // uid resolution + token mint are admin.auth() ops — outside the txn, only
+  // reachable once the code has been atomically consumed.
+  let uid;
+  try {
+    uid = (await admin.auth().getUserByPhoneNumber(e164)).uid;
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') {
+      try {
+        uid = (await admin.auth().createUser({ phoneNumber: e164 })).uid;
+      } catch (e2) {
+        // concurrent create won the race — re-fetch the now-existing user
+        if (e2 && e2.code === 'auth/phone-number-already-exists') {
+          uid = (await admin.auth().getUserByPhoneNumber(e164)).uid;
+        } else {
+          throw e2;
+        }
+      }
+    } else {
+      throw e;
+    }
+  }
+
+  const token = await admin.auth().createCustomToken(uid);
+  return { ok: true, token };
+});
+
+// Step 3b (E5 contact completion): verify an OTP and ATTACH the phone to the
+// CURRENT signed-in account. AUTHENTICATED — unlike verifyWhatsappOtp this mints
+// NO token (the user is already signed in); it attaches the verified number to
+// context.auth.uid via admin.auth().updateUser, preserving the uid — and thus the
+// wallet/history. Same atomic read→checkOtp→(single-use-delete | attempt-increment)
+// as verifyWhatsappOtp. NO wallet/ledger/escrow writes.
+exports.attachWhatsappPhone = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+
+  // Same single-use, attempt-bounded consume as verifyWhatsappOtp: read→check→
+  // (atomic delete on success | attempt-increment on miss). The auth op runs
+  // OUTSIDE the txn, AFTER the code has been atomically consumed.
+  let verified = false;
+  await db.runTransaction(async (tx) => {
+    verified = false; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const res = checkOtp(record, data && data.code, Date.now());
+    if (res.ok) {
+      tx.delete(ref);       // single-use — atomic, so concurrent verifies can't double-consume
+      verified = true;
+    } else if (record) {
+      tx.update(ref, { attempts: (record.attempts || 0) + 1 });
+    }
+  });
+
+  if (!verified) return { ok: false };
+
+  // Attach to the EXISTING session's uid — NO token minted (already authed).
+  try {
+    await admin.auth().updateUser(context.auth.uid, { phoneNumber: e164 });
+  } catch (e) {
+    // The number is already claimed by a DIFFERENT account — never merge/orphan;
+    // surface a distinct code so the client can show "on another account".
+    if (e && e.code === 'auth/phone-number-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'هذا الرقم مسجّل على حساب آخر.');
+    }
+    throw e;
+  }
+
+  return { ok: true };
 });
 
 

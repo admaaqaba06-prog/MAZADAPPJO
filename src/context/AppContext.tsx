@@ -18,6 +18,7 @@ import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
 import { stripReserve } from '../utils/reserveStrip';
+import { toE164Jordan } from '../utils/phoneNumber';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
@@ -262,11 +263,22 @@ interface AppContextProps {
   loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
 
+  // WhatsApp OTP — PRIMARY phone sign-in (loginWithPhone/confirmPhoneCode SMS is the
+  // fallback). requestWhatsappOtp sends a 6-digit code over WhatsApp; verifyWhatsappOtp
+  // returns a Firebase custom token; signInWhatsapp exchanges it for a session.
+  requestWhatsappOtp: (phone: string) => Promise<{ ok: boolean; retryAfterSec?: number }>;
+  verifyWhatsappOtp: (phone: string, code: string) => Promise<{ ok: boolean; token?: string }>;
+  signInWhatsapp: (token: string) => Promise<void>;
+
   // Contact completion (E5): ATTACH a missing phone/email to the CURRENT signed-in
   // account (same uid — never sign into a separate phone account, which would orphan
   // the user's wallet/history). Consumed by ContactCompletionModal.
   linkPhoneSendCode: (e164Phone: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<string>;
   linkPhoneToAccount: (verificationId: string, code: string) => Promise<void>;
+  // WhatsApp-OTP attach: verifies the code and attaches the phone to the CURRENT
+  // uid (same account — no token, no wallet writes). Throws HttpsError on failure
+  // (e.g. err.code === 'functions/already-exists' when the number is on another account).
+  attachWhatsappPhone: (phone: string, code: string) => Promise<{ ok: boolean }>;
   saveEmail: (email: string) => Promise<void>;
   // Whether the contact-completion modal is open (mounted by the bid/sell gates in A4).
   contactModalOpen: boolean;
@@ -2416,6 +2428,30 @@ const fetchIP = async () => {
     return signInWithPhoneNumber(auth, phoneE164, appVerifier);
   }, []);
 
+  // WhatsApp OTP — primary phone sign-in. The backend callables send/verify a 6-digit
+  // code over WhatsApp; verify returns a Firebase custom token on success.
+  const requestWhatsappOtp = useCallback(async (phone: string) => {
+    const callable = await getCallableFunction<{ phone: string }, { ok: boolean; retryAfterSec?: number }>('requestWhatsappOtp');
+    const result = await callable({ phone });
+    return result.data;
+  }, []);
+
+  const verifyWhatsappOtp = useCallback(async (phone: string, code: string) => {
+    const callable = await getCallableFunction<{ phone: string; code: string }, { ok: boolean; token?: string }>('verifyWhatsappOtp');
+    const result = await callable({ phone, code });
+    return result.data;
+  }, []);
+
+  // Mirror loginWithPhone's sessionId bookkeeping BEFORE sign-in, then exchange the
+  // custom token. onAuthStateChanged then flips the app into the authenticated shell.
+  const signInWhatsapp = useCallback(async (token: string) => {
+    const { signInWithCustomToken } = await import('firebase/auth');
+    const newSessionId = generateSessionId();
+    localStorage.setItem('mazad_session_id', newSessionId);
+    localStorage.setItem('mazad_last_login_time', String(Date.now()));
+    await signInWithCustomToken(auth, token);
+  }, []);
+
   const confirmPhoneCode = useCallback(async (confirmation: import('firebase/auth').ConfirmationResult, code: string) => {
     try {
       // (review B2) OTP entry takes longer than the 10s session grace window used by the
@@ -2484,6 +2520,27 @@ const fetchIP = async () => {
     // phone requirement immediately and the modal can call onComplete().
     setCurrentUser(prev => ({ ...prev, phoneNumber: digits, phone: digits }));
     setUsers(prev => prev.map(u => (u.id === auth.currentUser!.uid ? { ...u, phoneNumber: digits, phone: digits } : u)));
+  }, []);
+
+  // WhatsApp-OTP attach (replaces the reCAPTCHA linkPhone flow for E5). The callable
+  // verifies the code and attaches the number to THIS uid server-side (no token —
+  // already authed). On success we mirror linkPhoneToAccount's user-doc write so
+  // resolveMissingContact(currentUser) clears the phone requirement immediately.
+  // Rethrows the callable's HttpsError (e.g. functions/already-exists) for the modal.
+  const attachWhatsappPhone = useCallback(async (phone: string, code: string): Promise<{ ok: boolean }> => {
+    const callable = await getCallableFunction<{ phone: string; code: string }, { ok: boolean }>('attachWhatsappPhone');
+    const result = await callable({ phone, code });
+    if (result.data.ok) {
+      const e164 = toE164Jordan(phone) || phone;
+      const normalizedPhone = e164.replace(/\D/g, '');
+      const uid = auth.currentUser!.uid;
+      await setDoc(doc(db, 'users', uid), {
+        phoneNumber: e164, phone: e164, normalizedPhone,
+      }, { merge: true });
+      setCurrentUser(prev => ({ ...prev, phoneNumber: e164, phone: e164 }));
+      setUsers(prev => prev.map(u => (u.id === uid ? { ...u, phoneNumber: e164, phone: e164 } : u)));
+    }
+    return result.data;
   }, []);
 
   const saveEmail = useCallback(async (email: string): Promise<void> => {
@@ -5115,8 +5172,12 @@ const fetchIP = async () => {
       loginWithGoogle,
       loginWithPhone,
       confirmPhoneCode,
+      requestWhatsappOtp,
+      verifyWhatsappOtp,
+      signInWhatsapp,
       linkPhoneSendCode,
       linkPhoneToAccount,
+      attachWhatsappPhone,
       saveEmail,
       contactModalOpen,
       setContactModalOpen,
@@ -5176,7 +5237,7 @@ const fetchIP = async () => {
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
     createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
-    confirmPhoneCode, linkPhoneSendCode, linkPhoneToAccount, saveEmail,
+    confirmPhoneCode, requestWhatsappOtp, verifyWhatsappOtp, signInWhatsapp, linkPhoneSendCode, linkPhoneToAccount, attachWhatsappPhone, saveEmail,
     logout, registerUser, subscribeUser, updateOwnProfile,
     completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
