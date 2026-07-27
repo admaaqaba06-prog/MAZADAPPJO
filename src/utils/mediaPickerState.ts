@@ -25,8 +25,13 @@ export function addGalleryPhotos(
   return [...prev, ...incoming].slice(0, MAX_GALLERY_PHOTOS);
 }
 
-/** Out-of-range indices are a no-op rather than a silent whole-list rewrite. */
+/**
+ * Out-of-range indices are a no-op rather than a silent whole-list rewrite.
+ * NaN and fractional indices need the explicit integer check — both bounds
+ * comparisons are false for NaN, so it would otherwise fall through to
+ * `filter` and rewrite the list.
+ */
 export function removeGalleryPhoto(prev: PickedPhoto[], index: number): PickedPhoto[] {
-  if (index < 0 || index >= prev.length) return prev;
+  if (!Number.isInteger(index) || index < 0 || index >= prev.length) return prev;
   return prev.filter((_, i) => i !== index);
 }

@@ -102,6 +102,15 @@ describe('removeGalleryPhoto', () => {
     expect(removeGalleryPhoto([], 0)).toHaveLength(0);
   });
 
+  // Both bounds comparisons are false for NaN, so without an integer check it
+  // would fall through to filter() and rewrite the whole list.
+  it('returns the very same array for a NaN or fractional index', () => {
+    const prev = [photo(1), photo(2)];
+    expect(removeGalleryPhoto(prev, NaN)).toBe(prev);
+    expect(removeGalleryPhoto(prev, 1.5)).toBe(prev);
+    expect(removeGalleryPhoto(prev, Infinity)).toBe(prev);
+  });
+
   it('removes the first and last photo at the boundary indices', () => {
     const prev = [photo(1), photo(2), photo(3)];
     expect(removeGalleryPhoto(prev, 0).map((p) => p.url)).toEqual(['blob:2', 'blob:3']);

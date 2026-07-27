@@ -47,6 +47,18 @@ describe('canEditDrop', () => {
     expect(canEditDrop({ status: 'completed', totalBids: 0 })).toBe(false);
     expect(canEditDrop({ status: 'ended', totalBids: 0 })).toBe(false);
   });
+  // settlement.js writes three closing statuses, not two: a lot with real bids
+  // and a winner but under reserve closes as 'reserve_not_met'. It has been
+  // through settlement, so it is no more editable than a sold one.
+  it('refuses on a lot that closed under reserve', () => {
+    expect(canEditDrop({ status: 'reserve_not_met', totalBids: 0 })).toBe(false);
+    expect(canEditDrop({ status: 'reserve_not_met', totalBids: 4 })).toBe(false);
+  });
+  // Pre-live review states are not settlement outcomes and stay editable.
+  it('still allows editing a lot awaiting or refused review', () => {
+    expect(canEditDrop({ status: 'processing', totalBids: 0 })).toBe(true);
+    expect(canEditDrop({ status: 'rejected', totalBids: 0 })).toBe(true);
+  });
   // Locking an admin out of a lot nobody has bid on is the worse failure, so a
   // junk count must not read as "has bids".
   it('still allows editing when the count is junk rather than a real bid', () => {
@@ -69,6 +81,10 @@ describe('canCancelDrop', () => {
   it('refuses on a finished lot — settlement already ran', () => {
     expect(canCancelDrop({ status: 'completed', totalBids: 4 })).toBe(false);
     expect(canCancelDrop({ status: 'ended', totalBids: 0 })).toBe(false);
+  });
+  it('refuses on a lot that closed under reserve — settlement already ran', () => {
+    expect(canCancelDrop({ status: 'reserve_not_met', totalBids: 4 })).toBe(false);
+    expect(canCancelDrop({ status: 'reserve_not_met', totalBids: 0 })).toBe(false);
   });
 });
 

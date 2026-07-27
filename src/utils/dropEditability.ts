@@ -14,7 +14,16 @@ export interface DropEditabilitySource {
   totalBids?: number | null;
 }
 
-const FINISHED = new Set(['completed', 'ended']);
+/**
+ * Every status settlement can leave behind. `functions/settlement.js` writes
+ * exactly three: 'completed' (sold), 'reserve_not_met' (real bids and a winner
+ * but under reserve, no order created) and 'ended' (unsold). All three are
+ * closed — `DropsListPanel` groups all three under "Recently ended".
+ *
+ * 'processing' and 'rejected' are deliberately absent: those are pre-live
+ * review states and a rejected listing is still editable by its seller.
+ */
+const FINISHED = new Set(['completed', 'reserve_not_met', 'ended']);
 
 /** Non-numeric counts read as zero; only a real positive number counts as bids. */
 export function bidCountOf(a: DropEditabilitySource): number {
