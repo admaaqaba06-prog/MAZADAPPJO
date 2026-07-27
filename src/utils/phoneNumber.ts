@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
+
 // Jordanian mobile numbers are 9 digits national, starting with 7 (07XXXXXXXX locally).
 // Normalize common input shapes to E.164: +9627XXXXXXXX.
 export function toE164Jordan(input: string): string | null {
@@ -12,8 +14,6 @@ export function toE164Jordan(input: string): string | null {
   if (!/^7\d{8}$/.test(d)) return null;
   return `+962${d}`;
 }
-
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 
 export const DEFAULT_COUNTRY: CountryCode = 'JO';
 
