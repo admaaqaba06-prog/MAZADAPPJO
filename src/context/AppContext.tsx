@@ -226,7 +226,6 @@ interface AppContextProps {
   submitDispute: (orderId: string, description: string, photos: string[], videos: string[]) => Promise<{ success: boolean; message: string }>;
   respondToDispute: (disputeId: string, response: string) => Promise<{ success: boolean; message: string }>;
   respondToReview: (reviewId: string, response: string) => Promise<{ success: boolean; message: string }>;
-  resolveDispute: (disputeId: string, resolution: 'refund' | 'release') => Promise<{ success: boolean; message: string }>;
   approveVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
   rejectVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
   suspendSeller: (userId: string, suspend: boolean) => Promise<{ success: boolean; message: string }>;
@@ -4817,36 +4816,6 @@ const fetchIP = async () => {
     }
   }, [language, addNotification]);
 
-  const resolveDispute = useCallback(async (disputeId: string, resolution: 'refund' | 'release') => {
-    try {
-      const dispute = disputes.find(d => d.id === disputeId);
-      if (!dispute) throw new Error("Dispute not found");
-
-      const resolvedStatus = resolution === 'refund' ? 'resolved_refunded' : 'resolved_released';
-      
-      await updateDoc(doc(db, 'disputes', disputeId), {
-        status: resolvedStatus,
-        resolvedAt: Date.now(),
-        resolverName: currentUser?.name || 'Admin'
-      });
-
-      await updateDoc(doc(db, 'orders', dispute.orderId), {
-        status: resolution === 'refund' ? 'refunded' : 'completed',
-        escrowStatus: resolution === 'refund' ? 'refunded' : 'released'
-      });
-
-      addNotification(
-        '⚖️ Dispute Resolved',
-        `Dispute resolved with resolution: ${resolution === 'refund' ? 'REFUND BUYER' : 'RELEASE TO SELLER'}.`,
-        'success'
-      );
-      return { success: true, message: 'Dispute resolved successfully' };
-    } catch (err: any) {
-      console.error("Resolve dispute error:", err);
-      return { success: false, message: err.message };
-    }
-  }, [currentUser, disputes, addNotification]);
-
   const approveVerificationRequest = useCallback(async (requestId: string) => {
     try {
       const req = verificationRequests.find(r => r.id === requestId);
@@ -5153,7 +5122,6 @@ const fetchIP = async () => {
       submitDispute,
       respondToDispute,
       respondToReview,
-      resolveDispute,
       approveVerificationRequest,
       rejectVerificationRequest,
       suspendSeller,
@@ -5182,7 +5150,7 @@ const fetchIP = async () => {
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
     updateFeatureFlag, logSystemHealth, submitVerificationRequest,
     submitSellerReview, submitSellerReport, submitDispute, respondToDispute,
-    respondToReview, resolveDispute, approveVerificationRequest,
+    respondToReview, approveVerificationRequest,
     rejectVerificationRequest, suspendSeller, removeSellerBadge,
     resetSellerTrustScore,
   ]);
