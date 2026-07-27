@@ -83,6 +83,13 @@ export async function executeOrderTransition(
      * courier collects Tuesday". Additive: the canned bilingual activity
      * message still goes to the buyer and seller, this is what the TEAM reads
      * when picking the order up next.
+     *
+     * INTERNAL. It is written to orders/{orderId}/adminNotes, which
+     * firestore.rules gates on isAdmin() for read AND write. It must never go
+     * onto the activity record — OrderDetailsView onSnapshot-subscribes
+     * orders/{orderId}/activity for the buyer and the seller, so anything
+     * written there is transmitted to their browsers regardless of what the UI
+     * chooses to render.
      */
     note?: string;
   }
@@ -326,9 +333,10 @@ export async function executeOrderTransition(
       messageAr: activityMessageAr,
       messageEn: activityMessageEn,
       message: activityMessageEn, // English default as requested
-      // Conditional spread: Firestore rejects an explicit `undefined`, and an
-      // advance with no note must simply not carry the key.
-      ...(trimmedNote ? { note: trimmedNote } : {}),
+      // NO `note` KEY HERE, EVER. The buyer and the seller can read this
+      // subcollection (firestore.rules) and OrderDetailsView keeps a live
+      // onSnapshot on it, so a note written here reaches their browsers even
+      // though nothing renders it. The note goes to adminNotes below instead.
       performedBy: currentUser.id,
       performedByName: currentUser.name || 'User',
       timestamp: Timestamp.now()
@@ -370,7 +378,40 @@ export async function executeOrderTransition(
       }
     }
 
-    // 4. Send Notifications (Buyer, Seller, Admin)
+    // 4. Write the internal note to orders/{orderId}/adminNotes.
+    //
+    // Separate subcollection, not the activity record and not the order doc:
+    // buyer and seller can read BOTH of those. adminNotes is isAdmin() on read
+    // and write, so this is the only channel where "seller is dodging us" is
+    // genuinely internal.
+    //
+    // NEVER throws — same contract as the adminActions audit write above. The
+    // order has already moved and the activity record is already written; a
+    // note is context for the next team member, not the operation, so a failed
+    // write must only log. Letting it escape would report a transition that HAD
+    // committed as a failure, and the retry would then fail as "Illegal state
+    // transition" because the order had already advanced.
+    if (trimmedNote) {
+      try {
+        const adminNotesColRef = collection(db, 'orders', order.id, 'adminNotes');
+        await addDoc(adminNotesColRef, {
+          note: trimmedNote,
+          performedBy: currentUser.id,
+          performedByName: currentUser.name || 'User',
+          action: action,
+          fromStatus: fromStatus,
+          toStatus: toStatus,
+          timestamp: Timestamp.now()
+        });
+      } catch (noteError: any) {
+        console.warn(
+          `[orderWorkflow] adminNotes write failed for order ${order.id} (${action}):`,
+          noteError && noteError.message
+        );
+      }
+    }
+
+    // 5. Send Notifications (Buyer, Seller, Admin)
     const notificationsColRef = collection(db, 'notifications');
     const timestamp = Date.now();
 

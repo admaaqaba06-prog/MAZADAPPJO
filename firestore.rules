@@ -348,6 +348,19 @@ service cloud.firestore {
           isAdmin()
         );
       }
+
+      // Internal ops notes ("called seller, courier collects Tuesday").
+      //
+      // DELIBERATELY SEPARATE from /activity above: the buyer and the seller
+      // can READ /activity — OrderDetailsView keeps a live onSnapshot on it —
+      // and they can read the order doc itself (the `allow read` rule above;
+      // its denylist only stops them WRITING fields). So neither of those can
+      // hold anything the team means to keep to itself. This subcollection is
+      // the internal channel: isAdmin() on read AND write, no counterparty
+      // clause. Do not add one.
+      match /adminNotes/{noteId} {
+        allow read, write: if isAdmin();
+      }
     }
 
     // 13. Seller Profiles

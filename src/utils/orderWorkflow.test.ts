@@ -197,12 +197,18 @@ describe('executeOrderTransition — mark_delivered moves goods, never money', (
 });
 
 // ---------------------------------------------------------------------------
-// The free-text note that rides along with a transition.
+// The free-text note that rides along with a transition — and stays INTERNAL.
 //
 // `nudgeCount: 3` says three nudges fired; it does not say the seller promised
 // a Tuesday courier. The note is what the TEAM reads when picking the order up
 // next — it is purely ADDITIVE, so the canned bilingual messages the buyer and
 // seller actually receive must be byte-identical with or without it.
+//
+// It must NOT ride on the activity record. OrderDetailsView onSnapshot-
+// subscribes orders/{orderId}/activity for the buyer AND the seller, and
+// firestore.rules grants them read there, so anything written to activity is
+// transmitted to their browsers whether or not the UI renders it. The note
+// therefore goes to orders/{orderId}/adminNotes, which is admin-read/write only.
 //
 // The absence assertions below use `'note' in obj === false` rather than
 // `toBeUndefined()` on purpose: `{ note: undefined }` satisfies
@@ -219,11 +225,16 @@ const ADMIN = { id: 'admin-1', email: 'admin@example.com', name: 'Admin', role: 
 const DELIVERED_AR = 'تم تسليم الطرد للمشتري — بانتظار تأكيد الاستلام قبل تحرير المبلغ.';
 const DELIVERED_EN = 'Parcel delivered to the buyer — awaiting acceptance before funds are released.';
 
-describe('executeOrderTransition — the note rides along with the transition', () => {
+describe('executeOrderTransition — the note is internal, never on the activity record', () => {
+  const colPath = (ref: any) => (ref && ref.__path) || '';
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     mocks.doc.mockReturnValue({ __ref: 'orderRef' });
-    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    // Path-tagged refs so a write can be located (and rejected) by target
+    // collection rather than by call index.
+    mocks.collection.mockImplementation((_db: unknown, ...path: string[]) => ({ __path: path.join('/') }));
     mocks.addDoc.mockResolvedValue({ id: 'generated' });
     mocks.updateDoc.mockResolvedValue(undefined);
     mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
@@ -232,46 +243,99 @@ describe('executeOrderTransition — the note rides along with the transition', 
 
   // The activity record is the first addDoc in the transition body.
   const activityRecord = () => mocks.addDoc.mock.calls[0][1] as Record<string, unknown>;
+  const adminNotes = () =>
+    mocks.addDoc.mock.calls
+      .filter((call) => colPath(call[0]) === 'orders/order-123/adminNotes')
+      .map((call) => call[1] as Record<string, unknown>);
 
-  it('writes the note onto the activity record', async () => {
+  it('does NOT write the note onto the activity record', async () => {
     await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, {
       note: 'called seller, courier collects Tuesday',
     });
 
-    expect(activityRecord().note).toBe('called seller, courier collects Tuesday');
+    // The buyer and the seller both read this subcollection. NOT
+    // toBeUndefined(): the key must never be handed over at all.
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('writes the note to the admin-only adminNotes subcollection instead', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, {
+      note: 'called seller, courier collects Tuesday',
+    });
+
+    const notes = adminNotes();
+    expect(notes).toHaveLength(1);
+    expect(notes[0].note).toBe('called seller, courier collects Tuesday');
+    // Enough for the next team member to pick the order up warm.
+    expect(notes[0].performedBy).toBe('admin-1');
+    expect(notes[0].performedByName).toBe('Admin');
+    expect(notes[0].action).toBe('mark_delivered');
+    expect(notes[0].fromStatus).toBe('shipped');
+    expect(notes[0].toStatus).toBe('delivered');
+    expect(notes[0].timestamp).toBeTruthy();
   });
 
   it('trims surrounding whitespace off the note', async () => {
-    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, {
       note: '   courier collects Tuesday \n ',
     });
 
-    expect(activityRecord().note).toBe('courier collects Tuesday');
+    expect(adminNotes()).toHaveLength(1);
+    expect(adminNotes()[0].note).toBe('courier collects Tuesday');
   });
 
-  it('omits the note key entirely when no extraFields are passed', async () => {
-    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER);
+  it('writes no admin note, and no activity note, when no extraFields are passed', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN);
 
-    // NOT toBeUndefined(): Firestore would reject an explicit undefined.
+    expect(adminNotes()).toHaveLength(0);
     expect('note' in activityRecord()).toBe(false);
   });
 
-  it('omits the note key entirely when extraFields carry no note', async () => {
-    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { trackingNumber: 'MJ-123456' });
+  it('writes no admin note when extraFields carry no note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, { trackingNumber: 'MJ-123456' });
 
+    expect(adminNotes()).toHaveLength(0);
     expect('note' in activityRecord()).toBe(false);
   });
 
-  it('omits the note key entirely for an empty string', async () => {
-    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { note: '' });
+  it('writes no admin note for an empty string', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, { note: '' });
 
+    expect(adminNotes()).toHaveLength(0);
     expect('note' in activityRecord()).toBe(false);
   });
 
-  it('omits the note key entirely for a whitespace-only note', async () => {
-    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { note: '   \n\t  ' });
+  it('writes no admin note for a whitespace-only note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, { note: '   \n\t  ' });
 
+    expect(adminNotes()).toHaveLength(0);
     expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('writes no admin note for a non-string note', async () => {
+    // Firestore rejects an explicit undefined, and a caller handing over a
+    // number must not produce a half-formed note document either.
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, { note: 12345 as unknown as string });
+
+    expect(adminNotes()).toHaveLength(0);
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('a rejected adminNotes write still resolves — a note is bookkeeping, not the operation', async () => {
+    mocks.addDoc.mockImplementation((ref: any) =>
+      colPath(ref) === 'orders/order-123/adminNotes'
+        ? Promise.reject(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }))
+        : Promise.resolve({ id: 'generated' })
+    );
+
+    await expect(
+      executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, { note: 'courier collects Tuesday' })
+    ).resolves.toBeUndefined();
+
+    // The transition itself committed, and the fan-out after it still ran.
+    expect(mocks.updateDoc).toHaveBeenCalledTimes(1);
+    expect((mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>).status).toBe('delivered');
+    expect(mocks.addDoc.mock.calls.filter((c) => colPath(c[0]) === 'notifications')).toHaveLength(3);
   });
 
   it('leaves the canned bilingual messages untouched when a note is present', async () => {
@@ -294,8 +358,9 @@ describe('executeOrderTransition — the note rides along with the transition', 
       note: '  called seller, courier collects Tuesday  ',
     });
 
-    // Activity is call 0; the adminActions entry is call 1 for an admin actor.
-    const audit = mocks.addDoc.mock.calls[1][1] as Record<string, unknown>;
+    // adminActions is already admin-read-only, so the note stays in its
+    // details string — that is not a leak.
+    const audit = mocks.addDoc.mock.calls.find((c) => colPath(c[0]) === 'adminActions')![1] as Record<string, unknown>;
     expect(audit.action).toBe('mark_delivered');
     expect(audit.details).toBe(
       'Transitioned order from shipped to delivered via action: mark_delivered — note: called seller, courier collects Tuesday'
@@ -305,7 +370,7 @@ describe('executeOrderTransition — the note rides along with the transition', 
   it('leaves the admin audit entry unchanged when there is no note', async () => {
     await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN);
 
-    const audit = mocks.addDoc.mock.calls[1][1] as Record<string, unknown>;
+    const audit = mocks.addDoc.mock.calls.find((c) => colPath(c[0]) === 'adminActions')![1] as Record<string, unknown>;
     expect(audit.details).toBe('Transitioned order from shipped to delivered via action: mark_delivered');
   });
 });
