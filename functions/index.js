@@ -1,6 +1,18 @@
+const crypto = require('crypto');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const {
+  normalizeJordanPhone,
+  generateOtpCode,
+  hashOtp,
+  canSendOtp,
+  checkOtp,
+  OTP_TTL_MS,
+  SEND_COOLDOWN_MS,
+  MAX_SENDS_PER_HOUR,
+  MAX_ATTEMPTS,
+} = require('./whatsappOtp');
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
   approveSubscriptionRequest,
@@ -53,6 +65,28 @@ async function postToN8n(event, payload) {
     });
   } catch (e) {
     console.warn(`[n8n] ${event} webhook failed:`, e && e.message);
+  }
+}
+
+// Hand a freshly-minted OTP to the n8n relay for WhatsApp delivery. Mirrors
+// postToN8n's contract: bounded 5s wait, NEVER throws (a relay failure must not
+// break the auth callable — the code is already persisted), no-op + warn if the
+// webhook URL is unconfigured.
+async function postOtpToRelay(phone, code) {
+  const url = process.env.N8N_OTP_WEBHOOK_URL;
+  if (!url) {
+    console.warn('[otp] N8N_OTP_WEBHOOK_URL unset — skipping OTP relay send');
+    return;
+  }
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {
+    console.warn('[otp] relay send failed:', e && e.message);
   }
 }
 
@@ -4532,6 +4566,112 @@ exports.simulateCleanup = functions.runWith({ cors: true }).https.onCall(async (
     console.error('[simulateCleanup]', error);
     throw new functions.https.HttpsError('internal', error.message || 'simulateCleanup failed.');
   }
+});
+
+
+// ─── WhatsApp OTP auth (unauthenticated gate to every account) ───────────────
+// These two callables ARE the login. They mint no wallet/ledger/escrow state —
+// a custom token is issued ONLY after checkOtp passes. Rate-limit + attempt
+// bookkeeping lives in the whatsappOtps/{e164digits} doc (admin-SDK only; the
+// firestore rule denies all client access). Responses are deliberately generic
+// (ok:false / ok:true) so neither callable leaks whether an account exists.
+const OTP_WINDOW_MS = 60 * 60 * 1000; // 1 hour rolling send window
+
+// Firestore doc id for a normalized +962… number: digits only, no leading '+'.
+function otpDocId(e164) {
+  return e164.replace(/[^\d]/g, '');
+}
+
+// Step 2: request an OTP. UNauthenticated by design.
+exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const now = Date.now();
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+  const snap = await ref.get();
+  const record = snap.exists ? snap.data() : null;
+
+  const gate = canSendOtp(record, now, {
+    cooldownMs: SEND_COOLDOWN_MS,
+    windowMs: OTP_WINDOW_MS,
+    maxPerWindow: MAX_SENDS_PER_HOUR,
+  });
+  if (!gate.ok) {
+    // UX, not an error: tell the client to wait — never throw.
+    return { ok: false, retryAfterSec: gate.retryAfterSec };
+  }
+
+  const code = generateOtpCode();
+  const salt = crypto.randomBytes(16).toString('hex');
+
+  // Rolling-window bookkeeping: fresh window on first send or after it elapses.
+  let windowStartAt;
+  let sendCount;
+  if (!record || now - (record.windowStartAt || 0) >= OTP_WINDOW_MS) {
+    windowStartAt = now;
+    sendCount = 1;
+  } else {
+    windowStartAt = record.windowStartAt;
+    sendCount = (record.sendCount || 0) + 1;
+  }
+
+  // merge:false — a fresh code fully replaces the old (resets attempts, drops
+  // any stale hash), so a previously-issued code can never verify.
+  await ref.set({
+    codeHash: hashOtp(code, salt),
+    salt,
+    expiresAt: now + OTP_TTL_MS,
+    attempts: 0,
+    lastSentAt: now,
+    windowStartAt,
+    sendCount,
+  }, { merge: false });
+
+  await postOtpToRelay(e164, code); // never throws
+
+  return { ok: true, retryAfterSec: Math.ceil(SEND_COOLDOWN_MS / 1000) };
+});
+
+// Step 3: verify an OTP and mint a custom token. UNauthenticated by design.
+exports.verifyWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+  const snap = await ref.get();
+  const record = snap.exists ? snap.data() : null;
+
+  const res = checkOtp(record, data && data.code, Date.now());
+  if (!res.ok) {
+    // Best-effort attempt increment (only if a record exists) to feed the
+    // MAX_ATTEMPTS lockout. Generic ok:false — no account-existence leak.
+    if (record) {
+      await ref.update({ attempts: (record.attempts || 0) + 1 }).catch(() => {});
+    }
+    return { ok: false };
+  }
+
+  // Single-use: consume the code before minting anything.
+  await ref.delete().catch(() => {});
+
+  let uid;
+  try {
+    uid = (await admin.auth().getUserByPhoneNumber(e164)).uid;
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') {
+      uid = (await admin.auth().createUser({ phoneNumber: e164 })).uid;
+    } else {
+      throw e;
+    }
+  }
+
+  const token = await admin.auth().createCustomToken(uid);
+  return { ok: true, token };
 });
 
 
