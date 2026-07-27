@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveMissingContact } from '../utils/guestGate';
-import { toE164Jordan } from '../utils/phoneNumber';
+import { DEFAULT_COUNTRY } from '../utils/phoneNumber';
+import type { CountryCode } from 'libphonenumber-js';
 import { mapAuthError } from '../utils/authErrors';
+import { PhoneInput } from './ui/PhoneInput';
 import { Phone, Mail, ShieldCheck, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 
 // Deliberately loose email check — email is UNVERIFIED in E5 (receipts only), so
@@ -36,7 +38,11 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   const { needsPhone, needsEmail } = resolveMissingContact(currentUser);
 
   // Phone flow (send WhatsApp code -> verify + attach) state
-  const [phoneInput, setPhoneInput] = useState('');
+  const [phone, setPhone] = useState<{ country: CountryCode; national: string; e164: string | null }>({
+    country: DEFAULT_COUNTRY,
+    national: '',
+    e164: null,
+  });
   const [smsCode, setSmsCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
@@ -59,16 +65,16 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   const handleSendCode = async () => {
     if (phoneBusy) return; // ignore rapid double-clicks
     setPhoneErr('');
-    const e164 = toE164Jordan(phoneInput);
+    const e164 = phone.e164;
     if (!e164) {
-      setPhoneErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      setPhoneErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
       return;
     }
     setPhoneBusy(true);
     try {
       // Sends a 6-digit code over WhatsApp (no reCAPTCHA). ok:false means the
       // server-side cooldown/rate-limit is active — surface the wait, not an error.
-      const res = await requestWhatsappOtp(phoneInput);
+      const res = await requestWhatsappOtp(e164);
       if (res.ok) {
         setCodeSent(true);
       } else {
@@ -88,6 +94,11 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   const handleVerifyCode = async () => {
     if (phoneBusy) return; // ignore rapid double-clicks
     setPhoneErr('');
+    const e164 = phone.e164;
+    if (!e164) {
+      setPhoneErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
+      return;
+    }
     if (!codeSent || smsCode.trim().length < 4) {
       setPhoneErr(isAr ? 'أدخل رمز التحقق.' : 'Enter the verification code.');
       return;
@@ -97,7 +108,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
       // Verifies the code + attaches the number to THIS uid server-side. On success
       // the wrapper writes the phone to the user doc and mirrors currentUser, so the
       // completion effect proceeds (or the email field renders if still missing).
-      const res = await attachWhatsappPhone(phoneInput, smsCode.trim());
+      const res = await attachWhatsappPhone(e164, smsCode.trim());
       if (res.ok) {
         setCodeSent(false);
         setSmsCode('');
@@ -181,14 +192,10 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
 
               {!codeSent ? (
                 <>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    dir="ltr"
-                    placeholder="07xxxxxxxx"
-                    value={phoneInput}
-                    onChange={e => setPhoneInput(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-gray-50 text-left"
+                  <PhoneInput
+                    value={{ country: phone.country, national: phone.national }}
+                    onChange={setPhone}
+                    lang={language}
                     id="contact-completion-phone"
                   />
                   <button

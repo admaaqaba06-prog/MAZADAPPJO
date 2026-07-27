@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { ConfirmationResult, RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/translations';
-import { toE164Jordan } from '../utils/phoneNumber';
+import { DEFAULT_COUNTRY } from '../utils/phoneNumber';
+import type { CountryCode } from 'libphonenumber-js';
 import { mapAuthError } from '../utils/authErrors';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from '../utils/deepLink';
+import { PhoneInput } from './ui/PhoneInput';
 import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -54,7 +56,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
   // Phone auth (send SMS code -> verify) state
   const [phoneMode, setPhoneMode] = useState(false);
-  const [phoneInput, setPhoneInput] = useState('');
+  const [phone, setPhone] = useState<{ country: CountryCode; national: string; e164: string | null }>({
+    country: DEFAULT_COUNTRY,
+    national: '',
+    e164: null,
+  });
   const [smsCode, setSmsCode] = useState('');
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [phoneBusy, setPhoneBusy] = useState(false);
@@ -62,8 +68,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
   // WhatsApp OTP is the PRIMARY phone channel; the Firebase reCAPTCHA/SMS flow above is
-  // the fallback. `phoneChannel` picks which one the phone panel renders. `phoneInput`
-  // is shared across both channels (same number, different delivery).
+  // the fallback. `phoneChannel` picks which one the phone panel renders. `phone`
+  // (country + national + derived e164) is shared across both channels (same number, different delivery).
   const [phoneChannel, setPhoneChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [waSent, setWaSent] = useState(false); // code has been requested → show code entry
   const [waCode, setWaCode] = useState('');
@@ -124,9 +130,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const handleSendCode = async () => {
     if (phoneBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setPhoneErr('');
-    const e164 = toE164Jordan(phoneInput);
+    const e164 = phone.e164;
     if (!e164) {
-      setPhoneErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      setPhoneErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
       return;
     }
     setPhoneBusy(true);
@@ -175,9 +181,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const handleWaSendCode = async () => {
     if (waBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setWaErr('');
-    const e164 = toE164Jordan(phoneInput);
+    const e164 = phone.e164;
     if (!e164) {
-      setWaErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      setWaErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
       return;
     }
     setWaBusy(true);
@@ -206,9 +212,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const handleWaVerify = async () => {
     if (waBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setWaErr('');
-    const e164 = toE164Jordan(phoneInput);
+    const e164 = phone.e164;
     if (!e164) {
-      setWaErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      setWaErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
       return;
     }
     if (waCode.trim().length < 4) {
@@ -365,14 +371,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
             <div className="space-y-2" id="whatsapp-login-panel">
               {!waSent ? (
                 <>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    dir="ltr"
-                    placeholder="07xxxxxxxx"
-                    value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
-                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                  <PhoneInput
+                    value={{ country: phone.country, national: phone.national }}
+                    onChange={setPhone}
+                    lang={language}
                     id="wa-phone-number-input"
                   />
                   <button
@@ -429,8 +431,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                   <div className="text-center space-y-1 pt-1" id="wa-resend-block">
                     <p className="text-[11px] text-gray-400 font-medium">
                       {isAr
-                        ? `أرسلنا رمزاً عبر واتساب إلى ${phoneInput}. لم يصلك؟`
-                        : `We sent a code on WhatsApp to ${phoneInput}. Didn't get it?`}
+                        ? `أرسلنا رمزاً عبر واتساب إلى ${phone.e164 ?? ''}. لم يصلك؟`
+                        : `We sent a code on WhatsApp to ${phone.e164 ?? ''}. Didn't get it?`}
                     </p>
                     {cooldown > 0 ? (
                       <span className="text-xs text-gray-400 font-semibold" id="wa-resend-cooldown">
@@ -475,14 +477,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
             <div className="space-y-2" id="phone-login-panel">
               {!confirmation ? (
                 <>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    dir="ltr"
-                    placeholder="07xxxxxxxx"
-                    value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
-                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                  <PhoneInput
+                    value={{ country: phone.country, national: phone.national }}
+                    onChange={setPhone}
+                    lang={language}
                     id="phone-number-input"
                   />
                   <button
@@ -536,8 +534,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                   <div className="text-center space-y-1 pt-1" id="phone-resend-block">
                     <p className="text-[11px] text-gray-400 font-medium">
                       {isAr
-                        ? `أرسلنا رمزاً إلى ${phoneInput}. لم يصلك؟`
-                        : `We sent a code to ${phoneInput}. Didn't get it?`}
+                        ? `أرسلنا رمزاً إلى ${phone.e164 ?? ''}. لم يصلك؟`
+                        : `We sent a code to ${phone.e164 ?? ''}. Didn't get it?`}
                     </p>
                     {cooldown > 0 ? (
                       <span className="text-xs text-gray-400 font-semibold" id="phone-resend-cooldown">
