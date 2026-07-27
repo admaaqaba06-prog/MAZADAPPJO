@@ -6,23 +6,40 @@ import {
   daysBetween,
   FulfillmentBucket,
 } from '../../utils/fulfillmentQueues';
+import { nextAdvance } from '../../utils/orderAdvance';
 
 /**
  * Slice C — Fulfillment (Job 2): the admin's "keep orders moving" queue as
- * three age-sorted buckets (awaiting shipment / delivery / release). Purely
- * presentational + per-row local busy state: ALL data and write handlers are
- * injected by AdminDashboardView. This section creates NO Firestore listeners.
+ * four age-sorted buckets (awaiting payment / shipment / delivery / release).
+ * Purely presentational + per-row local busy state: ALL data and write handlers
+ * are injected by AdminDashboardView. This section creates NO Firestore
+ * listeners.
  */
 export interface FulfillmentSectionProps {
   isAr: boolean;
   orders: any[];                                  // realOrders (sim-excluded, matches Slice B's fix)
   onNudge: (orderId: string, kind: 'ship' | 'confirm_delivery') => Promise<void>;
   onReleaseEscrow: (orderId: string) => Promise<void>;
+  /** Advance one stage, recording who did it and what they were told. */
+  onAdvance: (order: any, note: string) => Promise<{ success: boolean; message?: string }>;
+  /** Assign the order to a team member (or '' to unassign). */
+  onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
+  /** Admin users available to assign to. */
+  adminUsers: Array<{ id: string; name: string }>;
+  /** The signed-in admin, for the "mine only" filter. */
+  currentAdminId: string;
 }
 
-// The buckets this section currently renders. 'awaiting_payment' exists in
-// FulfillmentBucket but has no queue UI here yet, so it stays excluded.
-type LiveBucket = Exclude<FulfillmentBucket, null | 'awaiting_payment'>;
+// Every bucket bucketOrder can return now has a queue rendered here.
+type LiveBucket = Exclude<FulfillmentBucket, null>;
+
+// The button label for each hand-advance the relay can record. Keyed by the
+// orderWorkflow action nextAdvance() returns, so the two can never drift.
+const ADVANCE_LABEL: Record<string, { ar: string; en: string }> = {
+  prepare_shipment: { ar: 'البائع بدأ التجهيز', en: 'Seller started preparing' },
+  mark_shipped: { ar: 'خرج للتوصيل', en: 'Out for delivery' },
+  mark_delivered: { ar: 'تم التسليم للمشتري', en: 'Delivered to buyer' },
+};
 
 // Mirror AdminDashboardView's createdAt normalization: Firestore Timestamp
 // ({seconds}) → ms, else pass-through epoch ms, else fall back to createdAt/now.
@@ -64,6 +81,12 @@ interface BucketConfig {
 
 const BUCKETS: BucketConfig[] = [
   {
+    id: 'awaiting_payment',
+    title: { ar: 'بانتظار الدفع', en: 'Awaiting payment' },
+    nameLabel: { ar: 'المشتري', en: 'Buyer' },
+    nameField: 'buyerName',
+  },
+  {
     id: 'awaiting_shipment',
     title: { ar: 'بانتظار الشحن', en: 'Awaiting shipment' },
     nameLabel: { ar: 'البائع', en: 'Seller' },
@@ -99,15 +122,26 @@ const FulfillmentRow: React.FC<{
   config: BucketConfig;
   isAr: boolean;
   now: number;
-  onAction: () => Promise<void>;
-  actionLabel: string;
-}> = ({ entry, config, isAr, now, onAction, actionLabel }) => {
+  /** The bucket's own one-click action, when it has one. */
+  onAction?: () => Promise<void>;
+  actionLabel?: string;
+  onAdvance: (order: any, note: string) => Promise<{ success: boolean; message?: string }>;
+  onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
+  adminUsers: Array<{ id: string; name: string }>;
+}> = ({ entry, config, isAr, now, onAction, actionLabel, onAdvance, onAssign, adminUsers }) => {
   const { order, updatedAtMs, overdue } = entry;
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<'ok' | 'error' | null>(null);
+  // The relay note is REQUIRED before an advance can fire — an advance with no
+  // note is exactly what makes the order trail useless.
+  const [note, setNote] = useState('');
+  // Failure text from the advance/assign controls. Kept apart from `feedback`
+  // (an 'ok' | 'error' enum for the bucket action) because these carry a real
+  // message from the handler.
+  const [controlError, setControlError] = useState<string | null>(null);
 
   const run = async () => {
-    if (busy) return;
+    if (busy || !onAction) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -125,61 +159,144 @@ const FulfillmentRow: React.FC<{
   const nudgedMs = nudgedAtMs(order);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap animate-fadeIn">
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h4 className="font-extrabold text-sm text-gray-900 leading-snug truncate">
-            {order.auctionTitle || (isAr ? 'طلب' : 'Order')}
-          </h4>
-          <span
-            className={`text-[10px] font-black rounded-full px-2 py-0.5 whitespace-nowrap ${
-              overdue ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-500'
-            }`}
-          >
-            {ageLabel(updatedAtMs, now, isAr)}
-          </span>
-          {overdue && (
-            <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2 py-0.5 whitespace-nowrap">
-              ⚠ {isAr ? 'متأخر' : 'overdue'}
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-fadeIn">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-extrabold text-sm text-gray-900 leading-snug truncate">
+              {order.auctionTitle || (isAr ? 'طلب' : 'Order')}
+            </h4>
+            <span
+              className={`text-[10px] font-black rounded-full px-2 py-0.5 whitespace-nowrap ${
+                overdue ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {ageLabel(updatedAtMs, now, isAr)}
             </span>
+            {overdue && (
+              <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2 py-0.5 whitespace-nowrap">
+                ⚠ {isAr ? 'متأخر' : 'overdue'}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-500 font-bold">
+            {isAr ? config.nameLabel.ar : config.nameLabel.en}:{' '}
+            <span className="text-gray-800">{counterpart}</span>
+          </p>
+          {nudgedMs && (
+            <p className="text-[10px] text-gray-400 font-bold">
+              {nudgedLabel(nudgedMs, now, isAr)}
+            </p>
           )}
         </div>
-        <p className="text-[11px] text-gray-500 font-bold">
-          {isAr ? config.nameLabel.ar : config.nameLabel.en}:{' '}
-          <span className="text-gray-800">{counterpart}</span>
-        </p>
-        {nudgedMs && (
-          <p className="text-[10px] text-gray-400 font-bold">
-            {nudgedLabel(nudgedMs, now, isAr)}
-          </p>
+
+        {/* The bucket's own one-click action. `awaiting_payment` has none: there
+            is no nudge kind for an unpaid order and no legal hand-advance out of
+            waiting_payment, so that row carries only the relay controls below. */}
+        {onAction && (
+        <div className="flex items-center gap-2 shrink-0">
+          {feedback === 'ok' && (
+            <span className="text-[11px] font-bold text-emerald-600 whitespace-nowrap">
+              {isAr ? 'تم ✅' : '✅ done'}
+            </span>
+          )}
+          {feedback === 'error' && (
+            <span className="text-[11px] font-bold text-red-650 whitespace-nowrap">
+              {isAr ? 'فشل — أعد المحاولة' : 'Failed — retry'}
+            </span>
+          )}
+          <button
+            disabled={busy}
+            onClick={run}
+            className={`font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px] transition-all ${
+              busy
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : isRelease
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                  : 'bg-gray-900 hover:bg-black text-white cursor-pointer'
+            }`}
+          >
+            {busy ? (isAr ? '…' : '…') : actionLabel}
+          </button>
+        </div>
         )}
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {feedback === 'ok' && (
-          <span className="text-[11px] font-bold text-emerald-600 whitespace-nowrap">
-            {isAr ? 'تم ✅' : '✅ done'}
-          </span>
-        )}
-        {feedback === 'error' && (
-          <span className="text-[11px] font-bold text-red-650 whitespace-nowrap">
-            {isAr ? 'فشل — أعد المحاولة' : 'Failed — retry'}
-          </span>
-        )}
-        <button
+      {/* ---- Advance one stage, with a required note ---- */}
+      {(() => {
+        const advance = nextAdvance(order.status);
+        if (!advance) return null;
+        return (
+          <div className="mt-2 space-y-1.5">
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={200}
+              placeholder={isAr ? 'ماذا قال البائع/المشتري؟ (مطلوب)' : 'What did the seller/buyer say? (required)'}
+              className="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-emerald-500"
+            />
+            <button
+              type="button"
+              disabled={busy || !note.trim()}
+              onClick={async () => {
+                setBusy(true);
+                setControlError(null);
+                const res = await onAdvance(order, note.trim());
+                setBusy(false);
+                if (res.success) setNote('');
+                else setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[11px] py-1.5 rounded-lg transition-all cursor-pointer"
+            >
+              {ADVANCE_LABEL[advance.action][isAr ? 'ar' : 'en']}
+            </button>
+            {/* The trail records who ACTED, which is the admin — the note is what
+                carries "seller confirmed courier collected". */}
+            <p className="text-[9px] text-gray-400 leading-tight">
+              {isAr
+                ? 'سيُسجَّل باسمك في سجل الطلب.'
+                : 'Recorded under your name in the order trail.'}
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* ---- Owner: who on the team is chasing this order ---- */}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-[10px] font-black text-gray-400 whitespace-nowrap">
+          {isAr ? 'المسؤول' : 'Owner'}
+        </span>
+        <select
+          value={order.assignedToId || ''}
           disabled={busy}
-          onClick={run}
-          className={`font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px] transition-all ${
-            busy
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : isRelease
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                : 'bg-gray-900 hover:bg-black text-white cursor-pointer'
-          }`}
+          onChange={async (e) => {
+            const adminId = e.target.value;
+            const adminName = adminUsers.find((a) => a.id === adminId)?.name || '';
+            setBusy(true);
+            setControlError(null);
+            const res = await onAssign(order.id, adminId, adminName);
+            setBusy(false);
+            if (!res.success) setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+          }}
+          className="flex-1 min-w-0 text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-700 font-bold outline-none focus:border-emerald-500 cursor-pointer disabled:opacity-50"
         >
-          {busy ? (isAr ? '…' : '…') : actionLabel}
-        </button>
+          <option value="">{isAr ? 'غير مُسند' : 'Unassigned'}</option>
+          {adminUsers.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+          {/* An owner who is no longer in adminUsers (role revoked, or the list
+              hasn't loaded) still needs an option, or the select silently reads
+              as Unassigned and the next save wipes a real assignment. */}
+          {order.assignedToId && !adminUsers.some((a) => a.id === order.assignedToId) && (
+            <option value={order.assignedToId}>{order.assignedToName || order.assignedToId}</option>
+          )}
+        </select>
       </div>
+
+      {controlError && (
+        <p className="mt-1.5 text-[10px] font-bold text-red-650">{controlError}</p>
+      )}
     </div>
   );
 };
@@ -189,34 +306,42 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
   orders,
   onNudge,
   onReleaseEscrow,
+  onAdvance,
+  onAssign,
+  adminUsers,
+  currentAdminId,
 }) => {
   const now = Date.now();
+  // "Only the orders I own" — off by default so the queue still reads as the
+  // whole team's board unless the admin narrows it.
+  const [mineOnly, setMineOnly] = useState(false);
 
   // Bucket + sort oldest-first once per render. isOverdue re-derives the
   // bucket internally; we pass the normalized updatedAtMs it needs.
   const grouped = useMemo(() => {
     const map: Record<LiveBucket, DerivedOrder[]> = {
+      awaiting_payment: [],
       awaiting_shipment: [],
       awaiting_delivery: [],
       awaiting_release: [],
     };
     for (const order of orders || []) {
+      if (mineOnly && order?.assignedToId !== currentAdminId) continue;
       const bucket = bucketOrder(order);
-      // bucketOrder can also return 'awaiting_payment', which has no queue in
-      // this section yet — skip it rather than indexing a missing map key.
-      if (!bucket || !(bucket in map)) continue;
+      if (!bucket) continue;
       const updatedAtMs = orderUpdatedAtMs(order, now);
       const overdue = isOverdue({ ...order, updatedAtMs }, now);
-      map[bucket as LiveBucket].push({ order, updatedAtMs, overdue });
+      map[bucket].push({ order, updatedAtMs, overdue });
     }
     for (const key of Object.keys(map) as LiveBucket[]) {
       map[key].sort((a, b) => a.updatedAtMs - b.updatedAtMs); // oldest / most stuck first
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders]);
+  }, [orders, mineOnly, currentAdminId]);
 
   const totalCount =
+    grouped.awaiting_payment.length +
     grouped.awaiting_shipment.length +
     grouped.awaiting_delivery.length +
     grouped.awaiting_release.length;
@@ -236,6 +361,19 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
             ? 'الطلبات المدفوعة قيد التنفيذ — نبّه البائع/المشتري أو حرّر الضمان عند التسليم.'
             : 'Paid orders in motion — nudge the seller/buyer or release escrow once delivered.'}
         </p>
+        {currentAdminId && (
+          <label className="flex items-center gap-2 pt-1 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={mineOnly}
+              onChange={(e) => setMineOnly(e.target.checked)}
+              className="accent-emerald-600 cursor-pointer"
+            />
+            <span className="text-[11px] font-bold text-gray-600">
+              {isAr ? 'طلباتي فقط' : 'Only mine'}
+            </span>
+          </label>
+        )}
       </div>
 
       {BUCKETS.map((config) => {
@@ -267,14 +405,20 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
               <div className="space-y-2.5">
                 {entries.map((entry) => {
                   const id = entry.order.id;
+                  const shared = {
+                    entry,
+                    config,
+                    isAr,
+                    now,
+                    onAdvance,
+                    onAssign,
+                    adminUsers,
+                  };
                   if (config.id === 'awaiting_shipment') {
                     return (
                       <FulfillmentRow
                         key={id}
-                        entry={entry}
-                        config={config}
-                        isAr={isAr}
-                        now={now}
+                        {...shared}
                         actionLabel={isAr ? 'تذكير بالشحن' : 'Nudge'}
                         onAction={() => onNudge(id, 'ship')}
                       />
@@ -284,26 +428,26 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
                     return (
                       <FulfillmentRow
                         key={id}
-                        entry={entry}
-                        config={config}
-                        isAr={isAr}
-                        now={now}
+                        {...shared}
                         actionLabel={isAr ? 'تذكير بالتسليم' : 'Nudge'}
                         onAction={() => onNudge(id, 'confirm_delivery')}
                       />
                     );
                   }
-                  return (
-                    <FulfillmentRow
-                      key={id}
-                      entry={entry}
-                      config={config}
-                      isAr={isAr}
-                      now={now}
-                      actionLabel={isAr ? 'تحرير الضمان' : 'Release escrow'}
-                      onAction={() => onReleaseEscrow(id)}
-                    />
-                  );
+                  if (config.id === 'awaiting_release') {
+                    return (
+                      <FulfillmentRow
+                        key={id}
+                        {...shared}
+                        actionLabel={isAr ? 'تحرير الضمان' : 'Release escrow'}
+                        onAction={() => onReleaseEscrow(id)}
+                      />
+                    );
+                  }
+                  // awaiting_payment: money not collected. Deliberately NO
+                  // one-click action — the release-escrow fallthrough must
+                  // never reach an unpaid order.
+                  return <FulfillmentRow key={id} {...shared} />;
                 })}
               </div>
             )}

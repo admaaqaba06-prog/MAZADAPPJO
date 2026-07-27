@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
 import { isPendingOrderPayment } from '../utils/paymentReceipt';
 import { isOverdue } from '../utils/fulfillmentQueues';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { nextAdvance } from '../utils/orderAdvance';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import {
   type AdminTabId,
@@ -191,14 +192,29 @@ export const AdminDashboardView: React.FC = () => {
     [realOrders]
   );
 
-  // Fulfillment (Slice C): orders sitting past their stage's overdue threshold,
-  // across all three buckets. Sourced from realOrders (sim-excluded), matching
-  // the Slice B fix for the Verify badge.
+  // Fulfillment: orders sitting past their stage's overdue threshold, across
+  // all FOUR buckets. Sourced from realOrders (sim-excluded), matching the
+  // Slice B fix for the Verify badge.
+  //
+  // The payment-window fields MUST be forwarded: awaiting_payment is judged
+  // against the deadline that order actually gave the buyer (paymentDeadlineAt,
+  // falling back to paymentWindowHours), so dropping them here would make this
+  // badge disagree with the rows FulfillmentSection renders — that section
+  // spreads the whole order into isOverdue.
   const overdueFulfillmentCount = useMemo(() => {
     const now = Date.now();
     return realOrders.filter((o: any) => {
       const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
-      return isOverdue({ status: o.status, paymentVerified: o.paymentVerified, updatedAtMs }, now);
+      return isOverdue(
+        {
+          status: o.status,
+          paymentVerified: o.paymentVerified,
+          paymentWindowHours: o.paymentWindowHours,
+          paymentDeadlineAt: o.paymentDeadlineAt,
+          updatedAtMs,
+        },
+        now,
+      );
     }).length;
   }, [realOrders]);
 
@@ -486,6 +502,44 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  // Advance an order one stage by hand. The admin team runs this relay by
+  // phone; executeOrderTransition already validates the FSM, writes the
+  // activity + adminActions records, and notifies buyer and seller.
+  const handleAdvanceOrder = useCallback(async (order: any, note: string) => {
+    const advance = nextAdvance(order?.status);
+    if (!advance) return { success: false, message: 'No next stage for this order.' };
+    try {
+      await executeOrderTransition(order, advance.action, currentUser as any, { note });
+      return { success: true };
+    } catch (err: any) {
+      console.error('[handleAdvanceOrder] failed:', err);
+      return { success: false, message: err?.message || 'Update failed.' };
+    }
+  }, [currentUser]);
+
+  // Assignment is admin-only bookkeeping, NOT a workflow transition: it is
+  // written with its own explicit updateDoc because executeOrderTransition's
+  // extraFields would silently drop these fields.
+  const handleAssignOrder = useCallback(async (orderId: string, adminId: string, adminName: string) => {
+    if (!isAdminUser(currentUser)) return { success: false, message: 'Admins only.' };
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        assignedToId: adminId,
+        assignedToName: adminName,
+      });
+      return { success: true };
+    } catch (err: any) {
+      console.error('[handleAssignOrder] failed:', err);
+      return { success: false, message: err?.message || 'Assign failed.' };
+    }
+  }, [currentUser]);
+
+  // Team members who can be assigned an order to chase.
+  const adminUsers = useMemo(
+    () => (users || []).filter((u: any) => isAdminUser(u)).map((u: any) => ({ id: u.id, name: u.name || u.email || u.id })),
+    [users],
+  );
+
   const handleFulfillmentReleaseEscrow = async (orderId: string) => {
     try {
       const releaseCallable = await getCallableFunction<
@@ -717,6 +771,10 @@ export const AdminDashboardView: React.FC = () => {
               orders={realOrders}
               onNudge={handleSendFulfillmentNudge}
               onReleaseEscrow={handleFulfillmentReleaseEscrow}
+              onAdvance={handleAdvanceOrder}
+              onAssign={handleAssignOrder}
+              adminUsers={adminUsers}
+              currentAdminId={currentUser?.id || ''}
             />
           </React.Suspense>
         )}

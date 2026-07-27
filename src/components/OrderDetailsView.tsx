@@ -1579,7 +1579,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     </button>
                   )}
 
-                  {order.status === 'shipped' && (
+                  {(order.status === 'shipped' || order.status === 'delivered') && (
                     <div className="space-y-2.5">
                       {/* Primary happy-path: everything's good, release payment */}
                       <button
