@@ -63,7 +63,7 @@ const db = admin.firestore();
 const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
 
 const INDEX_SETTINGS = {
-  searchableAttributes: ['title', 'description', 'category', 'sellerName'],
+  searchableAttributes: ['title', 'description', 'category', 'sellerName', 'auctionNumber'],
   attributesForFaceting: ['filterOnly(status)', 'category'],
   customRanking: ['asc(endsAt)'], // ending-soon first
 };
@@ -91,7 +91,7 @@ async function main() {
     }
   });
 
-  console.log(`[algolia-backfill] ${records.length} indexable, ${skipped} skipped (not live/upcoming or simulated).`);
+  console.log(`[algolia-backfill] ${records.length} indexable, ${skipped} skipped (simulated).`);
 
   let indexed = 0;
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
