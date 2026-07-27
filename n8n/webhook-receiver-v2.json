@@ -1,0 +1,288 @@
+{
+  "name": "Webhook Receiver v2 (WhatsApp + Email)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incoming",
+        "responseMode": "onReceived",
+        "responseCode": 200,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "id": "wh-incoming",
+      "name": "Webhook",
+      "webhookId": "mazadjo-notify-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Messages — single choke point for WhatsApp + email copy.\n//\n// MIRRORS functions/notify.js -> copyFor() in the mazadjo repo. Same wording,\n// same interpolation. If you edit copy there, edit it here too (and vice versa).\n// Covers all 21 events in CHANNEL_POLICY; unknown events fall back to the same\n// safe default as the app ({ title: 'تنبيه', description: '' }).\n//\n// Channel gating is NOT decided here — Cloud Functions already resolved it and\n// sends `channels` on the payload. We only surface it as sendWhatsapp/sendEmail\n// so the two IF nodes downstream stay dumb.\n\nfunction copyFor(event, data) {\n  const d = data || {};\n  const t = d.auctionTitle || d.orderId || '';\n  const M = {\n    auction_won:  { type: 'win',   title: 'فزت بالمزاد 🎉',   description: `مبروك! ربحت \"${t}\". المبلغ المستحق ${d.totalDue || ''} د.أ.` },\n    payment_due:  { type: 'order', title: 'دفعة مستحقة',       description: `يرجى دفع \"${t}\" خلال ${d.paymentHours || 24} ساعة.` },\n    payment_reminder: { type: 'order', title: 'تذكير بالدفع',  description: `ما زال \"${t}\" بانتظار الدفع. بادر قبل انتهاء المهلة.` },\n    below_reserve_offer: { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على \"${t}\" ${d.topBid || ''} د.أ — تقبل؟` },\n    below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على \"${t}\". أكّد للشراء.` },\n    below_reserve_declined: { type: 'loss', title: 'لم يُقبل العرض', description: `لم يقبل البائع مزايدتك على \"${t}\".` },\n    outbid: { type: 'outbid', title: 'تمت المزايدة عليك', description: `تجاوزك أحدهم على \"${t}\".` },\n    order_preparing: { type: 'order', title: 'يتم التجهيز', description: `طلبك \"${t}\" قيد التجهيز.` },\n    order_shipped: { type: 'order', title: 'تم الشحن', description: `تم شحن طلبك \"${t}\".` },\n    order_delivered: { type: 'order', title: 'تم التوصيل', description: `تم توصيل طلبك \"${t}\".` },\n    order_completed: { type: 'order', title: 'اكتمل الطلب', description: `اكتمل طلبك \"${t}\".` },\n    order_refunded: { type: 'refund', title: 'تم الاسترجاع', description: `تمت إعادة مبلغ طلبك \"${t}\".` },\n    membership_rejected: { type: 'subscription', title: 'مراجعة العضوية', description: d.reason || 'تم رفض طلب العضوية.' },\n    order_payment_rejected: { type: 'order', title: 'رُفض إثبات الدفع', description: d.reason || 'يرجى إعادة إرسال إثبات الدفع.' },\n    account_banned: { type: 'alert', title: 'تم تقييد الحساب', description:\n      d.reason === 'payment_default_repeat' ? 'تم تعليق حسابك ٣ أشهر لتكرار عدم الدفع.'\n      : d.reason === 'payment_default' ? 'تم تقييد المزايدة ٤٨ ساعة بسبب عدم الدفع.'\n      : 'تم تقييد حسابك. يرجى مراجعة الدعم لمزيد من التفاصيل.' },\n    ban_lifted: { type: 'info', title: 'تم رفع التقييد', description: 'تم رفع التقييد عن حسابك.' },\n    seller_ship_nudge: { type: 'order', title: 'ذكّر بالشحن', description: `يرجى شحن الطلب \"${t}\".` },\n    buyer_confirm_nudge: { type: 'order', title: 'أكّد الاستلام', description: `يرجى تأكيد استلام \"${t}\".` },\n    return_requested: { type: 'order', title: 'طلب إرجاع', description: `تم فتح طلب إرجاع على \"${t}\". يرجى المراجعة.` },\n    return_resolved: { type: 'order', title: 'نتيجة طلب الإرجاع',\n      description: d.outcome === 'refunded'\n        ? `تمت الموافقة على إرجاع \"${t}\" وسيُعاد المبلغ إلى محفظتك.`\n        : `تمت مراجعة طلب إرجاع \"${t}\" ولم تتم الموافقة عليه.` },\n  };\n  return M[event] || { type: 'info', title: 'تنبيه', description: '' };\n}\n\nfunction esc(s) {\n  return String(s == null ? '' : s)\n    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;');\n}\n\n// Plain RTL table layout — no external CSS/images, so it renders the same in\n// Gmail/Outlook/Apple Mail without a fetch.\nfunction buildHtml(c, name) {\n  const greet = name ? `مرحباً ${esc(name)}،` : 'مرحباً،';\n  const body = esc(c.description);\n  return '<!doctype html><html dir=\"rtl\" lang=\"ar\"><head><meta charset=\"utf-8\">'\n    + '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>'\n    + '<body style=\"margin:0;padding:0;background:#f5f6f8;\">'\n    + '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background:#f5f6f8;padding:24px 12px;\">'\n    + '<tr><td align=\"center\">'\n    + '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;\">'\n    + '<tr><td style=\"padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;\">مزاد جو</td></tr>'\n    + '<tr><td style=\"padding:24px;font-family:Tahoma,Arial,sans-serif;\">'\n    + `<p style=\"margin:0 0 12px;font-size:14px;color:#555555;\">${greet}</p>`\n    + `<h1 style=\"margin:0 0 12px;font-size:20px;line-height:1.4;color:#111111;\">${esc(c.title)}</h1>`\n    + (body ? `<p style=\"margin:0 0 22px;font-size:15px;line-height:1.8;color:#333333;\">${body}</p>` : '')\n    + '<a href=\"https://mazad-jo.com\" style=\"display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;\">افتح التطبيق</a>'\n    + '</td></tr>'\n    + '<tr><td style=\"padding:16px 24px;background:#fafbfc;border-top:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:12px;color:#8a9099;\">'\n    + 'هذه رسالة آلية من مزاد جو، لا حاجة للرد عليها.</td></tr>'\n    + '</table></td></tr></table></body></html>';\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const b = (item.json && item.json.body) || {};\n  const ch = b.channels || {};\n  const c = copyFor(b.event, b);          // per-event data is spread onto the body\n  const phone = String(b.phone || '').replace(/[^0-9]/g, '');\n  const email = String(b.email || '').trim();\n  const name = b.name || '';\n  const waText = c.description ? `${c.title}\\n${c.description}` : c.title;\n\n  out.push({\n    json: {\n      event: b.event || '',\n      idempotencyKey: b.idempotencyKey || '',\n      name, phone, email,\n      // Functions own the channel policy; we only honour what it sent, and\n      // additionally require the destination to actually exist.\n      sendWhatsapp: ch.whatsapp === true && phone.length >= 8,\n      sendEmail: ch.email === true && /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email),\n      title: c.title,\n      description: c.description,\n      waText,\n      subject: c.title,\n      html: buildHtml(c, name),\n    },\n  });\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "id": "code-build-messages",
+      "name": "Build Messages"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-sendWhatsapp",
+              "leftValue": "={{ $json.sendWhatsapp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        160
+      ],
+      "id": "if-sendWhatsapp",
+      "name": "Send WhatsApp?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-sendEmail",
+              "leftValue": "={{ $json.sendEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        460
+      ],
+      "id": "if-sendEmail",
+      "name": "Send Email?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wasenderapi.com/api/send-message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.waText }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        740,
+        160
+      ],
+      "id": "http-wasender",
+      "name": "Send: WhatsApp",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "3UwG5ADn5LzQ2oLx",
+          "name": "Bearer Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from: 'مزاد جو <no-reply@mazad-jo.com>', to: [$json.email], subject: $json.subject, html: $json.html }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        740,
+        460
+      ],
+      "id": "http-resend",
+      "name": "Send: Email (Resend)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "C4KesNWdTiMHi3Ts",
+          "name": "Resend (mazad-jo.com)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        980,
+        300
+      ],
+      "id": "merge-channels",
+      "name": "Both Channels Done"
+    },
+    {
+      "parameters": {
+        "jsCode": "const failures = [];\nfor (const item of $input.all()) {\n  const e = item.json && item.json.error;\n  if (e) {\n    const msg = (e.description || e.message || JSON.stringify(e));\n    failures.push(msg);\n  }\n}\nif (failures.length) {\n  throw new Error('Notification send failed: ' + failures.join(' | '));\n}\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        300
+      ],
+      "id": "code-assert-sent",
+      "name": "Assert Sent"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Messages": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Send: WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Send: Email (Resend)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send: WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Both Channels Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Email (Resend)": {
+      "main": [
+        [
+          {
+            "node": "Both Channels Done",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Both Channels Done": {
+      "main": [
+        [
+          {
+            "node": "Assert Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
