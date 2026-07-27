@@ -139,6 +139,30 @@ const FulfillmentRow: React.FC<{
   // (an 'ok' | 'error' enum for the bucket action) because these carry a real
   // message from the handler.
   const [controlError, setControlError] = useState<string | null>(null);
+  // The internal ops notes for this order. `null` means "not fetched yet",
+  // which is also the loading state; [] means fetched-and-empty (or failed).
+  const [notes, setNotes] = useState<any[] | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+
+  const loadNotes = async () => {
+    setNotesOpen((open) => !open);
+    if (notes !== null) return; // already fetched once — do not re-hit Firestore
+    try {
+      const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
+      const { db } = await import('../../services/firebase');
+      // One-shot read. This section deliberately creates no listeners; a live
+      // subscription per row would mean one socket per visible order.
+      const snap = await getDocs(
+        query(collection(db, 'orders', order.id, 'adminNotes'), orderBy('timestamp', 'desc'), limit(10)),
+      );
+      setNotes(snap.docs.map((d) => d.data()));
+    } catch (err) {
+      // Never throw into the render: a missing note trail must not take the
+      // whole fulfillment queue down. Log and fall back to the empty state.
+      console.warn('[FulfillmentRow] admin notes fetch failed:', err);
+      setNotes([]);
+    }
+  };
 
   const run = async () => {
     if (busy || !onAction) return;
@@ -309,6 +333,41 @@ const FulfillmentRow: React.FC<{
           )}
         </select>
       </div>
+
+      {/* ---- The internal ops notes, read on demand ----
+          These live in orders/{orderId}/adminNotes, which is isAdmin() on READ
+          as well as write — buyers and sellers can read the order doc and the
+          /activity trail, so this is the only genuinely internal channel. This
+          control therefore belongs on an admin surface ONLY; do not lift it
+          into any buyer- or seller-facing view.
+
+          Fetched once per row, on first expand, with a one-shot getDocs —
+          NOT onSnapshot. This section documents that it creates no Firestore
+          listeners, and a per-row subscription would mean one socket per
+          visible order. */}
+      <button
+        type="button"
+        onClick={loadNotes}
+        className="mt-1.5 text-[9px] font-bold text-gray-400 hover:text-gray-700 underline underline-offset-2 cursor-pointer"
+      >
+        {notesOpen ? (isAr ? 'إخفاء الملاحظات' : 'Hide notes') : (isAr ? 'عرض الملاحظات' : 'Show notes')}
+      </button>
+      {notesOpen && (
+        <div className="mt-1.5 space-y-1">
+          {notes === null && (
+            <p className="text-[9px] text-gray-400">{isAr ? 'جارٍ التحميل…' : 'Loading…'}</p>
+          )}
+          {notes?.length === 0 && (
+            <p className="text-[9px] text-gray-400">{isAr ? 'لا توجد ملاحظات بعد.' : 'No notes yet.'}</p>
+          )}
+          {notes?.map((n, i) => (
+            <p key={i} className="text-[9px] text-gray-600 leading-snug">
+              <span className="font-bold">{n.performedByName || '—'}</span>
+              {n.note ? ` — ${n.note}` : ''}
+            </p>
+          ))}
+        </div>
+      )}
 
       {controlError && (
         <p className="mt-1.5 text-[10px] font-bold text-red-650">{controlError}</p>
