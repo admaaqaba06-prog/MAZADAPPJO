@@ -96,6 +96,18 @@ describe('awaiting_payment bucket', () => {
     expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
   });
 
+  it('falls back to 24h for a garbage / zero / negative payment window', () => {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    // A zero window would mean "overdue the instant it exists" and a
+    // non-numeric one would NaN the comparison — both must land on 24h.
+    for (const bad of [0, 'abc' as unknown as number, -5, NaN]) {
+      const o = { status: 'waiting_payment', paymentWindowHours: bad };
+      expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+      expect(isOverdue({ ...o, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    }
+  });
+
   it('leaves the existing buckets and their thresholds untouched', () => {
     const now = 1_000_000_000_000;
     const hour = 60 * 60 * 1000;
@@ -105,5 +117,102 @@ describe('awaiting_payment bucket', () => {
     const shipping = { status: 'preparing_shipment', paymentWindowHours: 1 };
     expect(isOverdue({ ...shipping, updatedAtMs: now - 47 * hour }, now)).toBe(false);
     expect(isOverdue({ ...shipping, updatedAtMs: now - 49 * hour }, now)).toBe(true);
+  });
+});
+
+/**
+ * The server writes an authoritative `paymentDeadlineAt` at order creation and
+ * its payment-default cron blocks buyers off exactly that field. `updatedAt`
+ * drifts away from it (e.g. the payment-proof upload bumps updatedAt before the
+ * separate 'pay' transition), so judging by updatedAt + window can show admins
+ * "not overdue" for an order the server is already defaulting.
+ */
+describe('awaiting_payment honours the server deadline', () => {
+  const now = 1_000_000_000_000;
+  const hour = 60 * 60 * 1000;
+  const ts = (ms: number) => ({ seconds: Math.floor(ms / 1000), nanoseconds: 0 });
+
+  it('is overdue when a Timestamp deadline has passed, even if updatedAt was just bumped', () => {
+    // Deadline blown 2h ago, but an unrelated write reset updatedAt 1 minute
+    // ago. The window maths would say "fresh"; the server says defaulted.
+    const o = {
+      status: 'waiting_payment',
+      paymentWindowHours: 24,
+      paymentDeadlineAt: ts(now - 2 * hour),
+      updatedAtMs: now - 60 * 1000,
+    };
+    expect(isOverdue(o, now)).toBe(true);
+  });
+
+  it('is NOT overdue when a Timestamp deadline is still in the future, even for a stale updatedAt', () => {
+    // 72h window granted at creation: updatedAt is 30h old, which a 24h
+    // default would flag, but the real deadline is still 40h away.
+    const o = {
+      status: 'waiting_payment',
+      paymentDeadlineAt: ts(now + 40 * hour),
+      updatedAtMs: now - 30 * hour,
+    };
+    expect(isOverdue(o, now)).toBe(false);
+  });
+
+  it('accepts a raw epoch-ms deadline as well as a Timestamp', () => {
+    const past = { status: 'waiting_payment', paymentDeadlineAt: now - hour, updatedAtMs: now };
+    const future = {
+      status: 'waiting_payment',
+      paymentDeadlineAt: now + hour,
+      updatedAtMs: now - 100 * hour,
+    };
+    expect(isOverdue(past, now)).toBe(true);
+    expect(isOverdue(future, now)).toBe(false);
+  });
+
+  it('falls back to updatedAt + window when the order carries no deadline (legacy docs)', () => {
+    const legacy = { status: 'waiting_payment', paymentWindowHours: 12 };
+    expect(isOverdue({ ...legacy, updatedAtMs: now - 13 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...legacy, updatedAtMs: now - 11 * hour }, now)).toBe(false);
+    const noWindow = { status: 'waiting_payment', paymentDeadlineAt: undefined };
+    expect(isOverdue({ ...noWindow, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...noWindow, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+  });
+
+  it('falls back rather than reading a malformed deadline as epoch 0', () => {
+    // Each of these must NOT be coerced to 0 (which would make every order
+    // eternally overdue) and must NOT throw.
+    const junk = [{}, 'abc', null, true, { seconds: 'abc' }, { nanoseconds: 5 }, NaN];
+    for (const paymentDeadlineAt of junk) {
+      const o = { status: 'waiting_payment', paymentDeadlineAt };
+      expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+      expect(isOverdue({ ...o, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    }
+  });
+
+  it('does NOT let paymentDeadlineAt leak into the other buckets', () => {
+    // A deadline far in the future must not rescue a shipment that blew 48h,
+    // and one far in the past must not condemn a fresh one.
+    const stale = {
+      status: 'preparing_shipment',
+      paymentDeadlineAt: ts(now + 500 * hour),
+      updatedAtMs: now - 49 * hour,
+    };
+    expect(isOverdue(stale, now)).toBe(true);
+    const fresh = {
+      status: 'preparing_shipment',
+      paymentDeadlineAt: ts(now - 500 * hour),
+      updatedAtMs: now - 47 * hour,
+    };
+    expect(isOverdue(fresh, now)).toBe(false);
+    // Same for the delivery (5d) and release (24h) buckets.
+    expect(
+      isOverdue(
+        { status: 'shipped', paymentDeadlineAt: ts(now - 500 * hour), updatedAtMs: now - 4 * 24 * hour },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isOverdue(
+        { status: 'delivered', paymentDeadlineAt: ts(now + 500 * hour), updatedAtMs: now - 25 * hour },
+        now,
+      ),
+    ).toBe(true);
   });
 });
