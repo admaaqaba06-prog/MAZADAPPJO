@@ -142,7 +142,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => setOpen((o) => { if (o) setQuery(''); return !o; })}
           aria-label={countryAria}
           aria-haspopup="listbox"
           aria-expanded={open}
