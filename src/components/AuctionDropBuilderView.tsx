@@ -262,6 +262,14 @@ export default function AuctionDropBuilderView() {
   };
 
   const finalLink = createdId ? buildAuctionUrl(createdId, window.location.origin) : '';
+
+  // One flag for "the success panel owns the screen", used by BOTH columns.
+  // The panel replaces the form on the left; the preview column on the right
+  // must simultaneously stop rendering its own link, copy buttons and created
+  // line, or a successful create ships two success indicators and two sources
+  // of truth for the same URL — worse than the single green line this task
+  // replaced. Derived once so the two halves cannot drift apart.
+  const showSuccessPanel = Boolean(createdId) && !editing;
   const sectionHeader = 'text-xs font-bold text-neutral-400 uppercase tracking-wide';
   const label = 'block text-sm font-bold text-gray-800';
   const field =
@@ -312,7 +320,7 @@ export default function AuctionDropBuilderView() {
           The form block below is deliberately left at its original indentation
           rather than re-indented into this ternary: it is ~150 unchanged lines
           and shifting them all would bury the actual change in the diff. */}
-      {createdId && !editing ? (
+      {showSuccessPanel ? (
         <DropSuccessPanel
           isAr={isAr}
           auctionNumber={assignedNumber}
@@ -498,36 +506,42 @@ export default function AuctionDropBuilderView() {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">{isAr ? 'معاينة المنشور' : 'Post preview'}</h2>
         <pre className="whitespace-pre-wrap border rounded p-3 text-sm bg-neutral-50" style={{ direction: 'rtl' }}>{caption}</pre>
-        <button onClick={() => copy(caption)} disabled={!createdId} className="w-full border rounded p-2 disabled:opacity-50">{isAr ? 'نسخ النص' : 'Copy caption'}</button>
 
-        <button
-          onClick={async () => {
-            const ok = thumbnailPreview ? await copyImageToClipboard(thumbnailPreview) : false;
-            setCopyImageMsg(ok ? (isAr ? '✅ نُسخت الصورة' : '✅ Image copied') : (isAr ? 'تعذّر النسخ — استخدم تنزيل' : "Couldn't copy — use Download"));
-          }}
-          disabled={!thumbnailFile}
-          className="w-full border rounded p-2 disabled:opacity-50"
-        >{isAr ? 'نسخ الصورة' : 'Copy image'}</button>
-        {copyImageMsg && <p className="text-xs text-neutral-500">{copyImageMsg}</p>}
+        {/* Everything below is the PRE-create half of this column. Once the
+            success panel is up it owns the link, the copy actions and the
+            confirmation — the created line, the link box and its Copy link
+            button used to live here and are gone, not duplicated.
 
-        <button
-          onClick={() => downloadMedia([
-            ...(thumbnailPreview ? [{ url: thumbnailPreview, kind: 'cover' as const }] : []),
-            ...extraPhotos.map((p, i) => ({ url: p.url, kind: 'gallery' as const, idx: i })),
-            ...(videoFile ? [{ url: URL.createObjectURL(videoFile), kind: 'video' as const }] : []),
-          ])}
-          disabled={!thumbnailFile && extraPhotos.length === 0 && !videoFile}
-          className="w-full border rounded p-2 disabled:opacity-50"
-        >{isAr ? 'تنزيل الوسائط' : 'Download media'}</button>
-
-        {createdId ? (
+            "Copy caption" went with them rather than moving inside this block:
+            it was `disabled={!createdId}`, so it never did anything before a
+            create in the first place. Copy image and Download media DO work
+            pre-create (on the picked files), so they stay for that half only. */}
+        {!showSuccessPanel && (
           <>
-            <div className="border rounded p-2 text-sm break-all">{finalLink}</div>
-            <button onClick={() => copy(finalLink)} className="w-full border rounded p-2">{isAr ? 'نسخ الرابط' : 'Copy link'}</button>
-            <p className="text-green-700 text-sm">{isAr ? '✅ تم الإنشاء — الصقه في القناة' : '✅ Created — paste into the channel'}</p>
+            <button
+              onClick={async () => {
+                const ok = thumbnailPreview ? await copyImageToClipboard(thumbnailPreview) : false;
+                setCopyImageMsg(ok ? (isAr ? '✅ نُسخت الصورة' : '✅ Image copied') : (isAr ? 'تعذّر النسخ — استخدم تنزيل' : "Couldn't copy — use Download"));
+              }}
+              disabled={!thumbnailFile}
+              className="w-full border rounded p-2 disabled:opacity-50"
+            >{isAr ? 'نسخ الصورة' : 'Copy image'}</button>
+            {copyImageMsg && <p className="text-xs text-neutral-500">{copyImageMsg}</p>}
+
+            <button
+              onClick={() => downloadMedia([
+                ...(thumbnailPreview ? [{ url: thumbnailPreview, kind: 'cover' as const }] : []),
+                ...extraPhotos.map((p, i) => ({ url: p.url, kind: 'gallery' as const, idx: i })),
+                ...(videoFile ? [{ url: URL.createObjectURL(videoFile), kind: 'video' as const }] : []),
+              ])}
+              disabled={!thumbnailFile && extraPhotos.length === 0 && !videoFile}
+              className="w-full border rounded p-2 disabled:opacity-50"
+            >{isAr ? 'تنزيل الوسائط' : 'Download media'}</button>
+
+            {!createdId && (
+              <p className="text-neutral-500 text-sm">{isAr ? 'أنشئ المزاد للحصول على الرابط النهائي ثم انسخ النص' : 'Create the drop to get the final link, then copy the caption'}</p>
+            )}
           </>
-        ) : (
-          <p className="text-neutral-500 text-sm">{isAr ? 'أنشئ المزاد للحصول على الرابط النهائي ثم انسخ النص' : 'Create the drop to get the final link, then copy the caption'}</p>
         )}
 
         <div className="pt-4 mt-4 border-t">
