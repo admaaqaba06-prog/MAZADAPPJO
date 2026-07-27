@@ -827,6 +827,74 @@ Then pass them to the section, beside the existing `onNudge` / `onReleaseEscrow`
               currentAdminId={currentUser?.id || ''}
 ```
 
+- [ ] **Step 7b: Fix the tab badge so it agrees with the rows**
+
+`overdueFulfillmentCount` in `AdminDashboardView.tsx` (~line 197) rebuilds a
+partial order object and **drops `paymentWindowHours`**, so an unpaid order would
+be judged overdue at the 24h fallback in the badge while `FulfillmentSection`
+judges it against that order's real window — the badge and the visible rows would
+disagree. Find:
+
+```ts
+  // Fulfillment (Slice C): orders sitting past their stage's overdue threshold,
+  // across all three buckets. Sourced from realOrders (sim-excluded), matching
+  // the Slice B fix for the Verify badge.
+  const overdueFulfillmentCount = useMemo(() => {
+    const now = Date.now();
+    return realOrders.filter((o: any) => {
+      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
+      return isOverdue({ status: o.status, paymentVerified: o.paymentVerified, updatedAtMs }, now);
+    }).length;
+  }, [realOrders]);
+```
+
+Replace with:
+
+```ts
+  // Fulfillment: orders sitting past their stage's overdue threshold, across
+  // all FOUR buckets. Sourced from realOrders (sim-excluded), matching the
+  // Slice B fix for the Verify badge.
+  //
+  // paymentWindowHours MUST be forwarded: awaiting_payment is judged against
+  // the window that order actually gave the buyer, so dropping it here would
+  // make this badge disagree with the rows FulfillmentSection renders.
+  const overdueFulfillmentCount = useMemo(() => {
+    const now = Date.now();
+    return realOrders.filter((o: any) => {
+      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
+      return isOverdue(
+        {
+          status: o.status,
+          paymentVerified: o.paymentVerified,
+          paymentWindowHours: o.paymentWindowHours,
+          updatedAtMs,
+        },
+        now,
+      );
+    }).length;
+  }, [realOrders]);
+```
+
+- [ ] **Step 7c: Remove Task 1's defensive guard**
+
+Task 1 added a guard to `FulfillmentSection`'s `grouped` memo so a `waiting_payment`
+order could not crash the tab before a queue existed to render it. Now that
+`awaiting_payment` is in `BUCKETS` and in the `map` initialiser, the guard is dead
+weight that would silently swallow a future bucket. Find it in the `grouped` memo:
+
+```ts
+      if (!bucket || !(bucket in map)) continue;
+```
+
+Replace with:
+
+```ts
+      if (!bucket) continue;
+```
+
+Read the actual line before editing — if the guard's wording differs, keep the
+`if (!bucket) continue;` behaviour and drop only the `bucket in map` half.
+
 - [ ] **Step 8: Verify**
 
 Run: `set -o pipefail; npm run lint && npx vitest run && npm run build`
