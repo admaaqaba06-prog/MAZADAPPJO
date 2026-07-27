@@ -4589,48 +4589,63 @@ exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(asyn
     throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
   }
 
-  const now = Date.now();
   const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
-  const snap = await ref.get();
-  const record = snap.exists ? snap.data() : null;
 
-  const gate = canSendOtp(record, now, {
-    cooldownMs: SEND_COOLDOWN_MS,
-    windowMs: OTP_WINDOW_MS,
-    maxPerWindow: MAX_SENDS_PER_HOUR,
+  // Atomic gate+write: a concurrent burst can't slip past the cooldown /
+  // per-hour cap, because the read, the canSendOtp check, and the record
+  // write all happen inside one Firestore transaction (retries on contention).
+  let sendCode = null;
+  let retryAfterSec = Math.ceil(SEND_COOLDOWN_MS / 1000);
+  await db.runTransaction(async (tx) => {
+    sendCode = null; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const gate = canSendOtp(record, Date.now(), {
+      cooldownMs: SEND_COOLDOWN_MS,
+      windowMs: OTP_WINDOW_MS,
+      maxPerWindow: MAX_SENDS_PER_HOUR,
+    });
+    if (!gate.ok) {
+      retryAfterSec = gate.retryAfterSec;
+      return;
+    }
+
+    const now = Date.now();
+    const code = generateOtpCode();
+    const salt = crypto.randomBytes(16).toString('hex');
+
+    // Rolling-window bookkeeping: fresh window on first send or after it elapses.
+    let windowStartAt;
+    let sendCount;
+    if (record && now - (record.windowStartAt || 0) < OTP_WINDOW_MS) {
+      windowStartAt = record.windowStartAt || now;
+      sendCount = (record.sendCount || 0) + 1;
+    } else {
+      windowStartAt = now;
+      sendCount = 1;
+    }
+
+    // set fully replaces the old doc (resets attempts, drops any stale hash),
+    // so a previously-issued code can never verify.
+    tx.set(ref, {
+      codeHash: hashOtp(code, salt),
+      salt,
+      expiresAt: now + OTP_TTL_MS,
+      attempts: 0,
+      lastSentAt: now,
+      windowStartAt,
+      sendCount,
+    });
+    sendCode = code;
   });
-  if (!gate.ok) {
+
+  if (!sendCode) {
     // UX, not an error: tell the client to wait — never throw.
-    return { ok: false, retryAfterSec: gate.retryAfterSec };
+    return { ok: false, retryAfterSec };
   }
 
-  const code = generateOtpCode();
-  const salt = crypto.randomBytes(16).toString('hex');
-
-  // Rolling-window bookkeeping: fresh window on first send or after it elapses.
-  let windowStartAt;
-  let sendCount;
-  if (!record || now - (record.windowStartAt || 0) >= OTP_WINDOW_MS) {
-    windowStartAt = now;
-    sendCount = 1;
-  } else {
-    windowStartAt = record.windowStartAt;
-    sendCount = (record.sendCount || 0) + 1;
-  }
-
-  // merge:false — a fresh code fully replaces the old (resets attempts, drops
-  // any stale hash), so a previously-issued code can never verify.
-  await ref.set({
-    codeHash: hashOtp(code, salt),
-    salt,
-    expiresAt: now + OTP_TTL_MS,
-    attempts: 0,
-    lastSentAt: now,
-    windowStartAt,
-    sendCount,
-  }, { merge: false });
-
-  await postOtpToRelay(e164, code); // never throws
+  await postOtpToRelay(e164, sendCode); // never throws — do it AFTER commit
 
   return { ok: true, retryAfterSec: Math.ceil(SEND_COOLDOWN_MS / 1000) };
 });
@@ -4643,28 +4658,46 @@ exports.verifyWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async
   }
 
   const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
-  const snap = await ref.get();
-  const record = snap.exists ? snap.data() : null;
 
-  const res = checkOtp(record, data && data.code, Date.now());
-  if (!res.ok) {
-    // Best-effort attempt increment (only if a record exists) to feed the
-    // MAX_ATTEMPTS lockout. Generic ok:false — no account-existence leak.
-    if (record) {
-      await ref.update({ attempts: (record.attempts || 0) + 1 }).catch(() => {});
+  // Atomic read→check→(increment | single-use-delete): a concurrent burst can't
+  // exceed the MAX_ATTEMPTS lockout, and two racing verifies of the same code
+  // can't both consume it (only one delete wins) — so a token is minted at most
+  // once per issued code. The auth/token ops run OUTSIDE the txn, AFTER commit.
+  let verified = false;
+  await db.runTransaction(async (tx) => {
+    verified = false; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const res = checkOtp(record, data && data.code, Date.now());
+    if (res.ok) {
+      tx.delete(ref);       // single-use — atomic, so concurrent verifies can't double-mint
+      verified = true;
+    } else if (record) {
+      // Attempt increment feeds the MAX_ATTEMPTS lockout. Generic ok:false — no leak.
+      tx.update(ref, { attempts: (record.attempts || 0) + 1 });
     }
-    return { ok: false };
-  }
+  });
 
-  // Single-use: consume the code before minting anything.
-  await ref.delete().catch(() => {});
+  if (!verified) return { ok: false };
 
+  // uid resolution + token mint are admin.auth() ops — outside the txn, only
+  // reachable once the code has been atomically consumed.
   let uid;
   try {
     uid = (await admin.auth().getUserByPhoneNumber(e164)).uid;
   } catch (e) {
     if (e && e.code === 'auth/user-not-found') {
-      uid = (await admin.auth().createUser({ phoneNumber: e164 })).uid;
+      try {
+        uid = (await admin.auth().createUser({ phoneNumber: e164 })).uid;
+      } catch (e2) {
+        // concurrent create won the race — re-fetch the now-existing user
+        if (e2 && e2.code === 'auth/phone-number-already-exists') {
+          uid = (await admin.auth().getUserByPhoneNumber(e164)).uid;
+        } else {
+          throw e2;
+        }
+      }
     } else {
       throw e;
     }
