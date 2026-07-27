@@ -425,6 +425,11 @@ export default function AuctionDropBuilderView() {
             isAr={isAr}
             coverUrl={thumbnailPreview}
             onCoverChange={(f) => {
+              // Revoke the outgoing preview before replacing it — covers both
+              // Remove (f === null) and swapping one cover for another. Without
+              // this a 20-30 drop day leaks a blob per swap. Mirrors the
+              // revoke MediaPicker's own gallery removal already does.
+              if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
               setThumbnailFile(f);
               setThumbnailPreview(f ? URL.createObjectURL(f) : '');
             }}

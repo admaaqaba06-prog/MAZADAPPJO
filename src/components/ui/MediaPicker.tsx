@@ -11,8 +11,13 @@ import {
  * Cover + gallery + video selection for the admin drop builder.
  *
  * Presentational: it owns no upload logic and touches no Firebase. The parent
- * holds the files and uploads them on submit. `capture="environment"` means a
- * phone opens the rear camera straight away instead of a file browser.
+ * holds the files and uploads them on submit.
+ *
+ * Deliberately no `capture="environment"` on the inputs: on iOS and most
+ * Android browsers that attribute means "camera only" rather than "camera
+ * first", and it hides the gallery/Files option outright. The team is
+ * desktop-primary, so picking an existing photo is the common path — and the
+ * seller sell-flow already has an open camera-only complaint from doing this.
  */
 export interface MediaPickerProps {
   isAr: boolean;
@@ -80,7 +85,6 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={(e) => onCoverChange(e.target.files?.[0] ?? null)}
             />
@@ -117,7 +121,6 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -165,7 +168,6 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             <input
               type="file"
               accept="video/*"
-              capture="environment"
               className="hidden"
               onChange={(e) => onVideoChange(e.target.files?.[0] ?? null)}
             />
