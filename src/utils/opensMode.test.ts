@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveOpens, validateOpens } from './opensMode';
+import { opensSummaryLabel, resolveOpens, validateOpens, type OpensMode } from './opensMode';
 
 // parseAmmanLocalToMs reads "YYYY-MM-DDTHH:mm" as Amman wall-clock time.
 const FUTURE = '2030-01-01T20:00';
@@ -70,5 +70,74 @@ describe('validateOpens', () => {
 
   it('accepts a scheduled time in the future', () => {
     expect(validateOpens('scheduled', FUTURE, NOW)).toBeNull();
+  });
+});
+
+describe('opensSummaryLabel', () => {
+  const CLOCK = '8:00 PM';
+
+  it('says "now" in English', () => {
+    expect(opensSummaryLabel('now', CLOCK, false)).toBe('Opens now');
+  });
+
+  it('says "now" in Arabic', () => {
+    expect(opensSummaryLabel('now', CLOCK, true)).toBe('يفتح الآن');
+  });
+
+  it('says "first bid" in English', () => {
+    expect(opensSummaryLabel('first_bid', CLOCK, false)).toBe('Starts on the first bid');
+  });
+
+  it('says "first bid" in Arabic', () => {
+    expect(opensSummaryLabel('first_bid', CLOCK, true)).toBe('يبدأ مع أول مزايدة');
+  });
+
+  it('interpolates the clock in English when scheduled', () => {
+    expect(opensSummaryLabel('scheduled', CLOCK, false)).toBe('Opens at 8:00 PM');
+  });
+
+  it('interpolates the clock in Arabic when scheduled', () => {
+    expect(opensSummaryLabel('scheduled', CLOCK, true)).toBe('يفتح 8:00 PM');
+  });
+
+  // The two timeless modes must never render the clock they are handed. The
+  // view passes a live `startTimeDisplay` regardless of mode, so a branch that
+  // leaked it would print a stale time next to "Opens now".
+  it('ignores the clock entirely for "now" and "first_bid"', () => {
+    for (const mode of ['now', 'first_bid'] as const) {
+      for (const isAr of [true, false]) {
+        expect(opensSummaryLabel(mode, CLOCK, isAr)).not.toContain(CLOCK);
+      }
+    }
+  });
+
+  // formatAmmanClock returns '—' when there is no parsed time, and the panel
+  // renders whatever it gets — so the em dash has to survive as itself.
+  it('passes an em-dash placeholder through unchanged', () => {
+    expect(opensSummaryLabel('scheduled', '—', false)).toBe('Opens at —');
+    expect(opensSummaryLabel('scheduled', '—', true)).toBe('يفتح —');
+  });
+
+  it('falls back to the scheduled sentence for an unrecognised mode', () => {
+    expect(opensSummaryLabel('someday' as OpensMode, CLOCK, false)).toBe('Opens at 8:00 PM');
+  });
+
+  // Both languages always: the ops team is mixed and neither is a fallback, so
+  // no mode may render the same string in both.
+  it('renders a different string per language for every mode', () => {
+    for (const mode of ['now', 'scheduled', 'first_bid'] as const) {
+      expect(opensSummaryLabel(mode, CLOCK, true)).not.toBe(
+        opensSummaryLabel(mode, CLOCK, false),
+      );
+    }
+  });
+
+  it('renders a distinct string for each mode within a language', () => {
+    for (const isAr of [true, false]) {
+      const labels = (['now', 'scheduled', 'first_bid'] as const).map((m) =>
+        opensSummaryLabel(m, CLOCK, isAr),
+      );
+      expect(new Set(labels).size).toBe(3);
+    }
   });
 });

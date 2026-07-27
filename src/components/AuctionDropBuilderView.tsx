@@ -6,13 +6,14 @@ import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChan
 import { buildDropPayload } from '../utils/dropPayload';
 import {
   INITIAL_FORM,
+  afterCreateAnother,
   dropErrorText,
   firstErrorField,
   validateDropForm,
   type DropFormValues,
 } from '../utils/dropFormState';
 import { photoUploadLabel, uploadStageLabel } from '../utils/dropProgress';
-import { resolveOpens, type OpensMode } from '../utils/opensMode';
+import { opensSummaryLabel, resolveOpens, type OpensMode } from '../utils/opensMode';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
@@ -20,6 +21,7 @@ import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
 import MediaPicker from './ui/MediaPicker';
 import MoreSettingsDrawer from './admin/MoreSettingsDrawer';
+import DropSuccessPanel from './admin/DropSuccessPanel';
 import type { PickedPhoto } from '../utils/mediaPickerState';
 import type { AuctionItem } from '../types';
 
@@ -57,6 +59,10 @@ export default function AuctionDropBuilderView() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [copyImageMsg, setCopyImageMsg] = useState('');
   const [createdId, setCreatedId] = useState<string | null>(null);
+  // Re-opening a created drop for edits. Set only by the success panel's Edit
+  // button, which Task 10 wires up alongside the save bar this flag reveals —
+  // until then the panel stands from create until "Create another".
+  const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // Per-field validation codes, keyed by DropFormValues field name. Recomputed
@@ -85,18 +91,27 @@ export default function AuctionDropBuilderView() {
     return p ? p.label : `${Math.round(form.durationSeconds / 60)} دقيقة`;
   }, [form.durationSeconds]);
 
-  // The auction number is allocated server-side by createListing; post-create
-  // it flows back through the auctions collection in context.
-  const assignedNumber = useMemo(
-    () => (createdId ? auctions.find((a) => a.id === createdId)?.auctionNumber : undefined),
+  // The live doc for the drop just created. Status and bid count come from here
+  // rather than from anything this view remembers, so a bid landing while the
+  // success panel is open closes Edit off on the next snapshot.
+  const createdAuction = useMemo(
+    () => (createdId ? auctions.find((a) => a.id === createdId) : undefined),
     [createdId, auctions],
   );
 
-  // Before the drop is created we show a placeholder link; after creation the
-  // real id flows in and the caption/copy buttons reflect the final link.
+  // The auction number is allocated server-side by createListing; post-create
+  // it flows back through the auctions collection in context.
+  const assignedNumber = createdAuction?.auctionNumber;
+
+  // Pre-create there is no id yet. The old build interpolated a literal
+  // "{{auction-id}}" into the caption, which rendered as a broken percent-
+  // encoded URL in the preview — something an admin could copy by accident.
   const deepLink = useMemo(
-    () => buildAuctionUrl(createdId ?? '{{auction-id}}', window.location.origin),
-    [createdId],
+    () =>
+      createdId
+        ? buildAuctionUrl(createdId, window.location.origin)
+        : (isAr ? '(يُضاف الرابط عند الإنشاء)' : '(link added when you create)'),
+    [createdId, isAr],
   );
 
   const caption = useMemo(
@@ -219,6 +234,33 @@ export default function AuctionDropBuilderView() {
     }
   };
 
+  /**
+   * Clear the item, keep the batch. `afterCreateAnother` owns the keep-vs-clear
+   * rule for every form field (including always clearing `viewing`) — the work
+   * left here is the state that lives outside the form object.
+   */
+  const handleCreateAnother = () => {
+    setForm(afterCreateAnother(form));
+    // Both media paths that abandon an object URL have to revoke it. The cover
+    // is easy to miss because swapping one already revokes in onCoverChange —
+    // but "create another" abandons the last cover of the previous drop, and at
+    // 20-30 drops a day that is 20-30 leaked blobs per session on its own.
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    extraPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+    setExtraPhotos([]);
+    setThumbnailFile(null);
+    setThumbnailPreview('');
+    setVideoFile(null);
+    setCreatedId(null);
+    setEditing(false);
+    // Per-field errors are their own state and survive a form reset, so the
+    // fresh drop would otherwise open wearing the previous lot's red messages.
+    setErrors({});
+    setError('');
+    setCopyImageMsg('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const finalLink = createdId ? buildAuctionUrl(createdId, window.location.origin) : '';
   const sectionHeader = 'text-xs font-bold text-neutral-400 uppercase tracking-wide';
   const label = 'block text-sm font-bold text-gray-800';
@@ -253,11 +295,56 @@ export default function AuctionDropBuilderView() {
       viewingPlace: hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '',
     }));
     setCreatedId(null);
+    // A relist is a NEW drop, so it must leave edit mode too — otherwise the
+    // save bar Task 10 hangs off `editing` would sit over a prefilled form with
+    // no created id to save to.
+    setEditing(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div style={{ direction: isAr ? 'rtl' : 'ltr' }} className="h-full overflow-y-auto max-w-5xl mx-auto p-4 grid gap-6 md:grid-cols-2 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      {/* Success REPLACES the form, in place. The old build reported a create
+          as one green line in the column to the right, which on a phone sits
+          below the entire form — the admin's most-repeated action of the day
+          confirmed somewhere they were not looking.
+
+          The form block below is deliberately left at its original indentation
+          rather than re-indented into this ternary: it is ~150 unchanged lines
+          and shifting them all would bury the actual change in the diff. */}
+      {createdId && !editing ? (
+        <DropSuccessPanel
+          isAr={isAr}
+          auctionNumber={assignedNumber}
+          title={form.productName.trim()}
+          startingPrice={Number(form.startingPrice) || 0}
+          coverUrl={thumbnailPreview}
+          opensLabel={opensSummaryLabel(form.opensMode, startTimeDisplay, isAr)}
+          durationLabel={durationLabel}
+          finalLink={finalLink}
+          caption={caption}
+          status={createdAuction?.status}
+          totalBids={createdAuction?.totalBids}
+          hasCopyableMedia={Boolean(thumbnailFile || videoFile)}
+          copyMessage={copyImageMsg}
+          onCopyLink={() => copy(finalLink)}
+          onCopyCaption={() => copy(caption)}
+          onCopyImage={async () => {
+            const ok = thumbnailPreview ? await copyImageToClipboard(thumbnailPreview) : false;
+            setCopyImageMsg(ok ? (isAr ? '✅ نُسخت الصورة' : '✅ Image copied') : (isAr ? 'تعذّر النسخ — استخدم تنزيل' : "Couldn't copy — use Download"));
+          }}
+          onDownloadMedia={() => downloadMedia([
+            ...(thumbnailPreview ? [{ url: thumbnailPreview, kind: 'cover' as const }] : []),
+            ...extraPhotos.map((p, i) => ({ url: p.url, kind: 'gallery' as const, idx: i })),
+            ...(videoFile ? [{ url: URL.createObjectURL(videoFile), kind: 'video' as const }] : []),
+          ])}
+          onCreateAnother={handleCreateAnother}
+          // onEdit / onCancel land in Task 10 with handleSaveEdit and
+          // handleCancelDrop. Wiring Edit before the save bar exists would swap
+          // the panel for a form whose only button says "Create drop", so the
+          // panel renders neither button until it has a handler for it.
+        />
+      ) : (
       <div className="space-y-6">
         <h1 className="text-xl font-bold">{isAr ? 'إنشاء مزاد جديد' : 'Create a Drop'}</h1>
 
@@ -406,6 +493,7 @@ export default function AuctionDropBuilderView() {
         </button>
         {error && <p className="text-rose-600 text-sm font-bold">{error}</p>}
       </div>
+      )}
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">{isAr ? 'معاينة المنشور' : 'Post preview'}</h2>
