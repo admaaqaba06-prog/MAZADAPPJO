@@ -74,7 +74,18 @@ export async function executeOrderTransition(
   order: Order,
   action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
-  extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume'; disputeReason?: string }
+  extraFields?: {
+    trackingNumber?: string;
+    resolutionType?: 'release' | 'refund' | 'resume';
+    disputeReason?: string;
+    /**
+     * Free-text context from whoever advanced the order — "called seller,
+     * courier collects Tuesday". Additive: the canned bilingual activity
+     * message still goes to the buyer and seller, this is what the TEAM reads
+     * when picking the order up next.
+     */
+    note?: string;
+  }
 ): Promise<any> {
   // Determine role
   let role: 'buyer' | 'seller' | 'admin' = 'buyer';
@@ -308,12 +319,16 @@ export async function executeOrderTransition(
     // 2. Add Order Activity record to orders/{orderId}/activity subcollection
     const activityColRef = collection(db, 'orders', order.id, 'activity');
     const activityId = `act-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const trimmedNote = typeof extraFields?.note === 'string' ? extraFields.note.trim() : '';
     await addDoc(activityColRef, {
       id: activityId,
       type: activityType,
       messageAr: activityMessageAr,
       messageEn: activityMessageEn,
       message: activityMessageEn, // English default as requested
+      // Conditional spread: Firestore rejects an explicit `undefined`, and an
+      // advance with no note must simply not carry the key.
+      ...(trimmedNote ? { note: trimmedNote } : {}),
       performedBy: currentUser.id,
       performedByName: currentUser.name || 'User',
       timestamp: Timestamp.now()
@@ -331,6 +346,7 @@ export async function executeOrderTransition(
         adminName: currentUser.name || 'System Administrator',
         timestamp: Timestamp.now(),
         details: `Transitioned order from ${fromStatus} to ${toStatus} via action: ${action}`
+          + (trimmedNote ? ` — note: ${trimmedNote}` : '')
       });
     }
 

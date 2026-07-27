@@ -195,3 +195,117 @@ describe('executeOrderTransition — mark_delivered moves goods, never money', (
     expect(mocks.updateDoc).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The free-text note that rides along with a transition.
+//
+// `nudgeCount: 3` says three nudges fired; it does not say the seller promised
+// a Tuesday courier. The note is what the TEAM reads when picking the order up
+// next — it is purely ADDITIVE, so the canned bilingual messages the buyer and
+// seller actually receive must be byte-identical with or without it.
+//
+// The absence assertions below use `'note' in obj === false` rather than
+// `toBeUndefined()` on purpose: `{ note: undefined }` satisfies
+// `toBeUndefined()` but is exactly what Firestore rejects, since
+// `ignoreUndefinedProperties` is not enabled on this project's app. Only the
+// `in` form proves the key was never handed over.
+// ---------------------------------------------------------------------------
+
+const ADMIN = { id: 'admin-1', email: 'admin@example.com', name: 'Admin', role: 'admin' as const, isAdmin: true };
+
+// The canned copy for mark_delivered, duplicated here on purpose: if someone
+// edits the message in orderWorkflow.ts, that is a customer-facing copy change
+// and it should have to be made in two places deliberately.
+const DELIVERED_AR = 'تم تسليم الطرد للمشتري — بانتظار تأكيد الاستلام قبل تحرير المبلغ.';
+const DELIVERED_EN = 'Parcel delivered to the buyer — awaiting acceptance before funds are released.';
+
+describe('executeOrderTransition — the note rides along with the transition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  // The activity record is the first addDoc in the transition body.
+  const activityRecord = () => mocks.addDoc.mock.calls[0][1] as Record<string, unknown>;
+
+  it('writes the note onto the activity record', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, {
+      note: 'called seller, courier collects Tuesday',
+    });
+
+    expect(activityRecord().note).toBe('called seller, courier collects Tuesday');
+  });
+
+  it('trims surrounding whitespace off the note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, {
+      note: '   courier collects Tuesday \n ',
+    });
+
+    expect(activityRecord().note).toBe('courier collects Tuesday');
+  });
+
+  it('omits the note key entirely when no extraFields are passed', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER);
+
+    // NOT toBeUndefined(): Firestore would reject an explicit undefined.
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('omits the note key entirely when extraFields carry no note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { trackingNumber: 'MJ-123456' });
+
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('omits the note key entirely for an empty string', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { note: '' });
+
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('omits the note key entirely for a whitespace-only note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, { note: '   \n\t  ' });
+
+    expect('note' in activityRecord()).toBe(false);
+  });
+
+  it('leaves the canned bilingual messages untouched when a note is present', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', SELLER, {
+      note: 'called seller, courier collects Tuesday',
+    });
+
+    const activity = activityRecord();
+    // The buyer and seller read these; the note must not leak into them.
+    expect(activity.messageAr).toBe(DELIVERED_AR);
+    expect(activity.messageEn).toBe(DELIVERED_EN);
+    expect(activity.message).toBe(DELIVERED_EN);
+    expect(activity.type).toBe('Package Delivered');
+    expect(activity.messageAr).not.toContain('Tuesday');
+    expect(activity.messageEn).not.toContain('Tuesday');
+  });
+
+  it('appends the note to the admin audit entry', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN, {
+      note: '  called seller, courier collects Tuesday  ',
+    });
+
+    // Activity is call 0; the adminActions entry is call 1 for an admin actor.
+    const audit = mocks.addDoc.mock.calls[1][1] as Record<string, unknown>;
+    expect(audit.action).toBe('mark_delivered');
+    expect(audit.details).toBe(
+      'Transitioned order from shipped to delivered via action: mark_delivered — note: called seller, courier collects Tuesday'
+    );
+  });
+
+  it('leaves the admin audit entry unchanged when there is no note', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN);
+
+    const audit = mocks.addDoc.mock.calls[1][1] as Record<string, unknown>;
+    expect(audit.details).toBe('Transitioned order from shipped to delivered via action: mark_delivered');
+  });
+});
