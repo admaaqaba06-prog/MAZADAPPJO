@@ -20,7 +20,9 @@ export interface FulfillmentSectionProps {
   onReleaseEscrow: (orderId: string) => Promise<void>;
 }
 
-type LiveBucket = Exclude<FulfillmentBucket, null>;
+// The buckets this section currently renders. 'awaiting_payment' exists in
+// FulfillmentBucket but has no queue UI here yet, so it stays excluded.
+type LiveBucket = Exclude<FulfillmentBucket, null | 'awaiting_payment'>;
 
 // Mirror AdminDashboardView's createdAt normalization: Firestore Timestamp
 // ({seconds}) → ms, else pass-through epoch ms, else fall back to createdAt/now.
@@ -200,10 +202,12 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
     };
     for (const order of orders || []) {
       const bucket = bucketOrder(order);
-      if (!bucket) continue;
+      // bucketOrder can also return 'awaiting_payment', which has no queue in
+      // this section yet — skip it rather than indexing a missing map key.
+      if (!bucket || !(bucket in map)) continue;
       const updatedAtMs = orderUpdatedAtMs(order, now);
       const overdue = isOverdue({ ...order, updatedAtMs }, now);
-      map[bucket].push({ order, updatedAtMs, overdue });
+      map[bucket as LiveBucket].push({ order, updatedAtMs, overdue });
     }
     for (const key of Object.keys(map) as LiveBucket[]) {
       map[key].sort((a, b) => a.updatedAtMs - b.updatedAtMs); // oldest / most stuck first
