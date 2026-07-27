@@ -4707,6 +4707,58 @@ exports.verifyWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async
   return { ok: true, token };
 });
 
+// Step 3b (E5 contact completion): verify an OTP and ATTACH the phone to the
+// CURRENT signed-in account. AUTHENTICATED — unlike verifyWhatsappOtp this mints
+// NO token (the user is already signed in); it attaches the verified number to
+// context.auth.uid via admin.auth().updateUser, preserving the uid — and thus the
+// wallet/history. Same atomic read→checkOtp→(single-use-delete | attempt-increment)
+// as verifyWhatsappOtp. NO wallet/ledger/escrow writes.
+exports.attachWhatsappPhone = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const e164 = normalizeJordanPhone(data && data.phone);
+  if (!e164) {
+    throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
+  }
+
+  const ref = db.collection('whatsappOtps').doc(otpDocId(e164));
+
+  // Same single-use, attempt-bounded consume as verifyWhatsappOtp: read→check→
+  // (atomic delete on success | attempt-increment on miss). The auth op runs
+  // OUTSIDE the txn, AFTER the code has been atomically consumed.
+  let verified = false;
+  await db.runTransaction(async (tx) => {
+    verified = false; // reset each attempt (txn callback can retry on contention)
+    const snap = await tx.get(ref);
+    const record = snap.exists ? snap.data() : null;
+
+    const res = checkOtp(record, data && data.code, Date.now());
+    if (res.ok) {
+      tx.delete(ref);       // single-use — atomic, so concurrent verifies can't double-consume
+      verified = true;
+    } else if (record) {
+      tx.update(ref, { attempts: (record.attempts || 0) + 1 });
+    }
+  });
+
+  if (!verified) return { ok: false };
+
+  // Attach to the EXISTING session's uid — NO token minted (already authed).
+  try {
+    await admin.auth().updateUser(context.auth.uid, { phoneNumber: e164 });
+  } catch (e) {
+    // The number is already claimed by a DIFFERENT account — never merge/orphan;
+    // surface a distinct code so the client can show "on another account".
+    if (e && e.code === 'auth/phone-number-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'هذا الرقم مسجّل على حساب آخر.');
+    }
+    throw e;
+  }
+
+  return { ok: true };
+});
+
 
 
 

@@ -18,6 +18,7 @@ import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
 import { isValidCityId } from '../utils/jordanCities';
 import { stripReserve } from '../utils/reserveStrip';
+import { toE164Jordan } from '../utils/phoneNumber';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
 import { computeServerOffset, setServerOffset } from '../utils/serverTime';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
@@ -274,6 +275,10 @@ interface AppContextProps {
   // the user's wallet/history). Consumed by ContactCompletionModal.
   linkPhoneSendCode: (e164Phone: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<string>;
   linkPhoneToAccount: (verificationId: string, code: string) => Promise<void>;
+  // WhatsApp-OTP attach: verifies the code and attaches the phone to the CURRENT
+  // uid (same account — no token, no wallet writes). Throws HttpsError on failure
+  // (e.g. err.code === 'functions/already-exists' when the number is on another account).
+  attachWhatsappPhone: (phone: string, code: string) => Promise<{ ok: boolean }>;
   saveEmail: (email: string) => Promise<void>;
   // Whether the contact-completion modal is open (mounted by the bid/sell gates in A4).
   contactModalOpen: boolean;
@@ -2515,6 +2520,27 @@ const fetchIP = async () => {
     // phone requirement immediately and the modal can call onComplete().
     setCurrentUser(prev => ({ ...prev, phoneNumber: digits, phone: digits }));
     setUsers(prev => prev.map(u => (u.id === auth.currentUser!.uid ? { ...u, phoneNumber: digits, phone: digits } : u)));
+  }, []);
+
+  // WhatsApp-OTP attach (replaces the reCAPTCHA linkPhone flow for E5). The callable
+  // verifies the code and attaches the number to THIS uid server-side (no token —
+  // already authed). On success we mirror linkPhoneToAccount's user-doc write so
+  // resolveMissingContact(currentUser) clears the phone requirement immediately.
+  // Rethrows the callable's HttpsError (e.g. functions/already-exists) for the modal.
+  const attachWhatsappPhone = useCallback(async (phone: string, code: string): Promise<{ ok: boolean }> => {
+    const callable = await getCallableFunction<{ phone: string; code: string }, { ok: boolean }>('attachWhatsappPhone');
+    const result = await callable({ phone, code });
+    if (result.data.ok) {
+      const e164 = toE164Jordan(phone) || phone;
+      const normalizedPhone = e164.replace(/\D/g, '');
+      const uid = auth.currentUser!.uid;
+      await setDoc(doc(db, 'users', uid), {
+        phoneNumber: e164, phone: e164, normalizedPhone,
+      }, { merge: true });
+      setCurrentUser(prev => ({ ...prev, phoneNumber: e164, phone: e164 }));
+      setUsers(prev => prev.map(u => (u.id === uid ? { ...u, phoneNumber: e164, phone: e164 } : u)));
+    }
+    return result.data;
   }, []);
 
   const saveEmail = useCallback(async (email: string): Promise<void> => {
@@ -5151,6 +5177,7 @@ const fetchIP = async () => {
       signInWhatsapp,
       linkPhoneSendCode,
       linkPhoneToAccount,
+      attachWhatsappPhone,
       saveEmail,
       contactModalOpen,
       setContactModalOpen,
@@ -5210,7 +5237,7 @@ const fetchIP = async () => {
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
     createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
-    confirmPhoneCode, requestWhatsappOtp, verifyWhatsappOtp, signInWhatsapp, linkPhoneSendCode, linkPhoneToAccount, saveEmail,
+    confirmPhoneCode, requestWhatsappOtp, verifyWhatsappOtp, signInWhatsapp, linkPhoneSendCode, linkPhoneToAccount, attachWhatsappPhone, saveEmail,
     logout, registerUser, subscribeUser, updateOwnProfile,
     completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,

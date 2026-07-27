@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import type { RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveMissingContact } from '../utils/guestGate';
 import { toE164Jordan } from '../utils/phoneNumber';
@@ -21,27 +20,27 @@ interface ContactCompletionModalProps {
  * E5 contact completion gate. A member with a real photo who taps bid/sell but is
  * missing a contact channel is shown this modal (mounted by A4). It ATTACHES the
  * missing channel to the CURRENT signed-in account:
- *  - Phone: E.164 input -> "Send code" (linkPhoneSendCode) -> 6-digit OTP -> "Verify"
- *    (linkPhoneToAccount, which links via linkWithCredential so the uid — and the
- *    user's wallet/history — is preserved; it NEVER signs into a separate phone account).
+ *  - Phone: E.164 input -> "Send code" (requestWhatsappOtp, code over WhatsApp) ->
+ *    6-digit OTP -> "Verify" (attachWhatsappPhone, which attaches the number to THIS
+ *    uid server-side so the uid — and the user's wallet/history — is preserved; it
+ *    NEVER signs into a separate phone account).
  *  - Email: validated input -> "Save" (saveEmail).
  * Only the field(s) resolveMissingContact(currentUser) reports as missing render.
  */
 export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ open, onClose, onComplete }) => {
-  const { currentUser, language, linkPhoneSendCode, linkPhoneToAccount, saveEmail } = useApp();
+  const { currentUser, language, requestWhatsappOtp, attachWhatsappPhone, saveEmail } = useApp();
   const isAr = language === 'ar';
 
   // Live missing-contact evaluation — mirrors of currentUser (written by the
-  // link/saveEmail actions) flip these to false as each channel is satisfied.
+  // attach/saveEmail actions) flip these to false as each channel is satisfied.
   const { needsPhone, needsEmail } = resolveMissingContact(currentUser);
 
-  // Phone flow (send SMS code -> verify + link) state
+  // Phone flow (send WhatsApp code -> verify + attach) state
   const [phoneInput, setPhoneInput] = useState('');
   const [smsCode, setSmsCode] = useState('');
-  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneErr, setPhoneErr] = useState('');
-  const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
   // Email flow state
   const [email, setEmail] = useState('');
@@ -55,21 +54,6 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     if (!needsPhone && !needsEmail) onComplete();
   }, [open, needsPhone, needsEmail, onComplete]);
 
-  const clearRecaptcha = () => {
-    // A consumed/errored verifier can't be reused — clear + null AND wipe the
-    // container DOM so no stale widget lingers (mirrors LoginView).
-    try { recaptchaRef.current?.clear(); } catch { /* container may be gone */ }
-    recaptchaRef.current = null;
-    const container = document.getElementById('contact-recaptcha-container');
-    if (container) container.innerHTML = '';
-  };
-
-  // Tear the verifier down on unmount / close.
-  useEffect(() => {
-    if (!open) clearRecaptcha();
-    return () => clearRecaptcha();
-  }, [open]);
-
   if (!open) return null;
 
   const handleSendCode = async () => {
@@ -82,19 +66,20 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     }
     setPhoneBusy(true);
     try {
-      const { RecaptchaVerifier } = await import('firebase/auth');
-      const { auth } = await import('../services/firebase');
-      // Always start clean: tear down any prior verifier + wipe the container,
-      // then build a fresh invisible one (avoids "reCAPTCHA has already been
-      // rendered" on retries) — same approach as LoginView.
-      clearRecaptcha();
-      recaptchaRef.current = new RecaptchaVerifier(auth, 'contact-recaptcha-container', { size: 'invisible' });
-      const id = await linkPhoneSendCode(e164, recaptchaRef.current);
-      setVerificationId(id);
+      // Sends a 6-digit code over WhatsApp (no reCAPTCHA). ok:false means the
+      // server-side cooldown/rate-limit is active — surface the wait, not an error.
+      const res = await requestWhatsappOtp(phoneInput);
+      if (res.ok) {
+        setCodeSent(true);
+      } else {
+        const secs = res.retryAfterSec ?? 60;
+        setPhoneErr(isAr
+          ? `الرجاء الانتظار ${secs} ثانية قبل إعادة إرسال الرمز.`
+          : `Please wait ${secs}s before requesting another code.`);
+      }
     } catch (e: any) {
-      console.warn('Contact phone link (send code) failed:', e);
+      console.warn('Contact phone WhatsApp OTP (send code) failed:', e);
       setPhoneErr(mapAuthError(e, isAr));
-      clearRecaptcha();
     } finally {
       setPhoneBusy(false);
     }
@@ -103,22 +88,27 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   const handleVerifyCode = async () => {
     if (phoneBusy) return; // ignore rapid double-clicks
     setPhoneErr('');
-    if (!verificationId || smsCode.trim().length < 4) {
+    if (!codeSent || smsCode.trim().length < 4) {
       setPhoneErr(isAr ? 'أدخل رمز التحقق.' : 'Enter the verification code.');
       return;
     }
     setPhoneBusy(true);
     try {
-      await linkPhoneToAccount(verificationId, smsCode.trim());
-      // Success: the mirrored currentUser clears needsPhone; the completion
-      // effect proceeds (or the email field renders if that's still missing).
-      setVerificationId(null);
-      setSmsCode('');
+      // Verifies the code + attaches the number to THIS uid server-side. On success
+      // the wrapper writes the phone to the user doc and mirrors currentUser, so the
+      // completion effect proceeds (or the email field renders if still missing).
+      const res = await attachWhatsappPhone(phoneInput, smsCode.trim());
+      if (res.ok) {
+        setCodeSent(false);
+        setSmsCode('');
+      } else {
+        setPhoneErr(isAr ? 'رمز غير صحيح أو منتهي الصلاحية.' : 'Incorrect or expired code.');
+      }
     } catch (e: any) {
-      console.warn('Contact phone link (verify) failed:', e);
-      // The number already belongs to a different account — do NOT silently sign
-      // into it (that would orphan this user's wallet/history). Tell them plainly.
-      if (e?.code === 'auth/credential-already-in-use' || e?.code === 'auth/account-exists-with-different-credential') {
+      console.warn('Contact phone WhatsApp OTP (verify) failed:', e);
+      // The number already belongs to a different account — do NOT merge/orphan
+      // this user's wallet/history. Tell them plainly.
+      if (e?.code === 'functions/already-exists') {
         setPhoneErr(isAr
           ? 'هذا الرقم مسجّل على حساب آخر. استخدم رقماً مختلفاً.'
           : 'This number is already on another account. Use a different number.');
@@ -131,10 +121,9 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   };
 
   const handlePhoneBack = () => {
-    setVerificationId(null);
+    setCodeSent(false);
     setSmsCode('');
     setPhoneErr('');
-    clearRecaptcha();
   };
 
   const handleSaveEmail = async () => {
@@ -166,9 +155,6 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
         role="dialog"
         aria-modal="true"
       >
-        {/* Invisible reCAPTCHA anchor for the phone-link OTP send */}
-        <div id="contact-recaptcha-container" />
-
         {/* Headline */}
         <div className="text-center space-y-3 mb-6">
           <div className="mx-auto w-11 h-11 rounded-full bg-orange-50 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
@@ -193,7 +179,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                 {isAr ? 'رقم الهاتف' : 'Phone number'}
               </span>
 
-              {!verificationId ? (
+              {!codeSent ? (
                 <>
                   <input
                     type="tel"
