@@ -189,6 +189,11 @@ interface AppContextProps {
     orderId: string,
     input: { stars: number; comment?: string }
   ) => Promise<{ success: boolean; message: string }>;
+  // Buyer rates the seller/auction after a completed order (order-verified callable, no money)
+  rateAuction: (
+    orderId: string,
+    input: { stars: number; comment?: string }
+  ) => Promise<{ ok?: boolean }>;
   addNotification: (title: string, description: string, type: Notification['type'], priority?: 'high' | 'medium' | 'low', auctionId?: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -3550,6 +3555,21 @@ const fetchIP = async () => {
     }
   }, [addNotification, showToast, language]);
 
+  // Buyer rates the seller/auction on a completed order. The callable is buyer-only,
+  // order-verified, one-per-order (deterministic review id), and never moves money.
+  // Client can no longer write buyer_rates_auction reviews directly (firestore.rules).
+  const rateAuction = useCallback(async (
+    orderId: string,
+    input: { stars: number; comment?: string }
+  ): Promise<{ ok?: boolean }> => {
+    const callable = await getCallableFunction<
+      { orderId: string; stars: number; comment?: string },
+      { success: boolean; message: string }
+    >('rateAuction');
+    const result = await callable({ orderId, stars: input.stars, comment: input.comment });
+    return { ok: result.data?.success };
+  }, []);
+
   const sendChatMessage = useCallback(async (text: string) => {
     if (!currentUser) return;
     const newMsg: ChatMessage = {
@@ -5143,6 +5163,7 @@ const fetchIP = async () => {
       requestReturn,
       sellerRespondToReturn,
       rateBuyer,
+      rateAuction,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -5232,7 +5253,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, rateBuyer, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

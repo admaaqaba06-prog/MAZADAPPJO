@@ -2861,6 +2861,93 @@ exports.rateBuyer = functions.runWith({ cors: true }).https.onCall(async (data, 
 });
 
 /**
+ * rateAuction Callable Cloud Function (rating-forgery fix)
+ * Buyer → seller/auction rating. Mirrors rateBuyer (seller → buyer): order-verified,
+ * one-per-order via deterministic review id, and NEVER moves money. This is the sole
+ * writer of `buyer_rates_auction` review docs — firestore.rules blocks client creation
+ * so a malicious client can no longer forge ratings with an arbitrary sellerId/stars.
+ */
+exports.rateAuction = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const { orderId, stars, comment } = data || {};
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+
+  // Pre-check auth against the order before opening the txn (mirrors rateBuyer).
+  const orderRef = db.collection('orders').doc(orderId);
+  const preSnap = await orderRef.get();
+  if (!preSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+  }
+  const preOrder = preSnap.data();
+  if (!preOrder.buyerId || preOrder.buyerId !== callerUserId) {
+    throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+  }
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      // Reads-before-writes: re-read the order, then read the deterministic review ref.
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+      }
+      const orderData = orderSnap.data();
+
+      // Auth (re-checked inside the txn): only the BUYER of this order may rate.
+      if (!orderData.buyerId || orderData.buyerId !== callerUserId) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
+      }
+
+      // Order must be completed OR delivered (matches the client canRateOrder gate).
+      if (orderData.status !== 'completed' && orderData.status !== 'delivered') {
+        throw new functions.https.HttpsError('failed-precondition', 'الطلب غير مكتمل.');
+      }
+
+      // One-per-order: deterministic review id makes double-submit safe.
+      const reviewRef = db.collection('reviews').doc(`${orderId}_buyer_rates_auction`);
+      const reviewSnap = await transaction.get(reviewRef);
+      if (reviewSnap.exists) {
+        throw new functions.https.HttpsError('failed-precondition', 'already rated');
+      }
+
+      // Validate/normalize the rating input via the pure helper.
+      let built;
+      try {
+        built = buildBuyerRating({ stars, comment }, Date.now());
+      } catch (e) {
+        throw new functions.https.HttpsError('invalid-argument', e.message);
+      }
+
+      // Write EXACTLY ONE new reviews doc using REAL order fields (not client-supplied).
+      // NO wallet/ledger/escrow writes.
+      transaction.set(reviewRef, {
+        orderId,
+        auctionId: orderData.auctionId,
+        buyerId: orderData.buyerId,
+        sellerId: orderData.sellerId || null,
+        vendorId: orderData.vendorId || null,
+        stars: built.stars,
+        text: built.text,
+        direction: 'buyer_rates_auction',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, message: 'تم تسجيل تقييمك.' };
+    });
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in rateAuction:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر حفظ التقييم.');
+  }
+});
+
+/**
  * 12. releaseOrderEscrow Callable Cloud Function (CRITICAL FIX PHASE 1)
  * Moves the financial logic of escrow release to a secure transactional server-side environment.
  * Ensures order completion, escrow release, wallet updates, and double-entry ledger logs are performed atomically.
