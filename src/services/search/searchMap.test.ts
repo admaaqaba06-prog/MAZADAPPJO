@@ -43,6 +43,28 @@ describe('algoliaHitToAuction', () => {
     expect(item.endTime).toBe(endMs);
   });
 
+  it('carries the admin-lookup fields (auctionNumber, currentBidderName) when the index has them', () => {
+    const item = algoliaHitToAuction({
+      objectID: 'auc-3',
+      auctionNumber: 137,
+      currentBidderName: 'Layla',
+    });
+    expect(item.auctionNumber).toBe(137);
+    expect(item.currentBidderName).toBe('Layla');
+  });
+
+  it('defaults the admin-lookup fields when absent (pre-backfill index)', () => {
+    // Until the backend indexes them these are simply not present: number → undefined,
+    // winner name → null. The section hides both when falsy, so this renders cleanly.
+    const item = algoliaHitToAuction({ objectID: 'auc-4' });
+    expect(item.auctionNumber).toBeUndefined();
+    expect(item.currentBidderName).toBeNull();
+  });
+
+  it('ignores a non-numeric auctionNumber (no string posing as a real number)', () => {
+    expect(algoliaHitToAuction({ objectID: 'auc-5', auctionNumber: 'NaN' as any }).auctionNumber).toBeUndefined();
+  });
+
   it('prefers objectID but falls back to hit.id', () => {
     expect(algoliaHitToAuction({ id: 'from-id' }).id).toBe('from-id');
     expect(algoliaHitToAuction({ objectID: 'from-obj', id: 'from-id' }).id).toBe('from-obj');
@@ -110,6 +132,26 @@ describe('buildFacetFilters', () => {
   it('builds an OR group for Phones (Phones + Electronics aliases)', () => {
     expect(buildFacetFilters({ category: 'Phones' })).toEqual([
       ['category:Phones', 'category:Electronics'],
+    ]);
+  });
+
+  it('builds a status-only OR group when statuses given without a category', () => {
+    expect(buildFacetFilters({ statuses: ['live', 'upcoming'] })).toEqual([
+      ['status:live', 'status:upcoming'],
+    ]);
+  });
+
+  it('combines category + statuses as two AND-ed groups (category ORs AND status ORs)', () => {
+    expect(buildFacetFilters({ category: 'Cars', statuses: ['live', 'upcoming'] })).toEqual([
+      ['category:Cars', 'category:Vehicles'],
+      ['status:live', 'status:upcoming'],
+    ]);
+  });
+
+  it('ignores an empty statuses array (no status group)', () => {
+    expect(buildFacetFilters({ statuses: [] })).toBeUndefined();
+    expect(buildFacetFilters({ category: 'Watches', statuses: [] })).toEqual([
+      ['category:Watches'],
     ]);
   });
 });

@@ -50,21 +50,56 @@ export function algoliaHitToAuction(hit: any): AuctionItem {
     currentPrice: filsToUnits(h.currentPriceFils, h.currentPrice, startingPrice),
     startingPrice,
     endTime: resolveEndTime(h),
+    // Admin Auction Lookup fields. Additive + defensive: the public AuctionCard
+    // never reads these, and they stay absent (undefined/null) until the backend
+    // sync indexes them — at which point the admin search lights them up with no
+    // further change here. A number-guard keeps a stray string from posing as a
+    // real auction number.
+    auctionNumber: typeof h.auctionNumber === 'number' ? h.auctionNumber : undefined,
+    currentBidderName: h.currentBidderName ?? null,
   } as AuctionItem;
 }
 
 /**
- * Translate the selected Discovery chip into an Algolia `facetFilters` value.
+ * Translate the selected Discovery chip + optional status constraint into an
+ * Algolia `facetFilters` value.
  *
- * - `undefined` / `'All'` / unknown chip → `undefined` (no category filter).
- * - A known chip → a single OR group of `category:<value>` clauses over the
- *   chip's canonical alias list, e.g. Cars → `[['category:Cars','category:Vehicles']]`.
- *   (Outer array = AND groups; inner array = OR within a group.)
+ * Algolia semantics: the return is an ARRAY of GROUPS. Groups are AND-ed
+ * together; members WITHIN a group are OR-ed. So the two constraints combine as
+ * "(category OR-group) AND (status OR-group)".
+ *
+ * - Category: `undefined` / `'All'` / unknown chip → no category group; a known
+ *   chip → a single OR group of `category:<value>` clauses over the chip's
+ *   canonical alias list, e.g. Cars → `['category:Cars','category:Vehicles']`.
+ * - Statuses: a non-empty array → a SEPARATE OR group of `status:<s>` clauses,
+ *   e.g. `['live','upcoming']` → `['status:live','status:upcoming']`. The public
+ *   Discover search passes `['live','upcoming']` so it ONLY ever returns
+ *   biddable lots; an admin search omits `statuses` to see all statuses.
+ *
+ * Combinations:
+ * - category + statuses → `[[category ORs...], ['status:live','status:upcoming']]`
+ * - statuses only       → `[['status:live','status:upcoming']]`
+ * - category only       → `[[category ORs...]]`
+ * - neither             → `undefined`
  */
-export function buildFacetFilters(opts: { category?: string }): string[][] | undefined {
+export function buildFacetFilters(opts: {
+  category?: string;
+  statuses?: string[];
+}): string[][] | undefined {
+  const groups: string[][] = [];
+
   const category = opts?.category;
-  if (!category || category === 'All') return undefined;
-  const matches = SEARCH_CATEGORY_MATCHES[category];
-  if (!matches || matches.length === 0) return undefined;
-  return [matches.map((value) => `category:${value}`)];
+  if (category && category !== 'All') {
+    const matches = SEARCH_CATEGORY_MATCHES[category];
+    if (matches && matches.length > 0) {
+      groups.push(matches.map((value) => `category:${value}`));
+    }
+  }
+
+  const statuses = opts?.statuses;
+  if (statuses && statuses.length > 0) {
+    groups.push(statuses.map((s) => `status:${s}`));
+  }
+
+  return groups.length > 0 ? groups : undefined;
 }
