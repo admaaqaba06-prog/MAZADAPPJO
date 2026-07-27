@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { INITIAL_FORM, afterCreateAnother, validateDropForm, type DropFormValues } from './dropFormState';
+import {
+  INITIAL_FORM,
+  afterCreateAnother,
+  dropErrorText,
+  firstErrorField,
+  validateDropForm,
+  type DropFormValues,
+} from './dropFormState';
 
 const NOW = Date.UTC(2026, 0, 1);
 
@@ -177,5 +184,112 @@ describe('validateDropForm', () => {
   it('does not flag timing for the now and first-bid modes', () => {
     expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'now' }, NOW).scheduledLocal).toBeUndefined();
     expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'first_bid' }, NOW).scheduledLocal).toBeUndefined();
+  });
+});
+
+describe('firstErrorField', () => {
+  it('returns null for a clean form', () => {
+    expect(firstErrorField({})).toBeNull();
+  });
+
+  it('returns the only problem when there is one', () => {
+    expect(firstErrorField({ startingPrice: 'REQUIRED' })).toBe('startingPrice');
+    expect(firstErrorField({ scheduledLocal: 'PAST' })).toBe('scheduledLocal');
+  });
+
+  it('returns the field highest in the form, not the first key in the object', () => {
+    // Insertion order deliberately reversed relative to the form: this is the
+    // whole reason the order is declared rather than read off Object.keys.
+    expect(
+      firstErrorField({ scheduledLocal: 'REQUIRED', startingPrice: 'REQUIRED', productName: 'REQUIRED' }),
+    ).toBe('productName');
+  });
+
+  it('prefers starting price over timing when the name is fine', () => {
+    expect(firstErrorField({ scheduledLocal: 'PAST', startingPrice: 'REQUIRED' })).toBe('startingPrice');
+  });
+
+  it('agrees with the order validateDropForm actually produces', () => {
+    // Guards the pair, not each half: a field reordered in ERROR_FIELD_ORDER
+    // without being reordered in the form would still pass the tests above.
+    const all = validateDropForm(
+      { ...INITIAL_FORM, productName: '', startingPrice: '', opensMode: 'scheduled', scheduledLocal: '' },
+      NOW,
+    );
+    expect(Object.keys(all)).toEqual(['productName', 'startingPrice', 'scheduledLocal']);
+    expect(firstErrorField(all)).toBe('productName');
+  });
+
+  it('still surfaces an error field it does not know the order of', () => {
+    // A future validator key with no ordering entry must not make submit go
+    // silent — better a missing scroll anchor than a dead button.
+    expect(firstErrorField({ vendorName: 'REQUIRED' })).toBe('vendorName');
+  });
+
+  it.each(['productName', 'startingPrice', 'scheduledLocal'])(
+    'prefers the ordered field %s over an unknown key that comes first in the object',
+    (ordered) => {
+      // Every ordered field, not just the first: a field dropped from the order
+      // list still gets returned by the unknown-key fallback, so only an
+      // unknown key sitting ahead of it exposes the missing entry.
+      expect(firstErrorField({ vendorName: 'REQUIRED', [ordered]: 'REQUIRED' })).toBe(ordered);
+    },
+  );
+
+  it('treats an empty code as no error, ordered or not', () => {
+    expect(firstErrorField({ productName: '' })).toBeNull();
+    expect(firstErrorField({ vendorName: '' })).toBeNull();
+    expect(firstErrorField({ productName: '', startingPrice: 'REQUIRED' })).toBe('startingPrice');
+  });
+});
+
+describe('dropErrorText', () => {
+  it('says nothing when there is no error', () => {
+    expect(dropErrorText(undefined, false)).toBe('');
+    expect(dropErrorText(undefined, true)).toBe('');
+    expect(dropErrorText('', false)).toBe('');
+    expect(dropErrorText('', true)).toBe('');
+  });
+
+  it('explains a past start time in both languages', () => {
+    expect(dropErrorText('PAST', false)).toBe('Start time must be in the future');
+    expect(dropErrorText('PAST', true)).toBe('وقت البدء يجب أن يكون في المستقبل');
+  });
+
+  it('explains a required field in both languages', () => {
+    expect(dropErrorText('REQUIRED', false)).toBe('This field is required');
+    expect(dropErrorText('REQUIRED', true)).toBe('هذا الحقل مطلوب');
+  });
+
+  it('falls back to "required" for a code it does not recognise', () => {
+    expect(dropErrorText('SOMETHING_NEW', false)).toBe('This field is required');
+    expect(dropErrorText('SOMETHING_NEW', true)).toBe('هذا الحقل مطلوب');
+  });
+
+  it('never returns the same sentence for both languages', () => {
+    // The team is mixed and neither language is a fallback; a copy-paste that
+    // returns the English string from the Arabic branch reads as shipped.
+    for (const code of ['PAST', 'REQUIRED', 'SOMETHING_NEW']) {
+      expect(dropErrorText(code, true)).not.toBe(dropErrorText(code, false));
+    }
+  });
+
+  it('covers every code validateDropForm can emit', () => {
+    // Pins the pair: a new code added to the validator with no message here
+    // would render an empty red span under the field.
+    const emitted = new Set([
+      ...Object.values(validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW)),
+      ...Object.values(
+        validateDropForm(
+          { ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'scheduled', scheduledLocal: '2020-01-01T20:00' },
+          NOW,
+        ),
+      ),
+    ]);
+    expect(emitted).toEqual(new Set(['REQUIRED', 'PAST']));
+    for (const code of emitted) {
+      expect(dropErrorText(code, false).length).toBeGreaterThan(0);
+      expect(dropErrorText(code, true).length).toBeGreaterThan(0);
+    }
   });
 });

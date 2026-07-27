@@ -92,3 +92,51 @@ export function validateDropForm(
 
   return errors;
 }
+
+/**
+ * The order the essential fields appear in the form, top to bottom. Declared
+ * explicitly rather than read off `Object.keys(errors)[0]`: key order there is
+ * an accident of the order validateDropForm happens to assign in, so reordering
+ * two `if`s in a validator would silently start scrolling the admin to the
+ * second problem instead of the first.
+ */
+const ERROR_FIELD_ORDER: (keyof DropFormValues)[] = [
+  'productName',
+  'startingPrice',
+  'scheduledLocal',
+];
+
+/**
+ * The field to scroll to and focus: the FIRST problem in visual order, so the
+ * admin starts at the top of the form rather than wherever the validator
+ * happened to look first. Returns null for a clean form.
+ *
+ * A key that isn't in ERROR_FIELD_ORDER still gets returned (after the ordered
+ * ones) rather than swallowed — a future error with no id to scroll to should
+ * be a visibly missing anchor, not a submit that goes quiet.
+ */
+export function firstErrorField(errors: Record<string, string>): string | null {
+  for (const key of ERROR_FIELD_ORDER) {
+    if (errors[key]) return key;
+  }
+  // Truthiness, not key presence, decides in both halves — an entry whose code
+  // is empty is not an error, and the ordered loop above already skips it.
+  return Object.keys(errors).find((key) => errors[key]) ?? null;
+}
+
+/**
+ * Error code -> the sentence shown under the field. Both languages always: the
+ * ops team is mixed and neither is a fallback.
+ *
+ * Anything that is not PAST reads as "required", which is deliberate — every
+ * other code validateDropForm emits (currently only REQUIRED) means the field
+ * is empty or unusable, and an unrecognised future code saying "this field is
+ * required" is far better than an empty red span saying nothing at all.
+ */
+export function dropErrorText(code: string | undefined, isAr: boolean): string {
+  if (!code) return '';
+  if (code === 'PAST') {
+    return isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future';
+  }
+  return isAr ? 'هذا الحقل مطلوب' : 'This field is required';
+}

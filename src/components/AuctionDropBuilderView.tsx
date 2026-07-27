@@ -4,8 +4,15 @@ import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
 import { buildDropPayload } from '../utils/dropPayload';
-import { INITIAL_FORM, type DropFormValues } from '../utils/dropFormState';
-import { resolveOpens, validateOpens, type OpensMode } from '../utils/opensMode';
+import {
+  INITIAL_FORM,
+  dropErrorText,
+  firstErrorField,
+  validateDropForm,
+  type DropFormValues,
+} from '../utils/dropFormState';
+import { photoUploadLabel, uploadStageLabel } from '../utils/dropProgress';
+import { resolveOpens, type OpensMode } from '../utils/opensMode';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
@@ -52,6 +59,11 @@ export default function AuctionDropBuilderView() {
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Per-field validation codes, keyed by DropFormValues field name. Recomputed
+  // wholesale on every Create click, so nothing stale can survive a submit.
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  // What the submit button says mid-upload. Empty outside a submit.
+  const [progressLabel, setProgressLabel] = useState('');
 
   const specs = useMemo(
     () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -112,22 +124,24 @@ export default function AuctionDropBuilderView() {
 
   const handleCreate = async () => {
     setError('');
-    if (!form.productName.trim() || !Number(form.startingPrice)) {
-      setError(isAr ? 'أدخل اسم المنتج وسعر البداية' : 'Enter a product name and starting price');
-      return;
-    }
-    // validateOpens, NOT resolveOpens, is what makes "At a set time" mean it.
-    // resolveOpens returns scheduledStartAtMs: null for a blank/unparseable
-    // time, and buildDropPayload's `?? now` would then open the lot
-    // immediately — the exact silent degrade the old Scheduled-with-no-time
-    // field had. Blocking here is the only thing between the two.
-    const opensError = validateOpens(form.opensMode, form.scheduledLocal, Date.now());
-    if (opensError === 'REQUIRED') {
-      setError(isAr ? 'اختر وقت بدء المزاد' : 'Pick a start time');
-      return;
-    }
-    if (opensError === 'PAST') {
-      setError(isAr ? 'وقت البدء يجب أن يكون في المستقبل' : 'Start time must be in the future');
+    // One guard for every essential field, including timing. validateDropForm
+    // delegates the timing half to validateOpens, and validateOpens — NOT
+    // resolveOpens — is what makes "At a set time" mean it: resolveOpens
+    // returns scheduledStartAtMs: null for a blank/unparseable time, and
+    // buildDropPayload's `?? now` would then open the lot immediately, the
+    // exact silent degrade the old Scheduled-with-no-time field had. Returning
+    // here before any upload is the only thing between the two, so both
+    // REQUIRED and PAST must keep blocking.
+    const found = validateDropForm(form, Date.now());
+    setErrors(found);
+    const firstKey = firstErrorField(found);
+    if (firstKey) {
+      // Scroll the FIRST problem into view — the button stays enabled precisely
+      // so that clicking it says what is wrong, and a message rendered below the
+      // fold says nothing.
+      const el = document.getElementById(`field-${firstKey}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus?.();
       return;
     }
     setSubmitting(true);
@@ -141,7 +155,9 @@ export default function AuctionDropBuilderView() {
           const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
           const { getFirebaseStorage } = await import('../services/firebase');
           const storage = await getFirebaseStorage();
-          for (const photo of extraPhotos) {
+          for (let i = 0; i < extraPhotos.length; i++) {
+            const photo = extraPhotos[i];
+            setProgressLabel(photoUploadLabel(i, extraPhotos.length, isAr));
             // Shrink to a card-friendly size before upload — same reasoning
             // as the cover thumbnail (createListing's uploadWithFallback).
             // Never throws; falls back to the original file untouched.
@@ -180,7 +196,11 @@ export default function AuctionDropBuilderView() {
         ) as any,
         videoFile ?? undefined,
         thumbnailFile ?? undefined,
-        undefined,
+        // createListing has always accepted this callback; the builder just
+        // never passed it, which is why the button sat on "Creating..." for the
+        // whole of a multi-minute video upload. It covers the cover image and
+        // the video — the gallery photos are uploaded in the loop above.
+        (progress, stage) => setProgressLabel(uploadStageLabel(progress, stage, isAr)),
         'upcoming',
       );
       setCreatedId(newId);
@@ -195,6 +215,7 @@ export default function AuctionDropBuilderView() {
       setError(e?.message || (isAr ? 'فشل إنشاء المزاد' : 'Failed to create auction'));
     } finally {
       setSubmitting(false);
+      setProgressLabel('');
     }
   };
 
@@ -265,20 +286,28 @@ export default function AuctionDropBuilderView() {
         <label className={label}>
           {isAr ? 'اسم المنتج' : 'Product name'} <span className="text-[#FF6B00]">*</span>
           <input
+            id="field-productName"
             className={field}
             value={form.productName}
             onChange={(e) => setField('productName', e.target.value)}
           />
+          {errors.productName && (
+            <span className="mt-1 block text-[11px] font-bold text-rose-600">{dropErrorText(errors.productName, isAr)}</span>
+          )}
         </label>
 
         <label className={label}>
           {isAr ? 'سعر البداية (دينار)' : 'Starting price (JOD)'} <span className="text-[#FF6B00]">*</span>
           <input
+            id="field-startingPrice"
             type="number"
             className={field}
             value={form.startingPrice}
             onChange={(e) => setField('startingPrice', e.target.value)}
           />
+          {errors.startingPrice && (
+            <span className="mt-1 block text-[11px] font-bold text-rose-600">{dropErrorText(errors.startingPrice, isAr)}</span>
+          )}
           {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
           <span className="mt-1 block text-[11px] text-gray-400">
             {Number(form.startingPrice) > 0
@@ -314,11 +343,15 @@ export default function AuctionDropBuilderView() {
             <label className={`${label} mt-3`}>
               {isAr ? 'وقت البدء (توقيت عمّان)' : 'Start time (Amman)'}
               <input
+                id="field-scheduledLocal"
                 type="datetime-local"
                 className={field}
                 value={form.scheduledLocal}
                 onChange={(e) => setField('scheduledLocal', e.target.value)}
               />
+              {errors.scheduledLocal && (
+                <span className="mt-1 block text-[11px] font-bold text-rose-600">{dropErrorText(errors.scheduledLocal, isAr)}</span>
+              )}
             </label>
           )}
 
@@ -357,10 +390,21 @@ export default function AuctionDropBuilderView() {
 
         <MoreSettingsDrawer isAr={isAr} values={form} onChange={setField} />
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button disabled={submitting} onClick={handleCreate} className="w-full bg-amber-600 text-white rounded p-3 disabled:opacity-50">
-          {submitting ? (isAr ? 'جارٍ الإنشاء...' : 'Creating...') : (isAr ? 'إنشاء المزاد' : 'Create drop')}
+        {/* Submit area — kept self-contained so Task 9's success panel and
+            Task 10's edit-mode save bar can wrap it in a conditional.
+            Deliberately NOT disabled on an incomplete form: clicking it is what
+            reveals the missing fields, and a disabled button that won't say why
+            is the failure mode being removed. */}
+        <button
+          disabled={submitting}
+          onClick={handleCreate}
+          className="w-full bg-[#FF6B00] hover:bg-orange-500 disabled:opacity-60 text-white font-black text-sm py-3.5 rounded-2xl transition-all"
+        >
+          {submitting
+            ? (progressLabel || (isAr ? 'جارٍ الإنشاء…' : 'Creating…'))
+            : (isAr ? 'إنشاء المزاد' : 'Create drop')}
         </button>
+        {error && <p className="text-rose-600 text-sm font-bold">{error}</p>}
       </div>
 
       <div className="space-y-3">
