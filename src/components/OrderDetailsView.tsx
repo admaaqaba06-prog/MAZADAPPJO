@@ -533,7 +533,10 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
   const handleMarkAsShipped = async () => {
     const trackingInput = prompt(
-      isAr ? 'يرجى إدخال رقم تتبع الشحنة (أو اتركه فارغاً للتوليد التلقائي):' : 'Enter tracking number (or leave blank to auto-generate):'
+      // No fallback tracking number is generated any more, so the field is
+      // simply optional: promising auto-generation told sellers who left it
+      // blank that a number had been attached when none existed.
+      isAr ? 'رقم تتبع الشحنة (اختياري — اتركه فارغاً إن لم يوجد):' : 'Tracking number (optional — leave blank if there is none):'
     );
     if (trackingInput === null) return; // User cancelled prompt
 
@@ -542,7 +545,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       await executeOrderTransition(order, 'mark_shipped', currentUser, { trackingNumber: trackingInput || undefined });
       addNotification(
         isAr ? 'تم الشحن بنجاح' : 'Order Dispatched',
-        isAr ? 'تم تحديث حالة الطلب إلى مشحون وإضافة رقم التتبع.' : 'Order status updated to shipped with tracking number.',
+        isAr ? 'تم تحديث حالة الطلب إلى مشحون.' : 'Order status updated to shipped.',
         'info'
       );
     } catch (err: any) {
