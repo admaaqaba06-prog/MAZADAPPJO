@@ -376,6 +376,13 @@ export interface Order {
   returnClaim?: ReturnClaim;
   /** E6 — distinguishes a return-driven dispute from a generic manual dispute. */
   disputeType?: 'return' | 'generic';
+  /**
+   * Which team member is accountable for chasing this order along. Admin-only:
+   * both fields are on the buyer/seller denylist in firestore.rules, so a
+   * seller cannot reassign or clear ownership of their own order.
+   */
+  assignedToId?: string;
+  assignedToName?: string;
 }
 
 /**

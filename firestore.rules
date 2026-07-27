@@ -300,6 +300,10 @@ service cloud.firestore {
             'paymentVerified', 'paymentVerifiedBy', 'paymentVerifiedAt',
             'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt',
             'lastNudgedAt', 'nudgeCount',
+            // Ownership of chasing an order is a Mazad ops decision — a seller
+            // must not be able to reassign it away from the team member
+            // accountable for it, or clear it so nobody appears responsible.
+            'assignedToId', 'assignedToName',
             'resolutionNotes', 'disputeResolvedBy', 'disputeResolvedAt', 'disputeResolutionType'
           ]) &&
           // paymentStatus: the ONLY client transition is the buyer's own
