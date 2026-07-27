@@ -51,7 +51,10 @@ export function validateTransition(fromStatus: OrderStatus, toStatus: OrderStatu
 // Check role permissions for specific actions
 export function checkRolePermission(action: string, role: 'buyer' | 'seller' | 'admin'): boolean {
   const buyerActions = ['pay', 'cancel_before_payment', 'confirm_delivery', 'open_dispute'];
-  const sellerActions = ['prepare_shipment', 'mark_shipped', 'upload_tracking', 'open_dispute'];
+  // mark_delivered is a claim of FACT (the goods arrived), not a money move —
+  // escrow release remains admin-only below. Admins inherit every action, which
+  // is what lets the team advance an order on the seller's behalf.
+  const sellerActions = ['prepare_shipment', 'mark_shipped', 'mark_delivered', 'upload_tracking', 'open_dispute'];
   const adminActions = ['release_escrow', 'refund', 'resolve_dispute', 'force_close'];
 
   if (role === 'admin') {
@@ -69,7 +72,7 @@ export function checkRolePermission(action: string, role: 'buyer' | 'seller' | '
 // Central transition function
 export async function executeOrderTransition(
   order: Order,
-  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
+  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
   extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume'; disputeReason?: string }
 ): Promise<any> {
@@ -214,6 +217,23 @@ export async function executeOrderTransition(
       activityType = 'Package Shipped';
       activityMessageAr = `تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ${tracking}`;
       activityMessageEn = `Parcel in transit with courier. Tracking ID: ${tracking}`;
+      break;
+
+    case 'mark_delivered':
+      toStatus = 'delivered';
+      // MONEY-FREE BY CONSTRUCTION. `confirm_delivery` above routes to the
+      // releaseOrderEscrow Cloud Function, so using it to record "the goods
+      // arrived" would also pay the seller. The admin relay needs those
+      // separate: goods arrive -> buyer accepts or rejects -> only THEN does
+      // accounting release. So this writes status/shippingStatus only, and the
+      // forbiddenFields guard below still rejects any escrow key.
+      updateFields = {
+        status: 'delivered',
+        shippingStatus: 'delivered'
+      };
+      activityType = 'Package Delivered';
+      activityMessageAr = 'تم تسليم الطرد للمشتري — بانتظار تأكيد الاستلام قبل تحرير المبلغ.';
+      activityMessageEn = 'Parcel delivered to the buyer — awaiting acceptance before funds are released.';
       break;
 
     case 'open_dispute':
