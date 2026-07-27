@@ -4,7 +4,11 @@ import {
   canEditDrop,
   canCancelDrop,
   cancelWarnsAboutBids,
+  cancelConfirmMessage,
+  stripNonEditableKeys,
+  NON_EDITABLE_KEYS,
 } from './dropEditability';
+import { buildDropPayload } from './dropPayload';
 
 describe('bidCountOf — fails closed to "has bids" only on real numbers', () => {
   it('reads a numeric count', () => {
@@ -99,5 +103,142 @@ describe('cancelWarnsAboutBids', () => {
     expect(cancelWarnsAboutBids({ status: 'live', totalBids: -1 })).toBe(false);
     expect(cancelWarnsAboutBids({ status: 'live', totalBids: NaN })).toBe(false);
     expect(cancelWarnsAboutBids({ status: 'live' })).toBe(false);
+  });
+});
+
+describe('cancelConfirmMessage', () => {
+  it('asks plainly when there are no bids to destroy', () => {
+    expect(cancelConfirmMessage({ status: 'live', totalBids: 0 }, false)).toBe(
+      'Cancel this drop and delete it?',
+    );
+    expect(cancelConfirmMessage({ status: 'live', totalBids: 0 }, true)).toBe(
+      'هل تريد إلغاء هذا المزاد وحذفه؟',
+    );
+  });
+
+  // The count is the whole point of the sentence: an admin about to destroy
+  // four people's bids must read the number before they click.
+  it('states the bid count and what cancelling destroys', () => {
+    expect(cancelConfirmMessage({ status: 'live', totalBids: 4 }, false)).toBe(
+      '4 people have bid on this. Cancelling removes the auction and their bids. Are you sure?',
+    );
+    expect(cancelConfirmMessage({ status: 'live', totalBids: 4 }, true)).toBe(
+      '4 شخص زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟',
+    );
+  });
+
+  it('says "person has" for exactly one bid and "people have" for more', () => {
+    expect(cancelConfirmMessage({ totalBids: 1 }, false)).toContain('1 person has bid on this.');
+    expect(cancelConfirmMessage({ totalBids: 2 }, false)).toContain('2 people have bid on this.');
+  });
+
+  it('ships both languages for every branch — neither is a fallback', () => {
+    for (const bids of [0, 1, 5]) {
+      const en = cancelConfirmMessage({ totalBids: bids }, false);
+      const ar = cancelConfirmMessage({ totalBids: bids }, true);
+      expect(ar).not.toBe(en);
+      expect(ar).toMatch(/[؀-ۿ]/);
+      expect(en).not.toMatch(/[؀-ۿ]/);
+    }
+  });
+
+  // A junk count is not a bid, so it must not produce "NaN people have bid".
+  it('falls back to the plain question on a junk count', () => {
+    expect(cancelConfirmMessage({ totalBids: NaN }, false)).toBe('Cancel this drop and delete it?');
+    expect(cancelConfirmMessage({ totalBids: -3 }, false)).toBe('Cancel this drop and delete it?');
+    expect(cancelConfirmMessage({}, false)).toBe('Cancel this drop and delete it?');
+  });
+});
+
+describe('stripNonEditableKeys', () => {
+  // Built from the REAL creation payload rather than a hand-written object, so
+  // a new dangerous key appearing in buildDropPayload shows up here.
+  const created = () =>
+    buildDropPayload(
+      {
+        productName: 'iPhone 15 Pro',
+        startingPrice: '250',
+        channel: 'misc',
+        durationSeconds: 1800,
+        paymentWindowHours: 24,
+        antiSnipeSec: 30,
+        startMode: 'scheduled',
+        scheduledStartAtMs: 1_700_000_000_000,
+        autoRelist: true,
+        viewing: 'store',
+        viewingPlace: 'Abdoun',
+        marketPrice: '400',
+        reservePrice: '300',
+        vendorName: 'Acme',
+        extraPhotoUrls: ['https://example.com/a.jpg'],
+      },
+      1_700_000_000_000,
+    );
+
+  it('removes every key an edit may not carry', () => {
+    const out = stripNonEditableKeys(created());
+    for (const key of NON_EDITABLE_KEYS) {
+      // Key ABSENT, not undefined: updateDoc merges by key, and an explicit
+      // undefined throws at write time rather than leaving the field alone.
+      expect(Object.prototype.hasOwnProperty.call(out, key)).toBe(false);
+    }
+  });
+
+  // Each of these was in the creation payload with a value that would do real
+  // damage if it reached updateDoc.
+  it('drops the media keys that a form holding no uploaded URLs would blank', () => {
+    const before = created();
+    expect(before.videoUrl).toBe('');
+    expect(before.thumbnailUrl).toBe('');
+    expect(before.mediaUrls).toEqual(['https://example.com/a.jpg']);
+    const out = stripNonEditableKeys(before);
+    expect('videoUrl' in out).toBe(false);
+    expect('thumbnailUrl' in out).toBe(false);
+    expect('mediaUrls' in out).toBe(false);
+  });
+
+  it('drops the reserve, which lives in auctionSecrets and can never be rehydrated here', () => {
+    expect(created().reservePrice).toBe(300);
+    expect('reservePrice' in stripNonEditableKeys(created())).toBe(false);
+  });
+
+  it('drops the creation-time bidder nulls that would wipe a live leader', () => {
+    const before = created();
+    expect(before.currentBidderId).toBeNull();
+    expect(before.currentBidderName).toBeNull();
+    const out = stripNonEditableKeys(before);
+    expect('currentBidderId' in out).toBe(false);
+    expect('currentBidderName' in out).toBe(false);
+  });
+
+  it('keeps everything an edit is FOR', () => {
+    const out = stripNonEditableKeys(created());
+    expect(out.title).toBe('iPhone 15 Pro');
+    expect(out.startingPrice).toBe(250);
+    expect(out.minIncrement).toBe(13);
+    expect(out.duration).toBe(1800);
+    expect(out.paymentWindowHours).toBe(24);
+    expect(out.antiSnipeWindowSec).toBe(30);
+    expect(out.channel).toBe('misc');
+    expect(out.startMode).toBe('scheduled');
+    expect(out.autoRelist).toBe(true);
+    expect(out.scheduledStartAt).toBe(1_700_000_000_000);
+    expect(out.endTime).toBe(1_700_000_000_000 + 1800 * 1000);
+    expect(out.marketPrice).toBe(400);
+    expect(out.vendorName).toBe('Acme');
+    expect(out.viewing).toBe('store');
+    expect(out.viewingPlace).toBe('Abdoun');
+  });
+
+  it('leaves the caller\'s payload untouched', () => {
+    const before = created();
+    stripNonEditableKeys(before);
+    expect(before.videoUrl).toBe('');
+    expect(before.reservePrice).toBe(300);
+    expect(Object.prototype.hasOwnProperty.call(before, 'currentBidderId')).toBe(true);
+  });
+
+  it('is a no-op on a payload that never had the keys', () => {
+    expect(stripNonEditableKeys({ title: 'x' })).toEqual({ title: 'x' });
   });
 });

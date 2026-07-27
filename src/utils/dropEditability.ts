@@ -45,3 +45,52 @@ export function canCancelDrop(a: DropEditabilitySource): boolean {
 export function cancelWarnsAboutBids(a: DropEditabilitySource): boolean {
   return bidCountOf(a) > 0;
 }
+
+/**
+ * The confirm text shown before a cancel. Cancelling deletes the auction doc,
+ * so any bids on it go with it — the count has to be in the sentence, not
+ * implied by a warning triangle, and in both languages because the ops team is
+ * mixed and neither is a fallback.
+ */
+export function cancelConfirmMessage(a: DropEditabilitySource, isAr: boolean): string {
+  const bids = bidCountOf(a);
+  if (!cancelWarnsAboutBids(a)) {
+    return isAr ? 'هل تريد إلغاء هذا المزاد وحذفه؟' : 'Cancel this drop and delete it?';
+  }
+  return isAr
+    ? `${bids} شخص زايد على هذا المزاد. الإلغاء سيحذف المزاد ومزايداتهم. هل أنت متأكد؟`
+    : `${bids} ${bids === 1 ? 'person has' : 'people have'} bid on this. Cancelling removes the auction and their bids. Are you sure?`;
+}
+
+/**
+ * Keys a drop EDIT must never carry, even though `buildDropPayload` emits them.
+ *
+ * That builder produces a full *creation* payload. An edit is built from a form
+ * that holds File objects, not uploaded URLs, so `videoUrl`/`thumbnailUrl` come
+ * back as '' and `mediaUrls` as absent — writing those over a created lot blanks
+ * media that uploaded fine. `reservePrice` is worse: it lives in the admin-only
+ * `auctionSecrets` doc, which the builder cannot read, so a blank reserve field
+ * here is "unknown", never "none" — writing it would erase a stored reserve with
+ * no way to recover the number. `currentBidderId`/`currentBidderName` are
+ * creation-time nulls that would wipe a live lot's leading bidder.
+ *
+ * Dropping keys is what protects them: Firestore's updateDoc merges by key, so
+ * an omitted key is left exactly as it was.
+ */
+export const NON_EDITABLE_KEYS = [
+  'mediaUrls',
+  'videoUrl',
+  'thumbnailUrl',
+  'reservePrice',
+  'currentBidderId',
+  'currentBidderName',
+] as const;
+
+/** A copy of `payload` with every NON_EDITABLE_KEYS entry removed. Never mutates its input. */
+export function stripNonEditableKeys(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...payload };
+  for (const key of NON_EDITABLE_KEYS) delete out[key];
+  return out;
+}

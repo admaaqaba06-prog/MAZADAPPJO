@@ -34,8 +34,13 @@ export interface DropSuccessPanelProps {
   onCopyImage: () => void;
   onDownloadMedia: () => void;
   onCreateAnother: () => void;
-  /** Optional until Task 10 supplies the edit/cancel handlers. A button with no
-   *  handler is a dead button, so each renders only once it has one. */
+  /** A button with no handler is a dead button, so each renders only once it has
+   *  one. Both are supplied by AuctionDropBuilderView (handleSaveEdit's `editing`
+   *  flag and handleCancelDrop); they stay optional so the panel can still be
+   *  rendered read-only. With both wired the action row below always has at
+   *  least one child — Edit-or-the-locked-line plus Cancel while the lot is
+   *  open, the locked line alone once it has closed — so it can no longer
+   *  render as an empty `flex gap-2` strip. */
   onEdit?: () => void;
   onCancel?: () => void;
 }

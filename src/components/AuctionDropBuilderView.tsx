@@ -1,5 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useApp, useAuctions } from '../context/AppContext';
+import { db } from '../services/firebase';
+import {
+  canEditDrop,
+  canCancelDrop,
+  cancelConfirmMessage,
+  stripNonEditableKeys,
+} from '../utils/dropEditability';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
@@ -38,7 +46,7 @@ const OPENS_OPTIONS: { id: OpensMode; ar: string; en: string }[] = [
 ];
 
 export default function AuctionDropBuilderView() {
-  const { language, currentUser, createListing } = useApp();
+  const { language, currentUser, createListing, deleteAuction } = useApp();
   const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
@@ -60,8 +68,8 @@ export default function AuctionDropBuilderView() {
   const [copyImageMsg, setCopyImageMsg] = useState('');
   const [createdId, setCreatedId] = useState<string | null>(null);
   // Re-opening a created drop for edits. Set only by the success panel's Edit
-  // button, which Task 10 wires up alongside the save bar this flag reveals —
-  // until then the panel stands from create until "Create another".
+  // button; it swaps the panel back for the form and reveals the save bar at
+  // the bottom of it, in place of Create.
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -219,6 +227,10 @@ export default function AuctionDropBuilderView() {
         'upcoming',
       );
       setCreatedId(newId);
+      // The success panel renders this string as its copy-result line, so a
+      // "✅ Image copied" left over from a pre-create Copy image would open the
+      // fresh panel already reporting a result nobody asked for.
+      setCopyImageMsg('');
       // Viewing does NOT carry to the next drop, unlike the reserve/vendor/specs
       // left standing above. Those are internal ops fields — a stale one is an
       // admin's own problem. A stale `viewing` publishes a physical viewing claim
@@ -259,6 +271,120 @@ export default function AuctionDropBuilderView() {
     setError('');
     setCopyImageMsg('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /**
+   * Save an edit to the drop that was just created.
+   *
+   * Two guards, both against the LIVE lot rather than whatever the success
+   * panel rendered from, because the gap between opening the editor and
+   * pressing Save is exactly long enough for a bid to land — and once someone
+   * has committed money, the terms they committed to stop moving.
+   */
+  const handleSaveEdit = async () => {
+    if (!createdId) return;
+    const found = validateDropForm(form, Date.now());
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+
+    const lockedMsg = isAr
+      ? 'وصلت مزايدة — لم يعد التعديل ممكناً.'
+      : 'A bid landed — this drop can no longer be edited.';
+
+    // Guard 1 — the auctions subscription. `createdAuction` is derived from the
+    // live onSnapshot listener, not from anything this view remembers, so a bid
+    // that has already reached the client blocks the save without a round trip.
+    if (!canEditDrop({ status: createdAuction?.status, totalBids: createdAuction?.totalBids })) {
+      setError(lockedMsg);
+      setEditing(false);
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      // Guard 2 — the document itself, read immediately before the write. Guard 1
+      // is only as fresh as the last snapshot delivered; this closes the window
+      // between that snapshot and this write. It fails CLOSED: an unreadable or
+      // missing doc falls to the catch/return below and nothing is written.
+      // (Task 12 adds the server-side twin — a rule refusing money/timing edits
+      // once totalBids > 0 — which is what actually makes this unbypassable.)
+      const liveSnap = await getDoc(doc(db, 'auctions', createdId));
+      if (!liveSnap.exists()) {
+        setError(isAr ? 'هذا المزاد لم يعد موجوداً.' : 'This drop no longer exists.');
+        setEditing(false);
+        return;
+      }
+      const live = liveSnap.data() as { status?: string; totalBids?: number };
+      if (!canEditDrop({ status: live?.status, totalBids: live?.totalBids })) {
+        setError(lockedMsg);
+        setEditing(false);
+        return;
+      }
+
+      const payload = buildDropPayload(
+        {
+          productName: form.productName,
+          startingPrice: form.startingPrice,
+          channel: form.channel,
+          durationSeconds: form.durationSeconds,
+          paymentWindowHours: form.paymentWindowHours,
+          antiSnipeSec: form.antiSnipeSec,
+          startMode: opens.startMode,
+          scheduledStartAtMs: opens.scheduledStartAtMs,
+          autoRelist: form.autoRelist,
+          viewing: form.viewing,
+          viewingPlace: form.viewingPlace,
+          marketPrice: form.marketPrice,
+          reservePrice: form.reservePrice,
+          vendorName: form.vendorName,
+          extraPhotoUrls: [],
+        },
+        Date.now(),
+      );
+
+      // Media and the reserve are deliberately NOT part of an edit write —
+      // stripNonEditableKeys owns that list and documents why each key is on it.
+      // In short: the form holds File objects, not uploaded URLs, so the media
+      // keys would blank media that uploaded fine, and the reserve lives in the
+      // admin-only auctionSecrets doc this form cannot read, so a blank reserve
+      // field here means "unknown", never "none".
+      await updateDoc(doc(db, 'auctions', createdId), stripNonEditableKeys(payload) as any);
+      setEditing(false);
+    } catch (e: any) {
+      setError(e?.message || (isAr ? 'فشل حفظ التعديل' : 'Failed to save changes'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * Delete the drop. Destructive and unrecoverable: the auction doc goes, and
+   * any bids on it go with it — so the confirm names the bid count out loud
+   * rather than hiding it behind a warning triangle.
+   */
+  const handleCancelDrop = async () => {
+    if (!createdId) return;
+    // The live lot, for the same reason handleSaveEdit uses it: the panel's
+    // Cancel button was rendered from a snapshot that may now be one settlement
+    // out of date, and a settled lot has orders hanging off it.
+    const lot = { status: createdAuction?.status, totalBids: createdAuction?.totalBids };
+    if (!canCancelDrop(lot)) {
+      setError(isAr ? 'انتهى هذا المزاد — لم يعد الإلغاء ممكناً.' : 'This drop has ended — it can no longer be cancelled.');
+      return;
+    }
+
+    if (!window.confirm(cancelConfirmMessage(lot, isAr))) return;
+
+    setSubmitting(true);
+    try {
+      await deleteAuction(createdId);
+      handleCreateAnother();
+    } catch (e: any) {
+      setError(e?.message || (isAr ? 'فشل إلغاء المزاد' : 'Failed to cancel the drop'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const finalLink = createdId ? buildAuctionUrl(createdId, window.location.origin) : '';
@@ -321,6 +447,13 @@ export default function AuctionDropBuilderView() {
           rather than re-indented into this ternary: it is ~150 unchanged lines
           and shifting them all would bury the actual change in the diff. */}
       {showSuccessPanel ? (
+        // The panel is wrapped rather than being the grid child itself so the
+        // shared `error` line can sit under it. Every failure this view reports
+        // used to render at the bottom of the FORM, which is unmounted whenever
+        // the panel is up — so "a bid landed, editing is locked" and a failed
+        // cancel both landed on a node nobody was rendering. Same message, same
+        // state, now visible in both halves of the ternary.
+        <div className="space-y-3">
         <DropSuccessPanel
           isAr={isAr}
           auctionNumber={assignedNumber}
@@ -347,11 +480,15 @@ export default function AuctionDropBuilderView() {
             ...(videoFile ? [{ url: URL.createObjectURL(videoFile), kind: 'video' as const }] : []),
           ])}
           onCreateAnother={handleCreateAnother}
-          // onEdit / onCancel land in Task 10 with handleSaveEdit and
-          // handleCancelDrop. Wiring Edit before the save bar exists would swap
-          // the panel for a form whose only button says "Create drop", so the
-          // panel renders neither button until it has a handler for it.
+          // The panel renders Edit and Cancel only once it has a handler for
+          // each — a button that does nothing is worse than an absent one. Both
+          // land here: Edit swaps the panel back for the form (which now ends in
+          // a save bar instead of Create), Cancel confirms and deletes.
+          onEdit={() => setEditing(true)}
+          onCancel={handleCancelDrop}
         />
+        {error && <p className="text-rose-600 text-sm font-bold">{error}</p>}
+        </div>
       ) : (
       <div className="space-y-6">
         <h1 className="text-xl font-bold">{isAr ? 'إنشاء مزاد جديد' : 'Create a Drop'}</h1>
@@ -485,20 +622,41 @@ export default function AuctionDropBuilderView() {
 
         <MoreSettingsDrawer isAr={isAr} values={form} onChange={setField} />
 
-        {/* Submit area — kept self-contained so Task 9's success panel and
-            Task 10's edit-mode save bar can wrap it in a conditional.
+        {/* Submit area. In edit mode the same form is saving changes to a lot
+            that already exists, so Create is replaced outright rather than
+            joined — one button, one meaning.
             Deliberately NOT disabled on an incomplete form: clicking it is what
             reveals the missing fields, and a disabled button that won't say why
             is the failure mode being removed. */}
-        <button
-          disabled={submitting}
-          onClick={handleCreate}
-          className="w-full bg-[#FF6B00] hover:bg-orange-500 disabled:opacity-60 text-white font-black text-sm py-3.5 rounded-2xl transition-all"
-        >
-          {submitting
-            ? (progressLabel || (isAr ? 'جارٍ الإنشاء…' : 'Creating…'))
-            : (isAr ? 'إنشاء المزاد' : 'Create drop')}
-        </button>
+        {editing ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={handleSaveEdit}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-sm py-3.5 rounded-2xl transition-all cursor-pointer"
+            >
+              {submitting ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ التعديلات' : 'Save changes')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setErrors({}); setError(''); }}
+              className="flex-1 border border-gray-300 rounded-2xl py-3.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              {isAr ? 'إلغاء التعديل' : 'Discard changes'}
+            </button>
+          </div>
+        ) : (
+          <button
+            disabled={submitting}
+            onClick={handleCreate}
+            className="w-full bg-[#FF6B00] hover:bg-orange-500 disabled:opacity-60 text-white font-black text-sm py-3.5 rounded-2xl transition-all"
+          >
+            {submitting
+              ? (progressLabel || (isAr ? 'جارٍ الإنشاء…' : 'Creating…'))
+              : (isAr ? 'إنشاء المزاد' : 'Create drop')}
+          </button>
+        )}
         {error && <p className="text-rose-600 text-sm font-bold">{error}</p>}
       </div>
       )}
