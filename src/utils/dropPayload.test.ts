@@ -78,9 +78,25 @@ describe('buildDropPayload — characterization of the shipped payload', () => {
     expect(p).not.toHaveProperty('reservePrice');
   });
 
+  it('coerces present optional numerics to numbers, not strings', () => {
+    const p = buildDropPayload({ ...base, marketPrice: '300', reservePrice: '180.5' }, NOW);
+    expect(p.marketPrice).toBe(300);
+    expect(p.reservePrice).toBe(180.5);
+    // The form holds these as raw input strings; Firestore must receive numbers.
+    expect(typeof p.marketPrice).toBe('number');
+    expect(typeof p.reservePrice).toBe('number');
+  });
+
   it('emits vendorName with a slug when a vendor is named', () => {
     expect(buildDropPayload({ ...base, vendorName: '  Al Hani Traders ' }, NOW))
       .toMatchObject({ vendorName: 'Al Hani Traders', vendorId: 'al-hani-traders' });
+  });
+
+  it('falls back to a null vendorId when the name slugifies to nothing', () => {
+    const p = buildDropPayload({ ...base, vendorName: ' !!! ' }, NOW);
+    expect(p.vendorName).toBe('!!!');
+    // Never '' — the empty slug is coerced to null so the field reads as "unset".
+    expect(p.vendorId).toBeNull();
   });
 
   it('attaches mediaUrls only when gallery photos uploaded', () => {
