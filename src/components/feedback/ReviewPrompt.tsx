@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Star, X } from 'lucide-react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../services/firebase';
 import Pressable from './Pressable';
 import { useToast } from './Toast';
+import { useApp } from '../../context/AppContext';
 import type { Order } from '../../types';
 
 type ReviewPromptProps = {
@@ -33,6 +32,7 @@ export default function ReviewPrompt({
 }: ReviewPromptProps) {
   const isAr = language === 'ar';
   const { showToast } = useToast();
+  const { rateAuction } = useApp();
   const [stars, setStars] = useState(0);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -42,18 +42,10 @@ export default function ReviewPrompt({
     if (stars < 1 || submitting || submitted) return;
     setSubmitting(true);
     try {
-      // Field names ground to firestore.rules /reviews create: buyerId == request.auth.uid.
-      await addDoc(collection(db, 'reviews'), {
-        orderId: order.id,
-        auctionId: order.auctionId,
-        buyerId,
-        stars,
-        text: text.trim() || '',
-        direction: 'buyer_rates_auction',
-        sellerId: order.sellerId || null,
-        vendorId: order.vendorId || vendorId || null,
-        createdAt: serverTimestamp(),
-      });
+      // Order-verified server callable is the sole writer of buyer_rates_auction docs;
+      // it derives sellerId/auctionId/buyerId from the real order (never client-supplied),
+      // enforces buyer-only + completed/delivered + one-per-order, and moves no money.
+      await rateAuction(order.id, { stars, comment: text.trim() });
       setSubmitted(true);
       showToast({
         type: 'success',

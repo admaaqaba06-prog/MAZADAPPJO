@@ -380,7 +380,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && (
         (request.resource.data.buyerId == request.auth.uid &&
           request.resource.data.direction != 'mazad_rates_buyer' &&
-          request.resource.data.direction != 'seller_rates_buyer') ||
+          request.resource.data.direction != 'seller_rates_buyer' &&
+          request.resource.data.direction != 'buyer_rates_auction') ||
         (isAdmin() && request.resource.data.direction == 'mazad_rates_buyer')
       );
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
