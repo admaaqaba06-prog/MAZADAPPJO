@@ -309,3 +309,91 @@ describe('executeOrderTransition — the note rides along with the transition', 
     expect(audit.details).toBe('Transitioned order from shipped to delivered via action: mark_delivered');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Essential writes vs. bookkeeping writes.
+//
+// executeOrderTransition performs four writes: the order update, the activity
+// record, the adminActions audit entry, and the notification fan-out. Only the
+// first two ARE the operation. The audit entry in particular can never succeed
+// from a client today — firestore.rules has `allow write: if false` on
+// /adminActions — so before the fix an admin advancing an order got the status
+// change committed AND an exception, i.e. a successful operation reported as a
+// failure, with the retry then failing as "Illegal state transition".
+//
+// These tests pin the split: bookkeeping failures must not fail the call,
+// essential failures must still propagate through handleFirestoreError.
+//
+// The collection mock below returns a path-tagged ref so a single addDoc call
+// can be made to reject by target collection, rather than by call index.
+// ---------------------------------------------------------------------------
+
+describe('executeOrderTransition — bookkeeping failures never fail a committed transition', () => {
+  const colPath = (ref: any) => (ref && ref.__path) || '';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockImplementation((_db: unknown, ...path: string[]) => ({ __path: path.join('/') }));
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  const writesTo = (path: string) =>
+    mocks.addDoc.mock.calls.filter((call) => colPath(call[0]) === path);
+
+  it('a rejected adminActions write still resolves, and still writes order + activity + notifications', async () => {
+    // Exactly what firestore.rules produces today for an admin actor.
+    mocks.addDoc.mockImplementation((ref: any) =>
+      colPath(ref) === 'adminActions'
+        ? Promise.reject(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }))
+        : Promise.resolve({ id: 'generated' })
+    );
+
+    await expect(executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN)).resolves.toBeUndefined();
+
+    // The operation itself committed...
+    expect(mocks.updateDoc).toHaveBeenCalledTimes(1);
+    expect((mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>).status).toBe('delivered');
+    expect(writesTo('orders/order-123/activity')).toHaveLength(1);
+    // ...and the audit failure did not abort the fan-out that follows it.
+    expect(writesTo('notifications')).toHaveLength(3);
+  });
+
+  it('a rejected notifications write still resolves', async () => {
+    mocks.addDoc.mockImplementation((ref: any) =>
+      colPath(ref) === 'notifications'
+        ? Promise.reject(new Error('notification fan-out unavailable'))
+        : Promise.resolve({ id: 'generated' })
+    );
+
+    await expect(executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN)).resolves.toBeUndefined();
+
+    expect(mocks.updateDoc).toHaveBeenCalledTimes(1);
+    expect(writesTo('orders/order-123/activity')).toHaveLength(1);
+    // One undeliverable recipient must not drop the other two.
+    expect(writesTo('notifications')).toHaveLength(3);
+  });
+
+  it('a rejected ORDER update still throws — the essential write is not swallowed', async () => {
+    mocks.updateDoc.mockRejectedValue(new Error('order update denied'));
+
+    await expect(executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN)).rejects.toThrow('order update denied');
+
+    // Nothing downstream ran, so there is nothing to be inconsistent with.
+    expect(mocks.addDoc).not.toHaveBeenCalled();
+  });
+
+  it('a rejected ACTIVITY write still throws — the activity record is part of the operation', async () => {
+    mocks.addDoc.mockImplementation((ref: any) =>
+      colPath(ref) === 'orders/order-123/activity'
+        ? Promise.reject(new Error('activity write denied'))
+        : Promise.resolve({ id: 'generated' })
+    );
+
+    await expect(executeOrderTransition(SHIPPED_ORDER, 'mark_delivered', ADMIN)).rejects.toThrow('activity write denied');
+  });
+});

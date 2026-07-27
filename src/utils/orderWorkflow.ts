@@ -334,20 +334,40 @@ export async function executeOrderTransition(
       timestamp: Timestamp.now()
     });
 
-    // 3. Write adminActions log if role is Admin
+    // 3. Write adminActions log if role is Admin.
+    //
+    // NEVER throws — by the time we get here the order has already been moved
+    // and the activity record written, so a failure in this audit entry must
+    // only log. Letting it escape meant a transition that HAD committed was
+    // reported to the caller as a failure; the admin would then retry and get
+    // "Illegal state transition" because the order had already advanced.
+    //
+    // Note this write cannot currently succeed from a client AT ALL:
+    // firestore.rules has `match /adminActions/{actionId} { allow write: if
+    // false; }`, which denies admins too, so every admin transition takes this
+    // catch. Do NOT "clean up" the try/catch — until adminActions is written
+    // server-side (or the rule is deliberately changed), removing it re-breaks
+    // every admin-driven order transition.
     if (role === 'admin') {
-      const adminActionsColRef = collection(db, 'adminActions');
-      const adminActionId = `adm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await addDoc(adminActionsColRef, {
-        id: adminActionId,
-        orderId: order.id,
-        action: action,
-        adminId: currentUser.id,
-        adminName: currentUser.name || 'System Administrator',
-        timestamp: Timestamp.now(),
-        details: `Transitioned order from ${fromStatus} to ${toStatus} via action: ${action}`
-          + (trimmedNote ? ` — note: ${trimmedNote}` : '')
-      });
+      try {
+        const adminActionsColRef = collection(db, 'adminActions');
+        const adminActionId = `adm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await addDoc(adminActionsColRef, {
+          id: adminActionId,
+          orderId: order.id,
+          action: action,
+          adminId: currentUser.id,
+          adminName: currentUser.name || 'System Administrator',
+          timestamp: Timestamp.now(),
+          details: `Transitioned order from ${fromStatus} to ${toStatus} via action: ${action}`
+            + (trimmedNote ? ` — note: ${trimmedNote}` : '')
+        });
+      } catch (auditError: any) {
+        console.warn(
+          `[orderWorkflow] adminActions audit write failed for order ${order.id} (${action}):`,
+          auditError && auditError.message
+        );
+      }
     }
 
     // 4. Send Notifications (Buyer, Seller, Admin)
@@ -378,22 +398,33 @@ export async function executeOrderTransition(
       }
     ];
 
+    // NEVER throws — same contract as the audit write above. The order has
+    // already moved; a notification is a courtesy, not the operation, so a
+    // failed fan-out must only log. The catch sits INSIDE the loop so one
+    // undeliverable recipient does not silently drop the other two.
     for (const notif of notifyUsers) {
-      const notifId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await addDoc(notificationsColRef, {
-        id: notifId,
-        userId: notif.userId,
-        title: isAdminUser(currentUser) ? notif.titleEn : notif.titleAr, // Bilingual choice
-        titleAr: notif.titleAr,
-        titleEn: notif.titleEn,
-        description: isAdminUser(currentUser) ? notif.descEn : notif.descAr,
-        descriptionAr: notif.descAr,
-        descriptionEn: notif.descEn,
-        type: (toStatus as string) === 'completed' ? 'win' : 'info',
-        timestamp,
-        read: false,
-        orderId: order.id
-      });
+      try {
+        const notifId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await addDoc(notificationsColRef, {
+          id: notifId,
+          userId: notif.userId,
+          title: isAdminUser(currentUser) ? notif.titleEn : notif.titleAr, // Bilingual choice
+          titleAr: notif.titleAr,
+          titleEn: notif.titleEn,
+          description: isAdminUser(currentUser) ? notif.descEn : notif.descAr,
+          descriptionAr: notif.descAr,
+          descriptionEn: notif.descEn,
+          type: (toStatus as string) === 'completed' ? 'win' : 'info',
+          timestamp,
+          read: false,
+          orderId: order.id
+        });
+      } catch (notifyError: any) {
+        console.warn(
+          `[orderWorkflow] notification write failed for order ${order.id} -> ${notif.userId}:`,
+          notifyError && notifyError.message
+        );
+      }
     }
 
   } catch (error) {
