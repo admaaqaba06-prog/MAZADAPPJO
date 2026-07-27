@@ -9,6 +9,8 @@ import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
 import { resizeImage } from '../utils/resizeImage';
 import { sellerNet } from '../utils/bidMath';
 import DropsListPanel from './DropsListPanel';
+import MediaPicker from './ui/MediaPicker';
+import type { PickedPhoto } from '../utils/mediaPickerState';
 import type { ViewingMode } from '../utils/viewing';
 import { ViewingSelector } from './admin/ViewingSelector';
 import type { AuctionItem } from '../types';
@@ -61,22 +63,12 @@ export default function AuctionDropBuilderView() {
   const [specsText, setSpecsText] = useState(''); // one spec per line
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
-  const [extraPhotos, setExtraPhotos] = useState<{ file: File; url: string }[]>([]);
+  const [extraPhotos, setExtraPhotos] = useState<PickedPhoto[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [copyImageMsg, setCopyImageMsg] = useState('');
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  // Gallery helpers (same pattern as the seller wizard): up to 3 extra photos.
-  const addExtraPhotos = (files: FileList | null) => {
-    if (!files) return;
-    const incoming = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    setExtraPhotos((prev) =>
-      [...prev, ...incoming.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, 3),
-    );
-  };
-  const removeExtraPhoto = (idx: number) => setExtraPhotos((prev) => prev.filter((_, i) => i !== idx));
 
   const specs = useMemo(
     () => specsText.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -122,12 +114,6 @@ export default function AuctionDropBuilderView() {
       }),
     [assignedNumber, startTimeDisplay, durationLabel, startingPrice, productName, specs, condition, deepLink],
   );
-
-  const onThumb = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] ?? null;
-    setThumbnailFile(f);
-    setThumbnailPreview(f ? URL.createObjectURL(f) : '');
-  };
 
   const copy = async (text: string) => {
     try {
@@ -435,57 +421,18 @@ export default function AuctionDropBuilderView() {
         {/* MEDIA */}
         <section className="space-y-3">
           <h2 className={sectionHeader}>{isAr ? 'الوسائط' : 'Media'}</h2>
-
-          <label className="block text-sm">{isAr ? 'صورة الغلاف' : 'Cover image'}
-            <input type="file" accept="image/*" className="mt-1 w-full" onChange={onThumb} />
-          </label>
-          {thumbnailPreview && <img src={thumbnailPreview} alt="" className="w-32 h-32 object-cover rounded" />}
-
-          <div className="block text-sm">
-            <span>{isAr ? 'صور إضافية للمعرض (حتى ٣ — اختياري)' : 'Extra gallery photos (up to 3 — optional)'}</span>
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {extraPhotos.map((photo, idx) => (
-                <div key={photo.url} className="relative rounded overflow-hidden bg-neutral-100 aspect-square">
-                  <img src={photo.url} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeExtraPhoto(idx)}
-                    className="absolute top-1 right-1 bg-red-600 text-white rounded px-1.5 py-0.5 text-[10px]"
-                  >
-                    {isAr ? 'حذف' : 'Remove'}
-                  </button>
-                </div>
-              ))}
-              {extraPhotos.length < 3 && (
-                <label className="flex flex-col items-center justify-center border-2 border-dashed rounded aspect-square cursor-pointer text-neutral-500 hover:bg-neutral-50">
-                  <span className="text-xl">＋</span>
-                  <span className="text-[10px]">{isAr ? 'إضافة صورة' : 'Add photo'}</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      addExtraPhotos(e.target.files);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-              )}
-            </div>
-            <span className="mt-1 block text-xs text-neutral-500">
-              {isAr ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد' : 'Bidders can swipe through these photos inside the live room'}
-            </span>
-          </div>
-
-          <label className="block text-sm">{isAr ? 'فيديو المنتج (اختياري)' : 'Product video (optional)'}
-            <input
-              type="file"
-              accept="video/*"
-              className="mt-1 w-full"
-              onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
+          <MediaPicker
+            isAr={isAr}
+            coverUrl={thumbnailPreview}
+            onCoverChange={(f) => {
+              setThumbnailFile(f);
+              setThumbnailPreview(f ? URL.createObjectURL(f) : '');
+            }}
+            gallery={extraPhotos}
+            onGalleryChange={setExtraPhotos}
+            videoFile={videoFile}
+            onVideoChange={setVideoFile}
+          />
         </section>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
