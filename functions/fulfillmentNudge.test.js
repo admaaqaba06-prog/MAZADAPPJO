@@ -3,7 +3,8 @@
 // around this function; bucket re-derivation + idempotent stamping live here
 // (same split as orderPaymentVerify.js).
 import { describe, it, expect } from 'vitest';
-const { sendFulfillmentNudge } = require('./fulfillmentNudge');
+import { bucketOrder as clientBucketOrder } from '../src/utils/fulfillmentQueues';
+const { sendFulfillmentNudge, bucketOrder: serverBucketOrder } = require('./fulfillmentNudge');
 
 const NOW_MS = 1750000000000;
 
@@ -105,11 +106,49 @@ describe('sendFulfillmentNudge', () => {
       .rejects.toMatchObject({ code: 'not-found' });
   });
 
+  it('rejects a ship nudge on an unpaid (waiting_payment) order — no kind maps to awaiting_payment', async () => {
+    const db = makeFakeDb({ 'orders/o5': { status: 'waiting_payment', buyerId: 'b1', sellerId: 's1' } });
+    await expect(sendFulfillmentNudge(deps(db), { orderId: 'o5', kind: 'ship', adminUid: 'a' }))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(sendFulfillmentNudge(deps(db), { orderId: 'o5', kind: 'confirm_delivery', adminUid: 'a' }))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(db._writes).toHaveLength(0);
+  });
+
   it('throws invalid-argument for a bad kind or missing orderId', async () => {
     const db = makeFakeDb({ 'orders/o1': { status: 'paid', paymentVerified: true } });
     await expect(sendFulfillmentNudge(deps(db), { orderId: 'o1', kind: 'bogus', adminUid: 'a' }))
       .rejects.toMatchObject({ code: 'invalid-argument' });
     await expect(sendFulfillmentNudge(deps(db), { kind: 'ship', adminUid: 'a' }))
       .rejects.toMatchObject({ code: 'invalid-argument' });
+  });
+});
+
+// ---- The "kept in sync by mirrored tests" claim, actually enforced ----------
+// fulfillmentNudge.js re-implements bucketOrder because a CommonJS function
+// module cannot import from src/. Its header says the two copies are kept in
+// sync by mirrored tests; until this block existed, nothing checked, and the
+// server copy had already missed the client's waiting_payment case. Add a case
+// to src/utils/fulfillmentQueues.ts and this table fails until the server copy
+// learns it too.
+describe('bucketOrder — server copy mirrors src/utils/fulfillmentQueues.ts', () => {
+  const CASES = [
+    { status: 'waiting_payment' },
+    { status: 'paid' },                              // unverified: not yet a shipment problem
+    { status: 'paid', paymentVerified: true },
+    { status: 'paid', paymentVerified: false },
+    { status: 'preparing_shipment' },
+    { status: 'shipped' },
+    { status: 'delivered' },
+    { status: 'completed' },
+    { status: 'cancelled' },
+    { status: 'refunded' },
+    { status: 'disputed' },
+    { status: 'disputed', paymentVerified: true },   // disputed wins over everything
+    { status: 'nonsense_status' },
+  ];
+
+  it.each(CASES)('agrees on %o', (order) => {
+    expect(serverBucketOrder(order)).toBe(clientBucketOrder(order));
   });
 });

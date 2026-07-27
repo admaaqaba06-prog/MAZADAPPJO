@@ -7,9 +7,16 @@ export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "s
 
 // Allowed transitions mapping (Finite State Machine)
 export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  waiting_payment: ['paid', 'cancelled'],
+  // A dispute must be openable from EVERY live state. OrderDetailsView offers
+  // "File Formal Dispute" at any non-terminal status, open_dispute is not
+  // intercepted by either Cloud Function block, and opening one writes no money
+  // field — so a status missing 'disputed' here does not protect anything, it
+  // just throws a raw `Illegal state transition` alert at the buyer. That was
+  // the case in `preparing_shipment`, which is where the admin relay parks
+  // orders while it phones the seller: the queue's normal resting state.
+  waiting_payment: ['paid', 'cancelled', 'disputed'],
   paid: ['preparing_shipment', 'refunded', 'disputed'],
-  preparing_shipment: ['shipped'],
+  preparing_shipment: ['shipped', 'disputed'],
   shipped: ['delivered', 'disputed'],
   delivered: ['completed', 'disputed'],
   disputed: ['completed', 'refunded', 'paid'], // Admin resolutions
@@ -51,7 +58,10 @@ export function validateTransition(fromStatus: OrderStatus, toStatus: OrderStatu
 // Check role permissions for specific actions
 export function checkRolePermission(action: string, role: 'buyer' | 'seller' | 'admin'): boolean {
   const buyerActions = ['pay', 'cancel_before_payment', 'confirm_delivery', 'open_dispute'];
-  const sellerActions = ['prepare_shipment', 'mark_shipped', 'upload_tracking', 'open_dispute'];
+  // mark_delivered is a claim of FACT (the goods arrived), not a money move —
+  // escrow release remains admin-only below. Admins inherit every action, which
+  // is what lets the team advance an order on the seller's behalf.
+  const sellerActions = ['prepare_shipment', 'mark_shipped', 'mark_delivered', 'upload_tracking', 'open_dispute'];
   const adminActions = ['release_escrow', 'refund', 'resolve_dispute', 'force_close'];
 
   if (role === 'admin') {
@@ -69,9 +79,27 @@ export function checkRolePermission(action: string, role: 'buyer' | 'seller' | '
 // Central transition function
 export async function executeOrderTransition(
   order: Order,
-  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
+  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
-  extraFields?: { trackingNumber?: string; resolutionType?: 'release' | 'refund' | 'resume'; disputeReason?: string }
+  extraFields?: {
+    trackingNumber?: string;
+    resolutionType?: 'release' | 'refund' | 'resume';
+    disputeReason?: string;
+    /**
+     * Free-text context from whoever advanced the order — "called seller,
+     * courier collects Tuesday". Additive: the canned bilingual activity
+     * message still goes to the buyer and seller, this is what the TEAM reads
+     * when picking the order up next.
+     *
+     * INTERNAL. It is written to orders/{orderId}/adminNotes, which
+     * firestore.rules gates on isAdmin() for read AND write. It must never go
+     * onto the activity record — OrderDetailsView onSnapshot-subscribes
+     * orders/{orderId}/activity for the buyer and the seller, so anything
+     * written there is transmitted to their browsers regardless of what the UI
+     * chooses to render.
+     */
+    note?: string;
+  }
 ): Promise<any> {
   // Determine role
   let role: 'buyer' | 'seller' | 'admin' = 'buyer';
@@ -205,15 +233,46 @@ export async function executeOrderTransition(
 
     case 'mark_shipped':
       toStatus = 'shipped';
-      const tracking = extraFields?.trackingNumber || 'MJ-' + Math.floor(100000 + Math.random() * 900000);
+      // NEVER FABRICATE A TRACKING NUMBER. This used to fall back to a random
+      // `MJ-######`, which was then interpolated into the activity messages the
+      // BUYER and SELLER read — a tracking ID that tracks nothing. The admin
+      // relay (handleAdvanceOrder) passes only `{ note }`, so that fallback was
+      // the default for every admin-driven "Out for delivery". The parcel really
+      // is in transit, so say exactly that and omit the ID we do not have.
+      const tracking = typeof extraFields?.trackingNumber === 'string'
+        ? extraFields.trackingNumber.trim()
+        : '';
       updateFields = {
         status: 'shipped',
         shippingStatus: 'shipped',
-        trackingNumber: tracking
+        // Conditional spread: Firestore rejects an explicit `undefined`, and
+        // writing an empty string would clobber a tracking number set earlier.
+        ...(tracking ? { trackingNumber: tracking } : {})
       };
       activityType = 'Package Shipped';
-      activityMessageAr = `تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ${tracking}`;
-      activityMessageEn = `Parcel in transit with courier. Tracking ID: ${tracking}`;
+      activityMessageAr = tracking
+        ? `تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ${tracking}`
+        : 'تم شحن الطرد بنجاح مع شركة التوصيل.';
+      activityMessageEn = tracking
+        ? `Parcel in transit with courier. Tracking ID: ${tracking}`
+        : 'Parcel in transit with courier.';
+      break;
+
+    case 'mark_delivered':
+      toStatus = 'delivered';
+      // MONEY-FREE BY CONSTRUCTION. `confirm_delivery` above routes to the
+      // releaseOrderEscrow Cloud Function, so using it to record "the goods
+      // arrived" would also pay the seller. The admin relay needs those
+      // separate: goods arrive -> buyer accepts or rejects -> only THEN does
+      // accounting release. So this writes status/shippingStatus only, and the
+      // forbiddenFields guard below still rejects any escrow key.
+      updateFields = {
+        status: 'delivered',
+        shippingStatus: 'delivered'
+      };
+      activityType = 'Package Delivered';
+      activityMessageAr = 'تم تسليم الطرد للمشتري — بانتظار تأكيد الاستلام قبل تحرير المبلغ.';
+      activityMessageEn = 'Parcel delivered to the buyer — awaiting acceptance before funds are released.';
       break;
 
     case 'open_dispute':
@@ -288,33 +347,92 @@ export async function executeOrderTransition(
     // 2. Add Order Activity record to orders/{orderId}/activity subcollection
     const activityColRef = collection(db, 'orders', order.id, 'activity');
     const activityId = `act-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const trimmedNote = typeof extraFields?.note === 'string' ? extraFields.note.trim() : '';
     await addDoc(activityColRef, {
       id: activityId,
       type: activityType,
       messageAr: activityMessageAr,
       messageEn: activityMessageEn,
       message: activityMessageEn, // English default as requested
+      // NO `note` KEY HERE, EVER. The buyer and the seller can read this
+      // subcollection (firestore.rules) and OrderDetailsView keeps a live
+      // onSnapshot on it, so a note written here reaches their browsers even
+      // though nothing renders it. The note goes to adminNotes below instead.
       performedBy: currentUser.id,
       performedByName: currentUser.name || 'User',
       timestamp: Timestamp.now()
     });
 
-    // 3. Write adminActions log if role is Admin
+    // 3. Write adminActions log if role is Admin.
+    //
+    // NEVER throws — by the time we get here the order has already been moved
+    // and the activity record written, so a failure in this audit entry must
+    // only log. Letting it escape meant a transition that HAD committed was
+    // reported to the caller as a failure; the admin would then retry and get
+    // "Illegal state transition" because the order had already advanced.
+    //
+    // Note this write cannot currently succeed from a client AT ALL:
+    // firestore.rules has `match /adminActions/{actionId} { allow write: if
+    // false; }`, which denies admins too, so every admin transition takes this
+    // catch. Do NOT "clean up" the try/catch — until adminActions is written
+    // server-side (or the rule is deliberately changed), removing it re-breaks
+    // every admin-driven order transition.
     if (role === 'admin') {
-      const adminActionsColRef = collection(db, 'adminActions');
-      const adminActionId = `adm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await addDoc(adminActionsColRef, {
-        id: adminActionId,
-        orderId: order.id,
-        action: action,
-        adminId: currentUser.id,
-        adminName: currentUser.name || 'System Administrator',
-        timestamp: Timestamp.now(),
-        details: `Transitioned order from ${fromStatus} to ${toStatus} via action: ${action}`
-      });
+      try {
+        const adminActionsColRef = collection(db, 'adminActions');
+        const adminActionId = `adm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await addDoc(adminActionsColRef, {
+          id: adminActionId,
+          orderId: order.id,
+          action: action,
+          adminId: currentUser.id,
+          adminName: currentUser.name || 'System Administrator',
+          timestamp: Timestamp.now(),
+          details: `Transitioned order from ${fromStatus} to ${toStatus} via action: ${action}`
+            + (trimmedNote ? ` — note: ${trimmedNote}` : '')
+        });
+      } catch (auditError: any) {
+        console.warn(
+          `[orderWorkflow] adminActions audit write failed for order ${order.id} (${action}):`,
+          auditError && auditError.message
+        );
+      }
     }
 
-    // 4. Send Notifications (Buyer, Seller, Admin)
+    // 4. Write the internal note to orders/{orderId}/adminNotes.
+    //
+    // Separate subcollection, not the activity record and not the order doc:
+    // buyer and seller can read BOTH of those. adminNotes is isAdmin() on read
+    // and write, so this is the only channel where "seller is dodging us" is
+    // genuinely internal.
+    //
+    // NEVER throws — same contract as the adminActions audit write above. The
+    // order has already moved and the activity record is already written; a
+    // note is context for the next team member, not the operation, so a failed
+    // write must only log. Letting it escape would report a transition that HAD
+    // committed as a failure, and the retry would then fail as "Illegal state
+    // transition" because the order had already advanced.
+    if (trimmedNote) {
+      try {
+        const adminNotesColRef = collection(db, 'orders', order.id, 'adminNotes');
+        await addDoc(adminNotesColRef, {
+          note: trimmedNote,
+          performedBy: currentUser.id,
+          performedByName: currentUser.name || 'User',
+          action: action,
+          fromStatus: fromStatus,
+          toStatus: toStatus,
+          timestamp: Timestamp.now()
+        });
+      } catch (noteError: any) {
+        console.warn(
+          `[orderWorkflow] adminNotes write failed for order ${order.id} (${action}):`,
+          noteError && noteError.message
+        );
+      }
+    }
+
+    // 5. Send Notifications (Buyer, Seller, Admin)
     const notificationsColRef = collection(db, 'notifications');
     const timestamp = Date.now();
 
@@ -342,22 +460,33 @@ export async function executeOrderTransition(
       }
     ];
 
+    // NEVER throws — same contract as the audit write above. The order has
+    // already moved; a notification is a courtesy, not the operation, so a
+    // failed fan-out must only log. The catch sits INSIDE the loop so one
+    // undeliverable recipient does not silently drop the other two.
     for (const notif of notifyUsers) {
-      const notifId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await addDoc(notificationsColRef, {
-        id: notifId,
-        userId: notif.userId,
-        title: isAdminUser(currentUser) ? notif.titleEn : notif.titleAr, // Bilingual choice
-        titleAr: notif.titleAr,
-        titleEn: notif.titleEn,
-        description: isAdminUser(currentUser) ? notif.descEn : notif.descAr,
-        descriptionAr: notif.descAr,
-        descriptionEn: notif.descEn,
-        type: (toStatus as string) === 'completed' ? 'win' : 'info',
-        timestamp,
-        read: false,
-        orderId: order.id
-      });
+      try {
+        const notifId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await addDoc(notificationsColRef, {
+          id: notifId,
+          userId: notif.userId,
+          title: isAdminUser(currentUser) ? notif.titleEn : notif.titleAr, // Bilingual choice
+          titleAr: notif.titleAr,
+          titleEn: notif.titleEn,
+          description: isAdminUser(currentUser) ? notif.descEn : notif.descAr,
+          descriptionAr: notif.descAr,
+          descriptionEn: notif.descEn,
+          type: (toStatus as string) === 'completed' ? 'win' : 'info',
+          timestamp,
+          read: false,
+          orderId: order.id
+        });
+      } catch (notifyError: any) {
+        console.warn(
+          `[orderWorkflow] notification write failed for order ${order.id} -> ${notif.userId}:`,
+          notifyError && notifyError.message
+        );
+      }
     }
 
   } catch (error) {

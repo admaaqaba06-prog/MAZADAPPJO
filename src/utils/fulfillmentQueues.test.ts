@@ -23,8 +23,10 @@ describe('bucketOrder', () => {
   it('NEVER buckets a disputed order, regardless of other fields', () => {
     expect(bucketOrder({ status: 'disputed', paymentVerified: true })).toBeNull();
   });
-  it('returns null for waiting_payment, completed, cancelled, refunded', () => {
-    for (const status of ['waiting_payment', 'completed', 'cancelled', 'refunded']) {
+  // waiting_payment used to return null; it now buckets as 'awaiting_payment'
+  // (see the 'awaiting_payment bucket' suite below) so unpaid orders are chased.
+  it('returns null for completed, cancelled, refunded', () => {
+    for (const status of ['completed', 'cancelled', 'refunded']) {
       expect(bucketOrder({ status })).toBeNull();
     }
   });
@@ -55,5 +57,162 @@ describe('isOverdue', () => {
   it('flags awaiting_release overdue past 24h, not before', () => {
     expect(isOverdue({ status: 'delivered', updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
     expect(isOverdue({ status: 'delivered', updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
+  });
+});
+
+describe('awaiting_payment bucket', () => {
+  it('buckets an unpaid order so money-not-collected is watched by someone', () => {
+    expect(bucketOrder({ status: 'waiting_payment' })).toBe('awaiting_payment');
+  });
+
+  it('still returns null for terminal and non-actionable states', () => {
+    expect(bucketOrder({ status: 'completed' })).toBeNull();
+    expect(bucketOrder({ status: 'cancelled' })).toBeNull();
+    expect(bucketOrder({ status: 'refunded' })).toBeNull();
+  });
+
+  it('a disputed order never buckets, even when unpaid', () => {
+    expect(bucketOrder({ status: 'disputed' })).toBeNull();
+  });
+
+  it('overdue uses the order OWN payment window, not a fixed threshold', () => {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    // 12h window: overdue at 13h, fine at 11h.
+    const short = { status: 'waiting_payment', paymentWindowHours: 12 };
+    expect(isOverdue({ ...short, updatedAtMs: now - 13 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...short, updatedAtMs: now - 11 * hour }, now)).toBe(false);
+    // 72h window: 13h is nowhere near overdue.
+    const long = { status: 'waiting_payment', paymentWindowHours: 72 };
+    expect(isOverdue({ ...long, updatedAtMs: now - 13 * hour }, now)).toBe(false);
+    expect(isOverdue({ ...long, updatedAtMs: now - 73 * hour }, now)).toBe(true);
+  });
+
+  it('falls back to 24h when the order carries no payment window', () => {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    const o = { status: 'waiting_payment' };
+    expect(isOverdue({ ...o, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+  });
+
+  it('falls back to 24h for a garbage / zero / negative payment window', () => {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    // A zero window would mean "overdue the instant it exists" and a
+    // non-numeric one would NaN the comparison — both must land on 24h.
+    for (const bad of [0, 'abc' as unknown as number, -5, NaN]) {
+      const o = { status: 'waiting_payment', paymentWindowHours: bad };
+      expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+      expect(isOverdue({ ...o, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    }
+  });
+
+  it('leaves the existing buckets and their thresholds untouched', () => {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    expect(bucketOrder({ status: 'shipped' })).toBe('awaiting_delivery');
+    // awaiting_shipment is still 48h, and a paymentWindowHours on the order
+    // must NOT leak into a non-payment bucket.
+    const shipping = { status: 'preparing_shipment', paymentWindowHours: 1 };
+    expect(isOverdue({ ...shipping, updatedAtMs: now - 47 * hour }, now)).toBe(false);
+    expect(isOverdue({ ...shipping, updatedAtMs: now - 49 * hour }, now)).toBe(true);
+  });
+});
+
+/**
+ * The server writes an authoritative `paymentDeadlineAt` at order creation and
+ * its payment-default cron blocks buyers off exactly that field. `updatedAt`
+ * drifts away from it (e.g. the payment-proof upload bumps updatedAt before the
+ * separate 'pay' transition), so judging by updatedAt + window can show admins
+ * "not overdue" for an order the server is already defaulting.
+ */
+describe('awaiting_payment honours the server deadline', () => {
+  const now = 1_000_000_000_000;
+  const hour = 60 * 60 * 1000;
+  const ts = (ms: number) => ({ seconds: Math.floor(ms / 1000), nanoseconds: 0 });
+
+  it('is overdue when a Timestamp deadline has passed, even if updatedAt was just bumped', () => {
+    // Deadline blown 2h ago, but an unrelated write reset updatedAt 1 minute
+    // ago. The window maths would say "fresh"; the server says defaulted.
+    const o = {
+      status: 'waiting_payment',
+      paymentWindowHours: 24,
+      paymentDeadlineAt: ts(now - 2 * hour),
+      updatedAtMs: now - 60 * 1000,
+    };
+    expect(isOverdue(o, now)).toBe(true);
+  });
+
+  it('is NOT overdue when a Timestamp deadline is still in the future, even for a stale updatedAt', () => {
+    // 72h window granted at creation: updatedAt is 30h old, which a 24h
+    // default would flag, but the real deadline is still 40h away.
+    const o = {
+      status: 'waiting_payment',
+      paymentDeadlineAt: ts(now + 40 * hour),
+      updatedAtMs: now - 30 * hour,
+    };
+    expect(isOverdue(o, now)).toBe(false);
+  });
+
+  it('accepts a raw epoch-ms deadline as well as a Timestamp', () => {
+    const past = { status: 'waiting_payment', paymentDeadlineAt: now - hour, updatedAtMs: now };
+    const future = {
+      status: 'waiting_payment',
+      paymentDeadlineAt: now + hour,
+      updatedAtMs: now - 100 * hour,
+    };
+    expect(isOverdue(past, now)).toBe(true);
+    expect(isOverdue(future, now)).toBe(false);
+  });
+
+  it('falls back to updatedAt + window when the order carries no deadline (legacy docs)', () => {
+    const legacy = { status: 'waiting_payment', paymentWindowHours: 12 };
+    expect(isOverdue({ ...legacy, updatedAtMs: now - 13 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...legacy, updatedAtMs: now - 11 * hour }, now)).toBe(false);
+    const noWindow = { status: 'waiting_payment', paymentDeadlineAt: undefined };
+    expect(isOverdue({ ...noWindow, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...noWindow, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+  });
+
+  it('falls back rather than reading a malformed deadline as epoch 0', () => {
+    // Each of these must NOT be coerced to 0 (which would make every order
+    // eternally overdue) and must NOT throw.
+    const junk = [{}, 'abc', null, true, { seconds: 'abc' }, { nanoseconds: 5 }, NaN];
+    for (const paymentDeadlineAt of junk) {
+      const o = { status: 'waiting_payment', paymentDeadlineAt };
+      expect(isOverdue({ ...o, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+      expect(isOverdue({ ...o, updatedAtMs: now - 25 * hour }, now)).toBe(true);
+    }
+  });
+
+  it('does NOT let paymentDeadlineAt leak into the other buckets', () => {
+    // A deadline far in the future must not rescue a shipment that blew 48h,
+    // and one far in the past must not condemn a fresh one.
+    const stale = {
+      status: 'preparing_shipment',
+      paymentDeadlineAt: ts(now + 500 * hour),
+      updatedAtMs: now - 49 * hour,
+    };
+    expect(isOverdue(stale, now)).toBe(true);
+    const fresh = {
+      status: 'preparing_shipment',
+      paymentDeadlineAt: ts(now - 500 * hour),
+      updatedAtMs: now - 47 * hour,
+    };
+    expect(isOverdue(fresh, now)).toBe(false);
+    // Same for the delivery (5d) and release (24h) buckets.
+    expect(
+      isOverdue(
+        { status: 'shipped', paymentDeadlineAt: ts(now - 500 * hour), updatedAtMs: now - 4 * 24 * hour },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isOverdue(
+        { status: 'delivered', paymentDeadlineAt: ts(now + 500 * hour), updatedAtMs: now - 25 * hour },
+        now,
+      ),
+    ).toBe(true);
   });
 });

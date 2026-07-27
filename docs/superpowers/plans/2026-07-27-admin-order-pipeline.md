@@ -827,6 +827,104 @@ Then pass them to the section, beside the existing `onNudge` / `onReleaseEscrow`
               currentAdminId={currentUser?.id || ''}
 ```
 
+- [ ] **Step 7b: Fix the tab badge so it agrees with the rows**
+
+`overdueFulfillmentCount` in `AdminDashboardView.tsx` (~line 197) rebuilds a
+partial order object and **drops `paymentWindowHours`**, so an unpaid order would
+be judged overdue at the 24h fallback in the badge while `FulfillmentSection`
+judges it against that order's real window — the badge and the visible rows would
+disagree. Find:
+
+```ts
+  // Fulfillment (Slice C): orders sitting past their stage's overdue threshold,
+  // across all three buckets. Sourced from realOrders (sim-excluded), matching
+  // the Slice B fix for the Verify badge.
+  const overdueFulfillmentCount = useMemo(() => {
+    const now = Date.now();
+    return realOrders.filter((o: any) => {
+      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
+      return isOverdue({ status: o.status, paymentVerified: o.paymentVerified, updatedAtMs }, now);
+    }).length;
+  }, [realOrders]);
+```
+
+Replace with:
+
+```ts
+  // Fulfillment: orders sitting past their stage's overdue threshold, across
+  // all FOUR buckets. Sourced from realOrders (sim-excluded), matching the
+  // Slice B fix for the Verify badge.
+  //
+  // paymentWindowHours MUST be forwarded: awaiting_payment is judged against
+  // the window that order actually gave the buyer, so dropping it here would
+  // make this badge disagree with the rows FulfillmentSection renders.
+  const overdueFulfillmentCount = useMemo(() => {
+    const now = Date.now();
+    return realOrders.filter((o: any) => {
+      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
+      return isOverdue(
+        {
+          status: o.status,
+          paymentVerified: o.paymentVerified,
+          paymentWindowHours: o.paymentWindowHours,
+          updatedAtMs,
+        },
+        now,
+      );
+    }).length;
+  }, [realOrders]);
+```
+
+- [ ] **Step 7b-bis: Do not strand the buyer — re-gate their accept action**
+
+`src/components/OrderDetailsView.tsx:1582` gates the buyer's entire post-shipment
+action block on `order.status === 'shipped'`:
+
+```tsx
+                  {order.status === 'shipped' && (
+```
+
+That block holds the buyer's happy path — **"Everything's good — release payment"**
+(`confirm_delivery`) — and the "report a problem" entry point. Once the admin relay
+runs `mark_delivered` the status becomes `delivered`, this block **disappears, and
+there is no `delivered` equivalent anywhere in the file.** The buyer can still open a
+dispute (gated separately) but has no way to *accept*, so the order can only ever be
+closed by an admin `release_escrow`. The new FSM step would silently remove the
+buyer's fast path and force admin action on every single order.
+
+Replace with:
+
+```tsx
+                  {(order.status === 'shipped' || order.status === 'delivered') && (
+```
+
+This is safe and composes correctly — verified, not assumed: `confirm_delivery`
+returns early into the `releaseOrderEscrow` Cloud Function before
+`validateTransition` is ever reached, and that function does **not** require
+`status === 'shipped'` — it only short-circuits when escrow is already released or the
+order is already completed. So a buyer accepting an order the relay marked `delivered`
+releases correctly.
+
+- [ ] **Step 7c: Remove Task 1's defensive guard**
+
+Task 1 added a guard to `FulfillmentSection`'s `grouped` memo so a `waiting_payment`
+order could not crash the tab before a queue existed to render it. Now that
+`awaiting_payment` is in `BUCKETS` and in the `map` initialiser, the guard is dead
+weight that would silently swallow a future bucket. Find it in the `grouped` memo:
+
+```ts
+      if (!bucket || !(bucket in map)) continue;
+```
+
+Replace with:
+
+```ts
+      if (!bucket) continue;
+```
+
+Read the actual line before editing — if the guard's wording differs, keep the
+`if (!bucket) continue;` behaviour and drop only the `bucket in map` half.
+
 - [ ] **Step 8: Verify**
 
 Run: `set -o pipefail; npm run lint && npx vitest run && npm run build`
@@ -857,102 +955,98 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Show the trail, and filter to mine
+### Task 6: Let an admin read the private notes
 
-An audit trail nobody can read is not an audit trail.
+**RE-SCOPED.** Task 5 already shipped this task's original Steps 1 (mine-only filter),
+2 (assignment picker) and 3b (inline owner), because Step 6 of its brief passed
+`onAssign` / `adminUsers` / `currentAdminId` with no consumer — an unusable prop set,
+so building the controls was the correct read. Those steps are **struck**; re-adding
+them would create a second filter control and move the picker.
+
+Note also that the original Step 2 used `setFeedback(res.message)`, which does NOT
+compile against the row's `'ok' | 'error' | null` feedback state — Task 5 added a
+separate `controlError` string state instead. Do not reintroduce it.
+
+What remains is the one thing genuinely not built: **nothing reads the notes.**
 
 **Files:**
 - Modify: `src/components/admin/FulfillmentSection.tsx`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1-5.
+- Consumes: the `orders/{orderId}/adminNotes` subcollection written by the transition.
 
-- [ ] **Step 1: Add the "mine only" filter**
+- [ ] **Step 3: Let an admin READ the notes they have been writing**
 
-In `FulfillmentSection.tsx`, add local state near the top of the component:
+The notes now live in `orders/{orderId}/adminNotes`, a subcollection with
+admin-only read AND write rules (they were moved off the activity record because
+buyers and sellers can read that one). Nothing reads them yet, so today they are
+write-only — which defeats the point: the next person is meant to pick the order
+up warm.
 
-```ts
-// "Mine" is the point of assignment — a queue nobody filters is a queue
-// nobody owns.
-const [mineOnly, setMineOnly] = useState(false);
-```
+`FulfillmentSection` documents that it creates **NO Firestore listeners**, and that
+property is worth keeping — a live subscription per row would regress admin
+performance badly. So fetch **on demand, once, when a row is expanded**: a one-shot
+`getDocs`, not `onSnapshot`.
 
-Filter inside the `grouped` memo, immediately after `if (!bucket) continue;`:
-
-```ts
-      if (mineOnly && order.assignedToId !== currentAdminId) continue;
-```
-
-Add `mineOnly` and `currentAdminId` to the memo's dependency array.
-
-Render the toggle in the header block, beside the count:
+Add to `FulfillmentRow`:
 
 ```tsx
-          <button
-            type="button"
-            onClick={() => setMineOnly((v) => !v)}
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
-              mineOnly
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            {isAr ? 'المسندة لي' : 'Mine'}
-          </button>
+const [notes, setNotes] = useState<any[] | null>(null);
+const [notesOpen, setNotesOpen] = useState(false);
+
+const loadNotes = async () => {
+  setNotesOpen((open) => !open);
+  if (notes !== null) return; // already fetched once — do not re-hit Firestore
+  try {
+    const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
+    const { db } = await import('../../services/firebase');
+    // One-shot read. This section deliberately creates no listeners; a live
+    // subscription per row would mean one socket per visible order.
+    const snap = await getDocs(
+      query(collection(db, 'orders', order.id, 'adminNotes'), orderBy('timestamp', 'desc'), limit(10)),
+    );
+    setNotes(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    console.warn('[FulfillmentRow] admin notes fetch failed:', err);
+    setNotes([]);
+  }
+};
 ```
 
-- [ ] **Step 2: Add the assignment picker to each row**
-
-Inside `FulfillmentRow`, place this above the advance block from Task 5:
+and render:
 
 ```tsx
-<div className="mt-2 flex items-center gap-1.5">
-  <span className="text-[9px] font-bold text-gray-400 uppercase shrink-0">
-    {isAr ? 'المسؤول' : 'Owner'}
-  </span>
-  <select
-    value={order.assignedToId || ''}
-    onChange={async (e) => {
-      const id = e.target.value;
-      const picked = adminUsers.find((a) => a.id === id);
-      setBusy(true);
-      const res = await onAssign(order.id, id, picked?.name || '');
-      setBusy(false);
-      if (!res.success) setFeedback(res.message || (isAr ? 'فشل الإسناد.' : 'Assign failed.'));
-    }}
-    disabled={busy}
-    className="flex-1 min-w-0 text-[10px] px-2 py-1 rounded-lg border border-gray-200 bg-white outline-none focus:border-emerald-500 cursor-pointer"
-  >
-    <option value="">{isAr ? 'غير مسند' : 'Unassigned'}</option>
-    {adminUsers.map((a) => (
-      <option key={a.id} value={a.id}>{a.name}</option>
+<button
+  type="button"
+  onClick={loadNotes}
+  className="mt-1.5 text-[9px] font-bold text-gray-400 hover:text-gray-700 underline underline-offset-2 cursor-pointer"
+>
+  {notesOpen ? (isAr ? 'إخفاء الملاحظات' : 'Hide notes') : (isAr ? 'عرض الملاحظات' : 'Show notes')}
+</button>
+{notesOpen && (
+  <div className="mt-1.5 space-y-1">
+    {notes === null && (
+      <p className="text-[9px] text-gray-400">{isAr ? 'جارٍ التحميل…' : 'Loading…'}</p>
+    )}
+    {notes?.length === 0 && (
+      <p className="text-[9px] text-gray-400">{isAr ? 'لا توجد ملاحظات بعد.' : 'No notes yet.'}</p>
+    )}
+    {notes?.map((n, i) => (
+      <p key={i} className="text-[9px] text-gray-600 leading-snug">
+        <span className="font-bold">{n.performedByName || '—'}</span>
+        {n.note ? ` — ${n.note}` : ''}
+      </p>
     ))}
-  </select>
-</div>
+  </div>
+)}
 ```
 
-`FulfillmentRow` needs `adminUsers` and `onAssign` passed down. Add them to its prop type:
+Note in your report that these notes are **admin-only by rules**, so this control
+must never be rendered on a buyer- or seller-facing surface.
 
-```ts
-const FulfillmentRow: React.FC<{
-  // ...existing props unchanged...
-  onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
-  adminUsers: Array<{ id: string; name: string }>;
-}> = ({ /* ...existing... */ onAssign, adminUsers }) => {
-```
+- [ ] **Step 3b: Show the owner inline**
 
-and pass them at the single place the section renders a row, alongside the props it already forwards:
-
-```tsx
-                  onAssign={onAssign}
-                  adminUsers={adminUsers}
-```
-
-Read the existing `<FulfillmentRow ... />` call before editing — forward the new props without disturbing the ones already there.
-
-- [ ] **Step 3: Show the last note inline**
-
-The full activity trail lives in a subcollection this section does not subscribe to. Rather than add a listener per row, surface what the order doc already carries. Inside `FulfillmentRow`, below the owner picker:
+Inside `FulfillmentRow`, below the owner picker:
 
 ```tsx
 {order.assignedToName && (

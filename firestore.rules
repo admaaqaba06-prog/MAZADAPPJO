@@ -300,6 +300,10 @@ service cloud.firestore {
             'paymentVerified', 'paymentVerifiedBy', 'paymentVerifiedAt',
             'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt',
             'lastNudgedAt', 'nudgeCount',
+            // Ownership of chasing an order is a Mazad ops decision — a seller
+            // must not be able to reassign it away from the team member
+            // accountable for it, or clear it so nobody appears responsible.
+            'assignedToId', 'assignedToName',
             'resolutionNotes', 'disputeResolvedBy', 'disputeResolvedAt', 'disputeResolutionType'
           ]) &&
           // paymentStatus: the ONLY client transition is the buyer's own
@@ -343,6 +347,19 @@ service cloud.firestore {
           get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.auth.uid ||
           isAdmin()
         );
+      }
+
+      // Internal ops notes ("called seller, courier collects Tuesday").
+      //
+      // DELIBERATELY SEPARATE from /activity above: the buyer and the seller
+      // can READ /activity — OrderDetailsView keeps a live onSnapshot on it —
+      // and they can read the order doc itself (the `allow read` rule above;
+      // its denylist only stops them WRITING fields). So neither of those can
+      // hold anything the team means to keep to itself. This subcollection is
+      // the internal channel: isAdmin() on read AND write, no counterparty
+      // clause. Do not add one.
+      match /adminNotes/{noteId} {
+        allow read, write: if isAdmin();
       }
     }
 

@@ -4,8 +4,12 @@
  * stamping live here so Vitest covers them (same split as orderPaymentVerify.js).
  *
  * NOTE: bucketOrder is re-implemented here (not imported) — this CommonJS
- * module can't import from src/. Kept in sync by mirrored tests, same
- * intentional duplication as Slice A's nextAuctionNumber/computeNextNumber.
+ * module can't import from src/. Kept in sync by mirrored tests (see
+ * fulfillmentNudge.test.js, which asserts this copy and src/utils/
+ * fulfillmentQueues.ts agree case for case), same intentional duplication as
+ * Slice A's nextAuctionNumber/computeNextNumber. That claim was previously
+ * unguarded and had already gone stale: the client copy gained
+ * waiting_payment -> awaiting_payment and this one never did.
  */
 function makeError(code, message) {
   const err = new Error(message);
@@ -15,6 +19,12 @@ function makeError(code, message) {
 
 function bucketOrder(order) {
   if (order.status === 'disputed') return null;
+  // Mirrors the client copy. No `kind` maps to 'awaiting_payment' (see
+  // KIND_TO_BUCKET), so this line does not make any nudge callable that was not
+  // callable before, and nothing new is written: an unpaid order is still
+  // rejected with failed-precondition. It only makes the rejection name the
+  // bucket the order is actually in instead of reporting 'none'.
+  if (order.status === 'waiting_payment') return 'awaiting_payment';
   if (order.status === 'paid' && order.paymentVerified === true) return 'awaiting_shipment';
   if (order.status === 'preparing_shipment') return 'awaiting_shipment';
   if (order.status === 'shipped') return 'awaiting_delivery';
@@ -51,4 +61,6 @@ async function sendFulfillmentNudge(deps, { orderId, kind, adminUid } = {}) {
   });
 }
 
-module.exports = { sendFulfillmentNudge };
+// bucketOrder is exported for the mirrored test ONLY — index.js uses the
+// callable, not the bucketer.
+module.exports = { sendFulfillmentNudge, bucketOrder };
