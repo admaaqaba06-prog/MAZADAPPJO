@@ -2877,11 +2877,27 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
 
       // 12. Idempotency check: If order is already completed or escrow is already released
       if (orderData.escrowStatus === 'released' || orderData.status === 'completed') {
-        return { 
-          success: true, 
-          alreadyReleased: true, 
-          message: "تم تحرير هذا المبلغ سابقاً" 
+        return {
+          success: true,
+          alreadyReleased: true,
+          message: "تم تحرير هذا المبلغ سابقاً"
         };
+      }
+
+      // 12b. Money-in guard: NEVER pay a seller out of a payment nobody checked.
+      // The only human check that a CliQ receipt is real is the admin flipping
+      // paymentVerified on verifyOrderPayment. Every path into this callable —
+      // the buyer's "confirm delivery", the admin's one-click release in the
+      // fulfillment queue — can be reached by an order that got to `paid` on a
+      // forged receipt and was then hand-advanced through the relay, because
+      // only the paid -> awaiting_shipment bucket rule ever consults this flag.
+      // Placed AFTER the idempotency check on purpose: an order that already
+      // released must still answer idempotently rather than start failing.
+      if (!orderData.paymentVerified) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Payment for this order has not been verified. Verify the buyer payment before releasing escrow.'
+        );
       }
 
       // 3. Find the locked escrow document:

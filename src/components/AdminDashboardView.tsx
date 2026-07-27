@@ -7,7 +7,7 @@ import { isOverdue } from '../utils/fulfillmentQueues';
 import { executeOrderTransition } from '../utils/orderWorkflow';
 import { nextAdvance } from '../utils/orderAdvance';
 import { OrderDetailsView } from './OrderDetailsView';
-import { collection, onSnapshot, doc, updateDoc, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, limit, orderBy, Timestamp } from 'firebase/firestore';
 import { db, getCallableFunction } from '../services/firebase';
 import {
   type AdminTabId,
@@ -517,6 +517,34 @@ export const AdminDashboardView: React.FC = () => {
     }
   }, [currentUser]);
 
+  // Record a call with NO status transition. The relay is run by phone, and the
+  // buckets with no next stage (awaiting_payment, awaiting_release) generate the
+  // most calls of all — "buyer says he'll transfer tonight" has to be writable
+  // without pretending the order moved.
+  //
+  // Written directly rather than through executeOrderTransition because there is
+  // no transition to run: same subcollection and same shape that function's note
+  // write uses, minus action/fromStatus/toStatus, which would be lies here.
+  // Admin-gated locally to match it (firestore.rules gates adminNotes on
+  // isAdmin() for read AND write, so this is defence in depth, not the check).
+  const handleLogOrderNote = useCallback(async (orderId: string, note: string) => {
+    if (!isAdminUser(currentUser)) return { success: false, message: 'Admins only.' };
+    const trimmed = (note || '').trim();
+    if (!trimmed) return { success: false, message: 'A note is required.' };
+    try {
+      await addDoc(collection(db, 'orders', orderId, 'adminNotes'), {
+        note: trimmed,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name || 'Admin',
+        timestamp: Timestamp.now(),
+      });
+      return { success: true };
+    } catch (err: any) {
+      console.error('[handleLogOrderNote] failed:', err);
+      return { success: false, message: err?.message || 'Could not save the note.' };
+    }
+  }, [currentUser]);
+
   // Assignment is admin-only bookkeeping, NOT a workflow transition: it is
   // written with its own explicit updateDoc because executeOrderTransition's
   // extraFields would silently drop these fields.
@@ -541,6 +569,20 @@ export const AdminDashboardView: React.FC = () => {
   );
 
   const handleFulfillmentReleaseEscrow = async (orderId: string) => {
+    // Releasing escrow pays the seller and cannot be undone from this screen —
+    // and the button sits in the exact position the harmless "Nudge" button
+    // occupies one bucket above, so a mis-aimed click is a plausible way to
+    // move real money. Name the order and the amount and make them say yes.
+    const order = realOrders.find((o: any) => o.id === orderId);
+    const title = order?.auctionTitle || orderId;
+    const amount = typeof order?.winningBidAmount === 'number'
+      ? `${order.winningBidAmount.toLocaleString()} JOD`
+      : (isAr ? 'مبلغ غير معروف' : 'unknown amount');
+    const confirmed = window.confirm(isAr
+      ? `تحرير الضمان ودفع ${amount} للبائع مقابل «${title}»؟\nلا يمكن التراجع عن هذه العملية.`
+      : `Release escrow and pay the seller ${amount} for "${title}"?\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
     try {
       const releaseCallable = await getCallableFunction<
         { orderId: string; action: 'admin_release' },
@@ -772,6 +814,7 @@ export const AdminDashboardView: React.FC = () => {
               onNudge={handleSendFulfillmentNudge}
               onReleaseEscrow={handleFulfillmentReleaseEscrow}
               onAdvance={handleAdvanceOrder}
+              onLogNote={handleLogOrderNote}
               onAssign={handleAssignOrder}
               adminUsers={adminUsers}
               currentAdminId={currentUser?.id || ''}

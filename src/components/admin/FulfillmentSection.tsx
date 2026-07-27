@@ -22,6 +22,14 @@ export interface FulfillmentSectionProps {
   onReleaseEscrow: (orderId: string) => Promise<void>;
   /** Advance one stage, recording who did it and what they were told. */
   onAdvance: (order: any, note: string) => Promise<{ success: boolean; message?: string }>;
+  /**
+   * Record a call/context note with NO status transition. Every bucket needs
+   * this — including the two (`awaiting_payment`, `awaiting_release`) that have
+   * no next stage to advance to and are precisely the ones the team chases by
+   * phone. Injected like every other write: this section owns no Firestore
+   * writes of its own.
+   */
+  onLogNote: (orderId: string, note: string) => Promise<{ success: boolean; message?: string }>;
   /** Assign the order to a team member (or '' to unassign). */
   onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
   /** Admin users available to assign to. */
@@ -125,10 +133,17 @@ const FulfillmentRow: React.FC<{
   /** The bucket's own one-click action, when it has one. */
   onAction?: () => Promise<void>;
   actionLabel?: string;
+  /**
+   * Why this row has no one-click action, when withholding it is a decision
+   * rather than a property of the bucket (e.g. escrow release on an order whose
+   * payment was never verified). Rendered where the button would have been.
+   */
+  blockedNote?: string;
   onAdvance: (order: any, note: string) => Promise<{ success: boolean; message?: string }>;
+  onLogNote: (orderId: string, note: string) => Promise<{ success: boolean; message?: string }>;
   onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
   adminUsers: Array<{ id: string; name: string }>;
-}> = ({ entry, config, isAr, now, onAction, actionLabel, onAdvance, onAssign, adminUsers }) => {
+}> = ({ entry, config, isAr, now, onAction, actionLabel, blockedNote, onAdvance, onLogNote, onAssign, adminUsers }) => {
   const { order, updatedAtMs, overdue } = entry;
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<'ok' | 'error' | null>(null);
@@ -144,9 +159,7 @@ const FulfillmentRow: React.FC<{
   const [notes, setNotes] = useState<any[] | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
 
-  const loadNotes = async () => {
-    setNotesOpen((open) => !open);
-    if (notes !== null) return; // already fetched once — do not re-hit Firestore
+  const fetchNotes = async () => {
     try {
       const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
       const { db } = await import('../../services/firebase');
@@ -162,6 +175,29 @@ const FulfillmentRow: React.FC<{
       console.warn('[FulfillmentRow] admin notes fetch failed:', err);
       setNotes([]);
     }
+  };
+
+  const loadNotes = async () => {
+    setNotesOpen((open) => !open);
+    if (notes !== null) return; // already fetched once — do not re-hit Firestore
+    await fetchNotes();
+  };
+
+  /**
+   * Drop the once-per-row notes cache after this row WRITES a note.
+   *
+   * Advancing paid -> preparing_shipment keeps the order in the same bucket
+   * under the same React key, so the row does not remount and the cached list
+   * survives — an admin who read the notes, advanced with a note, then reopened
+   * saw the pre-advance list and their own note apparently lost.
+   *
+   * When the panel is open we refetch immediately rather than only nulling:
+   * the fetch is otherwise driven by the open-toggle, so a bare setNotes(null)
+   * under an open panel would render "Loading…" forever.
+   */
+  const invalidateNotes = () => {
+    setNotes(null);
+    if (notesOpen) void fetchNotes();
   };
 
   const run = async () => {
@@ -216,7 +252,14 @@ const FulfillmentRow: React.FC<{
 
         {/* The bucket's own one-click action. `awaiting_payment` has none: there
             is no nudge kind for an unpaid order and no legal hand-advance out of
-            waiting_payment, so that row carries only the relay controls below. */}
+            waiting_payment, so that row carries only the relay controls below.
+            `awaiting_release` loses its button when the payment was never
+            verified — see blockedNote. */}
+        {!onAction && blockedNote && (
+          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 shrink-0 whitespace-nowrap">
+            {blockedNote}
+          </span>
+        )}
         {onAction && (
         <div className="flex items-center gap-2 shrink-0">
           {feedback === 'ok' && (
@@ -246,10 +289,21 @@ const FulfillmentRow: React.FC<{
         )}
       </div>
 
-      {/* ---- Advance one stage, with a required note ---- */}
+      {/* ---- The relay note, plus the stage advance when there is one ----
+          The note form is deliberately NOT gated on nextAdvance. It used to be
+          inside an `if (!advance) return null`, which silently removed the only
+          way to write a note from the two buckets that most need one:
+          `awaiting_payment` (no legal hand-advance out of waiting_payment —
+          the bucket exists SO the team can chase unpaid buyers) and
+          `awaiting_release` (delivered; the next step is money, not a stage).
+          Both had an owner picker and a notes reader and no way to add a note.
+
+          So: "Log a call" is always available and writes a note with no
+          transition; "advance" is the ADDITIONAL control, shown only when
+          nextAdvance returns one, and still requires the note. */}
       {(() => {
         const advance = nextAdvance(order.status);
-        if (!advance) return null;
+        const trimmed = note.trim();
         return (
           <div className="mt-2 space-y-1.5">
             <input
@@ -262,28 +316,59 @@ const FulfillmentRow: React.FC<{
             />
             <button
               type="button"
-              disabled={busy || !note.trim()}
+              disabled={busy || !trimmed}
               onClick={async () => {
-                // try/finally, matching run() above: onAdvance is injected, and
-                // if it is ever changed to throw instead of returning
-                // { success: false }, a bare setBusy(false) would be skipped and
-                // the row would stay disabled until remount.
+                // try/finally for the same reason as the advance button below.
                 setBusy(true);
                 setControlError(null);
                 try {
-                  const res = await onAdvance(order, note.trim());
-                  if (res.success) setNote('');
-                  else setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                  const res = await onLogNote(order.id, trimmed);
+                  if (res.success) {
+                    setNote('');
+                    invalidateNotes();
+                  } else {
+                    setControlError(res.message || (isAr ? 'فشل حفظ الملاحظة.' : 'Could not save the note.'));
+                  }
                 } catch (err: any) {
-                  setControlError(err?.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                  setControlError(err?.message || (isAr ? 'فشل حفظ الملاحظة.' : 'Could not save the note.'));
                 } finally {
                   setBusy(false);
                 }
               }}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[11px] py-1.5 rounded-lg transition-all cursor-pointer"
+              className="w-full bg-white hover:bg-gray-50 border border-gray-300 disabled:opacity-50 text-gray-800 font-extrabold text-[11px] py-1.5 rounded-lg transition-all cursor-pointer"
             >
-              {ADVANCE_LABEL[advance.action][isAr ? 'ar' : 'en']}
+              {isAr ? 'سجّل مكالمة' : 'Log a call'}
             </button>
+            {advance && (
+              <button
+                type="button"
+                disabled={busy || !trimmed}
+                onClick={async () => {
+                  // try/finally, matching run() above: onAdvance is injected, and
+                  // if it is ever changed to throw instead of returning
+                  // { success: false }, a bare setBusy(false) would be skipped and
+                  // the row would stay disabled until remount.
+                  setBusy(true);
+                  setControlError(null);
+                  try {
+                    const res = await onAdvance(order, trimmed);
+                    if (res.success) {
+                      setNote('');
+                      invalidateNotes();
+                    } else {
+                      setControlError(res.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                    }
+                  } catch (err: any) {
+                    setControlError(err?.message || (isAr ? 'فشل التحديث.' : 'Update failed.'));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[11px] py-1.5 rounded-lg transition-all cursor-pointer"
+              >
+                {ADVANCE_LABEL[advance.action][isAr ? 'ar' : 'en']}
+              </button>
+            )}
             {/* The trail records who ACTED, which is the admin — the note is what
                 carries "seller confirmed courier collected". */}
             <p className="text-[9px] text-gray-400 leading-tight">
@@ -382,6 +467,7 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
   onNudge,
   onReleaseEscrow,
   onAdvance,
+  onLogNote,
   onAssign,
   adminUsers,
   currentAdminId,
@@ -443,8 +529,8 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
           {/* Honest about all four buckets: the first one is UNPAID orders, and
               it has neither a nudge nor a release — only the relay controls. */}
           {isAr
-            ? 'الطلبات العالقة: بانتظار الدفع، أو الشحن، أو التسليم، أو تحرير الضمان. سجّل تقدّم المرحلة مع ملاحظة، ونبّه البائع/المشتري أو حرّر الضمان حيثما توفّر ذلك.'
-            : 'Stuck orders: awaiting payment, shipment, delivery, or escrow release. Record a stage advance with a note, and nudge the seller/buyer or release escrow where those apply.'}
+            ? 'الطلبات العالقة: بانتظار الدفع، أو الشحن، أو التسليم، أو تحرير الضمان. سجّل مكالمة على أي طلب، وسجّل تقدّم المرحلة مع ملاحظة، ونبّه البائع/المشتري أو حرّر الضمان حيثما توفّر ذلك.'
+            : 'Stuck orders: awaiting payment, shipment, delivery, or escrow release. Log a call on any order, record a stage advance with a note, and nudge the seller/buyer or release escrow where those apply.'}
         </p>
         {currentAdminId && (
           <label className="flex items-center gap-2 pt-1 cursor-pointer w-fit">
@@ -496,6 +582,7 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
                     isAr,
                     now,
                     onAdvance,
+                    onLogNote,
                     onAssign,
                     adminUsers,
                   };
@@ -520,6 +607,23 @@ export const FulfillmentSection: React.FC<FulfillmentSectionProps> = ({
                     );
                   }
                   if (config.id === 'awaiting_release') {
+                    // Releasing escrow pays the seller. An order only reaches
+                    // `delivered` by being hand-advanced through the relay, and
+                    // nothing on that path re-checks the buyer's payment — an
+                    // unverified (forged-receipt) order can sit here looking
+                    // exactly like a real one. No verification, no button: the
+                    // row still renders so the team can see it and chase it,
+                    // it just cannot pay anyone out. The server refuses this
+                    // too (releaseOrderEscrow); this is the visible half.
+                    if (entry.order.paymentVerified !== true) {
+                      return (
+                        <FulfillmentRow
+                          key={id}
+                          {...shared}
+                          blockedNote={isAr ? 'الدفع غير مُتحقق' : 'Payment unverified'}
+                        />
+                      );
+                    }
                     return (
                       <FulfillmentRow
                         key={id}
