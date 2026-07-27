@@ -955,98 +955,25 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Show the trail, and filter to mine
+### Task 6: Let an admin read the private notes
 
-An audit trail nobody can read is not an audit trail.
+**RE-SCOPED.** Task 5 already shipped this task's original Steps 1 (mine-only filter),
+2 (assignment picker) and 3b (inline owner), because Step 6 of its brief passed
+`onAssign` / `adminUsers` / `currentAdminId` with no consumer — an unusable prop set,
+so building the controls was the correct read. Those steps are **struck**; re-adding
+them would create a second filter control and move the picker.
+
+Note also that the original Step 2 used `setFeedback(res.message)`, which does NOT
+compile against the row's `'ok' | 'error' | null` feedback state — Task 5 added a
+separate `controlError` string state instead. Do not reintroduce it.
+
+What remains is the one thing genuinely not built: **nothing reads the notes.**
 
 **Files:**
 - Modify: `src/components/admin/FulfillmentSection.tsx`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1-5.
-
-- [ ] **Step 1: Add the "mine only" filter**
-
-In `FulfillmentSection.tsx`, add local state near the top of the component:
-
-```ts
-// "Mine" is the point of assignment — a queue nobody filters is a queue
-// nobody owns.
-const [mineOnly, setMineOnly] = useState(false);
-```
-
-Filter inside the `grouped` memo, immediately after `if (!bucket) continue;`:
-
-```ts
-      if (mineOnly && order.assignedToId !== currentAdminId) continue;
-```
-
-Add `mineOnly` and `currentAdminId` to the memo's dependency array.
-
-Render the toggle in the header block, beside the count:
-
-```tsx
-          <button
-            type="button"
-            onClick={() => setMineOnly((v) => !v)}
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
-              mineOnly
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            {isAr ? 'المسندة لي' : 'Mine'}
-          </button>
-```
-
-- [ ] **Step 2: Add the assignment picker to each row**
-
-Inside `FulfillmentRow`, place this above the advance block from Task 5:
-
-```tsx
-<div className="mt-2 flex items-center gap-1.5">
-  <span className="text-[9px] font-bold text-gray-400 uppercase shrink-0">
-    {isAr ? 'المسؤول' : 'Owner'}
-  </span>
-  <select
-    value={order.assignedToId || ''}
-    onChange={async (e) => {
-      const id = e.target.value;
-      const picked = adminUsers.find((a) => a.id === id);
-      setBusy(true);
-      const res = await onAssign(order.id, id, picked?.name || '');
-      setBusy(false);
-      if (!res.success) setFeedback(res.message || (isAr ? 'فشل الإسناد.' : 'Assign failed.'));
-    }}
-    disabled={busy}
-    className="flex-1 min-w-0 text-[10px] px-2 py-1 rounded-lg border border-gray-200 bg-white outline-none focus:border-emerald-500 cursor-pointer"
-  >
-    <option value="">{isAr ? 'غير مسند' : 'Unassigned'}</option>
-    {adminUsers.map((a) => (
-      <option key={a.id} value={a.id}>{a.name}</option>
-    ))}
-  </select>
-</div>
-```
-
-`FulfillmentRow` needs `adminUsers` and `onAssign` passed down. Add them to its prop type:
-
-```ts
-const FulfillmentRow: React.FC<{
-  // ...existing props unchanged...
-  onAssign: (orderId: string, adminId: string, adminName: string) => Promise<{ success: boolean; message?: string }>;
-  adminUsers: Array<{ id: string; name: string }>;
-}> = ({ /* ...existing... */ onAssign, adminUsers }) => {
-```
-
-and pass them at the single place the section renders a row, alongside the props it already forwards:
-
-```tsx
-                  onAssign={onAssign}
-                  adminUsers={adminUsers}
-```
-
-Read the existing `<FulfillmentRow ... />` call before editing — forward the new props without disturbing the ones already there.
+- Consumes: the `orders/{orderId}/adminNotes` subcollection written by the transition.
 
 - [ ] **Step 3: Let an admin READ the notes they have been writing**
 
