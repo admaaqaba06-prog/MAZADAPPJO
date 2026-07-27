@@ -875,6 +875,36 @@ Replace with:
   }, [realOrders]);
 ```
 
+- [ ] **Step 7b-bis: Do not strand the buyer — re-gate their accept action**
+
+`src/components/OrderDetailsView.tsx:1582` gates the buyer's entire post-shipment
+action block on `order.status === 'shipped'`:
+
+```tsx
+                  {order.status === 'shipped' && (
+```
+
+That block holds the buyer's happy path — **"Everything's good — release payment"**
+(`confirm_delivery`) — and the "report a problem" entry point. Once the admin relay
+runs `mark_delivered` the status becomes `delivered`, this block **disappears, and
+there is no `delivered` equivalent anywhere in the file.** The buyer can still open a
+dispute (gated separately) but has no way to *accept*, so the order can only ever be
+closed by an admin `release_escrow`. The new FSM step would silently remove the
+buyer's fast path and force admin action on every single order.
+
+Replace with:
+
+```tsx
+                  {(order.status === 'shipped' || order.status === 'delivered') && (
+```
+
+This is safe and composes correctly — verified, not assumed: `confirm_delivery`
+returns early into the `releaseOrderEscrow` Cloud Function before
+`validateTransition` is ever reached, and that function does **not** require
+`status === 'shipped'` — it only short-circuits when escrow is already released or the
+order is already completed. So a buyer accepting an order the relay marked `delivered`
+releases correctly.
+
 - [ ] **Step 7c: Remove Task 1's defensive guard**
 
 Task 1 added a guard to `FulfillmentSection`'s `grouped` memo so a `waiting_payment`
