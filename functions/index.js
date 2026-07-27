@@ -4,6 +4,7 @@ const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 const {
   normalizeJordanPhone,
+  normalizePhone,
   generateOtpCode,
   hashOtp,
   canSendOtp,
@@ -4676,7 +4677,7 @@ function otpDocId(e164) {
 
 // Step 2: request an OTP. UNauthenticated by design.
 exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
-  const e164 = normalizeJordanPhone(data && data.phone);
+  const e164 = normalizePhone(data && data.phone);
   if (!e164) {
     throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
   }
@@ -4744,7 +4745,7 @@ exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(asyn
 
 // Step 3: verify an OTP and mint a custom token. UNauthenticated by design.
 exports.verifyWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
-  const e164 = normalizeJordanPhone(data && data.phone);
+  const e164 = normalizePhone(data && data.phone);
   if (!e164) {
     throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
   }
@@ -4809,7 +4810,7 @@ exports.attachWhatsappPhone = functions.runWith({ cors: true }).https.onCall(asy
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
   }
-  const e164 = normalizeJordanPhone(data && data.phone);
+  const e164 = normalizePhone(data && data.phone);
   if (!e164) {
     throw new functions.https.HttpsError('invalid-argument', 'رقم الهاتف غير صالح.');
   }
