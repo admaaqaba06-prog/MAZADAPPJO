@@ -91,6 +91,38 @@ service cloud.firestore {
     // 2. Auctions block
     match /auctions/{auctionId} {
       allow read: if true;
+
+      // Money- and timing-defining fields. Changing any of these after someone
+      // has committed a bid changes the deal under them, so admins lose write
+      // access to them at the first bid. Title, media, viewing and approval
+      // fields stay editable — LaunchSection edits viewing on LIVE lots.
+      function moneyTimingKeys() {
+        return [
+          'startingPrice', 'currentPrice', 'duration', 'endTime', 'endsAt',
+          'scheduledStartAt', 'paymentWindowHours',
+          'antiSnipeWindowSec', 'antiSnipeExtendSec'
+        ];
+      }
+
+      // Reads as zero for missing, null or non-numeric counts, so a malformed
+      // doc fails OPEN (editable) rather than locking an admin out of a lot
+      // nobody has bid on.
+      function auctionBidCount() {
+        return resource.data.get('totalBids', 0) is number
+          ? resource.data.get('totalBids', 0)
+          : 0;
+      }
+
+      // Simulated lots are exempt: the admin Simulator's "End now" writes
+      // endTime/endsAt from the client on lots its bot has already bid on
+      // (SimulatorPanel.tsx). Simulated data is invisible to real users by
+      // construction, so no real bidder can be affected.
+      function adminEditBlocked() {
+        return auctionBidCount() > 0
+          && resource.data.get('isSimulated', false) != true
+          && request.resource.data.diff(resource.data).affectedKeys().hasAny(moneyTimingKeys());
+      }
+
       // Non-admins may only create an under-review auction ('processing' — the standardized
       // pending-review status; legacy 'pending' still accepted) with NO auto-open schedule
       // (still requires admin approval to go live). Only admins can create live/active/upcoming
@@ -148,7 +180,7 @@ service cloud.firestore {
       // viewing claim). Only isAdmin() — or the Cloud Functions service path,
       // which bypasses rules — may do those.
       allow update: if isSignedIn() && (
-        isAdmin() ||
+        (isAdmin() && !adminEditBlocked()) ||
         (
           resource.data.createdById == request.auth.uid &&
           resource.data.status in ['processing', 'pending', 'rejected'] &&
