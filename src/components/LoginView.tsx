@@ -5,7 +5,7 @@ import { translations } from '../utils/translations';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { mapAuthError } from '../utils/authErrors';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from '../utils/deepLink';
-import { Globe, CheckCircle2, Phone, Loader2 } from 'lucide-react';
+import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -39,6 +39,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     loginWithGoogle,
     loginWithPhone,
     confirmPhoneCode,
+    requestWhatsappOtp,
+    verifyWhatsappOtp,
+    signInWhatsapp,
     language,
     setLanguage
   } = useApp();
@@ -58,6 +61,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const [phoneErr, setPhoneErr] = useState('');
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
+  // WhatsApp OTP is the PRIMARY phone channel; the Firebase reCAPTCHA/SMS flow above is
+  // the fallback. `phoneChannel` picks which one the phone panel renders. `phoneInput`
+  // is shared across both channels (same number, different delivery).
+  const [phoneChannel, setPhoneChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [waSent, setWaSent] = useState(false); // code has been requested → show code entry
+  const [waCode, setWaCode] = useState('');
+  const [waBusy, setWaBusy] = useState(false);
+  const [waErr, setWaErr] = useState('');
+
   // Resend cooldown: after a successful send, block re-sending for RESEND_COOLDOWN_S
   // seconds (Jordanian carrier SMS can lag 10-60s, so give it room before a retry).
   // `cooldown` is the seconds remaining (0 = ready to resend). The interval id lives
@@ -75,9 +87,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     }
   };
 
-  const startCooldown = () => {
+  const startCooldown = (seconds: number = RESEND_COOLDOWN_S) => {
     clearCooldownTimer(); // never run two intervals at once
-    setCooldown(RESEND_COOLDOWN_S);
+    setCooldown(seconds);
     cooldownIntervalRef.current = setInterval(() => {
       setCooldown((s) => {
         if (s <= 1) {
@@ -154,11 +166,100 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     // On success, onAuthStateChanged flips isAuthenticated and the app renders the main shell.
   };
 
+  // --- WhatsApp OTP (primary phone channel) ------------------------------------
+  const handleWaSendCode = async () => {
+    if (waBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
+    setWaErr('');
+    const e164 = toE164Jordan(phoneInput);
+    if (!e164) {
+      setWaErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      return;
+    }
+    setWaBusy(true);
+    try {
+      const res = await requestWhatsappOtp(e164);
+      if (!res.ok) {
+        const wait = res.retryAfterSec;
+        setWaErr(
+          wait
+            ? (isAr ? `الرجاء الانتظار ${wait} ثانية قبل إعادة إرسال الرمز` : `Please wait ${wait}s before requesting another code`)
+            : (isAr ? 'تعذّر إرسال الرمز، حاول مرة أخرى' : 'Could not send the code, please try again.')
+        );
+        if (wait) startCooldown(wait); // reflect the server-imposed wait in the resend UI
+        return;
+      }
+      setWaSent(true);
+      startCooldown(); // (re)start the 60s resend window on every successful send
+    } catch (e) {
+      console.warn('WhatsApp OTP (send code) failed:', e);
+      setWaErr(isAr ? 'تعذّر إرسال الرمز، حاول مرة أخرى' : 'Could not send the code, please try again.');
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const handleWaVerify = async () => {
+    if (waBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
+    setWaErr('');
+    const e164 = toE164Jordan(phoneInput);
+    if (!e164) {
+      setWaErr(isAr ? 'أدخل رقم هاتف أردني صالح (07xxxxxxxx)' : 'Enter a valid Jordanian mobile number (07xxxxxxxx)');
+      return;
+    }
+    if (waCode.trim().length < 4) {
+      setWaErr(isAr ? 'أدخل رمز التحقق.' : 'Enter the verification code.');
+      return;
+    }
+    setWaBusy(true);
+    try {
+      const res = await verifyWhatsappOtp(e164, waCode.trim());
+      if (res.ok && res.token) {
+        clearCooldownTimer(); // verified — no more resend timer
+        setCooldown(0);
+        await signInWhatsapp(res.token);
+        // On success, onAuthStateChanged flips isAuthenticated and the app renders the main shell.
+      } else {
+        setWaErr(isAr ? 'الرمز غير صحيح أو منتهي' : 'Wrong or expired code');
+      }
+    } catch (e) {
+      console.warn('WhatsApp OTP (verify) failed:', e);
+      setWaErr(isAr ? 'الرمز غير صحيح أو منتهي' : 'Wrong or expired code');
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  // Switch to the Firebase reCAPTCHA/SMS fallback, clearing any WhatsApp progress.
+  const switchToSms = () => {
+    setPhoneChannel('sms');
+    setWaErr('');
+    setWaSent(false);
+    setWaCode('');
+    clearCooldownTimer();
+    setCooldown(0);
+  };
+
+  // Switch back to the WhatsApp primary channel, tearing down the reCAPTCHA verifier.
+  const switchToWhatsapp = () => {
+    setPhoneChannel('whatsapp');
+    setPhoneErr('');
+    setConfirmation(null);
+    setSmsCode('');
+    clearCooldownTimer();
+    setCooldown(0);
+    clearRecaptcha();
+  };
+
   const handlePhoneBack = () => {
     setPhoneMode(false);
     setConfirmation(null);
     setSmsCode('');
     setPhoneErr('');
+    // reset WhatsApp channel state too, and default back to the primary channel
+    setPhoneChannel('whatsapp');
+    setWaSent(false);
+    setWaCode('');
+    setWaErr('');
     clearCooldownTimer(); // going back to edit the number resets the resend window
     setCooldown(0);
     clearRecaptcha();
@@ -255,6 +356,116 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               <Phone className="w-5 h-5 shrink-0" />
               <span>{isAr ? 'المتابعة برقم الهاتف' : 'Continue with phone number'}</span>
             </button>
+          ) : phoneChannel === 'whatsapp' ? (
+            <div className="space-y-2" id="whatsapp-login-panel">
+              {!waSent ? (
+                <>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    dir="ltr"
+                    placeholder="07xxxxxxxx"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all"
+                    id="wa-phone-number-input"
+                  />
+                  <button
+                    type="button"
+                    disabled={waBusy}
+                    onClick={handleWaSendCode}
+                    className="w-full h-11 bg-[#25D366] hover:bg-[#1EBE5B] text-white text-sm font-bold rounded-full shadow-sm transition-all duration-200 ease-out disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    id="wa-send-code-btn"
+                  >
+                    {waBusy ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>{isAr ? 'جاري الإرسال…' : 'Sending…'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-5 h-5 shrink-0" />
+                        <span>{isAr ? 'إرسال الرمز عبر واتساب' : 'Send code on WhatsApp'}</span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[11px] text-gray-400 font-medium text-center" id="wa-delivery-hint">
+                    {isAr ? 'سنرسل الرمز إلى رقمك على واتساب' : "We'll send the code to your number on WhatsApp."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    dir="ltr"
+                    placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
+                    value={waCode}
+                    onChange={(e) => setWaCode(e.target.value)}
+                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all tracking-widest text-center"
+                    id="wa-code-input"
+                  />
+                  <button
+                    type="button"
+                    disabled={waBusy}
+                    onClick={handleWaVerify}
+                    className="w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all duration-200 ease-out disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    id="wa-verify-code-btn"
+                  >
+                    {waBusy ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>{isAr ? 'جاري التحقق…' : 'Verifying…'}</span>
+                      </>
+                    ) : (
+                      <span>{isAr ? 'تأكيد' : 'Verify'}</span>
+                    )}
+                  </button>
+                  <div className="text-center space-y-1 pt-1" id="wa-resend-block">
+                    <p className="text-[11px] text-gray-400 font-medium">
+                      {isAr
+                        ? `أرسلنا رمزاً عبر واتساب إلى ${phoneInput}. لم يصلك؟`
+                        : `We sent a code on WhatsApp to ${phoneInput}. Didn't get it?`}
+                    </p>
+                    {cooldown > 0 ? (
+                      <span className="text-xs text-gray-400 font-semibold" id="wa-resend-cooldown">
+                        {isAr ? `أعد الإرسال خلال ${cooldown} ث` : `Resend in ${cooldown}s`}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={waBusy}
+                        onClick={handleWaSendCode}
+                        className="text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        id="wa-resend-btn"
+                      >
+                        {isAr ? 'إعادة إرسال الرمز' : 'Resend code'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+              {waErr && (
+                <p className="text-red-600 text-xs font-semibold" id="wa-login-error">{waErr}</p>
+              )}
+              {/* Fallback: switch to the Firebase reCAPTCHA/SMS path */}
+              <button
+                type="button"
+                onClick={switchToSms}
+                className="w-full text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors pt-1"
+                id="wa-sms-fallback-link"
+              >
+                {isAr ? 'ما عندك واتساب؟ أرسل SMS' : 'No WhatsApp? Send SMS instead'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePhoneBack}
+                className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                id="phone-back-btn"
+              >
+                {isAr ? 'رجوع' : 'Back'}
+              </button>
+            </div>
           ) : (
             <div className="space-y-2" id="phone-login-panel">
               {!confirmation ? (
@@ -344,6 +555,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               {phoneErr && (
                 <p className="text-red-600 text-xs font-semibold" id="phone-login-error">{phoneErr}</p>
               )}
+              {/* Back to the WhatsApp primary channel */}
+              <button
+                type="button"
+                onClick={switchToWhatsapp}
+                className="w-full text-xs text-[#25D366] hover:text-[#1EBE5B] font-bold transition-colors pt-1"
+                id="wa-switch-back-link"
+              >
+                {isAr ? 'استخدم واتساب بدلاً من ذلك' : 'Use WhatsApp instead'}
+              </button>
               <button
                 type="button"
                 onClick={handlePhoneBack}

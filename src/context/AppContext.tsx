@@ -262,6 +262,13 @@ interface AppContextProps {
   loginWithPhone: (phoneE164: string, appVerifier: import('firebase/auth').ApplicationVerifier) => Promise<import('firebase/auth').ConfirmationResult>;
   confirmPhoneCode: (confirmation: import('firebase/auth').ConfirmationResult, code: string) => Promise<{ success: boolean; message: string }>;
 
+  // WhatsApp OTP — PRIMARY phone sign-in (loginWithPhone/confirmPhoneCode SMS is the
+  // fallback). requestWhatsappOtp sends a 6-digit code over WhatsApp; verifyWhatsappOtp
+  // returns a Firebase custom token; signInWhatsapp exchanges it for a session.
+  requestWhatsappOtp: (phone: string) => Promise<{ ok: boolean; retryAfterSec?: number }>;
+  verifyWhatsappOtp: (phone: string, code: string) => Promise<{ ok: boolean; token?: string }>;
+  signInWhatsapp: (token: string) => Promise<void>;
+
   // Contact completion (E5): ATTACH a missing phone/email to the CURRENT signed-in
   // account (same uid — never sign into a separate phone account, which would orphan
   // the user's wallet/history). Consumed by ContactCompletionModal.
@@ -2414,6 +2421,30 @@ const fetchIP = async () => {
     localStorage.setItem('mazad_last_login_time', String(Date.now()));
     // Returns a ConfirmationResult; the UI then calls confirmPhoneCode with the SMS code.
     return signInWithPhoneNumber(auth, phoneE164, appVerifier);
+  }, []);
+
+  // WhatsApp OTP — primary phone sign-in. The backend callables send/verify a 6-digit
+  // code over WhatsApp; verify returns a Firebase custom token on success.
+  const requestWhatsappOtp = useCallback(async (phone: string) => {
+    const callable = await getCallableFunction<{ phone: string }, { ok: boolean; retryAfterSec?: number }>('requestWhatsappOtp');
+    const result = await callable({ phone });
+    return result.data;
+  }, []);
+
+  const verifyWhatsappOtp = useCallback(async (phone: string, code: string) => {
+    const callable = await getCallableFunction<{ phone: string; code: string }, { ok: boolean; token?: string }>('verifyWhatsappOtp');
+    const result = await callable({ phone, code });
+    return result.data;
+  }, []);
+
+  // Mirror loginWithPhone's sessionId bookkeeping BEFORE sign-in, then exchange the
+  // custom token. onAuthStateChanged then flips the app into the authenticated shell.
+  const signInWhatsapp = useCallback(async (token: string) => {
+    const { signInWithCustomToken } = await import('firebase/auth');
+    const newSessionId = generateSessionId();
+    localStorage.setItem('mazad_session_id', newSessionId);
+    localStorage.setItem('mazad_last_login_time', String(Date.now()));
+    await signInWithCustomToken(auth, token);
   }, []);
 
   const confirmPhoneCode = useCallback(async (confirmation: import('firebase/auth').ConfirmationResult, code: string) => {
@@ -5115,6 +5146,9 @@ const fetchIP = async () => {
       loginWithGoogle,
       loginWithPhone,
       confirmPhoneCode,
+      requestWhatsappOtp,
+      verifyWhatsappOtp,
+      signInWhatsapp,
       linkPhoneSendCode,
       linkPhoneToAccount,
       saveEmail,
@@ -5176,7 +5210,7 @@ const fetchIP = async () => {
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
     createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
-    confirmPhoneCode, linkPhoneSendCode, linkPhoneToAccount, saveEmail,
+    confirmPhoneCode, requestWhatsappOtp, verifyWhatsappOtp, signInWhatsapp, linkPhoneSendCode, linkPhoneToAccount, saveEmail,
     logout, registerUser, subscribeUser, updateOwnProfile,
     completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
