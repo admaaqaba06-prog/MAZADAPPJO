@@ -571,4 +571,26 @@ describe('executeOrderTransition — mark_shipped never fabricates a tracking nu
     expect(activity.messageAr).toBe('تم شحن الطرد بنجاح مع شركة التوصيل. رقم التتبع: ARX-99881');
     expect(activity.messageEn).toBe('Parcel in transit with courier. Tracking ID: ARX-99881');
   });
+
+  it('humanises the status in the buyer/seller notification body — never leaks a raw code', async () => {
+    // preparing_shipment -> shipped. The old body interpolated the raw codes,
+    // so buyers saw "[preparing_shipment]"; the glossary now supplies a clean
+    // label and the underscore-code must NOT appear.
+    await executeOrderTransition(PREPARING_ORDER, 'mark_shipped', ADMIN, { note: 'courier collected' });
+
+    const notifs = mocks.addDoc.mock.calls
+      .filter((c) => colPath(c[0]) === 'notifications')
+      .map((c) => c[1] as Record<string, string>);
+    expect(notifs.length).toBe(3);
+
+    const buyerNotif = notifs.find((n) => n.userId === 'buyer-1')!;
+    expect(buyerNotif.descriptionEn).toContain('Preparing shipment');
+    expect(buyerNotif.descriptionEn).toContain('Shipped');
+    // The raw code must never reach the buyer, in either language.
+    for (const n of notifs) {
+      expect(n.descriptionEn).not.toContain('preparing_shipment');
+      expect(n.descriptionAr).not.toContain('preparing_shipment');
+    }
+    expect(buyerNotif.descriptionAr).toContain('قيد التجهيز للشحن');
+  });
 });

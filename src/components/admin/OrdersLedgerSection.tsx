@@ -1,5 +1,16 @@
 import React from 'react';
 import { Database, FileCheck2 } from 'lucide-react';
+import { getOrderStatusChip, OrderStatusTone } from '../../utils/orderStatusGlossary';
+
+/** Text-colour-only classes per glossary tone — keeps this ledger's brand-orange
+ *  default while the visible label now comes from the shared glossary. */
+const STATUS_TONE_TEXT: Record<OrderStatusTone, string> = {
+  neutral: 'text-gray-500',
+  info: 'text-[#E85D04]',
+  warning: 'text-[#E85D04]',
+  success: 'text-emerald-600',
+  danger: 'text-rose-600',
+};
 
 /**
  * Orders ledger (reference tab): the read-only order-fulfillment audit list —
@@ -131,6 +142,8 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
               ? new Date(order.createdAt?.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-US')
               : '';
 
+            const statusChip = getOrderStatusChip(order.status, isAr ? 'ar' : 'en');
+
             return (
               <div
                 key={order.id}
@@ -205,14 +218,8 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   </div>
                   <div className="space-y-0.5">
                     <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الحالة العامة' : 'STATUS'}</span>
-                    <span className="font-black text-[#E85D04] uppercase">
-                      {order.status === 'waiting_payment' ? (isAr ? 'قيد الدفع' : 'PENDING PAY') :
-                       order.status === 'paid' ? (isAr ? 'مدفوع' : 'PAID') :
-                       order.status === 'preparing_shipment' ? (isAr ? 'تجهيز شحن' : 'PREPARING') :
-                       order.status === 'shipped' ? (isAr ? 'مشحون' : 'SHIPPED') :
-                       order.status === 'delivered' ? (isAr ? 'واصل' : 'DELIVERED') :
-                       order.status === 'completed' ? (isAr ? 'مكتمل' : 'COMPLETED') :
-                       order.status === 'disputed' ? (isAr ? 'نزاع' : 'DISPUTED') : order.status}
+                    <span className={`font-black uppercase ${STATUS_TONE_TEXT[statusChip.tone]}`}>
+                      {statusChip.label}
                     </span>
                   </div>
                 </div>

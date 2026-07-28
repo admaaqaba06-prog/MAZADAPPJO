@@ -27,6 +27,7 @@ import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
 import { isEffectivelyBlocked } from '../utils/banStatus';
+import { resolveNotificationContent } from '../utils/notificationContent';
 import type { ViewingMode } from '../utils/viewing';
 import { viewingWritePayload } from '../utils/viewing';
 
@@ -2970,11 +2971,17 @@ const fetchIP = async () => {
         const ts = typeof data.timestamp === 'number'
           ? data.timestamp
           : (data.timestamp?.seconds ? data.timestamp.seconds * 1000 : Date.now());
+        // Resolve content in the recipient's language, falling back to the other
+        // language when a field is missing (so an Arabic-only doc still shows for
+        // an English user, and vice versa) rather than defaulting to Arabic.
+        const { title, body } = resolveNotificationContent(data, language);
+        // Drop docs with no resolvable content — they'd render as blank bell rows.
+        if (!title && !body) return;
         incoming.push({
           id: d.id,
           userId: data.userId,
-          title: (language === 'ar' ? data.titleAr : data.titleEn) || data.title || '',
-          description: (language === 'ar' ? data.descriptionAr : data.descriptionEn) || data.description || '',
+          title,
+          description: body,
           type: data.type || 'info',
           priority: data.priority || 'medium',
           timestamp: ts,

@@ -163,6 +163,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
 
   // Filter notifications
   const filteredNotifications = visibleNotifications.filter(n => {
+    // Defensive guard: never render a blank row. Content is resolved (in the
+    // recipient's language, with cross-language fallback) upstream in
+    // AppContext, but guard here too so a contentless doc can't slip through.
+    if (!n.title?.trim() && !n.description?.trim()) return false;
     if (selectedFilter === 'all') return true;
     return n.type === selectedFilter;
   });
