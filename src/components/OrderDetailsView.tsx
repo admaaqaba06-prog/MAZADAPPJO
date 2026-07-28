@@ -46,6 +46,7 @@ import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
 import { sellerNet } from '../utils/bidMath';
+import { displayOrderRef } from '../utils/orderRef';
 import { buyerReputation } from '../utils/reputation';
 import { StarRating } from './ui/StarRating';
 
@@ -346,7 +347,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(order.id);
+    navigator.clipboard.writeText(displayOrderRef(order));
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
@@ -914,7 +915,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
             {isAr ? 'رقم الطلب:' : 'ORDER ID:'}
           </span>
           <span className="text-xs font-mono font-black bg-gray-50 border border-gray-100 px-3 py-1 rounded-xl select-all flex items-center gap-1">
-            <span>{order.id.substring(0, 12).toUpperCase()}</span>
+            <span>{displayOrderRef(order)}</span>
             <button onClick={copyToClipboard} className="text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer">
               {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
             </button>

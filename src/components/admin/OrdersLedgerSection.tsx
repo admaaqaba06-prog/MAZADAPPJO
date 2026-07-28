@@ -1,6 +1,7 @@
 import React from 'react';
 import { Database, FileCheck2 } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../../utils/orderStatusGlossary';
+import { displayOrderRef } from '../../utils/orderRef';
 
 /** Text-colour-only classes per glossary tone — keeps this ledger's brand-orange
  *  default while the visible label now comes from the shared glossary. */
@@ -165,7 +166,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <h4 className="font-black text-gray-900 text-xs truncate leading-snug">{order.auctionTitle}</h4>
                     <p className="text-[10px] text-gray-400 font-mono">
-                      ID: <span className="font-bold select-all">{order.id.substring(0, 10).toUpperCase()}</span>
+                      ID: <span className="font-bold select-all">{displayOrderRef(order)}</span>
                     </p>
                     {formattedDate && (
                       <p className="text-[9px] text-gray-400 font-mono">{formattedDate}</p>

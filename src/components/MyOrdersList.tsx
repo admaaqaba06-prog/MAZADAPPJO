@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, ShoppingBag } from 'lucide-react';
 import { ContextualHint } from './ContextualHint';
 import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
+import { displayOrderRef } from '../utils/orderRef';
 
 /** Text-colour-only classes per glossary tone — the old inline label used a
  *  green/orange split; this preserves that while sourcing the label centrally. */
@@ -78,7 +79,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                     </h4>
                     <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1">
                       <span>ID:</span>
-                      <span className="font-bold select-all text-gray-700">{order.id.substring(0, 10).toUpperCase()}</span>
+                      <span className="font-bold select-all text-gray-700">{displayOrderRef(order)}</span>
                       {formattedDate && (
                         <>
                           <span className="text-gray-300">•</span>
