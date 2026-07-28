@@ -84,6 +84,22 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+    // 5. Wave 3 delivery evidence. Three photos per order: the seller's
+    // preparation shot, the seller's dispatch shot (delivery code visible) and
+    // the buyer's receipt shot (same code visible). Which party may attach which
+    // photo is enforced in firestore.rules on the order write and in the confirm
+    // callable — NOT here; this rule gates on any authenticated user,
+    // image-only, ≤10MB, the same shape as the returns path above and for the
+    // same reason: counterparty and admin must all be able to read the chain
+    // when a dispute is adjudicated.
+    match /delivery-evidence/{orderId}/{fileName=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+                    && request.resource.contentType.matches('image/.*')
+                    && request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+
     // Standard reject-all fallthrough
     match /{allPaths=**} {
       allow read, write: if false;

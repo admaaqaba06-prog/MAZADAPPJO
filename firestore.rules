@@ -337,6 +337,27 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Wave 3 — delivery codes. The seller writes this code on the parcel; it
+    // must appear in the seller's dispatch photo AND the buyer's receipt photo,
+    // and the buyer also types it back to confirm receipt. It is therefore a
+    // SECRET FROM THE BUYER — they must learn it from the physical handover,
+    // not from the app.
+    //
+    // It lives in its own document for a reason that is easy to get wrong:
+    // Firestore has NO field-level read denylist. `orders/{orderId}` grants the
+    // buyer `allow read`, and a granted read returns EVERY field — so a
+    // `deliveryCode` key on the order doc would be readable by the one person it
+    // must be hidden from, no matter what the update denylist says. Same lesson
+    // as Wave 1's paymentReferences and Wave 2's orderRefs.
+    //
+    // sellerId is denormalized onto this doc so the read rule costs no get().
+    // Written ONLY by issueDeliveryCode / releaseOrderEscrow via the Admin SDK,
+    // which bypasses rules.
+    match /deliveryCodes/{orderId} {
+      allow read: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /
@@ -371,7 +392,17 @@ service cloud.firestore {
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.
             'assignedToId', 'assignedToName',
-            'resolutionNotes', 'disputeResolvedBy', 'disputeResolvedAt', 'disputeResolutionType'
+            'resolutionNotes', 'disputeResolvedBy', 'disputeResolvedAt', 'disputeResolutionType',
+            // Wave 3 — the buyer's receipt evidence, the delivery stamp and the
+            // code-attempt counter are all written by releaseOrderEscrow / the
+            // confirm gate (Admin SDK). A client-written receivedPhotoUrl would
+            // be the buyer asserting their own proof of delivery on the doc that
+            // releases their money, and a client-writable deliveryCodeAttempts
+            // would reset the brute-force counter on every guess. `deliveryCode`
+            // is listed even though nothing writes it here — it must never
+            // become an order field (see the deliveryCodes block above).
+            'receivedPhotoUrl', 'deliveredAt', 'deliveryCodeAttempts',
+            'deliveryCode', 'deliveryConfirmedBy'
           ]) &&
           // delivery address/phone are the BUYER's to set (given at the pay
           // step) — a seller must never write or alter where the buyer's item
@@ -379,6 +410,39 @@ service cloud.firestore {
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deliveryAddress', 'deliveryPhone']) ||
             resource.data.buyerId == request.auth.uid
+          ) &&
+          // Wave 3 — evidence gates. Each seller step may only produce its status
+          // if the photo that justifies it is on the resulting document. This is
+          // the real enforcement of the model: without it, "self-service status
+          // transitions" would just be a client that asks nicely.
+          //
+          // The `preparing_shipment` gate is scoped to writes that SET the
+          // status. Without that exemption a legacy order sitting in
+          // `preparing_shipment` from before Wave 3 (no prepPhotoUrl) would be
+          // frozen — its seller could not open a dispute or write anything else,
+          // because every later write would re-demand a photo that was never
+          // taken. `out_for_delivery` needs no such exemption: no document has
+          // ever held that status, so there is no legacy shape to strand.
+          (
+            request.resource.data.status != 'preparing_shipment' ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) ||
+            (request.resource.data.prepPhotoUrl is string && request.resource.data.prepPhotoUrl.size() > 0)
+          ) &&
+          (
+            request.resource.data.status != 'out_for_delivery' ||
+            (
+              request.resource.data.sentPhotoUrl is string &&
+              request.resource.data.sentPhotoUrl.size() > 0 &&
+              request.resource.data.deliveryMethod in ['hand', 'courier']
+            )
+          ) &&
+          // Dispatch evidence is the SELLER's claim to make. A buyer who could
+          // write sentPhotoUrl could manufacture the seller's half of the
+          // evidence chain and then confirm receipt against it — which pays the
+          // seller out of an escrow the goods may never have left.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['prepPhotoUrl', 'sentPhotoUrl', 'deliveryMethod']) ||
+            resource.data.sellerId == request.auth.uid
           ) &&
           // keep the existing terminal-transition guard (settlement is server-only).
           // Wave 1 — status:'paid' is also server-only now: the only path to
