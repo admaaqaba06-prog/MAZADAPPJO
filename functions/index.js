@@ -31,6 +31,7 @@ const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
+const { maskBidderName } = require('./bidderMask');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -298,6 +299,12 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
+    // winnerName above is derived from the (now MASKED) public auction doc.
+    // The PRIVATE order needs the REAL buyer name — resolve it from the user
+    // doc read above (all reads stay before any writes). Fall back to the
+    // masked winnerName / 'Buyer' when the user doc is missing.
+    const realWinnerName = (winnerSnap && winnerSnap.exists && winnerSnap.data().name) || winnerName;
+
     const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice });
 
     if (decision.outcome === 'sold') {
@@ -324,7 +331,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
           sellerId: auctionData.sellerId || '',
           sellerName: auctionData.sellerName || 'Seller',
           buyerId: winnerId,
-          buyerName: winnerName,
+          buyerName: realWinnerName,
           winningBidAmount: finalPrice,
           buyersPremium: buyerPremiumJod(finalPrice),
           totalDue: totalDueJod(finalPrice),
@@ -367,7 +374,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       notifyData = {
         phone: (winnerData && winnerData.phoneNumber) || '',
         fcmToken: (winnerData && winnerData.fcmToken) || '',
-        winnerId, winnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
+        // Private "you won" notification to the winner themselves — real name.
+        winnerId, winnerName: realWinnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
       };
     } else if (decision.outcome === 'reserve_not_met') {
       // A winner exists but the top bid never cleared the hidden reserve.
@@ -1387,7 +1395,10 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
         amountJod: amount,
         amountFils: amountFils,
         bidderId: userId,
-        bidderName: userData.name || 'User',
+        // PUBLIC write: applyBidWrites stamps this onto the world-readable
+        // auction doc (currentBidderName) AND the public bid-history doc.
+        // Must be masked — the real name never touches public Firestore.
+        bidderName: maskBidderName(userData.name || 'User'),
         bidderAvatar: userData.avatar || '',
         endTimeMs: endTime
       });
@@ -1404,7 +1415,11 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
         _chat: {
           auctionId,
           userId,
-          userName: userData.name || 'User',
+          // PUBLIC write: this flows into the chats collection (allow read: if
+          // isSignedIn()), so the seller can read it. Must be masked to stay
+          // consistent with the masked public bid history — the real name never
+          // touches the world-readable bid indicator.
+          userName: maskBidderName(userData.name || 'User'),
           userAvatar: userData.avatar || '',
           amount
         }
@@ -2194,6 +2209,19 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     const winnerName = auctionData.currentBidderName || auctionData.highestBidderName || auctionData.winnerName || 'Buyer';
     const finalPrice = auctionData.currentPrice || auctionData.startingPrice || 0;
 
+    // currentBidderName on the public auction doc is now MASKED. The PRIVATE
+    // order (and the winner's own notifications) need the REAL name — resolve
+    // it from the winner's user doc, falling back to the masked label.
+    let realWinnerName = winnerName;
+    try {
+      const winnerSnap = await db.collection('users').doc(winnerId).get();
+      if (winnerSnap.exists && winnerSnap.data().name) {
+        realWinnerName = winnerSnap.data().name;
+      }
+    } catch (nameErr) {
+      console.warn(`[repairEndedAuctionOrder] winner name lookup failed for ${winnerId}:`, nameErr);
+    }
+
     // Check if Order already exists
     const orderRef = db.collection('orders').doc(auctionId);
     const orderSnap = await orderRef.get();
@@ -2226,7 +2254,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       sellerId: auctionData.sellerId || '',
       sellerName: auctionData.sellerName || 'Seller',
       buyerId: winnerId,
-      buyerName: winnerName,
+      buyerName: realWinnerName,
       winningBidAmount: finalPrice,
       buyersPremium: buyerPremiumJod(finalPrice),
       totalDue: totalDueJod(finalPrice),
@@ -2261,7 +2289,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
     // (notify) mirror the closer: an admin-repaired win still owes payment, so
     // send the same auction_won + payment_due WhatsApp events. Never throws.
     await notify({ uid: winnerId, event: 'auction_won', data: {
-      name: winnerName,
+      name: realWinnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: buyerPremiumJod(finalPrice),
       totalDue: totalDueJod(finalPrice),
@@ -2269,7 +2297,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       idempotencyKey: `${auctionId}_auction_won`,
     } });
     await notify({ uid: winnerId, event: 'payment_due', data: {
-      name: winnerName,
+      name: realWinnerName,
       auctionId, auctionTitle: auctionData.title || '', amount: finalPrice,
       buyersPremium: buyerPremiumJod(finalPrice),
       totalDue: totalDueJod(finalPrice),
@@ -2353,6 +2381,19 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
       const topBidderId = offer.topBidderId;
       const topBidderName = offer.topBidderName || 'Buyer';
 
+      // offer.topBidderName is the MASKED public label. The PRIVATE order needs
+      // the REAL buyer name — resolve it from the user doc. This read runs
+      // BEFORE any write below (Firestore requires all reads first); the
+      // Promise.all above couldn't include it because topBidderId is only known
+      // after reading the auction. Fall back to the masked label if missing.
+      let realTopBidderName = topBidderName;
+      if (topBidderId) {
+        const topBidderSnap = await transaction.get(db.collection('users').doc(topBidderId));
+        if (topBidderSnap.exists && topBidderSnap.data().name) {
+          realTopBidderName = topBidderSnap.data().name;
+        }
+      }
+
       // Money-path: fees on the below-reserve top bid, computed with the SAME
       // shared helpers the sold path uses (buyer +5%, seller net 95%). PENDING —
       // no paymentDeadlineAt, no escrow lock. escrowStatus is a status field only.
@@ -2364,7 +2405,7 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
         sellerId: auctionData.sellerId || '',
         sellerName: auctionData.sellerName || 'Seller',
         buyerId: topBidderId,
-        buyerName: topBidderName,
+        buyerName: realTopBidderName,
         winningBidAmount: topBid,
         buyersPremium: buyerPremiumJod(topBid),
         totalDue: totalDueJod(topBid),
@@ -2394,7 +2435,8 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
 
       buyerNotify = {
         buyerId: topBidderId,
-        buyerName: topBidderName,
+        // Private notification to the buyer themselves — real name.
+        buyerName: realTopBidderName,
         auctionId,
         auctionTitle: auctionData.title || '',
         topBid,
@@ -4621,7 +4663,8 @@ exports.simulateBid = functions.runWith({ cors: true }).https.onCall(async (data
         amountJod: minRequiredFils / 1000,
         amountFils: minRequiredFils,
         bidderId: SIM_BOT_ID,
-        bidderName: (typeof bidderLabel === 'string' && bidderLabel.trim()) ? bidderLabel.trim() : 'Test Bidder',
+        // PUBLIC write (same applyBidWrites path as placeBid) — mask the label.
+        bidderName: maskBidderName((typeof bidderLabel === 'string' && bidderLabel.trim()) ? bidderLabel.trim() : 'Test Bidder'),
         endTimeMs: endTimeMs,
         isSimulated: true
       });
