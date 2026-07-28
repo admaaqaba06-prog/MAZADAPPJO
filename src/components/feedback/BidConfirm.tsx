@@ -18,7 +18,41 @@ type BidConfirmProps = {
    * user knowingly re-confirms the higher amount instead of a stale rejection.
    */
   priceMoved?: boolean;
+  /**
+   * Colour scheme. Defaults to `dark` (black/blur + white text), which is what
+   * the video-overlay surfaces want. `light` is for consumers that anchor this
+   * inside a WHITE card — the desktop bid panel — where the dark treatment
+   * reads as broken. Only the palette differs; layout and behaviour are shared.
+   */
+  variant?: 'dark' | 'light';
 };
+
+/**
+ * Per-variant palettes. `wrapper` is the default overlay styling (still
+ * overridable via the `className` prop, which wins for both variants).
+ */
+const VARIANTS = {
+  dark: {
+    wrapper:
+      'absolute inset-0 z-40 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/15 shadow-2xl flex flex-col items-center justify-center gap-2 p-3',
+    title: 'text-white',
+    titleMoved: 'text-amber-400',
+    total: 'text-zinc-300',
+    binding: 'text-amber-400',
+    confirm: 'bg-[#FF6B00] hover:bg-orange-600 text-white shadow-md',
+    cancel: 'bg-white/10 border border-white/15 text-white',
+  },
+  light: {
+    wrapper:
+      'absolute inset-0 z-40 rounded-2xl bg-white/95 backdrop-blur-sm border border-orange-200 shadow-xl flex flex-col items-center justify-center gap-2 p-3',
+    title: 'text-gray-900',
+    titleMoved: 'text-amber-600',
+    total: 'text-gray-500',
+    binding: 'text-amber-600',
+    confirm: 'bg-[#E85D04] hover:bg-orange-600 text-white shadow-md',
+    cancel: 'bg-gray-100 border border-gray-200 text-gray-700',
+  },
+} as const;
 
 const AUTO_DISMISS_MS = 10000;
 /** Countdown granularity for the pause-aware auto-dismiss timer. */
@@ -30,6 +64,9 @@ const TICK_MS = 100;
  * and auto-dismisses after 10s of inaction. The countdown PAUSES while the
  * pointer hovers the dialog (resumes where it left off on leave), so a user
  * reading the copy never has it vanish under their cursor. Ease-out motion only.
+ *
+ * `variant` picks the palette: `dark` (default) for video-overlay surfaces,
+ * `light` for consumers anchored inside a white card. See VARIANTS above.
  */
 export default function BidConfirm({
   amount,
@@ -38,9 +75,11 @@ export default function BidConfirm({
   onCancel,
   className,
   priceMoved = false,
+  variant = 'dark',
 }: BidConfirmProps) {
 
   const t = translations[isAr ? 'ar' : 'en'];
+  const v = VARIANTS[variant];
   const firedRef = React.useRef(false);
   React.useEffect(() => { firedRef.current = false; }, [amount]);
   // Keep the latest onCancel in a ref so the auto-dismiss timer isn't reset by
@@ -81,26 +120,23 @@ export default function BidConfirm({
           transition={{ duration: 0.18, ease: 'easeOut' }}
           onMouseEnter={() => { hoveredRef.current = true; }}
           onMouseLeave={() => { hoveredRef.current = false; }}
-          className={
-            className ??
-            'absolute inset-0 z-40 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/15 shadow-2xl flex flex-col items-center justify-center gap-2 p-3'
-          }
+          className={className ?? v.wrapper}
           dir={isAr ? 'rtl' : 'ltr'}
         >
-          <p className={`text-xs font-black text-center leading-snug ${priceMoved ? 'text-amber-400' : 'text-white'}`}>
+          <p className={`text-xs font-black text-center leading-snug ${priceMoved ? v.titleMoved : v.title}`}>
             {priceMoved
               ? t.priceMovedTitle.replace('{amount}', amount.toLocaleString())
               : isAr
                 ? `تأكيد المزايدة: ${amount.toLocaleString()} د.أ`
                 : `Confirm bid: ${amount.toLocaleString()} JD`}
           </p>
-          <p className="text-[10px] text-zinc-300 font-bold text-center leading-snug">
+          <p className={`text-[10px] font-bold text-center leading-snug ${v.total}`}>
             {isAr
               ? `المجموع عند الفوز ${totalWithPremium(amount).toLocaleString()} د.أ (شامل ٥٪)`
               : `Total if you win ${totalWithPremium(amount).toLocaleString()} JD (incl. 5%)`}
           </p>
           {/* E4 — just-in-time binding reminder (copy only, no flow change) */}
-          <p className="text-[9.5px] text-amber-400 font-black text-center leading-snug">
+          <p className={`text-[9.5px] font-black text-center leading-snug ${v.binding}`}>
             {isAr ? 'هذه المزايدة مُلزِمة.' : 'This bid is binding.'}
           </p>
           <div className="flex gap-2 w-full max-w-[280px] mt-1">
@@ -110,7 +146,7 @@ export default function BidConfirm({
                 firedRef.current = true;
                 onConfirm(amount);
               }}
-              className="flex-1 py-2 rounded-xl bg-[#FF6B00] hover:bg-orange-600 text-white text-[11px] font-black shadow-md cursor-pointer"
+              className={`flex-1 py-2 rounded-xl text-[11px] font-black cursor-pointer ${v.confirm}`}
             >
               {priceMoved
                 ? t.priceMovedConfirm.replace('{amount}', amount.toLocaleString())
@@ -118,7 +154,7 @@ export default function BidConfirm({
             </Pressable>
             <Pressable
               onClick={onCancel}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-[11px] font-black cursor-pointer"
+              className={`px-4 py-2 rounded-xl text-[11px] font-black cursor-pointer ${v.cancel}`}
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </Pressable>

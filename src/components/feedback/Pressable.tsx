@@ -10,6 +10,8 @@ type PressableProps = {
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
   'aria-label'?: string;
+  /** DOM id — kept for the same debug/smoke-test hooks plain buttons carry. */
+  id?: string;
   /** Optional hover treatment, e.g. { scale: 1.02 }. Off by default. */
   whileHover?: Record<string, number | string>;
 };
@@ -25,11 +27,13 @@ export default function Pressable({
   disabled,
   type = 'button',
   whileHover,
+  id,
   ...rest
 }: PressableProps) {
   return (
     <motion.button
       type={type}
+      id={id}
       className={className}
       onClick={onClick}
       disabled={disabled}
