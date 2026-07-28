@@ -20,6 +20,7 @@ const {
   rejectSubscriptionRequest,
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
+const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
@@ -1865,6 +1866,38 @@ exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(asyn
     console.error('Error in rejectSubscription:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = SUBSCRIPTION_ERROR_CODES.includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * submitOrderPayment — Slice A (Submit). The BUYER self-claims a CliQ payment
+ * on their own order (proof URL + CliQ sender phone + txn ref + delivery info).
+ * State machine + ownership + idempotency live in orderPaymentSubmit.js
+ * (unit-tested); this wrapper is auth-gating only. Ownership is enforced inside
+ * the transaction via buyerUid — no assertAdmin here.
+ */
+exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in to submit a payment.');
+  }
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const result = await submitOrderPaymentTxn(deps, {
+      orderId: data.orderId,
+      buyerUid: context.auth.uid,
+      proofUrl: data.proofUrl,
+      cliqSenderPhone: data.cliqSenderPhone,
+      txnRef: data.txnRef,
+      deliveryAddress: data.deliveryAddress,
+      deliveryPhone: data.deliveryPhone,
+    });
+    console.log(`[submitOrderPayment] submitted order=${data.orderId} by ${context.auth.uid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in submitOrderPayment:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
