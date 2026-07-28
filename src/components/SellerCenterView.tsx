@@ -76,6 +76,7 @@ import { bucketListings, filterListings, ListingBucketId } from './seller/seller
 import { Search, Truck, RotateCcw } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
 import { sumPaidSalesThisMonth } from '../utils/sellerSales';
+import { reviewCountLabel } from '../utils/reviewCount';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -569,10 +570,11 @@ export const SellerCenterView: React.FC = () => {
     const now = new Date();
     const currentMonthSales = sumPaidSalesThisMonth(myOrders, now);
 
-    // Average Rating
+    // Average Rating — only a real number when there is ≥1 genuine review.
+    // Sellers with zero reviews get null (honest empty state), never a fake 4.8.
     const avgRating = reviews.length > 0
       ? parseFloat((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1))
-      : 4.8;
+      : null;
 
     return {
       liveCount,
@@ -1053,7 +1055,13 @@ export const SellerCenterView: React.FC = () => {
               {(() => {
                 const myProfile = sellerProfiles?.find(p => p.userId === currentUser?.id);
                 const vStatus = myProfile?.verificationStatus || currentUser?.verificationStatus || 'not_verified';
-                
+
+                // De-dupe the verify prompt: the "get verified" nudge lives ONLY in
+                // the Overview "Needs your action" hub now. Here the badge is a
+                // positive trust signal, so it renders for verified/premium/pending
+                // states but stays hidden for not_verified (no third nag).
+                if (vStatus === 'not_verified') return null;
+
                 const vBadgeLabels = {
                   premium_verified: isAr ? 'توثيق متميز بلس' : 'Premium Verified +',
                   verified: isAr ? 'حساب بائع موثق' : 'Verified Seller Account',
@@ -1079,36 +1087,10 @@ export const SellerCenterView: React.FC = () => {
             <p className="text-xs text-gray-500 font-medium mt-1">
               {isAr ? 'إدارة أعمالك، المزادات والطلبات، الأرباح والمبيعات بكل سهولة.' : 'Manage listings, sales orders, payouts, reviews, and analytics.'}
             </p>
-            
-            {(() => {
-              const myProfile = sellerProfiles?.find(p => p.userId === currentUser?.id);
-              const vStatus = myProfile?.verificationStatus || currentUser?.verificationStatus || 'not_verified';
-              if (vStatus !== 'not_verified') return null;
-              return (
-                <button 
-                  onClick={() => setIsVerRequestOpen(true)}
-                  className="mt-2 text-[10px] text-white bg-[#FF6B00] hover:bg-orange-600 px-3 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#FF6B00]/10"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  {isAr ? 'تقديم طلب توثيق الحساب الآن' : 'Apply for Official Verification'}
-                </button>
-              );
-            })()}
           </div>
         </div>
-
-        {/* RE-USE ACTIVE STATE AND WALLET INDICATOR */}
-        <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-gray-200 shadow-sm">
-          <Wallet className="w-4 h-4 text-[#FF6B00]" />
-          <div className="text-right">
-            <p className="text-[10px] text-gray-400 font-black tracking-wide uppercase leading-none">
-              {st.wallet_balance}
-            </p>
-            <p className="text-base font-black text-gray-900 leading-tight">
-              {kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JOD
-            </p>
-          </div>
-        </div>
+        {/* Wallet balance lives ONCE, in the Money section (canonical). The old
+            header balance indicator was a duplicate and has been removed. */}
       </div>
 
       {/* TWO-COLUMN WORKSPACE FOR DESKTOP (LG+), VERTICAL FOR MOBILE (< LG) */}
@@ -1245,7 +1227,9 @@ export const SellerCenterView: React.FC = () => {
                   { title: st.active_listings, value: kpis.liveCount.toLocaleString(), icon: Store },
                   { title: st.live_bids_now, value: liveBidsNow.toLocaleString(), icon: Activity },
                   { title: st.this_month_sales, value: `${kpis.currentMonthSales.toLocaleString()} JOD`, icon: TrendingUp },
-                  { title: st.available_balance, value: `${kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JOD`, icon: Wallet },
+                  // Wallet balance is NOT duplicated here — its single home is the
+                  // Money section. This slot surfaces open orders instead.
+                  { title: st.pending_orders, value: kpis.pendingOrdersCount.toLocaleString(), icon: ShoppingBag },
                 ].map((m, idx) => {
                   const MIcon = m.icon;
                   return (
@@ -1597,7 +1581,7 @@ export const SellerCenterView: React.FC = () => {
                     ) : visibleOrders.length === 0 ? (
                       <div className="text-center py-12 text-gray-400 text-sm">{st.no_auctions}</div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div>
                         <table className="w-full text-left rtl:text-right border-collapse text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
@@ -1605,9 +1589,6 @@ export const SellerCenterView: React.FC = () => {
                               <th className="p-4">{st.buyer}</th>
                               <th className="p-4">{st.price}</th>
                               <th className="p-4">{st.status}</th>
-                              <th className="p-4">{st.payment}</th>
-                              <th className="p-4">{st.shipping}</th>
-                              <th className="p-4">{st.escrow}</th>
                               <th className="p-4 text-center">{isAr ? 'الإجراء' : 'Actions'}</th>
                             </tr>
                           </thead>
@@ -1633,31 +1614,6 @@ export const SellerCenterView: React.FC = () => {
                                 <td className="p-4">
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${ORDER_STATUS_TONE_CHIP[getOrderStatusChip(order.status, isAr ? 'ar' : 'en').tone]} ${order.status === 'disputed' ? 'animate-pulse' : ''}`}>
                                     {getOrderStatusChip(order.status, isAr ? 'ar' : 'en').label}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                    order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                  }`}>
-                                    {order.paymentStatus}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                    order.shippingStatus === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
-                                    order.shippingStatus === 'shipped' ? 'bg-blue-50 text-blue-700' :
-                                    'bg-zinc-100 text-zinc-500'
-                                  }`}>
-                                    {order.shippingStatus}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                    order.escrowStatus === 'released' ? 'bg-emerald-50 text-emerald-700' :
-                                    order.escrowStatus === 'refunded' ? 'bg-rose-50 text-rose-700' :
-                                    'bg-amber-50 text-amber-700'
-                                  }`}>
-                                    {order.escrowStatus}
                                   </span>
                                 </td>
                                 <td className="p-4 text-center">
@@ -1817,8 +1773,17 @@ export const SellerCenterView: React.FC = () => {
                   </span>
                   <div>
                     <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.avg_rating_card}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">{avgRatingDisplay} <span className="text-sm text-gray-400">/ 5.0</span></p>
-                    <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviews.length} {isAr ? 'تقييم' : 'reviews'}</p>
+                    {avgRatingDisplay === null ? (
+                      <>
+                        <p className="text-base font-black text-gray-400 leading-tight mt-0.5">{isAr ? 'لا تقييمات بعد' : 'No reviews yet'}</p>
+                        <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviewCountLabel(0, isAr ? 'ar' : 'en')}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-2xl font-black text-gray-900 tabular-nums">{avgRatingDisplay} <span className="text-sm text-gray-400">/ 5.0</span></p>
+                        <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviewCountLabel(reviews.length, isAr ? 'ar' : 'en')}</p>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
@@ -1845,55 +1810,73 @@ export const SellerCenterView: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                   <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.daily_sales}</h4>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData.dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
-                        <YAxis stroke="#94a3b8" fontSize={11} />
-                        <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'المبيعات' : 'Sales']} />
-                        <Bar dataKey="sales" fill="#FF6B00" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {chartData.dailyData.some(d => d.sales > 0) ? (
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.dailyData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                          <YAxis stroke="#94a3b8" fontSize={11} />
+                          <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'المبيعات' : 'Sales']} />
+                          <Bar dataKey="sales" fill="#FF6B00" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-64 w-full flex items-center justify-center">
+                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                   <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.monthly_rev}</h4>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData.monthlyData}>
-                        <defs>
-                          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
-                        <YAxis stroke="#94a3b8" fontSize={11} />
-                        <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'الإيرادات' : 'Revenue']} />
-                        <Area type="monotone" dataKey="revenue" stroke="#FF6B00" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {chartData.monthlyData.some(d => d.revenue > 0) ? (
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData.monthlyData}>
+                          <defs>
+                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                          <YAxis stroke="#94a3b8" fontSize={11} />
+                          <Tooltip formatter={(value) => [`${value} JOD`, isAr ? 'الإيرادات' : 'Revenue']} />
+                          <Area type="monotone" dataKey="revenue" stroke="#FF6B00" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-64 w-full flex items-center justify-center">
+                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                   <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.views_vs_bids}</h4>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData.viewsVsBidsData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
-                        <YAxis stroke="#94a3b8" fontSize={11} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="views" name={isAr ? 'المشاهدات' : 'Views'} fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="bids" name={isAr ? 'المزايدات' : 'Bids'} fill="#FF6B00" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {chartData.viewsVsBidsData.some(d => d.views > 0 || d.bids > 0) ? (
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.viewsVsBidsData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
+                          <YAxis stroke="#94a3b8" fontSize={11} />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="views" name={isAr ? 'المشاهدات' : 'Views'} fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="bids" name={isAr ? 'المزايدات' : 'Bids'} fill="#FF6B00" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-64 w-full flex items-center justify-center">
+                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
