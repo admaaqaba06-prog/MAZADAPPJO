@@ -21,6 +21,7 @@ const {
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
+const { assignOrderRef } = require('./assignOrderRef');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
@@ -422,6 +423,19 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       console.log(`[settleAuctionTxn] Closed unsold auction ${auctionId}`);
     }
   });
+
+  // (order-ref) DECOUPLED from settlement — runs AFTER the money transaction
+  // above has committed, in its own transaction, wrapped so it can NEVER throw
+  // out of settlement. Only when a sold outcome produced an order doc
+  // (settledOrderId set); unsold/reserve-not-met runs create no order and must
+  // not get a phantom orderRef stamp.
+  if (settledOrderId) {
+    try {
+      await assignOrderRef({ db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() }, auctionId);
+    } catch (e) {
+      console.error('assignOrderRef failed (non-fatal)', auctionId, e);
+    }
+  }
 
   // (notify) post-commit: fire ONLY when this run actually settled a winner.
   // Outside the transaction so retries never double-send; postToN8n never throws.
@@ -2234,6 +2248,15 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
 
     await orderRef.set(orderPayload);
     console.log(`[repairEndedAuctionOrder] Created repaired order for auction ${auctionId}`);
+
+    // (order-ref) DECOUPLED — assign the human-readable MZ ref AFTER the order
+    // doc is committed, in its own transaction, wrapped so it can NEVER throw
+    // out of the repair path.
+    try {
+      await assignOrderRef({ db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() }, auctionId);
+    } catch (e) {
+      console.error('assignOrderRef failed (non-fatal)', auctionId, e);
+    }
 
     // (notify) mirror the closer: an admin-repaired win still owes payment, so
     // send the same auction_won + payment_due WhatsApp events. Never throws.

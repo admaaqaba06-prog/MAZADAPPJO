@@ -307,6 +307,8 @@ export interface Order {
   escrowStatus: "pending" | "locked" | "released" | "refunded";
   /** E3 Slice C — this order came from a below-reserve near-miss (seller accepted the top bid). */
   belowReserve?: boolean;
+  /** Wave 2 — human-readable MZ order reference (e.g. "MZ-7K3QP"), assigned server-side after order creation. Globally unique; safe to read off a screen/WhatsApp. */
+  orderRef?: string;
   createdAt: any;
   updatedAt: any;
   // Money model (set by Cloud Functions on order creation):
