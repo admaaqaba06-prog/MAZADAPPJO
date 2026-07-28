@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { summarizeSettings } from './MoreSettingsDrawer';
 import { INITIAL_FORM } from '../../utils/dropFormState';
 
+// The two free-text values on the summary line (condition, vendor) ship wrapped
+// in U+2068 FIRST STRONG ISOLATE / U+2069 POP DIRECTIONAL ISOLATE so a value in
+// the other direction cannot reorder the parts around it. Named here rather
+// than pasted in: both characters are invisible in the source.
+const FSI = '\u2068';
+const PDI = '\u2069';
+const iso = (s: string) => `${FSI}${s}${PDI}`;
+
 describe('summarizeSettings — numerals go through the one formatter', () => {
   // Western digits in Arabic means `formatNumeral(n, true)` and `${n}` render
   // the same today, so no assertion on the summary text can tell whether this
@@ -34,8 +42,12 @@ describe('summarizeSettings — numerals go through the one formatter', () => {
 
 describe('summarizeSettings — the line under the collapsed drawer', () => {
   it('describes the shipped defaults in English', () => {
+    // The default condition is Arabic and stays Arabic (it is buyer-facing and
+    // publishes in the caption), so on this otherwise-English line it arrives
+    // fenced by isolates. Without them the browser reordered the run either
+    // side of it and the panel read "30 · جديدة كلياً min · pay within 24h · …".
     expect(summarizeSettings(INITIAL_FORM, false)).toBe(
-      'جديدة كلياً · 30 min · pay within 24h · anti-snipe 30s · no reserve · viewing not stated',
+      `${iso('جديدة كلياً')} · 30 min · pay within 24h · anti-snipe 30s · no reserve · viewing not stated`,
     );
   });
 
@@ -47,7 +59,7 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
     // the mixed-numeral line utils/arabicNumerals.ts now removes. Every number
     // on this line is Western, matching formatMoney's app-wide decision.
     expect(summarizeSettings(INITIAL_FORM, true)).toBe(
-      'جديدة كلياً · 30 دقيقة · مهلة الدفع 24 ساعة · حماية من القنص 30 ثانية · بدون سعر احتياطي · المعاينة غير محددة',
+      `${iso('جديدة كلياً')} · 30 دقيقة · مهلة الدفع 24 ساعة · حماية من القنص 30 ثانية · بدون سعر احتياطي · المعاينة غير محددة`,
     );
   });
 
@@ -93,8 +105,8 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
 
   it('leads with the condition so a stale one is re-confirmable', () => {
     const s = summarizeSettings({ ...INITIAL_FORM, condition: 'مستعملة' }, false);
-    expect(s.startsWith('مستعملة · ')).toBe(true);
-    expect(summarizeSettings({ ...INITIAL_FORM, condition: 'مستعملة' }, true).startsWith('مستعملة · '))
+    expect(s.startsWith(`${iso('مستعملة')} · `)).toBe(true);
+    expect(summarizeSettings({ ...INITIAL_FORM, condition: 'مستعملة' }, true).startsWith(`${iso('مستعملة')} · `))
       .toBe(true);
   });
 
@@ -106,8 +118,9 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
   });
 
   it('trims a padded condition', () => {
+    // The padding is trimmed INSIDE the isolate, not left to pad it out.
     expect(summarizeSettings({ ...INITIAL_FORM, condition: '  مستعملة  ' }, false))
-      .toContain('مستعملة · 30 min');
+      .toContain(`${iso('مستعملة')} · 30 min`);
   });
 
   // --- the numeric fields, off their defaults ------------------------------
@@ -174,8 +187,8 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
   it('reports the vendor only when one is named', () => {
     expect(summarizeSettings(INITIAL_FORM, false)).not.toContain('vendor');
     expect(summarizeSettings({ ...INITIAL_FORM, vendorName: '   ' }, false)).not.toContain('vendor');
-    expect(summarizeSettings({ ...INITIAL_FORM, vendorName: '  Acme  ' }, false)).toContain('vendor Acme');
-    expect(summarizeSettings({ ...INITIAL_FORM, vendorName: 'Acme' }, true)).toContain('المورّد Acme');
+    expect(summarizeSettings({ ...INITIAL_FORM, vendorName: '  Acme  ' }, false)).toContain(`vendor ${iso('Acme')}`);
+    expect(summarizeSettings({ ...INITIAL_FORM, vendorName: 'Acme' }, true)).toContain(`المورّد ${iso('Acme')}`);
   });
 
   it('puts the optional tail parts last, in order', () => {
@@ -184,8 +197,75 @@ describe('summarizeSettings — the line under the collapsed drawer', () => {
       false,
     );
     expect(s).toBe(
-      'جديدة كلياً · 30 min · pay within 24h · anti-snipe 30s · no reserve · viewing not stated · auto-relist · vendor Acme',
+      `${iso('جديدة كلياً')} · 30 min · pay within 24h · anti-snipe 30s · no reserve · viewing not stated · auto-relist · vendor ${iso('Acme')}`,
     );
+  });
+
+  // --- bidi: free text cannot reorder the line ------------------------------
+  // The shipped English line read "30 · جديدة كلياً min · pay within 24h · …":
+  // the browser's bidi algorithm pulled the neutral "·" and the latin/numeric
+  // runs next to the Arabic condition into the Arabic run's own order. The
+  // values themselves are correct and deliberate (the default condition is
+  // Arabic because it publishes into the Arabic caption) — what has to change
+  // is that they are fenced, so a right-to-left value cannot move anything
+  // outside itself.
+
+  /**
+   * Every strong right-to-left character in `s` that is NOT inside an
+   * FSI…PDI pair. Bidi reordering across a part boundary is only possible from
+   * an unfenced strong run, so an empty result is the property under test.
+   */
+  const unfencedRtl = (s: string): string[] => {
+    const out: string[] = [];
+    let depth = 0;
+    for (const ch of s) {
+      if (ch === FSI) depth += 1;
+      else if (ch === PDI) depth = Math.max(0, depth - 1);
+      else if (depth === 0 && /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFC]/.test(ch)) out.push(ch);
+    }
+    return out;
+  };
+
+  it('fences every RTL value on the English line', () => {
+    const s = summarizeSettings(
+      { ...INITIAL_FORM, condition: 'مستعملة', vendorName: 'شركة النور' },
+      false,
+    );
+    expect(unfencedRtl(s)).toEqual([]);
+    // ...and the parts are still in their own order, undivided.
+    expect(s).toBe(
+      `${iso('مستعملة')} · 30 min · pay within 24h · anti-snipe 30s · no reserve · viewing not stated · vendor ${iso('شركة النور')}`,
+    );
+  });
+
+  it('fences the default condition, which is the value that shipped scrambled', () => {
+    expect(unfencedRtl(summarizeSettings(INITIAL_FORM, false))).toEqual([]);
+  });
+
+  it('fences a latin value on the Arabic line too', () => {
+    // The mirror case: an LTR vendor name inside an RTL line. `20 Acme` next to
+    // a number would reorder the same way with nothing to fence it.
+    const s = summarizeSettings({ ...INITIAL_FORM, vendorName: 'Acme 20' }, true);
+    expect(s.endsWith(`المورّد ${iso('Acme 20')}`)).toBe(true);
+  });
+
+  it('leaves the isolates balanced', () => {
+    for (const isAr of [true, false]) {
+      const s = summarizeSettings(
+        { ...INITIAL_FORM, condition: 'مستعملة', vendorName: 'Acme', autoRelist: true, reservePrice: '300' },
+        isAr,
+      );
+      expect(s.split(FSI).length).toBe(s.split(PDI).length);
+      // Two fenced values on this line: condition and vendor. Nothing else is
+      // free text, and fencing our own literals would be noise.
+      expect(s.split(FSI).length - 1).toBe(2);
+    }
+  });
+
+  it('does not fence the localised fallbacks, which are ours', () => {
+    // "condition not set" is our own literal in the line's own language — it
+    // cannot be in the wrong direction, so it needs no fence.
+    expect(summarizeSettings({ ...INITIAL_FORM, condition: '' }, false)).not.toContain(FSI);
   });
 
   // --- purity ---------------------------------------------------------------

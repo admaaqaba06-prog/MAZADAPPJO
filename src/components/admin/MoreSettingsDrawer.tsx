@@ -37,6 +37,34 @@ const VIEWING_SUMMARY: Record<ViewingMode, { en: string; ar: string }> = {
   private: { en: 'no viewing', ar: 'بدون معاينة' },
 };
 
+/**
+ * U+2068 FIRST STRONG ISOLATE / U+2069 POP DIRECTIONAL ISOLATE.
+ *
+ * The summary is one line of mixed content, and two of its parts are free text
+ * the admin typed. The default condition is the Arabic 'جديدة كلياً' (deliberate
+ * — it is buyer-facing and publishes in the caption), so on the English line the
+ * bidi algorithm treated it as an RTL run and dragged the neutral/numeric text
+ * either side of it into its own order: the shipped line read
+ * "30 · جديدة كلياً min · pay within 24h · …" — "30" and "min" split around it.
+ *
+ * Wrapping the value in FSI…PDI makes it an independent run whose direction is
+ * decided by its own first strong character and which counts as a single
+ * neutral object to the text around it, so it cannot reorder its neighbours in
+ * either direction. Unicode isolates rather than a CSS `unicode-bidi: isolate`
+ * span because this function returns a STRING — the drawer renders it as one
+ * text node and the unit tests assert on it — so a span would mean changing the
+ * signature and the whole test surface with it, to buy the same behaviour.
+ *
+ * Applied only to values the admin typed. Every other part is one of our own
+ * localised literals, which by construction matches the direction of the line
+ * it is on.
+ */
+// Written as escapes on purpose: both characters are invisible, and a literal
+// pair in the source is impossible to review or to spot when one goes missing.
+const FSI = '\u2068';
+const PDI = '\u2069';
+const isolate = (value: string) => `${FSI}${value}${PDI}`;
+
 export function summarizeSettings(v: DropFormValues, isAr: boolean): string {
   const parts: string[] = [];
   // Every number on this line goes through the one formatter. It used to
@@ -45,7 +73,10 @@ export function summarizeSettings(v: DropFormValues, isAr: boolean): string {
   // shipped default read "… 30 دقيقة · مهلة الدفع ٢٤ ساعة · حماية من القنص 30 ثانية".
   const num = (value: number) => formatNumeral(value, isAr);
 
-  parts.push(v.condition.trim() || (isAr ? 'الحالة غير محددة' : 'condition not set'));
+  // The condition the admin typed, isolated. The "not set" fallback is our own
+  // literal in the line's own language, so it needs no fence.
+  const condition = v.condition.trim();
+  parts.push(condition ? isolate(condition) : (isAr ? 'الحالة غير محددة' : 'condition not set'));
   const minutes = num(Math.round(v.durationSeconds / 60));
   parts.push(isAr ? `${minutes} دقيقة` : `${minutes} min`);
   parts.push(isAr ? `مهلة الدفع ${num(v.paymentWindowHours)} ساعة` : `pay within ${num(v.paymentWindowHours)}h`);
@@ -65,7 +96,10 @@ export function summarizeSettings(v: DropFormValues, isAr: boolean): string {
   );
 
   if (v.autoRelist) parts.push(isAr ? 'إعادة إدراج تلقائية' : 'auto-relist');
-  if (v.vendorName.trim()) parts.push(`${isAr ? 'المورّد' : 'vendor'} ${v.vendorName.trim()}`);
+  // Vendor is free text too, and it is the mirror case: a Latin name on the
+  // Arabic line. Same fence, same reason.
+  const vendor = v.vendorName.trim();
+  if (vendor) parts.push(`${isAr ? 'المورّد' : 'vendor'} ${isolate(vendor)}`);
 
   return parts.join(' · ');
 }
