@@ -594,3 +594,205 @@ describe('executeOrderTransition — mark_shipped never fabricates a tracking nu
     expect(buyerNotif.descriptionAr).toContain('قيد التجهيز للشحن');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Wave 3 — the evidence-gated delivery chain.
+//
+// The seller's two steps are CLIENT transitions, gated by firestore.rules on the
+// presence of the photo field. That means the rules layer is the real
+// enforcement — but a rules rejection reaches the seller as a raw permission
+// error, so these cases also assert the legible client-side refusal that comes
+// first. The buyer's step is not here: it releases money and lives entirely in
+// the releaseOrderEscrow callable (functions/deliveryConfirm.js).
+// ---------------------------------------------------------------------------
+
+// PREPARING_ORDER is already defined above for the mark_shipped block; reused here.
+const PAID_ORDER = {
+  ...(SHIPPED_ORDER as unknown as Record<string, unknown>),
+  status: 'paid',
+  shippingStatus: 'not_started',
+} as unknown as Order;
+
+const OUT_FOR_DELIVERY_ORDER = {
+  ...(SHIPPED_ORDER as unknown as Record<string, unknown>),
+  status: 'out_for_delivery',
+} as unknown as Order;
+
+describe('Wave 3 — the FSM knows the new edges', () => {
+  it('allows preparing_shipment -> out_for_delivery and keeps the legacy shipped edge', () => {
+    expect(VALID_TRANSITIONS.preparing_shipment).toContain('out_for_delivery');
+    expect(VALID_TRANSITIONS.preparing_shipment).toContain('shipped');
+  });
+
+  it('allows out_for_delivery -> delivered and -> disputed', () => {
+    expect(VALID_TRANSITIONS.out_for_delivery).toEqual(
+      expect.arrayContaining(['delivered', 'disputed'])
+    );
+  });
+
+  it('never allows out_for_delivery -> completed from the client', () => {
+    expect(VALID_TRANSITIONS.out_for_delivery).not.toContain('completed');
+    expect(() => validateTransition('out_for_delivery', 'completed')).toThrow();
+  });
+
+  it('gives each evidence step to the party that owes it', () => {
+    expect(checkRolePermission('upload_prep_photo', 'seller')).toBe(true);
+    expect(checkRolePermission('upload_prep_photo', 'buyer')).toBe(false);
+    expect(checkRolePermission('mark_out_for_delivery', 'seller')).toBe(true);
+    expect(checkRolePermission('mark_out_for_delivery', 'buyer')).toBe(false);
+    expect(checkRolePermission('confirm_receipt', 'buyer')).toBe(true);
+    expect(checkRolePermission('confirm_receipt', 'seller')).toBe(false);
+    // Admins inherit everything, as everywhere else in this table.
+    expect(checkRolePermission('confirm_receipt', 'admin')).toBe(true);
+    expect(checkRolePermission('upload_prep_photo', 'admin')).toBe(true);
+  });
+});
+
+describe('Wave 3 — seller evidence steps refuse to advance without the evidence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+  });
+
+  it('upload_prep_photo throws when no prep photo is supplied', async () => {
+    await expect(executeOrderTransition(PAID_ORDER, 'upload_prep_photo', SELLER, {}))
+      .rejects.toThrow(/photo/i);
+    expect(mocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('upload_prep_photo throws on a whitespace-only photo URL', async () => {
+    await expect(executeOrderTransition(PAID_ORDER, 'upload_prep_photo', SELLER, { prepPhotoUrl: '   ' }))
+      .rejects.toThrow(/photo/i);
+  });
+
+  it('mark_out_for_delivery throws when no dispatch photo is supplied', async () => {
+    await expect(executeOrderTransition(PREPARING_ORDER, 'mark_out_for_delivery', SELLER, { deliveryMethod: 'hand' }))
+      .rejects.toThrow(/photo/i);
+    expect(mocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('mark_out_for_delivery throws on an unknown delivery method', async () => {
+    await expect(executeOrderTransition(PREPARING_ORDER, 'mark_out_for_delivery', SELLER, {
+      sentPhotoUrl: 'https://x/sent.jpg',
+      deliveryMethod: 'drone' as any,
+    })).rejects.toThrow(/delivery method/i);
+    expect(mocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('the buyer may not take a seller evidence step', async () => {
+    await expect(executeOrderTransition(PAID_ORDER, 'upload_prep_photo', BUYER, {
+      prepPhotoUrl: 'https://x/prep.jpg',
+    })).rejects.toThrow(/permission/i);
+  });
+
+  it('the seller may not take the buyer confirm step', async () => {
+    await expect(executeOrderTransition(OUT_FOR_DELIVERY_ORDER, 'confirm_receipt', SELLER, {
+      receivedPhotoUrl: 'https://x/got.jpg',
+      deliveryCode: 'DC-7K3QP',
+    })).rejects.toThrow(/permission/i);
+  });
+});
+
+describe('Wave 3 — seller evidence steps move the goods, never money', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  it('upload_prep_photo stamps prepPhotoUrl and no money key', async () => {
+    await executeOrderTransition(PAID_ORDER, 'upload_prep_photo', SELLER, {
+      prepPhotoUrl: 'https://x/prep.jpg',
+    });
+
+    expect(mocks.updateDoc).toHaveBeenCalledTimes(1);
+    const payload = mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(['prepPhotoUrl', 'shippingStatus', 'status', 'updatedAt']);
+    expect(payload.status).toBe('preparing_shipment');
+    expect(payload.shippingStatus).toBe('preparing');
+    expect(payload.prepPhotoUrl).toBe('https://x/prep.jpg');
+    for (const key of MONEY_KEYS) {
+      expect(payload).not.toHaveProperty(key);
+    }
+    expect(mocks.getCallableFunction).not.toHaveBeenCalled();
+  });
+
+  it('mark_out_for_delivery stamps sentPhotoUrl + deliveryMethod and no money key', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_out_for_delivery', SELLER, {
+      sentPhotoUrl: 'https://x/sent.jpg',
+      deliveryMethod: 'courier',
+    });
+
+    expect(mocks.updateDoc).toHaveBeenCalledTimes(1);
+    const payload = mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual([
+      'deliveryMethod', 'sentPhotoUrl', 'shippingStatus', 'status', 'updatedAt',
+    ]);
+    expect(payload.status).toBe('out_for_delivery');
+    expect(payload.deliveryMethod).toBe('courier');
+    for (const key of MONEY_KEYS) {
+      expect(payload).not.toHaveProperty(key);
+    }
+    expect(mocks.getCallableFunction).not.toHaveBeenCalled();
+  });
+
+  it('never writes the delivery code onto the order — the buyer can read that doc', async () => {
+    await executeOrderTransition(PREPARING_ORDER, 'mark_out_for_delivery', SELLER, {
+      sentPhotoUrl: 'https://x/sent.jpg',
+      deliveryMethod: 'hand',
+      deliveryCode: 'DC-7K3QP',
+    } as any);
+
+    const payload = mocks.updateDoc.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('deliveryCode');
+  });
+});
+
+describe('Wave 3 — confirm_receipt delegates to the server with its evidence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.releaseCallable.mockResolvedValue({ data: { success: true, message: 'released' } });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  it('calls releaseOrderEscrow with the typed code and receipt photo, and writes nothing itself', async () => {
+    const result = await executeOrderTransition(OUT_FOR_DELIVERY_ORDER, 'confirm_receipt', BUYER, {
+      deliveryCode: 'DC-7K3QP',
+      receivedPhotoUrl: 'https://x/got.jpg',
+    });
+
+    expect(mocks.getCallableFunction).toHaveBeenCalledWith('releaseOrderEscrow');
+    expect(mocks.releaseCallable).toHaveBeenCalledWith({
+      orderId: 'order-123',
+      action: 'buyer_confirm_receipt',
+      deliveryCode: 'DC-7K3QP',
+      receivedPhotoUrl: 'https://x/got.jpg',
+    });
+    expect(result).toMatchObject({ success: true });
+    // The client never writes the completion; the callable owns it.
+    expect(mocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('sends no stray evidence keys on the legacy confirm_delivery path', async () => {
+    await executeOrderTransition(SHIPPED_ORDER, 'confirm_delivery', BUYER, {
+      deliveryCode: 'DC-7K3QP',
+      receivedPhotoUrl: 'https://x/got.jpg',
+    });
+
+    expect(mocks.releaseCallable).toHaveBeenCalledWith({
+      orderId: 'order-123',
+      action: 'buyer_confirm_delivery',
+    });
+  });
+});
