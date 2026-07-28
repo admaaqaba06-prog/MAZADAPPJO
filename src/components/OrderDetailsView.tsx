@@ -46,6 +46,8 @@ import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
 import { sellerNet } from '../utils/bidMath';
+import { displayOrderRef } from '../utils/orderRef';
+import ConfirmActionModal from './admin/ConfirmActionModal';
 import { buyerReputation } from '../utils/reputation';
 import { StarRating } from './ui/StarRating';
 
@@ -61,6 +63,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
   const order = orders.find(o => o.id === orderId);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [forceCloseOpen, setForceCloseOpen] = useState(false);
+  const [forceDisputeOpen, setForceDisputeOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedIban, setCopiedIban] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
@@ -346,7 +350,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(order.id);
+    navigator.clipboard.writeText(displayOrderRef(order));
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
@@ -824,27 +828,54 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     }
   };
 
-  const handleForceClose = async () => {
-    if (confirm(isAr ? 'هل أنت متأكد من فرض إغلاق الطلب وتحرير الضمان للبائع؟' : 'Are you sure you want to force close this order and release escrow to the seller?')) {
-      setIsUpdating(true);
-      try {
-        const result = await executeOrderTransition(order, 'force_close', currentUser);
-        if (result && result.alreadyReleased) {
-          alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
-        } else {
-          alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
-        }
-        addNotification(
-          isAr ? 'تم فرض الإغلاق' : 'Order Force Closed',
-          isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
-          'info'
-        );
-      } catch (err: any) {
-        console.error(err);
-        alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
-      } finally {
-        setIsUpdating(false);
+  // Force actions now go through a typed-reference confirmation (ConfirmActionModal)
+  // instead of a bare confirm(): the admin must type the order reference and give a
+  // reason. The underlying executeOrderTransition calls are UNCHANGED (same money effect).
+  const handleForceClose = () => setForceCloseOpen(true);
+
+  const doForceClose = async (reason: string) => {
+    console.log('[force_close]', displayOrderRef(order), 'reason:', reason);
+    setIsUpdating(true);
+    try {
+      const result = await executeOrderTransition(order, 'force_close', currentUser);
+      if (result && result.alreadyReleased) {
+        alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+      } else {
+        alert(isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.');
       }
+      addNotification(
+        isAr ? 'تم فرض الإغلاق' : 'Order Force Closed',
+        isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
+        'info'
+      );
+      setForceCloseOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر تحرير المبلغ، حاول مرة أخرى: ${err.message}` : `Failed to release funds, please try again: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Admin "Force Open Dispute" — typed-reference gated. The buyer/seller
+  // "File Formal Dispute" buttons keep the lighter reason-prompt handler above.
+  const handleAdminForceDispute = () => setForceDisputeOpen(true);
+
+  const doForceDispute = async (reason: string) => {
+    setIsUpdating(true);
+    try {
+      await executeOrderTransition(order, 'open_dispute', currentUser, { disputeReason: reason });
+      addNotification(
+        isAr ? 'تم فتح نزاع رسمي' : 'Dispute Opened',
+        isAr ? 'تم فتح نزاع رسمي. مزاد أوقف تحويل المبلغ للبائع لحين مراجعة الفريق.' : 'Formal dispute logged. Mazad has paused the payout to the seller pending review.',
+        'info'
+      );
+      setForceDisputeOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `فشل فتح النزاع: ${err.message}` : `Failed to open dispute: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -914,7 +945,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
             {isAr ? 'رقم الطلب:' : 'ORDER ID:'}
           </span>
           <span className="text-xs font-mono font-black bg-gray-50 border border-gray-100 px-3 py-1 rounded-xl select-all flex items-center gap-1">
-            <span>{order.id.substring(0, 12).toUpperCase()}</span>
+            <span>{displayOrderRef(order)}</span>
             <button onClick={copyToClipboard} className="text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer">
               {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -2152,7 +2183,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                   {order.status !== 'disputed' && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'refunded' && (
                     <button
-                      onClick={handleOpenDispute}
+                      onClick={handleAdminForceDispute}
                       disabled={isUpdating}
                       className="w-full bg-white hover:bg-red-50 text-red-600 border border-red-200 py-2.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                     >
@@ -2394,6 +2425,40 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         </div>
 
       </div>
+
+      <ConfirmActionModal
+        open={forceCloseOpen}
+        isAr={isAr}
+        title={isAr ? 'فرض إغلاق الطلب' : 'Force close order'}
+        impactLines={[
+          isAr
+            ? `سيتم تحرير ${(order.sellerNet ?? sellerNet(order.winningBidAmount)).toLocaleString('en-US')} دينار من الضمان إلى البائع.`
+            : `This releases ${(order.sellerNet ?? sellerNet(order.winningBidAmount)).toLocaleString('en-US')} JOD from escrow to the seller.`,
+          isAr ? 'هذا الإجراء لا يمكن التراجع عنه.' : 'This action cannot be undone.',
+        ]}
+        confirmToken={order.orderRef || order.id.substring(0, 8).toUpperCase()}
+        tokenLabel={isAr ? 'اكتب رقم الطلب للتأكيد:' : 'Type the order reference to confirm:'}
+        requireReason
+        busy={isUpdating}
+        onConfirm={doForceClose}
+        onCancel={() => setForceCloseOpen(false)}
+      />
+      <ConfirmActionModal
+        open={forceDisputeOpen}
+        isAr={isAr}
+        title={isAr ? 'فتح نزاع رسمي' : 'Force open dispute'}
+        impactLines={[
+          isAr
+            ? 'سيتم تجميد الضمان ووقف أي تحويل للبائع لحين المراجعة.'
+            : 'Escrow will be locked and any payout to the seller paused pending review.',
+        ]}
+        confirmToken={order.orderRef || order.id.substring(0, 8).toUpperCase()}
+        tokenLabel={isAr ? 'اكتب رقم الطلب للتأكيد:' : 'Type the order reference to confirm:'}
+        requireReason
+        busy={isUpdating}
+        onConfirm={doForceDispute}
+        onCancel={() => setForceDisputeOpen(false)}
+      />
 
     </div>
   );

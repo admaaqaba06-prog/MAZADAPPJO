@@ -1,6 +1,7 @@
 import React from 'react';
 import { Eye, Package } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
+import { displayOrderRef } from '../utils/orderRef';
 
 /** Text-colour-only classes per glossary tone — mirrors the old green/orange
  *  split for the overall-status label while sourcing the label centrally. */
@@ -66,7 +67,7 @@ export const SoldOrdersList: React.FC<SoldOrdersListProps> = ({
                     </h4>
                     <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1">
                       <span>ID:</span>
-                      <span className="font-bold select-all text-gray-700">{order.id.substring(0, 10).toUpperCase()}</span>
+                      <span className="font-bold select-all text-gray-700">{displayOrderRef(order)}</span>
                       {formattedDate && (
                         <>
                           <span className="text-gray-300">•</span>

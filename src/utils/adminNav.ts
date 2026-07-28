@@ -1,9 +1,9 @@
 export type AdminTabId =
   | 'home' | 'verify' | 'fulfillment' | 'disputes' | 'payouts' | 'launch'
-  | 'orders' | 'members' | 'auction-lookup' | 'system';
+  | 'orders' | 'members' | 'auction-lookup' | 'audit' | 'system';
 
 export const ADMIN_PRIMARY_TABS: AdminTabId[] = ['home','verify','fulfillment','disputes','payouts','launch'];
-export const ADMIN_REFERENCE_TABS: AdminTabId[] = ['orders','members','auction-lookup','system'];
+export const ADMIN_REFERENCE_TABS: AdminTabId[] = ['orders','members','auction-lookup','audit','system'];
 export const ADMIN_TAB_DEFAULT: AdminTabId = 'home';
 
 export interface AttentionInput {

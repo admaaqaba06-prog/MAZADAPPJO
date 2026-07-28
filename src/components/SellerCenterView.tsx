@@ -77,6 +77,7 @@ import { Search, Truck, RotateCcw } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
 import { sumPaidSalesThisMonth } from '../utils/sellerSales';
 import { reviewCountLabel } from '../utils/reviewCount';
+import { displayOrderRef } from '../utils/orderRef';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -1602,7 +1603,7 @@ export const SellerCenterView: React.FC = () => {
                                     </div>
                                     <div className="max-w-[150px] lg:max-w-[200px]">
                                       <p className="font-extrabold text-gray-900 truncate">{order.auctionTitle}</p>
-                                      <p className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 8)}</p>
+                                      <p className="text-[10px] text-gray-400 font-mono">{displayOrderRef(order)}</p>
                                     </div>
                                   </div>
                                 </td>

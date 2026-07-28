@@ -330,6 +330,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Wave 2 — MZ order-reference reservations. One doc per human-readable ref,
+    // written ONLY by assignOrderRef (Admin SDK, which bypasses rules) to
+    // enforce global uniqueness. No client access.
+    match /orderRefs/{code} {
+      allow read, write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /

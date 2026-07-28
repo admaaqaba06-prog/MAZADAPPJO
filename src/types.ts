@@ -264,13 +264,22 @@ export interface Notification {
   auctionId?: string;
 }
 
+// adminActions rows exist in two historical shapes (see src/utils/adminAudit.ts).
+// Divergent fields are optional so both validate; normalizeAdminAction() unifies them.
 export interface AdminAction {
   id: string;
-  actionType: 'approve_listing' | 'reject_listing' | 'ban_user' | 'verify_seller' | 'release_escrow' | 'refund_escrow' | 'delete_auction';
-  targetId: string;
-  targetName: string;
+  // OLD schema
+  actionType?: string;
+  targetId?: string;
+  targetName?: string;
+  // NEW schema
+  action?: string;
+  orderId?: string;
+  auctionId?: string;
+  adminId?: string;
+  // common
   adminName: string;
-  timestamp: number;
+  timestamp: any; // number (ms) OR Firestore Timestamp
   details?: string;
 }
 
@@ -307,6 +316,8 @@ export interface Order {
   escrowStatus: "pending" | "locked" | "released" | "refunded";
   /** E3 Slice C — this order came from a below-reserve near-miss (seller accepted the top bid). */
   belowReserve?: boolean;
+  /** Wave 2 — human-readable MZ order reference (e.g. "MZ-7K3QP"), assigned server-side after order creation. Globally unique; safe to read off a screen/WhatsApp. */
+  orderRef?: string;
   createdAt: any;
   updatedAt: any;
   // Money model (set by Cloud Functions on order creation):
