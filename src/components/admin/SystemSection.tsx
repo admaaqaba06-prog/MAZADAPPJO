@@ -18,6 +18,28 @@ import { db, getCallableFunction } from '../../services/firebase';
 // keep it out of the main dashboard chunk.
 const SimulatorPanel = React.lazy(() => import('../SimulatorPanel'));
 
+/**
+ * Would `firestore.rules` refuse an admin write to this auction's money/timing
+ * fields? Both bulk tools below write `endTime`/`endsAt`, which the rule locks
+ * at the first bid.
+ *
+ * MIRRORS `adminEditBlocked()` in firestore.rules exactly — the two must agree
+ * or the client filters the wrong set. Note the simulator half carefully:
+ * simulated lots are EXEMPT from the rule, so a sim lot the bot has bid on must
+ * stay IN the batch. Cleaning those up is the main thing these buttons are for.
+ *
+ * The count test is a bare `n > 0` rather than `bidCountOf()` from
+ * dropEditability on purpose: that helper adds `Number.isFinite`, which would
+ * read an Infinity count as "no bids" while the rule — where `Infinity > 0` is
+ * true — reads it as locked. A bare `> 0` matches the rule on every value a
+ * Firestore number can hold (NaN included: false on both sides), and matching
+ * the rule is the whole job.
+ */
+const isBidLocked = (data: any): boolean => {
+  const n = data?.totalBids;
+  return typeof n === 'number' && n > 0 && data?.isSimulated !== true;
+};
+
 type StatusSeverity = 'ok' | 'warn' | 'bad' | 'neutral';
 
 /** One glanceable card on the health status board. */
@@ -169,15 +191,26 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       // NEVER force-publish listings that haven't cleared the approval gate:
       // 'processing' (+ legacy 'pending') are still under review and
       // 'rejected' was explicitly declined — both stay out of this batch.
-      const docs = snapshot.docs.filter((docSnap) => {
+      const eligible = snapshot.docs.filter((docSnap) => {
         const s = docSnap.data().status;
         return s !== 'processing' && s !== 'pending' && s !== 'rejected';
       });
-      const skippedCount = snapshot.size - docs.length;
+      const skippedCount = snapshot.size - eligible.length;
+
+      // Lots with bids are dropped here, not left for the server to reject.
+      // This batch writes endTime/endsAt, which firestore.rules locks at the
+      // first bid, and a Firestore batch is atomic — so ONE bid-carrying lot in
+      // a 400-doc chunk fails the entire chunk and takes every innocent lot with
+      // it. Filtering degrades the tool to "did what it could" instead of dying
+      // wholesale, and the summary names the count: a silent skip is nearly as
+      // bad as the failure it replaces.
+      const docs = eligible.filter((docSnap) => !isBidLocked(docSnap.data()));
+      const bidLockedCount = eligible.length - docs.length;
+
       if (docs.length === 0) {
         alert(isAr
-          ? 'لا توجد مزادات مؤهلة لإعادة التفعيل — جميعها ما تزال قيد المراجعة أو مرفوضة.'
-          : 'No auctions eligible for reactivation — all are still under review or rejected.');
+          ? `لا توجد مزادات مؤهلة لإعادة التفعيل — ${skippedCount} قيد المراجعة أو مرفوضة، و${bidLockedCount} عليها مزايدات (لا يمكن تعديل وقتها بعد أول مزايدة).`
+          : `No auctions eligible for reactivation — ${skippedCount} under review or rejected, and ${bidLockedCount} have bids (timing is locked after the first bid).`);
         return;
       }
       const futureTime = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
@@ -199,11 +232,11 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       }
 
       // Log activity to health logs
-      logSystemHealth('error', 'All Auctions Reactivated', `An administrator reactivated ${docs.length} auctions (${skippedCount} under-review/rejected listings excluded), setting their status to "live" and extending duration by 24 hours.`);
+      logSystemHealth('error', 'All Auctions Reactivated', `An administrator reactivated ${docs.length} auctions (${skippedCount} under-review/rejected listings excluded, ${bidLockedCount} skipped because they have bids), setting their status to "live" and extending duration by 24 hours.`);
 
       alert(isAr
-        ? `🎉 تم بنجاح إعادة تفعيل وتنشيط المزادات (${docs.length}) وتمديدها لمدة 24 ساعة!${skippedCount > 0 ? ` تم استثناء ${skippedCount} من المعروضات قيد المراجعة أو المرفوضة.` : ''}`
-        : `🎉 Successfully reactivated and extended (${docs.length}) auctions for 24 hours!${skippedCount > 0 ? ` Excluded ${skippedCount} under-review/rejected listings.` : ''}`
+        ? `🎉 تم بنجاح إعادة تفعيل وتنشيط المزادات (${docs.length}) وتمديدها لمدة 24 ساعة!${skippedCount > 0 ? ` تم استثناء ${skippedCount} من المعروضات قيد المراجعة أو المرفوضة.` : ''}${bidLockedCount > 0 ? ` وتم تخطي ${bidLockedCount} لأن عليها مزايدات — لا يمكن تعديل وقت المزاد بعد أول مزايدة.` : ''}`
+        : `🎉 Successfully reactivated and extended (${docs.length}) auctions for 24 hours!${skippedCount > 0 ? ` Excluded ${skippedCount} under-review/rejected listings.` : ''}${bidLockedCount > 0 ? ` Skipped ${bidLockedCount} with bids — auction timing is locked after the first bid.` : ''}`
       );
     } catch (err: any) {
       console.error("Reactivation error:", err);
@@ -235,7 +268,24 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         return;
       }
 
-      const docs = snapshot.docs;
+      // Same atomic-batch hazard as the reactivate tool above: this batch writes
+      // endTime/endsAt/currentPrice, all locked by firestore.rules once a lot has
+      // bids, and one rejected doc fails the whole 400-doc chunk. Skip them so a
+      // single real bid can't disable the reset button for every test lot.
+      const docs = snapshot.docs.filter((docSnap) => !isBidLocked(docSnap.data()));
+      const bidLockedCount = snapshot.size - docs.length;
+
+      if (docs.length === 0) {
+        alert(isAr
+          ? `لا توجد مزادات قابلة لإعادة التهيئة — جميع الـ ${bidLockedCount} مزاد عليها مزايدات، ولا يمكن تعديل سعرها أو وقتها بعد أول مزايدة.`
+          : `No auctions can be reset — all ${bidLockedCount} have bids, and price and timing are locked after the first bid.`);
+        setIsLoading(false);
+        return;
+      }
+
+      // Only the auctions actually reset. Passing a skipped lot's id would have
+      // the Cloud Function clear escrows out from under an auction still running
+      // with live bids on it.
       const resetAuctionIds = docs.map(d => d.id);
 
       // 1. Reset each auction back to live, and reset timer and pricing
@@ -285,12 +335,12 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       localStorage.setItem('mazad_autobids', '[]');
 
       // 4. Log to health log
-      logSystemHealth('error', 'All Auctions Fully Reset', `An administrator fully reset all ${snapshot.size} auctions back to initial states, clearing all bids, winners, and active escrows.`);
+      logSystemHealth('error', 'All Auctions Fully Reset', `An administrator fully reset ${docs.length} of ${snapshot.size} auctions back to initial states, clearing their bids, winners, and active escrows (${bidLockedCount} skipped because they have bids).`);
 
       // 5. Alert success
       alert(isAr
-        ? "All auctions have been restarted successfully." // standard isAr or English as requested
-        : "All auctions have been restarted successfully."
+        ? `تمت إعادة تهيئة ${docs.length} مزاد بنجاح.${bidLockedCount > 0 ? ` وتم تخطي ${bidLockedCount} لأن عليها مزايدات — لا يمكن تعديل سعر المزاد أو وقته بعد أول مزايدة.` : ''}`
+        : `${docs.length} auctions have been restarted successfully.${bidLockedCount > 0 ? ` Skipped ${bidLockedCount} with bids — price and timing are locked after the first bid.` : ''}`
       );
     } catch (err: any) {
       console.error("Reset auctions error:", err);

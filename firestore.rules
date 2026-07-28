@@ -179,6 +179,19 @@ service cloud.firestore {
       // fields (forged social-proof wins / self-approval / a self-declared
       // viewing claim). Only isAdmin() — or the Cloud Functions service path,
       // which bypasses rules — may do those.
+      // NOT a complete lock, despite what the admin branch below looks like.
+      // The CREATOR branch is the remaining gap: it has never listed
+      // startingPrice / duration / endTime / endsAt in its denylist, and the
+      // drop builder stamps createdById with the admin's own uid
+      // (AppContext.tsx createListing), so an admin-created lot that HAS bids
+      // still permits editing those four via the creator branch. Reaching it
+      // requires an admin to first move the doc to 'processing'/'pending'/
+      // 'rejected' (the branch's status gate), which no UI does to a live lot —
+      // so it is not reachable by accident, which is what this rule defends
+      // against. Left as-is deliberately; closing it means adding those keys to
+      // the creator denylist, which would also block the legitimate
+      // SellerCenter edit of a rejected listing. Recorded so the next reader
+      // does not mistake the admin branch for the whole story.
       allow update: if isSignedIn() && (
         (isAdmin() && !adminEditBlocked()) ||
         (
