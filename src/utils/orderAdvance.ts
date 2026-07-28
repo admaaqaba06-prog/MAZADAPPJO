@@ -24,6 +24,11 @@ const ADVANCE_MAP: Record<string, OrderAdvance> = {
   paid: { action: 'prepare_shipment', to: 'preparing_shipment' },
   preparing_shipment: { action: 'mark_shipped', to: 'shipped' },
   shipped: { action: 'mark_delivered', to: 'delivered' },
+  // Wave 3 — if the buyer never confirms (lost phone, no app, gone quiet), the
+  // relay can still record the fact that the goods arrived. Same money-free
+  // claim as the `shipped` entry above; acceptance still has to happen
+  // separately, which is why `delivered` continues to offer nothing.
+  out_for_delivery: { action: 'mark_delivered', to: 'delivered' },
 };
 
 export function nextAdvance(status?: string | null): OrderAdvance | null {

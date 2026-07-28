@@ -4,7 +4,7 @@ import { Order } from '../types';
 import { isAdminUser } from './adminAuth';
 import { getOrderStatusChip } from './orderStatusGlossary';
 
-export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
+export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "out_for_delivery" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
 
 // Allowed transitions mapping (Finite State Machine)
 export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -17,7 +17,15 @@ export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   // orders while it phones the seller: the queue's normal resting state.
   waiting_payment: ['paid', 'cancelled', 'disputed'],
   paid: ['preparing_shipment', 'refunded', 'disputed'],
-  preparing_shipment: ['shipped', 'disputed'],
+  // Wave 3 — `out_for_delivery` is the evidence flow's dispatch edge (the seller
+  // uploaded a photo of it leaving with the delivery code visible). `shipped`
+  // stays alongside it: that is the admin relay's phone-recorded dispatch, which
+  // carries no evidence and is the fallback when a seller cannot use the app.
+  preparing_shipment: ['out_for_delivery', 'shipped', 'disputed'],
+  // `completed` is deliberately absent. The buyer's receipt confirmation is what
+  // completes this order, and it releases money — so it belongs to
+  // releaseOrderEscrow, never to a client transition.
+  out_for_delivery: ['delivered', 'disputed'],
   shipped: ['delivered', 'disputed'],
   delivered: ['completed', 'disputed'],
   disputed: ['completed', 'refunded', 'paid'], // Admin resolutions
@@ -58,11 +66,17 @@ export function validateTransition(fromStatus: OrderStatus, toStatus: OrderStatu
 
 // Check role permissions for specific actions
 export function checkRolePermission(action: string, role: 'buyer' | 'seller' | 'admin'): boolean {
-  const buyerActions = ['pay', 'cancel_before_payment', 'confirm_delivery', 'open_dispute'];
+  // Wave 3: `confirm_receipt` is the buyer's evidence-backed acceptance. Like
+  // `confirm_delivery` it is listed here as a BUYER action but executes entirely
+  // inside releaseOrderEscrow — this table only decides who may ask.
+  const buyerActions = ['pay', 'cancel_before_payment', 'confirm_delivery', 'confirm_receipt', 'open_dispute'];
   // mark_delivered is a claim of FACT (the goods arrived), not a money move —
   // escrow release remains admin-only below. Admins inherit every action, which
   // is what lets the team advance an order on the seller's behalf.
-  const sellerActions = ['prepare_shipment', 'mark_shipped', 'mark_delivered', 'upload_tracking', 'open_dispute'];
+  // Wave 3: upload_prep_photo / mark_out_for_delivery are the seller's two
+  // evidence steps — the same money-free claims as prepare_shipment /
+  // mark_shipped, with a required photo attached.
+  const sellerActions = ['prepare_shipment', 'mark_shipped', 'mark_delivered', 'upload_tracking', 'open_dispute', 'upload_prep_photo', 'mark_out_for_delivery'];
   const adminActions = ['release_escrow', 'refund', 'resolve_dispute', 'force_close'];
 
   if (role === 'admin') {
@@ -80,7 +94,7 @@ export function checkRolePermission(action: string, role: 'buyer' | 'seller' | '
 // Central transition function
 export async function executeOrderTransition(
   order: Order,
-  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close',
+  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close' | 'upload_prep_photo' | 'mark_out_for_delivery' | 'confirm_receipt',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
   extraFields?: {
     trackingNumber?: string;
@@ -100,6 +114,20 @@ export async function executeOrderTransition(
      * chooses to render.
      */
     note?: string;
+    /** Wave 3 — seller step 1: photo of the item being prepared. */
+    prepPhotoUrl?: string;
+    /** Wave 3 — seller step 2: photo of it sent, with the delivery code visible. */
+    sentPhotoUrl?: string;
+    /** Wave 3 — seller step 2: how it is travelling. */
+    deliveryMethod?: 'hand' | 'courier';
+    /**
+     * Wave 3 — buyer step 3. Both are handed to the releaseOrderEscrow callable
+     * and NEVER written from here: the receipt photo is the evidence that
+     * releases money, and the code is a secret from the buyer's own order doc
+     * (it lives in deliveryCodes/{orderId}, seller + admin readable only).
+     */
+    receivedPhotoUrl?: string;
+    deliveryCode?: string;
   }
 ): Promise<any> {
   // Determine role
@@ -122,26 +150,47 @@ export async function executeOrderTransition(
     action === 'release_escrow' || 
     action === 'force_close' || 
     (action === 'resolve_dispute' && extraFields?.resolutionType === 'release') ||
-    action === 'confirm_delivery'
+    action === 'confirm_delivery' ||
+    // Wave 3 — the buyer's evidence-backed acceptance. Same destination as
+    // confirm_delivery, plus the typed code and receipt photo the callable
+    // verifies inside the money transaction.
+    action === 'confirm_receipt'
   ) {
     const releaseCallable = await getCallableFunction<
-      { orderId: string; action: 'buyer_confirm_delivery' | 'admin_release' | 'admin_force_close' }, 
+      {
+        orderId: string;
+        action: 'buyer_confirm_delivery' | 'buyer_confirm_receipt' | 'admin_release' | 'admin_force_close';
+        deliveryCode?: string;
+        receivedPhotoUrl?: string;
+      },
       { success: boolean; message: string; alreadyReleased?: boolean }
     >('releaseOrderEscrow');
 
-    let cfAction: 'buyer_confirm_delivery' | 'admin_release' | 'admin_force_close' = 'buyer_confirm_delivery';
+    let cfAction: 'buyer_confirm_delivery' | 'buyer_confirm_receipt' | 'admin_release' | 'admin_force_close' = 'buyer_confirm_delivery';
     if (action === 'release_escrow' || (action === 'resolve_dispute' && extraFields?.resolutionType === 'release')) {
       cfAction = 'admin_release';
     } else if (action === 'force_close') {
       cfAction = 'admin_force_close';
     } else if (action === 'confirm_delivery') {
       cfAction = 'buyer_confirm_delivery';
+    } else if (action === 'confirm_receipt') {
+      cfAction = 'buyer_confirm_receipt';
     }
 
     try {
       const result = await releaseCallable({
         orderId: order.id,
-        action: cfAction
+        action: cfAction,
+        // Conditional spread: every other caller (admin release, force close,
+        // the legacy buyer confirm) has no evidence to send, and shipping stray
+        // keys to a money callable is how a future guard gets confused about
+        // which path it is on.
+        ...(cfAction === 'buyer_confirm_receipt'
+          ? {
+              deliveryCode: extraFields?.deliveryCode || '',
+              receivedPhotoUrl: extraFields?.receivedPhotoUrl || '',
+            }
+          : {})
       });
       if (!result.data || !result.data.success) {
         throw new Error(result.data?.message || 'Escrow release Cloud Function execution failed.');
@@ -235,6 +284,54 @@ export async function executeOrderTransition(
       activityMessageAr = 'البائع يجهز المنتج والملصقات للشحن اللوجستي.';
       activityMessageEn = 'Seller started preparing items and labels for parcel fulfillment.';
       break;
+
+    case 'upload_prep_photo': {
+      // Wave 3 step 1. The photo IS the transition, not a decoration:
+      // firestore.rules refuses any write that SETS status to
+      // 'preparing_shipment' without prepPhotoUrl, so a missing URL here would
+      // fail at the rules layer as a raw permission error the seller cannot
+      // act on. Throw a legible one first.
+      const prepPhoto = typeof extraFields?.prepPhotoUrl === 'string' ? extraFields.prepPhotoUrl.trim() : '';
+      if (!prepPhoto) {
+        throw new Error('A photo of the item being prepared is required to start this step.');
+      }
+      toStatus = 'preparing_shipment';
+      updateFields = {
+        status: 'preparing_shipment',
+        shippingStatus: 'preparing',
+        prepPhotoUrl: prepPhoto
+      };
+      activityType = 'Seller Started Shipment';
+      activityMessageAr = 'رفع البائع صورة المنتج أثناء التجهيز.';
+      activityMessageEn = 'Seller uploaded a photo of the item being prepared.';
+      break;
+    }
+
+    case 'mark_out_for_delivery': {
+      // Wave 3 step 2. Both fields are required by firestore.rules on any write
+      // that sets status to 'out_for_delivery' — same reasoning as step 1.
+      const sentPhoto = typeof extraFields?.sentPhotoUrl === 'string' ? extraFields.sentPhotoUrl.trim() : '';
+      if (!sentPhoto) {
+        throw new Error('A photo of the item sent, with the delivery code visible, is required.');
+      }
+      const method = extraFields?.deliveryMethod;
+      if (method !== 'hand' && method !== 'courier') {
+        throw new Error('Choose a delivery method: hand delivery or local courier.');
+      }
+      toStatus = 'out_for_delivery';
+      updateFields = {
+        status: 'out_for_delivery',
+        // shippingStatus keeps its legacy 4-value union ('shipped' is its
+        // in-transit value) — MyOrdersList / SoldOrdersList render off it.
+        shippingStatus: 'shipped',
+        sentPhotoUrl: sentPhoto,
+        deliveryMethod: method
+      };
+      activityType = 'Out For Delivery';
+      activityMessageAr = 'خرج المنتج للتوصيل — رفع البائع صورة الإرسال مع ظهور رمز التسليم.';
+      activityMessageEn = 'Item out for delivery — seller uploaded the dispatch photo with the delivery code visible.';
+      break;
+    }
 
     case 'mark_shipped':
       toStatus = 'shipped';

@@ -40,3 +40,24 @@ describe('canRequestReturn', () => {
   });
   it('false on null', () => { expect(canRequestReturn(null)).toBe(false); });
 });
+
+describe('Wave 3 — the dispute gate is reachable from out_for_delivery', () => {
+  it('allows a claim while the item is out for delivery', () => {
+    expect(canRequestReturn({ status: 'out_for_delivery' })).toBe(true);
+  });
+
+  it('still allows the legacy shipped path', () => {
+    expect(canRequestReturn({ status: 'shipped' })).toBe(true);
+  });
+
+  it('still refuses states with nothing to claim against', () => {
+    expect(canRequestReturn({ status: 'paid' })).toBe(false);
+    expect(canRequestReturn({ status: 'preparing_shipment' })).toBe(false);
+    expect(canRequestReturn({ status: 'completed' })).toBe(false);
+    expect(canRequestReturn({ status: 'delivered' })).toBe(false);
+  });
+
+  it('still refuses a second claim on the same order', () => {
+    expect(canRequestReturn({ status: 'out_for_delivery', returnClaim: { status: 'open' } })).toBe(false);
+  });
+});

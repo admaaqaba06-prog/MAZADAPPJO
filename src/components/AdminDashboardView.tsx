@@ -154,7 +154,7 @@ export const AdminDashboardView: React.FC = () => {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
 
-  const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'defaulted'>('all');
+  const [adminOrderFilter, setAdminOrderFilter] = useState<'all' | 'waiting_payment' | 'paid' | 'preparing_shipment' | 'out_for_delivery' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'defaulted'>('all');
   const [adminSelectedOrderId, setAdminSelectedOrderId] = useState<string | null>(null);
 
   const filteredOrders = (orders || []).filter((o: any) => {

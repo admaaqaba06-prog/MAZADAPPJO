@@ -22,6 +22,9 @@ const {
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
 const { assignOrderRef } = require('./assignOrderRef');
+const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
+const { normalizeDeliveryCodeInput } = require('./deliveryCode');
+const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
@@ -1158,6 +1161,12 @@ exports.onOrderStatusChanged = functions.firestore
     if (before.status === after.status) return null; // no status change
     const NOTIFY = {
       preparing_shipment: 'order_preparing',
+      // Wave 3 — reuses the EXISTING order_shipped event on purpose. The n8n
+      // workflow (v2, live) has a fixed 21-event contract that notify.js's
+      // CHANNEL_POLICY mirrors; a new key here would emit an event n8n does not
+      // route, and the buyer would silently get nothing. "Out for delivery" is
+      // already what order_shipped means to a buyer.
+      out_for_delivery: 'order_shipped',
       shipped: 'order_shipped',
       delivered: 'order_delivered',
       completed: 'order_completed',
@@ -1927,6 +1936,41 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     console.error('Error in submitOrderPayment:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * issueDeliveryCode — Wave 3. The SELLER (or an admin acting for them) obtains
+ * the code they must write on the parcel, which then has to be legible in their
+ * dispatch photo AND in the buyer's receipt photo. Idempotent; ownership and
+ * state live in deliveryIssue.js (unit-tested). This wrapper is auth-gating and
+ * admin resolution only.
+ */
+exports.issueDeliveryCode = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'لا تملك صلاحية تنفيذ هذه العملية');
+  }
+  try {
+    // Same admin resolution releaseOrderEscrow uses, so one definition of
+    // "admin" governs every order-side callable.
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const cd = callerSnap.exists ? (callerSnap.data() || {}) : {};
+    const isAdmin = cd.role === 'admin' || cd.isAdmin === true ||
+      (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const result = await issueDeliveryCodeTxn(deps, {
+      orderId: data && data.orderId,
+      actorUid: context.auth.uid,
+      isAdmin,
+    });
+    console.log(`[issueDeliveryCode] order=${data && data.orderId} created=${result.created}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in issueDeliveryCode:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
@@ -3060,10 +3104,53 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
     throw new functions.https.HttpsError('unauthenticated', 'لا تملك صلاحية تنفيذ هذه العملية');
   }
   const callerUserId = context.auth.uid;
-  const { orderId, action } = data;
+  const { orderId, action, deliveryCode, receivedPhotoUrl } = data;
 
   if (!orderId) {
     throw new functions.https.HttpsError('invalid-argument', 'الطلب غير موجود');
+  }
+
+  // Wave 3 — the buyer's receipt confirmation runs through two layers on
+  // purpose. This gate COUNTS wrong guesses; the transaction below re-verifies
+  // the code as the authority. The split exists because the money transaction
+  // cannot count failures — a mismatch there throws, and the rollback takes the
+  // counter with it, leaving unlimited free guesses at a payout endpoint.
+  //
+  // Deliberately OUTSIDE the try/catch below, which maps unknown errors to
+  // 'internal': the gate's own codes ('resource-exhausted', 'permission-denied',
+  // 'failed-precondition') are what the buyer's UI branches on.
+  //
+  // Skipped entirely on an order that has already released: the transaction
+  // below answers those idempotently ("تم تحرير هذا المبلغ سابقاً"), and running
+  // the gate first would instead reject a duplicate confirm with
+  // failed-precondition ("not out for delivery") — a wrong message on a stale
+  // tab, and a break in the idempotent contract the rest of this callable keeps.
+  if (action === 'buyer_confirm_receipt') {
+    const preSnap = await db.collection('orders').doc(orderId).get();
+    const pre = preSnap.exists ? (preSnap.data() || {}) : {};
+    const alreadySettled = pre.escrowStatus === 'released' || pre.status === 'completed';
+
+    if (!alreadySettled) {
+      let gate;
+      try {
+        gate = await checkDeliveryConfirm(
+          { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() },
+          { orderId, buyerUid: callerUserId, typedCode: deliveryCode, receivedPhotoUrl }
+        );
+      } catch (gateError) {
+        console.error('[releaseOrderEscrow] delivery-confirm gate rejected:', gateError && gateError.message);
+        const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument'].includes(gateError.code)
+          ? gateError.code
+          : 'internal';
+        throw new functions.https.HttpsError(code, gateError.message || 'تعذر تأكيد الاستلام.');
+      }
+      if (!gate.matched) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          `رمز التسليم غير مطابق. المحاولات المتبقية: ${gate.remaining}`
+        );
+      }
+    }
   }
 
   try {
@@ -3122,6 +3209,53 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           'failed-precondition',
           'Payment for this order has not been verified. Verify the buyer payment before releasing escrow.'
         );
+      }
+
+      // 12b-bis. Wave 3 — the LEGACY one-tap confirm must not become a way
+      // around the evidence chain. `buyer_confirm_delivery` carries no code and
+      // no photo, and nothing else in this callable constrains the status it may
+      // run from, so a buyer whose order is `out_for_delivery` could otherwise
+      // release their own escrow with the older action and skip step 3 entirely.
+      // The UI stops offering that button there, but the UI is not the gate.
+      //
+      // Admin release / force close stay available at this status: the team must
+      // be able to settle an order whose buyer has gone silent.
+      if (action === 'buyer_confirm_delivery' && !isCallerAdmin && orderData.status === 'out_for_delivery') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'أكّد الاستلام برمز التسليم الظاهر على الطرد.'
+        );
+      }
+
+      // 12c. Wave 3 — AUTHORITATIVE preconditions for the buyer's receipt
+      // confirmation. The gate above already checked these, but it ran in its
+      // OWN transaction: between that commit and this one the status could have
+      // moved, the seller's dispatch photo could have been cleared, or the code
+      // document could have been rewritten. This is the check money actually
+      // depends on; the gate is only the rate limiter.
+      //
+      // Placed AFTER the idempotency + money-in guards on purpose (same
+      // reasoning as those): an order that already released must keep answering
+      // idempotently rather than start failing on a stale code. Placed BEFORE
+      // every write so the transaction stays reads-then-writes.
+      if (action === 'buyer_confirm_receipt') {
+        if (!isCallerBuyer) {
+          throw new functions.https.HttpsError('permission-denied', 'لا يمكن تأكيد الاستلام إلا من المشتري.');
+        }
+        if (orderData.status !== 'out_for_delivery') {
+          throw new functions.https.HttpsError('failed-precondition', 'هذا الطلب ليس في حالة "خرج للتوصيل".');
+        }
+        if (!orderData.sentPhotoUrl) {
+          throw new functions.https.HttpsError('failed-precondition', 'لم يرفع البائع صورة الإرسال لهذا الطلب.');
+        }
+        if (!isHttpsUrl(receivedPhotoUrl)) {
+          throw new functions.https.HttpsError('invalid-argument', 'صورة الاستلام مطلوبة.');
+        }
+        const codeSnap = await transaction.get(db.collection('deliveryCodes').doc(orderId));
+        const storedCode = codeSnap.exists ? (codeSnap.data() || {}).code : null;
+        if (!storedCode || normalizeDeliveryCodeInput(deliveryCode) !== storedCode) {
+          throw new functions.https.HttpsError('invalid-argument', 'رمز التسليم غير مطابق.');
+        }
       }
 
       // 3. Find the locked escrow document:
@@ -3240,6 +3374,19 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         escrowReleasedAt: admin.firestore.FieldValue.serverTimestamp(),
         escrowReleasedBy: callerUserId,
+        // Wave 3 — the buyer's half of the evidence chain, committed in the SAME
+        // transaction as the money it releases. Conditional spread: every other
+        // caller (admin release, force close, the legacy buyer confirm) has no
+        // receipt photo, and Firestore rejects an explicit `undefined`.
+        // deliveryCodeAttempts is zeroed because the code has now been used
+        // successfully — a later admin looking at the order should not see a
+        // stale failed-guess tally on a clean delivery.
+        ...(action === 'buyer_confirm_receipt' ? {
+          receivedPhotoUrl: String(receivedPhotoUrl).trim(),
+          deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
+          deliveryConfirmedBy: callerUserId,
+          deliveryCodeAttempts: 0,
+        } : {}),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 

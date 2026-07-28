@@ -26,8 +26,14 @@ function buildReturnClaim(input, nowMs) {
   };
 }
 
+// Wave 3 — `out_for_delivery` joins `shipped` here. Under the evidence flow the
+// buyer's ONLY alternative to confirming receipt is raising a claim, so if this
+// status could not open one, a buyer holding a damaged item would have no path
+// at all except confirming — which pays the seller.
+const CLAIMABLE_STATUSES = ['shipped', 'out_for_delivery'];
+
 function canRequestReturn(order) {
-  if (!order || order.status !== 'shipped') return false;
+  if (!order || !CLAIMABLE_STATUSES.includes(order.status)) return false;
   if (order.returnClaim) return false;
   return true;
 }

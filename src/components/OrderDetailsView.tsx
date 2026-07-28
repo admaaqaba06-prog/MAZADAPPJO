@@ -42,6 +42,8 @@ import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
 import { validateDeliveryAddress, sanitizeDeliveryAddress } from '../utils/deliveryAddress';
 import { isValidPaymentRef } from '../utils/paymentReference';
 import { executeOrderTransition } from '../utils/orderWorkflow';
+import { deliveryStepFor } from '../utils/deliveryEvidence';
+import { isValidDeliveryCode, normalizeDeliveryCodeInput } from '../utils/deliveryCode';
 import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
 import { CountUp, useToast, winTotalDue } from './feedback';
@@ -133,6 +135,18 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [sellerContestNote, setSellerContestNote] = useState('');
   const [respondingReturn, setRespondingReturn] = useState(false);
 
+  // Wave 3 — evidence-gated delivery. Three photos, one per step, plus the
+  // delivery code the seller writes on the parcel and the buyer types back.
+  const [prepPhotoFile, setPrepPhotoFile] = useState<File | null>(null);
+  const [sentPhotoFile, setSentPhotoFile] = useState<File | null>(null);
+  const [receivedPhotoFile, setReceivedPhotoFile] = useState<File | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<'hand' | 'courier'>('courier');
+  const [deliveryCode, setDeliveryCode] = useState<string>('');
+  const [deliveryCodeLoading, setDeliveryCodeLoading] = useState(false);
+  const [typedDeliveryCode, setTypedDeliveryCode] = useState<string>('');
+  const [deliveryCodeError, setDeliveryCodeError] = useState<string>('');
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+
   const isAdminViewer = isAdminUser(currentUser);
 
   useEffect(() => {
@@ -215,6 +229,34 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     })();
     return () => { cancelled = true; };
   }, [order?.id, isSellerViewer]);
+
+  // Wave 3 — the seller's delivery code. It lives in deliveryCodes/{orderId},
+  // which firestore.rules exposes to the seller and admins only; the buyer must
+  // learn it from the parcel. Issued lazily and idempotently, so a seller whose
+  // order reached `preparing_shipment` through the admin relay (which issues
+  // nothing) still gets one when they open the order.
+  useEffect(() => {
+    if (!order || !isSellerViewer) return;
+    if (order.status !== 'preparing_shipment') return;
+    if (deliveryCode) return;
+    let cancelled = false;
+    (async () => {
+      setDeliveryCodeLoading(true);
+      try {
+        const issue = await getCallableFunction<
+          { orderId: string },
+          { success: boolean; code: string; created: boolean }
+        >('issueDeliveryCode');
+        const res = await issue({ orderId: order.id });
+        if (!cancelled && res.data?.code) setDeliveryCode(res.data.code);
+      } catch (err) {
+        console.warn('Delivery code issue/lookup failed:', err);
+      } finally {
+        if (!cancelled) setDeliveryCodeLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order?.id, order?.status, isSellerViewer, deliveryCode]);
 
   // E7 B2 — load the buyer's received seller ratings (aggregate) for the
   // seller/admin viewing this order. On-demand query, same pattern as the
@@ -313,16 +355,27 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يحوّل عبر كليك ويرفع الإيصال', descEn: 'Buyer pays via CliQ and uploads the receipt' },
     { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'استلمنا إثبات الدفع وتم تأكيده', descEn: 'Payment proof received and confirmed' },
     { id: 'preparing_shipment', labelAr: 'تجهيز الشحن', labelEn: 'Preparing Shipment', descAr: 'البائع يجهز المنتج والملصقات', descEn: 'Seller is preparing items and labels' },
-    { id: 'shipped', labelAr: 'تم الشحن', labelEn: 'Shipped', descAr: 'الشحنة مع شركة التوصيل الآن', descEn: 'Parcel in transit with courier' },
+    // Wave 3's `out_for_delivery` and the legacy relay's `shipped` are the SAME
+    // stage to a buyer ("it's on its way"), so they share one timeline step via
+    // altIds. Without that, findIndex returns -1 for every evidence-flow order
+    // and the progress bar goes blank during the stage the buyer cares about
+    // most — the one where they are being asked to do something.
+    { id: 'shipped', altIds: ['out_for_delivery'], labelAr: 'خرج للتوصيل', labelEn: 'Out for delivery', descAr: 'الشحنة في الطريق إليك الآن', descEn: 'Parcel on its way to you' },
     { id: 'delivered', labelAr: 'تم التوصيل', labelEn: 'Delivered', descAr: 'تم توصيل الشحنة للمشتري', descEn: 'Delivered to buyer destination' },
     { id: 'completed', labelAr: 'مكتمل', labelEn: 'Completed', descAr: 'تم تحرير الأموال والطلب مغلق', descEn: 'Funds released to seller & order closed' }
   ];
 
-  const currentStepIndex = timelineSteps.findIndex(s => s.id === order.status);
+  const currentStepIndex = timelineSteps.findIndex(
+    s => s.id === order.status || (s as { altIds?: string[] }).altIds?.includes(order.status)
+  );
 
   // W2/W4 — honest shipment status (no fabricated tracking/ETA) + address gate.
   const shipmentStatusLabel =
-    order.status === 'shipped' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
+    // `out_for_delivery` MUST be listed here. This chain ends in an
+    // "Awaiting payment" fallback, so an unhandled status tells a buyer whose
+    // parcel is already en route that they never paid.
+    order.status === 'out_for_delivery' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
+    : order.status === 'shipped' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
     : order.status === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered')
     : order.status === 'completed' ? (isAr ? 'مكتمل — تم إغلاق الطلب' : 'Completed — order closed')
     : order.status === 'preparing_shipment' ? (isAr ? 'البائع يجهّز طلبك' : 'Seller is preparing your order')
@@ -558,45 +611,136 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     }
   };
 
-  const handlePrepareShipment = async () => {
-    setIsUpdating(true);
+  // Wave 3 — one upload path for all three evidence photos.
+  // storage.rules gates `delivery-evidence/{orderId}/**` on any signed-in user,
+  // image-only, ≤10MB; WHICH party may attach WHICH photo is enforced by
+  // firestore.rules on the order write and by the confirm callable, not here.
+  const uploadDeliveryPhoto = async (file: File, kind: 'prep' | 'sent' | 'received'): Promise<string> => {
+    const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+    const { getFirebaseStorage } = await import('../services/firebase');
+    const storageInstance = await getFirebaseStorage();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileRef = storageRef(storageInstance, `delivery-evidence/${order.id}/${kind}-${Date.now()}-${safeName}`);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
+  };
+
+  // Wave 3 step 1 — the seller photographs the item being prepared. Replaces the
+  // bare "Begin Preparing Shipment" click: the photo IS the transition.
+  const handleUploadPrepPhoto = async () => {
+    if (!prepPhotoFile) {
+      alert(isAr ? 'أرفق صورة للمنتج أثناء التجهيز.' : 'Attach a photo of the item being prepared.');
+      return;
+    }
+    setUploadingEvidence(true);
     try {
-      await executeOrderTransition(order, 'prepare_shipment', currentUser);
-      addNotification(
-        isAr ? 'جاري الشحن' : 'Preparing Shipment',
-        isAr ? 'تم تحديث حالة الطلب إلى جاري تجهيز الشحنة.' : 'Order status updated to preparing shipment.',
-        'info'
-      );
+      const url = await uploadDeliveryPhoto(prepPhotoFile, 'prep');
+      await executeOrderTransition(order, 'upload_prep_photo', currentUser, { prepPhotoUrl: url });
+      setPrepPhotoFile(null);
+      showToast({
+        type: 'success',
+        title: isAr ? 'تم تسجيل بدء التجهيز' : 'Preparation recorded',
+      });
     } catch (err: any) {
       console.error(err);
-      alert(isAr ? `فشل تحديث الحالة: ${err.message}` : `Fulfillment failed: ${err.message}`);
+      alert(isAr ? `تعذر رفع الصورة: ${err.message}` : `Could not upload the photo: ${err.message}`);
     } finally {
-      setIsUpdating(false);
+      setUploadingEvidence(false);
     }
   };
 
-  const handleMarkAsShipped = async () => {
-    const trackingInput = prompt(
-      // No fallback tracking number is generated any more, so the field is
-      // simply optional: promising auto-generation told sellers who left it
-      // blank that a number had been attached when none existed.
-      isAr ? 'رقم تتبع الشحنة (اختياري — اتركه فارغاً إن لم يوجد):' : 'Tracking number (optional — leave blank if there is none):'
-    );
-    if (trackingInput === null) return; // User cancelled prompt
-
-    setIsUpdating(true);
+  // Wave 3 step 2 — the seller photographs it leaving WITH the delivery code
+  // visible. The buyer's photo must show the same code; that match is the proof.
+  const handleMarkOutForDelivery = async () => {
+    if (!sentPhotoFile) {
+      alert(isAr ? 'أرفق صورة للمنتج عند الإرسال مع ظهور رمز التسليم.' : 'Attach a photo of the item sent, with the delivery code visible.');
+      return;
+    }
+    setUploadingEvidence(true);
     try {
-      await executeOrderTransition(order, 'mark_shipped', currentUser, { trackingNumber: trackingInput || undefined });
+      const url = await uploadDeliveryPhoto(sentPhotoFile, 'sent');
+      await executeOrderTransition(order, 'mark_out_for_delivery', currentUser, {
+        sentPhotoUrl: url,
+        deliveryMethod,
+      });
+      setSentPhotoFile(null);
+      showToast({
+        type: 'success',
+        title: isAr ? 'تم تسجيل خروج الطلب للتوصيل' : 'Marked out for delivery',
+      });
+    } catch (err: any) {
+      console.error(err);
+      alert(isAr ? `تعذر تحديث الحالة: ${err.message}` : `Could not update the order: ${err.message}`);
+    } finally {
+      setUploadingEvidence(false);
+    }
+  };
+
+  // Wave 3 removed handlePrepareShipment and handleMarkAsShipped from this view.
+  // The seller's path to those two stages is now the evidence-gated pair above
+  // (handleUploadPrepPhoto / handleMarkOutForDelivery), and the photo-free
+  // `prepare_shipment` / `mark_shipped` actions survive only for the ADMIN
+  // relay, which drives them from src/components/admin/FulfillmentSection.tsx
+  // via nextAdvance(). Leaving the handlers here would have been dead code that
+  // reads like the seller flow.
+
+  // Wave 3 step 3 — the buyer's receipt photo (delivery code visible) plus the
+  // typed code. This is the completion event: the callable verifies the code
+  // inside the money transaction and releases escrow in the same commit. There
+  // is no timer and no auto-complete behind it.
+  const handleConfirmReceipt = async () => {
+    const normalized = normalizeDeliveryCodeInput(typedDeliveryCode);
+    if (!isValidDeliveryCode(normalized)) {
+      setDeliveryCodeError(isAr
+        ? 'أدخل رمز التسليم المكتوب على الطرد (مثال: DC-7K3QP).'
+        : 'Enter the delivery code written on the parcel (e.g. DC-7K3QP).');
+      return;
+    }
+    setDeliveryCodeError('');
+    if (!receivedPhotoFile) {
+      alert(isAr ? 'أرفق صورة للمنتج عند الاستلام مع ظهور رمز التسليم.' : 'Attach a photo of the item received, with the delivery code visible.');
+      return;
+    }
+    if (!confirm(isAr
+      ? 'بتأكيد الاستلام يتم تحرير المبلغ للبائع نهائياً. هل استلمت المنتج وعاينته؟'
+      : 'Confirming receipt releases the payment to the seller for good. Have you received and inspected the item?')) {
+      return;
+    }
+    setUploadingEvidence(true);
+    try {
+      const url = await uploadDeliveryPhoto(receivedPhotoFile, 'received');
+      const result = await executeOrderTransition(order, 'confirm_receipt', currentUser, {
+        receivedPhotoUrl: url,
+        deliveryCode: normalized,
+      });
+      setReceivedPhotoFile(null);
+      setTypedDeliveryCode('');
+      if (result && result.alreadyReleased) {
+        alert(isAr ? 'تم تحرير هذا المبلغ سابقاً' : 'This amount was already released.');
+      } else {
+        alert(isAr ? 'تم تأكيد الاستلام وتحويل المبلغ للبائع.' : 'Receipt confirmed — funds transferred to the seller.');
+      }
       addNotification(
-        isAr ? 'تم الشحن بنجاح' : 'Order Dispatched',
-        isAr ? 'تم تحديث حالة الطلب إلى مشحون.' : 'Order status updated to shipped.',
+        isAr ? 'تم تأكيد الاستلام' : 'Receipt Confirmed',
+        isAr ? 'تم تحويل المبلغ للبائع بنجاح' : 'Funds successfully transferred to the seller.',
         'info'
       );
     } catch (err: any) {
       console.error(err);
-      alert(isAr ? `فشل تحديث الحالة: ${err.message}` : `Shipping failed: ${err.message}`);
+      // A wrong code comes back as invalid-argument with the remaining count in
+      // the message. Show it inline on the field rather than in an alert, so the
+      // buyer can correct the code without losing the photo they attached.
+      if (err?.code === 'functions/invalid-argument') {
+        setDeliveryCodeError(err.message);
+      } else if (err?.code === 'functions/resource-exhausted') {
+        setDeliveryCodeError(isAr
+          ? 'تجاوزت عدد المحاولات المسموح بها. تواصل مع الدعم.'
+          : "You've used all delivery-code attempts — please contact support.");
+      } else {
+        alert(isAr ? `تعذر تأكيد الاستلام: ${err.message}` : `Could not confirm receipt: ${err.message}`);
+      }
     } finally {
-      setIsUpdating(false);
+      setUploadingEvidence(false);
     }
   };
 
@@ -1684,9 +1828,70 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     </button>
                   )}
 
-                  {(order.status === 'shipped' || order.status === 'delivered') && (
+                  {(order.status === 'shipped' || order.status === 'delivered' || order.status === 'out_for_delivery') && (
                     <div className="space-y-2.5">
-                      {/* Primary happy-path: everything's good, release payment */}
+                      {/* Wave 3 step 3 — receipt evidence + typed code. This is
+                          the completion event; there is no timer and no
+                          auto-complete behind it. */}
+                      {deliveryStepFor(order, 'buyer') === 'buyer_confirm' && (
+                        <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
+                          <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                            {isAr ? '٣ · أكّد استلامك' : '3 · Confirm you received it'}
+                          </h4>
+                          <p className="text-[11px] text-gray-500 leading-relaxed">
+                            {isAr
+                              ? 'صوّر المنتج بعد الاستلام مع ظهور رمز التسليم المكتوب على الطرد، وأدخل الرمز نفسه. التأكيد يحرّر المبلغ للبائع نهائياً.'
+                              : 'Photograph the item after receiving it with the delivery code on the parcel visible, then type that same code. Confirming releases the payment to the seller for good.'}
+                          </p>
+
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setReceivedPhotoFile(e.target.files?.[0] || null)}
+                            className="w-full text-[11px] file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-gray-900 file:text-white file:text-[10px] file:font-mono file:uppercase"
+                            id="received-photo-input"
+                          />
+
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              {isAr ? 'رمز التسليم المكتوب على الطرد' : 'Delivery code on the parcel'}
+                            </p>
+                            <input
+                              type="text"
+                              dir="ltr"
+                              inputMode="text"
+                              autoCapitalize="characters"
+                              value={typedDeliveryCode}
+                              onChange={(e) => { setTypedDeliveryCode(e.target.value); if (deliveryCodeError) setDeliveryCodeError(''); }}
+                              placeholder="DC-7K3QP"
+                              className={`w-full bg-white border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryCodeError ? 'border-red-300' : 'border-gray-200'}`}
+                              id="delivery-code-input"
+                            />
+                            {deliveryCodeError && (
+                              <p className="text-[10px] text-red-500 font-bold leading-snug">{deliveryCodeError}</p>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={handleConfirmReceipt}
+                            disabled={uploadingEvidence || submittingReturn || !receivedPhotoFile || !typedDeliveryCode.trim()}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>{uploadingEvidence ? (isAr ? 'جارٍ التأكيد…' : 'Confirming…') : (isAr ? 'أكّد الاستلام وحرّر الدفعة' : 'Confirm receipt & release payment')}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* LEGACY happy-path: a one-tap release with no evidence.
+                          Never offered on an `out_for_delivery` order — that
+                          order has a code-gated path, and this button routes to
+                          the same callable under the older
+                          `buyer_confirm_delivery` action, which would otherwise
+                          be a one-click way around the whole evidence chain.
+                          The server refuses it there too (releaseOrderEscrow);
+                          this condition just stops the app offering it. */}
+                      {order.status !== 'out_for_delivery' && (
                       <button
                         onClick={handleConfirmDelivery}
                         disabled={isUpdating || submittingReturn}
@@ -1695,22 +1900,28 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <CheckCircle2 className="w-4 h-4" />
                         <span>{isAr ? 'كل شيء ممتاز — حرّر الدفعة' : "Everything's good — release payment"}</span>
                       </button>
+                      )}
 
                       {/*
                         Secondary: report a problem → opens the return claim form.
 
-                        SHIPPED-ONLY, deliberately narrower than the block above.
-                        The server guard `canRequestReturn` in functions/returns.js
-                        rejects anything that is not `shipped` with
-                        failed-precondition. handleSubmitReturn uploads every
-                        selected photo to Storage BEFORE it calls requestReturn, so
-                        offering this entry point at `delivered` would burn the
-                        buyer's uploads on a call that can only fail and leave
-                        orphaned Storage objects they cannot delete. The accept
-                        button above stays on shipped||delivered; a delivered buyer
-                        who has a problem uses the "File Formal Dispute" button below.
+                        Deliberately narrower than the block above, and it must
+                        track `canRequestReturn` in functions/returns.js exactly.
+                        handleSubmitReturn uploads every selected photo to Storage
+                        BEFORE it calls requestReturn, so offering this entry point
+                        in a status the server rejects would burn the buyer's
+                        uploads on a call that can only fail and leave orphaned
+                        Storage objects they cannot delete.
+
+                        Wave 3 added `out_for_delivery` on BOTH sides: under the
+                        evidence flow, raising a claim is the buyer's only
+                        alternative to confirming receipt, so a buyer holding a
+                        damaged item would otherwise have no path except the one
+                        that pays the seller. `delivered` stays excluded (the
+                        server still rejects it); a delivered buyer with a problem
+                        uses the "File Formal Dispute" button below.
                       */}
-                      {order.status === 'shipped' && (
+                      {(order.status === 'shipped' || order.status === 'out_for_delivery') && (
                         <>
                         {!showReturnForm && (
                           <button
@@ -2058,26 +2269,120 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     </div>
                   )}
 
-                  {order.status === 'paid' && (
-                    <button
-                      onClick={handlePrepareShipment}
-                      disabled={isUpdating}
-                      className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
-                    >
-                      <Package className="w-4 h-4" />
-                      <span>{isAr ? 'بدء تجهيز وتعبئة الشحنة' : 'Begin Preparing Shipment'}</span>
-                    </button>
+                  {/* Wave 3 step 1 — photo of the item being prepared. The photo
+                      IS the transition: firestore.rules refuses a status write
+                      to preparing_shipment without prepPhotoUrl. */}
+                  {deliveryStepFor(order, 'seller') === 'seller_prep' && (
+                    <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
+                      <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                        {isAr ? '١ · صوّر المنتج أثناء التجهيز' : '1 · Photograph the item being prepared'}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 leading-relaxed">
+                        {isAr
+                          ? 'صورة واحدة تثبت أن المنتج بحوزتك وجاهز للإرسال. بعدها نعطيك رمز التسليم.'
+                          : 'One photo showing the item is with you and ready to send. We issue your delivery code next.'}
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setPrepPhotoFile(e.target.files?.[0] || null)}
+                        className="w-full text-[11px] file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-gray-900 file:text-white file:text-[10px] file:font-mono file:uppercase"
+                        id="prep-photo-input"
+                      />
+                      <button
+                        onClick={handleUploadPrepPhoto}
+                        disabled={uploadingEvidence || !prepPhotoFile}
+                        className="w-full bg-[#FF6B00] hover:bg-[#FF8000] text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider shadow-md shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                      >
+                        <Package className="w-4 h-4" />
+                        <span>{uploadingEvidence ? (isAr ? 'جارٍ الرفع…' : 'Uploading…') : (isAr ? 'رفع صورة التجهيز' : 'Upload preparation photo')}</span>
+                      </button>
+                    </div>
                   )}
 
-                  {order.status === 'preparing_shipment' && (
-                    <button
-                      onClick={handleMarkAsShipped}
-                      disabled={isUpdating}
-                      className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
-                    >
-                      <Truck className="w-4 h-4" />
-                      <span>{isAr ? 'تأكيد التسليم لشركة الشحن' : 'Mark as Dispatched / Shipped'}</span>
-                    </button>
+                  {/* Wave 3 step 2 — dispatch photo with the delivery code visible */}
+                  {deliveryStepFor(order, 'seller') === 'seller_dispatch' && (
+                    <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
+                      <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                        {isAr ? '٢ · أرسل المنتج وصوّره مع رمز التسليم' : '2 · Send it and photograph it with the delivery code'}
+                      </h4>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-1">
+                        <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                          {isAr ? 'رمز التسليم' : 'Delivery code'}
+                        </p>
+                        <p className="text-2xl font-black font-mono tracking-widest text-gray-900" dir="ltr">
+                          {deliveryCodeLoading ? '…' : (deliveryCode || '—')}
+                        </p>
+                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                          {isAr
+                            ? 'اكتب هذا الرمز على الطرد بخط واضح. يجب أن يظهر في صورتك وفي صورة المشتري عند الاستلام — التطابق هو ما يحرّر مبلغك.'
+                            : 'Write this code clearly on the parcel. It must be visible in your photo and in the buyer’s receipt photo — that match is what releases your money.'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                          {isAr ? 'طريقة التوصيل' : 'Delivery method'}
+                        </p>
+                        {([
+                          { value: 'courier' as const, ar: 'مندوب توصيل', en: 'Local courier' },
+                          { value: 'hand' as const, ar: 'تسليم باليد', en: 'Hand delivery' },
+                        ]).map(opt => (
+                          <label
+                            key={opt.value}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${deliveryMethod === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="delivery-method"
+                              checked={deliveryMethod === opt.value}
+                              onChange={() => setDeliveryMethod(opt.value)}
+                              className="accent-[#FF6B00]"
+                            />
+                            <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setSentPhotoFile(e.target.files?.[0] || null)}
+                        className="w-full text-[11px] file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-gray-900 file:text-white file:text-[10px] file:font-mono file:uppercase"
+                        id="sent-photo-input"
+                      />
+                      <button
+                        onClick={handleMarkOutForDelivery}
+                        disabled={uploadingEvidence || !sentPhotoFile}
+                        className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-3.5 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                      >
+                        <Truck className="w-4 h-4" />
+                        <span>{uploadingEvidence ? (isAr ? 'جارٍ الرفع…' : 'Uploading…') : (isAr ? 'خرج للتوصيل' : 'Mark out for delivery')}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Wave 3 — waiting on the buyer's half of the chain */}
+                  {order.status === 'out_for_delivery' && (
+                    <div className="bg-amber-50/50 border border-amber-200/50 p-3.5 rounded-2xl text-center">
+                      <p className="text-xs font-bold text-amber-700 flex items-center justify-center gap-1.5">
+                        <Clock className="w-4 h-4 animate-pulse" />
+                        <span>{isAr ? 'بانتظار تأكيد المشتري للاستلام — عندها يُحرَّر مبلغك.' : 'Awaiting the buyer’s receipt confirmation — that releases your funds.'}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Legacy relay path: an order the admin advanced to `shipped`
+                      by phone never got a code, so the seller sees the old
+                      dispatch button rather than a code they cannot produce. */}
+                  {order.status === 'shipped' && (
+                    <div className="bg-gray-50 border border-gray-200 p-3.5 rounded-2xl text-center">
+                      <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1.5">
+                        <Truck className="w-4 h-4" />
+                        <span>{isAr ? 'الطرد في الطريق — بانتظار تأكيد المشتري.' : 'Parcel in transit — awaiting buyer confirmation.'}</span>
+                      </p>
+                    </div>
                   )}
 
                   {order.status === 'waiting_payment' && (

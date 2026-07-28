@@ -152,3 +152,11 @@ describe('bucketOrder — server copy mirrors src/utils/fulfillmentQueues.ts', (
     expect(serverBucketOrder(order)).toBe(clientBucketOrder(order));
   });
 });
+
+describe('Wave 3 — out_for_delivery bucket parity with the client', () => {
+  it('buckets as awaiting_delivery on both sides', () => {
+    const order = { status: 'out_for_delivery' };
+    expect(serverBucketOrder(order)).toBe('awaiting_delivery');
+    expect(serverBucketOrder(order)).toBe(clientBucketOrder(order));
+  });
+});

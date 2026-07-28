@@ -85,7 +85,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
 
   const deliveredCount = useMemo(() => {
     if (sellerOrders.length === 0) return (profile?.totalSales || 0);
-    return sellerOrders.filter(o => o.status === 'completed' || o.status === 'shipped' || o.status === 'delivered').length;
+    return sellerOrders.filter(o => o.status === 'completed' || o.status === 'shipped' || o.status === 'out_for_delivery' || o.status === 'delivered').length;
   }, [sellerOrders, profile?.totalSales]);
 
   const cancelledCount = useMemo(() => {

@@ -27,6 +27,8 @@ function bucketOrder(order) {
   if (order.status === 'waiting_payment') return 'awaiting_payment';
   if (order.status === 'paid' && order.paymentVerified === true) return 'awaiting_shipment';
   if (order.status === 'preparing_shipment') return 'awaiting_shipment';
+  // Wave 3 — evidence-gated dispatch queues with legacy shipped.
+  if (order.status === 'out_for_delivery') return 'awaiting_delivery';
   if (order.status === 'shipped') return 'awaiting_delivery';
   if (order.status === 'delivered') return 'awaiting_release';
   return null;

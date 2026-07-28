@@ -310,7 +310,7 @@ export interface Order {
   buyerId: string;
   buyerName: string;
   winningBidAmount: number;
-  status: "pending_buyer_confirmation" | "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
+  status: "pending_buyer_confirmation" | "waiting_payment" | "paid" | "preparing_shipment" | "out_for_delivery" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
   paymentStatus: "unpaid" | "paid";
   shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
   escrowStatus: "pending" | "locked" | "released" | "refunded";
@@ -369,6 +369,23 @@ export interface Order {
   disputeResolvedAt?: any;
   disputeResolutionType?: 'release' | 'refund' | 'resume';
   trackingNumber?: string;
+  /**
+   * Wave 3 — evidence-gated delivery. `prepPhotoUrl` and `sentPhotoUrl` are
+   * SELLER-written (firestore.rules requires each before the matching status
+   * write); `receivedPhotoUrl`, `deliveredAt`, `deliveryConfirmedBy` and
+   * `deliveryCodeAttempts` are SERVER-only via releaseOrderEscrow.
+   *
+   * The delivery code itself is NEVER on this doc. The buyer can read the whole
+   * order and Firestore has no field-level read denylist, so the code lives in
+   * deliveryCodes/{orderId} (seller + admin read only) — see firestore.rules.
+   */
+  prepPhotoUrl?: string;
+  sentPhotoUrl?: string;
+  receivedPhotoUrl?: string;
+  deliveryMethod?: 'hand' | 'courier';
+  deliveryCodeAttempts?: number;
+  deliveryConfirmedBy?: string;
+  deliveredAt?: any;
   /**
    * Wave 2 (W4): per-order delivery address + phone the winner provides at the
    * post-win payment step (an address can differ per win). Written by the buyer

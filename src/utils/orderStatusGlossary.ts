@@ -23,6 +23,7 @@ export type OrderStatusCode =
   | 'waiting_payment'
   | 'paid'
   | 'preparing_shipment'
+  | 'out_for_delivery'
   | 'shipped'
   | 'delivered'
   | 'completed'
@@ -77,6 +78,14 @@ export const ORDER_STATUS_GLOSSARY: Record<OrderStatusCode, OrderStatusEntry> = 
   preparing_shipment: {
     labelAr: 'قيد التجهيز للشحن',
     labelEn: 'Preparing shipment',
+    tone: 'info',
+  },
+  // Wave 3 — the seller has photographed the parcel leaving with the delivery
+  // code visible. Distinct from legacy `shipped`, which is the admin relay's
+  // phone-recorded dispatch with no evidence attached.
+  out_for_delivery: {
+    labelAr: 'خرج للتوصيل',
+    labelEn: 'Out for delivery',
     tone: 'info',
   },
   shipped: {
@@ -152,6 +161,7 @@ export function getOrderStatusChip(
 export const PAID_OR_BEYOND: ReadonlySet<string> = new Set<OrderStatusCode>([
   'paid',
   'preparing_shipment',
+  'out_for_delivery',
   'shipped',
   'delivered',
   'completed',

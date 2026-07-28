@@ -27,14 +27,18 @@ import {
  *   locked, released, pending        -> escrowStatus, not order status
  *   open                             -> returnClaim.status, not order status
  *   lost, down, nonsense_status      -> notifications / health-check / test fixtures
- *   out_for_delivery, returned       -> named in the spec as examples but NOT
+ *   returned                         -> named in a spec as an example but NOT
  *                                       present anywhere as a real order status
+ *
+ * `out_for_delivery` was on that excluded list until Wave 3 (2026-07-28), which
+ * made it a real status written by the seller's evidence-gated dispatch step.
  */
 const REAL_ORDER_STATUS_CODES = [
   'pending_buyer_confirmation',
   'waiting_payment',
   'paid',
   'preparing_shipment',
+  'out_for_delivery',
   'shipped',
   'delivered',
   'completed',
@@ -142,5 +146,17 @@ describe('PAID_OR_BEYOND', () => {
     for (const code of ['pending_buyer_confirmation', 'waiting_payment', 'cancelled', 'refunded', 'defaulted', 'disputed']) {
       expect(PAID_OR_BEYOND.has(code)).toBe(false);
     }
+  });
+});
+
+describe('Wave 3 — out_for_delivery', () => {
+  it('has a human label in both languages, never the raw code', () => {
+    expect(getOrderStatusChip('out_for_delivery', 'ar').label).toBe('خرج للتوصيل');
+    expect(getOrderStatusChip('out_for_delivery', 'en').label).toBe('Out for delivery');
+    expect(getOrderStatusChip('out_for_delivery', 'en').tone).toBe('info');
+  });
+
+  it('counts as a real sale — the buyer has paid and the goods are moving', () => {
+    expect(PAID_OR_BEYOND.has('out_for_delivery')).toBe(true);
   });
 });
