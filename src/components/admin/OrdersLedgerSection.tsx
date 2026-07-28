@@ -27,6 +27,7 @@ export type AdminOrderFilter =
   | 'waiting_payment'
   | 'paid'
   | 'preparing_shipment'
+  | 'out_for_delivery'
   | 'shipped'
   | 'delivered'
   | 'completed'
@@ -92,12 +93,13 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
 
       {/* Filter buttons bar */}
       <div className="bg-white p-2 rounded-2xl border border-gray-200 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-        {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'completed', 'disputed', 'defaulted'] as const).map((filterOpt) => {
+        {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'out_for_delivery', 'shipped', 'delivered', 'completed', 'disputed', 'defaulted'] as const).map((filterOpt) => {
           const label = isAr
             ? (filterOpt === 'all' ? 'الكل' :
                filterOpt === 'waiting_payment' ? 'بانتظار الدفع' :
                filterOpt === 'paid' ? 'مدفوع' :
                filterOpt === 'preparing_shipment' ? 'تجهيز الشحن' :
+               filterOpt === 'out_for_delivery' ? 'خرج للتوصيل' :
                filterOpt === 'shipped' ? 'تم الشحن' :
                filterOpt === 'delivered' ? 'تم التوصيل' :
                filterOpt === 'completed' ? 'مكتمل' :
@@ -106,6 +108,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                filterOpt === 'waiting_payment' ? 'WAITING PAYMENT' :
                filterOpt === 'paid' ? 'PAID' :
                filterOpt === 'preparing_shipment' ? 'PREPARING SHIPMENT' :
+               filterOpt === 'out_for_delivery' ? 'OUT FOR DELIVERY' :
                filterOpt === 'shipped' ? 'SHIPPED' :
                filterOpt === 'delivered' ? 'DELIVERED' :
                filterOpt === 'completed' ? 'COMPLETED' :

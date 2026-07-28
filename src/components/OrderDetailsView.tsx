@@ -355,16 +355,27 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     { id: 'waiting_payment', labelAr: 'بانتظار الدفع', labelEn: 'Waiting Payment', descAr: 'المشتري يحوّل عبر كليك ويرفع الإيصال', descEn: 'Buyer pays via CliQ and uploads the receipt' },
     { id: 'paid', labelAr: 'تم الدفع', labelEn: 'Paid', descAr: 'استلمنا إثبات الدفع وتم تأكيده', descEn: 'Payment proof received and confirmed' },
     { id: 'preparing_shipment', labelAr: 'تجهيز الشحن', labelEn: 'Preparing Shipment', descAr: 'البائع يجهز المنتج والملصقات', descEn: 'Seller is preparing items and labels' },
-    { id: 'shipped', labelAr: 'تم الشحن', labelEn: 'Shipped', descAr: 'الشحنة مع شركة التوصيل الآن', descEn: 'Parcel in transit with courier' },
+    // Wave 3's `out_for_delivery` and the legacy relay's `shipped` are the SAME
+    // stage to a buyer ("it's on its way"), so they share one timeline step via
+    // altIds. Without that, findIndex returns -1 for every evidence-flow order
+    // and the progress bar goes blank during the stage the buyer cares about
+    // most — the one where they are being asked to do something.
+    { id: 'shipped', altIds: ['out_for_delivery'], labelAr: 'خرج للتوصيل', labelEn: 'Out for delivery', descAr: 'الشحنة في الطريق إليك الآن', descEn: 'Parcel on its way to you' },
     { id: 'delivered', labelAr: 'تم التوصيل', labelEn: 'Delivered', descAr: 'تم توصيل الشحنة للمشتري', descEn: 'Delivered to buyer destination' },
     { id: 'completed', labelAr: 'مكتمل', labelEn: 'Completed', descAr: 'تم تحرير الأموال والطلب مغلق', descEn: 'Funds released to seller & order closed' }
   ];
 
-  const currentStepIndex = timelineSteps.findIndex(s => s.id === order.status);
+  const currentStepIndex = timelineSteps.findIndex(
+    s => s.id === order.status || (s as { altIds?: string[] }).altIds?.includes(order.status)
+  );
 
   // W2/W4 — honest shipment status (no fabricated tracking/ETA) + address gate.
   const shipmentStatusLabel =
-    order.status === 'shipped' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
+    // `out_for_delivery` MUST be listed here. This chain ends in an
+    // "Awaiting payment" fallback, so an unhandled status tells a buyer whose
+    // parcel is already en route that they never paid.
+    order.status === 'out_for_delivery' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
+    : order.status === 'shipped' ? (isAr ? 'الشحنة في الطريق إليك' : 'On the way to you')
     : order.status === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered')
     : order.status === 'completed' ? (isAr ? 'مكتمل — تم إغلاق الطلب' : 'Completed — order closed')
     : order.status === 'preparing_shipment' ? (isAr ? 'البائع يجهّز طلبك' : 'Seller is preparing your order')

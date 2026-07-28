@@ -26,7 +26,7 @@ import {
 import AuctionRulesModal from './AuctionRulesModal';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
-const WON_ORDER_STATUSES: Order['status'][] = ['paid', 'preparing_shipment', 'shipped', 'delivered', 'completed'];
+const WON_ORDER_STATUSES: Order['status'][] = ['paid', 'preparing_shipment', 'out_for_delivery', 'shipped', 'delivered', 'completed'];
 
 export const ProfileView: React.FC = () => {
   const {

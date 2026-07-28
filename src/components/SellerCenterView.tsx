@@ -109,6 +109,18 @@ const auctionStatusLabel = (status: string, isAr: boolean): string => {
   return isAr ? 'قيد المعالجة' : 'Processing';
 };
 
+/**
+ * The seller's "Shipped" tab: goods have left, money has not yet moved.
+ *
+ * Wave 3 added `out_for_delivery` (the evidence-gated dispatch) alongside the
+ * legacy relay-recorded `shipped`. Extracted because the tab's filter and the
+ * tab's COUNT BADGE are two separate call sites — they had already been written
+ * out twice, and a badge that disagrees with the list it opens is the exact bug
+ * that shape invites.
+ */
+const isInTransitOrder = (o: { status?: string }): boolean =>
+  o.status === 'shipped' || o.status === 'out_for_delivery' || o.status === 'delivered';
+
 // Extend local translations for Seller Center Specific text
 const sellerTranslations: Record<string, Record<string, string>> = {
   ar: {
@@ -548,7 +560,7 @@ export const SellerCenterView: React.FC = () => {
     
     // Pending Orders: waiting_payment, paid, preparing_shipment, shipped, delivered
     const pendingOrdersCount = myOrders.filter(o => 
-      ['waiting_payment', 'pending_buyer_confirmation', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'disputed'].includes(o.status)
+      ['waiting_payment', 'pending_buyer_confirmation', 'paid', 'preparing_shipment', 'out_for_delivery', 'shipped', 'delivered', 'disputed'].includes(o.status)
     ).length;
 
     // Total Revenue: seller earnings on completed/paid orders — NET of Mazad's
@@ -1004,7 +1016,7 @@ export const SellerCenterView: React.FC = () => {
       case 'to_ship':
         return myOrders.filter(o => o.status === 'paid' || o.status === 'preparing_shipment');
       case 'shipped':
-        return myOrders.filter(o => o.status === 'shipped' || o.status === 'delivered');
+        return myOrders.filter(isInTransitOrder);
       case 'completed':
         return myOrders.filter(o => o.status === 'completed');
       case 'disputed':
@@ -1557,7 +1569,7 @@ export const SellerCenterView: React.FC = () => {
                     {[
                       { id: 'all', label: st.ord_all, count: myOrders.length },
                       { id: 'to_ship', label: st.ord_to_ship, count: myOrders.filter(o => o.status === 'paid' || o.status === 'preparing_shipment').length },
-                      { id: 'shipped', label: st.ord_shipped, count: myOrders.filter(o => o.status === 'shipped' || o.status === 'delivered').length },
+                      { id: 'shipped', label: st.ord_shipped, count: myOrders.filter(isInTransitOrder).length },
                       { id: 'completed', label: st.ord_completed, count: myOrders.filter(o => o.status === 'completed').length },
                       { id: 'disputed', label: st.ord_disputed, count: myOrders.filter(o => o.status === 'disputed').length },
                     ].map((chip) => (

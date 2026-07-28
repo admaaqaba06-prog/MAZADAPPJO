@@ -1161,6 +1161,12 @@ exports.onOrderStatusChanged = functions.firestore
     if (before.status === after.status) return null; // no status change
     const NOTIFY = {
       preparing_shipment: 'order_preparing',
+      // Wave 3 — reuses the EXISTING order_shipped event on purpose. The n8n
+      // workflow (v2, live) has a fixed 21-event contract that notify.js's
+      // CHANNEL_POLICY mirrors; a new key here would emit an event n8n does not
+      // route, and the buyer would silently get nothing. "Out for delivery" is
+      // already what order_shipped means to a buyer.
+      out_for_delivery: 'order_shipped',
       shipped: 'order_shipped',
       delivered: 'order_delivered',
       completed: 'order_completed',
