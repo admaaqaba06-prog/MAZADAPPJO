@@ -23,6 +23,7 @@ const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrd
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
+const { activateSeller: activateSellerTxn } = require('./sellerActivation');
 const { normalizeDeliveryCodeInput } = require('./deliveryCode');
 const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
@@ -1937,6 +1938,34 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * activateSeller — a signed-in user turns their own account into a seller
+ * account. Self-service by design; the caller may only ever activate THEMSELVES
+ * (the uid comes from the auth context, never from `data`), so there is no
+ * admin gate and no way to promote someone else.
+ *
+ * Must be server-side: firestore.rules denylists `isSeller` for self-writes, so
+ * the client physically cannot grant it. State + idempotency live in
+ * sellerActivation.js (unit-tested); this wrapper is auth-gating only.
+ */
+exports.activateSeller = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
+  }
+  try {
+    const lang = (data && data.lang) === 'en' ? 'en' : 'ar';
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now(), lang };
+    const result = await activateSellerTxn(deps, { uid: context.auth.uid });
+    console.log(`[activateSeller] uid=${context.auth.uid} activated=${result.activated}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in activateSeller:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'تعذر تفعيل حساب البائع.');
   }
 });
 

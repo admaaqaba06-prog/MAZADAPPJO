@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
-import { isAdminUser } from '../utils/adminAuth';
+import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { WalletRowSkeleton, EmptyState } from './FeedbackStates';
-import { db } from '../services/firebase';
+import { db, getCallableFunction } from '../services/firebase';
 import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { OrderDetailsView } from './OrderDetailsView';
 import { AdminWalletConsole } from './AdminWalletConsole';
@@ -37,7 +37,8 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  ChevronLeft
+  ChevronLeft,
+  Store
 } from 'lucide-react';
 import { EscrowTransaction } from '../types';
 
@@ -113,74 +114,32 @@ export const WalletView: React.FC = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isActivatingSeller, setIsActivatingSeller] = useState(false);
 
+  // Seller activation goes through the `activateSeller` callable.
+  //
+  // It CANNOT be done from here. This function used to write `isSeller` (plus a
+  // sellerProfiles doc) directly to Firestore as the user themselves —
+  // firestore.rules denylists `isSeller` for self-writes, so that write always
+  // returned PERMISSION_DENIED. Nothing ever called this function, so the
+  // failure stayed invisible while, in production, no user could become a
+  // seller at all. The grant now lives in functions/sellerActivation.js.
   const handleActivateSeller = async () => {
     if (!currentUser) return;
     setIsActivatingSeller(true);
     try {
-      const storeName = currentUser.name ? (isAr ? `متجر ${currentUser.name}` : `${currentUser.name}'s Store`) : (isAr ? 'متجري الخاص' : 'My Store');
-      const location = isAr ? 'عمان، الأردن' : 'Amman, Jordan';
-      const about = isAr ? 'أهلاً بكم في متجري الخاص على مزاد جو.' : 'Welcome to my official store on MAZAD JO.';
+      const activate = await getCallableFunction<
+        { lang: 'ar' | 'en' },
+        { success: boolean; activated: boolean; alreadySeller: boolean }
+      >('activateSeller');
+      await activate({ lang: isAr ? 'ar' : 'en' });
 
-      const sellerPayload = {
+      // The user doc is live-subscribed in AppContext, so isSeller/role arrive
+      // on their own. Reflect it immediately so the Seller Center nav appears
+      // without waiting for the snapshot.
+      setCurrentUser(prev => prev ? ({
+        ...prev,
+        role: 'seller',
         isSeller: true,
         sellerStatus: 'active',
-        sellerActivatedAt: serverTimestamp(),
-        sellerProfile: {
-          storeName,
-          location,
-          about,
-          rating: 0,
-          completedSales: 0
-        }
-      };
-
-      const userRef = doc(db, 'users', currentUser.id);
-      await updateDoc(userRef, {
-        isSeller: sellerPayload.isSeller,
-        sellerStatus: sellerPayload.sellerStatus,
-        sellerActivatedAt: sellerPayload.sellerActivatedAt,
-        sellerProfile: sellerPayload.sellerProfile
-      });
-
-      const profileId = currentUser.id;
-      const profileRef = doc(db, 'sellerProfiles', profileId);
-      const profileSnap = await getDoc(profileRef);
-      if (!profileSnap.exists()) {
-        await setDoc(profileRef, {
-          id: profileId,
-          userId: currentUser.id,
-          storeName,
-          storeLogo: currentUser.avatar || 'https://images.unsplash.com/photo-1547996165-f823e595aa?auto=format&fit=crop&w=150&q=80',
-          coverImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-          bio: about,
-          rating: 5.0,
-          totalSales: 0,
-          isVerifiedMerchant: false,
-          joinedDate: new Date().toLocaleDateString(language === 'ar' ? 'ar-JO' : 'en-US', { month: 'long', year: 'numeric' }),
-          location,
-          followers: 0,
-          following: 0,
-          verificationStatus: 'not_verified',
-          responseTime: isAr ? 'ساعة واحدة' : '1 hour',
-          cancellationRate: 0,
-          trustScore: 50,
-          badges: []
-        });
-      }
-
-      setCurrentUser(prev => prev ? ({ 
-        ...prev, 
-        role: 'seller', 
-        isSeller: true, 
-        sellerStatus: 'active',
-        sellerActivatedAt: Date.now(),
-        sellerProfile: {
-          storeName,
-          location,
-          about,
-          rating: 0,
-          completedSales: 0
-        }
       }) : null);
 
       const sellerOkTitle = isAr ? '✅ تم تفعيل حساب البائع' : '✅ Seller Account Activated';
@@ -970,6 +929,42 @@ export const WalletView: React.FC = () => {
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 </button>
+
+                {/*
+                  Become a seller. Hidden once the account already is one.
+
+                  This is the ONLY entry point to a seller account in the app.
+                  handleActivateSeller existed for months with no caller and a
+                  client-side write that firestore.rules would have rejected, so
+                  in production nobody could self-activate: sellers only existed
+                  if someone set the flag by hand. It now calls the
+                  `activateSeller` callable.
+                */}
+                {!isAdminOrSeller(currentUser) && (
+                  <button
+                    onClick={handleActivateSeller}
+                    disabled={isActivatingSeller}
+                    className="w-full bg-white border border-[#FF6B00]/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left disabled:opacity-50"
+                    id="activate-seller-btn"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
+                        <Store className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-gray-900">
+                          {isActivatingSeller
+                            ? (isAr ? 'جارٍ التفعيل…' : 'Activating…')
+                            : (isAr ? 'ابدأ البيع على مزاد' : 'Start selling on Mazad')}
+                        </h4>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {isAr ? 'فعّل حساب البائع وتابع مبيعاتك وطلباتك' : 'Activate your seller account to manage sales & orders'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                )}
               </div>
 
               {/* Recent Activity */}
