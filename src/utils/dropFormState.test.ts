@@ -360,8 +360,9 @@ describe('clearErrorsForField', () => {
     const raised = validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW);
     expect(Object.keys(raised).length).toBeGreaterThan(0);
     for (const key of Object.keys(raised)) {
-      const field = (key === 'scheduledLocal' ? 'scheduledLocal' : key) as keyof DropFormValues;
-      expect(clearErrorsForField(raised, field)[key]).toBeUndefined();
+      // Every code the validator raises is keyed under a field name, so
+      // changing the field of that name is what has to retire it.
+      expect(clearErrorsForField(raised, key as keyof DropFormValues)[key]).toBeUndefined();
     }
   });
 });

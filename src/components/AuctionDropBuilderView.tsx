@@ -174,6 +174,43 @@ export default function AuctionDropBuilderView() {
     setVideoFile(null);
   };
 
+  /**
+   * Everything a "start the next drop" does OUTSIDE the form object.
+   *
+   * Two entry points reach this state — "create another" and a relist — and
+   * they differ only in how they fill the form: one clears it down to the batch
+   * settings, the other prefills it from a past lot. Every other step is
+   * identical, so it lives here rather than in both.
+   *
+   * That was not cosmetic. handleRelist had grown five of the seven steps and
+   * was missing the three message resets, so a failed submit followed by a
+   * relist prefilled the form with valid values and left the previous attempt's
+   * red "This field is required" sitting underneath them — Bug 3 again, through
+   * the other door. A shared helper is what stops the two paths drifting apart
+   * a third time; the media revoke below already had to learn this lesson.
+   *
+   * The caller sets the form itself, immediately before or after calling this.
+   */
+  const resetForNextDrop = () => {
+    // Picked files belong to the drop that was just abandoned. Leaving them
+    // would publish the previous item's photos and video on this one.
+    clearPickedMedia();
+    setCreatedId(null);
+    // A new drop is never in edit mode — the save bar hangs off `editing` and
+    // would otherwise sit over a form with no created id to save to.
+    setEditing(false);
+    // The three message channels, all of which survive a form reset on their
+    // own: per-field validation errors, the shared failure line (which can be
+    // holding "a bid landed — editing is locked" about the PREVIOUS lot), and
+    // the copy-image result.
+    setErrors({});
+    setError('');
+    setCopyImageMsg('');
+    // DesktopFrame is overflow-hidden, so `window.scrollTo` is a no-op here and
+    // the new form would otherwise open scrolled to the middle of the last one.
+    scrollToTop();
+  };
+
   const specs = useMemo(
     () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
     [form.specsText],
@@ -349,20 +386,12 @@ export default function AuctionDropBuilderView() {
 
   /**
    * Clear the item, keep the batch. `afterCreateAnother` owns the keep-vs-clear
-   * rule for every form field (including always clearing `viewing`) — the work
-   * left here is the state that lives outside the form object.
+   * rule for every form field (including always clearing `viewing`);
+   * `resetForNextDrop` owns everything outside the form object.
    */
   const handleCreateAnother = () => {
     setForm(afterCreateAnother(form));
-    clearPickedMedia();
-    setCreatedId(null);
-    setEditing(false);
-    // Per-field errors are their own state and survive a form reset, so the
-    // fresh drop would otherwise open wearing the previous lot's red messages.
-    setErrors({});
-    setError('');
-    setCopyImageMsg('');
-    scrollToTop();
+    resetForNextDrop();
   };
 
   /**
@@ -535,21 +564,12 @@ export default function AuctionDropBuilderView() {
       viewing: hasSourceViewing ? sourceViewing : '',
       viewingPlace: hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '',
     }));
-    // A relist is a new lot with new media. Whatever is currently picked belongs
-    // to the drop the admin was last building — leaving it in place publishes
-    // the PREVIOUS item's photos and video on this one, which is a wrong listing
-    // shipped to buyers, not an ops slip. Same revoke-then-clear discipline as
-    // "create another": both abandon a picked set, so both go through the same
-    // helper rather than one of them remembering to.
-    clearPickedMedia();
-    setCreatedId(null);
-    // A relist is a NEW drop, so it must leave edit mode too — otherwise the
-    // save bar Task 10 hangs off `editing` would sit over a prefilled form with
-    // no created id to save to.
-    setEditing(false);
-    // Same container, same reason as handleCreateAnother: a relist prefills the
-    // form at the top of the view and the window never scrolls here.
-    scrollToTop();
+    // A relist is a NEW drop that happens to arrive prefilled, so it gets the
+    // same treatment "create another" does — media dropped, edit mode left,
+    // every stale message cleared, scrolled to the top. It used to do four of
+    // those seven things inline and none of the three message resets, which is
+    // how a failed submit's red errors survived onto a freshly prefilled form.
+    resetForNextDrop();
   };
 
   return (
