@@ -1709,11 +1709,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'escrows' (bidder) sync error:", err);
       });
 
-      // Pure buyers have no seller-side escrow rows — skip opening this
-      // subscription for them entirely (one fewer live listener for the
-      // majority of sessions, which are buyers, not sellers).
+      // ALWAYS subscribe — same reasoning as the seller-orders subscription
+      // below: an unflagged seller (and until now every self-serve seller was
+      // unflagged) would otherwise never see the escrow holding their own
+      // sale's money. An empty filtered listener is the cheaper mistake.
       let unsubSeller = () => {};
-      if (isAdminOrSeller(currentUser)) {
+      {
         const sellerEscrowsQuery = query(collection(db, 'escrows'), where('sellerId', '==', currentUser.id), limit(100));
         unsubSeller = onSnapshot(sellerEscrowsQuery, (snap) => {
           const list: EscrowTransaction[] = [];
@@ -2104,10 +2105,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Firestore 'orders' (buyer) sync error:", err);
       });
 
-      // Pure buyers have no seller-side orders — skip opening this
-      // subscription for them entirely.
+      // ALWAYS subscribe, for every signed-in user.
+      //
+      // This used to be gated on `isAdminOrSeller(currentUser)` as an
+      // optimization ("pure buyers have no seller-side orders"). That gate was
+      // wrong, and it cost real sellers their sales: nothing in the app could
+      // grant `isSeller` (the only code that wrote it was both dead AND blocked
+      // by the firestore.rules self-write denylist), so a self-serve seller who
+      // listed an item and sold it stayed unflagged forever. DesktopFrame shows
+      // them the Seller Center nav — it ORs in `ownsListing` — and then the
+      // page reads "No orders logged yet", because this subscription never
+      // opened. Five production accounts were in exactly that state.
+      //
+      // Gating it on `ownsListing` instead would fix those five and re-break
+      // the next person whose first sale arrives before that listener resolves.
+      // The query is `where sellerId == me` with limit 100; for a pure buyer it
+      // matches nothing, and an empty filtered listener is far cheaper than a
+      // seller who cannot see — or now, under Wave 3, cannot fulfil — their own
+      // order. Correctness over a micro-optimization.
       let unsubSeller = () => {};
-      if (isAdminOrSeller(currentUser)) {
+      {
         const sellerQuery = query(collection(db, 'orders'), where('sellerId', '==', currentUser.id), limit(100));
         unsubSeller = onSnapshot(sellerQuery, (snap) => {
           const list: Order[] = [];
@@ -2213,10 +2230,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateDisputes();
       }, (err) => console.warn("Buyer disputes sync error:", err));
 
-      // Pure buyers have no seller-side disputes — skip opening this
-      // subscription for them entirely.
+      // ALWAYS subscribe. This one is the sharpest of the three: gated on a
+      // flag nothing could grant, a seller never saw a dispute raised AGAINST
+      // them — they simply had no idea it existed while it was being
+      // adjudicated. Same reasoning as the orders subscription.
       let unsubSellerDisp = () => {};
-      if (isAdminOrSeller(currentUser)) {
+      {
         const qSellerDisp = query(collection(db, 'disputes'), where('sellerId', '==', currentUser.id), limit(50));
         unsubSellerDisp = onSnapshot(qSellerDisp, (snap) => {
           const list: Dispute[] = [];
