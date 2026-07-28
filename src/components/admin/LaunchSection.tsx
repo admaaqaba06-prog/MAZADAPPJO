@@ -163,6 +163,21 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
 
   const [viewingById, setViewingById] = useState<Record<string, ViewingMode>>({});
   const [viewingPlaceById, setViewingPlaceById] = useState<Record<string, string>>({});
+  // Per-lot quality checklist — the admin must tick all three before the
+  // APPROVE button un-greys. Keyed by auction id (mirrors viewingById) so each
+  // pending card tracks its own confirmations independently. Absent = all false.
+  type LotChecklist = { photo: boolean; category: boolean; name: boolean };
+  const [checklistById, setChecklistById] = useState<Record<string, LotChecklist>>({});
+  // Drop a lot's ticks once a verdict is in — a resubmitted listing reuses the
+  // same doc id, so stale ticks must not carry over onto the fresh card.
+  const clearChecklist = (auctionId: string) => {
+    setChecklistById((prev) => {
+      if (!(auctionId in prev)) return prev;
+      const updated = { ...prev };
+      delete updated[auctionId];
+      return updated;
+    });
+  };
   // A resubmitted listing reuses the same doc id, so a staged choice left over
   // from the previous version would sit pre-selected on the new card and an
   // inattentive approve would write a claim meant for the old lot. Drop the
@@ -219,7 +234,23 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
               {isLoading ? (
                 <AdminListSkeleton />
               ) : pendingListingDrops.length > 0 ? (
-                pendingListingDrops.map((item) => (
+                pendingListingDrops.map((item) => {
+                  // Client-side go-live gate. hasMedia is a HARD requirement:
+                  // no photo/video means the lot cannot be approved at all,
+                  // regardless of the checklist. The three ticks are the admin's
+                  // explicit quality confirmation; all three plus media unlock
+                  // APPROVE. The test-title match is a SOFT warning only.
+                  const checklist: LotChecklist = checklistById[item.id] || { photo: false, category: false, name: false };
+                  const hasMedia = !!(item.thumbnailUrl || item.videoUrl || (item.mediaUrls && item.mediaUrls.length));
+                  const allChecked = checklist.photo && checklist.category && checklist.name;
+                  const canApprove = allChecked && hasMedia;
+                  const looksLikeTest = /test|tset|اختبار|dummy|sample/i.test(String(item.title || ''));
+                  const checklistItems: { key: keyof LotChecklist; en: string; ar: string }[] = [
+                    { key: 'photo', en: 'Real product photo (not a poster/branding slide)', ar: 'صورة منتج حقيقية (وليست بوستر أو تصميم دعائي)' },
+                    { key: 'category', en: 'Category is correct', ar: 'التصنيف صحيح' },
+                    { key: 'name', en: 'Descriptive name, not a test', ar: 'اسم وصفي وليس تجريبياً' },
+                  ];
+                  return (
                   <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs transition-all hover:border-gray-200">
                     <div className="flex gap-4">
                       {/* Click to open full size. A 64px object-cover crop hides
@@ -350,9 +381,59 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                           isAr={isAr}
                         />
 
+                        {/* Quality gate — the admin must confirm all three
+                            before APPROVE un-greys, and no lot without media can
+                            go live at all. Purely a client-side guard on the
+                            approve action; the call itself is unchanged. */}
+                        <div className="bg-amber-50/40 border border-amber-100 rounded-xl p-3 space-y-2.5">
+                          <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider block">
+                            ✅ {isAr ? 'تأكيد الجودة قبل النشر' : 'PRE-LAUNCH QUALITY CHECK'}
+                          </span>
+
+                          {!hasMedia && (
+                            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg px-2.5 py-2 text-[11px] font-bold flex items-center gap-1.5">
+                              <span>⛔</span>
+                              <span>{isAr ? 'لا توجد صورة/فيديو — لا يمكن الموافقة' : 'No photo/video — cannot approve'}</span>
+                            </div>
+                          )}
+
+                          {looksLikeTest && (
+                            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg px-2.5 py-2 text-[11px] font-bold flex items-center gap-1.5">
+                              <span>⚠️</span>
+                              <span>{isAr ? 'يبدو أنه إعلان تجريبي' : 'Looks like a test listing'}</span>
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5">
+                            {checklistItems.map(({ key, en, ar }) => (
+                              <label
+                                key={key}
+                                className="flex items-start gap-2 text-[11px] text-gray-700 font-medium cursor-pointer select-none"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checklist[key]}
+                                  onChange={() =>
+                                    setChecklistById((prev) => {
+                                      const current = prev[item.id] || { photo: false, category: false, name: false };
+                                      return { ...prev, [item.id]: { ...current, [key]: !current[key] } };
+                                    })
+                                  }
+                                  className="mt-0.5 w-3.5 h-3.5 rounded accent-[#FF6B00] shrink-0 cursor-pointer"
+                                />
+                                <span>{isAr ? ar : en}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
                         <div className="flex gap-2">
                         <button
+                          disabled={!canApprove}
                           onClick={async () => {
+                            // Hard client-side gate: never fire the approve call
+                            // unless all ticks are in and the lot has media.
+                            if (!canApprove) return;
                             // Same call, same arguments — the args are read
                             // before anything is cleared. Only the cleanup is new.
                             try {
@@ -364,8 +445,9 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                               return;
                             }
                             clearStagedViewing(item.id);
+                            clearChecklist(item.id);
                           }}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
+                          className={`flex-1 font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs text-white ${canApprove ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-300 cursor-not-allowed'}`}
                         >
                           {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
                         </button>
@@ -382,9 +464,10 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
                       </div>
                     )}
                   </div>
-                ))
+                  );
+                })
               ) : (
-                <EmptyState 
+                <EmptyState
                   title={isAr ? 'لا توجد معروضات معلقة' : 'No pending lots'}
                   description={isAr ? 'جميع طلبات المزادات المقترحة من البائعين تمت مراجعتها.' : 'No new listings submitted by merchants are currently awaiting public release.'}
                   language={isAr ? 'ar' : 'en'}
