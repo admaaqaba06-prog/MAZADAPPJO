@@ -1415,7 +1415,11 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
         _chat: {
           auctionId,
           userId,
-          userName: userData.name || 'User',
+          // PUBLIC write: this flows into the chats collection (allow read: if
+          // isSignedIn()), so the seller can read it. Must be masked to stay
+          // consistent with the masked public bid history — the real name never
+          // touches the world-readable bid indicator.
+          userName: maskBidderName(userData.name || 'User'),
           userAvatar: userData.avatar || '',
           amount
         }
