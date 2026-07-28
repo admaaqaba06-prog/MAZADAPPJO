@@ -15,12 +15,14 @@ import { buildDropPayload } from '../utils/dropPayload';
 import {
   INITIAL_FORM,
   afterCreateAnother,
+  clearErrorsForField,
   dropErrorText,
   firstErrorField,
   validateDropForm,
   type DropFormValues,
 } from '../utils/dropFormState';
 import { photoUploadLabel, uploadStageLabel } from '../utils/dropProgress';
+import { DURATION_PRESETS, durationLabel } from '../utils/dropDuration';
 import { opensSummaryLabel, resolveOpens, type OpensMode } from '../utils/opensMode';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
@@ -32,12 +34,6 @@ import MoreSettingsDrawer from './admin/MoreSettingsDrawer';
 import DropSuccessPanel from './admin/DropSuccessPanel';
 import type { PickedPhoto } from '../utils/mediaPickerState';
 import type { AuctionItem } from '../types';
-
-const DURATION_PRESETS = [
-  { seconds: 600, label: '10 دقيقة', en: '10 min' },
-  { seconds: 900, label: '15 دقيقة', en: '15 min' },
-  { seconds: 1800, label: '30 دقيقة', en: '30 min' },
-];
 
 const OPENS_OPTIONS: { id: OpensMode; ar: string; en: string }[] = [
   { id: 'now', ar: 'الآن', en: 'Now' },
@@ -54,11 +50,6 @@ export default function AuctionDropBuilderView() {
   // carried sixteen parallel useState calls, which is what made "reset for the
   // next drop" and "prefill from a relist" each have to remember all sixteen.
   const [form, setForm] = useState<DropFormValues>(INITIAL_FORM);
-  const setField = useCallback(
-    <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) =>
-      setForm((prev) => ({ ...prev, [key]: value })),
-    [],
-  );
 
   // Media are File objects, not serialisable form state, so they stay separate.
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -74,10 +65,36 @@ export default function AuctionDropBuilderView() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // Per-field validation codes, keyed by DropFormValues field name. Recomputed
-  // wholesale on every Create click, so nothing stale can survive a submit.
+  // wholesale on every Create click, so nothing stale can survive a submit —
+  // and cleared per field by setField below, so nothing stale survives the fix
+  // either.
   const [errors, setErrors] = useState<Record<string, string>>({});
   // What the submit button says mid-upload. Empty outside a submit.
   const [progressLabel, setProgressLabel] = useState('');
+
+  /**
+   * The one write path into the form — and therefore the one place a field's
+   * error can be retired.
+   *
+   * Every control in this view goes through it: the two required inputs, the
+   * Opens buttons, the start-time picker, the duration and channel selects and
+   * all ten of the drawer's fields. That is what lets the clear live here
+   * instead of on ~fifteen `onChange` handlers, each of which would have to
+   * remember — the shipped defect was a red "This field is required" sitting
+   * under a name the admin had already typed, and it survived until the next
+   * submit precisely because nothing but a submit ever touched `errors`.
+   *
+   * clearErrorsForField owns which errors a change retires, including the
+   * cross-field one: changing the Opens mode retires the `scheduledLocal`
+   * error, whose input that change may have just unmounted.
+   */
+  const setField = useCallback(
+    <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) => {
+      setForm((prev) => ({ ...prev, [key]: value }));
+      setErrors((prev) => clearErrorsForField(prev, key));
+    },
+    [],
+  );
 
   // THE scrolling element for this view. DesktopFrame is `overflow-hidden` and
   // every in-frame view owns its own scroll, so the document itself never
@@ -157,6 +174,43 @@ export default function AuctionDropBuilderView() {
     setVideoFile(null);
   };
 
+  /**
+   * Everything a "start the next drop" does OUTSIDE the form object.
+   *
+   * Two entry points reach this state — "create another" and a relist — and
+   * they differ only in how they fill the form: one clears it down to the batch
+   * settings, the other prefills it from a past lot. Every other step is
+   * identical, so it lives here rather than in both.
+   *
+   * That was not cosmetic. handleRelist had grown five of the seven steps and
+   * was missing the three message resets, so a failed submit followed by a
+   * relist prefilled the form with valid values and left the previous attempt's
+   * red "This field is required" sitting underneath them — Bug 3 again, through
+   * the other door. A shared helper is what stops the two paths drifting apart
+   * a third time; the media revoke below already had to learn this lesson.
+   *
+   * The caller sets the form itself, immediately before or after calling this.
+   */
+  const resetForNextDrop = () => {
+    // Picked files belong to the drop that was just abandoned. Leaving them
+    // would publish the previous item's photos and video on this one.
+    clearPickedMedia();
+    setCreatedId(null);
+    // A new drop is never in edit mode — the save bar hangs off `editing` and
+    // would otherwise sit over a form with no created id to save to.
+    setEditing(false);
+    // The three message channels, all of which survive a form reset on their
+    // own: per-field validation errors, the shared failure line (which can be
+    // holding "a bid landed — editing is locked" about the PREVIOUS lot), and
+    // the copy-image result.
+    setErrors({});
+    setError('');
+    setCopyImageMsg('');
+    // DesktopFrame is overflow-hidden, so `window.scrollTo` is a no-op here and
+    // the new form would otherwise open scrolled to the middle of the last one.
+    scrollToTop();
+  };
+
   const specs = useMemo(
     () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
     [form.specsText],
@@ -172,10 +226,22 @@ export default function AuctionDropBuilderView() {
     [scheduledStartAtMs],
   );
 
-  const durationLabel = useMemo(() => {
-    const p = DURATION_PRESETS.find((d) => d.seconds === form.durationSeconds);
-    return p ? p.label : `${Math.round(form.durationSeconds / 60)} دقيقة`;
-  }, [form.durationSeconds]);
+  // TWO labels for one duration, deliberately, because the two consumers below
+  // are not in the same language.
+  //
+  // The caption is the buyer-facing WhatsApp post: dropCaption.ts is Arabic end
+  // to end, so its duration line stays Arabic no matter which language the
+  // admin is running the console in. The success panel is admin-facing and
+  // follows `isAr` — it used to take the Arabic label too, which is why an
+  // English admin saw "Opens now · 30 دقيقة".
+  const captionDurationLabel = useMemo(
+    () => durationLabel(form.durationSeconds, true),
+    [form.durationSeconds],
+  );
+  const uiDurationLabel = useMemo(
+    () => durationLabel(form.durationSeconds, isAr),
+    [form.durationSeconds, isAr],
+  );
 
   // The live doc for the drop just created. Status and bid count come from here
   // rather than from anything this view remembers, so a bid landing while the
@@ -205,14 +271,14 @@ export default function AuctionDropBuilderView() {
       buildAuctionCaption({
         auctionNumber: assignedNumber ?? '—',
         startTime: startTimeDisplay,
-        durationLabel,
+        durationLabel: captionDurationLabel,
         startingPriceJod: Number(form.startingPrice) || 0,
         productName: form.productName.trim() || '—',
         specs,
         condition: form.condition.trim(),
         deepLink,
       }),
-    [assignedNumber, startTimeDisplay, durationLabel, form.startingPrice, form.productName, specs, form.condition, deepLink],
+    [assignedNumber, startTimeDisplay, captionDurationLabel, form.startingPrice, form.productName, specs, form.condition, deepLink],
   );
 
   const copy = async (text: string) => {
@@ -320,20 +386,12 @@ export default function AuctionDropBuilderView() {
 
   /**
    * Clear the item, keep the batch. `afterCreateAnother` owns the keep-vs-clear
-   * rule for every form field (including always clearing `viewing`) — the work
-   * left here is the state that lives outside the form object.
+   * rule for every form field (including always clearing `viewing`);
+   * `resetForNextDrop` owns everything outside the form object.
    */
   const handleCreateAnother = () => {
     setForm(afterCreateAnother(form));
-    clearPickedMedia();
-    setCreatedId(null);
-    setEditing(false);
-    // Per-field errors are their own state and survive a form reset, so the
-    // fresh drop would otherwise open wearing the previous lot's red messages.
-    setErrors({});
-    setError('');
-    setCopyImageMsg('');
-    scrollToTop();
+    resetForNextDrop();
   };
 
   /**
@@ -506,21 +564,12 @@ export default function AuctionDropBuilderView() {
       viewing: hasSourceViewing ? sourceViewing : '',
       viewingPlace: hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '',
     }));
-    // A relist is a new lot with new media. Whatever is currently picked belongs
-    // to the drop the admin was last building — leaving it in place publishes
-    // the PREVIOUS item's photos and video on this one, which is a wrong listing
-    // shipped to buyers, not an ops slip. Same revoke-then-clear discipline as
-    // "create another": both abandon a picked set, so both go through the same
-    // helper rather than one of them remembering to.
-    clearPickedMedia();
-    setCreatedId(null);
-    // A relist is a NEW drop, so it must leave edit mode too — otherwise the
-    // save bar Task 10 hangs off `editing` would sit over a prefilled form with
-    // no created id to save to.
-    setEditing(false);
-    // Same container, same reason as handleCreateAnother: a relist prefills the
-    // form at the top of the view and the window never scrolls here.
-    scrollToTop();
+    // A relist is a NEW drop that happens to arrive prefilled, so it gets the
+    // same treatment "create another" does — media dropped, edit mode left,
+    // every stale message cleared, scrolled to the top. It used to do four of
+    // those seven things inline and none of the three message resets, which is
+    // how a failed submit's red errors survived onto a freshly prefilled form.
+    resetForNextDrop();
   };
 
   return (
@@ -556,7 +605,7 @@ export default function AuctionDropBuilderView() {
           startingPrice={Number(form.startingPrice) || 0}
           coverUrl={thumbnailPreview}
           opensLabel={opensSummaryLabel(form.opensMode, startTimeDisplay, isAr)}
-          durationLabel={durationLabel}
+          durationLabel={uiDurationLabel}
           finalLink={finalLink}
           caption={caption}
           status={createdAuction?.status}
@@ -728,7 +777,7 @@ export default function AuctionDropBuilderView() {
             onChange={(e) => setField('durationSeconds', Number(e.target.value))}
           >
             {DURATION_PRESETS.map((d) => (
-              <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
+              <option key={d.seconds} value={d.seconds}>{isAr ? d.ar : d.en}</option>
             ))}
           </select>
         </label>

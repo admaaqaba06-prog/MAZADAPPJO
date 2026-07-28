@@ -125,6 +125,47 @@ export function firstErrorField(errors: Record<string, string>): string | null {
 }
 
 /**
+ * Fields whose change invalidates an error keyed under a DIFFERENT name.
+ *
+ * `opensMode` is the only one today: the timing error is keyed `scheduledLocal`
+ * (that is the input it renders under), but the Opens buttons are what decide
+ * whether a start time is required at all. Switching to "Now" or "On first bid"
+ * unmounts the picker entirely, so without this the error would be cleared by a
+ * control the admin can no longer see — and switching BACK would reveal the
+ * stale red message again.
+ */
+const LINKED_ERROR_FIELDS: Partial<Record<keyof DropFormValues, string[]>> = {
+  opensMode: ['scheduledLocal'],
+};
+
+/**
+ * The error map after `key` changed: that field's complaint is dropped, and so
+ * is anything it invalidates.
+ *
+ * Errors are set wholesale by a submit and were only ever recomputed by the
+ * next one, so typing a name into an empty Product name field left the red
+ * "This field is required" sitting under text that plainly satisfies it. This
+ * clears rather than re-validates on purpose: a running validator would light
+ * fields up mid-typing (an empty price field is "invalid" after the first
+ * backspace), which is a different and worse defect. The submit is still the
+ * only thing that ASSERTS validity — validateDropForm runs in full on every
+ * Create/Save, so nothing cleared here can slip past it.
+ *
+ * Returns the SAME object when there was nothing to clear, so a keystroke on a
+ * form with no errors cannot cause a re-render.
+ */
+export function clearErrorsForField(
+  errors: Record<string, string>,
+  key: keyof DropFormValues,
+): Record<string, string> {
+  const targets = [key as string, ...(LINKED_ERROR_FIELDS[key] ?? [])];
+  if (!targets.some((field) => errors[field])) return errors;
+  const next = { ...errors };
+  for (const field of targets) delete next[field];
+  return next;
+}
+
+/**
  * Error code -> the sentence shown under the field. Both languages always: the
  * ops team is mixed and neither is a fallback.
  *
