@@ -216,3 +216,15 @@ describe('awaiting_payment honours the server deadline', () => {
     ).toBe(true);
   });
 });
+
+describe('Wave 3 — out_for_delivery buckets with the goods in transit', () => {
+  it('buckets as awaiting_delivery, same as legacy shipped', () => {
+    expect(bucketOrder({ status: 'out_for_delivery' })).toBe('awaiting_delivery');
+  });
+
+  it('goes overdue on the awaiting_delivery SLA (5 days), not the payment window', () => {
+    const fiveDays = 5 * DAY;
+    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - fiveDays - 1 }, NOW)).toBe(true);
+    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - 1000 }, NOW)).toBe(false);
+  });
+});

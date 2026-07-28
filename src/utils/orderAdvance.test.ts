@@ -35,3 +35,13 @@ describe('nextAdvance', () => {
     expect(nextAdvance(undefined)).toBeNull();
   });
 });
+
+describe('Wave 3 — the relay can still hand-advance a stalled evidence flow', () => {
+  it('offers "delivered" out of out_for_delivery — a claim of fact, no money', () => {
+    expect(nextAdvance('out_for_delivery')).toEqual({ action: 'mark_delivered', to: 'delivered' });
+  });
+
+  it('still offers nothing at delivered — the next step releases money', () => {
+    expect(nextAdvance('delivered')).toBeNull();
+  });
+});
