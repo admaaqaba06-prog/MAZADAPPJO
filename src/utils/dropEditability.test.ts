@@ -6,9 +6,11 @@ import {
   cancelWarnsAboutBids,
   cancelConfirmMessage,
   stripNonEditableKeys,
+  isFirstBidPayload,
   NON_EDITABLE_KEYS,
+  FIRST_BID_NON_EDITABLE_KEYS,
 } from './dropEditability';
-import { buildDropPayload } from './dropPayload';
+import { buildDropPayload, type DropPayloadInput } from './dropPayload';
 
 describe('bidCountOf — fails closed to "has bids" only on real numbers', () => {
   it('reads a numeric count', () => {
@@ -232,7 +234,7 @@ describe('cancelConfirmMessage', () => {
 describe('stripNonEditableKeys', () => {
   // Built from the REAL creation payload rather than a hand-written object, so
   // a new dangerous key appearing in buildDropPayload shows up here.
-  const created = () =>
+  const created = (overrides: Partial<DropPayloadInput> = {}) =>
     buildDropPayload(
       {
         productName: 'iPhone 15 Pro',
@@ -250,6 +252,7 @@ describe('stripNonEditableKeys', () => {
         reservePrice: '300',
         vendorName: 'Acme',
         extraPhotoUrls: ['https://example.com/a.jpg'],
+        ...overrides,
       },
       1_700_000_000_000,
     );
@@ -319,5 +322,94 @@ describe('stripNonEditableKeys', () => {
 
   it('is a no-op on a payload that never had the keys', () => {
     expect(stripNonEditableKeys({ title: 'x' })).toEqual({ title: 'x' });
+  });
+
+  // --- the clock, first_bid only ---------------------------------------------
+  // The create path never had this bug: buildDropPayload always computes an
+  // endTime, and createListing deletes endTime + endsAt when
+  // `listingData.startMode === 'first_bid'`. An EDIT goes straight to updateDoc
+  // and never passes through createListing, so the strip has to happen here or
+  // editing a first_bid lot stamps a deadline on a lot that is supposed to have
+  // none — and the closer cron ends it unsold.
+
+  it('strips the clock from a first_bid edit', () => {
+    const before = created({ startMode: 'first_bid' });
+    // The builder really does emit it — otherwise this test would pass on a
+    // payload that never had the key and prove nothing.
+    expect(before.endTime).toBe(1_700_000_000_000 + 1800 * 1000);
+    const out = stripNonEditableKeys(before);
+    expect(Object.prototype.hasOwnProperty.call(out, 'endTime')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(out, 'endsAt')).toBe(false);
+  });
+
+  it('KEEPS the clock on a scheduled edit — that lot legitimately has a deadline', () => {
+    const out = stripNonEditableKeys(created({ startMode: 'scheduled' }));
+    expect(out.endTime).toBe(1_700_000_000_000 + 1800 * 1000);
+  });
+
+  // buildDropPayload does not emit endsAt today; createListing deletes both, so
+  // the mirror deletes both. Fed in by hand because the builder cannot produce it.
+  it('strips an endsAt that reaches it, for first_bid only', () => {
+    const endsAt = { seconds: 1 };
+    expect('endsAt' in stripNonEditableKeys({ startMode: 'first_bid', endsAt })).toBe(false);
+    expect(stripNonEditableKeys({ startMode: 'scheduled', endsAt }).endsAt).toBe(endsAt);
+  });
+
+  // Fails OPEN to writing the clock, exactly as createListing does: its check is
+  // a strict === against the string, so anything else takes the scheduled path.
+  it('keeps the clock when startMode is absent or unrecognised', () => {
+    expect(stripNonEditableKeys({ endTime: 7 }).endTime).toBe(7);
+    expect(stripNonEditableKeys({ startMode: undefined, endTime: 7 }).endTime).toBe(7);
+    expect(stripNonEditableKeys({ startMode: 'firstBid', endTime: 7 }).endTime).toBe(7);
+    expect(stripNonEditableKeys({ startMode: 'first bid', endTime: 7 }).endTime).toBe(7);
+    expect(stripNonEditableKeys({ startMode: 'FIRST_BID', endTime: 7 }).endTime).toBe(7);
+  });
+
+  it('still strips the always-forbidden keys from a first_bid edit', () => {
+    const out = stripNonEditableKeys(created({ startMode: 'first_bid' }));
+    for (const key of NON_EDITABLE_KEYS) {
+      expect(Object.prototype.hasOwnProperty.call(out, key)).toBe(false);
+    }
+  });
+
+  it('keeps everything an edit is FOR on a first_bid lot', () => {
+    const out = stripNonEditableKeys(created({ startMode: 'first_bid' }));
+    expect(out.title).toBe('iPhone 15 Pro');
+    expect(out.startingPrice).toBe(250);
+    expect(out.duration).toBe(1800);
+    expect(out.startMode).toBe('first_bid');
+    expect(out.scheduledStartAt).toBe(1_700_000_000_000);
+  });
+
+  it('leaves the caller\'s first_bid payload untouched', () => {
+    const before = created({ startMode: 'first_bid' });
+    stripNonEditableKeys(before);
+    expect(before.endTime).toBe(1_700_000_000_000 + 1800 * 1000);
+  });
+});
+
+describe('isFirstBidPayload — the same strict test createListing applies', () => {
+  it('is true only for the exact string', () => {
+    expect(isFirstBidPayload({ startMode: 'first_bid' })).toBe(true);
+  });
+  it('is false for scheduled, missing and near-miss values', () => {
+    expect(isFirstBidPayload({ startMode: 'scheduled' })).toBe(false);
+    expect(isFirstBidPayload({})).toBe(false);
+    expect(isFirstBidPayload({ startMode: null })).toBe(false);
+    expect(isFirstBidPayload({ startMode: 'FIRST_BID' })).toBe(false);
+    expect(isFirstBidPayload({ startMode: ' first_bid' })).toBe(false);
+  });
+});
+
+describe('FIRST_BID_NON_EDITABLE_KEYS', () => {
+  // Pins the pair createListing deletes. A key added here without the
+  // corresponding delete in AppContext (or vice versa) is the drift this catches.
+  it('is exactly the two clock keys', () => {
+    expect([...FIRST_BID_NON_EDITABLE_KEYS]).toEqual(['endTime', 'endsAt']);
+  });
+  it('does not overlap the always-forbidden list', () => {
+    for (const key of FIRST_BID_NON_EDITABLE_KEYS) {
+      expect(NON_EDITABLE_KEYS).not.toContain(key);
+    }
   });
 });

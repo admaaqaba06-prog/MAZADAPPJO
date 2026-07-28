@@ -120,11 +120,45 @@ export const NON_EDITABLE_KEYS = [
   'currentBidderName',
 ] as const;
 
-/** A copy of `payload` with every NON_EDITABLE_KEYS entry removed. Never mutates its input. */
+/**
+ * The clock. Removed from an edit write ONLY for a first_bid lot.
+ *
+ * `buildDropPayload` computes `endTime` unconditionally and says so: it is
+ * `createListing` that drops it, which it does for first_bid and only for
+ * first_bid (`AppContext.tsx` — `const isFirstBid = listingData.startMode ===
+ * 'first_bid'`, then `delete newListing.endTime; delete newListing.endsAt`). A
+ * first_bid lot has NO end until someone bids; the clock starts then.
+ *
+ * An edit goes straight to `updateDoc` and never passes through
+ * `createListing`, so without this the same payload that publishes correctly
+ * stamps an `endTime` on a first_bid lot the moment it is edited — and the
+ * closer cron then ends the auction unsold at a time nobody set.
+ *
+ * `endsAt` is not in the creation payload today; it is listed because
+ * `createListing` deletes both and this is the mirror of that behaviour, not an
+ * approximation of it.
+ *
+ * A SCHEDULED lot is the opposite case: its `endTime` is real and an edit that
+ * changes the duration or the start must write it. Hence the condition.
+ */
+export const FIRST_BID_NON_EDITABLE_KEYS = ['endTime', 'endsAt'] as const;
+
+/** The same test `createListing` applies, read off the same field of the same payload. */
+export function isFirstBidPayload(payload: Record<string, unknown>): boolean {
+  return payload.startMode === 'first_bid';
+}
+
+/**
+ * A copy of `payload` with every NON_EDITABLE_KEYS entry removed, plus the
+ * clock keys when the payload is a first_bid lot. Never mutates its input.
+ */
 export function stripNonEditableKeys(
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...payload };
   for (const key of NON_EDITABLE_KEYS) delete out[key];
+  if (isFirstBidPayload(payload)) {
+    for (const key of FIRST_BID_NON_EDITABLE_KEYS) delete out[key];
+  }
   return out;
 }
