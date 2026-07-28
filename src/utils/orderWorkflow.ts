@@ -212,9 +212,13 @@ export async function executeOrderTransition(
 
     case 'cancel_before_payment':
       toStatus = 'cancelled';
+      // paymentStatus is intentionally NOT written here. Wave 1 made it
+      // server-only (denylisted in firestore.rules); it is already 'unpaid' in
+      // every state cancel is reachable from (waiting_payment), so writing it
+      // would be a redundant no-op that only re-couples this client transition
+      // to the rules denylist. Cancelling only changes status.
       updateFields = {
-        status: 'cancelled',
-        paymentStatus: 'unpaid'
+        status: 'cancelled'
       };
       activityType = 'Order Cancelled';
       activityMessageAr = 'تم إلغاء الطلب وتحرير الضمان المالي بالكامل.';
