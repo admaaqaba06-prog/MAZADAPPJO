@@ -2,9 +2,9 @@ import React from 'react';
 import { formatNumeral } from '../../utils/arabicNumerals';
 import {
   MAX_GALLERY_PHOTOS,
+  acceptGalleryFiles,
   addGalleryPhotos,
   removeGalleryPhoto,
-  isImageFile,
   type PickedPhoto,
 } from '../../utils/mediaPickerState';
 
@@ -47,9 +47,16 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
 }) => {
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    const incoming: PickedPhoto[] = Array.from(list)
-      .filter(isImageFile)
-      .map((file) => ({ file, url: URL.createObjectURL(file) }));
+    // Filter AND cap before minting a single object URL. A multi-select of five
+    // photos into an empty gallery would otherwise create five blobs and keep
+    // three, leaking the two `addGalleryPhotos` truncates. The cap itself stays
+    // owned by mediaPickerState.
+    const accepted = acceptGalleryFiles(gallery, Array.from(list));
+    if (accepted.length === 0) return;
+    const incoming: PickedPhoto[] = accepted.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
     onGalleryChange(addGalleryPhotos(gallery, incoming));
   };
 

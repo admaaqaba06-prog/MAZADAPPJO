@@ -1,13 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   MAX_GALLERY_PHOTOS,
+  acceptGalleryFiles,
   addGalleryPhotos,
+  remainingGallerySlots,
   removeGalleryPhoto,
   isImageFile,
   type PickedPhoto,
 } from './mediaPickerState';
 
 const photo = (n: number): PickedPhoto => ({ file: { name: `${n}.jpg` } as any, url: `blob:${n}` });
+const img = (n: number) => ({ name: `${n}.jpg`, type: 'image/jpeg' });
+const vid = (n: number) => ({ name: `${n}.mp4`, type: 'video/mp4' });
 
 describe('isImageFile', () => {
   it('accepts image mime types', () => {
@@ -121,5 +125,95 @@ describe('removeGalleryPhoto', () => {
     const prev = [photo(1), photo(2)];
     removeGalleryPhoto(prev, 0);
     expect(prev.map((p) => p.url)).toEqual(['blob:1', 'blob:2']);
+  });
+});
+
+describe('remainingGallerySlots', () => {
+  it('counts down from the cap', () => {
+    expect(remainingGallerySlots([])).toBe(MAX_GALLERY_PHOTOS);
+    expect(remainingGallerySlots([photo(1)])).toBe(MAX_GALLERY_PHOTOS - 1);
+    expect(remainingGallerySlots([photo(1), photo(2), photo(3)])).toBe(0);
+  });
+
+  // An over-full gallery should not report NEGATIVE room: `slice(0, -1)` drops
+  // the last element instead of taking none, so the sign matters downstream.
+  it('never goes negative on an over-full gallery', () => {
+    expect(remainingGallerySlots([photo(1), photo(2), photo(3), photo(4), photo(5)])).toBe(0);
+  });
+
+  it('tracks the cap rather than a hardcoded three', () => {
+    expect(remainingGallerySlots([])).toBe(MAX_GALLERY_PHOTOS);
+  });
+});
+
+describe('acceptGalleryFiles', () => {
+  it('keeps only image files', () => {
+    expect(acceptGalleryFiles([], [img(1), vid(2), img(3)]).map((f) => f.name))
+      .toEqual(['1.jpg', '3.jpg']);
+  });
+
+  it('caps a multi-select at the remaining room, in pick order', () => {
+    expect(acceptGalleryFiles([], [img(1), img(2), img(3), img(4), img(5)]).map((f) => f.name))
+      .toEqual(['1.jpg', '2.jpg', '3.jpg']);
+    expect(acceptGalleryFiles([photo(9), photo(8)], [img(1), img(2), img(3)]).map((f) => f.name))
+      .toEqual(['1.jpg']);
+  });
+
+  it('accepts nothing once the gallery is full', () => {
+    expect(acceptGalleryFiles([photo(1), photo(2), photo(3)], [img(4), img(5)])).toEqual([]);
+  });
+
+  it('counts room AFTER the non-image files are dropped, not before', () => {
+    // Three videos ahead of three photos: slicing before the filter would keep
+    // nothing at all.
+    expect(acceptGalleryFiles([], [vid(1), vid(2), vid(3), img(4), img(5)]).map((f) => f.name))
+      .toEqual(['4.jpg', '5.jpg']);
+  });
+
+  it('does not mutate its inputs', () => {
+    const prev = [photo(1)];
+    const files = [img(2), img(3), img(4), img(5)];
+    acceptGalleryFiles(prev, files);
+    expect(prev).toHaveLength(1);
+    expect(files).toHaveLength(4);
+  });
+});
+
+/**
+ * THE point of acceptGalleryFiles: MediaPicker mints one object URL per file
+ * this returns, so every URL minted must survive into the gallery. Mirrors
+ * MediaPicker.addFiles exactly — filter/cap, then mint, then add.
+ */
+describe('no object URL is minted for a file the cap will drop', () => {
+  const simulateAddFiles = (prev: PickedPhoto[], files: { name: string; type: string }[]) => {
+    const accepted = acceptGalleryFiles(prev, files);
+    const minted = accepted.map((f) => `blob:${f.name}`);
+    const incoming = accepted.map((file, i) => ({ file: file as any, url: minted[i] }));
+    const next = addGalleryPhotos(prev, incoming);
+    const kept = next.map((p) => p.url).filter((u) => minted.includes(u));
+    return { minted, kept };
+  };
+
+  const cases: [string, PickedPhoto[], { name: string; type: string }[]][] = [
+    ['empty gallery, overflowing multi-select', [], [img(1), img(2), img(3), img(4), img(5)]],
+    ['one existing photo, three picked', [photo(9)], [img(1), img(2), img(3)]],
+    ['two existing photos, two picked', [photo(9), photo(8)], [img(1), img(2)]],
+    ['full gallery, one picked', [photo(1), photo(2), photo(3)], [img(4)]],
+    ['over-full gallery, one picked', [photo(1), photo(2), photo(3), photo(4)], [img(5)]],
+    ['mixed images and video overflowing', [], [img(1), vid(2), img(3), img(4), img(5)]],
+    ['exact fit', [photo(9)], [img(1), img(2)]],
+  ];
+
+  for (const [name, prev, files] of cases) {
+    it(name, () => {
+      const { minted, kept } = simulateAddFiles(prev, files);
+      // Every minted URL is still in the gallery => nothing leaked.
+      expect(kept).toEqual(minted);
+    });
+  }
+
+  it('still admits photos while there is room — the fix must not just refuse everything', () => {
+    expect(simulateAddFiles([], [img(1), img(2), img(3), img(4)]).minted).toHaveLength(3);
+    expect(simulateAddFiles([photo(9)], [img(1)]).minted).toHaveLength(1);
   });
 });
