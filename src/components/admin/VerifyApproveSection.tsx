@@ -128,6 +128,31 @@ export const VerifyApproveSection: React.FC<VerifyApproveSectionProps> = ({
     [orders]
   );
 
+  // Wave 1 — SOFT signal: order ids that share the same non-empty CliQ sender
+  // phone AND the same totalDue with another order in the working set (pending +
+  // already-verified). Mirrors the receipt-fingerprint approach: a count map,
+  // then flag members with count ≥ 2. Blank/missing phones are never flagged.
+  const phoneAmountDupIds = useMemo(() => {
+    const counts = new Map<string, number>();
+    const workingSet = (orders || []).filter(
+      (o: any) => isPendingOrderPayment(o) || o.paymentVerified === true
+    );
+    for (const o of workingSet) {
+      const phone = typeof o.cliqSenderPhone === 'string' ? o.cliqSenderPhone.trim() : '';
+      if (!phone) continue;
+      const key = `${phone}|${o.totalDue}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const dupIds = new Set<string>();
+    for (const o of workingSet) {
+      const phone = typeof o.cliqSenderPhone === 'string' ? o.cliqSenderPhone.trim() : '';
+      if (!phone) continue;
+      const key = `${phone}|${o.totalDue}`;
+      if ((counts.get(key) || 0) >= 2) dupIds.add(o.id);
+    }
+    return dupIds;
+  }, [orders]);
+
   const runAction = async (id: string, action: () => Promise<void>) => {
     if (busyId) return;
     setBusyId(id);
@@ -292,6 +317,7 @@ export const VerifyApproveSection: React.FC<VerifyApproveSectionProps> = ({
                 payerPhone={o.deliveryPhone}
                 cliqSenderPhone={o.cliqSenderPhone}
                 isDuplicateReceipt={isDup(o, orderDupFps)}
+                phoneAmountDup={phoneAmountDupIds.has(o.id)}
                 approveLabel={isAr ? 'تأكيد الدفع' : 'Mark verified'}
                 busy={busyId === o.id}
                 isAr={isAr}

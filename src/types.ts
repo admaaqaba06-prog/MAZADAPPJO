@@ -330,6 +330,14 @@ export interface Order {
    * their own order at the pay step; surfaced to admin to match the transfer.
    */
   cliqSenderPhone?: string;
+  /** Wave 1 — CliQ transaction reference the buyer entered at the pay step. Server-written; buyers cannot reuse a reference (hard-blocked at submit). Surfaced to admin to match the transfer. */
+  txnRef?: string;
+  /** Wave 1 — normalized form of txnRef (server-written) used for duplicate detection. */
+  txnRefNormalized?: string;
+  /** Wave 1 — number of times the buyer submitted payment on this order. */
+  paymentAttempts?: number;
+  /** Wave 1 — timestamp of the buyer's payment submission. */
+  paymentSubmittedAt?: any;
   /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */
   paymentVerified?: boolean;
   /** Slice B verification stamp — server-only via the verifyOrderPayment callable. */

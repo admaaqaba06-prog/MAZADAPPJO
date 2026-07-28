@@ -17,6 +17,7 @@ export interface PaymentVerifyCardProps {
   payerPhone?: string;
   cliqSenderPhone?: string;             // E1 — phone the CliQ transfer is coming FROM (match the incoming money)
   isDuplicateReceipt?: boolean;         // caller-computed via findDuplicateFingerprints
+  phoneAmountDup?: boolean;             // Wave 1 — SOFT signal: same CliQ phone + amount as another order (does NOT block approve)
   approveLabel: string;                 // caller-localized ('Approve' / 'Mark verified')
   busy?: boolean;
   isAr: boolean;
@@ -39,6 +40,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   payerPhone,
   cliqSenderPhone,
   isDuplicateReceipt,
+  phoneAmountDup,
   approveLabel,
   busy,
   isAr,
@@ -48,9 +50,13 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   const [zoomOpen, setZoomOpen] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+  // Wave 1 — admin must confirm the money actually landed in the bank account
+  // before Approve is enabled. Local per-card state, defaults unchecked.
+  const [bankVerified, setBankVerified] = useState(false);
 
   const receiptUrl = normalizeReceiptUrl(record);
-  const canApprove = !!receiptUrl && !busy;
+  const txnRef = typeof record.txnRef === 'string' ? record.txnRef.trim() : '';
+  const canApprove = !!receiptUrl && !busy && bankVerified;
   const canConfirmReject = reason.trim().length > 0 && !busy;
 
   return (
@@ -70,6 +76,11 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           {isDuplicateReceipt && (
             <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
               ⚠ {isAr ? 'إيصال مكرر' : 'Duplicate receipt'}
+            </span>
+          )}
+          {phoneAmountDup && (
+            <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
+              ⚠ {isAr ? 'نفس الهاتف والمبلغ لطلب آخر' : 'Same phone + amount as another order'}
             </span>
           )}
         </div>
@@ -111,8 +122,34 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
               <span dir="ltr">{cliqSenderPhone}</span>
             </p>
           )}
+          {/* Wave 1 — CliQ transaction reference (server-written). Muted dash
+              for legacy orders that predate the reference. */}
+          <p className="text-[10px] font-mono font-bold mt-1">
+            <span className="text-gray-400 font-semibold">{isAr ? 'المرجع / رقم العملية:' : 'Reference:'}</span>{' '}
+            {txnRef ? (
+              <span className="text-gray-800" dir="ltr">{txnRef}</span>
+            ) : (
+              <span className="text-gray-300 font-semibold">{isAr ? '—' : 'not provided'}</span>
+            )}
+          </p>
         </div>
       </div>
+
+      {/* Wave 1 — required bank-verified gate: Approve stays disabled until the
+          admin confirms the payment actually landed in the bank account. */}
+      <label className="flex items-start gap-2 cursor-pointer select-none bg-emerald-50/60 border border-emerald-100 rounded-xl p-3">
+        <input
+          type="checkbox"
+          checked={bankVerified}
+          onChange={e => setBankVerified(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+        />
+        <span className="text-[11px] font-bold text-emerald-800 leading-snug">
+          {isAr
+            ? 'تأكدت من وصول الدفعة إلى الحساب البنكي'
+            : 'I verified this payment arrived in the bank account'}
+        </span>
+      </label>
 
       {/* Actions */}
       <div className="flex items-center gap-2">
