@@ -15,6 +15,7 @@ import { buildDropPayload } from '../utils/dropPayload';
 import {
   INITIAL_FORM,
   afterCreateAnother,
+  clearErrorsForField,
   dropErrorText,
   firstErrorField,
   validateDropForm,
@@ -49,11 +50,6 @@ export default function AuctionDropBuilderView() {
   // carried sixteen parallel useState calls, which is what made "reset for the
   // next drop" and "prefill from a relist" each have to remember all sixteen.
   const [form, setForm] = useState<DropFormValues>(INITIAL_FORM);
-  const setField = useCallback(
-    <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) =>
-      setForm((prev) => ({ ...prev, [key]: value })),
-    [],
-  );
 
   // Media are File objects, not serialisable form state, so they stay separate.
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -69,10 +65,36 @@ export default function AuctionDropBuilderView() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // Per-field validation codes, keyed by DropFormValues field name. Recomputed
-  // wholesale on every Create click, so nothing stale can survive a submit.
+  // wholesale on every Create click, so nothing stale can survive a submit —
+  // and cleared per field by setField below, so nothing stale survives the fix
+  // either.
   const [errors, setErrors] = useState<Record<string, string>>({});
   // What the submit button says mid-upload. Empty outside a submit.
   const [progressLabel, setProgressLabel] = useState('');
+
+  /**
+   * The one write path into the form — and therefore the one place a field's
+   * error can be retired.
+   *
+   * Every control in this view goes through it: the two required inputs, the
+   * Opens buttons, the start-time picker, the duration and channel selects and
+   * all ten of the drawer's fields. That is what lets the clear live here
+   * instead of on ~fifteen `onChange` handlers, each of which would have to
+   * remember — the shipped defect was a red "This field is required" sitting
+   * under a name the admin had already typed, and it survived until the next
+   * submit precisely because nothing but a submit ever touched `errors`.
+   *
+   * clearErrorsForField owns which errors a change retires, including the
+   * cross-field one: changing the Opens mode retires the `scheduledLocal`
+   * error, whose input that change may have just unmounted.
+   */
+  const setField = useCallback(
+    <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) => {
+      setForm((prev) => ({ ...prev, [key]: value }));
+      setErrors((prev) => clearErrorsForField(prev, key));
+    },
+    [],
+  );
 
   // THE scrolling element for this view. DesktopFrame is `overflow-hidden` and
   // every in-frame view owns its own scroll, so the document itself never

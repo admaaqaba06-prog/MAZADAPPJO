@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   INITIAL_FORM,
   afterCreateAnother,
+  clearErrorsForField,
   dropErrorText,
   firstErrorField,
   validateDropForm,
@@ -290,6 +291,77 @@ describe('dropErrorText', () => {
     for (const code of emitted) {
       expect(dropErrorText(code, false).length).toBeGreaterThan(0);
       expect(dropErrorText(code, true).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('clearErrorsForField', () => {
+  // The shipped defect: Create on an empty form correctly marked Product name
+  // and Starting price, then typing a valid value into either left the red
+  // message underneath it until the next submit.
+  // A FACTORY, not a shared constant. A mutating implementation would empty a
+  // shared fixture in the first test that ran, and every later test — including
+  // the mutation test below — would then be handed the already-emptied map and
+  // pass on it. (That is not hypothetical: it is exactly what a shared literal
+  // did here, and it made the no-mutation test unable to fail.)
+  const bothRequired = () => ({ productName: 'REQUIRED', startingPrice: 'REQUIRED' });
+
+  it('clears the error on the field that changed', () => {
+    expect(clearErrorsForField(bothRequired(), 'productName')).toEqual({
+      startingPrice: 'REQUIRED',
+    });
+  });
+
+  it('leaves the errors on other fields alone', () => {
+    // Fixing one field must not quietly hide the rest of the submit's verdict.
+    expect(clearErrorsForField(bothRequired(), 'startingPrice')).toEqual({
+      productName: 'REQUIRED',
+    });
+  });
+
+  it('does not mutate the map it was given', () => {
+    // It feeds setErrors; mutating the previous state in place is a React
+    // update that may never render.
+    const errors = bothRequired();
+    const before = { ...errors };
+    clearErrorsForField(errors, 'productName');
+    expect(errors).toEqual(before);
+  });
+
+  it('returns the same object when there is nothing to clear', () => {
+    // Identity, not just equality: setErrors with the same reference is what
+    // stops every keystroke on a clean form from re-rendering the view.
+    const errors = { productName: 'REQUIRED' };
+    expect(clearErrorsForField(errors, 'startingPrice')).toBe(errors);
+    expect(clearErrorsForField({}, 'productName')).toEqual({});
+  });
+
+  it('clears the timing error when the Opens mode changes', () => {
+    // The timing error is keyed `scheduledLocal` because that is the input it
+    // renders under, but the Opens buttons are what decide whether a start time
+    // is needed at all — and switching away unmounts the picker, so nothing
+    // else can ever clear it.
+    expect(clearErrorsForField({ scheduledLocal: 'REQUIRED' }, 'opensMode')).toEqual({});
+    expect(clearErrorsForField({ scheduledLocal: 'PAST' }, 'opensMode')).toEqual({});
+  });
+
+  it('clears the timing error when the start time itself changes', () => {
+    expect(clearErrorsForField({ scheduledLocal: 'PAST' }, 'scheduledLocal')).toEqual({});
+  });
+
+  it('does not let an Opens change clear anything but the timing error', () => {
+    expect(clearErrorsForField({ ...bothRequired(), scheduledLocal: 'PAST' }, 'opensMode'))
+      .toEqual(bothRequired());
+  });
+
+  it('clears every error validateDropForm can raise, from its own field', () => {
+    // Pins the pair the way the dropErrorText test above does: an error keyed
+    // under a name no field change touches would be unclearable by typing.
+    const raised = validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW);
+    expect(Object.keys(raised).length).toBeGreaterThan(0);
+    for (const key of Object.keys(raised)) {
+      const field = (key === 'scheduledLocal' ? 'scheduledLocal' : key) as keyof DropFormValues;
+      expect(clearErrorsForField(raised, field)[key]).toBeUndefined();
     }
   });
 });
