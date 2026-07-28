@@ -44,7 +44,29 @@ top-down from it wasted time on problems that no longer existed.
     alerts rather than throwing, so the loop continues. Real (cosmetic) issue: N failures produce
     N blocking `alert()` dialogs.
 
+25. ~~**Nobody could become a seller**~~ ✅ **Fixed 2026-07-28** (PRs #186, #188). Found while
+    prod-testing the Wave 3 non-admin seller path. Three failures at once: `handleActivateSeller`
+    in `WalletView` was the only code writing `isSeller` and **was never called**; it wrote the flag
+    client-side where `firestore.rules` denylists it for self-writes (verified against deployed
+    prod — that write returns 403, the same write without the key returns 200); and `role: 'seller'`
+    only ever reached local React state. `AppContext` then gated the seller **orders, escrows and
+    disputes** subscriptions on that ungrantable flag, so five real non-admin accounts held sold
+    orders they could not see — and under Wave 3 could not fulfil. The disputes gate was the
+    sharpest: a seller could not see a dispute raised *against* them. Now: the `activateSeller`
+    callable (Admin SDK) is the only grant path, a real wallet button calls it, `onListingApproved`
+    grants it when the admin team approves a lot, all three subscriptions are unconditional, and
+    `scripts/admin/backfill-sellers.cjs` flagged the five (already run; admins deliberately
+    excluded — they see every order anyway and would gain a public store page).
+
+    **Lesson:** dead code hid a broken feature. Nothing called the function, so its guaranteed
+    `PERMISSION_DENIED` never surfaced. A client-side write to a rules-denylisted field is always a
+    bug, whether or not anything calls it.
+
 ## 🔴 Open — verified real
+
+26. **The five backfilled sellers have never been told their orders exist.** They can now see them,
+    but some of those sales are old and may be sitting unfulfilled. Deferred by MJ 2026-07-28 — no
+    outreach for now. Worth pulling order age + status per seller before any push.
 
 15. ~~**`misc` lots are unfindable and mislabelled**~~ ✅ **Fixed 2026-07-26.** Two halves:
     `channelToCategory` sends the `misc` drop channel to the stored value `Fashion`, and no
