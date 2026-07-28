@@ -39,7 +39,6 @@ import {
   resolveEndTime,
 } from '../utils/liveAuctionFields';
 import { serverNow } from '../utils/serverTime';
-import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { AuctionItem } from '../types';
 
 /** What the Discover feed exposes to its consumer (Task 5). */
@@ -236,7 +235,17 @@ export function useDiscoverFeed(
       if (feedMode === 'first_bid') {
         const fbSnap = await getDocs(buildFirstBidQuery());
         if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
-        const live = fbSnap.docs.map(mapFeedDoc).filter((a) => isAwaitingFirstBid(a));
+        // Filter the RAW doc data before mapping: `mapFeedDoc` → `resolveEndTime`
+        // synthesizes a truthy `endTime` (now+1h) for any doc missing
+        // `endsAt`/`endTime` — exactly the state of an awaiting-first-bid lot —
+        // so filtering the mapped item with `isAwaitingFirstBid` (which requires
+        // `!endTime`) would always be false and the feed would always be empty.
+        const live = fbSnap.docs
+          .filter((doc) => {
+            const x = doc.data();
+            return !x.endsAt && !x.endTime && !((x.totalBids || 0) > 0);
+          })
+          .map(mapFeedDoc);
         cursorRef.current = null;
         hasMoreLiveRef.current = false;
         setLiveItems(live);

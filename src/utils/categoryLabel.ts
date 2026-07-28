@@ -20,11 +20,15 @@ const CATEGORY_AR: Record<string, string> = {
   cars: 'سيارات',
   phones: 'هواتف',
   watches: 'ساعات',
+  appliances: 'أجهزة كهربائية',
+  'home & furniture': 'أثاث ومنزل',
 };
 
 /** English overrides. Anything absent falls through to the raw stored value. */
 const CATEGORY_EN: Record<string, string> = {
   fashion: 'Other',
+  appliances: 'Appliances',
+  'home & furniture': 'Home & Furniture',
 };
 
 export function categoryLabel(category: string | null | undefined, isAr: boolean): string {
