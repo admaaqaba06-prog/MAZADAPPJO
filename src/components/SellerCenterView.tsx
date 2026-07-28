@@ -74,6 +74,37 @@ import { AuctionItem, Order, Review, Withdrawal } from '../types';
 import { deriveSellerActions, SellerAction } from './seller/sellerActions';
 import { bucketListings, filterListings, ListingBucketId } from './seller/sellerListings';
 import { Search, Truck, RotateCcw } from 'lucide-react';
+import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
+
+/** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
+ *  seller orders table's brand-orange default while the label comes from the
+ *  shared glossary (no more raw codes rendered). */
+const ORDER_STATUS_TONE_CHIP: Record<OrderStatusTone, string> = {
+  neutral: 'bg-zinc-100 text-zinc-500',
+  info: 'bg-orange-50 text-orange-700 border border-orange-100',
+  warning: 'bg-orange-50 text-orange-700 border border-orange-100',
+  success: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  danger: 'bg-rose-50 text-rose-700 border border-rose-100',
+};
+
+/** AUCTION-listing statuses are NOT order codes (the order glossary does not
+ *  cover them). This local map keeps a clean human label so no raw code leaks
+ *  onto the seller's listing badge. */
+const AUCTION_STATUS_LABEL: Record<string, { ar: string; en: string }> = {
+  upcoming: { ar: 'قادم', en: 'Upcoming' },
+  live: { ar: 'مباشر', en: 'Live' },
+  processing: { ar: 'قيد المعالجة', en: 'Processing' },
+  rejected: { ar: 'مرفوض', en: 'Rejected' },
+  completed: { ar: 'منتهٍ', en: 'Ended' },
+  ended: { ar: 'منتهٍ', en: 'Ended' },
+  reserve_not_met: { ar: 'لم يتحقق السعر', en: 'Reserve not met' },
+};
+
+const auctionStatusLabel = (status: string, isAr: boolean): string => {
+  const entry = AUCTION_STATUS_LABEL[status];
+  if (entry) return isAr ? entry.ar : entry.en;
+  return isAr ? 'قيد المعالجة' : 'Processing';
+};
 
 // Extend local translations for Seller Center Specific text
 const sellerTranslations: Record<string, Record<string, string>> = {
@@ -1249,7 +1280,7 @@ export const SellerCenterView: React.FC = () => {
                       id: `o-${o.id}`,
                       ts,
                       title: `${o.auctionTitle} · ${o.winningBidAmount} JOD`,
-                      sub: `${isAr ? 'الحالة: ' : 'Status: '}${o.status}`,
+                      sub: `${isAr ? 'الحالة: ' : 'Status: '}${getOrderStatusChip(o.status, isAr ? 'ar' : 'en').label}`,
                       kind: 'order',
                     });
                   });
@@ -1418,7 +1449,7 @@ export const SellerCenterView: React.FC = () => {
                               auction.status === 'rejected' ? 'bg-rose-500 text-white' :
                               'bg-zinc-500 text-white'
                             }`}>
-                              {auction.status}
+                              {auctionStatusLabel(auction.status, isAr)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500 font-bold tabular-nums flex-wrap">
@@ -1604,13 +1635,8 @@ export const SellerCenterView: React.FC = () => {
                                 </td>
                                 <td className="p-4 font-black text-gray-900">{order.winningBidAmount} JOD</td>
                                 <td className="p-4">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${
-                                    order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                    order.status === 'disputed' ? 'bg-rose-50 text-rose-700 border border-rose-100 animate-pulse' :
-                                    order.status === 'cancelled' ? 'bg-zinc-100 text-zinc-500' :
-                                    'bg-orange-50 text-orange-700 border border-orange-100'
-                                  }`}>
-                                    {order.status}
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${ORDER_STATUS_TONE_CHIP[getOrderStatusChip(order.status, isAr ? 'ar' : 'en').tone]} ${order.status === 'disputed' ? 'animate-pulse' : ''}`}>
+                                    {getOrderStatusChip(order.status, isAr ? 'ar' : 'en').label}
                                   </span>
                                 </td>
                                 <td className="p-4">

@@ -2,6 +2,7 @@ import { db, handleFirestoreError, OperationType, getCallableFunction } from '..
 import { collection, doc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Order } from '../types';
 import { isAdminUser } from './adminAuth';
+import { getOrderStatusChip } from './orderStatusGlossary';
 
 export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
 
@@ -436,27 +437,35 @@ export async function executeOrderTransition(
     const notificationsColRef = collection(db, 'notifications');
     const timestamp = Date.now();
 
+    // Human-readable status labels for user-facing notifications — never leak
+    // the raw code (e.g. `preparing_shipment`). Transition/audit fields above
+    // keep the raw codes; only these display strings are humanised.
+    const fromLabelAr = getOrderStatusChip(fromStatus, 'ar').label;
+    const fromLabelEn = getOrderStatusChip(fromStatus, 'en').label;
+    const toLabelAr = getOrderStatusChip(toStatus, 'ar').label;
+    const toLabelEn = getOrderStatusChip(toStatus, 'en').label;
+
     const notifyUsers = [
       {
         userId: order.buyerId,
         titleAr: 'تحديث الطلب',
         titleEn: 'Order Update',
-        descAr: `الطلب الخاص بك انتقل من حالة [${fromStatus}] إلى [${toStatus}]: ${activityMessageAr}`,
-        descEn: `Your order transitioned from [${fromStatus}] to [${toStatus}]: ${activityMessageEn}`
+        descAr: `الطلب الخاص بك انتقل من حالة [${fromLabelAr}] إلى [${toLabelAr}]: ${activityMessageAr}`,
+        descEn: `Your order transitioned from [${fromLabelEn}] to [${toLabelEn}]: ${activityMessageEn}`
       },
       {
         userId: order.sellerId,
         titleAr: 'تحديث الطلب المبيع',
         titleEn: 'Sold Order Update',
-        descAr: `طلب البيع الخاص بك انتقل من حالة [${fromStatus}] إلى [${toStatus}]: ${activityMessageAr}`,
-        descEn: `Your sold order transitioned from [${fromStatus}] to [${toStatus}]: ${activityMessageEn}`
+        descAr: `طلب البيع الخاص بك انتقل من حالة [${fromLabelAr}] إلى [${toLabelAr}]: ${activityMessageAr}`,
+        descEn: `Your sold order transitioned from [${fromLabelEn}] to [${toLabelEn}]: ${activityMessageEn}`
       },
       {
         userId: 'admin',
         titleAr: 'إشعار النظام والمشرف',
         titleEn: 'Admin System Notification',
-        descAr: `الطلب رقم ${order.id.substring(0, 8)} انتقل إلى [${toStatus}] بواسطة [${currentUser.name}]`,
-        descEn: `Order #${order.id.substring(0, 8)} transitioned to [${toStatus}] by [${currentUser.name}]`
+        descAr: `الطلب رقم ${order.id.substring(0, 8)} انتقل إلى [${toLabelAr}] بواسطة [${currentUser.name}]`,
+        descEn: `Order #${order.id.substring(0, 8)} transitioned to [${toLabelEn}] by [${currentUser.name}]`
       }
     ];
 

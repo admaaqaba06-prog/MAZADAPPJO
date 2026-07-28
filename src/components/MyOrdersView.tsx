@@ -10,6 +10,7 @@ import { Order } from '../types';
 import { db } from '../services/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { buyerReputation } from '../utils/reputation';
+import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
 import { StarRating } from './ui/StarRating';
 import { ShoppingBag, Clock, ChevronLeft, ChevronRight, Sparkles, Star } from 'lucide-react';
 
@@ -25,18 +26,14 @@ const toMillis = (raw: any): number => {
   return Number.isNaN(t) ? 0 : t;
 };
 
-const STATUS_CHIP: Record<string, { ar: string; en: string; cls: string }> = {
-  pending_buyer_confirmation: { ar: 'بانتظار تأكيدك', en: 'Confirm to Buy', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-  waiting_payment: { ar: 'بانتظار الدفع', en: 'Waiting Payment', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  paid: { ar: 'تم الدفع', en: 'Paid', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  preparing_shipment: { ar: 'جاري التجهيز', en: 'Preparing Shipment', cls: 'bg-orange-50 text-orange-700 border-orange-200' },
-  shipped: { ar: 'تم الشحن', en: 'Shipped', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  delivered: { ar: 'تم التوصيل', en: 'Delivered', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  completed: { ar: 'مكتمل', en: 'Completed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  disputed: { ar: 'متنازع عليه', en: 'Disputed', cls: 'bg-red-50 text-red-700 border-red-200' },
-  cancelled: { ar: 'ملغى', en: 'Cancelled', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-  refunded: { ar: 'تمت الإعادة', en: 'Refunded', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  defaulted: { ar: 'متخلف عن الدفع', en: 'Defaulted', cls: 'bg-red-100 text-red-800 border-red-300' },
+/** Chip (bg/text/border) classes per glossary tone — preserves the old
+ *  per-status pill palette while the label now comes from the shared glossary. */
+const STATUS_TONE_CLASS: Record<OrderStatusTone, string> = {
+  neutral: 'bg-gray-100 text-gray-600 border-gray-200',
+  info: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  warning: 'bg-amber-50 text-amber-700 border-amber-200',
+  success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  danger: 'bg-red-50 text-red-700 border-red-200',
 };
 
 /** Live countdown to the 24h CliQ payment deadline. Red under 3 hours. */
@@ -255,7 +252,7 @@ export const MyOrdersView: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {myOrders.map((order: Order) => {
-              const chip = STATUS_CHIP[order.status] || { ar: order.status, en: order.status, cls: 'bg-gray-100 text-gray-600 border-gray-200' };
+              const chip = getOrderStatusChip(order.status, isAr ? 'ar' : 'en');
               const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
 
               return (
@@ -280,8 +277,8 @@ export const MyOrdersView: React.FC = () => {
                       <h4 className="font-black text-gray-950 text-xs truncate leading-snug max-w-full">
                         {order.auctionTitle}
                       </h4>
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase font-mono shrink-0 ${chip.cls}`}>
-                        {isAr ? chip.ar : chip.en}
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase font-mono shrink-0 ${STATUS_TONE_CLASS[chip.tone]}`}>
+                        {chip.label}
                       </span>
                     </div>
 
