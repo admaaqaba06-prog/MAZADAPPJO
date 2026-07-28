@@ -61,7 +61,11 @@ if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 }
 
 admin.initializeApp(); // uses GOOGLE_APPLICATION_CREDENTIALS
-const db = admin.firestore();
+// firebase-admin ≤12 exposes the namespaced admin.firestore(); ≥13 (incl. v14)
+// moved it to the modular 'firebase-admin/firestore' entry point.
+const db = typeof admin.firestore === 'function'
+  ? admin.firestore()
+  : require('firebase-admin/firestore').getFirestore();
 
 // ─────────────────────────── helpers ───────────────────────────
 
