@@ -36,7 +36,7 @@ import {
   Share2,
   Flame
 } from "lucide-react";
-import { motion, useScroll, useTransform, useInView, useSpring, AnimatePresence, useMotionValue, animate, useReducedMotion } from "motion/react";
+import { motion, useScroll, useInView, useSpring, AnimatePresence, useReducedMotion } from "motion/react";
 import { translations, TranslationType } from "./translations";
 import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
@@ -58,56 +58,6 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
     >
       {children}
     </motion.div>
-  );
-}
-
-// Counter component for interactive stats count-up
-function Counter({ target, prefix = "", suffix = "" }: { target: number; prefix?: string; suffix?: string }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  const motionValue = useMotionValue(0);
-  const springValue = useSpring(motionValue, {
-    damping: 30,
-    stiffness: 70,
-    restDelta: 0.001
-  });
-  const rounded = useTransform(springValue, (latest) => Math.round(latest));
-  const [displayValue, setDisplayValue] = useState("0");
-
-  useEffect(() => {
-    if (isInView) {
-      animate(motionValue, target, {
-        duration: 1.4,
-        ease: "easeOut"
-      });
-    }
-  }, [isInView, target, motionValue]);
-
-  useEffect(() => {
-    return rounded.on("change", (latest) => {
-      setDisplayValue(latest.toLocaleString("en-US"));
-    });
-  }, [rounded]);
-
-  const hasArPrefix = /[\u0600-\u06FF]/.test(prefix);
-  const hasArSuffix = /[\u0600-\u06FF]/.test(suffix);
-
-  return (
-    <span ref={ref} className="inline-flex items-center">
-      {prefix && (
-        <span className={hasArPrefix ? "font-ibmarabic" : "font-sans"} style={hasArPrefix ? { letterSpacing: "0px" } : undefined}>
-          {prefix}
-        </span>
-      )}
-      <span className="font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {displayValue}
-      </span>
-      {suffix && (
-        <span className={hasArSuffix ? "font-ibmarabic" : "font-sans"} style={hasArSuffix ? { letterSpacing: "0px" } : undefined}>
-          {suffix}
-        </span>
-      )}
-    </span>
   );
 }
 
@@ -913,10 +863,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               {t.nav.whyUs}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#live-experience" className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
-              {t.nav.liveExp}
-              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
-            </a>
             <a href="#categories" className={`text-[#0A0A0A]/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.categories}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
@@ -990,13 +936,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             className="text-base font-semibold text-[#0A0A0A] hover:text-[#F05123] py-2 border-b border-[#E5E5E5]/40 transition-colors duration-200 font-ibmarabic"
           >
             {t.nav.whyUs}
-          </a>
-          <a
-            href="#live-experience"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-base font-semibold text-[#0A0A0A] hover:text-[#F05123] py-2 border-b border-[#E5E5E5]/40 transition-colors duration-200 font-ibmarabic"
-          >
-            {t.nav.liveExp}
           </a>
           <a
             href="#categories"
@@ -1961,182 +1900,6 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 5. Section "تجربة تفاعلية" (Interactive Live Room Simulator) */}
-        <section id="live-experience" className="py-20 bg-white border-t border-[#F0F0EE]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-              
-              {/* Left Column: Specs & Mini Stats */}
-              <div className="lg:col-span-6 space-y-8">
-                <div className="flex flex-col items-start gap-4">
-                  <span className={`inline-block px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 ${lang === "en" ? "tracking-wide" : ""}`}>
-                    {t.interactive.title}
-                  </span>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] font-alexandria leading-tight">
-                    {t.interactive.subtitle}
-                  </h2>
-                  <p className="text-gray-700 text-sm sm:text-base leading-relaxed font-ibmarabic">
-                    {lang === "ar" 
-                      ? "جرب بنفسك حماس المزايدة في الوقت الفعلي. انظر كيف تتنافس الأطراف المختلفة وتتفاعل ديناميكياً لترفع القيمة الحقيقية للسلعة خلال ثوانٍ معدودة."
-                      : "Try the bidding excitement yourself in real-time. Experience how participants battle dynamically to raise the real value of the item in seconds."}
-                  </p>
-                </div>
-
-                {/* 4 Block Stats with Gold Numbers */}
-                <div className="grid grid-cols-2 gap-4">
-                  {t.interactive.stats.map((stat, idx) => (
-                    <div key={idx} className="bg-white border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] rounded-[10px] p-4 hover:bg-[#FAFAFA] transition-all duration-300">
-                      <span className="text-2xl sm:text-3xl font-bold text-[#F05123] block font-mono tabular-nums">
-                        {idx === 0 ? (
-                          <Counter target={98} suffix="%" />
-                        ) : idx === 1 ? (
-                          <Counter target={3} prefix="≤ " />
-                        ) : idx === 2 ? (
-                          <Counter target={7} suffix={lang === "ar" ? " أيام" : " Days"} />
-                        ) : (
-                          <span>
-                            <Counter target={24} />/7
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-600 font-ibmarabic mt-1 block">
-                        {stat.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Column: Live Room Simulation Card */}
-              <div className="lg:col-span-6 flex justify-center">
-                
-                <div 
-                  className="w-full max-w-[500px] bg-white rounded-[10px] p-6 border border-[#ECECEA] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] relative overflow-hidden transition-all duration-300"
-                  onMouseEnter={() => setIsAutoCycling(false)}
-                >
-                  
-                  {/* Top Bar */}
-                  <div className="flex items-center justify-between pb-4 border-b border-[#ECECEA] mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#F05123] animate-ping"></div>
-                      <span className={`text-xs font-bold text-[#F05123] uppercase font-alexandria flex items-center gap-1 ${lang === "en" ? "tracking-wider" : ""}`}>
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        {t.interactive.simulationTitle}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-gray-500 font-mono">ID: JO-22419</span>
-                  </div>
-
-                  {/* Header Item specs connected to Hero price */}
-                  <div className="bg-[#FAFAFA] rounded-[10px] p-4 border border-[#ECECEA] mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
-                    <div>
-                      <span className="px-2 py-0.5 rounded-[10px] bg-[#F05123]/10 text-[#F05123] text-[10px] font-bold uppercase font-ibmarabic">
-                        {lang === "ar" ? "المزاد النشط الحالي" : "Current Active Auction"}
-                      </span>
-                      <h4 className="text-base font-bold text-[#0A0A0A] font-alexandria mt-1 flex items-center gap-1.5 transition-all duration-300">
-                        <span>{lang === "ar" ? currentItem.titleAr : currentItem.titleEn}</span>
-                      </h4>
-                      <span className="text-xs text-gray-600 font-ibmarabic transition-all duration-300">
-                        {lang === "ar" ? currentItem.detailsAr : currentItem.detailsEn}
-                      </span>
-                    </div>
-
-                    <div className="sm:text-end shrink-0">
-                      <span className="text-[10px] text-gray-500 font-ibmarabic block">{t.hero.currentPrice}</span>
-                      <span className={`text-xl font-bold text-[#F05123] transition-all duration-300 block ${
-                        pulsePrice ? "scale-105" : ""
-                      }`}>
-                        {formatPrice(currentPrice)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Competition Intensity indicator */}
-                  <div className="mb-4 bg-[#FAFAFA] rounded-[10px] p-3 border border-[#ECECEA] space-y-2">
-                    <div className="flex justify-between text-xs font-ibmarabic text-gray-700">
-                      <span>{t.interactive.competitionLevel}</span>
-                      <span className="font-bold font-mono text-[#F05123]">{compLevel}%</span>
-                    </div>
-                    <div className="w-full h-2.5 bg-[#F0F0EE] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#F05123] rounded-full transition-all duration-500"
-                        style={{ width: `${compLevel}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Participants List */}
-                  <div className="flex items-center justify-between gap-2 mb-4 bg-[#FAFAFA] rounded-[10px] p-3 border border-[#ECECEA]">
-                    <span className="text-xs text-gray-600 font-ibmarabic">{t.interactive.participantsLabel}</span>
-                    
-                    <div className="flex items-center">
-                      <div className="flex -space-x-2 overflow-hidden rtl:space-x-reverse">
-                        <span className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-orange-600 text-white text-[10px] font-bold flex items-center justify-center">M</span>
-                        <span className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">A</span>
-                        <span className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-purple-600 text-white text-[10px] font-bold flex items-center justify-center">S</span>
-                        <span className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">R</span>
-                      </div>
-                      <span className="text-xs font-bold font-mono text-[#F05123] ml-2 rtl:mr-2">+9</span>
-                    </div>
-                  </div>
-
-                  {/* Real-time Bid Log List */}
-                  <div className="space-y-2 mb-4">
-                    <span className="text-xs text-gray-600 font-ibmarabic block mb-1">{t.interactive.bidsTitle}:</span>
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                      {bidLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className={`flex items-center justify-between p-2.5 rounded-[10px] border text-xs transition-all duration-300 ${
-                            log.isUser
-                              ? "bg-[#F05123]/10 border-[#F05123] text-[#F05123] shadow-sm font-semibold"
-                              : "bg-white border-[#ECECEA] text-[#0A0A0A]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`w-1.5 h-1.5 rounded-full ${log.isUser ? "bg-[#F05123]" : "bg-gray-400"}`}></span>
-                            <span className="font-semibold font-ibmarabic">{getLogName(log)}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <span className="text-gray-500 text-[10px]">
-                              {renderMixedText(translateLogTime(log.time, lang === "ar"), lang === "ar")}
-                            </span>
-                            <span className="font-bold text-[#F05123]">
-                              {formatPrice(log.amount)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Manual trigger buttons inside simulator */}
-                  <button
-                    onClick={handleUserBid}
-                    className="w-full py-3.5 rounded-[10px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-sm shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Hammer className="w-4 h-4 text-white" />
-                    <span className="font-ibmarabic">{t.interactive.bidButton}</span>
-                  </button>
-
-                  {/* Badges footer */}
-                  <div className="mt-4 pt-3 border-t border-[#ECECEA] flex items-center justify-between text-[9px] text-gray-500 font-ibmarabic">
-                    <span>{t.interactive.secureBadge}</span>
-                    <span>{t.interactive.competitorsBadge}</span>
-                    <span>{t.interactive.autoExtendBadge}</span>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-        </section>
-
         {/* 2.6 Section: Escrow (الضمان المالي) */}
         <section id="escrow-protection" className="py-[96px] bg-[#F7F7F7] border-b border-[#F0F0EE] relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -2956,14 +2719,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       {lang === "ar" ? "ابدأ البيع الآن" : "Start Selling Now"}
                     </motion.button>
                     
-                    <motion.a
+                    <motion.button
+                      type="button"
+                      onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'final_secondary' }); onEnter(); }}
                       whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.1)" }}
                       whileTap={{ scale: 0.98 }}
-                      href="#live-experience"
-                      className="w-full sm:w-auto px-8 py-4 rounded-full border-2 border-white bg-transparent text-white font-bold font-ibmarabic text-base transition-colors duration-200 text-center"
+                      className="w-full sm:w-auto px-8 py-4 rounded-full border-2 border-white bg-transparent text-white font-bold font-ibmarabic text-base transition-colors duration-200 text-center cursor-pointer"
                     >
                       {lang === "ar" ? "تصفح المزادات" : "Browse Auctions"}
-                    </motion.a>
+                    </motion.button>
                   </div>
                 </Reveal>
               </div>
@@ -3091,11 +2855,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-[#ECECEA] p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] md:hidden flex items-center justify-between gap-3"
           >
             <button
-              onClick={() => {
-                handleUserBid();
-                document.getElementById("live-experience")?.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-gradient-to-br from-[#FF6B35] via-[#F05123] to-[#D63E10] text-white font-bold text-sm shadow-sm active:scale-95 transition-all duration-300 font-ibmarabic"
+              type="button"
+              onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'sticky' }); onEnter(); }}
+              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-gradient-to-br from-[#FF6B35] via-[#F05123] to-[#D63E10] text-white font-bold text-sm shadow-sm active:scale-95 transition-all duration-300 font-ibmarabic cursor-pointer"
             >
               <span>{lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}</span>
             </button>

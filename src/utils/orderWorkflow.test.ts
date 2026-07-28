@@ -796,3 +796,64 @@ describe('Wave 3 — confirm_receipt delegates to the server with its evidence',
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: the escrow-delegation catch must PRESERVE the callable's error
+// code and details.
+//
+// Found in the 2026-07-28 production smoke test. A wrong delivery code should
+// render inline on the buyer's code field (keeping the receipt photo they had
+// already attached) and name the remaining attempts. Instead it produced a
+// blocking alert, because this catch re-threw `new Error(err.message)` and
+// dropped `code`/`details` — so OrderDetailsView's
+// `err.code === 'functions/invalid-argument'` branch could never match.
+// ---------------------------------------------------------------------------
+describe('executeOrderTransition — callable error code and details survive the catch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.addDoc.mockResolvedValue({ id: 'generated' });
+    mocks.updateDoc.mockResolvedValue(undefined);
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  it('keeps code + details from a rejected confirm_receipt', async () => {
+    const callableError: any = new Error('رمز التسليم غير مطابق. المحاولات المتبقية: 4');
+    callableError.code = 'functions/invalid-argument';
+    callableError.details = { reason: 'delivery_code_mismatch', remaining: 4 };
+    mocks.releaseCallable.mockRejectedValue(callableError);
+
+    const caught: any = await executeOrderTransition(
+      OUT_FOR_DELIVERY_ORDER, 'confirm_receipt', BUYER,
+      { deliveryCode: 'DC-22222', receivedPhotoUrl: 'https://x/got.jpg' },
+    ).catch((e) => e);
+
+    expect(caught.code).toBe('functions/invalid-argument');
+    expect(caught.details).toEqual({ reason: 'delivery_code_mismatch', remaining: 4 });
+  });
+
+  it('keeps the rate-limit code so the buyer sees the lockout, not a generic failure', async () => {
+    const callableError: any = new Error('Too many delivery-code attempts on this order.');
+    callableError.code = 'functions/resource-exhausted';
+    mocks.releaseCallable.mockRejectedValue(callableError);
+
+    const caught: any = await executeOrderTransition(
+      OUT_FOR_DELIVERY_ORDER, 'confirm_receipt', BUYER,
+      { deliveryCode: 'DC-22222', receivedPhotoUrl: 'https://x/got.jpg' },
+    ).catch((e) => e);
+
+    expect(caught.code).toBe('functions/resource-exhausted');
+  });
+
+  it('still throws a legible message when the callable error carries no code', async () => {
+    mocks.releaseCallable.mockRejectedValue(new Error('network down'));
+
+    const caught: any = await executeOrderTransition(
+      SHIPPED_ORDER, 'confirm_delivery', BUYER,
+    ).catch((e) => e);
+
+    expect(caught.message).toBe('network down');
+    expect(caught.code).toBeUndefined();
+  });
+});
