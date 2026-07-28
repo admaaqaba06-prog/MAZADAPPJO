@@ -22,6 +22,8 @@ const {
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
 const { assignOrderRef } = require('./assignOrderRef');
+const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
+const { normalizeDeliveryCodeInput } = require('./deliveryCode');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
@@ -1927,6 +1929,41 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     console.error('Error in submitOrderPayment:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * issueDeliveryCode — Wave 3. The SELLER (or an admin acting for them) obtains
+ * the code they must write on the parcel, which then has to be legible in their
+ * dispatch photo AND in the buyer's receipt photo. Idempotent; ownership and
+ * state live in deliveryIssue.js (unit-tested). This wrapper is auth-gating and
+ * admin resolution only.
+ */
+exports.issueDeliveryCode = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'لا تملك صلاحية تنفيذ هذه العملية');
+  }
+  try {
+    // Same admin resolution releaseOrderEscrow uses, so one definition of
+    // "admin" governs every order-side callable.
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const cd = callerSnap.exists ? (callerSnap.data() || {}) : {};
+    const isAdmin = cd.role === 'admin' || cd.isAdmin === true ||
+      (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const result = await issueDeliveryCodeTxn(deps, {
+      orderId: data && data.orderId,
+      actorUid: context.auth.uid,
+      isAdmin,
+    });
+    console.log(`[issueDeliveryCode] order=${data && data.orderId} created=${result.created}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in issueDeliveryCode:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
