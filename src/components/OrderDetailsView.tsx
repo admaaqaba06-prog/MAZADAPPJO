@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
-import { db } from '../services/firebase';
+import { db, getCallableFunction } from '../services/firebase';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
-import { doc, updateDoc, arrayUnion, Timestamp, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
+import { arrayUnion, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   Check, 
@@ -40,6 +40,7 @@ import { Order, ReturnReason } from '../types';
 import { translations } from '../utils/translations';
 import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
 import { validateDeliveryAddress, sanitizeDeliveryAddress } from '../utils/deliveryAddress';
+import { isValidPaymentRef } from '../utils/paymentReference';
 import { executeOrderTransition } from '../utils/orderWorkflow';
 import { isAdminUser } from '../utils/adminAuth';
 import { logAnalyticsEvent } from '../services/analyticsService';
@@ -110,6 +111,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // step; persisted as cliqSenderPhone so admin can match the incoming transfer.
   const [cliqSenderPhone, setCliqSenderPhone] = useState<string>(order?.cliqSenderPhone ?? '');
   const [cliqSenderPhoneError, setCliqSenderPhoneError] = useState(false);
+
+  // Wave 1 — the CliQ transaction / reference number from the buyer's transfer
+  // confirmation. Reserved uniquely server-side (submitOrderPayment) to block
+  // reused/duplicate references. Required at the pay step.
+  const [txnRef, setTxnRef] = useState<string>('');
+  const [txnRefError, setTxnRefError] = useState<string>('');
 
   // E6 — buyer "report a problem" / return claim form state.
   const [showReturnForm, setShowReturnForm] = useState(false);
@@ -445,6 +452,15 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       return;
     }
     setCliqSenderPhoneError(false);
+    // Wave 1 — require a plausible CliQ transaction/reference before uploading.
+    // The final uniqueness reservation happens server-side in submitOrderPayment.
+    if (!isValidPaymentRef(txnRef)) {
+      setTxnRefError(isAr
+        ? 'أدخل رقم العملية الظاهر في إشعار الدفع'
+        : 'Enter the transaction reference from your payment confirmation');
+      return;
+    }
+    setTxnRefError('');
     setIsUpdating(true);
     try {
       const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
@@ -456,20 +472,29 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       await uploadBytes(fileRef, receiptFile);
       const proofUrl = await getDownloadURL(fileRef);
 
-      // Buyer address-write bundled with the payment-proof upload. This update
-      // touches paymentProofUrl / deliveryAddress / deliveryPhone / updatedAt —
-      // none are in the firestore.rules orders S2 denylist and it does NOT touch
-      // paymentStatus/status, so it passes the buyer-update rule. The status
-      // flip to 'paid' happens in the separate 'pay' transition below.
-      await updateDoc(doc(db, 'orders', order.id), {
-        paymentProofUrl: proofUrl,
+      // Wave 1 — route the payment through the submitOrderPayment callable, which
+      // reserves a unique payment reference and writes the order (status→paid /
+      // paymentStatus→paid) atomically server-side, replacing the old direct
+      // updateDoc + 'pay' transition pair.
+      const submitPayment = await getCallableFunction<
+        {
+          orderId: string;
+          proofUrl: string;
+          cliqSenderPhone: string;
+          txnRef: string;
+          deliveryAddress: ReturnType<typeof sanitizeDeliveryAddress>;
+          deliveryPhone: string;
+        },
+        unknown
+      >('submitOrderPayment');
+      await submitPayment({
+        orderId: order.id,
+        proofUrl,
         cliqSenderPhone: cliqSenderPhone.trim(),
+        txnRef,
         deliveryAddress: sanitizeDeliveryAddress(addressInput),
         deliveryPhone: addressCheck.normalizedPhone,
-        updatedAt: Timestamp.now()
       });
-
-      await executeOrderTransition(order, 'pay', currentUser);
 
       // Funnel metric — fire-and-forget (service handles its own errors).
       // Wave 3 metric hygiene: paying a SIMULATED order (admin test run)
@@ -489,7 +514,22 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       setReceiptPreview('');
     } catch (err: any) {
       console.error(err);
-      alert(isAr ? `تعذر إرسال إثبات الدفع: ${err.message}` : `Failed to submit payment proof: ${err.message}`);
+      // Match the app's callable error-mapping style (err.code === 'functions/...').
+      if (err?.code === 'functions/already-exists') {
+        setTxnRefError(isAr
+          ? 'رقم العملية هذا مُستخدم من قبل. تأكد من إدخال رقم التحويل الصحيح من كليك.'
+          : 'This transaction reference has already been used. Enter the reference from your actual CliQ transfer.');
+      } else if (err?.code === 'functions/resource-exhausted') {
+        setTxnRefError(isAr
+          ? 'لقد تجاوزت الحد الأقصى لمحاولات الدفع لهذا الطلب. تواصل مع الدعم.'
+          : "You've reached the maximum payment attempts for this order — please contact support.");
+      } else if (err?.code === 'functions/invalid-argument') {
+        setTxnRefError(isAr
+          ? 'تحقق من التفاصيل وحاول مجددًا.'
+          : 'Please check your details and try again.');
+      } else {
+        alert(isAr ? `تعذر إرسال إثبات الدفع: ${err.message}` : `Failed to submit payment proof: ${err.message}`);
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -1490,6 +1530,37 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         {cliqSenderPhoneError && (
                           <p className="text-[9.5px] text-red-500 font-bold">
                             {isAr ? 'الرجاء إدخال رقم الهاتف الذي يُرسل منه الدفع.' : 'Please enter the phone number the payment is sent from.'}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Wave 1 — CliQ transaction / reference number (required).
+                          Reserved uniquely server-side to block reused refs so
+                          admin can match each incoming transfer to one order. */}
+                      <div className="space-y-1.5" id="cliq-txn-ref-field">
+                        <label
+                          htmlFor="cliq-txn-ref-input"
+                          className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#FF6B00]" />
+                          <span>{isAr ? 'رقم العملية / المرجع' : 'Transaction / reference number'}</span>
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={txnRef}
+                          onChange={e => { setTxnRef(e.target.value); if (txnRefError) setTxnRefError(''); }}
+                          placeholder={isAr ? 'رقم العملية' : 'Reference number'}
+                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${txnRefError ? 'border-red-300' : 'border-gray-200'}`}
+                          id="cliq-txn-ref-input"
+                          aria-label={isAr ? 'رقم العملية / المرجع' : 'Transaction / reference number'}
+                        />
+                        <p className="text-[9.5px] text-gray-500 font-bold">
+                          {isAr ? 'من إشعار تحويل كليك' : 'from your CliQ payment confirmation'}
+                        </p>
+                        {txnRefError && (
+                          <p className="text-[9.5px] text-red-500 font-bold">
+                            {txnRefError}
                           </p>
                         )}
                       </div>
