@@ -75,6 +75,7 @@ import { deriveSellerActions, SellerAction } from './seller/sellerActions';
 import { bucketListings, filterListings, ListingBucketId } from './seller/sellerListings';
 import { Search, Truck, RotateCcw } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
+import { sumPaidSalesThisMonth } from '../utils/sellerSales';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -563,15 +564,10 @@ export const SellerCenterView: React.FC = () => {
       .filter(o => o.status !== 'completed' && o.status !== 'cancelled' && o.status !== 'refunded' && o.escrowStatus === 'pending')
       .reduce((sum, o) => sum + (o.winningBidAmount || 0), 0);
 
-    // Monthly Sales: sales inside the current calendar month
+    // Monthly Sales: this-month orders where money is actually in (status ∈
+    // PAID_OR_BEYOND). waiting_payment / defaulted no longer inflate the figure.
     const now = new Date();
-    const currentMonthSales = myOrders
-      .filter(o => {
-        if (!o.createdAt) return false;
-        const date = new Date(typeof o.createdAt === 'number' ? o.createdAt : (o.createdAt.seconds ? o.createdAt.seconds * 1000 : o.createdAt));
-        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-      })
-      .reduce((sum, o) => sum + (o.winningBidAmount || 0), 0);
+    const currentMonthSales = sumPaidSalesThisMonth(myOrders, now);
 
     // Average Rating
     const avgRating = reviews.length > 0
