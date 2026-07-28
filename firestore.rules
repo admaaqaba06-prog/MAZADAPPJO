@@ -278,6 +278,13 @@ service cloud.firestore {
     }
 
     // 12. Orders
+    // Wave 1 — CliQ transaction-reference reservations. One doc per normalized
+    // reference, written ONLY by the submitOrderPayment callable (Admin SDK,
+    // which bypasses rules) to enforce global uniqueness. No client access.
+    match /paymentReferences/{ref} {
+      allow read, write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /
@@ -300,26 +307,20 @@ service cloud.firestore {
             'paymentVerified', 'paymentVerifiedBy', 'paymentVerifiedAt',
             'paymentRejectionReason', 'paymentRejectedBy', 'paymentRejectedAt',
             'lastNudgedAt', 'nudgeCount',
+            // Wave 1 — payment submission is SERVER-ONLY via the
+            // submitOrderPayment callable (Admin SDK), which reserves a unique
+            // CliQ transaction reference in the same transaction. paymentStatus
+            // and every payment-proof field are denylisted here so a client
+            // cannot bypass the reference-uniqueness check by writing
+            // proof/paid directly. (Was: buyer could self-claim unpaid->paid.)
+            'paymentStatus', 'paymentProofUrl', 'cliqSenderPhone',
+            'txnRef', 'txnRefNormalized', 'paymentAttempts', 'paymentSubmittedAt',
             // Ownership of chasing an order is a Mazad ops decision — a seller
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.
             'assignedToId', 'assignedToName',
             'resolutionNotes', 'disputeResolvedBy', 'disputeResolvedAt', 'disputeResolutionType'
           ]) &&
-          // paymentStatus: the ONLY client transition is the buyer's own
-          // unpaid -> paid claim (the CliQ 'pay' workflow step, which also
-          // sets status:'paid'; admin verifies the proof before any escrow
-          // release). Everything else — incl. seller writes and paid -> unpaid
-          // resets — is server/admin-only.
-          (
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paymentStatus']) ||
-            (
-              resource.data.buyerId == request.auth.uid &&
-              resource.data.paymentStatus == 'unpaid' &&
-              request.resource.data.paymentStatus == 'paid' &&
-              request.resource.data.status == 'paid'
-            )
-          ) &&
           // delivery address/phone are the BUYER's to set (given at the pay
           // step) — a seller must never write or alter where the buyer's item
           // ships. Only the buyer may touch these two fields.
@@ -327,11 +328,15 @@ service cloud.firestore {
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deliveryAddress', 'deliveryPhone']) ||
             resource.data.buyerId == request.auth.uid
           ) &&
-          // keep the existing terminal-transition guard (settlement is server-only)
+          // keep the existing terminal-transition guard (settlement is server-only).
+          // Wave 1 — status:'paid' is also server-only now: the only path to
+          // 'paid' is the submitOrderPayment callable, so a client may never set
+          // it directly (that was the old buyer self-claim, now removed).
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['escrowStatus', 'status']) ||
             (
               request.resource.data.status != 'completed' &&
+              request.resource.data.status != 'paid' &&
               request.resource.data.escrowStatus != 'released' &&
               request.resource.data.status != 'refunded' &&
               request.resource.data.escrowStatus != 'refunded'
