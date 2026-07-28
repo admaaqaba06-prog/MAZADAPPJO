@@ -429,11 +429,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             {/* 1. TOP LEFT OVERLAYS */}
             <div className="absolute top-4 left-4 z-20 flex flex-col gap-2.5">
               <div className="flex items-center gap-1.5">
-                <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
-                  {isAr ? 'مباشر' : 'LIVE'}
-                </span>
-
                 <span className="bg-black/40 backdrop-blur-md text-white text-[9.5px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md border border-white/5">
                   <Eye className="w-3 h-3 text-white/80" />
                   <span>{activeAuction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
@@ -814,6 +809,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             </div>
           ) : (
             <>
+              {/* LIVE indicator — the BIDDING is live (not a video stream).
+                  Moved off the media overlay onto the bid panel so it reads
+                  honestly. Renders only in the live (!isEnded) branch. */}
+              <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md inline-flex items-center gap-1 shadow-sm w-fit">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
+                {isAr ? 'مزايدة مباشرة' : 'LIVE BIDDING'}
+              </span>
+
               {/* Quick Bid Multipliers (hidden until the auction is open) */}
               {isAuctionOpen(activeAuction?.status) && (() => {
                 const inc = activeAuction?.minIncrement || 10;
