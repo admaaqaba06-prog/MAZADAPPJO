@@ -29,6 +29,7 @@ const LaunchSection = React.lazy(() => import('./admin/LaunchSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
 const AuctionLookupSection = React.lazy(() => import('./admin/AuctionLookupSection'));
+const AuditLogSection = React.lazy(() => import('./admin/AuditLogSection'));
 const SystemSection = React.lazy(() => import('./admin/SystemSection'));
 
 /**
@@ -75,6 +76,7 @@ const TAB_META: Record<AdminTabId, { ar: string; en: string }> = {
   orders: { ar: 'الطلبات', en: 'ORDERS' },
   members: { ar: 'الأعضاء', en: 'MEMBERS' },
   'auction-lookup': { ar: 'بحث المزادات', en: 'Auction Lookup' },
+  audit: { ar: 'السجل', en: 'AUDIT LOG' },
   system: { ar: 'النظام', en: 'SYSTEM' },
 };
 
@@ -107,7 +109,8 @@ export const AdminDashboardView: React.FC = () => {
     logSystemHealth,
     setBids,
     resetOnboarding,
-    setActiveView
+    setActiveView,
+    adminActions
   } = useApp();
   const { auctions } = useAuctions();
 
@@ -840,6 +843,18 @@ export const AdminDashboardView: React.FC = () => {
               orders={realOrders}
               onResolve={handleResolveDispute}
             />
+          </React.Suspense>
+        )}
+
+        {activeTab === 'audit' && (
+          <React.Suspense
+            fallback={
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+                {isAr ? 'جاري التحميل…' : 'Loading…'}
+              </div>
+            }
+          >
+            <AuditLogSection isAr={isAr} actions={adminActions} />
           </React.Suspense>
         )}
 

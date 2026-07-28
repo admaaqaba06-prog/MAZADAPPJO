@@ -264,13 +264,22 @@ export interface Notification {
   auctionId?: string;
 }
 
+// adminActions rows exist in two historical shapes (see src/utils/adminAudit.ts).
+// Divergent fields are optional so both validate; normalizeAdminAction() unifies them.
 export interface AdminAction {
   id: string;
-  actionType: 'approve_listing' | 'reject_listing' | 'ban_user' | 'verify_seller' | 'release_escrow' | 'refund_escrow' | 'delete_auction';
-  targetId: string;
-  targetName: string;
+  // OLD schema
+  actionType?: string;
+  targetId?: string;
+  targetName?: string;
+  // NEW schema
+  action?: string;
+  orderId?: string;
+  auctionId?: string;
+  adminId?: string;
+  // common
   adminName: string;
-  timestamp: number;
+  timestamp: any; // number (ms) OR Firestore Timestamp
   details?: string;
 }
 
