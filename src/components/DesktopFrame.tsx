@@ -98,11 +98,20 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     ? (notifications || []).filter(n => !n.read).length
     : unreadUserFacingCount(notifications);
   // Seller Center nav shows for the formal seller role OR anyone who owns a
-  // listing. createListing never grants isSeller (the only granting code path
-  // is dead), so without this a first-time seller has NO route to the Pending
-  // status tab — the Discover pending-box that used to cover that gap was
-  // removed in the Discover redesign. Scoped per-user listener (Slice 1b) so
-  // this no longer scans the broad `auctions` array.
+  // listing.
+  //
+  // The `|| ownsListing` half predates seller activation existing at all: when
+  // this was written, NOTHING could grant isSeller (WalletView's granting code
+  // was both uncalled and blocked by the firestore.rules self-write denylist),
+  // so without it a first-time seller had no route to the Pending status tab —
+  // the Discover pending-box that used to cover that gap was removed in the
+  // Discover redesign. PR #186 added the activateSeller callable, so isSeller
+  // is now grantable; `ownsListing` is kept because listing an item still does
+  // not activate a seller account, and someone who has listed should reach
+  // their own listing's status without activating first.
+  //
+  // Scoped per-user listener (Slice 1b) so this no longer scans the broad
+  // `auctions` array.
   const ownsListing = useOwnsListing(currentUser?.id);
   const isSeller = isAdminOrSeller(currentUser) || ownsListing;
 
