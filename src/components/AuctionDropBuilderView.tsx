@@ -21,6 +21,7 @@ import {
   type DropFormValues,
 } from '../utils/dropFormState';
 import { photoUploadLabel, uploadStageLabel } from '../utils/dropProgress';
+import { DURATION_PRESETS, durationLabel } from '../utils/dropDuration';
 import { opensSummaryLabel, resolveOpens, type OpensMode } from '../utils/opensMode';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { copyImageToClipboard, downloadMedia } from '../utils/dropMedia';
@@ -32,12 +33,6 @@ import MoreSettingsDrawer from './admin/MoreSettingsDrawer';
 import DropSuccessPanel from './admin/DropSuccessPanel';
 import type { PickedPhoto } from '../utils/mediaPickerState';
 import type { AuctionItem } from '../types';
-
-const DURATION_PRESETS = [
-  { seconds: 600, label: '10 دقيقة', en: '10 min' },
-  { seconds: 900, label: '15 دقيقة', en: '15 min' },
-  { seconds: 1800, label: '30 دقيقة', en: '30 min' },
-];
 
 const OPENS_OPTIONS: { id: OpensMode; ar: string; en: string }[] = [
   { id: 'now', ar: 'الآن', en: 'Now' },
@@ -172,10 +167,22 @@ export default function AuctionDropBuilderView() {
     [scheduledStartAtMs],
   );
 
-  const durationLabel = useMemo(() => {
-    const p = DURATION_PRESETS.find((d) => d.seconds === form.durationSeconds);
-    return p ? p.label : `${Math.round(form.durationSeconds / 60)} دقيقة`;
-  }, [form.durationSeconds]);
+  // TWO labels for one duration, deliberately, because the two consumers below
+  // are not in the same language.
+  //
+  // The caption is the buyer-facing WhatsApp post: dropCaption.ts is Arabic end
+  // to end, so its duration line stays Arabic no matter which language the
+  // admin is running the console in. The success panel is admin-facing and
+  // follows `isAr` — it used to take the Arabic label too, which is why an
+  // English admin saw "Opens now · 30 دقيقة".
+  const captionDurationLabel = useMemo(
+    () => durationLabel(form.durationSeconds, true),
+    [form.durationSeconds],
+  );
+  const uiDurationLabel = useMemo(
+    () => durationLabel(form.durationSeconds, isAr),
+    [form.durationSeconds, isAr],
+  );
 
   // The live doc for the drop just created. Status and bid count come from here
   // rather than from anything this view remembers, so a bid landing while the
@@ -205,14 +212,14 @@ export default function AuctionDropBuilderView() {
       buildAuctionCaption({
         auctionNumber: assignedNumber ?? '—',
         startTime: startTimeDisplay,
-        durationLabel,
+        durationLabel: captionDurationLabel,
         startingPriceJod: Number(form.startingPrice) || 0,
         productName: form.productName.trim() || '—',
         specs,
         condition: form.condition.trim(),
         deepLink,
       }),
-    [assignedNumber, startTimeDisplay, durationLabel, form.startingPrice, form.productName, specs, form.condition, deepLink],
+    [assignedNumber, startTimeDisplay, captionDurationLabel, form.startingPrice, form.productName, specs, form.condition, deepLink],
   );
 
   const copy = async (text: string) => {
@@ -556,7 +563,7 @@ export default function AuctionDropBuilderView() {
           startingPrice={Number(form.startingPrice) || 0}
           coverUrl={thumbnailPreview}
           opensLabel={opensSummaryLabel(form.opensMode, startTimeDisplay, isAr)}
-          durationLabel={durationLabel}
+          durationLabel={uiDurationLabel}
           finalLink={finalLink}
           caption={caption}
           status={createdAuction?.status}
@@ -728,7 +735,7 @@ export default function AuctionDropBuilderView() {
             onChange={(e) => setField('durationSeconds', Number(e.target.value))}
           >
             {DURATION_PRESETS.map((d) => (
-              <option key={d.seconds} value={d.seconds}>{isAr ? d.label : d.en}</option>
+              <option key={d.seconds} value={d.seconds}>{isAr ? d.ar : d.en}</option>
             ))}
           </select>
         </label>
