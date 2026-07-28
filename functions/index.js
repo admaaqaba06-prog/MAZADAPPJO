@@ -24,6 +24,7 @@ const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSub
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
+const { shouldActivateSellerOnApproval } = require('./listingApproval');
 const { normalizeDeliveryCodeInput } = require('./deliveryCode');
 const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
@@ -1182,6 +1183,61 @@ exports.onOrderStatusChanged = functions.firestore
       status: after.status, trackingNumber: after.trackingNumber || '',
       idempotencyKey: `${context.params.orderId}_${after.status}`,
     } });
+    return null;
+  });
+
+/**
+ * onListingApproved
+ *
+ * Listing an item creates a seller account — but only once the admin team has
+ * approved the lot. Approval is their judgement gate, so it is the moment the
+ * grant is earned; granting at create time would hand an account to anyone who
+ * submitted anything.
+ *
+ * A TRIGGER rather than a call inside approveListing on purpose: approval is a
+ * client-side admin `updateDoc` on the auction (AppContext approveListing), and
+ * more than one admin surface performs it. Hooking the write itself means every
+ * present and future approval path is covered, and `isSeller` stays grantable
+ * only by the Admin SDK.
+ *
+ * NEVER throws. A failure to activate must not surface as a failed approval —
+ * the lot is already live by the time this runs, and the user can still
+ * self-activate from the wallet.
+ */
+exports.onListingApproved = functions.firestore
+  .document('auctions/{auctionId}')
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+
+      // Cheap pre-check so the common case (any edit to an already-live lot,
+      // including every bid) costs no user-doc read.
+      const preliminary = shouldActivateSellerOnApproval(before, after, { isAdmin: false });
+      if (!preliminary.activate && preliminary.reason === 'not_an_approval_transition') return null;
+      if (!preliminary.activate && ['sold_by_mazad', 'no_creator'].includes(preliminary.reason)) {
+        console.log(`[onListingApproved] ${context.params.auctionId} skipped: ${preliminary.reason}`);
+        return null;
+      }
+
+      const uid = after.createdById;
+      const creatorSnap = await db.collection('users').doc(uid).get();
+      const creator = creatorSnap.exists ? creatorSnap.data() : null;
+
+      const decision = shouldActivateSellerOnApproval(before, after, creator);
+      if (!decision.activate) {
+        console.log(`[onListingApproved] ${context.params.auctionId} skipped: ${decision.reason}`);
+        return null;
+      }
+
+      const result = await activateSellerTxn(
+        { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now(), lang: 'ar' },
+        { uid: decision.uid },
+      );
+      console.log(`[onListingApproved] activated seller ${decision.uid} via ${context.params.auctionId}: ${JSON.stringify(result)}`);
+    } catch (err) {
+      console.error('[onListingApproved] failed (non-fatal):', err && err.message);
+    }
     return null;
   });
 
