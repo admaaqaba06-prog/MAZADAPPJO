@@ -112,7 +112,13 @@ Trust-tier auto-publish (build when active sellers > ~25–30); Second Chance Of
 - **Wave 0 — Credibility & correctness pass (days):** delete test data + status glossary (A1) + cheap bugs + "unpaid ≠ sale."
 - **Wave 1 — Close the money hole:** CliQ txn-ref field + hard unique/reject + bank-verified checkbox + resubmit cap.
 - **Wave 2 — MZ order reference + surface audit-log viewer + guard Force-Close.**
-- **Wave 3 — Pickup code + delivery methods + protection window/auto-complete.**
+- **Wave 3 — ✅ SHIPPED 2026-07-28. Evidence-gated self-service delivery.** Landed as a photo-evidence chain rather than the "pickup code + protection window" this line originally sketched: MJ locked the model in `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`, and it explicitly has **no protection window and no auto-complete cron** — the buyer's confirmation IS completion. What shipped:
+  - New order status `out_for_delivery` (glossary, buckets, admin ledger filter, seller centre tabs, buyer timeline, `order_shipped` notify event reused so n8n's 21-event contract is untouched).
+  - Seller steps 1–2 as client transitions gated by `firestore.rules` on `prepPhotoUrl` / `sentPhotoUrl` + `deliveryMethod` (`'hand' | 'courier'`).
+  - Delivery code `DC-XXXXX` in `deliveryCodes/{orderId}` — seller + admin read, no client write. **Not** a field on the order: Firestore has no field-level read denylist and the buyer can read their own order.
+  - Buyer step 3 (`releaseOrderEscrow` action `buyer_confirm_receipt`): receipt photo + typed code, verified inside the money transaction, escrow released in the same commit. Rate-limited to 5 attempts by `deliveryConfirm.js`, which counts failures in its own transaction because the money transaction structurally cannot.
+  - The legacy one-tap `buyer_confirm_delivery` is now refused for non-admins at `out_for_delivery` — it had no status precondition and would otherwise have been a one-click way around the whole chain.
+  - Dispute gate: `canRequestReturn` opens for `out_for_delivery`, so refusing to confirm has a real alternative.
 - **Wave 4 — Action Center consolidation** (last, once data foundation solid — as colleague sequenced).
 
 Rule (unchanged from spec): never push to main; branch → PR → review → merge; flag-gate risky flows. Prefer targeted flag-gated slices over a full parallel `admin_v2` rebuild.

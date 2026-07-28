@@ -67,6 +67,8 @@ top-down from it wasted time on problems that no longer existed.
 
 ## 🚀 Queued projects (specced / scoped)
 
+- ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.
+
 - **Ops rhythm (the real unlock):** mirror the daily WhatsApp auctions into the app via the drop-builder so shelves are never empty. Nothing else matters if there's no inventory to bid on.
 - **Plan B — Ratings + vendor ladder** (spec: `docs/superpowers/specs/2026-07-18-core-happy-path-design.md`): two-sided reviews (buyer↔auction, review blocks next bid), internal vendor stats, graduation at 100 five-star auctions → public vendor page.
 - **Plan C — Landing truth pass:** 5%+5% copy, kill `#coming-soon`, empty-states sell the schedule, numeral/copy polish.
