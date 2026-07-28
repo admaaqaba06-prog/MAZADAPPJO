@@ -25,7 +25,18 @@ export interface DropSuccessPanelProps {
   caption: string;
   status?: string | null;
   totalBids?: number | null;
-  hasCopyableMedia: boolean;
+  /**
+   * The two media actions have DIFFERENT requirements, so they get one flag
+   * each. A single `hasCopyableMedia` was wrong in both directions: `onCopyImage`
+   * can only work off a cover image, so a video-only drop offered a Copy image
+   * button that could do nothing but report failure; and `onDownloadMedia` takes
+   * gallery photos too, so a gallery-only drop had Download disabled on media it
+   * holds. Each button now asks the question its own handler answers.
+   */
+  /** A cover image exists — the only thing `onCopyImage` can put on the clipboard. */
+  canCopyImage: boolean;
+  /** Any picked media at all: cover, gallery photos or video. */
+  canDownloadMedia: boolean;
   /** Result of the last Copy image attempt. Rendered here rather than in the
    *  preview column — a confirmation the admin cannot see is not one. */
   copyMessage?: string;
@@ -50,7 +61,7 @@ const action =
 
 export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
   isAr, auctionNumber, title, startingPrice, coverUrl, opensLabel, durationLabel,
-  finalLink, caption, status, totalBids, hasCopyableMedia, copyMessage,
+  finalLink, caption, status, totalBids, canCopyImage, canDownloadMedia, copyMessage,
   onCopyLink, onCopyCaption, onCopyImage, onDownloadMedia,
   onCreateAnother, onEdit, onCancel,
 }) => {
@@ -81,12 +92,18 @@ export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={onCopyLink} className={action}>{isAr ? 'نسخ الرابط' : 'Copy link'}</button>
         <button type="button" onClick={onCopyCaption} className={action}>{isAr ? 'نسخ النص' : 'Copy caption'}</button>
-        <button type="button" onClick={onCopyImage} disabled={!hasCopyableMedia} className={action}>{isAr ? 'نسخ الصورة' : 'Copy image'}</button>
-        <button type="button" onClick={onDownloadMedia} disabled={!hasCopyableMedia} className={action}>{isAr ? 'تنزيل الوسائط' : 'Download media'}</button>
+        <button type="button" onClick={onCopyImage} disabled={!canCopyImage} className={action}>{isAr ? 'نسخ الصورة' : 'Copy image'}</button>
+        <button type="button" onClick={onDownloadMedia} disabled={!canDownloadMedia} className={action}>{isAr ? 'تنزيل الوسائط' : 'Download media'}</button>
       </div>
-      {!hasCopyableMedia && (
+      {!canDownloadMedia ? (
         <p className="text-[11px] text-gray-400">
-          {isAr ? 'لا توجد وسائط لنسخها — أضف صورة غلاف أو فيديو.' : 'Nothing to copy — this drop has no cover image or video.'}
+          {isAr ? 'لا توجد وسائط لهذا المزاد — لم تُضف صور ولا فيديو.' : 'No media on this drop — no photos and no video were added.'}
+        </p>
+      ) : !canCopyImage && (
+        // Download works (there is a video and/or gallery photos), Copy image
+        // does not — it can only ever copy a cover.
+        <p className="text-[11px] text-gray-400">
+          {isAr ? 'نسخ الصورة يحتاج صورة غلاف — استخدم تنزيل الوسائط.' : 'Copy image needs a cover image — use Download media instead.'}
         </p>
       )}
       {copyMessage && <p className="text-[11px] text-gray-500">{copyMessage}</p>}

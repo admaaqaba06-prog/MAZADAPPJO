@@ -46,7 +46,7 @@ const OPENS_OPTIONS: { id: OpensMode; ar: string; en: string }[] = [
 ];
 
 export default function AuctionDropBuilderView() {
-  const { language, currentUser, createListing, deleteAuction } = useApp();
+  const { language, createListing, deleteAuction } = useApp();
   const { auctions } = useAuctions();
   const isAr = language === 'ar';
 
@@ -112,6 +112,50 @@ export default function AuctionDropBuilderView() {
       container.scrollTop + (elBox.top - containerBox.top) - (container.clientHeight - elBox.height) / 2;
     container.scrollTo({ top: Math.max(0, centred), behavior: 'smooth' });
   }, []);
+
+  /**
+   * Move the admin to the FIRST field that failed validation. Returns true when
+   * there was one, i.e. "the submit must stop here".
+   *
+   * Shared by Create and Save deliberately. Both buttons stay enabled on an
+   * incomplete form because clicking them is what reveals what is missing — and
+   * a message rendered below the fold reveals nothing. Save needs this MORE than
+   * Create: the sticky bottom bar sits over the lower half of the form on a
+   * phone, so a silent `return` leaves the admin pressing a button that does
+   * nothing with the reason hidden underneath it.
+   */
+  const focusFirstError = useCallback(
+    (found: Record<string, string>): boolean => {
+      const firstKey = firstErrorField(found);
+      if (!firstKey) return false;
+      const el = document.getElementById(`field-${firstKey}`);
+      if (el) {
+        scrollFieldIntoView(el);
+        // preventScroll, or the focus call scrolls the container itself — the
+        // browser's own instant jump landing on top of the smooth one above.
+        el.focus?.({ preventScroll: true });
+      }
+      return true;
+    },
+    [scrollFieldIntoView],
+  );
+
+  /**
+   * Drop every picked file and revoke its object URL.
+   *
+   * Both paths that abandon a set of picked media go through here: "create
+   * another" and "relist". The cover is the easy one to miss because swapping
+   * one already revokes in onCoverChange — but abandoning the last cover leaks
+   * it, and at 20-30 drops a day that is 20-30 blobs a session on its own.
+   */
+  const clearPickedMedia = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    extraPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+    setExtraPhotos([]);
+    setThumbnailFile(null);
+    setThumbnailPreview('');
+    setVideoFile(null);
+  };
 
   const specs = useMemo(
     () => form.specsText.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -191,20 +235,10 @@ export default function AuctionDropBuilderView() {
     // REQUIRED and PAST must keep blocking.
     const found = validateDropForm(form, Date.now());
     setErrors(found);
-    const firstKey = firstErrorField(found);
-    if (firstKey) {
-      // Scroll the FIRST problem into view — the button stays enabled precisely
-      // so that clicking it says what is wrong, and a message rendered below the
-      // fold says nothing.
-      const el = document.getElementById(`field-${firstKey}`);
-      if (el) {
-        scrollFieldIntoView(el);
-        // preventScroll, or the focus call scrolls the container itself — the
-        // browser's own instant jump landing on top of the smooth one above.
-        el.focus?.({ preventScroll: true });
-      }
-      return;
-    }
+    // Scroll the FIRST problem into view — the button stays enabled precisely
+    // so that clicking it says what is wrong, and a message rendered below the
+    // fold says nothing.
+    if (focusFirstError(found)) return;
     setSubmitting(true);
     try {
       // Upload the extra gallery photos first (same storage path pattern the
@@ -291,16 +325,7 @@ export default function AuctionDropBuilderView() {
    */
   const handleCreateAnother = () => {
     setForm(afterCreateAnother(form));
-    // Both media paths that abandon an object URL have to revoke it. The cover
-    // is easy to miss because swapping one already revokes in onCoverChange —
-    // but "create another" abandons the last cover of the previous drop, and at
-    // 20-30 drops a day that is 20-30 leaked blobs per session on its own.
-    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
-    extraPhotos.forEach((p) => URL.revokeObjectURL(p.url));
-    setExtraPhotos([]);
-    setThumbnailFile(null);
-    setThumbnailPreview('');
-    setVideoFile(null);
+    clearPickedMedia();
     setCreatedId(null);
     setEditing(false);
     // Per-field errors are their own state and survive a form reset, so the
@@ -323,7 +348,11 @@ export default function AuctionDropBuilderView() {
     if (!createdId) return;
     const found = validateDropForm(form, Date.now());
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    // Same treatment Create gets, and for a sharper reason: the save bar is
+    // sticky below md, so it sits ON TOP of the lower half of the form. A bare
+    // `return` here is a button that visibly does nothing, with the red message
+    // explaining why hidden behind the bar that was just pressed.
+    if (focusFirstError(found)) return;
 
     const lockedMsg = isAr
       ? 'وصلت مزايدة — لم يعد التعديل ممكناً.'
@@ -466,6 +495,13 @@ export default function AuctionDropBuilderView() {
       viewing: hasSourceViewing ? sourceViewing : '',
       viewingPlace: hasSourceViewing && typeof a.viewingPlace === 'string' ? a.viewingPlace : '',
     }));
+    // A relist is a new lot with new media. Whatever is currently picked belongs
+    // to the drop the admin was last building — leaving it in place publishes
+    // the PREVIOUS item's photos and video on this one, which is a wrong listing
+    // shipped to buyers, not an ops slip. Same revoke-then-clear discipline as
+    // "create another": both abandon a picked set, so both go through the same
+    // helper rather than one of them remembering to.
+    clearPickedMedia();
     setCreatedId(null);
     // A relist is a NEW drop, so it must leave edit mode too — otherwise the
     // save bar Task 10 hangs off `editing` would sit over a prefilled form with
@@ -514,7 +550,11 @@ export default function AuctionDropBuilderView() {
           caption={caption}
           status={createdAuction?.status}
           totalBids={createdAuction?.totalBids}
-          hasCopyableMedia={Boolean(thumbnailFile || videoFile)}
+          // Each action is gated on what its own handler actually needs:
+          // onCopyImage below can only copy `thumbnailPreview`, while
+          // onDownloadMedia takes the gallery photos too.
+          canCopyImage={Boolean(thumbnailPreview)}
+          canDownloadMedia={Boolean(thumbnailPreview || extraPhotos.length > 0 || videoFile)}
           copyMessage={copyImageMsg}
           onCopyLink={() => copy(finalLink)}
           onCopyCaption={() => copy(caption)}
@@ -544,6 +584,22 @@ export default function AuctionDropBuilderView() {
         {/* MEDIA — first, the team is holding the item */}
         <section className="space-y-3">
           <h2 className={sectionHeader}>{isAr ? 'الوسائط' : 'Media'}</h2>
+          {/* An edit write cannot carry media: the form holds File objects, not
+              the uploaded URLs, so stripNonEditableKeys drops mediaUrls/
+              videoUrl/thumbnailUrl rather than blanking media that uploaded
+              fine. Leaving the picker on screen in edit mode therefore offers an
+              action that is silently discarded on Save — the admin adds a photo,
+              saves, and nothing happens. Hidden rather than disabled: a greyed
+              picker still has to be trusted not to leak a change through any one
+              of its cover/gallery/video controls, while a note says the same
+              thing with nothing to get wrong. */}
+          {editing ? (
+            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+              {isAr
+                ? 'لا يمكن تغيير الوسائط من هنا. الصور والفيديو المرفوعة تبقى كما هي — لتغييرها ألغِ المزاد وأنشئه من جديد.'
+                : "Media can't be changed here. The uploaded photos and video stay as they are — to change them, cancel this drop and create it again."}
+            </p>
+          ) : (
           <MediaPicker
             isAr={isAr}
             coverUrl={thumbnailPreview}
@@ -561,6 +617,7 @@ export default function AuctionDropBuilderView() {
             videoFile={videoFile}
             onVideoChange={setVideoFile}
           />
+          )}
         </section>
 
         <label className={label}>
