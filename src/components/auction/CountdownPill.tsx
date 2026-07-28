@@ -5,7 +5,7 @@ import { isAuctionOpen } from '../../utils/auctionPhase';
 import { formatCountdown } from '../../utils/bidFormat';
 
 /* ======================================================================
-   CountdownPill — the always-visible HH:MM:SS pill, isolated into a LEAF
+   CountdownPill — the always-visible MM:SS <1h, Xh YYm >=1h pill, isolated into a LEAF
    (Wave 4 / render perf). It owns its OWN 1s interval computing timeLeft
    from the auction's endTime (relative to server time), so a per-second
    tick re-renders ONLY this tiny component — the parent auction layouts no
@@ -13,7 +13,7 @@ import { formatCountdown } from '../../utils/bidFormat';
    full-screen overlay (AuctionCountdownLayer) — only the inline pill.
 
    Two variants, byte-identical to the markup they replace:
-   - 'mobile'  : plain orange HH:MM:SS (or "Ended"), no pulse. Only counts
+   - 'mobile'  : plain orange MM:SS <1h, Xh YYm >=1h (or "Ended"), no pulse. Only counts
                  down to endTime.
    - 'desktop' : red-pulsing snipe animation under 10s (else emerald), plus
                  the pre-open branch that counts down to scheduledStartAt and
