@@ -547,7 +547,7 @@ export const SellerCenterView: React.FC = () => {
     
     // Pending Orders: waiting_payment, paid, preparing_shipment, shipped, delivered
     const pendingOrdersCount = myOrders.filter(o => 
-      ['waiting_payment', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'disputed'].includes(o.status)
+      ['waiting_payment', 'pending_buyer_confirmation', 'paid', 'preparing_shipment', 'shipped', 'delivered', 'disputed'].includes(o.status)
     ).length;
 
     // Total Revenue: seller earnings on completed/paid orders — NET of Mazad's
@@ -1581,7 +1581,7 @@ export const SellerCenterView: React.FC = () => {
                     ) : visibleOrders.length === 0 ? (
                       <div className="text-center py-12 text-gray-400 text-sm">{st.no_auctions}</div>
                     ) : (
-                      <div>
+                      <div className="overflow-x-auto">
                         <table className="w-full text-left rtl:text-right border-collapse text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
