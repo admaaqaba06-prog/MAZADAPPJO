@@ -1,6 +1,7 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
+import { DESKTOP_MIN_WIDTH, isDesktopWidth } from '../utils/shellBreakpoint';
 import { useOwnsListing } from '../hooks/useOwnsListing';
 import { unreadUserFacingCount, userFacingNotifications } from '../utils/notifications';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
@@ -109,6 +110,25 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
   // outbid / won / payment / subscription — not the raw escrow ledger.
   const activityFeed = userFacingNotifications(notifications).slice(0, 6);
 
+  // Which shell gets `children`. The two shells below are toggled by
+  // `lg:hidden` / `hidden lg:flex`, but Tailwind's `hidden` is only
+  // display:none — React MOUNTS BOTH. Rendering {children} in each therefore
+  // mounted every view TWICE: duplicate DOM ids, two copies of every effect,
+  // interval and Firestore listener, and two <video> elements pulling the same
+  // media, with the invisible copy doing all of it forever. Gating on the same
+  // 1024px threshold in JS leaves exactly one live mount.
+  //
+  // Seeded from the real width so the first paint already targets the right
+  // shell (client-only SPA — `window` exists), then kept in sync via matchMedia.
+  const [isDesktop, setIsDesktop] = useState(() => isDesktopWidth(window.innerWidth));
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${DESKTOP_MIN_WIDTH}px)`);
+    const sync = () => setIsDesktop(mq.matches);
+    sync(); // width may have changed between the initial render and this effect
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
   return (
     <div 
       className="w-full h-[100dvh] overflow-hidden text-gray-900 bg-gray-50/50 font-sans selection:bg-[#FF6B00]/20"
@@ -122,9 +142,11 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
         className="lg:hidden h-[100dvh] max-h-[100dvh] w-full bg-[#F7F6F3] flex flex-col overflow-hidden"
         id="mobile-layout-root"
       >
-        {/* Main Application active view fills standard mobile viewport exactly */}
+        {/* Main Application active view fills standard mobile viewport exactly.
+            Gated on !isDesktop so the desktop shell below is the only mount at
+            lg+ — see the isDesktop comment above. */}
         <div className="flex-1 min-h-0 w-full relative overflow-hidden flex flex-col">
-          {children}
+          {!isDesktop && children}
         </div>
 
         {/* Global Bottom Navigation bar strictly at foot of phone screens.
@@ -482,7 +504,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   <div className="w-8 h-8 rounded-lg bg-[#E85D04] animate-spin"></div>
                 </div>
               }>
-                {children}
+                {isDesktop && children}
               </Suspense>
             </div>
           ) : (
@@ -498,7 +520,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       <div className="w-8 h-8 rounded-lg bg-[#E85D04] animate-spin"></div>
                     </div>
                   }>
-                    {children}
+                    {isDesktop && children}
                   </Suspense>
                 </div>
               </main>
