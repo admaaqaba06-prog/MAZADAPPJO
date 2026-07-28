@@ -6,6 +6,7 @@ import {
   cancelWarnsAboutBids,
   cancelConfirmMessage,
   stripNonEditableKeys,
+  buildDropEditWrite,
   isFirstBidPayload,
   NON_EDITABLE_KEYS,
   FIRST_BID_NON_EDITABLE_KEYS,
@@ -231,32 +232,37 @@ describe('cancelConfirmMessage', () => {
   });
 });
 
-describe('stripNonEditableKeys', () => {
-  // Built from the REAL creation payload rather than a hand-written object, so
-  // a new dangerous key appearing in buildDropPayload shows up here.
-  const created = (overrides: Partial<DropPayloadInput> = {}) =>
-    buildDropPayload(
-      {
-        productName: 'iPhone 15 Pro',
-        startingPrice: '250',
-        channel: 'misc',
-        durationSeconds: 1800,
-        paymentWindowHours: 24,
-        antiSnipeSec: 30,
-        startMode: 'scheduled',
-        scheduledStartAtMs: 1_700_000_000_000,
-        autoRelist: true,
-        viewing: 'store',
-        viewingPlace: 'Abdoun',
-        marketPrice: '400',
-        reservePrice: '300',
-        vendorName: 'Acme',
-        extraPhotoUrls: ['https://example.com/a.jpg'],
-        ...overrides,
-      },
-      1_700_000_000_000,
-    );
+// Built from the REAL creation payload rather than a hand-written object, so
+// a new dangerous key appearing in buildDropPayload shows up here. Shared by
+// the strip tests and the edit-write tests — both are about the difference
+// between what publishes and what an edit may send.
+const created = (overrides: Partial<DropPayloadInput> = {}) =>
+  buildDropPayload(
+    {
+      productName: 'iPhone 15 Pro',
+      startingPrice: '250',
+      channel: 'misc',
+      durationSeconds: 1800,
+      paymentWindowHours: 24,
+      antiSnipeSec: 30,
+      startMode: 'scheduled',
+      scheduledStartAtMs: 1_700_000_000_000,
+      autoRelist: true,
+      viewing: 'store',
+      viewingPlace: 'Abdoun',
+      marketPrice: '400',
+      reservePrice: '300',
+      vendorName: 'Acme',
+      extraPhotoUrls: ['https://example.com/a.jpg'],
+      ...overrides,
+    },
+    1_700_000_000_000,
+  );
 
+/** The scheduled deadline `created()` produces: start + 30 minutes. */
+const EXPECTED_END = 1_700_000_000_000 + 1800 * 1000;
+
+describe('stripNonEditableKeys', () => {
   it('removes every key an edit may not carry', () => {
     const out = stripNonEditableKeys(created());
     for (const key of NON_EDITABLE_KEYS) {
@@ -398,6 +404,114 @@ describe('isFirstBidPayload — the same strict test createListing applies', () 
     expect(isFirstBidPayload({ startMode: null })).toBe(false);
     expect(isFirstBidPayload({ startMode: 'FIRST_BID' })).toBe(false);
     expect(isFirstBidPayload({ startMode: ' first_bid' })).toBe(false);
+  });
+});
+
+/**
+ * The closer (`functions/index.js:481`) resolves a lot's deadline at `:511-522`:
+ * it reads `endsAt` FIRST and falls back to `endTime` only when `endsAt` is
+ * absent. `createListing` stamps `endsAt` on every non-first_bid lot, so it is
+ * never absent for one — meaning an edit that wrote `endTime` alone changed
+ * nothing the closer reads, and the lot went on closing at its ORIGINAL time
+ * while the UI reported success.
+ *
+ * (`algoliaSync.resolveEndMs` prefers `endTime` and is NOT the relevant
+ * function — it feeds the search index, not the auction lifecycle.)
+ */
+describe('buildDropEditWrite — the clock the closer actually reads', () => {
+  // Stands in for Timestamp.fromMillis. Tagged so a test can prove the value
+  // came through the constructor rather than being copied raw.
+  const stamp = (ms: number) => ({ __ts: ms });
+
+  it('writes endsAt alongside endTime on a scheduled edit', () => {
+    const out = buildDropEditWrite(created({ startMode: 'scheduled' }), stamp);
+    expect(out.endTime).toBe(EXPECTED_END);
+    expect(out.endsAt).toEqual({ __ts: EXPECTED_END });
+  });
+
+  // The whole point: the two fields cannot disagree, because endsAt is derived
+  // from the endTime actually being written. Checked across several durations
+  // so a hardcoded or independently-computed value cannot pass.
+  it('derives endsAt from the endTime it writes, at every duration', () => {
+    for (const durationSeconds of [600, 900, 1800, 3600]) {
+      const out = buildDropEditWrite(created({ durationSeconds }), stamp);
+      expect(out.endsAt).toEqual({ __ts: out.endTime });
+      expect(out.endTime).toBe(1_700_000_000_000 + durationSeconds * 1000);
+    }
+  });
+
+  it('moves endsAt when the admin moves the start time', () => {
+    const later = 1_700_000_000_000 + 86_400_000;
+    const out = buildDropEditWrite(
+      created({ scheduledStartAtMs: later, durationSeconds: 900 }),
+      stamp,
+    );
+    expect(out.endTime).toBe(later + 900 * 1000);
+    expect(out.endsAt).toEqual({ __ts: later + 900 * 1000 });
+  });
+
+  it('routes the value through the injected constructor, not a raw copy', () => {
+    const out = buildDropEditWrite(created(), (ms) => `TS(${ms})`);
+    expect(out.endsAt).toBe(`TS(${EXPECTED_END})`);
+  });
+
+  // C1's other half: a first_bid lot has no clock until someone bids, so an
+  // edit must emit NEITHER key. endsAt leaking in here would be worse than the
+  // endTime bug C1 fixed — it is the field the closer prefers.
+  it('emits neither clock key on a first_bid edit', () => {
+    const out = buildDropEditWrite(created({ startMode: 'first_bid' }), stamp);
+    expect(Object.prototype.hasOwnProperty.call(out, 'endTime')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(out, 'endsAt')).toBe(false);
+  });
+
+  it('never calls the timestamp constructor at all for a first_bid edit', () => {
+    const calls: number[] = [];
+    buildDropEditWrite(created({ startMode: 'first_bid' }), (ms) => {
+      calls.push(ms);
+      return ms;
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('still strips everything an edit may not carry', () => {
+    const out = buildDropEditWrite(created(), stamp);
+    for (const key of NON_EDITABLE_KEYS) {
+      expect(Object.prototype.hasOwnProperty.call(out, key)).toBe(false);
+    }
+  });
+
+  it('keeps everything an edit is FOR', () => {
+    const out = buildDropEditWrite(created(), stamp);
+    expect(out.title).toBe('iPhone 15 Pro');
+    expect(out.duration).toBe(1800);
+    expect(out.scheduledStartAt).toBe(1_700_000_000_000);
+    expect(out.startMode).toBe('scheduled');
+  });
+
+  // An unusable endTime gives nothing to mirror. Writing Invalid Date into the
+  // field the closer trusts MOST is strictly worse than leaving the stale one.
+  it('writes no endsAt when there is no usable endTime to mirror', () => {
+    for (const endTime of [undefined, null, NaN, Infinity, '123', {}]) {
+      const out = buildDropEditWrite({ startMode: 'scheduled', endTime }, stamp);
+      expect(Object.prototype.hasOwnProperty.call(out, 'endsAt')).toBe(false);
+    }
+    expect('endsAt' in buildDropEditWrite({ startMode: 'scheduled' }, stamp)).toBe(false);
+  });
+
+  // Same fail-open as createListing and the strip: only the exact string is
+  // first_bid, so anything else is treated as a lot with a real deadline.
+  it('writes endsAt for an absent or unrecognised startMode', () => {
+    expect(buildDropEditWrite({ endTime: 7 }, stamp).endsAt).toEqual({ __ts: 7 });
+    expect(buildDropEditWrite({ startMode: 'FIRST_BID', endTime: 7 }, stamp).endsAt)
+      .toEqual({ __ts: 7 });
+  });
+
+  it('leaves the caller\'s payload untouched', () => {
+    const before = created();
+    buildDropEditWrite(before, stamp);
+    expect(Object.prototype.hasOwnProperty.call(before, 'endsAt')).toBe(false);
+    expect(before.endTime).toBe(EXPECTED_END);
+    expect(before.reservePrice).toBe(300);
   });
 });
 

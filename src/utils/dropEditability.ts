@@ -162,3 +162,65 @@ export function stripNonEditableKeys(
   }
   return out;
 }
+
+/**
+ * The exact object an edit writes to `updateDoc`.
+ *
+ * `stripNonEditableKeys` above handles everything an edit must NOT carry. This
+ * adds the one thing it must carry and `buildDropPayload` does not emit:
+ * `endsAt`, on a scheduled lot.
+ *
+ * Why it matters, and why `endTime` alone is not enough. The auction closer is
+ * `scheduledAuctionCloser` (`functions/index.js:481`), and it resolves the
+ * deadline inline at `:511-522`:
+ *
+ *     if (endsAt) { endsAtMs = <read from endsAt> }          // :511 — preferred
+ *     if (!endsAt && endTime) { endsAtMs = <from endTime> }  // :522 — fallback ONLY
+ *
+ * It reads `endsAt` FIRST and touches `endTime` only when `endsAt` is absent —
+ * and `createListing` stamps `endsAt: Timestamp.fromMillis(endTimeMs)` on every
+ * non-first_bid lot (`AppContext.tsx:3841`), so it is never absent for one. An
+ * edit that wrote only `endTime` therefore changed nothing the closer reads:
+ * the admin moves a scheduled lot's start time or duration, the UI reports
+ * success, and the lot still closes at the ORIGINAL time. Same class of failure
+ * as the first_bid one above — the edit appears to work and does not.
+ *
+ * (Do not be reassured by `algoliaSync.resolveEndMs`, which prefers `endTime`.
+ * That feeds the SEARCH INDEX, not the auction lifecycle. The two functions
+ * disagree on precedence; the closer is the one that ends auctions.)
+ *
+ * `endsAt` is derived from `out.endTime` — the value actually being written, not
+ * the one that came in — so the pair cannot disagree by construction.
+ *
+ * first_bid is untouched: both clock keys were stripped above and the lot must
+ * stay clockless until someone bids.
+ *
+ * @param toTimestamp `Timestamp.fromMillis`, injected rather than imported so
+ *   this stays a pure function the node test environment can run. The call site
+ *   passes the same constructor `createListing` uses.
+ */
+export function buildDropEditWrite(
+  payload: Record<string, unknown>,
+  toTimestamp: (ms: number) => unknown,
+): Record<string, unknown> {
+  const out = stripNonEditableKeys(payload);
+  // Two guards, and the first is deliberately REDUNDANT today — do not delete it
+  // as dead code. `stripNonEditableKeys` has already removed `endTime` for a
+  // first_bid payload, so the type check alone happens to be sufficient and an
+  // isolated mutation of `!isFirstBidPayload(...)` is an equivalent mutant that
+  // no test can catch. It stops being equivalent the moment `endTime` leaves
+  // FIRST_BID_NON_EDITABLE_KEYS — and at that point it is the ONLY thing
+  // stopping `endsAt` being stamped on a clockless lot, which is a worse bug
+  // than the one C1 fixed because `endsAt` is the field the closer prefers.
+  // (Verified: with `endTime` removed from that list, dropping this guard fails
+  // "never calls the timestamp constructor at all for a first_bid edit".)
+  //
+  // The second is on the TYPE, not merely on presence: with no usable endTime
+  // there is no millisecond value to mirror, and `toTimestamp(undefined)` would
+  // write an Invalid Date into the field the closer trusts most — strictly
+  // worse than leaving the stale one alone.
+  if (!isFirstBidPayload(payload) && typeof out.endTime === 'number' && Number.isFinite(out.endTime)) {
+    out.endsAt = toTimestamp(out.endTime);
+  }
+  return out;
+}

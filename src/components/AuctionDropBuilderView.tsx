@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useApp, useAuctions } from '../context/AppContext';
 import { db } from '../services/firebase';
 import {
   canEditDrop,
   canCancelDrop,
   cancelConfirmMessage,
-  stripNonEditableKeys,
+  buildDropEditWrite,
 } from '../utils/dropEditability';
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
@@ -410,13 +410,24 @@ export default function AuctionDropBuilderView() {
         Date.now(),
       );
 
-      // Media and the reserve are deliberately NOT part of an edit write —
-      // stripNonEditableKeys owns that list and documents why each key is on it.
-      // In short: the form holds File objects, not uploaded URLs, so the media
-      // keys would blank media that uploaded fine, and the reserve lives in the
-      // admin-only auctionSecrets doc this form cannot read, so a blank reserve
-      // field here means "unknown", never "none".
-      await updateDoc(doc(db, 'auctions', createdId), stripNonEditableKeys(payload) as any);
+      // buildDropEditWrite owns the whole difference between a CREATION payload
+      // and an EDIT write, and documents why each part of it is there.
+      //
+      // What it removes: media and the reserve. The form holds File objects, not
+      // uploaded URLs, so the media keys would blank media that uploaded fine;
+      // the reserve lives in the admin-only auctionSecrets doc this form cannot
+      // read, so a blank reserve field here means "unknown", never "none". Plus
+      // the clock on a first_bid lot, which createListing drops on the create
+      // path and this write would otherwise stamp back on.
+      //
+      // What it adds: `endsAt` on a scheduled lot. The closer reads endsAt in
+      // preference to endTime (functions/index.js:511-522), so an edit that
+      // moved only endTime left the lot closing at its original time.
+      // Timestamp.fromMillis is the same constructor createListing uses.
+      await updateDoc(
+        doc(db, 'auctions', createdId),
+        buildDropEditWrite(payload, (ms) => Timestamp.fromMillis(ms)) as any,
+      );
       setEditing(false);
     } catch (e: any) {
       setError(e?.message || (isAr ? 'فشل حفظ التعديل' : 'Failed to save changes'));
