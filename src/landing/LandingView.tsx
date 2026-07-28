@@ -2568,7 +2568,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     {lang === "ar" ? "اعرض منتجك مجاناً — لفترة محدودة" : "Free to list — Limited time"}
                   </div>
 
-                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8 lg:pt-0">
+                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8">
                     <div className="space-y-4 max-w-2xl">
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
                         {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
