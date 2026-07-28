@@ -3205,6 +3205,22 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         );
       }
 
+      // 12b-bis. Wave 3 — the LEGACY one-tap confirm must not become a way
+      // around the evidence chain. `buyer_confirm_delivery` carries no code and
+      // no photo, and nothing else in this callable constrains the status it may
+      // run from, so a buyer whose order is `out_for_delivery` could otherwise
+      // release their own escrow with the older action and skip step 3 entirely.
+      // The UI stops offering that button there, but the UI is not the gate.
+      //
+      // Admin release / force close stay available at this status: the team must
+      // be able to settle an order whose buyer has gone silent.
+      if (action === 'buyer_confirm_delivery' && !isCallerAdmin && orderData.status === 'out_for_delivery') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'أكّد الاستلام برمز التسليم الظاهر على الطرد.'
+        );
+      }
+
       // 12c. Wave 3 — AUTHORITATIVE preconditions for the buyer's receipt
       // confirmation. The gate above already checked these, but it ran in its
       // OWN transaction: between that commit and this one the status could have
