@@ -3,23 +3,17 @@ import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
 import { Pressable, CountUp, BidConfirm, WinningPill, useToast, FirstBidCoach, markFirstBidDone } from './feedback';
-import { 
-  Volume2, 
-  VolumeX, 
-  Bookmark, 
-  Share2, 
-  Sparkles, 
-  Eye, 
-  Send, 
+import {
+  Volume2,
+  VolumeX,
+  Share2,
+  Sparkles,
+  Eye,
+  Send,
   ShieldCheck,
   Trophy,
-  Play,
   Heart,
-  Grid,
   Gavel,
-  Users,
-  Settings,
-  HelpCircle,
   MapPin,
   Copy,
   Smile,
@@ -238,17 +232,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
   const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
 
-  // Navigation Links for left sidebar
-  const navLinks = [
-    { id: 'live', labelEn: 'Live Auctions', labelAr: 'المزادات المباشرة', icon: Play, active: true },
-    { id: 'categories', labelEn: 'Categories', labelAr: 'الفئات', icon: Grid },
-    { id: 'saved', labelEn: 'Saved Items', labelAr: 'العناصر المحفوظة', icon: Bookmark },
-    { id: 'my-bids', labelEn: 'My Bids', labelAr: 'مزايداتي', icon: Gavel },
-    { id: 'following', labelEn: 'Following', labelAr: 'المتابعة', icon: Users },
-    { id: 'settings', labelEn: 'Settings', labelAr: 'الإعدادات', icon: Settings },
-    { id: 'help', labelEn: 'Help Center', labelAr: 'مركز المساعدة', icon: HelpCircle },
-  ];
-
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
       
@@ -334,34 +317,6 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     </span>
                   </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Middle section Navigation Links */}
-        <div className="p-3 border-t border-gray-100 space-y-1">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <button
-                key={link.id}
-                onClick={() => {
-                  if (link.id === 'live') {
-                    setActiveView('live');
-                  } else {
-                    setActiveView('discovery');
-                  }
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  link.active 
-                    ? 'bg-[#E85D04]/10 text-[#E85D04]' 
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-                style={{ direction: isAr ? 'rtl' : 'ltr' }}
-              >
-                <Icon className="w-4 h-4 shrink-0 stroke-[2]" />
-                <span>{isAr ? link.labelAr : link.labelEn}</span>
               </button>
             );
           })}

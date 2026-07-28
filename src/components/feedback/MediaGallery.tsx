@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Play, Maximize2, X, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Maximize2, X, Volume2, VolumeX, ImageOff } from 'lucide-react';
 import { useReducedMotion } from 'motion/react';
 import type { AuctionMediaItem } from '../../utils/auctionMedia';
 
@@ -270,10 +270,28 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
     setIndex(i => clampIndex(i + step));
   };
 
+  // No media at all (no video, no photos): render a branded "coming soon"
+  // placeholder instead of a dead black player. Fills the same area the
+  // gallery would occupy (flex-1 within the parent's container/aspect).
   if (count === 0) {
     return (
-      <div className={`flex flex-col ${className}`}>
-        <div className="relative flex-1 min-h-0 bg-zinc-900" />
+      <div className={`flex flex-col min-h-0 ${className}`} dir={isAr ? 'rtl' : 'ltr'}>
+        <div
+          className="relative flex-1 min-h-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-orange-50 to-orange-100/60 text-center px-6"
+          id="media-gallery-empty"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-white/70 border border-[#FF6B00]/20 flex items-center justify-center shadow-sm">
+            <ImageOff className="w-7 h-7 text-[#FF6B00]" strokeWidth={1.75} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-black text-gray-800 leading-tight">
+              {isAr ? 'الصور قريباً' : 'Photos coming soon'}
+            </span>
+            <span className="text-[11px] font-semibold text-[#FF6B00]/80 leading-tight">
+              {isAr ? 'Photos coming soon' : 'الصور قريباً'}
+            </span>
+          </div>
+        </div>
       </div>
     );
   }
