@@ -16,6 +16,7 @@ import { formatMoney } from '../utils/formatMoney';
 import { effectivePrice, optimisticResolved, type OptimisticBid } from '../utils/optimisticBid';
 import { serverNow, isAuctionFinished } from '../utils/serverTime';
 import { buildAuctionUrl } from '../utils/deepLink';
+import { isDesktopWidth } from '../utils/shellBreakpoint';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
 import { useAuctionDoc } from '../hooks/useAuctionDoc';
@@ -634,7 +635,9 @@ export const LiveStreamView: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
+      // Same threshold DesktopFrame picks its shell with — they must agree, or
+      // this renders the mobile layout inside the desktop shell (and vice versa).
+      setIsMobile(!isDesktopWidth(window.innerWidth));
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
