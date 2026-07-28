@@ -19,7 +19,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   // Step state configurations
   const [title, setTitle] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
-  const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate'>('Electronics');
+  const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture'>('Electronics');
   const [duration, setDuration] = useState('3600'); // Default: 1 Hour (in seconds)
 
   // Video assets references
@@ -59,6 +59,8 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
     { label: isAr ? 'ساعات' : 'Watches', value: 'Luxury' as const },
     { label: isAr ? 'سيارات' : 'Cars', value: 'Vehicles' as const },
     { label: isAr ? 'أجهزة' : 'Electronics', value: 'Electronics' as const },
+    { label: isAr ? 'أجهزة كهربائية' : 'Appliances', value: 'Appliances' as const },
+    { label: isAr ? 'أثاث ومنزل' : 'Home & Furniture', value: 'Home & Furniture' as const },
     { label: isAr ? 'أخرى' : 'Other', value: 'Fashion' as const }
   ];
 

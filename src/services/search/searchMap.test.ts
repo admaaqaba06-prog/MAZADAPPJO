@@ -10,6 +10,8 @@ describe('SEARCH_CATEGORY_MATCHES', () => {
       Phones: ['Phones', 'Electronics'],
       Watches: ['Watches'],
       Electronics: ['Electronics'],
+      Appliances: ['Appliances'],
+      'Home & Furniture': ['Home & Furniture'],
     });
   });
 });
