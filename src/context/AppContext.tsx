@@ -11,6 +11,7 @@ import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
+import { blockedApprovalReason } from '../utils/approvalGuard';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
 import { mapAuctionDocFull, PLACEHOLDER_MEDIA } from '../utils/auctionDocMap';
@@ -26,6 +27,7 @@ import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
 import { isEffectivelyBlocked } from '../utils/banStatus';
+import { resolveNotificationContent } from '../utils/notificationContent';
 import type { ViewingMode } from '../utils/viewing';
 import { viewingWritePayload } from '../utils/viewing';
 
@@ -232,7 +234,6 @@ interface AppContextProps {
   submitDispute: (orderId: string, description: string, photos: string[], videos: string[]) => Promise<{ success: boolean; message: string }>;
   respondToDispute: (disputeId: string, response: string) => Promise<{ success: boolean; message: string }>;
   respondToReview: (reviewId: string, response: string) => Promise<{ success: boolean; message: string }>;
-  resolveDispute: (disputeId: string, resolution: 'refund' | 'release') => Promise<{ success: boolean; message: string }>;
   approveVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
   rejectVerificationRequest: (requestId: string) => Promise<{ success: boolean; message: string }>;
   suspendSeller: (userId: string, suspend: boolean) => Promise<{ success: boolean; message: string }>;
@@ -2970,11 +2971,17 @@ const fetchIP = async () => {
         const ts = typeof data.timestamp === 'number'
           ? data.timestamp
           : (data.timestamp?.seconds ? data.timestamp.seconds * 1000 : Date.now());
+        // Resolve content in the recipient's language, falling back to the other
+        // language when a field is missing (so an Arabic-only doc still shows for
+        // an English user, and vice versa) rather than defaulting to Arabic.
+        const { title, body } = resolveNotificationContent(data, language);
+        // Drop docs with no resolvable content — they'd render as blank bell rows.
+        if (!title && !body) return;
         incoming.push({
           id: d.id,
           userId: data.userId,
-          title: (language === 'ar' ? data.titleAr : data.titleEn) || data.title || '',
-          description: (language === 'ar' ? data.descriptionAr : data.descriptionEn) || data.description || '',
+          title,
+          description: body,
           type: data.type || 'info',
           priority: data.priority || 'medium',
           timestamp: ts,
@@ -3993,6 +4000,26 @@ const fetchIP = async () => {
         if (snap.exists()) targetA = { id: snap.id, ...snap.data() };
       } catch { /* defaults below still apply */ }
     }
+    // REFUSE to re-open an auction that already settled. A winner defaulting
+    // leaves a dead lot in the queue and "Approve & go live" is the obvious
+    // button — but re-approving recalculates endTime and flips status back to
+    // 'live' while leaving settledAt, currentPrice and currentBidderId intact,
+    // so new bidders have to outbid the defaulter's phantom bid. Worse, orders
+    // are keyed by the AUCTION id and settleAuctionTxn only creates one
+    // `if (!orderSnap.exists)` — the defaulted order still occupies that id, so
+    // the next winner would get NO order at all. Re-running has to mean a NEW
+    // auction doc, which is what the relist paths already do.
+    if (blockedApprovalReason(targetA) === 'already_settled') {
+      addNotification(
+        language === 'ar' ? '⚠️ هذا المزاد انتهى بالفعل' : '⚠️ This auction has already settled',
+        language === 'ar'
+          ? 'لا يمكن إعادة تشغيل مزاد منتهٍ — أعد إدراجه كمزاد جديد بدلاً من ذلك.'
+          : 'A settled auction cannot be re-opened — relist it as a new auction instead.',
+        'error'
+      );
+      return;
+    }
+
     const durationSec = targetA?.duration ? Number(targetA.duration) : 600; // fallback to 10 minutes (600s)
     const freshEndTime = Date.now() + durationSec * 1000;
     const endsAtTimestamp = Timestamp.fromMillis(freshEndTime);
@@ -4894,36 +4921,6 @@ const fetchIP = async () => {
     }
   }, [language, addNotification]);
 
-  const resolveDispute = useCallback(async (disputeId: string, resolution: 'refund' | 'release') => {
-    try {
-      const dispute = disputes.find(d => d.id === disputeId);
-      if (!dispute) throw new Error("Dispute not found");
-
-      const resolvedStatus = resolution === 'refund' ? 'resolved_refunded' : 'resolved_released';
-      
-      await updateDoc(doc(db, 'disputes', disputeId), {
-        status: resolvedStatus,
-        resolvedAt: Date.now(),
-        resolverName: currentUser?.name || 'Admin'
-      });
-
-      await updateDoc(doc(db, 'orders', dispute.orderId), {
-        status: resolution === 'refund' ? 'refunded' : 'completed',
-        escrowStatus: resolution === 'refund' ? 'refunded' : 'released'
-      });
-
-      addNotification(
-        '⚖️ Dispute Resolved',
-        `Dispute resolved with resolution: ${resolution === 'refund' ? 'REFUND BUYER' : 'RELEASE TO SELLER'}.`,
-        'success'
-      );
-      return { success: true, message: 'Dispute resolved successfully' };
-    } catch (err: any) {
-      console.error("Resolve dispute error:", err);
-      return { success: false, message: err.message };
-    }
-  }, [currentUser, disputes, addNotification]);
-
   const approveVerificationRequest = useCallback(async (requestId: string) => {
     try {
       const req = verificationRequests.find(r => r.id === requestId);
@@ -5235,7 +5232,6 @@ const fetchIP = async () => {
       submitDispute,
       respondToDispute,
       respondToReview,
-      resolveDispute,
       approveVerificationRequest,
       rejectVerificationRequest,
       suspendSeller,
@@ -5264,7 +5260,7 @@ const fetchIP = async () => {
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
     updateFeatureFlag, logSystemHealth, submitVerificationRequest,
     submitSellerReview, submitSellerReport, submitDispute, respondToDispute,
-    respondToReview, resolveDispute, approveVerificationRequest,
+    respondToReview, approveVerificationRequest,
     rejectVerificationRequest, suspendSeller, removeSellerBadge,
     resetSellerTrustScore,
   ]);

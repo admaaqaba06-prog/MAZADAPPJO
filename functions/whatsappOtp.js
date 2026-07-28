@@ -1,6 +1,7 @@
 'use strict';
 // Pure WhatsApp-OTP helpers. Only node crypto (no firebase) so root Vitest loads it (#138).
 const crypto = require('crypto');
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
 
 const OTP_TTL_MS = 10 * 60 * 1000;       // code valid 10 min
 const SEND_COOLDOWN_MS = 60 * 1000;      // 60s between sends
@@ -16,6 +17,16 @@ function normalizeJordanPhone(input) {
   if (d.startsWith('0')) d = d.slice(1);
   if (!/^7\d{8}$/.test(d)) return null;
   return `+962${d}`;
+}
+
+// Any-country E.164 validator: the client sends a full E.164 (it owns country
+// selection); we validate + canonicalize. Tolerates a missing leading '+'.
+function normalizePhone(input) {
+  if (!input) return null;
+  let s = String(input).trim();
+  if (!s.startsWith('+')) s = `+${s.replace(/[^\d]/g, '')}`;
+  const p = parsePhoneNumberFromString(s);
+  return p && p.isValid() ? p.number : null;
 }
 
 function generateOtpCode() {
@@ -56,5 +67,5 @@ function checkOtp(record, code, nowMs) {
 
 module.exports = {
   OTP_TTL_MS, SEND_COOLDOWN_MS, MAX_SENDS_PER_HOUR, MAX_ATTEMPTS, CODE_LENGTH,
-  normalizeJordanPhone, generateOtpCode, hashOtp, canSendOtp, checkOtp,
+  normalizeJordanPhone, normalizePhone, generateOtpCode, hashOtp, canSendOtp, checkOtp,
 };

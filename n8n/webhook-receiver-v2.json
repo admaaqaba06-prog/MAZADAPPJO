@@ -194,6 +194,19 @@
       ],
       "id": "code-assert-sent",
       "name": "Assert Sent"
+    },
+    {
+      "id": "dedupe-node",
+      "name": "Dedupe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        110,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Dedupe — drops a redelivered/duplicate event so it isn't sent twice.\n// Keyed on body.idempotencyKey (Cloud Functions set it per event); 10-min window\n// covers n8n webhook redelivery. State in workflow static data (persists across runs).\nconst staticData = $getWorkflowStaticData('global');\nconst TTL_MS = 10 * 60 * 1000;\nconst now = Date.now();\nconst seen = staticData.seenKeys || {};\nfor (const k of Object.keys(seen)) { if (now - seen[k] > TTL_MS) delete seen[k]; }\nconst out = [];\nfor (const item of $input.all()) {\n  const b = (item.json && item.json.body) || {};\n  const key = b.idempotencyKey || `${b.event || ''}:${b.phone || ''}:${b.email || ''}`;\n  if (seen[key] && (now - seen[key] <= TTL_MS)) continue; // duplicate — drop\n  seen[key] = now;\n  out.push(item);\n}\nstaticData.seenKeys = seen;\nreturn out;\n"
+      }
     }
   ],
   "connections": {
@@ -201,7 +214,7 @@
       "main": [
         [
           {
-            "node": "Build Messages",
+            "node": "Dedupe",
             "type": "main",
             "index": 0
           }
@@ -275,6 +288,17 @@
         [
           {
             "node": "Assert Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe": {
+      "main": [
+        [
+          {
+            "node": "Build Messages",
             "type": "main",
             "index": 0
           }

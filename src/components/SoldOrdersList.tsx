@@ -1,5 +1,16 @@
 import React from 'react';
 import { Eye, Package } from 'lucide-react';
+import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossary';
+
+/** Text-colour-only classes per glossary tone — mirrors the old green/orange
+ *  split for the overall-status label while sourcing the label centrally. */
+const STATUS_TONE_TEXT: Record<OrderStatusTone, string> = {
+  neutral: 'text-gray-600',
+  info: 'text-[#FF8000]',
+  warning: 'text-[#FF8000]',
+  success: 'text-emerald-600',
+  danger: 'text-red-600',
+};
 
 interface SoldOrdersListProps {
   isAr: boolean;
@@ -33,6 +44,8 @@ export const SoldOrdersList: React.FC<SoldOrdersListProps> = ({
                   day: 'numeric'
                 })
               : '';
+
+            const statusChip = getOrderStatusChip(order.status, isAr ? 'ar' : 'en');
 
             return (
               <div 
@@ -102,16 +115,8 @@ export const SoldOrdersList: React.FC<SoldOrdersListProps> = ({
                   <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-200 space-y-0.5 col-span-2">
                     <div className="flex justify-between items-center">
                       <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب الإجمالية' : 'OVERALL STATUS'}</span>
-                      <span className={`font-black text-[10.5px] uppercase ${
-                        order.status === 'completed' ? 'text-emerald-600' : 'text-[#FF8000]'
-                      }`}>
-                        {order.status === 'waiting_payment' ? (isAr ? 'بانتظار الدفع' : 'Waiting Payment') :
-                         order.status === 'paid' ? (isAr ? 'تم الدفع' : 'Paid') :
-                         order.status === 'preparing_shipment' ? (isAr ? 'جاري تجهيز الشحن' : 'Preparing Shipment') :
-                         order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
-                         order.shippingStatus === 'delivered' ? (isAr ? 'تم التوصيل' : 'Delivered') :
-                         order.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') :
-                         order.status === 'disputed' ? (isAr ? 'نزاع قائم' : 'Disputed') : order.status}
+                      <span className={`font-black text-[10.5px] uppercase ${STATUS_TONE_TEXT[statusChip.tone]}`}>
+                        {statusChip.label}
                       </span>
                     </div>
                   </div>

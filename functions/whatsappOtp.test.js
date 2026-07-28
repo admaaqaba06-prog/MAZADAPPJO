@@ -75,3 +75,17 @@ describe('checkOtp', () => {
     expect(checkOtp(null, '123456', 1_500_000).ok).toBe(false);
   });
 });
+
+const { normalizePhone } = require('./whatsappOtp');
+describe('normalizePhone (any country)', () => {
+  it('validates + canonicalizes E.164', () => {
+    expect(normalizePhone('+962791234567')).toBe('+962791234567');
+    expect(normalizePhone('+19084058109')).toBe('+19084058109');
+    expect(normalizePhone('962791234567')).toBe('+962791234567'); // missing + tolerated
+  });
+  it('rejects invalid', () => {
+    expect(normalizePhone('123')).toBeNull();
+    expect(normalizePhone('')).toBeNull();
+    expect(normalizePhone(null)).toBeNull();
+  });
+});
