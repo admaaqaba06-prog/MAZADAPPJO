@@ -128,12 +128,12 @@ export default function BidConfirm({
               ? t.priceMovedTitle.replace('{amount}', amount.toLocaleString())
               : isAr
                 ? `تأكيد المزايدة: ${amount.toLocaleString()} د.أ`
-                : `Confirm bid: ${amount.toLocaleString()} JD`}
+                : `Confirm bid: ${amount.toLocaleString()} JOD`}
           </p>
           <p className={`text-[10px] font-bold text-center leading-snug ${v.total}`}>
             {isAr
               ? `المجموع عند الفوز ${totalWithPremium(amount).toLocaleString()} د.أ (شامل ٥٪)`
-              : `Total if you win ${totalWithPremium(amount).toLocaleString()} JD (incl. 5%)`}
+              : `Total if you win ${totalWithPremium(amount).toLocaleString()} JOD (incl. 5%)`}
           </p>
           {/* E4 — just-in-time binding reminder (copy only, no flow change) */}
           <p className={`text-[9.5px] font-black text-center leading-snug ${v.binding}`}>

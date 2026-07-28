@@ -14,6 +14,13 @@ interface SwipeToBidProps {
   onTap?: () => void;
   disabled?: boolean;
   language?: 'en' | 'ar';
+  /**
+   * Bilingual prompt shown on the track before a swipe/tap. Defaults to the
+   * mobile swipe wording ("SWIPE TO BID" / "اسحب للتأكيد"). Desktop reel usage
+   * passes a click-oriented label since there the affordance is a click, not a
+   * swipe. The "BID CONFIRMED!" success state is unaffected.
+   */
+  label?: { en: string; ar: string };
 }
 
 /** Peak pointer travel below this is a tap; at/above it is a drag. */
@@ -49,8 +56,12 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
   onTap,
   disabled = false,
   language = 'en',
+  label,
 }) => {
   const isAr = language === 'ar';
+  const promptText = label
+    ? (isAr ? label.ar : label.en)
+    : (isAr ? 'اسحب للتأكيد' : 'SWIPE TO BID');
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
 
@@ -209,7 +220,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
             </>
           ) : (
             <>
-              <span>{isAr ? 'اسحب للتأكيد' : 'SWIPE TO BID'}</span>
+              <span>{promptText}</span>
               <span className="font-black text-white/95">
                 {amount.toLocaleString()} JOD
               </span>

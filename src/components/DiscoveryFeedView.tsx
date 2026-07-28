@@ -41,6 +41,7 @@ import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { AuctionCardSkeleton } from './FeedbackStates';
 import { SellerProfileModal } from './SellerProfileModal';
 import { matchesAuctionSearch } from '../utils/auctionSearch';
+import { formatCountdown } from '../utils/bidFormat';
 import AuctionRulesModal from './AuctionRulesModal';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
@@ -92,18 +93,13 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   // is falsy, `d === item`, so the legacy path renders byte-identically to today.
   const live = useVisibleAuctionLive(item.id, isOnScreen && !!liveEnabled);
   const d = liveEnabled ? mergeLiveIntoCard(item, live) : item;
-  const liveSecondsLeft = useCountdownSeconds(d.endTime, isOnScreen);
-  const secondsLeft = liveSecondsLeft ?? 120;
-
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-  };
+  // `null` when there's no real endTime/seconds-left — the card renders "—"
+  // rather than a fabricated placeholder countdown.
+  const secondsLeft = useCountdownSeconds(d.endTime, isOnScreen);
 
   const hasUserBid = bids ? bids.some(b => b.auctionId === item.id && b.bidderId === currentUser?.id) : false;
   const isUserWinner = hasUserBid && d.currentBidderId === currentUser?.id;
-  const isCritical = secondsLeft < 60;
+  const isCritical = secondsLeft !== null && secondsLeft < 60;
 
   const itemIsEnded = d.status === 'completed' || (d.endTime && d.endTime <= Date.now());
   const awaitingFirstBid = isAwaitingFirstBid(d);
@@ -192,7 +188,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
               ? 'bg-red-600 text-white border-red-500 animate-pulse'
               : 'bg-black/75 text-white border-white/10 backdrop-blur-xs'
           }`}>
-            <span>⏱️ {formatTime(secondsLeft)}</span>
+            <span>⏱️ {secondsLeft === null ? '—' : formatCountdown(secondsLeft, isAr)}</span>
           </div>
         )}
 
@@ -468,16 +464,6 @@ export const DiscoveryFeedView: React.FC = () => {
     return () => obs.disconnect();
   }, [searchMode.active, searchMode.hasMore, searchMode.loadingMore, searchMode.loadMore, searchMode.results.length]);
 
-  const formatItemTimeLeft = (item?: AuctionItem) => {
-    if (!item) return '12:30';
-    if (!item.endTime) return '12:30';
-    const secondsLeft = Math.max(0, Math.floor((item.endTime - Date.now()) / 1000));
-    if (secondsLeft <= 0) return '00:00';
-    const mm = Math.floor(secondsLeft / 60);
-    const ss = secondsLeft % 60;
-    return `${mm}:${ss < 10 ? '0' : ''}${ss}`;
-  };
-
   const renderCardCover = (item?: AuctionItem, fallbackIcon?: React.ReactNode, isPriority?: boolean) => {
     if (item && item.thumbnailUrl) {
       return (
@@ -722,7 +708,7 @@ export const DiscoveryFeedView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
           onClick={() => watchAuction(hottestAuction.id)}
-          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl p-1.5 pr-3 shadow-sm transition-all cursor-pointer active:scale-[0.99] text-left rtl:text-right"
+          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center gap-3 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-xl p-1.5 pr-3 shadow-sm transition-all cursor-pointer active:scale-[0.99] text-left rtl:text-right"
           id="live-now-strip"
           style={{ direction: isAr ? 'rtl' : 'ltr' }}
         >
@@ -732,15 +718,15 @@ export const DiscoveryFeedView: React.FC = () => {
             ) : null}
           </span>
           <span className="flex flex-col min-w-0 flex-1 leading-tight">
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-100">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-orange-100">
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-80" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-200 opacity-80" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
               </span>
               🔥 {isAr ? 'الأكثر تفاعلاً الآن' : 'Hottest right now'}
             </span>
             <span className="text-xs font-bold truncate">{hottestAuction.title}</span>
-            <span className="text-[11px] font-semibold text-emerald-50/90 tabular-nums">
+            <span className="text-[11px] font-semibold text-orange-50/90 tabular-nums">
               {isAr ? 'العطاء الحالي' : 'Current bid'} {(hottestAuction.currentPrice || 0).toLocaleString()} {isAr ? 'د.أ' : 'JOD'} · {hottestAuction.totalBids} {isAr ? 'مزايدة' : 'bids'}
             </span>
           </span>
@@ -755,12 +741,12 @@ export const DiscoveryFeedView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
           onClick={handleWatchLive}
-          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
+          className="mx-4 mt-3 mb-3 lg:mx-0 lg:mt-2 lg:mb-2 flex items-center justify-between gap-3 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
           id="live-now-strip"
         >
           <span className="flex items-center gap-2 min-w-0">
             <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-80"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-200 opacity-80"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
             </span>
             <span className="text-xs font-bold tracking-tight truncate">

@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { serverNow } from '../../utils/serverTime';
 import { isAuctionOpen } from '../../utils/auctionPhase';
+import { formatCountdown } from '../../utils/bidFormat';
 
 /* ======================================================================
-   CountdownPill — the always-visible HH:MM:SS pill, isolated into a LEAF
+   CountdownPill — the always-visible MM:SS <1h, Xh YYm >=1h pill, isolated into a LEAF
    (Wave 4 / render perf). It owns its OWN 1s interval computing timeLeft
    from the auction's endTime (relative to server time), so a per-second
    tick re-renders ONLY this tiny component — the parent auction layouts no
@@ -12,7 +13,7 @@ import { isAuctionOpen } from '../../utils/auctionPhase';
    full-screen overlay (AuctionCountdownLayer) — only the inline pill.
 
    Two variants, byte-identical to the markup they replace:
-   - 'mobile'  : plain orange HH:MM:SS (or "Ended"), no pulse. Only counts
+   - 'mobile'  : plain orange MM:SS <1h, Xh YYm >=1h (or "Ended"), no pulse. Only counts
                  down to endTime.
    - 'desktop' : red-pulsing snipe animation under 10s (else emerald), plus
                  the pre-open branch that counts down to scheduledStartAt and
@@ -40,14 +41,6 @@ interface CountdownPillProps {
    */
   awaitingFirstBid?: boolean;
 }
-
-const pad = (n: number) => n.toString().padStart(2, '0');
-
-/** Format a remaining-seconds count as HH:MM:SS (LTR numerals). */
-const formatHMS = (totalSecs: number): string => {
-  const s = Math.max(0, totalSecs);
-  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-};
 
 export const CountdownPill: React.FC<CountdownPillProps> = ({
   endTime,
@@ -85,7 +78,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
     const ended = hasEnd && remaining <= 0;
     return (
       <div className={className} dir="ltr">
-        {ended ? (isAr ? 'انتهى' : 'Ended') : formatHMS(remaining)}
+        {ended ? (isAr ? 'انتهى' : 'Ended') : formatCountdown(remaining, isAr)}
       </div>
     );
   }
@@ -102,7 +95,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
     // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
     display = isAr ? 'يبدأ الآن…' : 'Starting…';
   } else if (remainingSecs > 0) {
-    display = formatHMS(remainingSecs);
+    display = formatCountdown(remainingSecs, isAr);
   } else {
     // Clamp at zero: the server closer flips the status shortly.
     display = isAr ? 'انتهى المزاد' : 'Auction ended';

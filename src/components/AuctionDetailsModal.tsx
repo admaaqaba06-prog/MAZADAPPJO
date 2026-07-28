@@ -272,7 +272,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                         >
                           <span className="text-[10.5px]">
                             {amount > auction.currentPrice
-                              ? `+${(amount - auction.currentPrice).toLocaleString()} JD`
+                              ? `+${(amount - auction.currentPrice).toLocaleString()} ${isAr ? 'د.أ' : 'JOD'}`
                               : (isAr ? 'الحد الأدنى' : 'MIN BID')}
                           </span>
                           <span className="text-[8.5px] opacity-60 font-medium">{amount.toLocaleString()}</span>

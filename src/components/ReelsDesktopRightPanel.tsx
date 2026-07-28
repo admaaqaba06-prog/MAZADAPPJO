@@ -187,6 +187,9 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           // it lifts). An expired cooldown falls through and bids normally.
           disabled={(currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
+          // Desktop reel: the affordance is a click (SwipeToBid's onTap fallback),
+          // not a swipe — so the label is click-oriented. Mobile keeps the swipe wording.
+          label={{ en: 'CLICK TO BID', ar: 'اضغط للمزايدة' }}
         />
         {/* Inline confirm for the click fallback (anchored to this card).
             At confirm, recompute against the LATEST minimum (nextBidAmount is
@@ -394,7 +397,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
 
                   <div className="text-right shrink-0">
                     <span className={`text-[11.5px] font-black block font-mono ${isWinning ? 'text-[#FF8A00]' : 'text-zinc-300'}`}>
-                      {bid.amount.toLocaleString()} <span className="text-[8px] font-bold text-zinc-500">JD</span>
+                      {bid.amount.toLocaleString()} <span className="text-[8px] font-bold text-zinc-500">{isAr ? 'د.أ' : 'JOD'}</span>
                     </span>
                   </div>
                 </div>
