@@ -26,7 +26,6 @@ import {
   Star,
   Info
 } from 'lucide-react';
-import { SwipeToBid } from './SwipeToBid';
 import AuctionRulesModal from './AuctionRulesModal';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
@@ -119,9 +118,9 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     if (winPillTimer.current) clearTimeout(winPillTimer.current);
   }, []);
 
-  // Executes the bid (used by the confirm flow and by a completed SwipeToBid
-  // gesture, which stays no-confirm; a plain CLICK on the swipe track routes
-  // through the BidConfirm dialog via onTap instead)
+  // Executes the bid. Reached only via handleConfirm — every desktop bid CTA
+  // (the main button and the quick-bid chips) stages an amount for BidConfirm
+  // first, so there is no no-confirm path on this surface.
   const runBid = async (amount: number) => {
     // Guest browsing: bidding is THE signup moment — a guest never reaches
     // placeBid (whose non-member fallback is the subscription sheet).
@@ -218,7 +217,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // ONE-SHOT end-flip: the per-second layout tick is gone (it moved into
   // <CountdownPill>), so a quiet lot that expires with no trailing snapshot
   // would never re-render — `isEnded` would stay stale-false and Card 2 keeps
-  // rendering the live SwipeToBid panel while the pill reads "Auction ended".
+  // rendering the live bid panel while the pill reads "Auction ended".
   // This fires a SINGLE re-render exactly at endTime so the on-render `isEnded`
   // derivation above re-evaluates to true — no 1s interval reintroduced. Uses
   // Date.now() (the same clock `isEnded` compares against, so the timer lands
@@ -515,7 +514,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 <Share2 className="w-4 h-4" />
               </button>
             </div>
-            {/* Bid controls (price/timer/top-bidder, quick-bid tiers, swipe-to-bid,
+            {/* Bid controls (price/timer/top-bidder, quick-bid tiers, bid button,
                 confirm, coach mark) no longer live here — they moved to Card 2 in
                 the right side panel so nothing interactive overlays the media. */}
 
@@ -747,14 +746,20 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Card 2: Bid Panel — price/timer/top-bidder, quick-bid tiers,
-            swipe-to-bid, price-moved confirm, first-bid coach. This used to
+            bid button, price-moved confirm, first-bid coach. This used to
             float on top of the video; it now lives in the side panel so it
             never obscures the item media (founder feedback from Wave 1).
             Bid-flow wiring below (useBidFlow-equivalent local state:
             pendingBid/priceMoved/openConfirm/handleConfirm/handleCancel/
             runBid) is untouched — only JSX position + light-theme styling
             moved from the dark video-overlay version. */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }} id="desktop-bid-panel">
+        {/* `relative overflow-hidden` is load-bearing: BidConfirm and WinningPill
+            are `absolute inset-0`, so without a positioned ancestor here they
+            resolved against the ROOT platform container and blanketed all three
+            columns (video included). Anchoring them to this card is the whole
+            point of the overlay; overflow-hidden clips them to its rounded
+            corners. Safe for FirstBidCoach — it is relative + in-flow. */}
+        <div className="relative overflow-hidden bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }} id="desktop-bid-panel">
           {isEnded ? (
             <div className="w-full bg-amber-50/60 border border-amber-200 rounded-2xl p-4 text-center flex flex-col items-center justify-center gap-3.5">
               {(() => {
@@ -982,7 +987,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 );
               })()}
 
-              {/* SWIPE TO BID Button (hidden until the auction is open) */}
+              {/* Bid CTA (hidden until the auction is open) */}
               <div className="w-full">
                 {!isAuctionOpen(activeAuction?.status) ? (
                   <div className="w-full rounded-xl bg-gray-100 text-gray-700 text-center p-4">
@@ -1000,15 +1005,25 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       show={currentUser?.subscriptionStatus === 'active' && pendingBid == null}
                       isAr={isAr}
                     />
-                    <SwipeToBid
-                      amount={nextBidAmount}
-                      onSwipeSuccess={() => runBid(nextBidAmount)}
-                      onTap={() => openConfirm(nextBidAmount)}
-                      // E2: not hard-disabled on a block — the tap/swipe handlers
-                      // open BanNoticeModal; an expired cooldown bids normally.
-                      disabled={false}
-                      language={isAr ? 'ar' : 'en'}
-                    />
+                    {/* A drag gesture is friction on a mouse, so desktop bids on a
+                        plain button — same footprint the swipe track occupied, and
+                        the same handler its click fallback already used. Every
+                        desktop bid now routes through BidConfirm (there is no
+                        longer a no-confirm path), matching the quick-bid chips.
+                        E2: not hard-disabled on a block — openConfirm opens
+                        BanNoticeModal; an expired cooldown bids normally. */}
+                    <Pressable
+                      onClick={() => openConfirm(nextBidAmount)}
+                      className="w-full h-12 rounded-full bg-gradient-to-r from-[#E85D04] to-[#F37021] text-white text-[13px] font-black tracking-wide shadow-md hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E85D04]"
+                      id="desktop-bid-cta"
+                    >
+                      <Gavel className="w-4 h-4 shrink-0" />
+                      <span>
+                        {isAr
+                          ? `زايد ${nextBidAmount.toLocaleString()} د.أ`
+                          : `Bid ${nextBidAmount.toLocaleString()} JOD`}
+                      </span>
+                    </Pressable>
                     <p className="text-[11px] text-gray-400 text-center mt-1">
                       {isAr
                         ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
@@ -1037,6 +1052,8 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             priceMoved={priceMoved}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
+            // This card is white — the default dark overlay would read as broken.
+            variant="light"
           />
 
           {/* Winning pill: pops over the panel on a successful bid */}
