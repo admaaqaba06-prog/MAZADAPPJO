@@ -29,13 +29,15 @@ const SimulatorPanel = React.lazy(() => import('../SimulatorPanel'));
  * stay IN the batch. Cleaning those up is the main thing these buttons are for.
  *
  * The count test is a bare `n > 0` rather than `bidCountOf()` from
- * dropEditability on purpose: that helper adds `Number.isFinite`, which would
- * read an Infinity count as "no bids" while the rule — where `Infinity > 0` is
- * true — reads it as locked. A bare `> 0` matches the rule on every value a
- * Firestore number can hold (NaN included: false on both sides), and matching
- * the rule is the whole job.
+ * dropEditability on purpose. That helper adds `Number.isFinite`, so it reads a
+ * non-finite count as "no bids" and would KEEP such a doc in the batch. The two
+ * mistakes are not symmetric: wrongly skipping a doc merely leaves one lot
+ * unprocessed (and the summary says so), while wrongly keeping one the server
+ * refuses fails the entire atomic chunk. So on any value we cannot be sure
+ * about, this predicate must take the skip side — which `> 0` does and
+ * `Number.isFinite(n) && n > 0` does not.
  */
-const isBidLocked = (data: any): boolean => {
+export const isBidLocked = (data: any): boolean => {
   const n = data?.totalBids;
   return typeof n === 'number' && n > 0 && data?.isSimulated !== true;
 };
