@@ -202,11 +202,27 @@ export async function executeOrderTransition(
       };
     } catch (err: any) {
       console.error('Error executing escrow release:', err);
-      throw new Error(err.message || 'تعذر تحرير المبلغ، حاول مرة أخرى');
+      // PRESERVE `code` AND `details`. This used to re-throw a bare
+      // `new Error(err.message)`, which silently dropped both — and callers
+      // branch on them. Wave 3's buyer confirm reads `code ===
+      // 'functions/invalid-argument'` to show a wrong delivery code INLINE on
+      // the field (so the buyer keeps the receipt photo they already attached)
+      // and reads `details.remaining` to say how many tries are left. With the
+      // code stripped, every one of those fell through to the generic
+      // `alert()` branch instead — caught in the 2026-07-28 production smoke
+      // test, where a wrong code produced a blocking dialog rather than the
+      // inline error. Anything added to this catch must keep them.
+      const wrapped: any = new Error(err.message || 'تعذر تحرير المبلغ، حاول مرة أخرى');
+      if (err && err.code) wrapped.code = err.code;
+      if (err && err.details) wrapped.details = err.details;
+      throw wrapped;
     }
   }
 
   // CRITICAL FIX PHASE 2 — Secure Escrow Refund Cloud Function delegation
+  // NOTE: this block's catch below still re-throws a bare Error. Nothing
+  // branches on a refund error code today; if that changes, mirror the
+  // code/details preservation from the release catch above.
   if (
     action === 'refund' ||
     (action === 'resolve_dispute' && extraFields?.resolutionType === 'refund')

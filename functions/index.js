@@ -3145,9 +3145,14 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         throw new functions.https.HttpsError(code, gateError.message || 'تعذر تأكيد الاستلام.');
       }
       if (!gate.matched) {
+        // `details` carries the remaining-attempt count as DATA, so the client
+        // can build the message in the user's own language instead of echoing
+        // this Arabic string into an English UI. The message stays populated
+        // for any caller that does not read details.
         throw new functions.https.HttpsError(
           'invalid-argument',
-          `رمز التسليم غير مطابق. المحاولات المتبقية: ${gate.remaining}`
+          `رمز التسليم غير مطابق. المحاولات المتبقية: ${gate.remaining}`,
+          { reason: 'delivery_code_mismatch', remaining: gate.remaining }
         );
       }
     }

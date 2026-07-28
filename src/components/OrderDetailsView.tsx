@@ -727,11 +727,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       );
     } catch (err: any) {
       console.error(err);
-      // A wrong code comes back as invalid-argument with the remaining count in
-      // the message. Show it inline on the field rather than in an alert, so the
-      // buyer can correct the code without losing the photo they attached.
+      // A wrong code comes back as invalid-argument, with the remaining-attempt
+      // count in `details` (the message itself is Arabic-only, so it must not be
+      // echoed into the English UI). Shown INLINE on the field rather than in an
+      // alert, so the buyer can fix the code without losing the attached photo.
       if (err?.code === 'functions/invalid-argument') {
-        setDeliveryCodeError(err.message);
+        const remaining = err?.details?.remaining;
+        const hasCount = typeof remaining === 'number';
+        setDeliveryCodeError(isAr
+          ? (hasCount
+              ? `رمز التسليم غير مطابق. المحاولات المتبقية: ${remaining}`
+              : 'رمز التسليم غير مطابق. تحقق من الرمز المكتوب على الطرد.')
+          : (hasCount
+              ? `That delivery code doesn't match. Attempts remaining: ${remaining}`
+              : "That delivery code doesn't match — check the code written on the parcel."));
       } else if (err?.code === 'functions/resource-exhausted') {
         setDeliveryCodeError(isAr
           ? 'تجاوزت عدد المحاولات المسموح بها. تواصل مع الدعم.'
