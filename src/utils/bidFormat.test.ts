@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compactJod } from './bidFormat';
+import { compactJod, formatCountdown } from './bidFormat';
 
 describe('compactJod', () => {
   it('leaves values under 1000 as plain integers', () => {
@@ -25,5 +25,28 @@ describe('compactJod', () => {
     expect(compactJod(999999)).toBe('1M');
     expect(compactJod(999950)).toBe('1M');
     expect(compactJod(999499)).toBe('999.5K');
+  });
+});
+
+describe('formatCountdown', () => {
+  it('zero-pads MM:SS under an hour', () => {
+    expect(formatCountdown(45, false)).toBe('00:45');
+    expect(formatCountdown(135, false)).toBe('02:15');
+  });
+  it('rolls over to {h}h {mm}m at/above an hour (minutes zero-padded)', () => {
+    expect(formatCountdown(3600, false)).toBe('1h 00m');
+    expect(formatCountdown(21749, false)).toBe('6h 02m');
+  });
+  it('renders the Arabic branch with Arabic-Indic digits for ≥1h', () => {
+    expect(formatCountdown(21749, true)).toBe('٦س ٠٢د');
+  });
+  it('renders Arabic MM:SS under an hour', () => {
+    expect(formatCountdown(135, true)).toBe('٠٢:١٥');
+  });
+  it('clamps non-positive / non-finite input to 00:00', () => {
+    expect(formatCountdown(0, false)).toBe('00:00');
+    expect(formatCountdown(-30, false)).toBe('00:00');
+    expect(formatCountdown(0, true)).toBe('00:00');
+    expect(formatCountdown(NaN as unknown as number, false)).toBe('00:00');
   });
 });

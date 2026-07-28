@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { serverNow } from '../../utils/serverTime';
 import { isAuctionOpen } from '../../utils/auctionPhase';
+import { formatCountdown } from '../../utils/bidFormat';
 
 /* ======================================================================
    CountdownPill — the always-visible HH:MM:SS pill, isolated into a LEAF
@@ -41,14 +42,6 @@ interface CountdownPillProps {
   awaitingFirstBid?: boolean;
 }
 
-const pad = (n: number) => n.toString().padStart(2, '0');
-
-/** Format a remaining-seconds count as HH:MM:SS (LTR numerals). */
-const formatHMS = (totalSecs: number): string => {
-  const s = Math.max(0, totalSecs);
-  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-};
-
 export const CountdownPill: React.FC<CountdownPillProps> = ({
   endTime,
   status,
@@ -85,7 +78,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
     const ended = hasEnd && remaining <= 0;
     return (
       <div className={className} dir="ltr">
-        {ended ? (isAr ? 'انتهى' : 'Ended') : formatHMS(remaining)}
+        {ended ? (isAr ? 'انتهى' : 'Ended') : formatCountdown(remaining, isAr)}
       </div>
     );
   }
@@ -102,7 +95,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
     // T-0 dead zone: scheduled start has passed but the opener cron hasn't flipped it live yet.
     display = isAr ? 'يبدأ الآن…' : 'Starting…';
   } else if (remainingSecs > 0) {
-    display = formatHMS(remainingSecs);
+    display = formatCountdown(remainingSecs, isAr);
   } else {
     // Clamp at zero: the server closer flips the status shortly.
     display = isAr ? 'انتهى المزاد' : 'Auction ended';

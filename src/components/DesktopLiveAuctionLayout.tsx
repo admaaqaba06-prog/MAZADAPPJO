@@ -874,7 +874,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         onClick={() => setPendingBid(amount)}
                         className="flex-1 py-1.5 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-orange-100"
                       >
-                        {isAr ? 'زايد' : 'Bid'} {compactJod(amount)} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JD'}</span>
+                        {isAr ? 'زايد' : 'Bid'} {compactJod(amount)} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JOD'}</span>
                       </Pressable>
                     ))}
                   </div>
@@ -981,7 +981,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       onClick={() => openConfirm(nextBidAmount)}
                       className="w-full py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black shadow-md cursor-pointer"
                     >
-                      {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JD to retake the lead`}
+                      {isAr ? `زايد ${nextBidAmount.toLocaleString()} د.أ لاستعادة الصدارة` : `Bid ${nextBidAmount.toLocaleString()} JOD to retake the lead`}
                     </Pressable>
                   </motion.div>
                 );
