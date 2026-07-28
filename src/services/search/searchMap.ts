@@ -20,6 +20,8 @@ export const SEARCH_CATEGORY_MATCHES: Record<string, string[]> = {
   Phones: ['Phones', 'Electronics'],
   Watches: ['Watches'],
   Electronics: ['Electronics'],
+  Appliances: ['Appliances'],
+  'Home & Furniture': ['Home & Furniture'],
 };
 
 /**

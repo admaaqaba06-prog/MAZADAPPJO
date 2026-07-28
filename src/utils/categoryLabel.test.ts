@@ -22,6 +22,12 @@ describe('categoryLabel', () => {
     expect(categoryLabel('CARS', true)).toBe('سيارات');
     expect(categoryLabel('Phones', true)).toBe('هواتف');
   });
+  it('maps the new Appliances / Home & Furniture categories', () => {
+    expect(categoryLabel('Appliances', true)).toBe('أجهزة كهربائية');
+    expect(categoryLabel('Appliances', false)).toBe('Appliances');
+    expect(categoryLabel('Home & Furniture', true)).toBe('أثاث ومنزل');
+    expect(categoryLabel('Home & Furniture', false)).toBe('Home & Furniture');
+  });
   it('falls back to the raw string for unknown categories', () => {
     expect(categoryLabel('Jewelry', true)).toBe('Jewelry');
   });

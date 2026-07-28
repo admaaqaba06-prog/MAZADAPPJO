@@ -119,7 +119,7 @@ export interface TranslationType {
     verified: string; endingSoon: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
     unavailableTitle: string; unavailableDesc: string;
     sellerCtaText: string; sellerCtaBtn: string;
-    categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate', string>;
+    categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture', string>;
   };
 }
 
@@ -356,6 +356,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         Vehicles: "مركبات",
         Fashion: "أزياء",
         "Real Estate": "عقارات",
+        Appliances: "أجهزة كهربائية",
+        "Home & Furniture": "أثاث ومنزل",
       },
     },
   },
@@ -591,6 +593,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         Vehicles: "Vehicles",
         Fashion: "Fashion",
         "Real Estate": "Real Estate",
+        Appliances: "Appliances",
+        "Home & Furniture": "Home & Furniture",
       },
     },
   },

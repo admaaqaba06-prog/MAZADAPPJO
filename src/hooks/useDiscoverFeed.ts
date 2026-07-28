@@ -128,6 +128,23 @@ function buildUpcomingQuery() {
 }
 
 /**
+ * Build the "Be the First" query: LIVE `first_bid` lots, newest first. These go
+ * live with NO `endsAt` until the first bid lands, so the ending-soon feed
+ * (`orderBy('endsAt')`) excludes them entirely — this dedicated query surfaces
+ * them. Ordering by `createdAt desc` keeps a stable, index-backed shape;
+ * un-started lots are then kept client-side via `isAwaitingFirstBid`.
+ */
+function buildFirstBidQuery() {
+  return query(
+    collection(db, 'auctions'),
+    where('status', '==', 'live'),
+    where('startMode', '==', 'first_bid'),
+    orderBy('createdAt', 'desc'),
+    limit(PAGE),
+  );
+}
+
+/**
  * Largest `createdAt` (epoch ms) across a page of docs, folded into `current`.
  * Skips docs with no `createdAt` (so a missing field never inflates the max via
  * `parseAuctionTimestamp`'s future fallback). Returns `null` only when nothing
@@ -165,6 +182,7 @@ function foldMaxCreatedAt(
 export function useDiscoverFeed(
   categoryMatches: string[] | null,
   enabled: boolean = true,
+  feedMode: 'default' | 'first_bid' = 'default',
 ): UseDiscoverFeedResult {
   const [liveItems, setLiveItems] = useState<AuctionItem[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<AuctionItem[]>([]);
@@ -211,6 +229,32 @@ export function useDiscoverFeed(
       setError(null);
     }
     try {
+      // "Be the First" mode: a single dedicated query for live first_bid lots
+      // awaiting their first bid. No upcoming list, no pagination, no new-drops
+      // detector, category filtering ignored (see the effect/loadMore guards).
+      if (feedMode === 'first_bid') {
+        const fbSnap = await getDocs(buildFirstBidQuery());
+        if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
+        // Filter the RAW doc data before mapping: `mapFeedDoc` → `resolveEndTime`
+        // synthesizes a truthy `endTime` (now+1h) for any doc missing
+        // `endsAt`/`endTime` — exactly the state of an awaiting-first-bid lot —
+        // so filtering the mapped item with `isAwaitingFirstBid` (which requires
+        // `!endTime`) would always be false and the feed would always be empty.
+        const live = fbSnap.docs
+          .filter((doc) => {
+            const x = doc.data();
+            return !x.endsAt && !x.endTime && !((x.totalBids || 0) > 0);
+          })
+          .map(mapFeedDoc);
+        cursorRef.current = null;
+        hasMoreLiveRef.current = false;
+        setLiveItems(live);
+        setUpcomingItems([]);
+        setHasMoreLive(false);
+        setLoading(false);
+        return;
+      }
+
       const [liveSnap, upSnap] = await Promise.all([
         getDocs(buildLiveQuery(categoryMatchesRef.current, null)),
         getDocs(buildUpcomingQuery()),
@@ -242,7 +286,7 @@ export function useDiscoverFeed(
       setError(e);
       setLoading(false);
     }
-  }, [categoryKey]);
+  }, [categoryKey, feedMode]);
 
   useEffect(() => {
     // OFF (flag-gated fallback path): never fetch. The consumer keeps using the
@@ -253,6 +297,8 @@ export function useDiscoverFeed(
   }, [loadPage1, enabled]);
 
   const loadMore = useCallback(() => {
+    // "Be the First" is a single non-paginated page — nothing more to load.
+    if (feedMode === 'first_bid') return;
     if (!hasMoreLiveRef.current || loadingMoreRef.current) return;
     const cursor = cursorRef.current;
     if (!cursor) return;
@@ -286,12 +332,13 @@ export function useDiscoverFeed(
         setError(e);
         setLoadingMore(false);
       });
-  }, [categoryKey]);
+  }, [categoryKey, feedMode]);
 
   // New-drops detector: ONE snapshot on the newest live lot by createdAt.
   // Gated by `enabled` so the OFF path opens no listener at all.
   useEffect(() => {
-    if (!enabled) return;
+    // Skip in "Be the First" mode: that feed has no new-drops pill.
+    if (!enabled || feedMode === 'first_bid') return;
     const unsub = onSnapshot(
       query(
         collection(db, 'auctions'),
@@ -312,7 +359,7 @@ export function useDiscoverFeed(
       },
     );
     return unsub;
-  }, [enabled]);
+  }, [enabled, feedMode]);
 
   const refresh = useCallback(() => {
     // ACKNOWLEDGE the new-drops pill: raise the loaded baseline to the newest

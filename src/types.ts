@@ -91,7 +91,7 @@ export interface AuctionItem {
   id: string;
   title: string;
   description: string;
-  category: 'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate';
+  category: 'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture';
   startingPrice: number;
   currentPrice: number;
   minIncrement: number;
