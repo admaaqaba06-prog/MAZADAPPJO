@@ -243,9 +243,6 @@ export async function executeOrderTransition(
   }
 
   // CRITICAL FIX PHASE 2 — Secure Escrow Refund Cloud Function delegation
-  // NOTE: this block's catch below still re-throws a bare Error. Nothing
-  // branches on a refund error code today; if that changes, mirror the
-  // code/details preservation from the release catch above.
   if (
     action === 'refund' ||
     (action === 'resolve_dispute' && extraFields?.resolutionType === 'refund')
@@ -270,7 +267,15 @@ export async function executeOrderTransition(
       };
     } catch (err: any) {
       console.error('Error executing escrow refund:', err);
-      throw new Error(err.message || 'تعذر استرداد المبلغ، حاول مرة أخرى');
+      // Preserve `code`/`details`, same as the release catch above. This was
+      // left as a bare re-throw when the release path was fixed (PR #185)
+      // because nothing branched on a refund error code — which is exactly how
+      // that bug survived on the release path for months, invisible until a
+      // caller finally needed the code and silently got the generic alert.
+      const wrapped: any = new Error(err.message || 'تعذر استرداد المبلغ، حاول مرة أخرى');
+      if (err && err.code) wrapped.code = err.code;
+      if (err && err.details) wrapped.details = err.details;
+      throw wrapped;
     }
   }
 

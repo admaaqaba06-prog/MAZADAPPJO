@@ -857,3 +857,29 @@ describe('executeOrderTransition — callable error code and details survive the
     expect(caught.code).toBeUndefined();
   });
 });
+
+describe('the refund path preserves error codes too', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.doc.mockReturnValue({ __ref: 'orderRef' });
+    mocks.collection.mockReturnValue({ __ref: 'colRef' });
+    mocks.getCallableFunction.mockResolvedValue(mocks.releaseCallable);
+  });
+
+  it('keeps code and details from a rejected refund', async () => {
+    // Dormant when written — nothing branches on a refund code yet. That is
+    // precisely how the same bug survived unnoticed on the release path.
+    const callableError: any = new Error('refund refused');
+    callableError.code = 'functions/failed-precondition';
+    callableError.details = { reason: 'already_refunded' };
+    mocks.releaseCallable.mockRejectedValue(callableError);
+
+    const caught: any = await executeOrderTransition(
+      { ...(SHIPPED_ORDER as unknown as Record<string, unknown>), status: 'disputed' } as unknown as Order,
+      'refund', ADMIN,
+    ).catch((e) => e);
+
+    expect(caught.code).toBe('functions/failed-precondition');
+    expect(caught.details).toEqual({ reason: 'already_refunded' });
+  });
+});
