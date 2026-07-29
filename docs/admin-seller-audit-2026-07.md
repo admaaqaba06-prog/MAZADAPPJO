@@ -20,7 +20,7 @@ Every spec recommendation was checked against the actual code. Verdict = **EXIST
 | # | Item | Verdict | Evidence + note |
 |---|---|---|---|
 | B1 | Admin tabs today | EXISTS | `adminNav.ts:5-6` — home/verify/fulfillment/disputes/payouts/launch + orders/members/auction-lookup/system. |
-| B1 | Unified Action Center | MISSING | `AdminDashboardView.tsx:742-970` — separate tabs; home shows counts that link out. |
+| B1 | Unified Action Center | **EXISTS** (Wave 4) | `ActionCenterSection.tsx` + `utils/actionQueue.ts`. Six tabs → one queue + Our drops. |
 | B4 | Dispute: mandatory reason | EXISTS | `DisputesSection.tsx:76,259-265` — confirm disabled until note. |
 | B4 | Dispute: confirmation dialog | PARTIAL | Two-step inline, not an amount-echo "are you sure" modal. |
 | B4 | Dispute: money move (server) | EXISTS | `orderWorkflow.ts:121-183` → `releaseOrderEscrow`/`refundOrderEscrow` callables. |
@@ -119,7 +119,25 @@ Trust-tier auto-publish (build when active sellers > ~25–30); Second Chance Of
   - Buyer step 3 (`releaseOrderEscrow` action `buyer_confirm_receipt`): receipt photo + typed code, verified inside the money transaction, escrow released in the same commit. Rate-limited to 5 attempts by `deliveryConfirm.js`, which counts failures in its own transaction because the money transaction structurally cannot.
   - The legacy one-tap `buyer_confirm_delivery` is now refused for non-admins at `out_for_delivery` — it had no status precondition and would otherwise have been a one-click way around the whole chain.
   - Dispute gate: `canRequestReturn` opens for `out_for_delivery`, so refusing to confirm has a real alternative.
-- **Wave 4 — Action Center consolidation** (last, once data foundation solid — as colleague sequenced).
+- **Wave 4 — ✅ SHIPPED 2026-07-29. Admin panel re-cut: Action Center + Our drops.**
+  Reframed during brainstorming: the audit called this "consolidation" and implied the problem was
+  tab-hopping. MJ's actual complaint was that each tab was confusing and several did two unrelated
+  jobs at once — and **Wave 3 had just invalidated the fulfillment tab's premise** (its buckets
+  described the phone relay that self-service replaced). What shipped:
+  - **Six primary tabs became two.** `verify`, `fulfillment`, `disputes` and `payouts` are deleted;
+    their per-item cards are row bodies in the queue. `launch` became `our-drops` after shedding the
+    customer-approval queue — that tab mixed Mazad-as-operator with Mazad-as-referee.
+  - **One queue for anything needing a human**, six row kinds and nine reason codes, each row
+    carrying *why* it is there and *how long* it has waited ("buyer hasn't confirmed · 6 days ·
+    972 JOD") rather than a bare count. `B1` unified Action Center: now **EXISTS**.
+  - **All ranking in a pure builder** (`src/utils/actionQueue.ts`) — vitest here is node-only, so
+    logic left in a component ships untested. 28 cases cover every reason, the ordering and its
+    tie-breaks, malformed input, and that a healthy in-flight order raises **no** row.
+  - **`computeAttentionCounts` deleted.** Queue length is the single source of "how much is
+    waiting"; five counters could disagree with the lists they linked to.
+  - **SLAs tightened to 24h ship / 24h confirm** (was 48h / 5 days) — MJ: delivery is Amman and
+    surrounding areas. Client-only; `functions/fulfillmentNudge.js` reads no thresholds.
+  - Legacy tab ids redirect, so no bookmark breaks.
 
 Rule (unchanged from spec): never push to main; branch → PR → review → merge; flag-gate risky flows. Prefer targeted flag-gated slices over a full parallel `admin_v2` rebuild.
 

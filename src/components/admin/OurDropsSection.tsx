@@ -1,3 +1,13 @@
+/**
+ * Wave 4 — "Our drops": Mazad's own inventory pipeline.
+ *
+ * Was LaunchSection, which mixed two unrelated jobs — building and launching
+ * MAZAD's own auctions (operator work) with approving CUSTOMERS' submitted lots
+ * (refereeing). MJ named that as one of the confusing tabs. The approval queue
+ * is now an `approve_listing` row in the Action Center, where every other
+ * needs-a-human item lives; what remains here is planned work you come to
+ * deliberately, not an exception that comes to you.
+ */
 import React, { useState, useEffect } from 'react';
 import { Tv, CheckCircle, Trash2 } from 'lucide-react';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
@@ -109,10 +119,9 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
   );
 };
 
-export interface LaunchSectionProps {
+export interface OurDropsSectionProps {
   isAr: boolean;
   isLoading: boolean;
-  pendingListingDrops: any[];   // auctions pending public release
   auctions: any[];              // full auction directory (completed + master list)
   orders: any[];                // realOrders — for the "order already exists" repair guard
   users: any[];                 // for winner contact lookup
@@ -120,8 +129,6 @@ export interface LaunchSectionProps {
   setRejectingId: (id: string | null) => void;
   rejectionReason: string;
   setRejectionReason: (reason: string) => void;
-  onApproveListing: (auctionId: string, viewing?: ViewingMode, viewingPlace?: string) => void | Promise<any>; // approveListing
-  onRejectListing: (auctionId: string, reason?: string) => void | Promise<any>;              // rejectListing
   onRepairOrder: (auctionId: string) => Promise<{ success: boolean; message?: string }>;     // repairEndedAuctionOrder
   onRepairEscrow: (auctionId: string) => Promise<{ success: boolean; message?: string }>;    // repairStuckEscrowsForEndedAuction
   onDeleteAuction: (auctionId: string) => void | Promise<any>;                               // deleteAuction
@@ -129,10 +136,9 @@ export interface LaunchSectionProps {
   onCreateDrop: () => void;                                                                   // setActiveView('auction-drop-builder')
 }
 
-export const LaunchSection: React.FC<LaunchSectionProps> = ({
+export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
   isAr,
   isLoading,
-  pendingListingDrops,
   auctions,
   orders,
   users,
@@ -140,8 +146,6 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
   setRejectingId,
   rejectionReason,
   setRejectionReason,
-  onApproveListing,
-  onRejectListing,
   onRepairOrder,
   onRepairEscrow,
   onDeleteAuction,
@@ -197,8 +201,6 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
     });
   };
   // Aliases keep the moved JSX byte-identical to the former listings body.
-  const approveListing = onApproveListing;
-  const rejectListing = onRejectListing;
   const repairEndedAuctionOrder = onRepairOrder;
   const repairStuckEscrowsForEndedAuction = onRepairEscrow;
   const deleteAuction = onDeleteAuction;
@@ -217,262 +219,14 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
             {/* Header */}
             <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
-                <Tv className="w-4 h-4 text-[#FF6B00]" /> 
-                {isAr ? 'طلبات التحقق والموافقة على المزادات' : 'AUCTION LOT APPROVAL SYSTEM'}
+                <Tv className="w-4 h-4 text-[#FF6B00]" />
+                {isAr ? 'مزادات مزاد جو' : 'OUR DROPS'}
               </h3>
               <p className="text-[11px] text-gray-400 mt-1">
-                {isAr ? 'قم بمراجعة المعروضات الجديدة التي أضافها المستخدمون للتصديق عليها وإتاحتها للبث المباشر.' : 'Review new auction entries submitted by merchants, launch them live, or purge existing database records.'}
+                {isAr
+                  ? 'ابنِ مزادات مزاد جو وجدولها وأطلقها. مراجعة مزادات البائعين انتقلت إلى مركز الإجراءات.'
+                  : "Build, schedule and launch Mazad's own auctions. Reviewing sellers' lots moved to the Action Center."}
               </p>
-            </div>
-
-            {/* List 1: Pending lots awaiting approvals */}
-            <div className="space-y-3">
-              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-0.5">
-                {isAr ? 'طلبات الإطلاق المعلقة بانتظار الموافقة' : 'LOTS AWAITING PUBLIC RELEASE'}
-              </h3>
-
-              {isLoading ? (
-                <AdminListSkeleton />
-              ) : pendingListingDrops.length > 0 ? (
-                pendingListingDrops.map((item) => {
-                  // Client-side go-live gate. hasMedia is a HARD requirement:
-                  // no photo/video means the lot cannot be approved at all,
-                  // regardless of the checklist. The three ticks are the admin's
-                  // explicit quality confirmation; all three plus media unlock
-                  // APPROVE. The test-title match is a SOFT warning only.
-                  const checklist: LotChecklist = checklistById[item.id] || { photo: false, category: false, name: false };
-                  const hasMedia = !!(item.thumbnailUrl || item.videoUrl || (item.mediaUrls && item.mediaUrls.length));
-                  const allChecked = checklist.photo && checklist.category && checklist.name;
-                  const canApprove = allChecked && hasMedia;
-                  const looksLikeTest = /test|tset|اختبار|dummy|sample/i.test(String(item.title || ''));
-                  const checklistItems: { key: keyof LotChecklist; en: string; ar: string }[] = [
-                    { key: 'photo', en: 'Real product photo (not a poster/branding slide)', ar: 'صورة منتج حقيقية (وليست بوستر أو تصميم دعائي)' },
-                    { key: 'category', en: 'Category is correct', ar: 'التصنيف صحيح' },
-                    { key: 'name', en: 'Descriptive name, not a test', ar: 'اسم وصفي وليس تجريبياً' },
-                  ];
-                  return (
-                  <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs transition-all hover:border-gray-200">
-                    <div className="flex gap-4">
-                      {/* Click to open full size. A 64px object-cover crop hides
-                          both detail and framing, so an approver could not
-                          actually inspect what they were approving. */}
-                      <a
-                        href={item.thumbnailUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={isAr ? 'فتح الصورة بالحجم الكامل' : 'Open full size'}
-                        className="shrink-0 cursor-zoom-in"
-                      >
-                        <img
-                          src={item.thumbnailUrl}
-                          alt="Lot Cover"
-                          className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-xs hover:border-gray-400 transition-colors"
-                        />
-                      </a>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="bg-orange-50 text-[#FF6B00] border border-orange-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                            {item.category}
-                          </span>
-                          {/* Concierge flag (Wave E2 sets it; tolerate its absence) */}
-                          {(item.listedByMazad || item.isConcierge) && (
-                            <span className="bg-violet-50 text-violet-600 border border-violet-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                              {isAr ? 'كونسيرج مزاد' : 'Mazad Concierge'}
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="font-extrabold text-sm text-gray-900 truncate mt-2">{item.title}</h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {isAr ? 'سعر الابتداء: ' : 'Starting Bid: '} <span className="font-mono text-gray-800 font-bold">{item.startingPrice.toLocaleString()} JOD</span>
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
-                          {isAr ? 'البائع: ' : 'Seller: '}{item.sellerName || item.createdByName || (isAr ? 'غير معروف' : 'Unknown')}
-                          {item.createdAt ? (
-                            <span> · {isAr ? 'قُدّم ' : 'Submitted '}{new Date(item.createdAt).toLocaleString(isAr ? 'ar-JO' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                          ) : null}
-                        </p>
-                        {item.vendorName && (
-                          <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
-                            {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-gray-600 leading-relaxed bg-gray-50/50 p-3 rounded-xl border border-gray-100">{item.description}</p>
-
-                    {item.videoUrl && (
-                      <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl space-y-2">
-                        <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
-                          🎥 {isAr ? 'معاينة محتوى الفيديو المرفق' : 'ATTACHED DEMO VIDEO'}
-                        </span>
-                        {/* NO forced aspect ratio. This used to be `aspect-video`
-                            (16:9) capped at 160px tall, but sellers shoot PORTRAIT
-                            phone video — object-contain then squeezed it into a
-                            thin sliver between two black bars, which is exactly
-                            what an approver cannot judge a lot from. Let the media
-                            keep its own shape and give it real height: portrait
-                            renders tall, landscape still fills the width. */}
-                        <div className="w-full bg-black rounded-lg overflow-hidden flex items-center justify-center border border-gray-200 shadow-inner">
-                          <video
-                            src={item.videoUrl}
-                            controls
-                            className="max-h-[420px] w-auto max-w-full object-contain rounded-lg"
-                            playsInline
-                            preload="metadata"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {rejectingId === item.id ? (
-                      <div className="space-y-2">
-                        <textarea
-                          placeholder={isAr ? 'اكتب سبب الرفض ليصل للبائع...' : 'Enter a rejection reason for the seller...'}
-                          value={rejectionReason}
-                          onChange={(e) => setRejectionReason(e.target.value)}
-                          className="w-full text-xs p-2.5 border border-rose-200 rounded-xl bg-rose-50/20 focus:outline-none focus:ring-1 focus:ring-rose-400"
-                          rows={2}
-                          maxLength={300}
-                          autoFocus
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              rejectListing(item.id, rejectionReason.trim() || undefined);
-                              clearStagedViewing(item.id);
-                              setRejectingId(null);
-                              setRejectionReason('');
-                            }}
-                            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs"
-                          >
-                            {isAr ? 'تأكيد الرفض وإبلاغ البائع' : 'CONFIRM REJECT & NOTIFY SELLER'}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setRejectingId(null);
-                              setRejectionReason('');
-                            }}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs px-4 py-2 rounded-xl transition-all border border-gray-200"
-                          >
-                            {isAr ? 'إلغاء' : 'Cancel'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {/* Per-lot viewing. Optional: approving without a choice
-                            leaves it unset, and the lot simply says nothing about
-                            viewing rather than claiming a location. */}
-                        <ViewingSelector
-                          value={viewingById[item.id] || ''}
-                          onChange={(next) =>
-                            setViewingById((prev) => {
-                              const updated = { ...prev };
-                              if (next) updated[item.id] = next;
-                              else delete updated[item.id];
-                              return updated;
-                            })
-                          }
-                          place={viewingPlaceById[item.id] || ''}
-                          onPlaceChange={(next) =>
-                            setViewingPlaceById((prev) => ({ ...prev, [item.id]: next }))
-                          }
-                          isAr={isAr}
-                        />
-
-                        {/* Quality gate — the admin must confirm all three
-                            before APPROVE un-greys, and no lot without media can
-                            go live at all. Purely a client-side guard on the
-                            approve action; the call itself is unchanged. */}
-                        <div className="bg-amber-50/40 border border-amber-100 rounded-xl p-3 space-y-2.5">
-                          <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider block">
-                            ✅ {isAr ? 'تأكيد الجودة قبل النشر' : 'PRE-LAUNCH QUALITY CHECK'}
-                          </span>
-
-                          {!hasMedia && (
-                            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg px-2.5 py-2 text-[11px] font-bold flex items-center gap-1.5">
-                              <span>⛔</span>
-                              <span>{isAr ? 'لا توجد صورة/فيديو — لا يمكن الموافقة' : 'No photo/video — cannot approve'}</span>
-                            </div>
-                          )}
-
-                          {looksLikeTest && (
-                            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg px-2.5 py-2 text-[11px] font-bold flex items-center gap-1.5">
-                              <span>⚠️</span>
-                              <span>{isAr ? 'يبدو أنه إعلان تجريبي' : 'Looks like a test listing'}</span>
-                            </div>
-                          )}
-
-                          <div className="space-y-1.5">
-                            {checklistItems.map(({ key, en, ar }) => (
-                              <label
-                                key={key}
-                                className="flex items-start gap-2 text-[11px] text-gray-700 font-medium cursor-pointer select-none"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checklist[key]}
-                                  onChange={() =>
-                                    setChecklistById((prev) => {
-                                      const current = prev[item.id] || { photo: false, category: false, name: false };
-                                      return { ...prev, [item.id]: { ...current, [key]: !current[key] } };
-                                    })
-                                  }
-                                  className="mt-0.5 w-3.5 h-3.5 rounded accent-[#FF6B00] shrink-0 cursor-pointer"
-                                />
-                                <span>{isAr ? ar : en}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                        <button
-                          disabled={!canApprove}
-                          onClick={async () => {
-                            // Hard client-side gate: never fire the approve call
-                            // unless all ticks are in and the lot has media.
-                            if (!canApprove) return;
-                            // Same call, same arguments — the args are read
-                            // before anything is cleared. Only the cleanup is new.
-                            try {
-                              await approveListing(item.id, viewingById[item.id], viewingPlaceById[item.id]);
-                            } catch (err) {
-                              // Approve blew up: keep the staged choice so the
-                              // admin can retry without re-picking it.
-                              console.error('Approve listing failed; keeping staged viewing choice:', err);
-                              return;
-                            }
-                            clearStagedViewing(item.id);
-                            clearChecklist(item.id);
-                          }}
-                          className={`flex-1 font-extrabold text-xs py-2 rounded-xl transition-all shadow-xs text-white ${canApprove ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-300 cursor-not-allowed'}`}
-                        >
-                          {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setRejectingId(item.id);
-                            setRejectionReason('');
-                          }}
-                          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl transition-all border border-gray-200"
-                        >
-                          {isAr ? 'رفض الطلب' : 'REJECT'}
-                        </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  );
-                })
-              ) : (
-                <EmptyState
-                  title={isAr ? 'لا توجد معروضات معلقة' : 'No pending lots'}
-                  description={isAr ? 'جميع طلبات المزادات المقترحة من البائعين تمت مراجعتها.' : 'No new listings submitted by merchants are currently awaiting public release.'}
-                  language={isAr ? 'ar' : 'en'}
-                />
-              )}
             </div>
 
             {/* List 2: Concluded Auctions Fulfillments */}
@@ -761,4 +515,4 @@ export const LaunchSection: React.FC<LaunchSectionProps> = ({
   );
 };
 
-export default LaunchSection;
+export default OurDropsSection;

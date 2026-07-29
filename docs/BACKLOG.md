@@ -87,6 +87,11 @@ top-down from it wasted time on problems that no longer existed.
 23. **Consolidate account ownership** under MJ/team — Cloudflare (colleague's account holds the DNS), Vercel (mazadteam), WasenderAPI, Firebase. Partially done (MJ has Firebase console + Vercel + is now app admin).
 24. **Empty-phone guard on n8n Webhook Receiver** — skip the WasenderAPI send when phone is empty (in progress 2026-07-18).
 
+25. **Fulfillment SLAs are now 24h / 24h** (Wave 4, 2026-07-29). Was 48h to ship and five days to
+    deliver. Client-only — `functions/fulfillmentNudge.js` derives buckets but reads no thresholds.
+    **Expect the Action Center to show a backlog the first time you open it:** five days of drift
+    becomes visible at once. That is the intent, not a bug.
+
 ## 🚀 Queued projects (specced / scoped)
 
 - ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.

@@ -1,45 +1,65 @@
 import { describe, it, expect } from 'vitest';
-import { computeAttentionCounts, migrateStoredAdminTab, ADMIN_PRIMARY_TABS, ADMIN_REFERENCE_TABS } from './adminNav';
-
-describe('computeAttentionCounts', () => {
-  it('sums a total across all job queues', () => {
-    const c = computeAttentionCounts({ pendingVerify: 3, overdueFulfillment: 2, openDisputes: 1, pendingPayouts: 4, pendingListings: 5 });
-    expect(c.total).toBe(15);
-    expect(c.pendingVerify).toBe(3);
-    expect(c.pendingPayouts).toBe(4);
-  });
-  it('is zero when all queues are empty', () => {
-    const c = computeAttentionCounts({ pendingVerify: 0, overdueFulfillment: 0, openDisputes: 0, pendingPayouts: 0, pendingListings: 0 });
-    expect(c.total).toBe(0);
-  });
-});
+import { migrateStoredAdminTab, ADMIN_PRIMARY_TABS, ADMIN_REFERENCE_TABS, ADMIN_TAB_DEFAULT } from './adminNav';
 
 describe('migrateStoredAdminTab', () => {
+  // Wave 4 dissolved verify/payouts/launch/home, so these legacy ids now land
+  // on the queue (or Our drops). The Wave 4 suite below covers the new targets
+  // in full; this case keeps the reference aliases pinned.
   it('maps removed legacy ids to their new home', () => {
-    expect(migrateStoredAdminTab('metrics')).toBe('home');
-    expect(migrateStoredAdminTab('payments')).toBe('verify');
-    expect(migrateStoredAdminTab('subscriptions')).toBe('verify');
-    expect(migrateStoredAdminTab('listings')).toBe('launch');
-    expect(migrateStoredAdminTab('withdrawals')).toBe('payouts');
     expect(migrateStoredAdminTab('sessions')).toBe('system');
     expect(migrateStoredAdminTab('simulator')).toBe('system');
     expect(migrateStoredAdminTab('users')).toBe('members');
   });
   it('passes through still-valid ids', () => {
-    expect(migrateStoredAdminTab('verify')).toBe('verify');
-    expect(migrateStoredAdminTab('home')).toBe('home');
+    expect(migrateStoredAdminTab('action-center')).toBe('action-center');
+    expect(migrateStoredAdminTab('our-drops')).toBe('our-drops');
     expect(migrateStoredAdminTab('orders')).toBe('orders');
   });
-  it('falls back to home on null/unknown', () => {
-    expect(migrateStoredAdminTab(null)).toBe('home');
-    expect(migrateStoredAdminTab('garbage')).toBe('home');
+  it('falls back to the default on null/unknown', () => {
+    expect(migrateStoredAdminTab(null)).toBe(ADMIN_TAB_DEFAULT);
+    expect(migrateStoredAdminTab('garbage')).toBe(ADMIN_TAB_DEFAULT);
   });
 });
 
 describe('tab groups', () => {
   it('primary then reference cover the nav set with no overlap', () => {
-    expect(ADMIN_PRIMARY_TABS).toEqual(['home','verify','fulfillment','disputes','payouts','launch']);
+    // Wave 4: six primary tabs became two. The no-overlap invariant is the
+    // point of this case and still holds.
+    expect(ADMIN_PRIMARY_TABS).toEqual(['action-center','our-drops']);
     expect(ADMIN_REFERENCE_TABS).toEqual(['orders','members','auction-lookup','audit','system']);
     expect(ADMIN_PRIMARY_TABS.some(t => ADMIN_REFERENCE_TABS.includes(t))).toBe(false);
+  });
+});
+
+describe('Wave 4 — the panel is a queue plus reference', () => {
+  it('has exactly two primary tabs: the queue and our own drops', () => {
+    expect(ADMIN_PRIMARY_TABS).toEqual(['action-center', 'our-drops']);
+    expect(ADMIN_TAB_DEFAULT).toBe('action-center');
+  });
+
+  it('keeps every reference tab', () => {
+    expect(ADMIN_REFERENCE_TABS).toEqual(['orders', 'members', 'auction-lookup', 'audit', 'system']);
+  });
+
+  it('redirects every dissolved tab to the Action Center — no bookmark breaks', () => {
+    for (const old of ['home', 'verify', 'fulfillment', 'disputes', 'payouts', 'metrics', 'payments', 'subscriptions', 'withdrawals']) {
+      expect(migrateStoredAdminTab(old)).toBe('action-center');
+    }
+  });
+
+  it('sends the old launch tab to our drops, where that work now lives', () => {
+    expect(migrateStoredAdminTab('launch')).toBe('our-drops');
+    expect(migrateStoredAdminTab('listings')).toBe('our-drops');
+  });
+
+  it('still migrates the legacy reference aliases', () => {
+    expect(migrateStoredAdminTab('users')).toBe('members');
+    expect(migrateStoredAdminTab('sessions')).toBe('system');
+    expect(migrateStoredAdminTab('simulator')).toBe('system');
+  });
+
+  it('falls back to the queue for junk', () => {
+    expect(migrateStoredAdminTab('nonsense')).toBe('action-center');
+    expect(migrateStoredAdminTab(null)).toBe('action-center');
   });
 });

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ActionCenterSection } from './admin/ActionCenterSection';
+import { buildActionQueue } from '../utils/actionQueue';
 import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
@@ -20,12 +22,7 @@ import { ShieldCheck } from 'lucide-react';
 
 // Lazy: the Verify & Approve section (Slice B). The pending-count badge only needs the tiny paymentReceipt util,
 // so the heavy section stays out of the main chunk until the tab opens.
-const AdminHome = React.lazy(() => import('./admin/AdminHome'));
-const VerifyApproveSection = React.lazy(() => import('./admin/VerifyApproveSection'));
-const FulfillmentSection = React.lazy(() => import('./admin/FulfillmentSection'));
-const DisputesSection = React.lazy(() => import('./admin/DisputesSection'));
-const PayoutsSection = React.lazy(() => import('./admin/PayoutsSection'));
-const LaunchSection = React.lazy(() => import('./admin/LaunchSection'));
+const OurDropsSection = React.lazy(() => import('./admin/OurDropsSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
 const AuctionLookupSection = React.lazy(() => import('./admin/AuctionLookupSection'));
@@ -67,12 +64,8 @@ function readStoredAdminTab(): AdminTabId {
 
 // Bilingual labels for every nav tab, keyed by AdminTabId.
 const TAB_META: Record<AdminTabId, { ar: string; en: string }> = {
-  home: { ar: 'الرئيسية', en: 'HOME' },
-  verify: { ar: 'التحقق والموافقات', en: 'VERIFY & APPROVE' },
-  fulfillment: { ar: 'المتابعة والتنفيذ', en: 'FULFILLMENT' },
-  disputes: { ar: 'النزاعات', en: 'DISPUTES' },
-  payouts: { ar: 'المدفوعات', en: 'PAYOUTS' },
-  launch: { ar: 'إطلاق المزادات', en: 'LAUNCH' },
+  'action-center': { ar: 'مركز الإجراءات', en: 'ACTION CENTER' },
+  'our-drops': { ar: 'مزاداتنا', en: 'OUR DROPS' },
   orders: { ar: 'الطلبات', en: 'ORDERS' },
   members: { ar: 'الأعضاء', en: 'MEMBERS' },
   'auction-lookup': { ar: 'بحث المزادات', en: 'Auction Lookup' },
@@ -187,49 +180,6 @@ export const AdminDashboardView: React.FC = () => {
   const realAuctions = (auctions || []).filter((a: any) => a.isSimulated !== true);
   const realOrders = (orders || []).filter((o: any) => o.isSimulated !== true);
   const simOrdersCount = (orders || []).length - realOrders.length;
-
-  // Verify & Approve — order payments awaiting review (receipt attached, not
-  // yet verified). Same predicate as the section's queue (shared util), and
-  // sourced from realOrders (isSimulated !== true) so simulated orders never
-  // inflate the badge — matching the real-metric hygiene used across this file.
-  const pendingOrderPaymentsCount = useMemo(
-    () => realOrders.filter(isPendingOrderPayment).length,
-    [realOrders]
-  );
-
-  // Fulfillment: orders sitting past their stage's overdue threshold, across
-  // all FOUR buckets. Sourced from realOrders (sim-excluded), matching the
-  // Slice B fix for the Verify badge.
-  //
-  // The payment-window fields MUST be forwarded: awaiting_payment is judged
-  // against the deadline that order actually gave the buyer (paymentDeadlineAt,
-  // falling back to paymentWindowHours), so dropping them here would make this
-  // badge disagree with the rows FulfillmentSection renders — that section
-  // spreads the whole order into isOverdue.
-  const overdueFulfillmentCount = useMemo(() => {
-    const now = Date.now();
-    return realOrders.filter((o: any) => {
-      const updatedAtMs = o.updatedAt?.seconds ? o.updatedAt.seconds * 1000 : (o.updatedAt || o.createdAt || now);
-      return isOverdue(
-        {
-          status: o.status,
-          paymentVerified: o.paymentVerified,
-          paymentWindowHours: o.paymentWindowHours,
-          paymentDeadlineAt: o.paymentDeadlineAt,
-          updatedAtMs,
-        },
-        now,
-      );
-    }).length;
-  }, [realOrders]);
-
-  // Disputes (Slice D): count of open disputed orders, for the tab's
-  // attention dot. Sourced from realOrders (sim-excluded), matching the
-  // established pattern from Slices B/C.
-  const openDisputesCount = useMemo(
-    () => realOrders.filter((o: any) => o.status === 'disputed').length,
-    [realOrders]
-  );
 
   // Auctions the settlement cron should already have closed: still live/active
   // but ended more than 2 minutes ago.
@@ -640,6 +590,28 @@ export const AdminDashboardView: React.FC = () => {
     .filter((a: any) => a.status === 'processing' || a.status === 'pending')
     .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
   
+
+  // Wave 4 — ONE queue.
+  //
+  // Declared HERE, not up with the other memos: it reads pendingListingDrops
+  // and subscriptionRequests, both `const`/`useState` declared further down.
+  // A useMemo callback runs during render at the line it appears on, so
+  // hoisting this would hit the temporal dead zone and throw
+  // "Cannot access 'pendingListingDrops' before initialization" — a crash the
+  // build does not catch. Everything needing a human, ranked, from a pure
+  // builder (utils/actionQueue.ts). Replaces the five separate count memos and
+  // computeAttentionCounts: the queue's length is now the only answer to "how
+  // much is waiting", so a badge can never disagree with the list it opens.
+  const actionQueue = useMemo(
+    () => buildActionQueue({
+      orders: realOrders,
+      pendingListings: pendingListingDrops,
+      subscriptionRequests,
+      withdrawals: allWithdrawals,
+    }, Date.now()),
+    [realOrders, pendingListingDrops, subscriptionRequests, allWithdrawals],
+  );
+
   const pendingByUsersOnly = users.filter((u: any) => {
     const isPending = u.subscriptionStatus === 'pending';
     const hasRequest = subscriptionRequests.some((r: any) => r.userId === u.id);
@@ -696,14 +668,11 @@ export const AdminDashboardView: React.FC = () => {
       {/* Navigation Submenu - Premium Tab Buttons */}
       <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
         {(() => {
-          const pendingPayoutsCount = allWithdrawals.filter((w: any) => w.status === 'pending_review').length;
-          const badgeFor = (tab: AdminTabId): number | null => {
-            if (tab === 'verify') return subscriptionRequests.length + pendingOrderPaymentsCount;
-            if (tab === 'fulfillment') return overdueFulfillmentCount;
-            if (tab === 'disputes') return openDisputesCount;
-            if (tab === 'payouts') return pendingPayoutsCount;
-            return null;
-          };
+          // Wave 4: one badge, one source. The queue's length IS how much is
+          // waiting — five separate counters could disagree with the list they
+          // linked to, which is what computeAttentionCounts allowed.
+          const badgeFor = (tab: AdminTabId): number | null =>
+            tab === 'action-center' ? actionQueue.length : null;
           const renderTab = (tab: AdminTabId) => {
             const isActive = activeTab === tab;
             const badge = badgeFor(tab);
@@ -740,112 +709,37 @@ export const AdminDashboardView: React.FC = () => {
       <div className="p-5 max-w-5xl mx-auto w-full space-y-5">
 
         {/* ==========================================
-            TAB: HOME (needs-attention landing)
+            TAB: ACTION CENTER (Wave 4 — everything needing a human)
             ========================================== */}
-        {activeTab === 'home' && (
-          <React.Suspense
-            fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
-                {isAr ? 'جاري التحميل…' : 'Loading…'}
-              </div>
-            }
-          >
-            <AdminHome
-              isAr={isAr}
-              counts={{
-                pendingVerify: subscriptionRequests.length + pendingOrderPaymentsCount,
-                overdueFulfillment: overdueFulfillmentCount,
-                openDisputes: openDisputesCount,
-                pendingPayouts: allWithdrawals.filter((w: any) => w.status === 'pending_review').length,
-                pendingListings: pendingListingDrops.length,
-              }}
-              metrics={{
-                escrowHeld: totalEscrowHeld,
-                liveAuctions: activeAuctionsNum,
-                members: usersTotalCount ?? users.length,
-              }}
-              onSelectTab={selectTab}
-            />
-          </React.Suspense>
+        {activeTab === 'action-center' && (
+          <ActionCenterSection
+            isAr={isAr}
+            queue={actionQueue}
+            orders={realOrders}
+            pendingListings={pendingListingDrops}
+            subscriptionRequests={subscriptionRequests}
+            withdrawals={allWithdrawals}
+            users={users}
+            handlers={{
+              onApproveOrderPayment: handleVerifyOrderPayment,
+              onRejectOrderPayment: handleRejectOrderPayment,
+              onApproveMembership: approveSubscription,
+              onRejectMembership: rejectSubscription,
+              onApproveListing: approveListing,
+              onRejectListing: rejectListing,
+              onApprovePayout: approveWithdrawal,
+              onRejectPayout: rejectWithdrawal,
+              onResolveDispute: handleResolveDispute,
+              onNudge: handleSendFulfillmentNudge,
+              onAdvance: handleAdvanceOrder,
+              onOpenOrder: setAdminSelectedOrderId,
+            }}
+          />
         )}
 
-        {/* ==========================================
-            TAB: VERIFY & APPROVE (Slice B — daily money job)
-            ========================================== */}
-        {activeTab === 'verify' && (
-          <React.Suspense
-            fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
-                {isAr ? 'جاري التحميل…' : 'Loading…'}
-              </div>
-            }
-          >
-            <VerifyApproveSection
-              isAr={isAr}
-              subscriptionRequests={subscriptionRequests}
-              orders={realOrders}
-              onApproveSubscription={approveSubscription}
-              onRejectSubscription={rejectSubscription}
-              onVerifyOrderPayment={handleVerifyOrderPayment}
-              onRejectOrderPayment={handleRejectOrderPayment}
-              isLoading={isLoading}
-              cliqDrops={pendingCliQDrops}
-              onReleaseCliq={releaseEscrow}
-              onRefundCliq={refundEscrow}
-              isRealUrl={isRealUrl}
-              getReceiptImageSrc={getReceiptImageSrc}
-              onViewReceipt={setViewReceiptUrl}
-              pendingByUsersOnly={pendingByUsersOnly}
-              onApproveUserDirect={approveUserDirect}
-              onRejectUserDirect={rejectUserDirect}
-            />
-          </React.Suspense>
-        )}
-
-        {/* ==========================================
-            TAB: FULFILLMENT (Slice C — keep orders moving)
-            ========================================== */}
-        {activeTab === 'fulfillment' && (
-          <React.Suspense
-            fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
-                {isAr ? 'جاري التحميل…' : 'Loading…'}
-              </div>
-            }
-          >
-            <FulfillmentSection
-              isAr={isAr}
-              orders={realOrders}
-              onNudge={handleSendFulfillmentNudge}
-              onReleaseEscrow={handleFulfillmentReleaseEscrow}
-              onAdvance={handleAdvanceOrder}
-              onLogNote={handleLogOrderNote}
-              onAssign={handleAssignOrder}
-              adminUsers={adminUsers}
-              currentAdminId={currentUser?.id || ''}
-            />
-          </React.Suspense>
-        )}
-
-        {/* ==========================================
-            TAB: DISPUTES (Slice D — resolve stuck orders)
-            ========================================== */}
-        {activeTab === 'disputes' && (
-          <React.Suspense
-            fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
-                {isAr ? 'جاري التحميل…' : 'Loading…'}
-              </div>
-            }
-          >
-            <DisputesSection
-              isAr={isAr}
-              orders={realOrders}
-              onResolve={handleResolveDispute}
-            />
-          </React.Suspense>
-        )}
-
+        
+        
+        
         {activeTab === 'audit' && (
           <React.Suspense
             fallback={
@@ -885,7 +779,7 @@ export const AdminDashboardView: React.FC = () => {
         {/* ==========================================
             TAB: LISTINGS (Lots approval and deletion)
             ========================================== */}
-        {activeTab === 'launch' && (
+        {activeTab === 'our-drops' && (
           <React.Suspense
             fallback={
               <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
@@ -893,10 +787,9 @@ export const AdminDashboardView: React.FC = () => {
               </div>
             }
           >
-            <LaunchSection
+            <OurDropsSection
               isAr={isAr}
               isLoading={isLoading}
-              pendingListingDrops={pendingListingDrops}
               auctions={auctions}
               orders={orders}
               users={users}
@@ -904,8 +797,6 @@ export const AdminDashboardView: React.FC = () => {
               setRejectingId={setRejectingId}
               rejectionReason={rejectionReason}
               setRejectionReason={setRejectionReason}
-              onApproveListing={approveListing}
-              onRejectListing={rejectListing}
               onRepairOrder={repairEndedAuctionOrder}
               onRepairEscrow={repairStuckEscrowsForEndedAuction}
               onDeleteAuction={deleteAuction}
@@ -939,31 +830,7 @@ export const AdminDashboardView: React.FC = () => {
           </React.Suspense>
         )}
 
-        {/* ==========================================
-            TAB: WITHDRAWALS (Sellers Withdrawal requests)
-            ========================================== */}
-        {activeTab === 'payouts' && (
-          <React.Suspense
-            fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
-                {isAr ? 'جاري التحميل…' : 'Loading…'}
-              </div>
-            }
-          >
-            <PayoutsSection
-              isAr={isAr}
-              isLoading={isLoading}
-              withdrawals={allWithdrawals}
-              rejectingId={rejectingId}
-              setRejectingId={setRejectingId}
-              rejectionReason={rejectionReason}
-              setRejectionReason={setRejectionReason}
-              onApprove={approveWithdrawal}
-              onReject={rejectWithdrawal}
-            />
-          </React.Suspense>
-        )}
-
+        
         {/* ==========================================
             TAB: AUCTION LOOKUP (admin search — all statuses, incl. closed)
             ========================================== */}

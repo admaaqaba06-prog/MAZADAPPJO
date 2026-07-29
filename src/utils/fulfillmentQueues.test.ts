@@ -45,14 +45,16 @@ describe('isOverdue', () => {
     expect(isOverdue({ status: 'disputed', updatedAtMs: NOW - 100 * DAY }, NOW)).toBe(false);
     expect(isOverdue({ status: 'completed', updatedAtMs: NOW - 100 * DAY }, NOW)).toBe(false);
   });
-  it('flags awaiting_shipment overdue past 48h, not before', () => {
+  // Wave 4 tightened both to 24h — see THRESHOLDS. These cases previously
+  // pinned 48h / 5 days, which was the pre-Wave-3 phone-relay pace.
+  it('flags awaiting_shipment overdue past 24h, not before', () => {
     const base = { status: 'paid', paymentVerified: true };
-    expect(isOverdue({ ...base, updatedAtMs: NOW - 47 * HOUR }, NOW)).toBe(false);
-    expect(isOverdue({ ...base, updatedAtMs: NOW - 49 * HOUR }, NOW)).toBe(true);
+    expect(isOverdue({ ...base, updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
+    expect(isOverdue({ ...base, updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
   });
-  it('flags awaiting_delivery overdue past 5 days, not before', () => {
-    expect(isOverdue({ status: 'shipped', updatedAtMs: NOW - 4 * DAY }, NOW)).toBe(false);
-    expect(isOverdue({ status: 'shipped', updatedAtMs: NOW - 6 * DAY }, NOW)).toBe(true);
+  it('flags awaiting_delivery overdue past 24h, not before', () => {
+    expect(isOverdue({ status: 'shipped', updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
+    expect(isOverdue({ status: 'shipped', updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
   });
   it('flags awaiting_release overdue past 24h, not before', () => {
     expect(isOverdue({ status: 'delivered', updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
@@ -112,11 +114,12 @@ describe('awaiting_payment bucket', () => {
     const now = 1_000_000_000_000;
     const hour = 60 * 60 * 1000;
     expect(bucketOrder({ status: 'shipped' })).toBe('awaiting_delivery');
-    // awaiting_shipment is still 48h, and a paymentWindowHours on the order
-    // must NOT leak into a non-payment bucket.
+    // awaiting_shipment is 24h (Wave 4), and a paymentWindowHours on the order
+    // must NOT leak into a non-payment bucket. The leak is what this asserts —
+    // the threshold value is incidental to it.
     const shipping = { status: 'preparing_shipment', paymentWindowHours: 1 };
-    expect(isOverdue({ ...shipping, updatedAtMs: now - 47 * hour }, now)).toBe(false);
-    expect(isOverdue({ ...shipping, updatedAtMs: now - 49 * hour }, now)).toBe(true);
+    expect(isOverdue({ ...shipping, updatedAtMs: now - 23 * hour }, now)).toBe(false);
+    expect(isOverdue({ ...shipping, updatedAtMs: now - 25 * hour }, now)).toBe(true);
   });
 });
 
@@ -187,24 +190,24 @@ describe('awaiting_payment honours the server deadline', () => {
   });
 
   it('does NOT let paymentDeadlineAt leak into the other buckets', () => {
-    // A deadline far in the future must not rescue a shipment that blew 48h,
-    // and one far in the past must not condemn a fresh one.
+    // A deadline far in the future must not rescue a shipment that blew its
+    // 24h SLA, and one far in the past must not condemn a fresh one.
     const stale = {
       status: 'preparing_shipment',
       paymentDeadlineAt: ts(now + 500 * hour),
-      updatedAtMs: now - 49 * hour,
+      updatedAtMs: now - 25 * hour,
     };
     expect(isOverdue(stale, now)).toBe(true);
     const fresh = {
       status: 'preparing_shipment',
       paymentDeadlineAt: ts(now - 500 * hour),
-      updatedAtMs: now - 47 * hour,
+      updatedAtMs: now - 23 * hour,
     };
     expect(isOverdue(fresh, now)).toBe(false);
-    // Same for the delivery (5d) and release (24h) buckets.
+    // Same for the delivery and release buckets — both 24h since Wave 4.
     expect(
       isOverdue(
-        { status: 'shipped', paymentDeadlineAt: ts(now - 500 * hour), updatedAtMs: now - 4 * 24 * hour },
+        { status: 'shipped', paymentDeadlineAt: ts(now - 500 * hour), updatedAtMs: now - 23 * hour },
         now,
       ),
     ).toBe(false);
@@ -222,9 +225,20 @@ describe('Wave 3 — out_for_delivery buckets with the goods in transit', () => 
     expect(bucketOrder({ status: 'out_for_delivery' })).toBe('awaiting_delivery');
   });
 
-  it('goes overdue on the awaiting_delivery SLA (5 days), not the payment window', () => {
-    const fiveDays = 5 * DAY;
-    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - fiveDays - 1 }, NOW)).toBe(true);
+  it('goes overdue on the awaiting_delivery SLA (24h), not the payment window', () => {
+    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
     expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - 1000 }, NOW)).toBe(false);
+  });
+});
+
+describe('Wave 4 — the operation runs on a 24h clock', () => {
+  it('flags an unshipped order 24h after payment, not 48h', () => {
+    expect(isOverdue({ status: 'preparing_shipment', updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
+    expect(isOverdue({ status: 'preparing_shipment', updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
+  });
+
+  it('flags an unconfirmed delivery 24h after dispatch, not 5 days', () => {
+    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - 25 * HOUR }, NOW)).toBe(true);
+    expect(isOverdue({ status: 'out_for_delivery', updatedAtMs: NOW - 23 * HOUR }, NOW)).toBe(false);
   });
 });

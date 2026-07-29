@@ -11,9 +11,22 @@ const DAY_MS = 24 * HOUR_MS;
 /** Default payment window when an order carries none — mirrors the server default. */
 const DEFAULT_PAYMENT_WINDOW_HOURS = 24;
 
+/**
+ * Wave 4 — one clock for the whole operation: 24 hours.
+ *
+ * Was 48h to ship and FIVE DAYS to deliver. MJ, 2026-07-28: shipment happens
+ * within 24h of payment, and delivery is Amman and surrounding areas — five
+ * days of silence was nearly a week of invisible drift on a same-city handoff.
+ *
+ * Client-only: functions/fulfillmentNudge.js re-implements bucketOrder but
+ * reads no thresholds, so this changes the admin view and nothing server-side.
+ *
+ * `awaiting_release` is unchanged and now applies only to legacy `delivered`
+ * orders — under Wave 3 the buyer confirms straight from `out_for_delivery`.
+ */
 const THRESHOLDS: Record<Exclude<FulfillmentBucket, null | 'awaiting_payment'>, number> = {
-  awaiting_shipment: 48 * HOUR_MS,
-  awaiting_delivery: 5 * DAY_MS,
+  awaiting_shipment: 24 * HOUR_MS,
+  awaiting_delivery: 24 * HOUR_MS,
   awaiting_release: 24 * HOUR_MS,
 };
 
