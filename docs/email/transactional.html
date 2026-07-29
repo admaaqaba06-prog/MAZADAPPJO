@@ -1,0 +1,104 @@
+<!--
+  Mazad JO — transactional email template (n8n).
+
+  Consumes the `email_content` object that functions/notify.js now sends with
+  every email-enabled event. n8n should NOT build copy any more: subject,
+  heading, body, detail rows, CTA and footer identity all arrive rendered, so
+  wording changes happen in the repo with tests instead of inside a workflow.
+
+  Interpolation is n8n syntax ({{ $json.x }}). Set the node's Subject to:
+      {{ $json.email_content.subject }}
+
+  TRANSACTIONAL ONLY — no unsubscribe link. A person cannot opt out of being
+  told they owe money or that their order shipped. Marketing sends need a
+  separate template with an unsubscribe; do not merge the two.
+
+  Email clients strip <style> unpredictably, hence tables + inline styles.
+-->
+<div dir="rtl" lang="ar" style="margin:0;padding:0;background:#f4f4f2;">
+
+  <!-- Preheader: the inbox preview line. Hidden in the body; without it clients
+       scrape the first visible text, which is how a logo alt-text ends up as
+       the preview. -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    {{ $json.email_content.preheader }}
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e6e1d9;border-radius:16px;overflow:hidden;font-family:-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;">
+
+          <!-- Brand bar. Swap the wordmark for <img src="…" width="120" alt="مزاد جو"> once a hosted logo exists. -->
+          <tr>
+            <td style="padding:20px 24px;border-bottom:1px solid #f0ece5;">
+              <span style="font-size:20px;font-weight:800;color:#121318;letter-spacing:-0.3px;">{{ $json.email_content.brand.nameAr }}</span>
+              <span style="font-size:11px;color:#8a837a;padding-right:8px;">{{ $json.email_content.brand.nameEn }}</span>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:28px 24px 8px;">
+              <p style="margin:0 0 6px;font-size:13px;color:#55504a;">مرحباً {{ $json.name }}،</p>
+              <h1 style="margin:0 0 12px;font-size:22px;line-height:1.35;font-weight:800;color:#121318;">{{ $json.email_content.heading }}</h1>
+              <p style="margin:0;font-size:14px;line-height:1.9;color:#55504a;">{{ $json.email_content.intro }}</p>
+            </td>
+          </tr>
+
+          <!-- Detail rows: amount, deadline, order reference. Rendered only when
+               the event actually has them — the builder omits empty rows. -->
+          <tr>
+            <td style="padding:16px 24px 4px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#faf9f6;border:1px solid #eee9e1;border-radius:12px;">
+                {{#each $json.email_content.details}}
+                <tr>
+                  <td style="padding:10px 14px;font-size:12px;color:#8a837a;white-space:nowrap;">{{this.label}}</td>
+                  <td style="padding:10px 14px;font-size:13px;font-weight:700;color:#121318;text-align:left;" dir="ltr">{{this.value}}</td>
+                </tr>
+                {{/each}}
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA: deep-links to the specific order, not the app root. -->
+          <tr>
+            <td style="padding:20px 24px 28px;">
+              <a href="{{ $json.email_content.cta.url }}"
+                 style="display:block;background:#121318;color:#ffffff;text-decoration:none;text-align:center;padding:14px 20px;border-radius:12px;font-size:14px;font-weight:800;">
+                {{ $json.email_content.cta.label }}
+              </a>
+            </td>
+          </tr>
+
+          <!-- Footer: the identity the old one-line footer had none of. -->
+          <tr>
+            <td style="padding:18px 24px 24px;background:#faf9f6;border-top:1px solid #f0ece5;">
+              <p style="margin:0 0 10px;font-size:11px;line-height:1.8;color:#8a837a;">
+                هذه رسالة آلية بخصوص معاملتك على مزاد جو — لا حاجة للرد عليها.
+              </p>
+              <p style="margin:0 0 10px;font-size:11px;line-height:1.9;color:#8a837a;">
+                <strong style="color:#55504a;">{{ $json.email_content.brand.legalNameAr }}</strong><br>
+                {{ $json.email_content.brand.legalName }} — سجل تجاري {{ $json.email_content.brand.registration }}<br>
+                {{ $json.email_content.brand.addressAr }}<br>
+                {{ $json.email_content.brand.hoursAr }}
+              </p>
+              <p style="margin:0 0 10px;font-size:11px;line-height:1.9;color:#8a837a;">
+                خدمة العملاء: <a href="https://wa.me/962781444899" style="color:#55504a;text-decoration:underline;" dir="ltr">{{ $json.email_content.brand.supportPhone }}</a><br>
+                متابعة المزادات والدفع: <a href="https://wa.me/962785446498" style="color:#55504a;text-decoration:underline;" dir="ltr">{{ $json.email_content.brand.paymentsPhone }}</a>
+              </p>
+              <p style="margin:0;font-size:11px;color:#8a837a;">
+                <a href="{{ $json.email_content.brand.termsUrl }}" style="color:#8a837a;text-decoration:underline;">شروط الاستخدام</a>
+                &nbsp;·&nbsp;
+                <a href="{{ $json.email_content.brand.privacyUrl }}" style="color:#8a837a;text-decoration:underline;">سياسة الخصوصية</a>
+                &nbsp;·&nbsp;
+                <a href="{{ $json.email_content.brand.site }}" style="color:#8a837a;text-decoration:underline;">mazad-jo.com</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>

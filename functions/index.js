@@ -36,6 +36,7 @@ const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSni
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
+const { emailFor } = require('./emailCopy');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
 const { maskBidderName } = require('./bidderMask');
@@ -133,7 +134,13 @@ async function notify({ uid, event, data = {} }) {
       phone: user.phoneNumber || user.phone || d.phone || '',
       email: user.email || d.email || '',
       name: user.name || d.name || '',
-      channels, ...d,
+      channels,
+      ...d,
+      // Rendered email content, so the n8n workflow is a dumb template rather
+      // than a second copy map that can drift from this repo. It carries the
+      // amount, deadline, order reference and a real deep link — none of which
+      // reached the old email, which reused the terse in-app one-liner.
+      ...(channels.email ? { email_content: emailFor(event, { ...d, name: user.name || d.name || '' }) } : {}),
     });
   }
 }
@@ -475,6 +482,8 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       buyersPremium: buyerPremiumJod(notifyData.finalPrice),
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+      // Orders are keyed by the auction id (settleAuctionTxn), so this deep-links.
+      orderId: notifyData.auctionId,
       idempotencyKey: `${notifyData.auctionId}_auction_won`,
     } });
     await notify({ uid: notifyData.winnerId, event: 'payment_due', data: {
@@ -484,6 +493,7 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       buyersPremium: buyerPremiumJod(notifyData.finalPrice),
       totalDue: totalDueJod(notifyData.finalPrice),
       paymentHours: resolvePaymentWindowHours(auctionData && auctionData.paymentWindowHours),
+      orderId: notifyData.auctionId,
       idempotencyKey: `${notifyData.auctionId}_payment_due`,
     } });
   }
@@ -950,6 +960,11 @@ exports.paymentReminderSweep = functions.pubsub
             auctionId: o.auctionId, auctionTitle: o.auctionTitle,
             totalDue: o.totalDue || o.winningBidAmount,
             paymentHours: resolvePaymentWindowHours(o.paymentWindowHours),
+            // The email states the amount, the exact deadline and the MZ ref —
+            // the old one said only "before the deadline expires".
+            orderId: doc.id,
+            orderRef: o.orderRef || '',
+            paymentDeadlineAt: o.paymentDeadlineAt || null,
             idempotencyKey: `${doc.id}_payment_reminder_${due[0]}`,
           },
         });
@@ -1183,6 +1198,9 @@ exports.onOrderStatusChanged = functions.firestore
       orderId: context.params.orderId, auctionId: after.auctionId || '',
       auctionTitle: after.auctionTitle || '', amount: after.winningBidAmount || 0,
       status: after.status, trackingNumber: after.trackingNumber || '',
+      orderRef: after.orderRef || '',
+      totalDue: after.totalDue || after.winningBidAmount || 0,
+      paymentDeadlineAt: after.paymentDeadlineAt || null,
       idempotencyKey: `${context.params.orderId}_${after.status}`,
     } });
     return null;
