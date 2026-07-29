@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildActionQueue, SLA_MS, type ActionQueueInput } from './actionQueue';
+import { buildActionQueue, formatWaitingFor, SLA_MS, type ActionQueueInput } from './actionQueue';
 
 const NOW = 1_800_000_000_000;
 const HOUR = 60 * 60 * 1000;
@@ -189,5 +189,93 @@ describe('buildActionQueue — trouble', () => {
       withdrawals: [{ id: 'oldpayout', userId: 'u', status: 'pending_review', amount: 9, timestamp: NOW - 100 * HOUR }],
     }), NOW);
     expect(rows.map(r => r.kind)).toEqual(['dispute', 'payout']);
+  });
+});
+
+describe('buildActionQueue — stalled deliveries (the Wave 3 chain did not complete)', () => {
+  it('raises nothing for a healthy in-flight order', () => {
+    const rows = buildActionQueue(input({
+      orders: [
+        { id: 'fresh-paid', status: 'paid', paymentVerified: true, updatedAt: { seconds: (NOW - HOUR) / 1000 } },
+        { id: 'fresh-out', status: 'out_for_delivery', updatedAt: { seconds: (NOW - HOUR) / 1000 } },
+      ],
+    }), NOW);
+    expect(rows).toEqual([]);
+  });
+
+  it('raises a row when the seller has not prepped 24h after payment cleared', () => {
+    const rows = buildActionQueue(input({
+      orders: [{
+        id: 'o1', status: 'paid', paymentVerified: true,
+        winningBidAmount: 50, updatedAt: { seconds: (NOW - 30 * HOUR) / 1000 },
+      }],
+    }), NOW);
+
+    expect(rows[0].kind).toBe('delivery_stalled');
+    expect(rows[0].reason).toBe('seller_hasnt_prepped');
+    expect(rows[0].severity).toBe('aging');
+  });
+
+  it('raises a row when the buyer has not confirmed 24h after dispatch', () => {
+    const rows = buildActionQueue(input({
+      orders: [{
+        id: 'o1', status: 'out_for_delivery',
+        updatedAt: { seconds: (NOW - 30 * HOUR) / 1000 },
+      }],
+    }), NOW);
+    expect(rows[0].reason).toBe('buyer_hasnt_confirmed');
+  });
+
+  it('raises a BLOCKING row when the buyer has burned all delivery-code attempts', () => {
+    const rows = buildActionQueue(input({
+      orders: [{
+        id: 'o1', status: 'out_for_delivery', deliveryCodeAttempts: 5,
+        updatedAt: { seconds: (NOW - HOUR) / 1000 },
+      }],
+    }), NOW);
+
+    expect(rows[0].reason).toBe('code_attempts_exhausted');
+    expect(rows[0].severity).toBe('blocking');
+  });
+
+  it('raises one row per order, not one per reason', () => {
+    const rows = buildActionQueue(input({
+      orders: [{
+        id: 'o1', status: 'out_for_delivery', deliveryCodeAttempts: 5,
+        updatedAt: { seconds: (NOW - 30 * HOUR) / 1000 },
+      }],
+    }), NOW);
+    expect(rows.filter(r => r.entityId === 'o1')).toHaveLength(1);
+  });
+
+  it('never raises a stalled row for a completed or cancelled order', () => {
+    for (const status of ['completed', 'cancelled', 'refunded']) {
+      const rows = buildActionQueue(input({
+        orders: [{ id: 'o1', status, updatedAt: { seconds: (NOW - 100 * HOUR) / 1000 } }],
+      }), NOW);
+      expect(rows).toEqual([]);
+    }
+  });
+});
+
+describe('formatWaitingFor', () => {
+  it('reads in hours under a day and days beyond', () => {
+    expect(formatWaitingFor(NOW - 3 * HOUR, NOW, 'en')).toBe('3h');
+    expect(formatWaitingFor(NOW - 50 * HOUR, NOW, 'en')).toBe('2d');
+  });
+
+  // The house numeral policy is WESTERN digits in Arabic UI strings —
+  // ARABIC_UI_DIGITS in utils/arabicNumerals.ts, a deliberate app-wide choice.
+  it('uses Western digits in Arabic, per the app-wide numeral policy', () => {
+    expect(formatWaitingFor(NOW - 3 * HOUR, NOW, 'ar')).toBe('3 ساعات');
+    expect(formatWaitingFor(NOW - 50 * HOUR, NOW, 'ar')).toBe('2 أيام');
+  });
+
+  it('shows nothing rather than a fabricated age', () => {
+    expect(formatWaitingFor(null, NOW, 'en')).toBe('');
+  });
+
+  it('never shows a negative age for a clock-skewed future timestamp', () => {
+    expect(formatWaitingFor(NOW + 5 * HOUR, NOW, 'en')).toBe('0h');
   });
 });
