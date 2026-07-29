@@ -141,8 +141,19 @@ export function buildActionQueue(input: ActionQueueInput, nowMs: number): Action
   }
 
   // --- Money: membership requests -----------------------------------------
+  // Filtered HERE, not left to the caller. AdminDashboardView happens to
+  // pre-filter its subscription snapshot to pending, which is the only reason
+  // production looked right: 45 requests existed, 33 approved and 9 rejected.
+  // A second caller — or a change to that filter — would have flooded the queue
+  // with 42 already-handled rows. Deciding what needs a human is this module's
+  // whole job; it does not delegate that upward.
+  //
+  // No status at all is treated as NOT pending: ambiguous is not actionable,
+  // and it matches the filter the dashboard already applies.
   for (const s of subs) {
     if (!s || !s.id) continue;
+    const pending = s.status === 'pending' || s.subscriptionStatus === 'pending';
+    if (!pending) continue;
     rows.push(row(
       'verify_membership', s.id, 'membership_to_verify',
       toMs(s.createdAt),
