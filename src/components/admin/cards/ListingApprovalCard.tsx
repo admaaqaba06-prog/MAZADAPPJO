@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ViewingSelector } from '../ViewingSelector';
-import type { ViewingMode } from '../../../types';
+import type { ViewingMode } from '../../../utils/viewing';
 
 /**
  * Wave 4 — the body of an `approve_listing` row.

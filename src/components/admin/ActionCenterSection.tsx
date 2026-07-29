@@ -5,7 +5,7 @@ import { ListingApprovalCard } from './cards/ListingApprovalCard';
 import { DisputeCard } from './cards/DisputeCard';
 import { PayoutCard } from './cards/PayoutCard';
 import { StalledDeliveryCard } from './cards/StalledDeliveryCard';
-import type { ViewingMode } from '../../types';
+import type { ViewingMode } from '../../utils/viewing';
 
 /**
  * Wave 4 — the Action Center.
