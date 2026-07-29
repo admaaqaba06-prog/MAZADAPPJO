@@ -57,7 +57,7 @@ describe('buildActionQueue — money rows', () => {
 
   it('raises a row for a membership request and a pending payout', () => {
     const rows = buildActionQueue(input({
-      subscriptionRequests: [{ id: 's1', userId: 'u1', createdAt: NOW - 3 * HOUR }],
+      subscriptionRequests: [{ id: 's1', userId: 'u1', status: 'pending', createdAt: NOW - 3 * HOUR }],
       withdrawals: [{ id: 'w1', userId: 'u2', status: 'pending_review', amount: 25, timestamp: NOW - HOUR }],
     }), NOW);
 
@@ -78,7 +78,7 @@ describe('buildActionQueue — money rows', () => {
 describe('buildActionQueue — ordering', () => {
   it('sorts aging before new, then oldest first, then larger amount first', () => {
     const rows = buildActionQueue(input({
-      subscriptionRequests: [{ id: 'fresh', userId: 'u', createdAt: NOW - HOUR }],
+      subscriptionRequests: [{ id: 'fresh', userId: 'u', status: 'pending', createdAt: NOW - HOUR }],
       withdrawals: [
         { id: 'old-small', userId: 'u', status: 'pending_review', amount: 5, timestamp: NOW - 40 * HOUR },
         { id: 'old-big', userId: 'u', status: 'pending_review', amount: 500, timestamp: NOW - 40 * HOUR },
@@ -277,5 +277,39 @@ describe('formatWaitingFor', () => {
 
   it('never shows a negative age for a clock-skewed future timestamp', () => {
     expect(formatWaitingFor(NOW + 5 * HOUR, NOW, 'en')).toBe('0h');
+  });
+});
+
+describe('buildActionQueue — the builder owns "needs a human", not its caller', () => {
+  it('ignores subscription requests that are already approved or rejected', () => {
+    // Found in production 2026-07-29: 45 requests existed, 33 approved and 9
+    // rejected. The queue only looked right because AdminDashboardView happened
+    // to pre-filter to pending. Trusting a caller to decide what needs a human
+    // is exactly the coupling this module exists to remove — a second caller,
+    // or a change to that filter, would have flooded the queue with 42
+    // already-handled rows.
+    const rows = buildActionQueue(input({
+      subscriptionRequests: [
+        { id: 'approved', userId: 'u', status: 'approved', createdAt: NOW - HOUR },
+        { id: 'rejected', userId: 'u', status: 'rejected', createdAt: NOW - HOUR },
+        { id: 'pending', userId: 'u', status: 'pending', createdAt: NOW - HOUR },
+      ],
+    }), NOW);
+
+    expect(rows.map(r => r.entityId)).toEqual(['pending']);
+  });
+
+  it('accepts the legacy subscriptionStatus spelling too', () => {
+    const rows = buildActionQueue(input({
+      subscriptionRequests: [{ id: 's1', userId: 'u', subscriptionStatus: 'pending', createdAt: NOW - HOUR }],
+    }), NOW);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('ignores a request with no status at all — ambiguous is not pending', () => {
+    const rows = buildActionQueue(input({
+      subscriptionRequests: [{ id: 's1', userId: 'u', createdAt: NOW - HOUR }],
+    }), NOW);
+    expect(rows).toEqual([]);
   });
 });
