@@ -124,3 +124,70 @@ describe('buildActionQueue — malformed input never breaks the queue', () => {
     expect(SLA_MS).toBe(24 * HOUR);
   });
 });
+
+describe('buildActionQueue — listings awaiting review', () => {
+  it('raises a row per pending listing, titled with the lot', () => {
+    const rows = buildActionQueue(input({
+      pendingListings: [{ id: 'a1', title: 'iPhone 15', createdAt: NOW - 2 * HOUR }],
+    }), NOW);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe('approve_listing');
+    expect(rows[0].reason).toBe('lot_awaiting_review');
+    expect(rows[0].label.en).toContain('iPhone 15');
+  });
+
+  it('ages a listing past 24h — a seller waiting on approval is a seller not selling', () => {
+    const rows = buildActionQueue(input({
+      pendingListings: [{ id: 'a1', title: 'x', createdAt: NOW - 25 * HOUR }],
+    }), NOW);
+    expect(rows[0].severity).toBe('aging');
+  });
+
+  it('falls back to a generic label when the lot has no title', () => {
+    const rows = buildActionQueue(input({
+      pendingListings: [{ id: 'a1', createdAt: NOW }],
+    }), NOW);
+    expect(rows[0].label.en.length).toBeGreaterThan(0);
+    expect(rows[0].label.ar.length).toBeGreaterThan(0);
+  });
+});
+
+describe('buildActionQueue — trouble', () => {
+  it('raises a blocking row for a disputed order regardless of age', () => {
+    const rows = buildActionQueue(input({
+      orders: [{ id: 'o1', status: 'disputed', updatedAt: { seconds: NOW / 1000 }, winningBidAmount: 100 }],
+    }), NOW);
+
+    expect(rows[0].kind).toBe('dispute');
+    expect(rows[0].reason).toBe('dispute_open');
+    expect(rows[0].severity).toBe('blocking');
+    expect(rows[0].amountFils).toBe(100_000);
+  });
+
+  it('distinguishes a return claim from a plain dispute', () => {
+    const rows = buildActionQueue(input({
+      orders: [{
+        id: 'o1', status: 'disputed', disputeType: 'return',
+        returnClaim: { status: 'open', reason: 'damaged' },
+        updatedAt: { seconds: NOW / 1000 },
+      }],
+    }), NOW);
+    expect(rows[0].reason).toBe('return_claim');
+  });
+
+  it('does not raise trouble rows for a resolved claim on a live order', () => {
+    const rows = buildActionQueue(input({
+      orders: [{ id: 'o1', status: 'completed', returnClaim: { status: 'resolved_denied' } }],
+    }), NOW);
+    expect(rows).toEqual([]);
+  });
+
+  it('puts blocking rows above aging ones', () => {
+    const rows = buildActionQueue(input({
+      orders: [{ id: 'disputed', status: 'disputed', updatedAt: { seconds: NOW / 1000 } }],
+      withdrawals: [{ id: 'oldpayout', userId: 'u', status: 'pending_review', amount: 9, timestamp: NOW - 100 * HOUR }],
+    }), NOW);
+    expect(rows.map(r => r.kind)).toEqual(['dispute', 'payout']);
+  });
+});
