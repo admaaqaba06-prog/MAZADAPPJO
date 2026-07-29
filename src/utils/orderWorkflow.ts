@@ -2,9 +2,22 @@ import { db, handleFirestoreError, OperationType, getCallableFunction } from '..
 import { collection, doc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Order } from '../types';
 import { isAdminUser } from './adminAuth';
-import { getOrderStatusChip } from './orderStatusGlossary';
+import { getOrderStatusChip, type OrderStatusCode } from './orderStatusGlossary';
 
-export type OrderStatus = "waiting_payment" | "paid" | "preparing_shipment" | "out_for_delivery" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded";
+/**
+ * ONE status enum for the whole app.
+ *
+ * This used to be its own 9-value union, separate from `Order['status']` in
+ * types.ts — the audit's "reconcile 2 status enums". Two unions meant adding
+ * `out_for_delivery` in Wave 3 required editing both and remembering to; a
+ * status added to one and not the other produces a state the FSM cannot route
+ * out of, which surfaces to a user as a raw "Illegal state transition" alert.
+ *
+ * `OrderStatusCode` in orderStatusGlossary.ts is the single source: it is the
+ * superset that already had to enumerate every code for labelling, and a code
+ * with no label leaks a raw string to a user.
+ */
+export type OrderStatus = OrderStatusCode;
 
 // Allowed transitions mapping (Finite State Machine)
 export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -32,6 +45,16 @@ export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   completed: [],
   cancelled: [],
   refunded: [],
+  // Present with NO outbound edges, deliberately. Both were absent before,
+  // which behaved identically (an absent key throws "Illegal state transition"
+  // just as an empty list does) but let the FSM and the glossary drift apart.
+  // Listing them makes the parity test in orderStatusGlossary.test.ts able to
+  // prove every status is accounted for. No edges are invented here: the
+  // below-reserve confirmation flow and the payment-default enforcer both move
+  // these server-side, and giving them client edges would be a new capability,
+  // not a reconciliation.
+  pending_buyer_confirmation: [],
+  defaulted: [],
 };
 
 // Validate transition is legal

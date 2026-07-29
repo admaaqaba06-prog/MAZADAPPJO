@@ -92,6 +92,10 @@ top-down from it wasted time on problems that no longer existed.
     **Expect the Action Center to show a backlog the first time you open it:** five days of drift
     becomes visible at once. That is the intent, not a bug.
 
+26. **Withdrawals history needed a composite index** (status + timestamp desc) — added to
+    `firestore.indexes.json` 2026-07-29. It had been failing silently in the admin console for
+    however long; the pending-payouts query was fine, only the history list was empty.
+
 ## 🚀 Queued projects (specced / scoped)
 
 - ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.

@@ -1,3 +1,4 @@
+import type { OrderStatusCode } from './utils/orderStatusGlossary';
 /**
  * Core Data Models for MAZAD JO
  * Production-ready TypeScript Interfaces
@@ -310,7 +311,8 @@ export interface Order {
   buyerId: string;
   buyerName: string;
   winningBidAmount: number;
-  status: "pending_buyer_confirmation" | "waiting_payment" | "paid" | "preparing_shipment" | "out_for_delivery" | "shipped" | "delivered" | "completed" | "disputed" | "cancelled" | "refunded" | "defaulted";
+  /** Single source: OrderStatusCode in utils/orderStatusGlossary.ts. See the note on OrderStatus in utils/orderWorkflow.ts. */
+  status: OrderStatusCode;
   paymentStatus: "unpaid" | "paid";
   shippingStatus: "not_started" | "preparing" | "shipped" | "delivered";
   escrowStatus: "pending" | "locked" | "released" | "refunded";

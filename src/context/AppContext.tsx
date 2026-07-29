@@ -218,7 +218,7 @@ interface AppContextProps {
   deleteAuction: (id: string) => void;
   repairEndedAuctionOrder: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   repairStuckEscrowsForEndedAuction: (auctionId: string) => Promise<{ success: boolean; message: string; refundedCount?: number; totalRefundedAmount?: number; keptWinnerEscrow?: boolean }>;
-  approveWithdrawal: (withdrawalId: string) => Promise<{ success: boolean; message: string }>;
+  approveWithdrawal: (withdrawalId: string, transferRef: string) => Promise<{ success: boolean; message: string }>;
   rejectWithdrawal: (withdrawalId: string, reason?: string) => Promise<{ success: boolean; message: string }>;
 
   // Trust System Operations
@@ -4360,10 +4360,12 @@ const fetchIP = async () => {
     }
   }, [addNotification]);
 
-  const approveWithdrawal = useCallback(async (withdrawalId: string) => {
+  const approveWithdrawal = useCallback(async (withdrawalId: string, transferRef: string) => {
     try {
-      const approveCallable = await getCallableFunction<{ withdrawalId: string }, { success: boolean; message: string }>('approveWithdrawal');
-      const result = await approveCallable({ withdrawalId });
+      // transferRef is REQUIRED server-side: a payout cannot be marked complete
+      // without recording the CliQ transfer that was actually made.
+      const approveCallable = await getCallableFunction<{ withdrawalId: string; transferRef: string }, { success: boolean; message: string }>('approveWithdrawal');
+      const result = await approveCallable({ withdrawalId, transferRef });
       if (result.data.success) {
         addNotification(
           language === 'ar' ? '💸 تم قبول طلب السحب' : '💸 Withdrawal Approved',

@@ -13,7 +13,8 @@ export interface PayoutCardProps {
   userName: string;
   isAr: boolean;
   busy?: boolean;
-  onApprove: (withdrawalId: string) => Promise<any>;
+  /** transferRef is required — the server refuses an approval without it. */
+  onApprove: (withdrawalId: string, transferRef: string) => Promise<any>;
   onReject: (withdrawalId: string, reason: string) => Promise<any>;
 }
 
@@ -22,6 +23,11 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
 }) => {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+  // Recording the transfer is the gate on approving, mirroring the bankVerified
+  // checkbox on money coming in. The server rejects an approval without it, so
+  // this only stops the admin firing a call that would fail.
+  const [transferRef, setTransferRef] = useState('');
+  const canApprove = transferRef.trim().length >= 4 && !busy;
 
   const details = withdrawal.details || {};
   const method = withdrawal.method === 'cliq' ? (isAr ? 'كليك' : 'CliQ') : (isAr ? 'حوالة بنكية' : 'Bank transfer');
@@ -79,13 +85,32 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+              {isAr ? 'رقم عملية التحويل عبر كليك' : 'CliQ transfer reference'}
+            </p>
+            <input
+              type="text"
+              dir="ltr"
+              value={transferRef}
+              onChange={(e) => setTransferRef(e.target.value)}
+              placeholder={isAr ? 'من إشعار التحويل' : 'From your transfer confirmation'}
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00]"
+            />
+            <p className="text-[10px] text-gray-400 leading-snug">
+              {isAr
+                ? 'أرسل المبلغ أولاً، ثم سجّل رقم العملية هنا. لا يمكن اعتماد السحب بدونه.'
+                : 'Send the money first, then record its reference here. A payout cannot be approved without it.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
           <button
-            disabled={busy}
-            onClick={() => onApprove(withdrawal.id)}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl disabled:opacity-50"
+            disabled={!canApprove}
+            onClick={() => { if (canApprove) onApprove(withdrawal.id, transferRef.trim()); }}
+            className={`flex-1 font-extrabold text-xs py-2 rounded-xl text-white transition-all ${canApprove ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-300 cursor-not-allowed'}`}
           >
-            {isAr ? 'الموافقة على السحب' : 'Approve payout'}
+            {isAr ? 'تم التحويل — اعتمد السحب' : 'Transfer sent — approve payout'}
           </button>
           <button
             onClick={() => { setRejecting(true); setReason(''); }}
@@ -93,6 +118,7 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
           >
             {isAr ? 'رفض' : 'Reject'}
           </button>
+          </div>
         </div>
       )}
     </div>
