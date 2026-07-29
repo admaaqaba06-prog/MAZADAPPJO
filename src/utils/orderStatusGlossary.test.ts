@@ -3,7 +3,9 @@ import {
   getOrderStatusChip,
   PAID_OR_BEYOND,
   ORDER_STATUS_GLOSSARY,
+  type OrderStatusCode,
 } from './orderStatusGlossary';
+import { VALID_TRANSITIONS } from './orderWorkflow';
 
 /**
  * SOURCE OF TRUTH — real ORDER status codes.
@@ -158,5 +160,25 @@ describe('Wave 3 — out_for_delivery', () => {
 
   it('counts as a real sale — the buyer has paid and the goods are moving', () => {
     expect(PAID_OR_BEYOND.has('out_for_delivery')).toBe(true);
+  });
+});
+
+describe('ONE status enum — the glossary is the single source', () => {
+  it('every orderWorkflow FSM status is a known glossary code', () => {
+    // The audit's item 2 ("reconcile 2 status enums") — types.ts and
+    // orderWorkflow.ts each kept their own union, which is why adding
+    // out_for_delivery in Wave 3 meant editing both and remembering to.
+    for (const code of Object.keys(VALID_TRANSITIONS)) {
+      expect(ORDER_STATUS_GLOSSARY[code as OrderStatusCode]).toBeDefined();
+    }
+  });
+
+  it('the FSM covers every glossary code, so no status can be unroutable', () => {
+    // A status missing from VALID_TRANSITIONS makes validateTransition throw
+    // "Illegal state transition" for anything leaving it — including opening a
+    // dispute. Terminal states are present with an empty list, not absent.
+    for (const code of Object.keys(ORDER_STATUS_GLOSSARY)) {
+      expect(VALID_TRANSITIONS[code as keyof typeof VALID_TRANSITIONS]).toBeDefined();
+    }
   });
 });

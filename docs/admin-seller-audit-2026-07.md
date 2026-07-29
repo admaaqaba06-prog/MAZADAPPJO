@@ -94,14 +94,26 @@ Payment verify atomic + idempotent (two-admin safe); dispute money moves require
 ### 🗑️ Test-data / noise (not code bugs)
 Null-content notifications (legacy docs); seeded fake reviews (rejected by rules in prod — dead code; real issue = hardcoded 4.8 default); "4 vs 9" counter mismatch (stale snapshot); gibberish sellers / mismatched images / typo dispute (delete). Sim orders already excluded from metrics.
 
-### 🔴 Genuinely missing (the real work)
-1. **CliQ transaction-ref reuse not blocked** (`B5`) — the one real fraud hole. + no txn-ref field (`D1`).
-2. **Single status glossary** (`A1`) + "unpaid ≠ sale" (`A1/C1e`) + reconcile 2 status enums.
-3. **Cheap credibility bugs:** "1 reviews" plural, 4.8 default rating, empty charts, mixed icon colors, tripled verification, duplicated wallet, 4-col orders table + h-scroll, notification empty-content guard + lang fallback, raw status badges.
-4. **MZ-##### order reference** (`C3d/D1`).
-5. Audit-log **viewer** UI (writer exists); Force-Close/Open guards (typed-ID + reason + amount echo); "verified in bank" checkbox + resubmit-max-3; payout "sent via CliQ"+ref capture.
-6. **Pickup code (`D4`) + 3 delivery methods (`D3`) + delivery-anchored protection window/auto-complete (`D6`) + wa.me contact reveal (`D5`).**
-7. **Action Center consolidation** (`B1/B3`) + audit viewer under System.
+### ✅ Was "genuinely missing" — now closed (2026-07-28/29)
+1. **CliQ transaction-ref reuse** (`B5`) + txn-ref field (`D1`) — Wave 1.
+2. **Single status glossary** (`A1`) + "unpaid ≠ sale" — Wave 0. **The "reconcile 2 status enums" half
+   shipped 2026-07-29:** `OrderStatusCode` in `orderStatusGlossary.ts` is now the single source, and
+   both `Order['status']` and `orderWorkflow.OrderStatus` derive from it. A parity test proves the FSM
+   and the glossary cover each other, so a status can never again exist in one and not the other —
+   which is what made adding `out_for_delivery` a two-file edit you had to remember.
+3. **Cheap credibility bugs** — Wave 0.
+4. **MZ-##### order reference** (`C3d/D1`) — Wave 2.
+5. Audit-log **viewer** — Wave 2. Force-Close **and** Force-Open guards — both typed-reference gated.
+   "Verified in bank" checkbox + resubmit-max-3 — Wave 1. **Payout "sent via CliQ" + ref capture
+   shipped 2026-07-29:** approving a payout now REQUIRES the CliQ transfer reference, so an
+   approved-but-unsent payout is no longer indistinguishable from a sent one.
+6. **Pickup code** (`D4`) + delivery methods (`D3`) — Wave 3. **wa.me contact reveal (`D5`) shipped
+   2026-07-29:** a gated callable hands one party the other's number once payment is verified, because
+   `firestore.rules` restricts `users` reads to owner/admin and the buyer physically could not look the
+   seller up. **Deliberately NOT built:** the third delivery method (Wave 3 ruled out
+   shipping-with-tracking) and the delivery-anchored protection window / auto-complete (`D6`) — the
+   Wave 3 spec rejected both; the buyer's confirmation IS completion.
+7. **Action Center consolidation** (`B1/B3`) — Wave 4.
 
 ### 🕒 Defer (premature at current scale)
 Trust-tier auto-publish (build when active sellers > ~25–30); Second Chance Offer; seller-first dispute window (one open dispute today); full server-authoritative state-machine rewrite (money callables already self-guard — hardening, not urgent).

@@ -147,6 +147,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [deliveryCodeError, setDeliveryCodeError] = useState<string>('');
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
 
+  // D5 — counterparty contact. Revealed on demand, never rendered from the
+  // order doc: the buyer cannot read the seller's user doc (firestore.rules
+  // limits `users` to owner/admin), so this only ever arrives from the
+  // revealCounterpartyContact callable, which gates on payment being verified.
+  const [contact, setContact] = useState<{ role: string; name: string; phone: string; waMe: string | null } | null>(null);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState('');
+
   const isAdminViewer = isAdminUser(currentUser);
 
   useEffect(() => {
@@ -750,6 +758,28 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       }
     } finally {
       setUploadingEvidence(false);
+    }
+  };
+
+  const handleRevealContact = async () => {
+    setContactLoading(true);
+    setContactError('');
+    try {
+      const reveal = await getCallableFunction<
+        { orderId: string },
+        { success: boolean; role: string; name: string; phone: string; waMe: string | null }
+      >('revealCounterpartyContact');
+      const res = await reveal({ orderId: order.id });
+      setContact({ role: res.data.role, name: res.data.name, phone: res.data.phone, waMe: res.data.waMe });
+    } catch (err: any) {
+      console.error('Contact reveal failed:', err);
+      setContactError(
+        err?.code === 'functions/failed-precondition'
+          ? (isAr ? 'تُعرض بيانات التواصل بعد تأكيد الدفع.' : 'Contact details are shared once the payment is verified.')
+          : (isAr ? 'تعذر عرض بيانات التواصل.' : 'Could not load contact details.'),
+      );
+    } finally {
+      setContactLoading(false);
     }
   };
 
@@ -1357,6 +1387,59 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               </div>
             </div>
           </div>
+
+          {/* D5 — reach the other side yourself. Shown to buyer and seller once
+              payment is verified. The number arrives ONLY from the gated
+              callable, never from the order doc: the buyer cannot read the
+              seller's user doc at all (firestore.rules limits `users` to
+              owner/admin), and nothing is revealed before the money is in. */}
+          {(isBuyer || isSeller) && order.paymentVerified === true && !['cancelled', 'refunded'].includes(order.status) && (
+            <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-3">
+              <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+                <User className="w-4 h-4 text-[#FF6B00]" />
+                <span>{isAr ? 'التواصل مع الطرف الآخر' : 'CONTACT THE OTHER SIDE'}</span>
+              </h3>
+              {!contact ? (
+                <>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    {isAr
+                      ? 'نسّق التسليم مباشرة عبر واتساب بدل المرور بالدعم.'
+                      : 'Coordinate the handover directly on WhatsApp instead of going through support.'}
+                  </p>
+                  <button
+                    onClick={handleRevealContact}
+                    disabled={contactLoading}
+                    className="w-full bg-[#121318] hover:bg-gray-900 text-white font-black py-2.5 rounded-xl text-[11px] uppercase font-mono disabled:opacity-50 cursor-pointer"
+                  >
+                    {contactLoading
+                      ? (isAr ? 'جارٍ التحميل…' : 'Loading…')
+                      : (isAr ? 'إظهار رقم التواصل' : 'Show contact number')}
+                  </button>
+                  {contactError && <p className="text-[10px] text-red-500 font-bold leading-snug">{contactError}</p>}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                      {contact.role === 'seller' ? (isAr ? 'البائع' : 'Seller') : (isAr ? 'المشتري' : 'Buyer')}
+                    </span>
+                    <span className="text-xs font-bold text-gray-900 truncate">{contact.name}</span>
+                  </div>
+                  <p className="text-sm font-mono text-gray-900" dir="ltr">{contact.phone}</p>
+                  {contact.waMe && (
+                    <a
+                      href={contact.waMe}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-[11px] uppercase font-mono"
+                    >
+                      {isAr ? 'مراسلة عبر واتساب' : 'Message on WhatsApp'}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* SECTION 6: Shipping status + real delivery address (no fabricated data) */}
           <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">

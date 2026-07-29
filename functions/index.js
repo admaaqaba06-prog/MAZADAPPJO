@@ -24,6 +24,8 @@ const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSub
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
+const { buildPayoutTransferStamp } = require('./payoutTransfer');
+const { resolveCounterpartyContact, waMeLink } = require('./contactReveal');
 const { shouldActivateSellerOnApproval } = require('./listingApproval');
 const { normalizeDeliveryCodeInput } = require('./deliveryCode');
 const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
@@ -1994,6 +1996,52 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * revealCounterpartyContact — D5. Give one party to a PAID order the other
+ * party's phone, so they can coordinate the handover themselves instead of
+ * routing it through CS.
+ *
+ * Must be server-side: firestore.rules restricts `users` reads to the owner and
+ * admins, so a buyer physically cannot look the seller up from the client. The
+ * gate (party-only, payment-verified, not closed) lives in contactReveal.js and
+ * is unit-tested; this wrapper reads the documents and maps errors.
+ */
+exports.revealCounterpartyContact = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
+  }
+  const orderId = data && data.orderId;
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+  try {
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+    }
+    const order = orderSnap.data() || {};
+
+    // Read only the doc the caller could be entitled to, not both.
+    const isBuyer = order.buyerId === context.auth.uid;
+    const otherUid = isBuyer ? order.sellerId : order.buyerId;
+    const otherSnap = otherUid ? await db.collection('users').doc(otherUid).get() : null;
+    const other = otherSnap && otherSnap.exists ? otherSnap.data() : null;
+
+    const contact = resolveCounterpartyContact(
+      { order, buyer: isBuyer ? null : other, seller: isBuyer ? other : null },
+      context.auth.uid,
+    );
+
+    console.log(`[revealCounterpartyContact] order=${orderId} to=${context.auth.uid} role=${contact.role}`);
+    return { success: true, ...contact, waMe: waMeLink(contact.phone) };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in revealCounterpartyContact:', error);
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'تعذر عرض بيانات التواصل.');
   }
 });
 
@@ -4462,10 +4510,24 @@ exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async
   }
 
   const callerUserId = context.auth.uid;
-  const { withdrawalId } = data;
+  const { withdrawalId, transferRef } = data;
 
   if (!withdrawalId) {
     throw new functions.https.HttpsError('invalid-argument', 'معرّف طلب السحب مطلوب');
+  }
+
+  // A payout may not be marked complete without recording the transfer that
+  // was actually made. Same discipline as the bankVerified gate on money
+  // coming IN — see functions/payoutTransfer.js. Built BEFORE the transaction
+  // so a missing reference fails fast and moves nothing.
+  let transferStamp;
+  try {
+    transferStamp = buildPayoutTransferStamp(
+      { Timestamp: admin.firestore.Timestamp, now: () => Date.now() },
+      { transferRef, adminUid: callerUserId },
+    );
+  } catch (e) {
+    throw new functions.https.HttpsError('invalid-argument', 'أدخل رقم عملية التحويل عبر كليك قبل اعتماد السحب.');
   }
 
   try {
@@ -4538,6 +4600,8 @@ exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async
         status: 'completed',
         approvedBy: callerUserId,
         approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        // Proof the money actually left, not just that someone clicked approve.
+        ...transferStamp,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
