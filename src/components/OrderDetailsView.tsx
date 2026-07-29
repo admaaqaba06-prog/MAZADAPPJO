@@ -680,7 +680,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // The seller's path to those two stages is now the evidence-gated pair above
   // (handleUploadPrepPhoto / handleMarkOutForDelivery), and the photo-free
   // `prepare_shipment` / `mark_shipped` actions survive only for the ADMIN
-  // relay, which drives them from src/components/admin/FulfillmentSection.tsx
+  // relay, which drives them from the Action Center's StalledDeliveryCard
   // via nextAdvance(). Leaving the handlers here would have been dead code that
   // reads like the seller flow.
 
