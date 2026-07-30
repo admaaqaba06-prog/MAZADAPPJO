@@ -12,10 +12,11 @@
  * Without this the offer is invisible to the one person who can accept it and
  * expires unseen after 24h — which is the whole reason the card exists.
  *
- * One tiny per-user query, same shape as the `createdById == me` own-pending
- * listener in AppContext: a single equality filter with a limit, so Firestore's
- * automatic single-field index on the map subfield covers it (no composite
- * index, no rules change — `auctions` is already `allow read: if true`).
+ * One tiny per-user query. It needs a COMPOSITE INDEX (declared in
+ * `firestore.indexes.json`; see the query notes below for why the status filter
+ * and the orderBy are not optional) — deploy indexes BEFORE this ships or the
+ * query fails `failed-precondition` and the card is silently absent. No rules
+ * change is needed: `auctions` is already `allow read: if true`.
  *
  * Only fields the card reads are mapped. Simulated lots are dropped for
  * non-admins by the caller via `filterSimulated` — the flag is carried through

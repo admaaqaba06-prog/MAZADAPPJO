@@ -78,7 +78,7 @@ Every spec recommendation was checked against the actual code. Verdict = **EXIST
 | # | Item | Verdict | Evidence + note |
 |---|---|---|---|
 | D1 | Buyer payment (CliQ) | PARTIAL | Itemized amount+5% premium, CliQ alias, copy, 24h countdown EXIST (`index.js:288-292`, `OrderDetailsView.tsx:349,357-369`). MISSING: MZ ref; txn-ref field; date field; receipt size cap; **duplicate-txn-ref rejection**. "Under review" is a flag, not a distinct status; buyer click sets `status:'paid'` directly (`orderWorkflow.ts:198-210`). Resubmit-after-reject works. |
-| D2 | Unpaid winners | PARTIAL | DEFAULTED cron EXISTS (`paymentDefaultEnforcer index.js:768-848`). Strike ladder EXISTS but different policy (`banLadder.js:11-33`: 48h cooldown → ~90d). Second Chance Offer MISSING (manual admin in v1, `index.js:766`). |
+| D2 | Unpaid winners | **EXISTS** (was PARTIAL) | DEFAULTED cron EXISTS (`paymentDefaultEnforcer index.js:1036`). Strike ladder EXISTS but different policy (`banLadder.js:11-33`: 48h cooldown → ~90d). **Second Chance Offer SHIPPED 2026-07-30** — no longer the manual admin step v1 sketched: the enforcer offers the lot to the runner-up at their own bid, once, for 24h (`functions/secondChance.js`, hook `index.js:1132`, callable `respondToSecondChance index.js:3092`). Above reserve it goes straight to the bidder; below reserve the seller is asked first. |
 | D3 | Delivery, 3 methods | MISSING | No `deliveryMethod`, no `out_for_delivery`, single linear pipeline (`orderWorkflow.ts:19-20`); fixed 6-step timeline (`OrderDetailsView.tsx:301-308`). Good: no fake tracking (removed, `orderWorkflow.ts:236-241`); seller self-advances w/o admin (`orderAdvance.ts:23-27`). |
 | D4 | Pickup confirmation code | MISSING | No 6-digit handover code (only phone-auth OTP). Buyer-confirm + `mark_delivered` exist; no code entry/lockout. |
 | D5 | Contact reveal | PARTIAL (weak) | Buyer phone+address revealed to seller after `paymentStatus==='paid'` (`OrderDetailsView.tsx:323`). MISSING: wa.me deep link, order-ref prefill, seller-phone-to-buyer, re-hide after completed. |
@@ -94,7 +94,7 @@ Payment verify atomic + idempotent (two-admin safe); dispute money moves require
 ### 🗑️ Test-data / noise (not code bugs)
 Null-content notifications (legacy docs); seeded fake reviews (rejected by rules in prod — dead code; real issue = hardcoded 4.8 default); "4 vs 9" counter mismatch (stale snapshot); gibberish sellers / mismatched images / typo dispute (delete). Sim orders already excluded from metrics.
 
-### ✅ Was "genuinely missing" — now closed (2026-07-28/29)
+### ✅ Was "genuinely missing" — now closed (2026-07-28/30)
 1. **CliQ transaction-ref reuse** (`B5`) + txn-ref field (`D1`) — Wave 1.
 2. **Single status glossary** (`A1`) + "unpaid ≠ sale" — Wave 0. **The "reconcile 2 status enums" half
    shipped 2026-07-29:** `OrderStatusCode` in `orderStatusGlossary.ts` is now the single source, and
@@ -114,9 +114,42 @@ Null-content notifications (legacy docs); seeded fake reviews (rejected by rules
    shipping-with-tracking) and the delivery-anchored protection window / auto-complete (`D6`) — the
    Wave 3 spec rejected both; the buyer's confirmation IS completion.
 7. **Action Center consolidation** (`B1/B3`) — Wave 4.
+8. **Second Chance Offer** (`D2`) — shipped 2026-07-30, promoted off the defer list because the
+   numbers moved: **21 of 31 real orders in production are `defaulted`**, the largest status bucket
+   by far, and every one of them was a lot that died with a runner-up who was never told. The
+   enforcer's own health log already named the missing step ("Buyer blocked; decide re-run/runner-up")
+   and that decision never got made by hand. Now automatic. Design:
+   `docs/superpowers/specs/2026-07-30-second-chance-offer-design.md`. What shipped:
+   - **Reserve fork.** Runner-up's bid ≥ reserve → the offer opens straight to them (`pending_buyer`);
+     below reserve → the seller is asked first (`pending_seller`), because selling under a reserve
+     without the seller's consent breaks the promise the reserve makes. The reserve is read from
+     `auctionSecrets/{id}`, never the world-readable auction doc, and a reserve that is present but
+     unreadable **fails safe to asking the seller**.
+   - **Runner-up from the `bids` subcollection**, not `previousBidderId` — that field is the last
+     person outbid, which is the winner themselves whenever the winner bid twice in a row, so it
+     would have offered the lot back to the person who just defaulted.
+   - **One offer, 24h per party**, reusing `settlement.js`'s below-reserve state machine
+     (`pending_seller → pending_buyer → confirmed`) and its relist blocking rather than growing a
+     parallel one. `shouldAutoRelist` had to learn about it — a live offer now blocks a relist, or
+     the same item goes live twice and two people can buy it.
+   - **Accepting mints `orders/<auctionId>__sc`** at the runner-up's own bid, with premium and total
+     recomputed from that bid. The defaulted order keeps `orders/<auctionId>` and stays `defaulted`
+     as the audit trail. From there it is an ordinary order — Wave 3 evidence chain, Action Center,
+     the enforcer itself, no special-casing.
+   - **No new n8n events**: `below_reserve_offer` / `below_reserve_seller_accepted` /
+     `below_reserve_declined` are reused, with a `secondChance` branch in `notify.js` + `emailCopy.js`
+     so a second-chance recipient is not told the bids fell short — the winner defaulted, and for a
+     `pending_buyer` offer that bidder actually cleared the reserve.
+   - **Deliberately NOT built: the cascade.** No offer to the third bidder and beyond. One path to
+     test, a bounded worst case (24h, or 48h when the seller step is involved), and third-place bids
+     are usually far enough below reserve that the recovery value drops steeply. The `__sc` order id
+     is a **one-shot scheme that works *because* there is exactly one second chance** — any future
+     cascade must redesign the id first, not extend it to `__sc2`.
+   - **The defaulter's ban is untouched.** Recovering the sale is a separate concern from punishing
+     the default; `banLadder.js` keeps its 48h → ~90d policy.
 
 ### 🕒 Defer (premature at current scale)
-Trust-tier auto-publish (build when active sellers > ~25–30); Second Chance Offer; seller-first dispute window (one open dispute today); full server-authoritative state-machine rewrite (money callables already self-guard — hardening, not urgent).
+Trust-tier auto-publish (build when active sellers > ~25–30); seller-first dispute window (one open dispute today); full server-authoritative state-machine rewrite (money callables already self-guard — hardening, not urgent).
 
 ---
 
