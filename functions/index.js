@@ -878,16 +878,19 @@ async function notifySecondChanceOffer(auctionRef, auction, offer) {
   // = null` — a recipient-less notification is never sent — but deliberately NOT
   // the same mechanism, and the difference matters. There, dropping the notify
   // is the whole remedy: the transaction has already written the decline and
-  // there is no follow-up write to protect. HERE a `return` would fall straight
-  // through to the `notifiedAt` stamp below, which is the more damaging half of
-  // the bug: it marks the offer announced when nobody was told, so the retry
-  // sweep skips it forever.
+  // there is no follow-up write to protect.
   //
-  // Throwing is what keeps `notifiedAt` null. That is the same contract as a
-  // failed notify — the caller's catch logs it, and the offer stays findable by
-  // retryUnnotifiedSecondChanceOffers instead of being disguised as announced.
-  // The retry stops on its own once the 24h window lapses (`needsNotifyRetry`
-  // requires a LIVE offer).
+  // HERE a bare `return` would leave `notifiedAt` null too — the guard sits
+  // above both the notify and the stamp, so either exit skips them. What a
+  // `return` would NOT do is say anything: the callers at the two call sites
+  // only ever learn about this through their `catch`. Throwing is for
+  // observability, not for control flow. A silent return would leave the retry
+  // sweep re-reading a lot it can never announce, with nothing in the logs
+  // naming the empty `sellerId` as the reason.
+  //
+  // Either way the offer stays findable by retryUnnotifiedSecondChanceOffers
+  // rather than being disguised as announced, and the retry stops on its own
+  // once the 24h window lapses (`needsNotifyRetry` requires a LIVE offer).
   if (!uid) {
     throw new Error(`[secondChance] ${auctionRef.id}: ${offer.status} offer has no recipient uid — not announcing`);
   }

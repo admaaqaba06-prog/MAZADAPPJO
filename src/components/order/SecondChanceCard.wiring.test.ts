@@ -27,6 +27,33 @@
  * Argument positions are compared after parsing the call, not by regex over the
  * whole line, so reformatting (line breaks, spacing, trailing commas) does not
  * break these tests — only an actual change of argument does.
+ *
+ * WHAT THIS NET DOES NOT CATCH — read this before trusting it.
+ *
+ * The call-site sweep finds `secondChanceViewState(` as a literal substring and
+ * then checks the viewer against an allowlist of identifier NAMES. A review
+ * defeated it six ways, each of which reintroduces the exact regression this
+ * file was written for and still goes green:
+ *
+ *   - an aliased import — `import { secondChanceViewState as viewStateOf }`
+ *   - a re-export under a different name, then calling the alias
+ *   - `secondChanceViewState?.(…)` and `secondChanceViewState (…)` — anything
+ *     between the name and the paren
+ *   - a local wrapper whose own parameter happens to be named `viewer`
+ *   - an id assigned to a variable named `user` — allowlisted by name, so
+ *     `const user = currentUser?.id` passes while being the original bug
+ *
+ * It also FALSE-FAILS on a comment in a non-test `src/` file that quotes the
+ * bad form, because nothing strips comments first.
+ *
+ * So: this kills the regression that shipped and every naive recurrence of it,
+ * and it is strictly better than the hand-listed file set it replaced — a list
+ * carried the same blind spot that caused the bug. It is not a guarantee, and it
+ * should not be trusted the way `tsc` was trusted here. (`@types/react` is not
+ * installed and tsconfig sets no `strict`/`noImplicitAny`, so `useApp()` is
+ * `any` and the type system never checked these call sites at all.) Closing it
+ * properly wants an ESLint `no-restricted-syntax` rule keyed on the imported
+ * BINDING rather than on the spelling of the call.
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
