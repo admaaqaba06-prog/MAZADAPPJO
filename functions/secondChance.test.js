@@ -4,11 +4,15 @@
 // simply dies, while the runner-up who bid real money hears nothing. Every
 // judgement about who gets offered what, and for how much, lives here so each
 // branch is testable without an emulator.
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   pickRunnerUp, openingStateFor, buildOfferRecord, secondChanceOrderMoney,
   secondChanceOrderId, offerIsLive, SECOND_CHANCE_ORDER_SUFFIX,
 } from './secondChance.js';
+import {
+  buyerPremiumJod, totalDueJod, sellerCommissionFils, sellerNetFils,
+} from './settlement.js';
 
 const NOW = 1750000000000;
 const HOUR = 3600000;
@@ -44,6 +48,13 @@ describe('pickRunnerUp', () => {
     const r = pickRunnerUp([null, { amount: 50 }, bid('a', 40), { bidderId: 'x' }], 'w');
     expect(r.bidderId).toBe('a');
   });
+
+  it('leaves a missing bidderName empty rather than inventing an English label', () => {
+    // This value reaches WhatsApp/email templates verbatim in an Arabic-first
+    // product, so the caller picks the display fallback, not this module.
+    const r = pickRunnerUp([{ bidderId: 'a', amount: 40 }], 'w');
+    expect(r.bidderName).toBe('');
+  });
 });
 
 describe('openingStateFor — the reserve fork', () => {
@@ -56,9 +67,22 @@ describe('openingStateFor — the reserve fork', () => {
     expect(openingStateFor(80, 90)).toBe('pending_seller');
   });
 
-  it('treats no reserve as cleared — an auction without auctionSecrets has none', () => {
-    for (const noReserve of [null, undefined, 0, NaN, 'abc']) {
+  it('treats an ABSENT reserve as cleared — an auction without auctionSecrets has none', () => {
+    for (const noReserve of [null, undefined]) {
       expect(openingStateFor(10, noReserve)).toBe('pending_buyer');
+    }
+  });
+
+  it('treats 0 as no reserve — that is how "no reserve" is stored today', () => {
+    expect(openingStateFor(10, 0)).toBe('pending_buyer');
+  });
+
+  it('fails SAFE on a reserve that is present but unreadable — asks the seller', () => {
+    // Absent and corrupt are different: a stored-but-unparseable reserve must
+    // never auto-sell the lot under it without the seller's consent. Compare
+    // settlement.reserveMet(10, 'abc') === false — same question, same answer.
+    for (const corrupt of [NaN, 'abc', -5, '', {}]) {
+      expect(openingStateFor(10, corrupt)).toBe('pending_seller');
     }
   });
 });
@@ -84,6 +108,50 @@ describe('secondChanceOrderMoney', () => {
     const m = secondChanceOrderMoney(100);
     expect(m.totalDue).toBeCloseTo(105, 5);
     expect(m.sellerNet).toBeCloseTo(95, 5);
+  });
+
+  it('pins every field, including the two a mutation could quietly break', () => {
+    // buyersPremium and sellerCommission had no real assertion: mutating them
+    // to 999 / 0 used to leave the suite green.
+    const m = secondChanceOrderMoney(90);
+    expect(m.winningBidAmount).toBe(90);
+    expect(m.buyersPremium).toBeCloseTo(4.5, 5);
+    expect(m.sellerCommission).toBeCloseTo(4.5, 5);
+    expect(m.totalDue).toBeCloseTo(94.5, 5);
+    expect(m.sellerNet).toBeCloseTo(85.5, 5);
+  });
+
+  it('agrees with the settlement helpers across amounts, including odd fils', () => {
+    // Catches using the WRONG helper (commission/net swapped, premium where
+    // total belongs) and any future rate change made in only one of the two
+    // places. It canNOT catch an inlined copy of the same arithmetic — see the
+    // source-level test below for that.
+    for (const bidAmount of [100, 137.5, 0.333]) {
+      const m = secondChanceOrderMoney(bidAmount);
+      const fils = Math.round(bidAmount * 1000);
+      expect(m.buyersPremium).toBe(buyerPremiumJod(bidAmount));
+      expect(m.totalDue).toBe(totalDueJod(bidAmount));
+      expect(m.sellerCommission).toBe(sellerCommissionFils(fils) / 1000);
+      expect(m.sellerNet).toBe(sellerNetFils(fils) / 1000);
+    }
+  });
+
+  it('never inlines a rate — the money comes only from the settlement helpers', () => {
+    // "Don't inline a rate" is unenforceable by value: settlement's premium is
+    // literally `Math.round(h * 0.05)`, so an inlined copy matches the helper
+    // for EVERY input. Spying is unavailable too — secondChance.js reaches
+    // settlement through CommonJS `require`, which vi.mock does not intercept
+    // from an ESM test. So assert it structurally: the only number allowed in
+    // this function is the 1000 fils-per-JOD scale, and all four helpers must
+    // appear. Inlining `* 0.05` or hardcoding 1.05 fails here.
+    const src = readFileSync(new URL('./secondChance.js', import.meta.url), 'utf8');
+    const start = src.indexOf('function secondChanceOrderMoney');
+    const body = src.slice(start, src.indexOf('\n}', start));
+    expect(start).toBeGreaterThan(-1);
+    for (const helper of ['buyerPremiumJod', 'totalDueJod', 'sellerCommissionFils', 'sellerNetFils']) {
+      expect(body).toContain(`${helper}(`);
+    }
+    expect([...new Set(body.match(/\d+(\.\d+)?/g) || [])]).toEqual(['1000']);
   });
 });
 

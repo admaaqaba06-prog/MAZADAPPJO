@@ -59,7 +59,10 @@ function pickRunnerUp(bids, defaulterId) {
     if (!bidderId || !Number.isFinite(amount) || amount <= 0) continue;
     if (bidderId === defaulterId) continue;
     if (!best || amount > best.amount) {
-      best = { bidderId, bidderName: b.bidderName || 'Bidder', amount };
+      // Empty string, NOT a hardcoded label: this product is Arabic-first and
+      // the name reaches WhatsApp/email templates verbatim. Choosing a display
+      // fallback is the caller's job, in the caller's language.
+      best = { bidderId, bidderName: b.bidderName || '', amount };
     }
   }
   return best;
@@ -71,12 +74,27 @@ function pickRunnerUp(bids, defaulterId) {
  * consent, because selling under a reserve without asking breaks the promise
  * the reserve makes.
  *
- * A non-numeric or absent reserve means the auction has no `auctionSecrets`
- * doc, i.e. no reserve — so anything clears it.
+ * ABSENT and UNREADABLE are deliberately NOT the same thing:
+ * - ABSENT (`null` / `undefined` / the number `0`) means the auction has no
+ *   `auctionSecrets` doc or no reserve set — there is no promise to break, so
+ *   anything clears and the bidder is asked directly.
+ * - PRESENT BUT UNUSABLE (`NaN`, `''`, `'abc'`, `-5`, `{}`) means a reserve was
+ *   stored and we cannot read it. Failing open there would sell the lot under
+ *   the seller's reserve with no seller consent — the exact harm this fork
+ *   exists to prevent. So we fail SAFE and ask the seller.
+ *
+ * This also keeps one answer to one question: `settlement.reserveMet(10, 'abc')`
+ * already returns false, so clearing the same input here would leave the
+ * codebase contradicting itself about whether that lot met its reserve.
  */
 function openingStateFor(runnerUpAmount, reserve) {
+  // Absence must be explicit — `null`/`undefined`, or the literal number 0,
+  // which is how "no reserve" is stored today. A string '' or '0' is a stored
+  // value we failed to read, not an absence, and falls through to fail-safe.
+  if (reserve === null || reserve === undefined) return 'pending_buyer';
+  if (typeof reserve === 'number' && reserve === 0) return 'pending_buyer';
   const r = Number(reserve);
-  if (!Number.isFinite(r) || r <= 0) return 'pending_buyer';
+  if (!Number.isFinite(r) || r <= 0) return 'pending_seller';
   return Number(runnerUpAmount) >= r ? 'pending_buyer' : 'pending_seller';
 }
 
@@ -114,7 +132,7 @@ function secondChanceOrderMoney(amount) {
 
 /** Pending and unexpired. Reuses the below-reserve expiry semantics exactly. */
 function offerIsLive(offer, nowMs) {
-  if (!offer || !offer.status) return false;
+  if (!offer) return false;
   if (offer.status !== 'pending_seller' && offer.status !== 'pending_buyer') return false;
   return !isBelowReserveOfferExpired(offer, nowMs);
 }
