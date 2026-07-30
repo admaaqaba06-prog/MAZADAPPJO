@@ -9,9 +9,11 @@ import { describe, it, expect } from 'vitest';
 import {
   pickRunnerUp, openingStateFor, buildOfferRecord, secondChanceOrderMoney,
   secondChanceOrderId, offerIsLive, SECOND_CHANCE_ORDER_SUFFIX,
+  needsNotifyRetry, OFFER_STATUSES,
 } from './secondChance.js';
 import {
   buyerPremiumJod, totalDueJod, sellerCommissionFils, sellerNetFils,
+  belowReserveBlocksRelist,
 } from './settlement.js';
 
 const NOW = 1750000000000;
@@ -194,5 +196,87 @@ describe('offerIsLive', () => {
   it('is not live when there is no offer at all', () => {
     expect(offerIsLive(null, NOW)).toBe(false);
     expect(offerIsLive(undefined, NOW)).toBe(false);
+  });
+});
+
+describe('buildOfferRecord stamps an explicit notifiedAt', () => {
+  const runnerUp = { bidderId: 'a', bidderName: 'Runner Up', amount: 90 };
+
+  it('writes notifiedAt: null rather than omitting the field', () => {
+    // Not cosmetic: Firestore's `where('...notifiedAt','==',null)` does NOT
+    // return documents that simply lack the field, so an omitted null would
+    // make an un-notified offer invisible to the retry sweep — the one thing
+    // that can rescue it.
+    const o = buildOfferRecord(deps, { runnerUp, defaultedOrderId: 'x', openingState: 'pending_buyer' });
+    expect(Object.prototype.hasOwnProperty.call(o, 'notifiedAt')).toBe(true);
+    expect(o.notifiedAt).toBe(null);
+  });
+});
+
+describe('needsNotifyRetry', () => {
+  const live = { status: 'pending_buyer', expiresAt: FakeTimestamp.fromMillis(NOW + HOUR), notifiedAt: null };
+
+  it('retries a live offer nobody was ever told about', () => {
+    expect(needsNotifyRetry(live, NOW)).toBe(true);
+    expect(needsNotifyRetry({ ...live, status: 'pending_seller' }, NOW)).toBe(true);
+  });
+
+  it('treats a missing notifiedAt as un-notified too', () => {
+    const { notifiedAt, ...withoutField } = live;
+    expect(needsNotifyRetry(withoutField, NOW)).toBe(true);
+  });
+
+  it('does not re-announce an offer that was already announced', () => {
+    expect(needsNotifyRetry({ ...live, notifiedAt: FakeTimestamp.fromMillis(NOW - 1) }, NOW)).toBe(false);
+  });
+
+  it('does not announce an offer that has expired unheard', () => {
+    // Re-announcing a dead offer is worse than the silence: it invites someone
+    // to act on something they can no longer act on.
+    expect(needsNotifyRetry({ ...live, expiresAt: FakeTimestamp.fromMillis(NOW - 1) }, NOW)).toBe(false);
+  });
+
+  it('does not announce an offer that is already decided', () => {
+    for (const status of ['confirmed', 'declined', 'expired']) {
+      expect(needsNotifyRetry({ ...live, status }, NOW)).toBe(false);
+    }
+  });
+
+  it('is false when there is no offer at all', () => {
+    expect(needsNotifyRetry(null, NOW)).toBe(false);
+    expect(needsNotifyRetry(undefined, NOW)).toBe(false);
+  });
+});
+
+describe('OFFER_STATUSES pins the vocabulary the relist guard understands', () => {
+  // The trap this closes: `belowReserveBlocksRelist` recognises the literal
+  // 'confirmed' and nothing else as a sale. If a later task writes 'accepted'
+  // instead, NOTHING errors — the status just falls through to "does not
+  // block", the lot auto-relists while a live offer stands on it, and two
+  // people can buy the same item. Every status the second-chance flow may ever
+  // write must therefore be declared here AND be understood over there.
+  const unexpired = { expiresAt: FakeTimestamp.fromMillis(NOW + HOUR) };
+
+  it('declares exactly the statuses in use today', () => {
+    expect(Object.keys(OFFER_STATUSES).sort()).toEqual(
+      ['confirmed', 'declined', 'expired', 'pending_buyer', 'pending_seller'],
+    );
+  });
+
+  for (const [status, meaning] of Object.entries(OFFER_STATUSES)) {
+    it(`'${status}' behaves as '${meaning}' in both offerIsLive and belowReserveBlocksRelist`, () => {
+      const offer = { ...unexpired, status };
+      // live = undecided and actionable; sold/closed = decided.
+      expect(offerIsLive(offer, NOW)).toBe(meaning === 'live');
+      // live and sold both hold the lot back; only closed releases it.
+      expect(belowReserveBlocksRelist(offer, NOW)).toBe(meaning !== 'closed');
+    });
+  }
+
+  it('a live status stops blocking once its window lapses, a sold one never does', () => {
+    for (const [status, meaning] of Object.entries(OFFER_STATUSES)) {
+      const lapsed = { status, expiresAt: FakeTimestamp.fromMillis(NOW - 1) };
+      expect(belowReserveBlocksRelist(lapsed, NOW)).toBe(meaning === 'sold');
+    }
   });
 });

@@ -33,7 +33,8 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
-const { pickRunnerUp, openingStateFor, buildOfferRecord } = require('./secondChance');
+// Task 3 (the accept/decline callable) must ADD `secondChanceOrderId`, `secondChanceOrderMoney` and `offerIsLive` here — they exist in ./secondChance but are deliberately not imported until something uses them.
+const { pickRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry } = require('./secondChance');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
@@ -807,6 +808,14 @@ exports.autoRelistSweep = functions.pubsub
             if (d.belowReserveOffer && (d.belowReserveOffer.status === 'pending_seller' || d.belowReserveOffer.status === 'pending_buyer')) {
               origUpdate['belowReserveOffer.status'] = 'expired';
             }
+            // Same treatment for a second-chance offer. `shouldAutoRelist`
+            // already refuses to relist a lot carrying a live one, so reaching
+            // here with a pending offer should be impossible — but if that
+            // guard is ever weakened, an offer left open on a relisted lot
+            // could still be accepted, selling an item that is live again.
+            if (d.secondChanceOffer && (d.secondChanceOffer.status === 'pending_seller' || d.secondChanceOffer.status === 'pending_buyer')) {
+              origUpdate['secondChanceOffer.status'] = 'expired';
+            }
             tx.update(origRef, origUpdate);
             // (a2) cancel a stale seller-accepted-but-unconfirmed order.
             if (origOrderSnap.exists && origOrderSnap.data().status === 'pending_buyer_confirmation') {
@@ -838,6 +847,80 @@ exports.autoRelistSweep = functions.pubsub
     }
     return null;
   });
+
+/**
+ * Announce a second-chance offer, then mark it announced.
+ *
+ * Shared by the open pass and the retry sweep so there is exactly one place
+ * that decides WHO hears about an offer and one place that stamps
+ * `notifiedAt` — a second copy would be free to drift into notifying the wrong
+ * party or into never stamping.
+ *
+ * The stamp is written only AFTER notify returns. Throws on a failed stamp, on
+ * purpose: the caller's catch logs it, `notifiedAt` stays null, and the sweep
+ * picks the lot up next run.
+ */
+async function notifySecondChanceOffer(auctionRef, auction, offer) {
+  // pending_seller waits on the seller; pending_buyer goes straight out.
+  // Reuses `below_reserve_offer` deliberately — the live n8n workflow routes a
+  // fixed 21-event contract and silently drops anything else.
+  const uid = offer.status === 'pending_seller' ? auction.sellerId : offer.bidderId;
+  await notify({
+    uid,
+    event: 'below_reserve_offer',
+    data: {
+      auctionId: auctionRef.id,
+      auctionTitle: auction.title || '',
+      topBid: offer.amount,
+      idempotencyKey: `${auctionRef.id}_second_chance_open`,
+    },
+  });
+  await auctionRef.update({
+    'secondChanceOffer.notifiedAt': admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * Finish the job for offers that were opened but never announced.
+ *
+ * Stamping the offer and telling someone about it are two writes. When the
+ * second fails, the lot ends up in the worst of both worlds: held out of
+ * auto-relist for 24h on behalf of a bidder who was never told they had an
+ * offer. Nothing else can rescue it — the defaulted order has left the
+ * enforcer's `waiting_payment` query permanently, and the one-offer-per-lot
+ * guard would skip the auction anyway.
+ *
+ * Runs on EVERY enforcer tick, including ticks where nothing new defaults —
+ * which is most of them, and exactly when the stranded offer from an earlier
+ * run is waiting.
+ *
+ * The query leans on `notifiedAt: null` being written explicitly: Firestore's
+ * `== null` matches a stored null but NOT a missing field, so lots that never
+ * had an offer never appear here. NEVER THROWS.
+ */
+async function retryUnnotifiedSecondChanceOffers() {
+  try {
+    const snap = await db.collection('auctions')
+      .where('secondChanceOffer.notifiedAt', '==', null)
+      .limit(50)
+      .get();
+    for (const docSnap of snap.docs) {
+      const auction = docSnap.data() || {};
+      const offer = auction.secondChanceOffer;
+      // Expired or already-decided offers stay unstamped and simply age out —
+      // re-announcing one would invite someone to act on a dead offer.
+      if (!needsNotifyRetry(offer, Date.now())) continue;
+      try {
+        await notifySecondChanceOffer(docSnap.ref, auction, offer);
+        console.log(`[secondChance] re-announced stranded ${offer.status} offer on ${docSnap.id}`);
+      } catch (e) {
+        console.error(`[secondChance] notify retry failed for ${docSnap.id} (non-fatal):`, e && e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[secondChance] un-notified sweep failed (non-fatal):', e && e.message);
+  }
+}
 
 /**
  * Open a second-chance offer on each freshly-defaulted lot.
@@ -915,6 +998,16 @@ async function openSecondChanceOffers(defaultedDocs) {
 
       await auctionRef.update({ secondChanceOffer: offer });
 
+      // ORDER MATTERS from here. The offer is now live and already holds the lot
+      // out of auto-relist for 24h, so announcing it is no longer optional —
+      // and these are separate round-trips that cannot be made atomic. So:
+      // announce, THEN stamp notifiedAt, and leave the audit row last. Anything
+      // that fails before the stamp leaves `notifiedAt: null`, which is what
+      // retryUnnotifiedSecondChanceOffers hunts for on a later run. A failure
+      // after it costs only a log line.
+      await notifySecondChanceOffer(auctionRef, auction, offer);
+      console.log(`[secondChance] opened ${openingState} on ${auctionId} for ${runnerUp.bidderId}`);
+
       await db.collection('system_health').add({
         type: 'second_chance_opened',
         title: `Second chance offered (${openingState})`,
@@ -922,22 +1015,6 @@ async function openSecondChanceOffers(defaultedDocs) {
         source: 'paymentDefaultEnforcer',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-
-      // pending_seller waits on the seller; pending_buyer goes straight out.
-      // Reuses `below_reserve_offer` deliberately — the live n8n workflow routes
-      // a fixed 21-event contract and silently drops anything else.
-      const notifyUid = openingState === 'pending_seller' ? auction.sellerId : runnerUp.bidderId;
-      await notify({
-        uid: notifyUid,
-        event: 'below_reserve_offer',
-        data: {
-          auctionId,
-          auctionTitle: auction.title || '',
-          topBid: runnerUp.amount,
-          idempotencyKey: `${auctionId}_second_chance_open`,
-        },
-      });
-      console.log(`[secondChance] opened ${openingState} on ${auctionId} for ${runnerUp.bidderId}`);
     } catch (e) {
       console.error(`[secondChance] failed for auction ${auctionId} (non-fatal):`, e && e.message);
     }
@@ -976,6 +1053,12 @@ exports.paymentDefaultEnforcer = functions.pubsub
           console.log(`[paymentDefaultEnforcer] cooldown expired — unblocked ${uDoc.id}`);
         }
       }
+
+      // A2. Finish any second-chance offer that was opened but never announced.
+      // Deliberately ABOVE the `snap.empty` early return below: the stranded
+      // offer was opened on some earlier run, and the runs that can rescue it
+      // are overwhelmingly the ones where nothing new defaults.
+      await retryUnnotifiedSecondChanceOffers();
 
       // B. Default any order past its payment deadline and advance the buyer's
       // strike ladder (1st = 48h, repeat = 3-month). Group by buyer so a buyer
@@ -1028,6 +1111,20 @@ exports.paymentDefaultEnforcer = functions.pubsub
         }, { merge: true });
         await batch.commit();
         console.log(`[paymentDefaultEnforcer] buyer ${buyerId}: +1 strike (${docs.length} order(s) defaulted) → ${newStrikes}, ${blockedReason} until ${new Date(blockedUntil).toISOString()}`);
+        // Second chance for THIS buyer's lots, immediately after their commit
+        // and never before it — the runner-up lookup needs a bids subcollection
+        // query, which has no place inside a write batch. Per-buyer rather than
+        // once at the end because a later buyer's commit can throw: those
+        // orders are already `defaulted` and will never re-enter the
+        // `waiting_payment` query, so a deferred pass would forfeit their
+        // second chance for good. Wrapped because this function ALSO lifts
+        // expired bans above; a second-chance failure must not stop that.
+        // Re-entry is safe — the offer-already-exists guard makes it a no-op.
+        try {
+          await openSecondChanceOffers(docs);
+        } catch (e) {
+          console.error('[paymentDefaultEnforcer] second-chance pass failed (non-fatal):', e && e.message);
+        }
       }
 
       // Orders with no buyer id: still default them (no strike to apply).
@@ -1035,15 +1132,14 @@ exports.paymentDefaultEnforcer = functions.pubsub
         const batch = db.batch();
         markDefaulted(batch, doc);
         await batch.commit();
-      }
-
-      // Second chance: recover the sale the default just killed. Wrapped
-      // because this function ALSO lifts expired bans above — a second-chance
-      // failure must never stop that from running.
-      try {
-        await openSecondChanceOffers(snap.docs);
-      } catch (e) {
-        console.error('[paymentDefaultEnforcer] second-chance pass failed (non-fatal):', e && e.message);
+        // Same call for the same reason — one code path, no special case. These
+        // orders are then skipped inside: with no buyerId there is no way to
+        // tell the runner-up from the defaulter.
+        try {
+          await openSecondChanceOffers([doc]);
+        } catch (e) {
+          console.error('[paymentDefaultEnforcer] second-chance pass failed (non-fatal):', e && e.message);
+        }
       }
     } catch (err) {
       console.error('[paymentDefaultEnforcer]', err);

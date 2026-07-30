@@ -98,7 +98,18 @@ function openingStateFor(runnerUpAmount, reserve) {
   return Number(runnerUpAmount) >= r ? 'pending_buyer' : 'pending_seller';
 }
 
-/** The offer stamped onto the auction as `secondChanceOffer`. */
+/**
+ * The offer stamped onto the auction as `secondChanceOffer`.
+ *
+ * `notifiedAt: null` is written EXPLICITLY, not omitted. Stamping the offer and
+ * telling the recipient about it are two writes and cannot be made atomic; if
+ * the second fails, the offer is live, it blocks auto-relist for 24h, and
+ * nobody knows. That state is otherwise unrecoverable — the defaulted order
+ * never re-enters the enforcer's `waiting_payment` query, and the
+ * already-has-an-offer guard would skip the lot anyway. The explicit null is
+ * what makes the un-notified offer FINDABLE (a missing field does not match a
+ * Firestore `== null` query) so `needsNotifyRetry` can re-drive it.
+ */
 function buildOfferRecord(deps, { runnerUp, defaultedOrderId, openingState }) {
   const { Timestamp, now = () => Date.now() } = deps;
   const nowMs = now();
@@ -110,6 +121,7 @@ function buildOfferRecord(deps, { runnerUp, defaultedOrderId, openingState }) {
     defaultedOrderId,
     openedAt: Timestamp.fromMillis(nowMs),
     expiresAt: Timestamp.fromMillis(belowReserveExpiryMs(nowMs)),
+    notifiedAt: null,
   };
 }
 
@@ -137,6 +149,52 @@ function offerIsLive(offer, nowMs) {
   return !isBelowReserveOfferExpired(offer, nowMs);
 }
 
+/**
+ * Was this offer opened but never announced?
+ *
+ * The offer write and the notification are separate round-trips. When the
+ * second one fails the lot is worse off than if nothing had happened: it is
+ * held out of auto-relist for a full 24h on behalf of someone who was never
+ * told they had an offer. Nothing re-drives it on its own — the defaulted order
+ * has left the enforcer's `waiting_payment` query for good — so this predicate
+ * exists to let a sweep find and finish the job.
+ *
+ * Only LIVE offers qualify. Re-announcing an expired or already-decided offer
+ * would be worse than silence.
+ */
+function needsNotifyRetry(offer, nowMs) {
+  if (!offerIsLive(offer, nowMs)) return false;
+  return offer.notifiedAt === null || offer.notifiedAt === undefined;
+}
+
+/**
+ * THE STATUS VOCABULARY, PINNED.
+ *
+ * A second-chance offer is stored in the same shape as a below-reserve one and
+ * is read by the same helpers — `settlement.belowReserveBlocksRelist` decides
+ * whether it blocks an auto-relist, and it recognises these literals and no
+ * others. A near-synonym ('accepted' for 'confirmed', 'open' for 'pending_*')
+ * would not error anywhere; it would silently fall through to "does not block",
+ * the lot would relist while a live offer stood on it, and two people could buy
+ * the same item. That is precisely the failure Task 2a exists to prevent.
+ *
+ * Each status maps to what it means for a relist:
+ *   live   — undecided and inside its window: block, the sale may still happen.
+ *   sold   — a sale exists: block forever.
+ *   closed — dead end: release the lot.
+ *
+ * `secondChance.test.js` walks this map against both helpers, so ADDING a
+ * status here without teaching `belowReserveBlocksRelist` about it fails the
+ * suite loudly instead of quietly unblocking a relist.
+ */
+const OFFER_STATUSES = {
+  pending_seller: 'live',
+  pending_buyer: 'live',
+  confirmed: 'sold',
+  declined: 'closed',
+  expired: 'closed',
+};
+
 module.exports = {
   SECOND_CHANCE_ORDER_SUFFIX,
   secondChanceOrderId,
@@ -145,4 +203,6 @@ module.exports = {
   buildOfferRecord,
   secondChanceOrderMoney,
   offerIsLive,
+  needsNotifyRetry,
+  OFFER_STATUSES,
 };
