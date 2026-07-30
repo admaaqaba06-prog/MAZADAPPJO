@@ -117,6 +117,29 @@ describe('below_reserve_offer copy — second chance vs a genuine below-reserve 
   });
 });
 
+describe('below_reserve_declined copy — who closed the second chance', () => {
+  // The event is reused for both directions. Its default line says the SELLER
+  // did not accept — false when the runner-up is the one who declined, and that
+  // message now goes to the SELLER, whose lot has just become relist-eligible.
+  it('keeps the bidder-facing wording when the seller declines', () => {
+    const c = copyFor('below_reserve_declined', { auctionTitle: 'ساعة', secondChance: true, declinedBy: 'seller' });
+    expect(c.description).toContain('لم يقبل البائع');
+    expect(c.type).toBe('loss');
+  });
+
+  it('tells the seller the runner-up declined and the lot is theirs again', () => {
+    const c = copyFor('below_reserve_declined', { auctionTitle: 'ساعة', secondChance: true, declinedBy: 'buyer' });
+    expect(c.description).toContain('رفض المزايد');
+    expect(c.description).not.toContain('مزايدتك');
+    expect(c.description).toContain('ساعة');
+  });
+
+  it('is unchanged for a plain below-reserve decline', () => {
+    const c = copyFor('below_reserve_declined', { auctionTitle: 'ساعة' });
+    expect(c).toEqual({ type: 'loss', title: 'لم يُقبل العرض', description: 'لم يقبل البائع مزايدتك على "ساعة".' });
+  });
+});
+
 describe('E6 return events', () => {
   it('return_requested → all channels', () => {
     expect(channelsFor('return_requested')).toEqual({ inapp: true, whatsapp: true, email: true });

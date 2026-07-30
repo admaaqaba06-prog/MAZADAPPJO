@@ -90,6 +90,32 @@ function orderDeepLink(orderId) {
   return `${SITE}/orders?modal=order&order=${encodeURIComponent(id)}`;
 }
 
+/** The lot's own page (`/auction/<id>` — see src/utils/navUrl.ts VIEW_PATH). */
+function auctionDeepLink(auctionId) {
+  const id = String(auctionId ?? '').trim();
+  if (!id) return `${SITE}/discover`;
+  return `${SITE}/auction/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Where the CTA points.
+ *
+ * A real order id always wins. Without one we normally fall back to the auction
+ * id, which works because a normal order IS `orders/{auctionId}` — but a
+ * SECOND-CHANCE email breaks that assumption twice over: no order exists yet
+ * when the offer goes out, and `orders/{auctionId}` is the DEFAULTED buyer's
+ * document, which firestore.rules refuses to show the runner-up. The one email
+ * whose whole job is to convert them would land on a permission error. So a
+ * second chance links to the lot itself, which exists and which they can open.
+ */
+function ctaUrlFor(data) {
+  const orderId = String(data.orderId ?? '').trim();
+  if (orderId) return orderDeepLink(orderId);
+  const auctionId = String(data.auctionId ?? '').trim();
+  if (data.secondChance === true && auctionId) return auctionDeepLink(auctionId);
+  return orderDeepLink(auctionId);
+}
+
 /** Rows shown as a labelled table. Anything without a value is omitted. */
 function detailRows(data) {
   const t = cleanTitle(data.auctionTitle);
@@ -264,7 +290,6 @@ const FALLBACK = {
 function emailFor(event, data = {}) {
   const c = secondChanceContent(event, data) || CONTENT[event] || FALLBACK;
   const t = cleanTitle(data.auctionTitle) || 'مزاد جو';
-  const orderId = data.orderId || data.auctionId || '';
 
   return {
     event,
@@ -276,11 +301,11 @@ function emailFor(event, data = {}) {
     heading: c.heading,
     intro: c.intro,
     details: detailRows(data),
-    cta: c.cta ? { label: c.cta, url: orderDeepLink(orderId) } : null,
+    cta: c.cta ? { label: c.cta, url: ctaUrlFor(data) } : null,
     brand: BRAND,
   };
 }
 
 module.exports = {
-  emailFor, formatJod, formatDeadline, orderDeepLink, cleanTitle, detailRows, BRAND,
+  emailFor, formatJod, formatDeadline, orderDeepLink, auctionDeepLink, cleanTitle, detailRows, BRAND,
 };

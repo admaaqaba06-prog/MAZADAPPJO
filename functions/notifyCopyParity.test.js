@@ -72,6 +72,8 @@ const DATA_VARIANTS = [
   { auctionTitle: 'ساعة رولكس', topBid: 90, secondChance: true, offerStatus: 'pending_buyer' },
   { auctionTitle: 'ساعة رولكس', secondChance: true },
   { auctionTitle: 'ساعة رولكس', secondChance: false, offerStatus: 'pending_buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'seller' },
 ];
 
 describe('n8n build-messages.js mirrors functions/notify.js copyFor (drift guard)', () => {

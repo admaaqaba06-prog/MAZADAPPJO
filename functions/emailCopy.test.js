@@ -196,6 +196,34 @@ describe('emailFor — below_reserve_offer branches for a second chance', () => 
   });
 });
 
+describe('emailFor — a second-chance CTA never points at the defaulted order', () => {
+  // No order exists when the offer goes out, and orders/<auctionId> belongs to
+  // the buyer who defaulted — firestore.rules refuses to show it to the
+  // runner-up. The one email whose job is to convert them used to land there.
+  it('links a second-chance offer to the lot page', () => {
+    for (const event of ['below_reserve_offer', 'below_reserve_seller_accepted']) {
+      const e = emailFor(event, { auctionTitle: 'ساعة', auctionId: 'a1', secondChance: true });
+      expect(e.cta.url, event).toBe('https://www.mazad-jo.com/auction/a1');
+      expect(e.cta.url, event).not.toContain('modal=order');
+    }
+  });
+
+  it('still links to the order once one exists', () => {
+    const e = emailFor('payment_due', { auctionTitle: 'ساعة', auctionId: 'a1', orderId: 'a1__sc', secondChance: true });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1__sc');
+  });
+
+  it('leaves the non-second-chance fallback alone (a normal order IS the auction id)', () => {
+    const e = emailFor('auction_won', { auctionTitle: 'ساعة', auctionId: 'a1' });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1');
+  });
+
+  it('url-encodes an awkward auction id', () => {
+    const e = emailFor('below_reserve_offer', { auctionId: 'a b', secondChance: true });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/auction/a%20b');
+  });
+});
+
 describe('BRAND — the footer identity that was missing entirely', () => {
   it('carries the registered entity and licence number', () => {
     expect(BRAND.legalName).toContain('Al Hani');

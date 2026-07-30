@@ -33,7 +33,8 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
-const { pickRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId, secondChanceOrderMoney, offerIsLive } = require('./secondChance');
+const { pickRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
+const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
@@ -3080,21 +3081,13 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
 });
 
 /**
- * respondToSecondChance — act on a second-chance offer.
+ * respondToSecondChance — act on a second-chance offer (seller_accept /
+ * buyer_accept / decline).
  *
- *   seller_accept → pending_seller becomes pending_buyer, and the BUYER gets a
- *                   FRESH 24h (not the residual of the seller's window), exactly
- *                   as acceptBelowReserve does.
- *   buyer_accept  → mints orders/<auctionId>__sc and confirms the offer.
- *   decline       → terminal; unblocks relist.
- *
- * The second-chance order CANNOT reuse the auction id: the defaulted order
- * already owns `orders/{auctionId}`. Money is recomputed from the runner-up's
- * own bid — never inherited from the dead order, which was for more.
- *
- * Statuses written here are the literals in secondChance.OFFER_STATUSES;
- * 'confirmed' in particular is what `belowReserveBlocksRelist` recognises as a
- * permanent relist block. A near-synonym would let the lot relist under a sale.
+ * Thin wrapper, same split as submitOrderPayment: the transaction, the money
+ * and the state machine live in ./secondChanceRespond (unit-tested with an
+ * injected db); this does auth, the post-commit notify, and the cosmetic order
+ * reference.
  */
 exports.respondToSecondChance = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -3102,167 +3095,21 @@ exports.respondToSecondChance = functions.runWith({ cors: true }).https.onCall(a
   }
   const callerUserId = context.auth.uid;
   const { auctionId, action } = data || {};
-  if (!auctionId) {
-    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
-  }
-  if (!['seller_accept', 'buyer_accept', 'decline'].includes(action)) {
-    throw new functions.https.HttpsError('invalid-argument', 'إجراء غير معروف.');
-  }
 
   try {
-    let pendingNotify = null;
-    const result = await db.runTransaction(async (transaction) => {
-      pendingNotify = null; // a retried txn must not re-emit a prior attempt's notify
-
-      const auctionRef = db.collection('auctions').doc(auctionId);
-      const orderRef = db.collection('orders').doc(secondChanceOrderId(auctionId));
-      const [auctionSnap, orderSnap] = await Promise.all([
-        transaction.get(auctionRef),
-        transaction.get(orderRef),
-      ]);
-      if (!auctionSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'المزاد غير موجود.');
-      }
-      const auction = auctionSnap.data() || {};
-      const offer = auction.secondChanceOffer;
-      if (!offer) {
-        throw new functions.https.HttpsError('failed-precondition', 'لا يوجد عرض فرصة ثانية على هذا المزاد.');
-      }
-
-      // Idempotency BEFORE the liveness gate: a confirmed offer is no longer
-      // "live", so a double-tap from the buyer would otherwise be answered with
-      // "the offer expired" for a purchase that in fact succeeded.
-      if (action === 'buyer_accept' && offer.status === 'confirmed' && orderSnap.exists) {
-        return { success: true, message: 'تم إنشاء الطلب سابقاً.', alreadyCreated: true };
-      }
-
-      if (!offerIsLive(offer, Date.now())) {
-        throw new functions.https.HttpsError('failed-precondition', 'انتهت صلاحية العرض أو تم إغلاقه.');
-      }
-
-      const isSeller = auction.sellerId === callerUserId;
-      const isBidder = offer.bidderId === callerUserId;
-
-      if (action === 'seller_accept') {
-        if (!isSeller) throw new functions.https.HttpsError('permission-denied', 'البائع فقط يمكنه قبول هذا العرض.');
-        if (offer.status !== 'pending_seller') throw new functions.https.HttpsError('failed-precondition', 'العرض ليس بانتظار موافقة البائع.');
-        transaction.update(auctionRef, {
-          'secondChanceOffer.status': 'pending_buyer',
-          'secondChanceOffer.sellerAcceptedAt': admin.firestore.FieldValue.serverTimestamp(),
-          // Fresh window for the buyer — see acceptBelowReserve for the same reasoning.
-          'secondChanceOffer.expiresAt': admin.firestore.Timestamp.fromMillis(belowReserveExpiryMs(Date.now())),
-        });
-        pendingNotify = {
-          uid: offer.bidderId,
-          event: 'below_reserve_seller_accepted',
-          auctionTitle: auction.title || '',
-          topBid: offer.amount,
-        };
-        return { success: true, message: 'تم قبول العرض. بانتظار تأكيد المشتري.' };
-      }
-
-      if (action === 'decline') {
-        if (!isSeller && !isBidder) throw new functions.https.HttpsError('permission-denied', 'لا تملك صلاحية على هذا العرض.');
-        transaction.update(auctionRef, {
-          'secondChanceOffer.status': 'declined',
-          'secondChanceOffer.declinedAt': admin.firestore.FieldValue.serverTimestamp(),
-          'secondChanceOffer.declinedBy': callerUserId,
-        });
-        // Tell the runner-up their offer is closed — UNLESS they are the one who
-        // just closed it. The `below_reserve_declined` copy says the SELLER did
-        // not accept, which is false (and pointless) when the bidder declined.
-        if (!isBidder) {
-          pendingNotify = {
-            uid: offer.bidderId,
-            event: 'below_reserve_declined',
-            auctionTitle: auction.title || '',
-          };
-        }
-        return { success: true, message: 'تم إغلاق العرض.' };
-      }
-
-      // buyer_accept
-      if (!isBidder) throw new functions.https.HttpsError('permission-denied', 'صاحب العرض فقط يمكنه القبول.');
-      if (offer.status !== 'pending_buyer') throw new functions.https.HttpsError('failed-precondition', 'العرض بانتظار موافقة البائع.');
-      if (orderSnap.exists) {
-        return { success: true, message: 'تم إنشاء الطلب سابقاً.', alreadyCreated: true };
-      }
-
-      // `offer.bidderName` comes off the bid document and may be the MASKED
-      // public label — or, by design, an empty string (secondChance.pickRunnerUp
-      // refuses to pick a display fallback in English for an Arabic-first
-      // product). The PRIVATE order needs a real, non-empty name, so resolve it
-      // from the user doc here. This read must precede every write below
-      // (Firestore: all reads first); it could not join the Promise.all above
-      // because bidderId is only known after reading the auction.
-      let buyerName = offer.bidderName || '';
-      if (offer.bidderId) {
-        const bidderSnap = await transaction.get(db.collection('users').doc(offer.bidderId));
-        if (bidderSnap.exists && bidderSnap.data().name) buyerName = bidderSnap.data().name;
-      }
-      if (!buyerName) buyerName = 'مشتري';
-
-      const money = secondChanceOrderMoney(offer.amount);
-      const paymentDeadlineAt = paymentDeadlineFromNow(auction);
-      const paymentWindowHours = resolvePaymentWindowHours(auction.paymentWindowHours);
-      transaction.set(orderRef, {
-        id: orderRef.id,
-        auctionId,
-        auctionTitle: auction.title || '',
-        auctionImage: auction.thumbnailUrl || auction.imageUrl || '',
-        sellerId: auction.sellerId || '',
-        sellerName: auction.sellerName || 'Seller',
-        buyerId: offer.bidderId,
-        buyerName,
-        ...money,
-        paymentDeadlineAt,
-        paymentWindowHours,
-        status: 'waiting_payment',
-        paymentStatus: 'unpaid',
-        shippingStatus: 'not_started',
-        escrowStatus: 'locked',
-        // Provenance: this order exists because another one died.
-        secondChanceFor: offer.defaultedOrderId || auctionId,
-        ...(auction.isSimulated === true ? { isSimulated: true } : {}),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      transaction.update(auctionRef, {
-        // MUST be the literal 'confirmed' — belowReserveBlocksRelist blocks a
-        // relist forever on that exact string, and nothing else.
-        'secondChanceOffer.status': 'confirmed',
-        'secondChanceOffer.confirmedAt': admin.firestore.FieldValue.serverTimestamp(),
-      });
-      pendingNotify = {
-        uid: offer.bidderId,
-        event: 'payment_due',
-        orderId: orderRef.id,
-        auctionTitle: auction.title || '',
-        totalDue: money.totalDue,
-        paymentHours: paymentWindowHours,
-        paymentDeadlineAt,
-      };
-      return { success: true, message: 'تم تأكيد الشراء. أكمل الدفع خلال المهلة.' };
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const { result, notify: pendingNotify } = await respondToSecondChanceTxn(deps, {
+      auctionId, action, callerUserId,
     });
 
     // Post-commit: a notify inside a transaction re-sends on every retry.
-    if (pendingNotify) {
+    if (pendingNotify && pendingNotify.uid) {
       try {
         await notify({
           uid: pendingNotify.uid,
           event: pendingNotify.event,
           data: {
-            auctionId,
-            auctionTitle: pendingNotify.auctionTitle || '',
-            // Marks the whole flow as a second chance so the copy layer can say
-            // what actually happened (the winner defaulted) instead of the
-            // below-reserve wording this event carries by default.
-            secondChance: true,
-            ...(pendingNotify.topBid ? { topBid: pendingNotify.topBid } : {}),
-            ...(pendingNotify.orderId ? { orderId: pendingNotify.orderId } : {}),
-            ...(pendingNotify.totalDue ? { totalDue: pendingNotify.totalDue } : {}),
-            ...(pendingNotify.paymentHours ? { paymentHours: pendingNotify.paymentHours } : {}),
-            ...(pendingNotify.paymentDeadlineAt ? { paymentDeadlineAt: pendingNotify.paymentDeadlineAt } : {}),
+            ...pendingNotify.data,
             idempotencyKey: `${auctionId}_sc_${action}`,
           },
         });
@@ -3274,16 +3121,18 @@ exports.respondToSecondChance = functions.runWith({ cors: true }).https.onCall(a
     // A ref is cosmetic — never let it fail the purchase.
     if (result && result.success && action === 'buyer_accept' && !result.alreadyCreated) {
       try {
-        await assignOrderRef({ db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() }, secondChanceOrderId(auctionId));
+        await assignOrderRef(deps, secondChanceOrderId(auctionId));
       } catch (e) {
         console.error('[respondToSecondChance] assignOrderRef failed (non-fatal):', e && e.message);
       }
     }
+    console.log(`[respondToSecondChance] ${action} on ${auctionId} by ${callerUserId}`);
     return result;
   } catch (error) {
     if (error instanceof functions.https.HttpsError) throw error;
     console.error('Error in respondToSecondChance:', error);
-    throw new functions.https.HttpsError('internal', error.message || 'تعذر تنفيذ العملية.');
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument', 'unauthenticated'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'تعذر تنفيذ العملية.');
   }
 });
 
