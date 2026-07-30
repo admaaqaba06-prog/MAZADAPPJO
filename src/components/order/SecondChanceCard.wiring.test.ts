@@ -29,28 +29,27 @@
  * break these tests — only an actual change of argument does.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const SRC_DIR = join(HERE, '..', '..');
 const SRC = readFileSync(join(HERE, 'SecondChanceCard.tsx'), 'utf8');
 
 /**
- * The top-level arguments of the first CALL to `fnName`, whitespace-collapsed.
- * Brace/bracket/paren depth is tracked so nested calls and object literals stay
- * inside their own argument. The import list is never matched — it has no `(`.
+ * The top-level arguments of the call to `fnName` starting at `from`,
+ * whitespace-collapsed. Brace/bracket/paren depth is tracked so nested calls and
+ * object literals stay inside their own argument. An import list is never
+ * matched — it has no `(`.
  */
-function callArgs(fnName: string): string[] {
-  const start = SRC.indexOf(`${fnName}(`);
-  expect(start, `${fnName} is never called in SecondChanceCard.tsx`).toBeGreaterThan(-1);
-
-  let i = start + fnName.length + 1; // just past the opening paren
+function argsAt(src: string, fnName: string, from: number): string[] {
+  let i = from + fnName.length + 1; // just past the opening paren
   let depth = 1;
   const args: string[] = [];
   let cur = '';
-  while (i < SRC.length) {
-    const ch = SRC[i];
+  while (i < src.length) {
+    const ch = src[i];
     if (ch === '(' || ch === '[' || ch === '{') depth++;
     else if (ch === ')' || ch === ']' || ch === '}') {
       depth--;
@@ -68,6 +67,52 @@ function callArgs(fnName: string): string[] {
   expect(depth, `unbalanced parens while parsing ${fnName}(...)`).toBe(0);
   args.push(cur);
   return args.map((a) => a.replace(/\s+/g, ' ').trim()).filter((a) => a !== '');
+}
+
+/** The first call to `fnName` in the card. */
+function callArgs(fnName: string): string[] {
+  const start = SRC.indexOf(`${fnName}(`);
+  expect(start, `${fnName} is never called in SecondChanceCard.tsx`).toBeGreaterThan(-1);
+  return argsAt(SRC, fnName, start);
+}
+
+/** Every .ts/.tsx file under src/, tests excluded. */
+function sourceFiles(dir = SRC_DIR, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      sourceFiles(full, out);
+    } else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * EVERY call to `fnName` anywhere under src/, as `{ file, args }`.
+ *
+ * A sweep rather than a fixed list of files, deliberately: the C1 regression was
+ * a call site that no test looked at. A future third surface is covered the day
+ * it is written, not the day someone remembers to add it here.
+ *
+ * The declaration itself (`function fnName(`) is skipped — it is a signature,
+ * not a call.
+ */
+function allCallSites(fnName: string): { file: string; args: string[] }[] {
+  const found: { file: string; args: string[] }[] = [];
+  for (const file of sourceFiles()) {
+    const src = readFileSync(file, 'utf8');
+    let at = src.indexOf(`${fnName}(`);
+    while (at > -1) {
+      const preceding = src.slice(Math.max(0, at - 20), at);
+      if (!/\bfunction\s+$/.test(preceding)) {
+        found.push({ file: relative(SRC_DIR, file), args: argsAt(src, fnName, at) });
+      }
+      at = src.indexOf(`${fnName}(`, at + 1);
+    }
+  }
+  return found;
 }
 
 describe('SecondChanceCard wiring — the money argument each helper receives', () => {
@@ -133,6 +178,13 @@ describe('SecondChanceCard wiring — the money argument each helper receives', 
  * freshly-built `{ id: currentUser?.id }` — typechecks, renders, and silently
  * reports "not blocked" for everybody, which is the exact defect. No render test
  * can see this, so it is pinned here.
+ *
+ * TYPESCRIPT IS NOT THE SAFETY NET HERE, and believing it was is what let the C1
+ * regression ship green. `@types/react` is not installed and tsconfig.json sets
+ * neither `strict` nor `noImplicitAny`, so `useApp()` is implicitly `any` — and
+ * every viewer in this app comes from it. `any` is assignable to anything, so an
+ * id passed where a user is required raises NOTHING from `tsc --noEmit`. These
+ * assertions are the only thing standing between a call site and the bug.
  */
 describe('SecondChanceCard wiring — the viewer the ban check receives', () => {
   it('hands secondChanceViewState the whole user, not an id', () => {
@@ -164,5 +216,70 @@ describe('SecondChanceCard wiring — the viewer the ban check receives', () => 
       .replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/\?\s*\(\s*!state\.awaitingOther\b/);
     expect(code).not.toMatch(/\?\s*\(\s*state\.canAccept\b/);
+  });
+});
+
+/**
+ * REVIEW C1 — EVERY call site, not just the card's.
+ *
+ * The card's own call was correct and this file still shipped the regression,
+ * because this file read `SecondChanceCard.tsx` and nothing else. The broken call
+ * was `SellerCenterView.tsx`'s `showSecondChance` gate, 105 lines above the JSX
+ * that passes the prop:
+ *
+ *     const showSecondChance = secondChanceViewState(auction, currentUser?.id, …)
+ *
+ * Under the viewer-is-a-user signature `viewer?.id` on a bare string is
+ * `undefined`, so neither party matches, the gate is `false` FOREVER, and the
+ * card never mounts. Seller Center is the seller's ONLY in-app surface for a
+ * `pending_seller` offer — `useMySecondChanceOffers` filters on
+ * `secondChanceOffer.bidderId`, so MyOrders shows the card to the runner-up
+ * alone. The seller would get the WhatsApp and the email, open the app, find
+ * nothing to tap, and the offer would lapse in 24h: the below-reserve
+ * seller-consent half of the feature, silently deleted.
+ *
+ * So this sweeps every .ts/.tsx under src/ rather than naming files. A future
+ * third surface is covered the day it is written.
+ */
+describe('secondChanceViewState — every call site in the app', () => {
+  const sites = allCallSites('secondChanceViewState');
+
+  it('finds the call sites at all (a sweep that matches nothing proves nothing)', () => {
+    // The card + the two host views' gates. Fewer means the sweep is broken or a
+    // surface was deleted; either way, look before editing this number.
+    expect(sites.length).toBeGreaterThanOrEqual(3);
+    const files = sites.map((s) => s.file);
+    expect(files).toContain('components/order/SecondChanceCard.tsx');
+    expect(files).toContain('components/SellerCenterView.tsx');
+    expect(files).toContain('components/MyOrdersView.tsx');
+  });
+
+  it('every one of them passes a USER, never an id', () => {
+    for (const { file, args } of sites) {
+      // `.id` / `.uid` — the C1 mistake, and the one that cannot be typechecked
+      // because useApp() is implicitly `any`.
+      expect(args[1], `${file} narrows the viewer to an id`).not.toMatch(/\.(id|uid)\b/);
+      // An inline `{ id: … }` object: compiles, drops the ban fields, same bug.
+      expect(args[1], `${file} rebuilds the viewer without its ban fields`).not.toMatch(/^\{/);
+      // A bare `currentUserId`-style identifier.
+      expect(args[1], `${file} passes an id-named variable`).not.toMatch(/(^|\b)\w*[uU]serId$/);
+    }
+  });
+
+  it('every one of them passes something that could carry a ban', () => {
+    for (const { file, args } of sites) {
+      // Positive form of the rule above, so an unforeseen id shape still fails.
+      expect(args[1], `${file} does not pass a recognised viewer`).toMatch(/^(currentUser|viewer|user)\b/);
+    }
+  });
+
+  it('the SellerCenter gate and the card it guards agree on the viewer', () => {
+    // They are 105 lines apart and were changed independently — that distance is
+    // the whole reason C1 happened. Whatever one passes, the other must.
+    const seller = sites.filter((s) => s.file === 'components/SellerCenterView.tsx');
+    const card = sites.filter((s) => s.file === 'components/order/SecondChanceCard.tsx');
+    expect(seller).toHaveLength(1);
+    expect(card).toHaveLength(1);
+    expect(seller[0].args[1]).toBe(card[0].args[1]);
   });
 });

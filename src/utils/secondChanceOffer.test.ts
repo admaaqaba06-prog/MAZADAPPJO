@@ -164,6 +164,28 @@ describe('secondChanceViewState — nothing to show', () => {
     }
   });
 
+  /**
+   * REVIEW C1 — why an id-shaped viewer is SILENTLY fatal, pinned as behaviour.
+   *
+   * A leftover `currentUser?.id` reads `viewer?.id === undefined`, matches
+   * neither party, and returns HIDDEN for everybody — no error, no warning, the
+   * surface simply stops existing. It killed the Seller Center gate, and
+   * `tsc` cannot catch it: `@types/react` is not installed and tsconfig sets
+   * neither `strict` nor `noImplicitAny`, so `useApp()` is implicitly `any` and
+   * `any` is assignable to anything.
+   *
+   * `as any` here is the point of the test, not a shortcut around the types.
+   */
+  it('a bare string viewer matches NOBODY — the C1 failure mode, made visible', () => {
+    const auction = auctionOf(offerOf({ status: 'pending_seller' }));
+    expect(secondChanceViewState(auction, SELLER as any, NOW).visible).toBe(false);
+    expect(secondChanceViewState(auction, BIDDER as any, NOW).visible).toBe(false);
+    // The same inputs, correctly shaped, are visible — so the difference above
+    // is the viewer's shape and nothing else.
+    expect(secondChanceViewState(auction, SELLER_V, NOW).visible).toBe(true);
+    expect(secondChanceViewState(auction, BIDDER_V, NOW).visible).toBe(true);
+  });
+
   it('never matches a party on empty ids — a signed-out viewer is not the seller', () => {
     const anon = { sellerId: '', secondChanceOffer: offerOf({ bidderId: '' }) };
     expect(secondChanceViewState(anon, asViewer(''), NOW).visible).toBe(false);

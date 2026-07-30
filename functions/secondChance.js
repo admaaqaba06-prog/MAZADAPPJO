@@ -23,6 +23,9 @@ const {
   sellerCommissionFils,
   sellerNetFils,
 } = require('./settlement');
+// banLadder is pure too (no Firestore), so importing it keeps this module's
+// no-I/O promise intact. The CALLER does the read; this module only judges.
+const { isEffectivelyBlocked } = require('./banLadder');
 
 /**
  * The defaulted order already owns `orders/{auctionId}` — settleAuctionTxn keys
@@ -66,6 +69,47 @@ function pickRunnerUp(bids, defaulterId) {
     }
   }
   return best;
+}
+
+/**
+ * Should this runner-up be passed over because their account is blocked?
+ *
+ * `secondChanceRespond` refuses `buyer_accept` from a blocked account with
+ * `failed-precondition`, and the payment-default ban MINIMUM is 48h
+ * (`resolvePaymentDefaultBan`) against a 24h offer window — so an offer opened to
+ * a blocked bidder cannot be accepted before it expires. That is DETERMINISTIC,
+ * not a race: the runner-up sees an Accept button the server will always refuse,
+ * while the lot is held out of auto-relist for 24h on behalf of someone who can
+ * never take it. With 21 of 31 real orders defaulted, a meaningful share of
+ * runner-ups are under an active block, very often for defaulting elsewhere.
+ *
+ * Takes a LOOKUP RESULT, not a uid: reading `users/{uid}` is I/O and this module
+ * does none. The caller reads the doc and reports what happened.
+ *
+ *   { readable: true,  user: {...} } — the doc was read
+ *   { readable: true,  user: null  } — no such user doc
+ *   { readable: false, user: null  } — the read THREW
+ *
+ * FAILS OPEN on both `user: null` cases, and the unreadable one is deliberately
+ * the opposite call to the reserve lookup in the same caller. Both reads fail in
+ * the direction that preserves the option; they simply have different costs. A
+ * failed RESERVE read risks selling under a seller's reserve, so it fails safe by
+ * asking the seller. A failed BAN read risks only re-creating the behaviour that
+ * shipped before this check existed — whereas failing closed would permanently
+ * destroy a legitimate runner-up's one and only shot, because a `defaulted` order
+ * never re-enters the enforcer's `waiting_payment` query and a second chance is
+ * one-shot. The accept-time gate is a complete backstop either way: it reads the
+ * bidder doc inside the transaction, so it is atomic rather than TOCTOU.
+ *
+ * Lives here, in the pure layer, so this decision is testable BEHAVIOURALLY. It
+ * was previously inline in index.js, which no test can import (firebase-admin at
+ * module scope) — a review mutated that inline check to `!isEffectivelyBlocked`,
+ * the exact inverse of the fix, and all 18 source-text tests still passed.
+ */
+function shouldSkipRunnerUp(lookup, nowMs) {
+  if (!lookup || typeof lookup !== 'object') return false;
+  if (lookup.readable === false) return false; // the read threw — do not punish the bidder for it
+  return isEffectivelyBlocked(lookup.user, nowMs);
 }
 
 /**
@@ -199,6 +243,7 @@ module.exports = {
   SECOND_CHANCE_ORDER_SUFFIX,
   secondChanceOrderId,
   pickRunnerUp,
+  shouldSkipRunnerUp,
   openingStateFor,
   buildOfferRecord,
   secondChanceOrderMoney,

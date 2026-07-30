@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
-  pickRunnerUp, openingStateFor, buildOfferRecord, secondChanceOrderMoney,
+  pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, secondChanceOrderMoney,
   secondChanceOrderId, offerIsLive, SECOND_CHANCE_ORDER_SUFFIX,
   needsNotifyRetry, OFFER_STATUSES,
 } from './secondChance.js';
@@ -15,6 +15,7 @@ import {
   buyerPremiumJod, totalDueJod, sellerCommissionFils, sellerNetFils,
   belowReserveBlocksRelist,
 } from './settlement.js';
+import { isEffectivelyBlocked } from './banLadder.js';
 
 const NOW = 1750000000000;
 const HOUR = 3600000;
@@ -56,6 +57,106 @@ describe('pickRunnerUp', () => {
     // product, so the caller picks the display fallback, not this module.
     const r = pickRunnerUp([{ bidderId: 'a', amount: 40 }], 'w');
     expect(r.bidderName).toBe('');
+  });
+});
+
+/**
+ * REVIEW F1 / I2 — the ban decision, tested BEHAVIOURALLY.
+ *
+ * This lived inline in index.js and was covered only by source-text greps. A
+ * review mutated it to `!isEffectivelyBlocked` — offering the lot to every
+ * banned runner-up and skipping every eligible one, the exact inverse of the fix
+ * — and all 18 of those assertions still passed. Hence this suite: the inversion
+ * has to die here, on behaviour, where no amount of correct-looking source can
+ * save it.
+ */
+describe('shouldSkipRunnerUp — the ban gate', () => {
+  const user = (over = {}) => ({ isBlocked: false, ...over });
+  const read = (u) => ({ readable: true, user: u });
+
+  it('SKIPS a runner-up serving an active block', () => {
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true, blockedUntil: NOW + 48 * HOUR })), NOW)).toBe(true);
+  });
+
+  it('OFFERS to a clean account', () => {
+    // The inversion mutant fails right here: it would skip this bidder.
+    expect(shouldSkipRunnerUp(read(user()), NOW)).toBe(false);
+    expect(shouldSkipRunnerUp(read({}), NOW)).toBe(false);
+  });
+
+  it('SKIPS a permanent ban, which carries no blockedUntil', () => {
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true, blockedUntil: null })), NOW)).toBe(true);
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true })), NOW)).toBe(true);
+  });
+
+  it('OFFERS once the cooldown has elapsed — an expired block is not a block', () => {
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true, blockedUntil: NOW - 1 })), NOW)).toBe(false);
+  });
+
+  it('is exact at the expiry boundary, matching isEffectivelyBlocked', () => {
+    const lift = NOW + HOUR;
+    const blocked = read(user({ isBlocked: true, blockedUntil: lift }));
+    expect(shouldSkipRunnerUp(blocked, lift - 1)).toBe(true);
+    expect(shouldSkipRunnerUp(blocked, lift)).toBe(false); // `until > now` — not >=
+    expect(shouldSkipRunnerUp(blocked, lift + 1)).toBe(false);
+  });
+
+  it('reads a Firestore Timestamp blockedUntil, not just epoch ms', () => {
+    // What the real user doc actually carries.
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true, blockedUntil: { toMillis: () => NOW + HOUR } })), NOW)).toBe(true);
+    expect(shouldSkipRunnerUp(read(user({ isBlocked: true, blockedUntil: { seconds: (NOW - HOUR) / 1000 } })), NOW)).toBe(false);
+  });
+
+  it('OFFERS when there is no user doc at all', () => {
+    // A bid with no surviving user record is not evidence of a ban.
+    expect(shouldSkipRunnerUp(read(null), NOW)).toBe(false);
+    expect(shouldSkipRunnerUp(read(undefined), NOW)).toBe(false);
+  });
+
+  /**
+   * THE FAIL-OPEN PATH, which had no coverage at all.
+   *
+   * Deliberately the opposite call to the reserve lookup in the same caller.
+   * Both reads fail in the direction that preserves the option; the costs
+   * differ. A failed RESERVE read risks selling under a seller's reserve, so it
+   * fails safe by asking the seller. A failed BAN read risks only re-creating
+   * the behaviour that shipped before this check existed — while failing closed
+   * would permanently destroy a legitimate runner-up's one and only shot, since
+   * a `defaulted` order never re-enters the enforcer's query. The accept-time
+   * gate remains a complete backstop: it reads the bidder doc inside the
+   * transaction, so it is atomic rather than TOCTOU.
+   */
+  it('OFFERS when the user lookup THREW — never punishes a bidder for our outage', () => {
+    expect(shouldSkipRunnerUp({ readable: false, user: null }, NOW)).toBe(false);
+  });
+
+  it('fails open even if a stale user object rides along with a failed read', () => {
+    // `readable: false` is decisive: whatever `user` holds is not trustworthy.
+    const stale = { readable: false, user: user({ isBlocked: true, blockedUntil: NOW + 48 * HOUR }) };
+    expect(shouldSkipRunnerUp(stale, NOW)).toBe(false);
+  });
+
+  it('fails open on a malformed lookup rather than throwing inside the sweep', () => {
+    // openSecondChanceOffers must never throw — paymentDefaultEnforcer also
+    // lifts expired bans, and a throw here would stop that too.
+    for (const junk of [null, undefined, 'nope', 42, []]) {
+      expect(() => shouldSkipRunnerUp(junk, NOW)).not.toThrow();
+      expect(shouldSkipRunnerUp(junk, NOW)).toBe(false);
+    }
+  });
+
+  it('gives the same answer as the accept-time gate for the same account', () => {
+    // One answer to "is this account restricted". If these two ever disagree,
+    // the enforcer opens offers the callable refuses — the original defect.
+    const cases = [
+      user(),
+      user({ isBlocked: true, blockedUntil: NOW + 48 * HOUR }),
+      user({ isBlocked: true, blockedUntil: NOW - 1 }),
+      user({ isBlocked: true, blockedUntil: null }),
+    ];
+    for (const u of cases) {
+      expect(shouldSkipRunnerUp(read(u), NOW)).toBe(isEffectivelyBlocked(u, NOW));
+    }
   });
 });
 

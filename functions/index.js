@@ -33,7 +33,7 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
-const { pickRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
+const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
@@ -874,14 +874,20 @@ async function notifySecondChanceOffer(auctionRef, auction, offer) {
   // when the field is empty. `notify()` does not fail on a blank uid either: it
   // posts to n8n with empty phone/email and returns happily.
   //
-  // Mirrors the identical guard on the decline path (secondChanceRespond.js's
-  // `if (!pendingNotify.uid) pendingNotify = null`); the asymmetry was the bug.
+  // Same PRINCIPLE as the decline path's `if (!pendingNotify.uid) pendingNotify
+  // = null` — a recipient-less notification is never sent — but deliberately NOT
+  // the same mechanism, and the difference matters. There, dropping the notify
+  // is the whole remedy: the transaction has already written the decline and
+  // there is no follow-up write to protect. HERE a `return` would fall straight
+  // through to the `notifiedAt` stamp below, which is the more damaging half of
+  // the bug: it marks the offer announced when nobody was told, so the retry
+  // sweep skips it forever.
   //
-  // THROWN, not silently swallowed, so `notifiedAt` stays null: that is the same
-  // contract as a failed notify, the caller's catch logs it, and the offer stays
-  // findable by retryUnnotifiedSecondChanceOffers rather than being disguised as
-  // announced. The retry stops on its own once the 24h window lapses
-  // (`needsNotifyRetry` requires a LIVE offer).
+  // Throwing is what keeps `notifiedAt` null. That is the same contract as a
+  // failed notify — the caller's catch logs it, and the offer stays findable by
+  // retryUnnotifiedSecondChanceOffers instead of being disguised as announced.
+  // The retry stops on its own once the 24h window lapses (`needsNotifyRetry`
+  // requires a LIVE offer).
   if (!uid) {
     throw new Error(`[secondChance] ${auctionRef.id}: ${offer.status} offer has no recipient uid — not announcing`);
   }
@@ -996,43 +1002,36 @@ async function openSecondChanceOffers(defaultedDocs) {
 
       // NEVER OPEN AN OFFER TO A BANNED RUNNER-UP.
       //
-      // secondChanceRespond refuses `buyer_accept` from a blocked account
-      // (`failed-precondition`), and the payment-default ban MINIMUM is 48h
-      // (resolvePaymentDefaultBan) against a 24h offer window — so an offer
-      // opened to a blocked bidder cannot be accepted before it expires. That is
-      // DETERMINISTIC, not a race: the runner-up is shown an Accept button the
-      // server will always refuse, while the lot is held out of auto-relist for
-      // 24h on their behalf. With 21 of 31 real orders defaulted, a meaningful
-      // share of runner-ups are under an active block — very often for
-      // defaulting on a different lot themselves.
+      // THE READ IS HERE, THE JUDGEMENT IS NOT. This function does the I/O —
+      // reading `users/{uid}` is exactly what the pure layer must not do — and
+      // `secondChance.shouldSkipRunnerUp` decides, so the decision is covered by
+      // BEHAVIOURAL tests rather than source greps. That split is not cosmetic: a
+      // review mutated the previous inline `isEffectivelyBlocked` to its inverse
+      // — offering to every banned runner-up and skipping every eligible one —
+      // and all 18 source-text assertions still passed. Do NOT re-inline it.
       //
-      // CHECKED HERE, at the call site, not inside `pickRunnerUp`: the ban lives
-      // on `users/{uid}` and reading it is I/O, which the pure layer does not do.
-      // Threading it in would mean reading a user doc for EVERY bidder to build
-      // the ban set before the pick, instead of one read for the one bidder who
-      // won it. Same helper and the same read shape as the accept path, so there
-      // is exactly one answer to "is this account restricted".
+      // The lookup result is reported honestly, including WHY it is empty:
+      // a missing doc and a failed read are different facts, and the helper owns
+      // what each one means (both fail open; see its comment for why the failed
+      // read is deliberately the opposite call to the reserve read below).
+      //
+      // NOT inside `pickRunnerUp`: threading the ban in would mean reading a user
+      // doc for EVERY bidder to build a ban set before the pick, instead of one
+      // read for the one bidder who won it.
       //
       // NO CASCADE to the third bidder — a second chance is one-shot by design
       // (see secondChance.js). A skipped lot simply follows today's relist path,
       // which is precisely the documented no-qualifying-bidder behaviour. The log
       // line is distinct from the no-runner-up one so the two are never confused.
-      let runnerUpUser = null;
-      let banReadable = true;
+      let banLookup = { readable: true, user: null };
       try {
         const bidderSnap = await db.collection('users').doc(runnerUp.bidderId).get();
-        runnerUpUser = bidderSnap.exists ? (bidderSnap.data() || {}) : null;
+        banLookup = { readable: true, user: bidderSnap.exists ? (bidderSnap.data() || {}) : null };
       } catch (e) {
-        // Fails OPEN, deliberately, and the opposite way to the reserve read
-        // above. A failed reserve lookup risks selling under a seller's reserve,
-        // so it fails safe; a failed BAN lookup risks only re-creating today's
-        // behaviour, whereas failing closed would permanently kill a legitimate
-        // runner-up's one and only shot — this sweep never sees the lot again.
-        // The accept-time ban gate still protects the money either way.
-        banReadable = false;
+        banLookup = { readable: false, user: null };
         console.warn(`[secondChance] ban lookup failed for ${runnerUp.bidderId} on ${auctionId}:`, e && e.message);
       }
-      if (banReadable && isEffectivelyBlocked(runnerUpUser, Date.now())) {
+      if (shouldSkipRunnerUp(banLookup, Date.now())) {
         console.log(`[secondChance] ${auctionId} runner-up ${runnerUp.bidderId} is blocked — no offer opened, relist path unchanged`);
         continue;
       }

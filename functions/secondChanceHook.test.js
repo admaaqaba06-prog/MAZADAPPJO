@@ -166,15 +166,38 @@ describe('openSecondChanceOffers — the banned runner-up', () => {
     expect(body).toContain('buildOfferRecord(');
   });
 
-  it("reads the runner-up's user doc and asks the SHARED ban helper", () => {
-    // Same helper placeBid and the accept path use, so there is exactly one
-    // answer to "is this account restricted".
+  it("reads the runner-up's user doc and DELEGATES the judgement", () => {
+    // The read is I/O and belongs here; the decision is pure and belongs in
+    // secondChance.js, where `shouldSkipRunnerUp` is tested behaviourally.
+    // Review I2: while this check was inline, a reviewer inverted it to
+    // `!isEffectivelyBlocked` — offering to every banned runner-up and skipping
+    // every eligible one — and all 18 assertions in this file still passed.
     expect(body).toMatch(/collection\('users'\)\.doc\(runnerUp\.bidderId\)/);
-    expect(body).toContain('isEffectivelyBlocked(');
+    expect(body).toContain('shouldSkipRunnerUp(');
+  });
+
+  it('does NOT re-implement the ban rule here', () => {
+    // A second copy is free to drift from the one the accept path enforces,
+    // which is how the enforcer starts opening offers the callable refuses.
+    const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toContain('isEffectivelyBlocked(');
+  });
+
+  it('asks the helper in the POSITIVE — a negated call inverts the whole fix', () => {
+    const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).toMatch(/if \(shouldSkipRunnerUp\(/);
+    expect(code).not.toMatch(/if \(!\s*shouldSkipRunnerUp\(/);
+  });
+
+  it('reports WHY the lookup was empty — a missing doc is not a failed read', () => {
+    // The helper fails open on both, but only because it is told which is which;
+    // collapsing them would hide the outage path it is unit-tested against.
+    expect(body).toMatch(/readable: true/);
+    expect(body).toMatch(/readable: false/);
   });
 
   it('decides BEFORE the offer is built or written to the auction', () => {
-    const banAt = body.indexOf('isEffectivelyBlocked(');
+    const banAt = body.indexOf('shouldSkipRunnerUp(');
     const buildAt = body.indexOf('buildOfferRecord(');
     const writeAt = body.indexOf('secondChanceOffer: offer');
     expect(banAt).toBeGreaterThan(-1);
@@ -187,7 +210,7 @@ describe('openSecondChanceOffers — the banned runner-up', () => {
   it('SKIPS the lot — logging and falling through would fix nothing', () => {
     // The whole defect is an offer that gets opened anyway. An `if` that only
     // logs looks identical at a glance and ships the same bug.
-    expect(blockAfter(body, 'isEffectivelyBlocked(')).toContain('continue;');
+    expect(blockAfter(body, 'if (shouldSkipRunnerUp(')).toContain('continue;');
   });
 
   it('logs the skip distinguishably from "there was no runner-up at all"', () => {

@@ -1424,7 +1424,16 @@ export const SellerCenterView: React.FC = () => {
                     // Second Chance Offer (winner defaulted). Same pure decision
                     // the card itself makes, asked here only so the card's
                     // wrapper margin doesn't render around nothing.
-                    const showSecondChance = secondChanceViewState(auction, currentUser?.id, Date.now()).visible;
+                    //
+                    // `currentUser`, NOT `currentUser?.id` — the viewer is a USER.
+                    // An id here reads `viewer?.id === undefined`, matches neither
+                    // party, and pins this gate to false forever, silently removing
+                    // the seller's ONLY in-app surface for a pending_seller offer
+                    // (MyOrders queries by `secondChanceOffer.bidderId`, so it shows
+                    // the card to the runner-up alone). `useApp()` is implicitly
+                    // `any` in this repo, so tsc will NOT catch that mistake —
+                    // SecondChanceCard.wiring.test.ts is what catches it.
+                    const showSecondChance = secondChanceViewState(auction, currentUser, Date.now()).visible;
                     return (
                       <div key={auction.id} className="hover:bg-gray-50/50 transition-colors">
                       <div className="p-3.5 flex items-center gap-3">
