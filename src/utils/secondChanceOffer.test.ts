@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   offerMillis,
+  secondChanceAcceptNote,
   secondChanceBidderLabel,
   secondChanceOfferIsLive,
+  secondChanceSellerNetNote,
   secondChanceTimeLeftLabel,
   secondChanceTotalDue,
   secondChanceViewState,
+  SECOND_CHANCE_PENDING_STATUSES,
   SecondChanceOffer,
   SecondChanceStatus,
 } from './secondChanceOffer';
@@ -32,7 +35,27 @@ const auctionOf = (offer: SecondChanceOffer | null | undefined) => ({
   secondChanceOffer: offer,
 });
 
-const ALL_STATUSES: SecondChanceStatus[] = ['pending_seller', 'pending_buyer', 'confirmed', 'declined'];
+const ALL_STATUSES: SecondChanceStatus[] = [
+  'pending_seller', 'pending_buyer', 'confirmed', 'declined', 'expired',
+];
+
+describe('SECOND_CHANCE_PENDING_STATUSES', () => {
+  /**
+   * This constant IS the hook's Firestore `in` filter. If it stops matching the
+   * statuses `secondChanceOfferIsLive` accepts, live offers stop being queried
+   * and the card silently never appears.
+   */
+  it('is exactly the statuses that can still be acted on', () => {
+    expect(SECOND_CHANCE_PENDING_STATUSES).toEqual(['pending_seller', 'pending_buyer']);
+  });
+
+  it('agrees with secondChanceOfferIsLive across the whole vocabulary', () => {
+    for (const status of ALL_STATUSES) {
+      const live = secondChanceOfferIsLive(offerOf({ status }), NOW);
+      expect(live).toBe(SECOND_CHANCE_PENDING_STATUSES.includes(status));
+    }
+  });
+});
 
 describe('offerMillis', () => {
   it('decodes every timestamp shape the doc can carry', () => {
@@ -57,6 +80,8 @@ describe('secondChanceOfferIsLive', () => {
     expect(secondChanceOfferIsLive(offerOf({ status: 'pending_buyer' }), NOW)).toBe(true);
     expect(secondChanceOfferIsLive(offerOf({ status: 'confirmed' }), NOW)).toBe(false);
     expect(secondChanceOfferIsLive(offerOf({ status: 'declined' }), NOW)).toBe(false);
+    // Written by a relist reclaiming a lot whose offer was still pending.
+    expect(secondChanceOfferIsLive(offerOf({ status: 'expired' }), NOW)).toBe(false);
   });
 
   it('is dead once now has passed expiresAt (inclusive, like the server)', () => {
@@ -86,7 +111,7 @@ describe('secondChanceViewState — nothing to show', () => {
   });
 
   it('hides a decided offer from both parties', () => {
-    for (const status of ['confirmed', 'declined'] as SecondChanceStatus[]) {
+    for (const status of ['confirmed', 'declined', 'expired'] as SecondChanceStatus[]) {
       for (const viewer of [SELLER, BIDDER]) {
         expect(secondChanceViewState(auctionOf(offerOf({ status })), viewer, NOW).visible).toBe(false);
       }
@@ -189,29 +214,44 @@ describe('secondChanceViewState — pending_buyer (bid cleared the reserve)', ()
 });
 
 describe('secondChanceViewState — exhaustive status x viewer matrix', () => {
-  const expected: Record<string, { visible: boolean; canAccept: boolean; canDecline: boolean }> = {
-    'pending_seller|seller': { visible: true, canAccept: true, canDecline: true },
-    'pending_seller|bidder': { visible: true, canAccept: false, canDecline: true },
-    'pending_seller|stranger': { visible: false, canAccept: false, canDecline: false },
-    'pending_buyer|seller': { visible: true, canAccept: false, canDecline: false },
-    'pending_buyer|bidder': { visible: true, canAccept: true, canDecline: true },
-    'pending_buyer|stranger': { visible: false, canAccept: false, canDecline: false },
-    'confirmed|seller': { visible: false, canAccept: false, canDecline: false },
-    'confirmed|bidder': { visible: false, canAccept: false, canDecline: false },
-    'confirmed|stranger': { visible: false, canAccept: false, canDecline: false },
-    'declined|seller': { visible: false, canAccept: false, canDecline: false },
-    'declined|bidder': { visible: false, canAccept: false, canDecline: false },
-    'declined|stranger': { visible: false, canAccept: false, canDecline: false },
+  type Want = {
+    visible: boolean;
+    canAccept: boolean;
+    canDecline: boolean;
+    acceptAction: 'seller_accept' | 'buyer_accept' | null;
+  };
+  const DEAD: Want = { visible: false, canAccept: false, canDecline: false, acceptAction: null };
+
+  // Every cell is a LITERAL expectation — never derived from the state under
+  // test, so a mutant that is merely self-consistent still fails.
+  const expected: Record<string, Want> = {
+    'pending_seller|seller': { visible: true, canAccept: true, canDecline: true, acceptAction: 'seller_accept' },
+    'pending_seller|bidder': { visible: true, canAccept: false, canDecline: true, acceptAction: null },
+    'pending_seller|stranger': DEAD,
+    'pending_buyer|seller': { visible: true, canAccept: false, canDecline: false, acceptAction: null },
+    'pending_buyer|bidder': { visible: true, canAccept: true, canDecline: true, acceptAction: 'buyer_accept' },
+    'pending_buyer|stranger': DEAD,
+    'confirmed|seller': DEAD,
+    'confirmed|bidder': DEAD,
+    'confirmed|stranger': DEAD,
+    'declined|seller': DEAD,
+    'declined|bidder': DEAD,
+    'declined|stranger': DEAD,
+    'expired|seller': DEAD,
+    'expired|bidder': DEAD,
+    'expired|stranger': DEAD,
   };
 
   for (const status of ALL_STATUSES) {
     for (const [who, id] of [['seller', SELLER], ['bidder', BIDDER], ['stranger', STRANGER]] as const) {
       it(`${status} / ${who}`, () => {
         const state = secondChanceViewState(auctionOf(offerOf({ status })), id, NOW);
-        const want = expected[`${status}|${who}`];
-        expect({ visible: state.visible, canAccept: state.canAccept, canDecline: state.canDecline }).toEqual(want);
-        // An accept action exists if and only if accepting is allowed.
-        expect(state.acceptAction !== null).toBe(state.canAccept);
+        expect({
+          visible: state.visible,
+          canAccept: state.canAccept,
+          canDecline: state.canDecline,
+          acceptAction: state.acceptAction,
+        }).toEqual(expected[`${status}|${who}`]);
       });
     }
   }
@@ -258,6 +298,64 @@ describe('secondChanceTotalDue', () => {
     expect(secondChanceTotalDue(undefined)).toBe(0);
     expect(secondChanceTotalDue(null)).toBe(0);
     expect(secondChanceTotalDue(Number.NaN)).toBe(0);
+  });
+});
+
+describe('secondChanceAcceptNote', () => {
+  it('renders the mandated Arabic sentence with the total, and exactly one currency label', () => {
+    const note = secondChanceAcceptNote('buyer_accept', 105, true);
+    expect(note).toBe('سيتم إنشاء طلب بقيمة 105 د.أ (شامل عمولة المشتري) وتبدأ مهلة الدفع.');
+    // No «د.أ د.أ» — formatMoney owns the label, the sentence must not add one.
+    expect(note.match(/د\.أ/g)).toHaveLength(1);
+  });
+
+  it('uses WESTERN digits in Arabic, never Arabic-Indic', () => {
+    const note = secondChanceAcceptNote('buyer_accept', 1234.5, true);
+    expect(note).toContain('1,234.5');
+    expect(note).not.toMatch(/[٠-٩۰-۹]/);
+  });
+
+  it('does NOT claim seller_accept creates an order — the server creates none', () => {
+    const note = secondChanceAcceptNote('seller_accept', 105, true);
+    expect(note).toBe('سيُعرض على المزايد لتأكيد الشراء بقيمة 105 د.أ. لا يُنشأ طلب قبل تأكيده.');
+    // The false claim the reviewer caught: an order being created on accept.
+    expect(note).not.toContain('سيتم إنشاء طلب');
+  });
+
+  it('keeps the amount in the seller sentence', () => {
+    expect(secondChanceAcceptNote('seller_accept', 262.5, true)).toContain('262.5 د.أ');
+    expect(secondChanceAcceptNote('seller_accept', 262.5, false)).toContain('262.5 JOD');
+  });
+
+  it('labels the currency per language', () => {
+    expect(secondChanceAcceptNote('buyer_accept', 105, false)).toContain('105 JOD');
+    expect(secondChanceAcceptNote('buyer_accept', 105, false)).not.toContain('د.أ');
+  });
+});
+
+describe('secondChanceSellerNetNote', () => {
+  it('shows the seller what THEY receive — hammer minus 5%, not the buyer total', () => {
+    const note = secondChanceSellerNetNote(100, true);
+    expect(note).toBe('صافي ما تستلمه: 95 د.أ (بعد عمولة البيع 5%).');
+    // 100 is the hammer and 105 is the BUYER's total; neither is the payout.
+    expect(note).not.toContain('105');
+    expect(note).not.toContain('100 د.أ');
+  });
+
+  it('is bilingual', () => {
+    expect(secondChanceSellerNetNote(100, false)).toBe('You receive: 95 JOD (after the 5% seller commission).');
+  });
+
+  it('uses Western digits in Arabic', () => {
+    expect(secondChanceSellerNetNote(2000, true)).toContain('1,900');
+    expect(secondChanceSellerNetNote(2000, true)).not.toMatch(/[٠-٩۰-۹]/);
+  });
+
+  it('degrades to zero rather than NaN on a corrupt amount', () => {
+    expect(secondChanceSellerNetNote(0, true)).toContain('0 د.أ');
+    expect(secondChanceSellerNetNote(-5, true)).toContain('0 د.أ');
+    expect(secondChanceSellerNetNote(undefined, false)).toContain('0 JOD');
+    expect(secondChanceSellerNetNote(Number.NaN, false)).toContain('0 JOD');
   });
 });
 

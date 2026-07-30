@@ -23,9 +23,12 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 import { AuctionItem } from '../../types';
+import { formatMoney } from '../../utils/formatMoney';
 import {
   offerMillis,
+  secondChanceAcceptNote,
   secondChanceBidderLabel,
+  secondChanceSellerNetNote,
   secondChanceTimeLeftLabel,
   secondChanceTotalDue,
   secondChanceViewState,
@@ -67,19 +70,31 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
   const state = secondChanceViewState(auction, currentUserId, now);
   if (!state.visible || !offer) return null;
 
+  const lang = isAr ? 'ar' : 'en';
   const expMs = offerMillis(offer.expiresAt);
   const timeLeft = Number.isFinite(expMs) ? secondChanceTimeLeftLabel(expMs - now, isAr) : '';
   const bidderLabel = secondChanceBidderLabel(offer.bidderName, isAr);
-  const bid = Number(offer.amount) || 0;
+  // ALL money goes through formatMoney — it pins en-US digits and owns the
+  // د.أ / JOD label. A bare toLocaleString() follows the DEVICE locale, so an
+  // Arabic-set phone would render ١٠٥ beside a Western-digit countdown.
+  const bidMoney = formatMoney(Number(offer.amount) || 0, lang);
   const totalDue = secondChanceTotalDue(offer.amount);
+  const totalMoney = formatMoney(totalDue, lang);
   const isSeller = state.role === 'seller';
 
   const run = async (action: SecondChanceAction) => {
     if (busy) return;
     setBusy(action);
     try {
-      await onRespond(auction.id, action);
-    } finally {
+      const res: any = await onRespond(auction.id, action);
+      // Deliberately NOT cleared on success. The snapshot that flips the offer's
+      // status — and so unmounts this card — has not arrived yet, and a second
+      // tap inside that window hits `failed-precondition` on the server and
+      // toasts an error for an action that in fact worked. The context wrapper
+      // never throws; it returns { success: false } on a real failure, which is
+      // the only case that re-enables the buttons.
+      if (res && res.success === false) setBusy(null);
+    } catch {
       setBusy(null);
     }
   };
@@ -89,32 +104,32 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
     ? (state.canAccept
       // pending_seller: the runner-up's bid is UNDER the reserve.
       ? (isAr
-        ? `تخلّف الفائز عن الدفع. ${bidderLabel} زايد ${bid.toLocaleString()} د.أ — أقل من سعرك المطلوب. تقبلها؟`
-        : `The winner failed to pay. ${bidderLabel} bid ${bid.toLocaleString()} JOD — below your reserve. Accept it?`)
+        ? `تخلّف الفائز عن الدفع. ${bidderLabel} زايد ${bidMoney} — أقل من سعرك المطلوب. تقبلها؟`
+        : `The winner failed to pay. ${bidderLabel} bid ${bidMoney} — below your reserve. Accept it?`)
       // pending_buyer: already the seller's price; the ball is the bidder's.
       : (isAr
-        ? `عُرض هذا المزاد على ${bidderLabel} بقيمة ${bid.toLocaleString()} د.أ بعد تخلّف الفائز عن الدفع. بانتظار رده.`
-        : `This lot was offered to ${bidderLabel} at ${bid.toLocaleString()} JOD after the winner failed to pay. Awaiting their answer.`))
+        ? `عُرض هذا المزاد على ${bidderLabel} بقيمة ${bidMoney} بعد تخلّف الفائز عن الدفع. بانتظار رده.`
+        : `This lot was offered to ${bidderLabel} at ${bidMoney} after the winner failed to pay. Awaiting their answer.`))
     : (state.canAccept
       ? (isAr
-        ? `فرصة ثانية! تخلّف الفائز عن الدفع، والقطعة معروضة عليك بمزايدتك ${bid.toLocaleString()} د.أ.`
-        : `Second chance! The winner failed to pay — this lot is offered to you at your bid of ${bid.toLocaleString()} JOD.`)
+        ? `فرصة ثانية! تخلّف الفائز عن الدفع، والقطعة معروضة عليك بمزايدتك ${bidMoney}.`
+        : `Second chance! The winner failed to pay — this lot is offered to you at your bid of ${bidMoney}.`)
       : (isAr
-        ? `تخلّف الفائز عن الدفع. عرضنا مزايدتك ${bid.toLocaleString()} د.أ على البائع — بانتظار موافقته.`
-        : `The winner failed to pay. We offered your bid of ${bid.toLocaleString()} JOD to the seller — awaiting their decision.`));
+        ? `تخلّف الفائز عن الدفع. عرضنا مزايدتك ${bidMoney} على البائع — بانتظار موافقته.`
+        : `The winner failed to pay. We offered your bid of ${bidMoney} to the seller — awaiting their decision.`));
 
-  // The amount MUST be on screen before Accept is pressed.
-  const acceptNote = state.acceptAction === 'buyer_accept'
-    ? (isAr
-      ? `سيتم إنشاء طلب بقيمة ${totalDue.toLocaleString()} د.أ (شامل عمولة المشتري) وتبدأ مهلة الدفع.`
-      : `An order for ${totalDue.toLocaleString()} JOD (incl. buyer's premium) will be created and the payment window starts.`)
-    : (isAr
-      ? `عند القبول، سيتم إنشاء طلب بقيمة ${totalDue.toLocaleString()} د.أ للمزايد ليؤكد الشراء.`
-      : `If you accept, an order for ${totalDue.toLocaleString()} JOD goes to the bidder to confirm.`);
+  // The amount MUST be on screen before Accept is pressed. Wording and money
+  // formatting both live in the pure util, where they are unit-tested.
+  const acceptNote = state.acceptAction
+    ? secondChanceAcceptNote(state.acceptAction, totalDue, isAr)
+    : '';
+  // The seller deciding UNDER their reserve needs THEIR number too — they are
+  // paid the hammer minus 5%, not the buyer's total.
+  const sellerNetNote = state.acceptAction === 'seller_accept'
+    ? secondChanceSellerNetNote(offer.amount, isAr)
+    : '';
 
-  const acceptLabel = state.acceptAction === 'buyer_accept'
-    ? (isAr ? `اقبل العرض — ${totalDue.toLocaleString()} د.أ` : `Accept — ${totalDue.toLocaleString()} JOD`)
-    : (isAr ? `اقبل — ${totalDue.toLocaleString()} د.أ` : `Accept — ${totalDue.toLocaleString()} JOD`);
+  const acceptLabel = isAr ? `اقبل — ${totalMoney}` : `Accept — ${totalMoney}`;
 
   return (
     <div
@@ -149,10 +164,17 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
         </div>
       </div>
 
-      {state.canAccept && (
-        <p className="text-[10px] text-amber-700/90 font-semibold leading-relaxed" id={`second-chance-amount-${auction.id}`}>
-          {acceptNote}
-        </p>
+      {state.canAccept && acceptNote && (
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-amber-700/90 font-semibold leading-relaxed" id={`second-chance-amount-${auction.id}`}>
+            {acceptNote}
+          </p>
+          {sellerNetNote && (
+            <p className="text-[10px] text-amber-900 font-black leading-relaxed" id={`second-chance-seller-net-${auction.id}`}>
+              {sellerNetNote}
+            </p>
+          )}
+        </div>
       )}
 
       {state.awaitingOther && !state.canDecline && (

@@ -32,9 +32,24 @@
  * isBidder`.
  */
 
-import { totalWithPremium } from './bidMath';
+import { sellerNet, totalWithPremium } from './bidMath';
+import { formatMoney } from './formatMoney';
 
-export type SecondChanceStatus = 'pending_seller' | 'pending_buyer' | 'confirmed' | 'declined';
+/**
+ * The status vocabulary, pinned to `secondChance.OFFER_STATUSES`. `'expired'` is
+ * real — functions/index.js writes it when a relist reclaims a lot whose offer
+ * was still `pending_*` — so it must be part of the union even though nothing
+ * about it is live.
+ */
+export type SecondChanceStatus =
+  | 'pending_seller'
+  | 'pending_buyer'
+  | 'confirmed'
+  | 'declined'
+  | 'expired';
+
+/** The statuses an offer can be in while it is still actionable. */
+export const SECOND_CHANCE_PENDING_STATUSES: SecondChanceStatus[] = ['pending_seller', 'pending_buyer'];
 
 /** The offer as it sits on the auction doc (see functions/secondChance.js buildOfferRecord). */
 export interface SecondChanceOffer {
@@ -171,6 +186,52 @@ export function secondChanceTotalDue(amount: number | null | undefined): number 
   const bid = Number(amount);
   if (!Number.isFinite(bid) || bid <= 0) return 0;
   return totalWithPremium(bid);
+}
+
+/**
+ * The line that must be on screen before Accept can be pressed, so nobody
+ * accepts without seeing the number.
+ *
+ * Money goes through `formatMoney`, which pins `en-US` digits and owns the
+ * د.أ / JOD label — a bare `toLocaleString()` follows the DEVICE locale, so on
+ * an Arabic-set Jordanian phone it would render «١٠٥» next to a Western-digit
+ * countdown on the same card.
+ *
+ * The two branches say different things because the server does different
+ * things: `buyer_accept` mints the order (secondChanceRespond.js:222), while
+ * `seller_accept` creates NOTHING — it moves the offer to `pending_buyer` with a
+ * fresh 24h and the runner-up still has to confirm (secondChanceRespond.js:128).
+ */
+export function secondChanceAcceptNote(
+  acceptAction: 'seller_accept' | 'buyer_accept',
+  totalDue: number,
+  isAr: boolean,
+): string {
+  const money = formatMoney(totalDue, isAr ? 'ar' : 'en');
+  if (acceptAction === 'buyer_accept') {
+    return isAr
+      ? `سيتم إنشاء طلب بقيمة ${money} (شامل عمولة المشتري) وتبدأ مهلة الدفع.`
+      : `An order for ${money} (incl. buyer's premium) will be created and the payment window starts.`;
+  }
+  return isAr
+    ? `سيُعرض على المزايد لتأكيد الشراء بقيمة ${money}. لا يُنشأ طلب قبل تأكيده.`
+    : `The lot goes to the bidder to confirm at ${money}. No order is created until they do.`;
+}
+
+/**
+ * What the SELLER actually receives — hammer minus Mazad's 5% seller commission.
+ *
+ * Shown only on `pending_seller`, where the seller is deciding whether to sell
+ * UNDER their own reserve. The buyer's total (105 on a 100 hammer) is the only
+ * other number on the card, and it is not the number the seller is paid (95).
+ */
+export function secondChanceSellerNetNote(amount: number | null | undefined, isAr: boolean): string {
+  const bid = Number(amount);
+  const net = Number.isFinite(bid) && bid > 0 ? sellerNet(bid) : 0;
+  const money = formatMoney(net, isAr ? 'ar' : 'en');
+  return isAr
+    ? `صافي ما تستلمه: ${money} (بعد عمولة البيع 5%).`
+    : `You receive: ${money} (after the 5% seller commission).`;
 }
 
 /** `hh:mm` remaining, or the expired wording. Bilingual, Arabic-primary. */
