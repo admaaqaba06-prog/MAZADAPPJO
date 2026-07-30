@@ -195,7 +195,10 @@ describe('useMySecondChanceOffers — the query', () => {
     const statusFilter = wheres().find((w) => w.field === 'secondChanceOffer.status');
     expect(statusFilter).toBeDefined();
     expect(statusFilter!.op).toBe('in');
-    expect(statusFilter!.value).toEqual(SECOND_CHANCE_PENDING_STATUSES);
+    // `toBe`, not `toEqual`: a re-typed literal ['pending_seller','pending_buyer']
+    // is structurally identical and would pass toEqual, which is exactly the
+    // drift this test is named for. Identity is what makes the claim true.
+    expect(statusFilter!.value).toBe(SECOND_CHANCE_PENDING_STATUSES);
     // Terminal statuses must never be queryable through this hook.
     for (const dead of ['confirmed', 'declined', 'expired']) {
       expect(statusFilter!.value).not.toContain(dead);

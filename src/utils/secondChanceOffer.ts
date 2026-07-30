@@ -48,8 +48,16 @@ export type SecondChanceStatus =
   | 'declined'
   | 'expired';
 
-/** The statuses an offer can be in while it is still actionable. */
-export const SECOND_CHANCE_PENDING_STATUSES: SecondChanceStatus[] = ['pending_seller', 'pending_buyer'];
+/**
+ * The statuses an offer can be in while it is still actionable.
+ *
+ * Frozen and typed `readonly`: this array is passed BY REFERENCE straight into
+ * the `where(..., 'in', ...)` of `useMySecondChanceOffers`, so a push or splice
+ * anywhere would silently change what that query returns — which is the one
+ * failure mode of that hook (a live offer that never renders and never errors).
+ */
+export const SECOND_CHANCE_PENDING_STATUSES: readonly SecondChanceStatus[] =
+  Object.freeze(['pending_seller', 'pending_buyer'] as const);
 
 /** The offer as it sits on the auction doc (see functions/secondChance.js buildOfferRecord). */
 export interface SecondChanceOffer {

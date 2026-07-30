@@ -52,6 +52,12 @@ describe('SECOND_CHANCE_PENDING_STATUSES', () => {
     expect(SECOND_CHANCE_PENDING_STATUSES).toEqual(['pending_seller', 'pending_buyer']);
   });
 
+  it('is frozen — it is passed by reference into a Firestore `in` filter', () => {
+    expect(Object.isFrozen(SECOND_CHANCE_PENDING_STATUSES)).toBe(true);
+    expect(() => (SECOND_CHANCE_PENDING_STATUSES as any).push('confirmed')).toThrow();
+    expect(SECOND_CHANCE_PENDING_STATUSES).toEqual(['pending_seller', 'pending_buyer']);
+  });
+
   it('agrees with secondChanceOfferIsLive across the whole vocabulary', () => {
     for (const status of ALL_STATUSES) {
       const live = secondChanceOfferIsLive(offerOf({ status }), NOW);
