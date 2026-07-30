@@ -87,8 +87,27 @@ async function respondToSecondChance(deps, args = {}) {
     if (action === 'buyer_accept' && !isBidder) {
       throw makeError('permission-denied', 'صاحب العرض فقط يمكنه القبول.');
     }
-    if (action === 'decline' && !isSeller && !isBidder) {
-      throw makeError('permission-denied', 'لا تملك صلاحية على هذا العرض.');
+    if (action === 'decline') {
+      if (!isSeller && !isBidder) {
+        throw makeError('permission-denied', 'لا تملك صلاحية على هذا العرض.');
+      }
+      // The seller's right to decline is PER-STATUS, not blanket. Do not
+      // "simplify" this back to `isSeller || isBidder`.
+      //
+      // pending_seller — the bid is UNDER the reserve and we are asking the
+      //   seller. Their refusal IS the consent decision; it is the entire point
+      //   of asking. Both parties may decline.
+      // pending_buyer  — the seller has ALREADY consented: either implicitly,
+      //   because the bid cleared the reserve they themselves set (that is the
+      //   whole logic of the reserve fork in secondChance.openingStateFor), or
+      //   explicitly via seller_accept. Letting them decline here lets them
+      //   renege on their own price, or undo their own acceptance after the
+      //   runner-up was told the lot was theirs. Only the bidder — withdrawing
+      //   their own offer — may close it. Matches declineBelowReserve, which
+      //   likewise restricts declining to the bidder.
+      if (!isBidder && offer.status === 'pending_buyer') {
+        throw makeError('permission-denied', 'لا يمكنك رفض عرض بلغ سعرك المطلوب أو سبق أن قبلته. القرار الآن للمزايد.');
+      }
     }
 
     // Idempotency BEFORE the liveness gate: a confirmed offer is no longer
@@ -133,10 +152,11 @@ async function respondToSecondChance(deps, args = {}) {
         'secondChanceOffer.declinedBy': callerUserId,
       });
       // Whoever did NOT decline is the one who needs telling. When the seller
-      // declines, the runner-up learns their offer is closed; when the
-      // runner-up declines, the SELLER learns the lot is free again — without
-      // that the lot silently becomes relist-eligible with nobody informed.
-      // `declinedBy` picks the wording (see notify.js copyFor).
+      // declines — only ever from pending_seller, per the gate above — the
+      // runner-up learns their under-reserve offer was refused; when the
+      // runner-up declines, the SELLER learns the lot is free again, without
+      // which it silently becomes relist-eligible with nobody informed.
+      // `declinedBy` names the actor and picks the wording (notify.js copyFor).
       pendingNotify = isBidder
         ? {
           uid: auction.sellerId,

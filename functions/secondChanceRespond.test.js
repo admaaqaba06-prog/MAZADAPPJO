@@ -265,15 +265,86 @@ describe('authorisation', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 
-  it('a stranger may not decline, but either party may', async () => {
+  it('a stranger may not decline', async () => {
     const db = makeFakeDb(world());
     await expect(call(db, { action: 'decline', callerUserId: STRANGER }))
       .rejects.toMatchObject({ code: 'permission-denied' });
     expect(db._writes).toHaveLength(0);
+  });
+});
 
-    for (const uid of [SELLER, BIDDER]) {
-      const ok = makeFakeDb(world());
-      await expect(call(ok, { action: 'decline', callerUserId: uid })).resolves.toBeTruthy();
+describe('who may decline is decided PER STATUS', () => {
+  // pending_seller: the bid is UNDER the reserve and we are asking the seller —
+  // their refusal IS the consent decision.
+  // pending_buyer: the seller already consented, implicitly (the bid cleared
+  // the reserve they set) or explicitly (seller_accept). Declining there would
+  // let them renege on their own price, or undo their own acceptance.
+  const underReserve = { auction: { secondChanceOffer: { status: 'pending_seller' } } };
+
+  it('seller declines pending_seller → allowed', async () => {
+    const db = makeFakeDb(world(underReserve));
+    const { result, notify } = await call(db, { action: 'decline', callerUserId: SELLER });
+
+    expect(result.success).toBe(true);
+    expect(auctionWrite(db).data['secondChanceOffer.status']).toBe('declined');
+    expect(auctionWrite(db).data['secondChanceOffer.declinedBy']).toBe(SELLER);
+    // The runner-up hears that their under-reserve offer was refused.
+    expect(notify.uid).toBe(BIDDER);
+    expect(notify.data.declinedBy).toBe('seller');
+  });
+
+  it('bidder declines pending_seller → allowed', async () => {
+    const db = makeFakeDb(world(underReserve));
+    const { result, notify } = await call(db, { action: 'decline', callerUserId: BIDDER });
+
+    expect(result.success).toBe(true);
+    expect(auctionWrite(db).data['secondChanceOffer.declinedBy']).toBe(BIDDER);
+    expect(notify.uid).toBe(SELLER);
+    expect(notify.data.declinedBy).toBe('buyer');
+  });
+
+  it('seller declines pending_buyer → DENIED, and nothing is written', async () => {
+    const db = makeFakeDb(world()); // default offer is pending_buyer
+    await expect(call(db, { action: 'decline', callerUserId: SELLER }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db._writes).toHaveLength(0);
+  });
+
+  it('a seller cannot undo their OWN seller_accept', async () => {
+    // seller_accept is what moves the offer to pending_buyer, after the
+    // runner-up has been told the lot is theirs to confirm.
+    const db = makeFakeDb(world({ auction: { secondChanceOffer: {
+      status: 'pending_buyer',
+      sellerAcceptedAt: FakeTimestamp.fromMillis(NOW_MS - HOUR),
+    } } }));
+    await expect(call(db, { action: 'decline', callerUserId: SELLER }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db._writes).toHaveLength(0);
+  });
+
+  it('bidder declines pending_buyer → allowed (withdrawing their own offer)', async () => {
+    const db = makeFakeDb(world());
+    const { result, notify } = await call(db, { action: 'decline', callerUserId: BIDDER });
+
+    expect(result.success).toBe(true);
+    const w = auctionWrite(db);
+    expect(w.data['secondChanceOffer.status']).toBe('declined');
+    expect(w.data['secondChanceOffer.declinedBy']).toBe(BIDDER);
+    expect(w.data['secondChanceOffer.declinedAt'].toMillis()).toBe(NOW_MS);
+    // The SELLER must hear it, or the lot silently becomes relist-eligible
+    // with nobody informed.
+    expect(notify.uid).toBe(SELLER);
+    expect(notify.data.declinedBy).toBe('buyer');
+    expect(notify.data.secondChance).toBe(true);
+  });
+
+  it('a closed offer still reads as closed to the seller, not as a permission problem', async () => {
+    // The status gate keys on pending_buyer specifically, so a dead offer falls
+    // through to the liveness check and gets the accurate message.
+    for (const status of ['declined', 'confirmed']) {
+      const db = makeFakeDb(world({ auction: { secondChanceOffer: { status } } }));
+      await expect(call(db, { action: 'decline', callerUserId: SELLER }))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
     }
   });
 });
@@ -357,31 +428,6 @@ describe('seller_accept', () => {
     expect(orderWrite(db)).toBeUndefined();
     expect(notify.uid).toBe(BIDDER);
     expect(notify.event).toBe('below_reserve_seller_accepted');
-    expect(notify.data.secondChance).toBe(true);
-  });
-});
-
-describe('decline', () => {
-  it('a seller decline closes the offer and tells the runner-up', async () => {
-    const db = makeFakeDb(world());
-    const { result, notify } = await call(db, { action: 'decline', callerUserId: SELLER });
-
-    expect(result.success).toBe(true);
-    const w = auctionWrite(db);
-    expect(w.data['secondChanceOffer.status']).toBe('declined');
-    expect(w.data['secondChanceOffer.declinedBy']).toBe(SELLER);
-    expect(notify.uid).toBe(BIDDER);
-    expect(notify.data.declinedBy).toBe('seller');
-  });
-
-  it('a runner-up decline tells the SELLER their lot is free again', async () => {
-    // Otherwise the lot silently becomes relist-eligible with nobody informed.
-    const db = makeFakeDb(world());
-    const { notify } = await call(db, { action: 'decline', callerUserId: BIDDER });
-
-    expect(auctionWrite(db).data['secondChanceOffer.declinedBy']).toBe(BIDDER);
-    expect(notify.uid).toBe(SELLER);
-    expect(notify.data.declinedBy).toBe('buyer');
     expect(notify.data.secondChance).toBe(true);
   });
 });
