@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { formatMoney } from './formatMoney';
 import {
   offerMillis,
+  secondChanceAcceptLabel,
   secondChanceAcceptNote,
+  secondChanceSellerNet,
   secondChanceBidderLabel,
   secondChanceOfferIsLive,
   secondChanceSellerNetNote,
@@ -356,6 +359,47 @@ describe('secondChanceSellerNetNote', () => {
     expect(secondChanceSellerNetNote(-5, true)).toContain('0 د.أ');
     expect(secondChanceSellerNetNote(undefined, false)).toContain('0 JOD');
     expect(secondChanceSellerNetNote(Number.NaN, false)).toContain('0 JOD');
+  });
+});
+
+describe('secondChanceAcceptLabel', () => {
+  /**
+   * The button is the last thing read before committing. If it carried the
+   * buyer's total, the seller would read «صافي ما تستلمه: 95 د.أ» and then tap
+   * «اقبل — 105 د.أ» — two numbers contradicting each other at the tap.
+   */
+  it("the seller's button and the seller's net note carry the SAME number", () => {
+    for (const hammer of [100, 250, 33.333, 1]) {
+      const label = secondChanceAcceptLabel('seller_accept', hammer, true);
+      const note = secondChanceSellerNetNote(hammer, true);
+      const net = formatMoney(secondChanceSellerNet(hammer), 'ar');
+      expect(label).toContain(net);
+      expect(note).toContain(net);
+    }
+  });
+
+  it("the seller's button never shows the buyer's total", () => {
+    const label = secondChanceAcceptLabel('seller_accept', 100, true);
+    expect(label).toBe('اقبل — تستلم 95 د.أ');
+    expect(label).not.toContain('105');
+  });
+
+  it("the buyer's button shows what the buyer pays, unchanged", () => {
+    expect(secondChanceAcceptLabel('buyer_accept', 100, true)).toBe('اقبل — 105 د.أ');
+    expect(secondChanceAcceptLabel('buyer_accept', 100, false)).toBe('Accept — 105 JOD');
+    // Never the seller's net.
+    expect(secondChanceAcceptLabel('buyer_accept', 100, true)).not.toContain('95');
+  });
+
+  it('is bilingual and uses Western digits in Arabic', () => {
+    expect(secondChanceAcceptLabel('seller_accept', 100, false)).toBe('Accept — you receive 95 JOD');
+    expect(secondChanceAcceptLabel('seller_accept', 2000, true)).toContain('1,900');
+    expect(secondChanceAcceptLabel('seller_accept', 2000, true)).not.toMatch(/[٠-٩۰-۹]/);
+  });
+
+  it('degrades to zero rather than NaN on a corrupt amount', () => {
+    expect(secondChanceAcceptLabel('seller_accept', undefined, false)).toContain('0 JOD');
+    expect(secondChanceAcceptLabel('buyer_accept', Number.NaN, false)).toContain('0 JOD');
   });
 });
 

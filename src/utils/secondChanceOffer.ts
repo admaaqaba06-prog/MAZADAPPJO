@@ -226,12 +226,44 @@ export function secondChanceAcceptNote(
  * other number on the card, and it is not the number the seller is paid (95).
  */
 export function secondChanceSellerNetNote(amount: number | null | undefined, isAr: boolean): string {
-  const bid = Number(amount);
-  const net = Number.isFinite(bid) && bid > 0 ? sellerNet(bid) : 0;
-  const money = formatMoney(net, isAr ? 'ar' : 'en');
+  const money = formatMoney(secondChanceSellerNet(amount), isAr ? 'ar' : 'en');
   return isAr
     ? `صافي ما تستلمه: ${money} (بعد عمولة البيع 5%).`
     : `You receive: ${money} (after the 5% seller commission).`;
+}
+
+/** Seller payout on a hammer price; 0 rather than NaN on a corrupt amount. */
+export function secondChanceSellerNet(amount: number | null | undefined): number {
+  const bid = Number(amount);
+  return Number.isFinite(bid) && bid > 0 ? sellerNet(bid) : 0;
+}
+
+/**
+ * The Accept button's label.
+ *
+ * The button is the LAST thing read before committing, so the number on it must
+ * be the number that party actually transacts — otherwise the seller reads
+ * «صافي ما تستلمه: 95 د.أ» and then taps «اقبل — 105 د.أ», and the two numbers
+ * contradict each other at the moment of the tap.
+ *
+ *   buyer_accept  → the buyer's TOTAL (hammer + 5% premium). That is what they pay.
+ *   seller_accept → the seller's NET (hammer − 5% commission). That is what they receive.
+ *
+ * Takes the raw hammer amount, not a pre-computed total, so the label and
+ * `secondChanceSellerNetNote` can never be derived from different inputs.
+ */
+export function secondChanceAcceptLabel(
+  acceptAction: 'seller_accept' | 'buyer_accept',
+  amount: number | null | undefined,
+  isAr: boolean,
+): string {
+  const lang = isAr ? 'ar' : 'en';
+  if (acceptAction === 'buyer_accept') {
+    const money = formatMoney(secondChanceTotalDue(amount), lang);
+    return isAr ? `اقبل — ${money}` : `Accept — ${money}`;
+  }
+  const money = formatMoney(secondChanceSellerNet(amount), lang);
+  return isAr ? `اقبل — تستلم ${money}` : `Accept — you receive ${money}`;
 }
 
 /** `hh:mm` remaining, or the expired wording. Bilingual, Arabic-primary. */

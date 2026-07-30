@@ -26,6 +26,7 @@ import { AuctionItem } from '../../types';
 import { formatMoney } from '../../utils/formatMoney';
 import {
   offerMillis,
+  secondChanceAcceptLabel,
   secondChanceAcceptNote,
   secondChanceBidderLabel,
   secondChanceSellerNetNote,
@@ -79,7 +80,6 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
   // Arabic-set phone would render ١٠٥ beside a Western-digit countdown.
   const bidMoney = formatMoney(Number(offer.amount) || 0, lang);
   const totalDue = secondChanceTotalDue(offer.amount);
-  const totalMoney = formatMoney(totalDue, lang);
   const isSeller = state.role === 'seller';
 
   const run = async (action: SecondChanceAction) => {
@@ -129,7 +129,11 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
     ? secondChanceSellerNetNote(offer.amount, isAr)
     : '';
 
-  const acceptLabel = isAr ? `اقبل — ${totalMoney}` : `Accept — ${totalMoney}`;
+  // Carries the SELLER's net on the seller branch — the button must not
+  // contradict the net line directly above it at the moment of the tap.
+  const acceptLabel = state.acceptAction
+    ? secondChanceAcceptLabel(state.acceptAction, offer.amount, isAr)
+    : '';
 
   return (
     <div
