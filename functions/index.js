@@ -857,6 +857,14 @@ async function openSecondChanceOffers(defaultedDocs) {
     const order = doc.data() || {};
     const auctionId = order.auctionId;
     if (!auctionId) continue;
+    // No buyerId (the enforcer's `noBuyer` path) means we cannot tell the
+    // runner-up from the defaulter, and `pickRunnerUp(bids, undefined)` would
+    // hand the lot straight back to whoever just failed to pay. Skipping leaves
+    // the status quo — the safe side of a data anomaly.
+    if (!order.buyerId) {
+      console.log(`[secondChance] ${auctionId} order ${doc.id} has no buyerId — skipping`);
+      continue;
+    }
     try {
       const auctionRef = db.collection('auctions').doc(auctionId);
       const auctionSnap = await auctionRef.get();
