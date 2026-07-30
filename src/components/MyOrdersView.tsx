@@ -103,7 +103,7 @@ export const MyOrdersView: React.FC = () => {
     useMySecondChanceOffers(currentUser?.id),
     currentUser,
     simEnabled,
-  ).filter((lot) => secondChanceViewState(lot, currentUser?.id, Date.now()).visible);
+  ).filter((lot) => secondChanceViewState(lot, currentUser, Date.now()).visible);
   const isAr = language === 'ar';
   const t = translations[isAr ? 'ar' : 'en'];
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -248,7 +248,7 @@ export const MyOrdersView: React.FC = () => {
               <SecondChanceCard
                 key={lot.id}
                 auction={lot}
-                currentUserId={currentUser?.id}
+                currentUser={currentUser}
                 isAr={isAr}
                 onRespond={respondToSecondChance}
               />

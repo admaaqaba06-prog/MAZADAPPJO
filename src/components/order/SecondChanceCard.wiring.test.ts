@@ -124,3 +124,45 @@ describe('SecondChanceCard wiring — the money argument each helper receives', 
     expect(code).not.toContain('toLocaleString');
   });
 });
+
+/**
+ * REVIEW F1 (client half) — the BAN must actually reach the pure decision.
+ *
+ * `secondChanceViewState` can only hide the Accept button from a blocked
+ * runner-up if it is handed the runner-up's ban state. Passing an id — or a
+ * freshly-built `{ id: currentUser?.id }` — typechecks, renders, and silently
+ * reports "not blocked" for everybody, which is the exact defect. No render test
+ * can see this, so it is pinned here.
+ */
+describe('SecondChanceCard wiring — the viewer the ban check receives', () => {
+  it('hands secondChanceViewState the whole user, not an id', () => {
+    const args = callArgs('secondChanceViewState');
+    expect(args[0]).toBe('auction');
+    expect(args[1]).toBe('currentUser');
+  });
+
+  it('never narrows the viewer down to an id on the way in', () => {
+    const args = callArgs('secondChanceViewState');
+    // Both shapes compile. Both drop isBlocked/blockedUntil. Both reinstate the bug.
+    expect(args[1]).not.toBe('currentUserId');
+    expect(args[1]).not.toMatch(/\.id\b/);
+    expect(args[1]).not.toMatch(/^\{/);
+  });
+
+  it('renders the blocked explanation from the pure copy helper', () => {
+    // Without it the Accept button simply vanishes and the card reads as broken.
+    expect(SRC).toContain('state.acceptBlockedByBan');
+    expect(SRC).toContain('secondChanceBlockedNote(');
+  });
+
+  it('keys the headline on awaitingOther, never on canAccept', () => {
+    // They agreed exactly until the ban column landed. A blocked runner-up has
+    // canAccept:false while nobody else is deciding, so keying on canAccept
+    // tells them their offer is sitting with the seller — a lie.
+    const code = SRC
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(code).toMatch(/\?\s*\(\s*!state\.awaitingOther\b/);
+    expect(code).not.toMatch(/\?\s*\(\s*state\.canAccept\b/);
+  });
+});

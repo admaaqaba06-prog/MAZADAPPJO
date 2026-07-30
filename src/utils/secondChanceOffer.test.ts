@@ -4,6 +4,7 @@ import {
   offerMillis,
   secondChanceAcceptLabel,
   secondChanceAcceptNote,
+  secondChanceBlockedNote,
   secondChanceSellerNet,
   secondChanceBidderLabel,
   secondChanceOfferIsLive,
@@ -14,6 +15,7 @@ import {
   SECOND_CHANCE_PENDING_STATUSES,
   SecondChanceOffer,
   SecondChanceStatus,
+  SecondChanceViewer,
 } from './secondChanceOffer';
 
 const NOW = 1_800_000_000_000;
@@ -22,6 +24,20 @@ const HOUR = 3600 * 1000;
 const SELLER = 'seller-1';
 const BIDDER = 'bidder-9';
 const STRANGER = 'nobody-3';
+
+/**
+ * The viewer is a USER, not an id — `secondChanceViewState` has to read
+ * `isBlocked`/`blockedUntil` to decide whether the Accept button may exist, and
+ * TypeScript now rejects a bare string precisely so no call site can forget to
+ * hand the ban state over. Every viewer here is explicitly UNBLOCKED unless the
+ * test says otherwise.
+ */
+const asViewer = (id: string | null | undefined, over: Partial<SecondChanceViewer> = {}): SecondChanceViewer =>
+  ({ id, isBlocked: false, ...over });
+
+const SELLER_V = asViewer(SELLER);
+const BIDDER_V = asViewer(BIDDER);
+const STRANGER_V = asViewer(STRANGER);
 
 const offerOf = (over: Partial<SecondChanceOffer> = {}): SecondChanceOffer => ({
   status: 'pending_buyer',
@@ -113,16 +129,16 @@ describe('secondChanceOfferIsLive', () => {
 
 describe('secondChanceViewState — nothing to show', () => {
   it('hides when there is no offer at all', () => {
-    expect(secondChanceViewState(auctionOf(null), SELLER, NOW).visible).toBe(false);
-    expect(secondChanceViewState({ sellerId: SELLER }, SELLER, NOW).visible).toBe(false);
-    expect(secondChanceViewState(null, SELLER, NOW).visible).toBe(false);
-    expect(secondChanceViewState(undefined, SELLER, NOW).visible).toBe(false);
+    expect(secondChanceViewState(auctionOf(null), SELLER_V, NOW).visible).toBe(false);
+    expect(secondChanceViewState({ sellerId: SELLER }, SELLER_V, NOW).visible).toBe(false);
+    expect(secondChanceViewState(null, SELLER_V, NOW).visible).toBe(false);
+    expect(secondChanceViewState(undefined, SELLER_V, NOW).visible).toBe(false);
   });
 
   it('hides a decided offer from both parties', () => {
     for (const status of ['confirmed', 'declined', 'expired'] as SecondChanceStatus[]) {
-      for (const viewer of [SELLER, BIDDER]) {
-        expect(secondChanceViewState(auctionOf(offerOf({ status })), viewer, NOW).visible).toBe(false);
+      for (const v of [SELLER_V, BIDDER_V]) {
+        expect(secondChanceViewState(auctionOf(offerOf({ status })), v, NOW).visible).toBe(false);
       }
     }
   });
@@ -130,8 +146,8 @@ describe('secondChanceViewState — nothing to show', () => {
   it('hides an expired offer from both parties', () => {
     const expired = offerOf({ expiresAt: { toMillis: () => NOW - 1 } });
     for (const status of ['pending_seller', 'pending_buyer'] as SecondChanceStatus[]) {
-      for (const viewer of [SELLER, BIDDER]) {
-        const state = secondChanceViewState(auctionOf({ ...expired, status }), viewer, NOW);
+      for (const v of [SELLER_V, BIDDER_V]) {
+        const state = secondChanceViewState(auctionOf({ ...expired, status }), v, NOW);
         expect(state.visible).toBe(false);
       }
     }
@@ -139,8 +155,8 @@ describe('secondChanceViewState — nothing to show', () => {
 
   it('hides a live offer from everyone who is neither party', () => {
     for (const status of ['pending_seller', 'pending_buyer'] as SecondChanceStatus[]) {
-      for (const viewer of [STRANGER, null, undefined, '']) {
-        const state = secondChanceViewState(auctionOf(offerOf({ status })), viewer, NOW);
+      for (const v of [STRANGER_V, null, undefined, asViewer('')]) {
+        const state = secondChanceViewState(auctionOf(offerOf({ status })), v, NOW);
         expect(state.visible).toBe(false);
         expect(state.canAccept).toBe(false);
         expect(state.canDecline).toBe(false);
@@ -150,7 +166,7 @@ describe('secondChanceViewState — nothing to show', () => {
 
   it('never matches a party on empty ids — a signed-out viewer is not the seller', () => {
     const anon = { sellerId: '', secondChanceOffer: offerOf({ bidderId: '' }) };
-    expect(secondChanceViewState(anon, '', NOW).visible).toBe(false);
+    expect(secondChanceViewState(anon, asViewer(''), NOW).visible).toBe(false);
     expect(secondChanceViewState(anon, undefined, NOW).visible).toBe(false);
   });
 });
@@ -159,7 +175,7 @@ describe('secondChanceViewState — pending_seller (bid under the reserve)', () 
   const auction = auctionOf(offerOf({ status: 'pending_seller' }));
 
   it('lets the SELLER accept and decline', () => {
-    const state = secondChanceViewState(auction, SELLER, NOW);
+    const state = secondChanceViewState(auction, SELLER_V, NOW);
     expect(state).toEqual({
       visible: true,
       role: 'seller',
@@ -167,11 +183,12 @@ describe('secondChanceViewState — pending_seller (bid under the reserve)', () 
       canDecline: true,
       acceptAction: 'seller_accept',
       awaitingOther: false,
+      acceptBlockedByBan: false,
     });
   });
 
   it('lets the RUNNER-UP withdraw but not accept — the seller has not agreed yet', () => {
-    const state = secondChanceViewState(auction, BIDDER, NOW);
+    const state = secondChanceViewState(auction, BIDDER_V, NOW);
     expect(state).toEqual({
       visible: true,
       role: 'bidder',
@@ -179,7 +196,29 @@ describe('secondChanceViewState — pending_seller (bid under the reserve)', () 
       canDecline: true,
       acceptAction: null,
       awaitingOther: true,
+      acceptBlockedByBan: false,
     });
+  });
+
+  /**
+   * The ban column is a `buyer_accept` rule, and there is no buyer accept in
+   * this state. Mirroring a restriction the server does NOT impose would be the
+   * inverse of the bug being fixed: `seller_accept` has no ban gate in
+   * secondChanceRespond, so a blocked seller's button must stay.
+   */
+  it('does NOT ban-gate the seller — the server never refuses seller_accept', () => {
+    const blockedSeller = asViewer(SELLER, { isBlocked: true, blockedUntil: NOW + 48 * HOUR });
+    const state = secondChanceViewState(auction, blockedSeller, NOW);
+    expect(state.canAccept).toBe(true);
+    expect(state.acceptAction).toBe('seller_accept');
+    expect(state.acceptBlockedByBan).toBe(false);
+  });
+
+  it('leaves a blocked runner-up exactly as before here — nothing to accept anyway', () => {
+    const blockedBidder = asViewer(BIDDER, { isBlocked: true, blockedUntil: NOW + 48 * HOUR });
+    const state = secondChanceViewState(auction, blockedBidder, NOW);
+    expect(state.canDecline).toBe(true);
+    expect(state.acceptBlockedByBan).toBe(false);
   });
 });
 
@@ -187,7 +226,7 @@ describe('secondChanceViewState — pending_buyer (bid cleared the reserve)', ()
   const auction = auctionOf(offerOf({ status: 'pending_buyer' }));
 
   it('lets the RUNNER-UP accept and decline', () => {
-    const state = secondChanceViewState(auction, BIDDER, NOW);
+    const state = secondChanceViewState(auction, BIDDER_V, NOW);
     expect(state).toEqual({
       visible: true,
       role: 'bidder',
@@ -195,6 +234,7 @@ describe('secondChanceViewState — pending_buyer (bid cleared the reserve)', ()
       canDecline: true,
       acceptAction: 'buyer_accept',
       awaitingOther: false,
+      acceptBlockedByBan: false,
     });
   });
 
@@ -204,7 +244,7 @@ describe('secondChanceViewState — pending_buyer (bid cleared the reserve)', ()
    * The server answers `permission-denied`; the UI must not offer it at all.
    */
   it('gives the SELLER no buttons whatsoever — accept AND decline are both off', () => {
-    const state = secondChanceViewState(auction, SELLER, NOW);
+    const state = secondChanceViewState(auction, SELLER_V, NOW);
     expect(state).toEqual({
       visible: true,
       role: 'seller',
@@ -212,13 +252,99 @@ describe('secondChanceViewState — pending_buyer (bid cleared the reserve)', ()
       canDecline: false, // the ruling: no decline for the seller above reserve
       acceptAction: null,
       awaitingOther: true,
+      acceptBlockedByBan: false,
     });
   });
 
   it('still hides it once it expires, seller and bidder alike', () => {
     const dead = auctionOf(offerOf({ status: 'pending_buyer', expiresAt: { toMillis: () => NOW - 1 } }));
-    expect(secondChanceViewState(dead, SELLER, NOW).visible).toBe(false);
-    expect(secondChanceViewState(dead, BIDDER, NOW).visible).toBe(false);
+    expect(secondChanceViewState(dead, SELLER_V, NOW).visible).toBe(false);
+    expect(secondChanceViewState(dead, BIDDER_V, NOW).visible).toBe(false);
+  });
+});
+
+/**
+ * REVIEW F1 — a BLOCKED runner-up must never be shown an Accept button.
+ *
+ * `secondChanceRespond` throws `failed-precondition` on `buyer_accept` from a
+ * blocked account, and the payment-default ban MINIMUM is 48h against a 24h
+ * offer window, so the tap can never succeed before the offer dies — it is
+ * deterministic, not racy. Server-side the enforcer now declines to open such an
+ * offer at all; this is the client half, for the ban that lands AFTER the offer
+ * was opened (the account defaults on a different lot the next day).
+ */
+describe('secondChanceViewState — pending_buyer with a blocked runner-up', () => {
+  const auction = auctionOf(offerOf({ status: 'pending_buyer' }));
+  const blocked = asViewer(BIDDER, { isBlocked: true, blockedUntil: NOW + 48 * HOUR });
+
+  it('removes the accept entirely and says why', () => {
+    const state = secondChanceViewState(auction, blocked, NOW);
+    expect(state).toEqual({
+      visible: true,
+      role: 'bidder',
+      canAccept: false,
+      acceptAction: null,
+      // Decline survives: the server permits it from a blocked account, and it
+      // is how the lot is released early instead of idling out its 24h.
+      canDecline: true,
+      // NOT awaiting anyone — the decision is still theirs, they just cannot
+      // act on it. Keeping this false is what stops the card telling them their
+      // offer is sitting with the seller.
+      awaitingOther: false,
+      acceptBlockedByBan: true,
+    });
+  });
+
+  it('is still VISIBLE — a silently missing card looks like a lost offer', () => {
+    expect(secondChanceViewState(auction, blocked, NOW).visible).toBe(true);
+  });
+
+  it('honours the ban ladder rather than the isBlocked flag alone', () => {
+    // An ELAPSED cooldown is not a ban. The server's isEffectivelyBlocked agrees,
+    // so hiding the button here would strand a real offer.
+    const lapsed = asViewer(BIDDER, { isBlocked: true, blockedUntil: NOW - 1 });
+    const lapsedState = secondChanceViewState(auction, lapsed, NOW);
+    expect(lapsedState.canAccept).toBe(true);
+    expect(lapsedState.acceptBlockedByBan).toBe(false);
+
+    // A permanent admin ban carries no blockedUntil and must still block.
+    const permanent = asViewer(BIDDER, { isBlocked: true, blockedUntil: null });
+    expect(secondChanceViewState(auction, permanent, NOW).canAccept).toBe(false);
+    expect(secondChanceViewState(auction, permanent, NOW).acceptBlockedByBan).toBe(true);
+  });
+
+  it('reads the ban off the viewer, so it lifts the moment the cooldown does', () => {
+    const until = NOW + 2 * HOUR;
+    const v = asViewer(BIDDER, { isBlocked: true, blockedUntil: until });
+    expect(secondChanceViewState(auction, v, NOW).canAccept).toBe(false);
+    expect(secondChanceViewState(auction, v, until + 1).canAccept).toBe(true);
+  });
+
+  it("does not ban-gate the SELLER's view of a blocked runner-up", () => {
+    // The seller has no buttons on pending_buyer anyway, and the ban belongs to
+    // someone else — the flag must describe the VIEWER, never the counterparty.
+    const state = secondChanceViewState(auction, SELLER_V, NOW);
+    expect(state.acceptBlockedByBan).toBe(false);
+  });
+
+  it('leaves an unblocked runner-up completely untouched', () => {
+    const state = secondChanceViewState(auction, BIDDER_V, NOW);
+    expect(state.canAccept).toBe(true);
+    expect(state.acceptAction).toBe('buyer_accept');
+    expect(state.acceptBlockedByBan).toBe(false);
+  });
+});
+
+describe('secondChanceBlockedNote', () => {
+  it('is the server refusal message, verbatim, so the two never disagree', () => {
+    // Same sentence secondChanceRespond throws on the blocked buyer_accept.
+    expect(secondChanceBlockedNote(true))
+      .toBe('حسابك مقيّد حالياً ولا يمكنك قبول هذا العرض. يرجى التواصل مع الدعم.');
+  });
+
+  it('is bilingual and points at support', () => {
+    expect(secondChanceBlockedNote(false)).toContain('restricted');
+    expect(secondChanceBlockedNote(false)).toContain('support');
   });
 });
 
@@ -228,17 +354,20 @@ describe('secondChanceViewState — exhaustive status x viewer matrix', () => {
     canAccept: boolean;
     canDecline: boolean;
     acceptAction: 'seller_accept' | 'buyer_accept' | null;
+    acceptBlockedByBan: boolean;
   };
-  const DEAD: Want = { visible: false, canAccept: false, canDecline: false, acceptAction: null };
+  const DEAD: Want = {
+    visible: false, canAccept: false, canDecline: false, acceptAction: null, acceptBlockedByBan: false,
+  };
 
   // Every cell is a LITERAL expectation — never derived from the state under
   // test, so a mutant that is merely self-consistent still fails.
   const expected: Record<string, Want> = {
-    'pending_seller|seller': { visible: true, canAccept: true, canDecline: true, acceptAction: 'seller_accept' },
-    'pending_seller|bidder': { visible: true, canAccept: false, canDecline: true, acceptAction: null },
+    'pending_seller|seller': { visible: true, canAccept: true, canDecline: true, acceptAction: 'seller_accept', acceptBlockedByBan: false },
+    'pending_seller|bidder': { visible: true, canAccept: false, canDecline: true, acceptAction: null, acceptBlockedByBan: false },
     'pending_seller|stranger': DEAD,
-    'pending_buyer|seller': { visible: true, canAccept: false, canDecline: false, acceptAction: null },
-    'pending_buyer|bidder': { visible: true, canAccept: true, canDecline: true, acceptAction: 'buyer_accept' },
+    'pending_buyer|seller': { visible: true, canAccept: false, canDecline: false, acceptAction: null, acceptBlockedByBan: false },
+    'pending_buyer|bidder': { visible: true, canAccept: true, canDecline: true, acceptAction: 'buyer_accept', acceptBlockedByBan: false },
     'pending_buyer|stranger': DEAD,
     'confirmed|seller': DEAD,
     'confirmed|bidder': DEAD,
@@ -251,25 +380,77 @@ describe('secondChanceViewState — exhaustive status x viewer matrix', () => {
     'expired|stranger': DEAD,
   };
 
+  /**
+   * The same matrix with an ACTIVELY BLOCKED viewer. Also literal cells, so a
+   * ban check that over-reaches — gating the seller's accept, or the bidder's
+   * decline, or the whole card's visibility — fails here rather than shipping.
+   * Exactly ONE cell differs from the table above.
+   */
+  const expectedBlocked: Record<string, Want> = {
+    'pending_seller|seller': { visible: true, canAccept: true, canDecline: true, acceptAction: 'seller_accept', acceptBlockedByBan: false },
+    'pending_seller|bidder': { visible: true, canAccept: false, canDecline: true, acceptAction: null, acceptBlockedByBan: false },
+    'pending_seller|stranger': DEAD,
+    'pending_buyer|seller': { visible: true, canAccept: false, canDecline: false, acceptAction: null, acceptBlockedByBan: false },
+    // THE CELL F1 CHANGES.
+    'pending_buyer|bidder': { visible: true, canAccept: false, canDecline: true, acceptAction: null, acceptBlockedByBan: true },
+    'pending_buyer|stranger': DEAD,
+    'confirmed|seller': DEAD,
+    'confirmed|bidder': DEAD,
+    'confirmed|stranger': DEAD,
+    'declined|seller': DEAD,
+    'declined|bidder': DEAD,
+    'declined|stranger': DEAD,
+    'expired|seller': DEAD,
+    'expired|bidder': DEAD,
+    'expired|stranger': DEAD,
+  };
+
+  const cellOf = (state: ReturnType<typeof secondChanceViewState>): Want => ({
+    visible: state.visible,
+    canAccept: state.canAccept,
+    canDecline: state.canDecline,
+    acceptAction: state.acceptAction,
+    acceptBlockedByBan: state.acceptBlockedByBan,
+  });
+
   for (const status of ALL_STATUSES) {
     for (const [who, id] of [['seller', SELLER], ['bidder', BIDDER], ['stranger', STRANGER]] as const) {
       it(`${status} / ${who}`, () => {
-        const state = secondChanceViewState(auctionOf(offerOf({ status })), id, NOW);
-        expect({
-          visible: state.visible,
-          canAccept: state.canAccept,
-          canDecline: state.canDecline,
-          acceptAction: state.acceptAction,
-        }).toEqual(expected[`${status}|${who}`]);
+        const state = secondChanceViewState(auctionOf(offerOf({ status })), asViewer(id), NOW);
+        expect(cellOf(state)).toEqual(expected[`${status}|${who}`]);
+      });
+
+      it(`${status} / ${who} — blocked account`, () => {
+        const banned = asViewer(id, { isBlocked: true, blockedUntil: NOW + 48 * HOUR });
+        const state = secondChanceViewState(auctionOf(offerOf({ status })), banned, NOW);
+        expect(cellOf(state)).toEqual(expectedBlocked[`${status}|${who}`]);
       });
     }
   }
 
   it('an accept action, when present, matches the status the server expects', () => {
-    expect(secondChanceViewState(auctionOf(offerOf({ status: 'pending_seller' })), SELLER, NOW).acceptAction)
+    expect(secondChanceViewState(auctionOf(offerOf({ status: 'pending_seller' })), SELLER_V, NOW).acceptAction)
       .toBe('seller_accept');
-    expect(secondChanceViewState(auctionOf(offerOf({ status: 'pending_buyer' })), BIDDER, NOW).acceptAction)
+    expect(secondChanceViewState(auctionOf(offerOf({ status: 'pending_buyer' })), BIDDER_V, NOW).acceptAction)
       .toBe('buyer_accept');
+  });
+
+  it('never offers an accept action alongside the ban flag — that pair is the bug', () => {
+    // The precise defect: an Accept button whose callable answers
+    // `failed-precondition`. Swept across the whole vocabulary so no future
+    // status can reintroduce it.
+    for (const status of ALL_STATUSES) {
+      for (const id of [SELLER, BIDDER, STRANGER]) {
+        for (const isBlocked of [false, true]) {
+          const v = asViewer(id, { isBlocked, blockedUntil: isBlocked ? NOW + 48 * HOUR : undefined });
+          const state = secondChanceViewState(auctionOf(offerOf({ status })), v, NOW);
+          if (state.acceptBlockedByBan) {
+            expect(state.canAccept).toBe(false);
+            expect(state.acceptAction).toBeNull();
+          }
+        }
+      }
+    }
   });
 });
 

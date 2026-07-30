@@ -30,8 +30,18 @@
  * throws `permission-denied` for exactly this; the UI must not offer the action
  * in the first place. Do NOT "simplify" `canDecline` back to `isSeller ||
  * isBidder`.
+ *
+ * THE BAN COLUMN, added by review F1. `secondChanceRespond` refuses
+ * `buyer_accept` from a blocked account with `failed-precondition`, so a blocked
+ * runner-up must not be shown an Accept button. It applies to `buyer_accept`
+ * ONLY: the server ban-gates the buyer's acceptance and nothing else, and
+ * mirroring a restriction the server does NOT have would be the inverse bug.
+ * Decline stays available to a blocked bidder — the server permits it, and it is
+ * how the lot gets released early instead of idling out its 24h.
  */
 
+import type { User } from '../types';
+import { isEffectivelyBlocked } from './banStatus';
 import { sellerNet, totalWithPremium } from './bidMath';
 import { formatMoney } from './formatMoney';
 
@@ -89,7 +99,29 @@ export interface SecondChanceViewState {
   acceptAction: Extract<SecondChanceAction, 'seller_accept' | 'buyer_accept'> | null;
   /** Visible, but this viewer has no accept to make — the other party is deciding. */
   awaitingOther: boolean;
+  /**
+   * This viewer IS the runner-up and the offer IS theirs to take, but their
+   * account is under an active block, so the server would refuse `buyer_accept`.
+   *
+   * Distinct from a plain `canAccept: false`, and it has to be: without it the
+   * card cannot tell "the other party is deciding" from "the decision is yours
+   * and you are barred", and would tell a blocked runner-up their offer is with
+   * the seller — which is false.
+   */
+  acceptBlockedByBan: boolean;
 }
+
+/**
+ * The viewer, as a USER rather than an id.
+ *
+ * Deliberately NOT a bare `string`: the ban check needs `isBlocked` /
+ * `blockedUntil`, and an id-only viewer silently reports "not blocked" for
+ * everyone, which is precisely the defect F1 fixes. Making the object the only
+ * accepted shape turns every forgetful call site into a compile error instead.
+ */
+export type SecondChanceViewer = Pick<User, 'isBlocked' | 'blockedUntil'> & {
+  id?: string | null;
+};
 
 const HIDDEN: SecondChanceViewState = {
   visible: false,
@@ -98,6 +130,7 @@ const HIDDEN: SecondChanceViewState = {
   canDecline: false,
   acceptAction: null,
   awaitingOther: false,
+  acceptBlockedByBan: false,
 };
 
 /**
@@ -141,12 +174,13 @@ export function secondChanceOfferIsLive(
  */
 export function secondChanceViewState(
   auction: { sellerId?: string | null; secondChanceOffer?: SecondChanceOffer | null } | null | undefined,
-  viewerId: string | null | undefined,
+  viewer: SecondChanceViewer | null | undefined,
   nowMs: number,
 ): SecondChanceViewState {
   const offer = auction?.secondChanceOffer;
   if (!secondChanceOfferIsLive(offer, nowMs)) return HIDDEN;
 
+  const viewerId = viewer?.id;
   const isSeller = !!viewerId && !!auction?.sellerId && auction.sellerId === viewerId;
   const isBidder = !!viewerId && !!offer!.bidderId && offer!.bidderId === viewerId;
   if (!isSeller && !isBidder) return HIDDEN;
@@ -154,6 +188,10 @@ export function secondChanceViewState(
   if (offer!.status === 'pending_seller') {
     // The bid is UNDER the reserve and the SELLER is being asked. Their refusal
     // is the whole point of asking, and the runner-up may equally withdraw.
+    //
+    // No ban column here on purpose: the server ban-gates `buyer_accept` alone,
+    // and there is no buyer accept in this state. Blocking the seller's accept
+    // would invent a restriction the server does not have.
     return {
       visible: true,
       role: isSeller ? 'seller' : 'bidder',
@@ -161,17 +199,30 @@ export function secondChanceViewState(
       canDecline: true,
       acceptAction: isSeller ? 'seller_accept' : null,
       awaitingOther: !isSeller,
+      acceptBlockedByBan: false,
     };
   }
 
   // pending_buyer — the seller already consented; only the runner-up decides.
+  //
+  // Unless that runner-up is banned. secondChanceRespond throws
+  // `failed-precondition` on `buyer_accept` from a blocked account, and the
+  // payment-default ban minimum (48h) outlasts the offer window (24h), so the
+  // button could never succeed before the offer died. Same helper the ban banner
+  // and placeBid use, so the client has one answer to "is this account
+  // restricted". Decline stays on: the server allows it, and it releases the lot.
+  const acceptBlockedByBan = isBidder && isEffectivelyBlocked(viewer, nowMs);
+  const mayAccept = isBidder && !acceptBlockedByBan;
   return {
     visible: true,
     role: isBidder ? 'bidder' : 'seller',
-    canAccept: isBidder,
+    canAccept: mayAccept,
     canDecline: isBidder,
-    acceptAction: isBidder ? 'buyer_accept' : null,
+    acceptAction: mayAccept ? 'buyer_accept' : null,
+    // Still false for the blocked bidder: nobody else is deciding, the offer is
+    // theirs — they simply cannot take it. `acceptBlockedByBan` says why.
     awaitingOther: !isBidder,
+    acceptBlockedByBan,
   };
 }
 
@@ -272,6 +323,24 @@ export function secondChanceAcceptLabel(
   }
   const money = formatMoney(secondChanceSellerNet(amount), lang);
   return isAr ? `اقبل — تستلم ${money}` : `Accept — you receive ${money}`;
+}
+
+/**
+ * What a BLOCKED runner-up is told in place of the Accept button.
+ *
+ * The Arabic is the server's own refusal message verbatim
+ * (`secondChanceRespond.js`, the `isEffectivelyBlocked` throw) so the person who
+ * somehow reaches the callable anyway — a stale tab, a second device — reads the
+ * same sentence rather than two different explanations for one restriction.
+ *
+ * Deliberately does NOT name the reason or the lift time: `blockedReason` is not
+ * on the auction doc, and the ban banner elsewhere in the app already owns that
+ * story. This line's job is to stop the tap and point at support.
+ */
+export function secondChanceBlockedNote(isAr: boolean): string {
+  return isAr
+    ? 'حسابك مقيّد حالياً ولا يمكنك قبول هذا العرض. يرجى التواصل مع الدعم.'
+    : 'Your account is currently restricted, so you cannot accept this offer. Please contact support.';
 }
 
 /** `hh:mm` remaining, or the expired wording. Bilingual, Arabic-primary. */

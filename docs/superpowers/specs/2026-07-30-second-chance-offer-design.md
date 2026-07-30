@@ -63,6 +63,8 @@ From the `auctions/{id}/bids` subcollection: the highest bid **not** belonging t
 
 No qualifying bidder (single-bidder auction, or every other bid is the defaulter's) → **no offer**; the lot follows today's relist path unchanged.
 
+**A blocked runner-up does not qualify** (review F1). The accept callable refuses `buyer_accept` from a restricted account, and the payment-default ban minimum is 48h against a 24h offer window — so an offer opened to a blocked bidder is *deterministically* doomed: an Accept button the server will always refuse, while the lot is held out of auto-relist for 24h on behalf of someone who can never take it. With 21 of 31 orders defaulted, a meaningful share of runner-ups are under an active block, very often for defaulting elsewhere. The enforcer therefore reads the runner-up's user doc and skips the lot when `isEffectivelyBlocked` — still **no cascade** to the third bidder, so a skipped lot is simply the no-qualifying-bidder case above. The check lives at the `index.js` call site rather than in `pickRunnerUp`: the ban is I/O on `users/{uid}`, which the pure layer does not do, and one read for the chosen bidder beats a read per bidder to build a ban set before the pick. The client mirrors it in `secondChanceViewState` (accept hidden, decline kept, and the card says why) for the ban that lands *after* the offer was opened.
+
 ### The order-id constraint — the sharpest detail
 
 Orders are keyed by the auction id: `db.collection('orders').doc(auctionId)`, guarded by `if (!orderSnap.exists)` (`index.js:306,339`). **The defaulted order already occupies that id**, so a second order for the same lot cannot reuse it. `docs/BACKLOG.md` records the same trap for re-approving a settled auction.

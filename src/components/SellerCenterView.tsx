@@ -1531,7 +1531,7 @@ export const SellerCenterView: React.FC = () => {
                       {showSecondChance && (
                         <SecondChanceCard
                           auction={auction}
-                          currentUserId={currentUser?.id}
+                          currentUser={currentUser}
                           isAr={isAr}
                           onRespond={respondToSecondChance}
                           compact

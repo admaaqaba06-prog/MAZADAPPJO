@@ -29,16 +29,23 @@ import {
   secondChanceAcceptLabel,
   secondChanceAcceptNote,
   secondChanceBidderLabel,
+  secondChanceBlockedNote,
   secondChanceSellerNetNote,
   secondChanceTimeLeftLabel,
   secondChanceTotalDue,
   secondChanceViewState,
   SecondChanceAction,
+  SecondChanceViewer,
 } from '../../utils/secondChanceOffer';
 
 interface SecondChanceCardProps {
   auction: Pick<AuctionItem, 'id' | 'title' | 'sellerId' | 'thumbnailUrl' | 'secondChanceOffer'> & { [k: string]: any };
-  currentUserId: string | null | undefined;
+  /**
+   * The whole viewer, NOT just their id. `secondChanceViewState` has to know
+   * whether this account is blocked — the server refuses `buyer_accept` from one
+   * — and an id alone reports "not blocked" for everybody.
+   */
+  currentUser: SecondChanceViewer | null | undefined;
   isAr: boolean;
   onRespond: (auctionId: string, action: SecondChanceAction) => Promise<unknown> | void;
   /** Compact variant for the Seller Center row (no lot thumbnail — the row already has one). */
@@ -50,7 +57,7 @@ interface SecondChanceCardProps {
 
 export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
   auction,
-  currentUserId,
+  currentUser,
   isAr,
   onRespond,
   compact = false,
@@ -68,7 +75,7 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
   const [busy, setBusy] = useState<SecondChanceAction | null>(null);
 
   const offer = auction?.secondChanceOffer;
-  const state = secondChanceViewState(auction, currentUserId, now);
+  const state = secondChanceViewState(auction, currentUser, now);
   if (!state.visible || !offer) return null;
 
   const lang = isAr ? 'ar' : 'en';
@@ -100,8 +107,15 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
   };
 
   // Headline — who is being asked, and for what.
+  //
+  // Keyed on `awaitingOther`, NOT on `canAccept`. The two agreed exactly until
+  // the ban column landed: a BLOCKED runner-up on pending_buyer has
+  // `canAccept: false` yet nobody else is deciding, and keying on canAccept
+  // would tell them «عرضنا مزايدتك على البائع — بانتظار موافقته», which is a
+  // lie. The decision genuinely is theirs; `acceptBlockedByBan` explains why
+  // they cannot act on it. Do NOT switch this back to canAccept.
   const headline = isSeller
-    ? (state.canAccept
+    ? (!state.awaitingOther
       // pending_seller: the runner-up's bid is UNDER the reserve.
       ? (isAr
         ? `تخلّف الفائز عن الدفع. ${bidderLabel} زايد ${bidMoney} — أقل من سعرك المطلوب. تقبلها؟`
@@ -110,7 +124,7 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
       : (isAr
         ? `عُرض هذا المزاد على ${bidderLabel} بقيمة ${bidMoney} بعد تخلّف الفائز عن الدفع. بانتظار رده.`
         : `This lot was offered to ${bidderLabel} at ${bidMoney} after the winner failed to pay. Awaiting their answer.`))
-    : (state.canAccept
+    : (!state.awaitingOther
       ? (isAr
         ? `فرصة ثانية! تخلّف الفائز عن الدفع، والقطعة معروضة عليك بمزايدتك ${bidMoney}.`
         : `Second chance! The winner failed to pay — this lot is offered to you at your bid of ${bidMoney}.`)
@@ -179,6 +193,18 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
             </p>
           )}
         </div>
+      )}
+
+      {/* Blocked runner-up: the offer is theirs, the Accept button is gone, and
+          this is the only thing on the card that says why. Without it the
+          button simply vanishes and the card reads as broken. */}
+      {state.acceptBlockedByBan && (
+        <p
+          className="text-[10px] text-red-700 font-black leading-relaxed"
+          id={`second-chance-blocked-${auction.id}`}
+        >
+          {secondChanceBlockedNote(isAr)}
+        </p>
       )}
 
       {state.awaitingOther && !state.canDecline && (
