@@ -14,6 +14,7 @@ import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { blockedApprovalReason } from '../utils/approvalGuard';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
+import type { SecondChanceAction } from '../utils/secondChanceOffer';
 import { mapAuctionDocFull, PLACEHOLDER_MEDIA } from '../utils/auctionDocMap';
 import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
 import { useThrottledLocalStorageSync } from '../hooks/useThrottledLocalStorageSync';
@@ -176,6 +177,11 @@ interface AppContextProps {
   acceptBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   confirmBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   declineBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  // Second Chance Offer — seller/runner-up act on a defaulted lot's offer
+  respondToSecondChance: (
+    auctionId: string,
+    action: SecondChanceAction
+  ) => Promise<{ success: boolean; message: string }>;
   // E6 — buyer return flow
   requestReturn: (
     orderId: string,
@@ -3491,6 +3497,37 @@ const fetchIP = async () => {
     }
   }, [addNotification, showToast, language]);
 
+  /**
+   * Second Chance Offer — seller_accept / buyer_accept / decline on a lot whose
+   * winner failed to pay. Thin wrapper over `respondToSecondChance`, mirroring
+   * the below-reserve trio above: every permission check, the money and the
+   * order creation live server-side in functions/secondChanceRespond.js.
+   */
+  const respondToSecondChance = useCallback(async (auctionId: string, action: SecondChanceAction) => {
+    try {
+      const callable = await getCallableFunction<
+        { auctionId: string; action: SecondChanceAction },
+        { success: boolean; message: string; orderId?: string; alreadyCreated?: boolean }
+      >('respondToSecondChance');
+      const result = await callable({ auctionId, action });
+      if (result.data?.success) {
+        const title = action === 'decline'
+          ? (language === 'ar' ? 'تم إغلاق العرض' : 'Offer Closed')
+          : action === 'seller_accept'
+            ? (language === 'ar' ? '✅ تم قبول العرض' : '✅ Offer Accepted')
+            : (language === 'ar' ? '🛒 تم تأكيد الشراء' : '🛒 Purchase Confirmed');
+        addNotification(title, result.data.message || title, 'info');
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to respond to the offer.' };
+    } catch (error: any) {
+      console.error('Cloud function respondToSecondChance failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر تنفيذ العملية.' : 'Failed to respond to the offer.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
   // E6 — buyer opens a return claim on a shipped order. The callable is
   // buyer-only and freezes the order into a return-typed dispute.
   const requestReturn = useCallback(async (
@@ -5178,6 +5215,7 @@ const fetchIP = async () => {
       acceptBelowReserve,
       confirmBelowReserve,
       declineBelowReserve,
+      respondToSecondChance,
       requestReturn,
       sellerRespondToReturn,
       rateBuyer,
@@ -5270,7 +5308,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,
+    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,
