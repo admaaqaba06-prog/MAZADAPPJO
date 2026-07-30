@@ -865,6 +865,26 @@ async function notifySecondChanceOffer(auctionRef, auction, offer) {
   // Reuses `below_reserve_offer` deliberately — the live n8n workflow routes a
   // fixed 20-event contract and silently drops anything else.
   const uid = offer.status === 'pending_seller' ? auction.sellerId : offer.bidderId;
+  // NO RECIPIENT — refuse rather than pretend. A `pending_seller` offer on a lot
+  // with no `sellerId` (only reachable on a legacy/imported auction) would
+  // otherwise notify nobody, still stamp `notifiedAt` as though it had been
+  // announced, and hold the lot out of auto-relist for a full 24h for an offer
+  // that renders for no one and that nobody can accept — `seller_accept`
+  // requires `auction.sellerId === callerUserId`, which no caller can satisfy
+  // when the field is empty. `notify()` does not fail on a blank uid either: it
+  // posts to n8n with empty phone/email and returns happily.
+  //
+  // Mirrors the identical guard on the decline path (secondChanceRespond.js's
+  // `if (!pendingNotify.uid) pendingNotify = null`); the asymmetry was the bug.
+  //
+  // THROWN, not silently swallowed, so `notifiedAt` stays null: that is the same
+  // contract as a failed notify, the caller's catch logs it, and the offer stays
+  // findable by retryUnnotifiedSecondChanceOffers rather than being disguised as
+  // announced. The retry stops on its own once the 24h window lapses
+  // (`needsNotifyRetry` requires a LIVE offer).
+  if (!uid) {
+    throw new Error(`[secondChance] ${auctionRef.id}: ${offer.status} offer has no recipient uid — not announcing`);
+  }
   await notify({
     uid,
     event: 'below_reserve_offer',
@@ -974,6 +994,49 @@ async function openSecondChanceOffers(defaultedDocs) {
         continue;
       }
 
+      // NEVER OPEN AN OFFER TO A BANNED RUNNER-UP.
+      //
+      // secondChanceRespond refuses `buyer_accept` from a blocked account
+      // (`failed-precondition`), and the payment-default ban MINIMUM is 48h
+      // (resolvePaymentDefaultBan) against a 24h offer window — so an offer
+      // opened to a blocked bidder cannot be accepted before it expires. That is
+      // DETERMINISTIC, not a race: the runner-up is shown an Accept button the
+      // server will always refuse, while the lot is held out of auto-relist for
+      // 24h on their behalf. With 21 of 31 real orders defaulted, a meaningful
+      // share of runner-ups are under an active block — very often for
+      // defaulting on a different lot themselves.
+      //
+      // CHECKED HERE, at the call site, not inside `pickRunnerUp`: the ban lives
+      // on `users/{uid}` and reading it is I/O, which the pure layer does not do.
+      // Threading it in would mean reading a user doc for EVERY bidder to build
+      // the ban set before the pick, instead of one read for the one bidder who
+      // won it. Same helper and the same read shape as the accept path, so there
+      // is exactly one answer to "is this account restricted".
+      //
+      // NO CASCADE to the third bidder — a second chance is one-shot by design
+      // (see secondChance.js). A skipped lot simply follows today's relist path,
+      // which is precisely the documented no-qualifying-bidder behaviour. The log
+      // line is distinct from the no-runner-up one so the two are never confused.
+      let runnerUpUser = null;
+      let banReadable = true;
+      try {
+        const bidderSnap = await db.collection('users').doc(runnerUp.bidderId).get();
+        runnerUpUser = bidderSnap.exists ? (bidderSnap.data() || {}) : null;
+      } catch (e) {
+        // Fails OPEN, deliberately, and the opposite way to the reserve read
+        // above. A failed reserve lookup risks selling under a seller's reserve,
+        // so it fails safe; a failed BAN lookup risks only re-creating today's
+        // behaviour, whereas failing closed would permanently kill a legitimate
+        // runner-up's one and only shot — this sweep never sees the lot again.
+        // The accept-time ban gate still protects the money either way.
+        banReadable = false;
+        console.warn(`[secondChance] ban lookup failed for ${runnerUp.bidderId} on ${auctionId}:`, e && e.message);
+      }
+      if (banReadable && isEffectivelyBlocked(runnerUpUser, Date.now())) {
+        console.log(`[secondChance] ${auctionId} runner-up ${runnerUp.bidderId} is blocked — no offer opened, relist path unchanged`);
+        continue;
+      }
+
       // The reserve is admin-only (auctions/{id} is world-readable), so it comes
       // from auctionSecrets. `openingStateFor` distinguishes a GENUINELY ABSENT
       // reserve (no doc / no field / the number 0 — anything clears it) from one
@@ -1005,15 +1068,22 @@ async function openSecondChanceOffers(defaultedDocs) {
       await auctionRef.update({ secondChanceOffer: offer });
 
       // ORDER MATTERS from here. The offer is now live and already holds the lot
-      // out of auto-relist for 24h, so announcing it is no longer optional —
-      // and these are separate round-trips that cannot be made atomic. So:
-      // announce, THEN stamp notifiedAt, and leave the audit row last. Anything
-      // that fails before the stamp leaves `notifiedAt: null`, which is what
-      // retryUnnotifiedSecondChanceOffers hunts for on a later run. A failure
-      // after it costs only a log line.
-      await notifySecondChanceOffer(auctionRef, auction, offer);
-      console.log(`[secondChance] opened ${openingState} on ${auctionId} for ${runnerUp.bidderId}`);
-
+      // out of auto-relist for 24h, so announcing it is no longer optional — and
+      // these are separate round-trips that cannot be made atomic.
+      //
+      // THE AUDIT ROW GOES FIRST. `second_chance_opened` is the only way to
+      // watch the first fully automatic sale path in the system (docs/BACKLOG.md),
+      // and it is needed MOST on the runs where something then went wrong.
+      // Written after the notify it would be lost by a throw at the `notifiedAt`
+      // stamp — losing the observability record for an offer that did in fact go
+      // live, which is exactly backwards. Writing it first can only ever
+      // overstate by recording an offer whose announcement then failed, and that
+      // offer IS live: it already blocks relist, and the un-notified retry sweep
+      // will finish announcing it.
+      //
+      // Then: announce, THEN stamp notifiedAt. Anything that fails before the
+      // stamp leaves `notifiedAt: null`, which is what
+      // retryUnnotifiedSecondChanceOffers hunts for on a later run.
       await db.collection('system_health').add({
         type: 'second_chance_opened',
         title: `Second chance offered (${openingState})`,
@@ -1021,6 +1091,9 @@ async function openSecondChanceOffers(defaultedDocs) {
         source: 'paymentDefaultEnforcer',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      await notifySecondChanceOffer(auctionRef, auction, offer);
+      console.log(`[secondChance] opened ${openingState} on ${auctionId} for ${runnerUp.bidderId}`);
     } catch (e) {
       console.error(`[secondChance] failed for auction ${auctionId} (non-fatal):`, e && e.message);
     }
@@ -1032,8 +1105,17 @@ async function openSecondChanceOffers(defaultedDocs) {
  * Every 30 minutes: any order still waiting_payment past its paymentDeadlineAt
  * is marked defaulted and the buyer is blocked (isBlocked) pending admin review.
  * A defaulted lot then gets one automatic second-chance offer to the runner-up.
+ *
+ * `timeoutSeconds: 540` — the 60s default is no longer enough headroom. Per
+ * defaulted lot this now does 4 reads + 2 writes plus a 5s-bounded HTTP call to
+ * n8n, and a ≤50-doc un-notified retry sweep runs BEFORE any of that. A hung
+ * n8n behind a sweep backlog could burn the whole minute before a single order
+ * is defaulted — and a timeout here also drops section A, the cooldown lift that
+ * un-bans users. 9 minutes is the same ceiling Cloud Functions v1 allows.
  */
-exports.paymentDefaultEnforcer = functions.pubsub
+exports.paymentDefaultEnforcer = functions
+  .runWith({ timeoutSeconds: 540 })
+  .pubsub
   .schedule('every 30 minutes')
   .onRun(async () => {
     const now = admin.firestore.Timestamp.now();
