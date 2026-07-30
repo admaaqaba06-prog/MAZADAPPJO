@@ -88,7 +88,7 @@ Declining or letting the 24h lapse sets the offer terminal and unblocks relist. 
 
 ### Notifications
 
-**No new n8n events.** The live workflow has a fixed 21-event contract (`CHANNEL_POLICY` in `notify.js` mirrors it), and an event it does not route is silently dropped. Second Chance reuses:
+**No new n8n events.** The live workflow has a fixed 20-event contract (`CHANNEL_POLICY` in `notify.js` mirrors it), and an event it does not route is silently dropped. Second Chance reuses:
 
 | moment | event |
 |---|---|

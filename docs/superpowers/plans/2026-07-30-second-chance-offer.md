@@ -13,7 +13,7 @@
 - **Spec:** `docs/superpowers/specs/2026-07-30-second-chance-offer-design.md`. Read it first.
 - **One offer only.** No cascade. The order id `<auctionId>__sc` is a one-shot scheme and works *because* of that — never extend it to `__sc2`.
 - **24 hours per party.** `BELOW_RESERVE_WINDOW_HOURS` from `settlement.js` — do not introduce a new constant. On the below-reserve path the buyer gets a **fresh** 24h when the seller accepts, exactly as `acceptBelowReserve` already does (`index.js:2627`).
-- **No new n8n events.** The live workflow has a fixed 21-event contract. Reuse `below_reserve_offer`, `below_reserve_seller_accepted`, `below_reserve_declined`.
+- **No new n8n events.** The live workflow has a fixed 20-event contract. Reuse `below_reserve_offer`, `below_reserve_seller_accepted`, `below_reserve_declined`.
 - **Money is never copied from the dead order.** Recompute from the runner-up's bid via `buyerPremiumJod` / `totalDueJod` / `sellerCommissionFils` / `sellerNetFils`.
 - **The reserve lives in `auctionSecrets/{auctionId}`**, never the world-readable auction doc. No `auctionSecrets` doc means no reserve, so any bid clears it.
 - **The enforcer must never throw.** A second-chance failure logs and moves on — same contract as `assignOrderRef` at settlement.

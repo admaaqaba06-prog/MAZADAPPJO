@@ -863,7 +863,7 @@ exports.autoRelistSweep = functions.pubsub
 async function notifySecondChanceOffer(auctionRef, auction, offer) {
   // pending_seller waits on the seller; pending_buyer goes straight out.
   // Reuses `below_reserve_offer` deliberately — the live n8n workflow routes a
-  // fixed 21-event contract and silently drops anything else.
+  // fixed 20-event contract and silently drops anything else.
   const uid = offer.status === 'pending_seller' ? auction.sellerId : offer.bidderId;
   await notify({
     uid,
@@ -1398,7 +1398,7 @@ exports.onOrderStatusChanged = functions.firestore
     const NOTIFY = {
       preparing_shipment: 'order_preparing',
       // Wave 3 — reuses the EXISTING order_shipped event on purpose. The n8n
-      // workflow (v2, live) has a fixed 21-event contract that notify.js's
+      // workflow (v2, live) has a fixed 20-event contract that notify.js's
       // CHANNEL_POLICY mirrors; a new key here would emit an event n8n does not
       // route, and the buyer would silently get nothing. "Out for delivery" is
       // already what order_shipped means to a buyer.
