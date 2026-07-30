@@ -33,6 +33,7 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
+const { pickRunnerUp, openingStateFor, buildOfferRecord } = require('./secondChance');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
@@ -839,10 +840,107 @@ exports.autoRelistSweep = functions.pubsub
   });
 
 /**
+ * Open a second-chance offer on each freshly-defaulted lot.
+ *
+ * Runs AFTER the enforcer's batch commits: finding the runner-up needs a bids
+ * subcollection query, which does not belong inside a write batch.
+ *
+ * NEVER THROWS. paymentDefaultEnforcer also lifts expired bans; a second-chance
+ * failure must not stop that. A lot that fails to get an offer is simply the
+ * status quo.
+ *
+ * Idempotent: the enforcer runs every 30 minutes, so an auction that already
+ * carries a `secondChanceOffer` is skipped rather than re-offered.
+ */
+async function openSecondChanceOffers(defaultedDocs) {
+  for (const doc of defaultedDocs) {
+    const order = doc.data() || {};
+    const auctionId = order.auctionId;
+    if (!auctionId) continue;
+    try {
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const auctionSnap = await auctionRef.get();
+      if (!auctionSnap.exists) continue;
+      const auction = auctionSnap.data() || {};
+
+      // One offer per lot, ever.
+      if (auction.secondChanceOffer) {
+        console.log(`[secondChance] ${auctionId} already has an offer — skipping`);
+        continue;
+      }
+
+      const bidsSnap = await auctionRef.collection('bids').get();
+      const bids = bidsSnap.docs.map(d => d.data());
+      const runnerUp = pickRunnerUp(bids, order.buyerId);
+      if (!runnerUp) {
+        console.log(`[secondChance] ${auctionId} has no runner-up — relist path unchanged`);
+        continue;
+      }
+
+      // The reserve is admin-only (auctions/{id} is world-readable), so it comes
+      // from auctionSecrets. `openingStateFor` distinguishes a GENUINELY ABSENT
+      // reserve (no doc / no field / the number 0 — anything clears it) from one
+      // that is PRESENT BUT UNREADABLE (NaN, '', 'abc', -5 — ask the seller).
+      // The stored value is therefore passed through UNCHANGED: no Number(), no
+      // `|| 0`, no `?? 0`. Coercing here would silently sell a lot under its
+      // seller's reserve, which is the exact harm that fork exists to prevent.
+      let reserve = null;
+      let reserveReadable = true;
+      try {
+        const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+        if (secretSnap.exists) reserve = (secretSnap.data() || {}).reservePrice;
+      } catch (e) {
+        // A failed lookup is not an absent reserve — we simply do not know. Same
+        // fail-safe: ask the seller. (We cannot retry later; once the order is
+        // `defaulted` this sweep never sees it again.)
+        reserveReadable = false;
+        console.warn(`[secondChance] reserve lookup failed for ${auctionId}:`, e && e.message);
+      }
+
+      const openingState = reserveReadable
+        ? openingStateFor(runnerUp.amount, reserve)
+        : 'pending_seller';
+      const offer = buildOfferRecord(
+        { Timestamp: admin.firestore.Timestamp, now: () => Date.now() },
+        { runnerUp, defaultedOrderId: doc.id, openingState },
+      );
+
+      await auctionRef.update({ secondChanceOffer: offer });
+
+      await db.collection('system_health').add({
+        type: 'second_chance_opened',
+        title: `Second chance offered (${openingState})`,
+        details: `Auction ${auctionId} (${order.auctionTitle || ''}) → ${runnerUp.bidderName} at ${runnerUp.amount} JOD after ${order.buyerName || order.buyerId} defaulted.`,
+        source: 'paymentDefaultEnforcer',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // pending_seller waits on the seller; pending_buyer goes straight out.
+      // Reuses `below_reserve_offer` deliberately — the live n8n workflow routes
+      // a fixed 21-event contract and silently drops anything else.
+      const notifyUid = openingState === 'pending_seller' ? auction.sellerId : runnerUp.bidderId;
+      await notify({
+        uid: notifyUid,
+        event: 'below_reserve_offer',
+        data: {
+          auctionId,
+          auctionTitle: auction.title || '',
+          topBid: runnerUp.amount,
+          idempotencyKey: `${auctionId}_second_chance_open`,
+        },
+      });
+      console.log(`[secondChance] opened ${openingState} on ${auctionId} for ${runnerUp.bidderId}`);
+    } catch (e) {
+      console.error(`[secondChance] failed for auction ${auctionId} (non-fatal):`, e && e.message);
+    }
+  }
+}
+
+/**
  * paymentDefaultEnforcer
  * Every 30 minutes: any order still waiting_payment past its paymentDeadlineAt
  * is marked defaulted and the buyer is blocked (isBlocked) pending admin review.
- * Re-run / runner-up offer is a manual admin decision in v1.
+ * A defaulted lot then gets one automatic second-chance offer to the runner-up.
  */
 exports.paymentDefaultEnforcer = functions.pubsub
   .schedule('every 30 minutes')
@@ -929,6 +1027,15 @@ exports.paymentDefaultEnforcer = functions.pubsub
         const batch = db.batch();
         markDefaulted(batch, doc);
         await batch.commit();
+      }
+
+      // Second chance: recover the sale the default just killed. Wrapped
+      // because this function ALSO lifts expired bans above — a second-chance
+      // failure must never stop that from running.
+      try {
+        await openSecondChanceOffers(snap.docs);
+      } catch (e) {
+        console.error('[paymentDefaultEnforcer] second-chance pass failed (non-fatal):', e && e.message);
       }
     } catch (err) {
       console.error('[paymentDefaultEnforcer]', err);
