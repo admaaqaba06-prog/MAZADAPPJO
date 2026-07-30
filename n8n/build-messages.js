@@ -12,11 +12,20 @@
 function copyFor(event, data) {
   const d = data || {};
   const t = d.auctionTitle || d.orderId || '';
+  // MIRRORS functions/notify.js. A second-chance offer reuses the
+  // `below_reserve_offer` event (this workflow's event contract is fixed), but
+  // the winner defaulted — the bids did not fall short. `secondChance` +
+  // `offerStatus` pick the copy that is true for the actual recipient.
+  const sc = d.secondChance === true;
   const M = {
     auction_won:  { type: 'win',   title: 'فزت بالمزاد 🎉',   description: `مبروك! ربحت "${t}". المبلغ المستحق ${d.totalDue || ''} د.أ.` },
     payment_due:  { type: 'order', title: 'دفعة مستحقة',       description: `يرجى دفع "${t}" خلال ${d.paymentHours || 24} ساعة.` },
     payment_reminder: { type: 'order', title: 'تذكير بالدفع',  description: `ما زال "${t}" بانتظار الدفع. بادر قبل انتهاء المهلة.` },
-    below_reserve_offer: { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على "${t}" ${d.topBid || ''} د.أ — تقبل؟` },
+    below_reserve_offer: !sc
+      ? { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على "${t}" ${d.topBid || ''} د.أ — تقبل؟` }
+      : d.offerStatus === 'pending_seller'
+        ? { type: 'info', title: 'فرصة ثانية — بانتظار قرارك', description: `لم يكمل الفائز بـ"${t}" الدفع. أعلى مزايدة بعده ${d.topBid || ''} د.أ وهي أقل من سعرك المطلوب — تقبل؟` }
+        : { type: 'info', title: 'فرصة ثانية لك', description: `لم يكمل الفائز بـ"${t}" الدفع، والمنتج معروض عليك بمزايدتك ${d.topBid || ''} د.أ — تقبل؟` },
     below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على "${t}". أكّد للشراء.` },
     below_reserve_declined: { type: 'loss', title: 'لم يُقبل العرض', description: `لم يقبل البائع مزايدتك على "${t}".` },
     outbid: { type: 'outbid', title: 'تمت المزايدة عليك', description: `تجاوزك أحدهم على "${t}".` },

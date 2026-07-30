@@ -39,11 +39,22 @@ function channelsFor(event) {
 // `type` must be one of the Notification union in src/types.ts.
 function copyFor(event, data = {}) {
   const t = data.auctionTitle || data.orderId || '';
+  // A SECOND-CHANCE offer reuses the `below_reserve_offer` event on purpose (the
+  // live n8n workflow routes a fixed event contract and silently drops anything
+  // else), but the situation is not the same: the bids did NOT fall short — the
+  // winner failed to pay. `secondChance` + `offerStatus` pick copy that is true
+  // for the actual recipient. `pending_seller` asks the SELLER to accept a bid
+  // under their reserve; anything else is the RUNNER-UP being offered the lot.
+  const sc = data.secondChance === true;
   const M = {
     auction_won:  { type: 'win',   title: 'فزت بالمزاد 🎉',   description: `مبروك! ربحت "${t}". المبلغ المستحق ${data.totalDue || ''} د.أ.` },
     payment_due:  { type: 'order', title: 'دفعة مستحقة',       description: `يرجى دفع "${t}" خلال ${data.paymentHours || 24} ساعة.` },
     payment_reminder: { type: 'order', title: 'تذكير بالدفع',  description: `ما زال "${t}" بانتظار الدفع. بادر قبل انتهاء المهلة.` },
-    below_reserve_offer: { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على "${t}" ${data.topBid || ''} د.أ — تقبل؟` },
+    below_reserve_offer: !sc
+      ? { type: 'info', title: 'عرض أقل من السعر', description: `أعلى مزايدة على "${t}" ${data.topBid || ''} د.أ — تقبل؟` }
+      : data.offerStatus === 'pending_seller'
+        ? { type: 'info', title: 'فرصة ثانية — بانتظار قرارك', description: `لم يكمل الفائز بـ"${t}" الدفع. أعلى مزايدة بعده ${data.topBid || ''} د.أ وهي أقل من سعرك المطلوب — تقبل؟` }
+        : { type: 'info', title: 'فرصة ثانية لك', description: `لم يكمل الفائز بـ"${t}" الدفع، والمنتج معروض عليك بمزايدتك ${data.topBid || ''} د.أ — تقبل؟` },
     below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على "${t}". أكّد للشراء.` },
     below_reserve_declined: { type: 'loss', title: 'لم يُقبل العرض', description: `لم يقبل البائع مزايدتك على "${t}".` },
     outbid: { type: 'outbid', title: 'تمت المزايدة عليك', description: `تجاوزك أحدهم على "${t}".` },

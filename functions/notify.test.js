@@ -72,6 +72,51 @@ describe('dueReminders', () => {
   });
 });
 
+describe('below_reserve_offer copy — second chance vs a genuine below-reserve offer', () => {
+  // The second-chance flow REUSES this event (the n8n workflow routes a fixed
+  // event contract), so the copy has to branch or it states something false:
+  // for a second chance the bids did NOT fall short — the winner failed to pay.
+  const title = 'ساعة';
+
+  it('keeps today’s wording for a real below-reserve offer', () => {
+    const c = copyFor('below_reserve_offer', { auctionTitle: title, topBid: 90 });
+    expect(c.title).toBe('عرض أقل من السعر');
+    expect(c.description).toBe(`أعلى مزايدة على "${title}" 90 د.أ — تقبل؟`);
+  });
+
+  it('tells the runner-up the WINNER did not pay, not that their bid fell short', () => {
+    const c = copyFor('below_reserve_offer', {
+      auctionTitle: title, topBid: 90, secondChance: true, offerStatus: 'pending_buyer',
+    });
+    expect(c.description).toContain('لم يكمل الفائز');
+    expect(c.description).toContain('معروض عليك');
+    expect(c.description).not.toContain('أعلى مزايدة على');
+    expect(c.description).toContain('90');
+  });
+
+  it('asks the SELLER to decide when the runner-up bid is under the reserve', () => {
+    const c = copyFor('below_reserve_offer', {
+      auctionTitle: title, topBid: 90, secondChance: true, offerStatus: 'pending_seller',
+    });
+    expect(c.description).toContain('لم يكمل الفائز');
+    expect(c.description).toContain('سعرك المطلوب');
+    // Addressed to the seller — never tells them the lot is offered to them.
+    expect(c.description).not.toContain('معروض عليك');
+  });
+
+  it('gives the two audiences different copy', () => {
+    const seller = copyFor('below_reserve_offer', { auctionTitle: title, secondChance: true, offerStatus: 'pending_seller' });
+    const buyer = copyFor('below_reserve_offer', { auctionTitle: title, secondChance: true, offerStatus: 'pending_buyer' });
+    expect(seller.title).not.toBe(buyer.title);
+    expect(seller.description).not.toBe(buyer.description);
+  });
+
+  it('only branches on an explicit true — a stray falsy flag keeps the default', () => {
+    const c = copyFor('below_reserve_offer', { auctionTitle: title, topBid: 90, secondChance: false });
+    expect(c.title).toBe('عرض أقل من السعر');
+  });
+});
+
 describe('E6 return events', () => {
   it('return_requested → all channels', () => {
     expect(channelsFor('return_requested')).toEqual({ inapp: true, whatsapp: true, email: true });
