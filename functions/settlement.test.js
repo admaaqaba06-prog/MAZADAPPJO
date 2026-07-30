@@ -352,3 +352,42 @@ describe('below-reserve near-miss (E3 Slice C)', () => {
     });
   });
 });
+
+describe('shouldAutoRelist — a live second-chance offer blocks a relist', () => {
+  const NOW = 1750000000000;
+  const HOUR = 3600000;
+  const ts = (ms) => ({ toMillis: () => ms });
+  const base = { autoRelist: true, autoRelistCount: 0, relisted: false };
+
+  it('does not relist a lot that is under a live second-chance offer', () => {
+    // Without this, the same item goes live while the runner-up still holds an
+    // offer on it — and two people can buy it.
+    expect(shouldAutoRelist({
+      ...base,
+      secondChanceOffer: { status: 'pending_buyer', expiresAt: ts(NOW + HOUR) },
+    }, NOW)).toBe(false);
+  });
+
+  it('blocks while the SELLER is still deciding, too', () => {
+    expect(shouldAutoRelist({
+      ...base,
+      secondChanceOffer: { status: 'pending_seller', expiresAt: ts(NOW + HOUR) },
+    }, NOW)).toBe(false);
+  });
+
+  it('relists once the offer has expired', () => {
+    expect(shouldAutoRelist({
+      ...base,
+      secondChanceOffer: { status: 'pending_buyer', expiresAt: ts(NOW - 1) },
+    }, NOW)).toBe(true);
+  });
+
+  it('relists after a decline, but never after a confirmed sale', () => {
+    expect(shouldAutoRelist({ ...base, secondChanceOffer: { status: 'declined' } }, NOW)).toBe(true);
+    expect(shouldAutoRelist({ ...base, secondChanceOffer: { status: 'confirmed' } }, NOW)).toBe(false);
+  });
+
+  it('still relists a lot with no second-chance offer at all', () => {
+    expect(shouldAutoRelist(base, NOW)).toBe(true);
+  });
+});

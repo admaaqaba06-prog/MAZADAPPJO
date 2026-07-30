@@ -215,7 +215,13 @@ function shouldAutoRelist(auction, nowMs) {
     auction.autoRelist === true &&
     (auction.autoRelistCount || 0) < MAX_AUTO_RELISTS &&
     auction.relisted !== true &&
-    !belowReserveBlocksRelist(auction.belowReserveOffer, nowMs)
+    !belowReserveBlocksRelist(auction.belowReserveOffer, nowMs) &&
+    // A live second-chance offer blocks a relist for the same reason a
+    // below-reserve one does: the lot may still become a sale. Without this the
+    // item goes live while the runner-up holds an offer on it, and two people
+    // can buy the same thing. `belowReserveBlocksRelist` is reused rather than
+    // duplicated — both are the same bounded-offer machine.
+    !belowReserveBlocksRelist(auction.secondChanceOffer, nowMs)
   );
 }
 
