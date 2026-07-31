@@ -148,6 +148,82 @@ describe('emailFor — every email-enabled event produces usable content', () =>
   });
 });
 
+describe('emailFor — below_reserve_offer branches for a second chance', () => {
+  // Same event, two different situations. The default intro says the bids did
+  // not reach the asking price; for a second chance that is false — the winner
+  // defaulted — and it is addressed to a seller, not to the runner-up.
+  const base = { auctionTitle: 'ساعة', orderId: 'o1' };
+
+  it('keeps the below-reserve intro when no second-chance flag is set', () => {
+    const e = emailFor('below_reserve_offer', base);
+    expect(e.intro).toContain('لم تبلغ المزايدات السعر المطلوب');
+  });
+
+  it('never tells a second-chance recipient their bids fell short', () => {
+    for (const offerStatus of ['pending_seller', 'pending_buyer']) {
+      const e = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus });
+      expect(e.intro, offerStatus).not.toContain('لم تبلغ المزايدات السعر المطلوب');
+      expect(e.intro, offerStatus).toContain('لم يكمل الفائز');
+      expect(e.subject, offerStatus).toContain('فرصة ثانية');
+      expect(e.heading.length, offerStatus).toBeGreaterThan(0);
+      expect(e.preheader.length, offerStatus).toBeGreaterThan(0);
+    }
+  });
+
+  it('addresses the seller and the runner-up differently', () => {
+    const seller = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus: 'pending_seller' });
+    const buyer = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus: 'pending_buyer' });
+    expect(seller.intro).not.toBe(buyer.intro);
+    expect(seller.subject).not.toBe(buyer.subject);
+    expect(seller.intro).toContain('السعر المطلوب'); // asked to sell under reserve
+    expect(buyer.intro).toContain('معروض عليك');     // offered the lot
+  });
+
+  it('an unknown offerStatus still gets second-chance copy, not the false one', () => {
+    const e = emailFor('below_reserve_offer', { ...base, secondChance: true });
+    expect(e.intro).toContain('لم يكمل الفائز');
+  });
+
+  it('leaves other events alone even when the flag rides along', () => {
+    const e = emailFor('payment_due', { ...base, secondChance: true, offerStatus: 'pending_buyer' });
+    expect(e.intro).toBe(emailFor('payment_due', base).intro);
+  });
+
+  it('stays transactional with a working CTA', () => {
+    const e = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus: 'pending_buyer' });
+    expect(e.kind).toBe('transactional');
+    expect(e.cta.url).toContain('mazad-jo.com');
+  });
+});
+
+describe('emailFor — a second-chance CTA never points at the defaulted order', () => {
+  // No order exists when the offer goes out, and orders/<auctionId> belongs to
+  // the buyer who defaulted — firestore.rules refuses to show it to the
+  // runner-up. The one email whose job is to convert them used to land there.
+  it('links a second-chance offer to the lot page', () => {
+    for (const event of ['below_reserve_offer', 'below_reserve_seller_accepted']) {
+      const e = emailFor(event, { auctionTitle: 'ساعة', auctionId: 'a1', secondChance: true });
+      expect(e.cta.url, event).toBe('https://www.mazad-jo.com/auction/a1');
+      expect(e.cta.url, event).not.toContain('modal=order');
+    }
+  });
+
+  it('still links to the order once one exists', () => {
+    const e = emailFor('payment_due', { auctionTitle: 'ساعة', auctionId: 'a1', orderId: 'a1__sc', secondChance: true });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1__sc');
+  });
+
+  it('leaves the non-second-chance fallback alone (a normal order IS the auction id)', () => {
+    const e = emailFor('auction_won', { auctionTitle: 'ساعة', auctionId: 'a1' });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1');
+  });
+
+  it('url-encodes an awkward auction id', () => {
+    const e = emailFor('below_reserve_offer', { auctionId: 'a b', secondChance: true });
+    expect(e.cta.url).toBe('https://www.mazad-jo.com/auction/a%20b');
+  });
+});
+
 describe('BRAND — the footer identity that was missing entirely', () => {
   it('carries the registered entity and licence number', () => {
     expect(BRAND.legalName).toContain('Al Hani');

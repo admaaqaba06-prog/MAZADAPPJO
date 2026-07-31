@@ -5,6 +5,7 @@ import type { OrderStatusCode } from './utils/orderStatusGlossary';
  */
 
 import type { ViewingMode } from './utils/viewing';
+import type { SecondChanceOffer } from './utils/secondChanceOffer';
 
 export interface User {
   id: string;
@@ -172,6 +173,18 @@ export interface AuctionItem {
     buyerConfirmedAt?: any;
     buyerDeclinedAt?: any;
   };
+  /**
+   * Second Chance Offer — stamped by the payment-default enforcer when the
+   * WINNER fails to pay: the lot is offered to the runner-up bidder for their
+   * own bid. Same shape and status vocabulary as `belowReserveOffer` (both are
+   * read by settlement.belowReserveBlocksRelist), but opened from a default
+   * rather than a near-miss. `pending_seller` = the runner-up's bid is under the
+   * reserve and the seller is being asked; `pending_buyer` = it cleared the
+   * reserve (or the seller accepted) and the runner-up is being offered the lot.
+   * Acted on via the `respondToSecondChance` callable; display + gating only
+   * here. See src/utils/secondChanceOffer.ts for who may do what.
+   */
+  secondChanceOffer?: SecondChanceOffer;
   /** Internal vendor tracking (set in drop-builder, never shown to buyers in v1). */
   vendorId?: string | null;
   vendorName?: string;

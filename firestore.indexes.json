@@ -65,6 +65,24 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "secondChanceOffer.bidderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "secondChanceOffer.status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "secondChanceOffer.openedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "auctions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "status",
           "order": "ASCENDING"
         },

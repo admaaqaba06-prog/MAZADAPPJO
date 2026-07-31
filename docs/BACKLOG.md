@@ -96,6 +96,32 @@ top-down from it wasted time on problems that no longer existed.
     `firestore.indexes.json` 2026-07-29. It had been failing silently in the admin console for
     however long; the pending-payouts query was fine, only the history list was empty.
 
+27. **A defaulted lot now sells itself to the runner-up** (Second Chance Offer, 2026-07-30).
+    `paymentDefaultEnforcer` no longer just marks the order defaulted and stops: it offers the lot
+    to the runner-up at their own bid, once, for 24h. If that bid cleared the seller's reserve the
+    offer goes **straight to the bidder with no human in the loop** — so this is **the first fully
+    automatic sale path in the system**, a lot changing hands at a lower price with nobody
+    approving it. That is deliberate (21 of 31 real orders sitting `defaulted` is what the status
+    quo costs) but it is the thing to watch after launch. Below reserve, the seller is still asked
+    first.
+
+    **Where to watch it:** every offer writes a `system_health` row of type `second_chance_opened`
+    — `Second chance offered (pending_buyer|pending_seller)`, source `paymentDefaultEnforcer`,
+    naming the lot, the runner-up, the amount and who defaulted. The System tab renders unknown
+    types fine, so they show up without any admin change. The bidder name in that row is **masked**
+    (`maskBidderName`), so it identifies the offer, not the person.
+
+    Two deploy dependencies, both real:
+    - `firebase deploy --only firestore:indexes` must finish **before** the frontend ships. The
+      runner-up's card reads a composite index (`secondChanceOffer.bidderId`, `.status`,
+      `.openedAt desc`); until it builds the query fails `failed-precondition`, which the hook logs
+      and swallows — so the card is **absent, not broken**. Index builds on an existing collection
+      are not instant.
+    - The n8n **Build Messages** Code node must be re-pasted from `n8n/build-messages.js`, or
+      production WhatsApp keeps the old wording («لم تبلغ المزايدات السعر المطلوب» — the bids did
+      not reach the asking price), which is false for a second-chance recipient. Email is unaffected:
+      it renders from `email_content`, which Functions produce.
+
 ## 🚀 Queued projects (specced / scoped)
 
 - ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.

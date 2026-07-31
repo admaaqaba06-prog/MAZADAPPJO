@@ -90,6 +90,32 @@ function orderDeepLink(orderId) {
   return `${SITE}/orders?modal=order&order=${encodeURIComponent(id)}`;
 }
 
+/** The lot's own page (`/auction/<id>` — see src/utils/navUrl.ts VIEW_PATH). */
+function auctionDeepLink(auctionId) {
+  const id = String(auctionId ?? '').trim();
+  if (!id) return `${SITE}/discover`;
+  return `${SITE}/auction/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Where the CTA points.
+ *
+ * A real order id always wins. Without one we normally fall back to the auction
+ * id, which works because a normal order IS `orders/{auctionId}` — but a
+ * SECOND-CHANCE email breaks that assumption twice over: no order exists yet
+ * when the offer goes out, and `orders/{auctionId}` is the DEFAULTED buyer's
+ * document, which firestore.rules refuses to show the runner-up. The one email
+ * whose whole job is to convert them would land on a permission error. So a
+ * second chance links to the lot itself, which exists and which they can open.
+ */
+function ctaUrlFor(data) {
+  const orderId = String(data.orderId ?? '').trim();
+  if (orderId) return orderDeepLink(orderId);
+  const auctionId = String(data.auctionId ?? '').trim();
+  if (data.secondChance === true && auctionId) return auctionDeepLink(auctionId);
+  return orderDeepLink(auctionId);
+}
+
 /** Rows shown as a labelled table. Anything without a value is omitted. */
 function detailRows(data) {
   const t = cleanTitle(data.auctionTitle);
@@ -203,6 +229,49 @@ const CONTENT = {
   },
 };
 
+/**
+ * Second-chance overrides, keyed by event then by the offer's status.
+ *
+ * A second-chance offer travels on the `below_reserve_offer` event because the
+ * live n8n workflow routes a FIXED event contract and silently drops anything
+ * it does not know. The event is therefore reused — but its default copy («لم
+ * تبلغ المزايدات السعر المطلوب») is simply false here: the bids were fine, the
+ * WINNER FAILED TO PAY. Sending that to a runner-up would misstate why they are
+ * being offered the lot, and misstate their own bid as too low.
+ *
+ * The two recipients are different people with different asks:
+ *   pending_seller — the SELLER is asked to accept a runner-up bid that sits
+ *                    under their reserve.
+ *   pending_buyer  — the RUNNER-UP is offered the lot at their own bid.
+ * Anything other than `pending_seller` is treated as the runner-up: that is the
+ * common case (a bid at or above the reserve goes straight to the bidder), and
+ * both emit sites send the status explicitly.
+ */
+const SECOND_CHANCE_CONTENT = {
+  below_reserve_offer: {
+    pending_seller: {
+      subject: (t) => `فرصة ثانية على ${t} — بانتظار قرارك`,
+      heading: 'فرصة ثانية — بانتظار قرارك',
+      intro: 'لم يكمل الفائز الدفع خلال المهلة وأُلغي طلبه. أعلى مزايدة بعده أقل من السعر المطلوب، ويمكنك قبولها لإتمام البيع أو رفضها وإعادة عرض المنتج.',
+      cta: 'راجع العرض',
+    },
+    pending_buyer: {
+      subject: (t) => `فرصة ثانية: ${t} معروض عليك`,
+      heading: 'فرصة ثانية لك',
+      intro: 'لم يكمل الفائز بالمزاد الدفع خلال المهلة وأُلغي طلبه، والمنتج معروض عليك الآن بقيمة مزايدتك. أكّد الشراء قبل انتهاء مهلة العرض.',
+      cta: 'راجع العرض',
+    },
+  },
+};
+
+/** The second-chance variant of an event's copy, or null when it has none. */
+function secondChanceContent(event, data) {
+  if (!data || data.secondChance !== true) return null;
+  const variants = SECOND_CHANCE_CONTENT[event];
+  if (!variants) return null;
+  return data.offerStatus === 'pending_seller' ? variants.pending_seller : variants.pending_buyer;
+}
+
 const FALLBACK = {
   subject: () => 'تحديث من مزاد جو',
   heading: 'تحديث على حسابك',
@@ -219,9 +288,8 @@ const FALLBACK = {
  * usual mistake.
  */
 function emailFor(event, data = {}) {
-  const c = CONTENT[event] || FALLBACK;
+  const c = secondChanceContent(event, data) || CONTENT[event] || FALLBACK;
   const t = cleanTitle(data.auctionTitle) || 'مزاد جو';
-  const orderId = data.orderId || data.auctionId || '';
 
   return {
     event,
@@ -233,11 +301,11 @@ function emailFor(event, data = {}) {
     heading: c.heading,
     intro: c.intro,
     details: detailRows(data),
-    cta: c.cta ? { label: c.cta, url: orderDeepLink(orderId) } : null,
+    cta: c.cta ? { label: c.cta, url: ctaUrlFor(data) } : null,
     brand: BRAND,
   };
 }
 
 module.exports = {
-  emailFor, formatJod, formatDeadline, orderDeepLink, cleanTitle, detailRows, BRAND,
+  emailFor, formatJod, formatDeadline, orderDeepLink, auctionDeepLink, cleanTitle, detailRows, BRAND,
 };

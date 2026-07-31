@@ -65,6 +65,15 @@ const DATA_VARIANTS = [
   { outcome: 'refunded' },
   { outcome: 'denied' },
   { auctionTitle: 'x "y" & <z>' },
+  // Second-chance variants: below_reserve_offer is shared between a genuine
+  // below-reserve offer and a second chance, and the branch must be mirrored in
+  // both copies or WhatsApp says something different from the in-app bell.
+  { auctionTitle: 'ساعة رولكس', topBid: 90, secondChance: true, offerStatus: 'pending_seller' },
+  { auctionTitle: 'ساعة رولكس', topBid: 90, secondChance: true, offerStatus: 'pending_buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true },
+  { auctionTitle: 'ساعة رولكس', secondChance: false, offerStatus: 'pending_buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'seller' },
 ];
 
 describe('n8n build-messages.js mirrors functions/notify.js copyFor (drift guard)', () => {

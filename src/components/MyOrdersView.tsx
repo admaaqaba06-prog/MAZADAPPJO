@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
+import { useMySecondChanceOffers } from '../hooks/useMySecondChanceOffers';
+import { useSimulatorEnabled } from '../hooks/useSimulatorEnabled';
+import { filterSimulated } from '../utils/simVisibility';
+import { secondChanceViewState } from '../utils/secondChanceOffer';
+import { SecondChanceCard } from './order/SecondChanceCard';
 import { OrderDetailsView } from './OrderDetailsView';
 import { winTotalDue } from './feedback';
 import { isViewerWinner } from '../utils/bidMath';
@@ -71,7 +76,7 @@ const PaymentCountdown: React.FC<{ deadline: any; isAr: boolean }> = ({ deadline
 };
 
 export const MyOrdersView: React.FC = () => {
-  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId, confirmBelowReserve, declineBelowReserve } = useApp();
+  const { orders, currentUser, language, setActiveView, globalSelectedOrderId, setGlobalSelectedOrderId, myReviews, setReviewPromptOrderId, confirmBelowReserve, declineBelowReserve, respondToSecondChance } = useApp();
   // E3 Slice C — which below-reserve order is mid-confirm/decline (disables its buttons).
   const [belowReserveBusyId, setBelowReserveBusyId] = useState<string | null>(null);
   const handleConfirmBelowReserve = async (auctionId: string) => {
@@ -88,6 +93,17 @@ export const MyOrdersView: React.FC = () => {
   // subscription (shared with win-detection), not the broad `useAuctions()`
   // array — a won lot stays in this query when it completes.
   const myWinLots = useMyAuctionLots(currentUser?.id);
+  // Second Chance Offer — a lot whose winner defaulted, now offered to ME as
+  // the runner-up. It lives on the AUCTION doc with no order behind it, so it
+  // needs its own tiny per-user listener (see the hook for why no existing
+  // surface can see it). Rendered above the purchases: accepting is what
+  // creates the order that would otherwise appear in the list below.
+  const [simEnabled] = useSimulatorEnabled();
+  const secondChanceLots = filterSimulated(
+    useMySecondChanceOffers(currentUser?.id),
+    currentUser,
+    simEnabled,
+  ).filter((lot) => secondChanceViewState(lot, currentUser, Date.now()).visible);
   const isAr = language === 'ar';
   const t = translations[isAr ? 'ar' : 'en'];
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -221,6 +237,22 @@ export const MyOrdersView: React.FC = () => {
               <p className="text-xs font-black text-gray-950">{t.ordersFinalizingTitle}</p>
               <p className="text-[10.5px] text-gray-400 font-semibold leading-relaxed">{t.ordersFinalizingHint}</p>
             </div>
+          </div>
+        )}
+
+        {/* Second-chance offers waiting on me — above the purchases, because
+            accepting one is what creates the order that would show below. */}
+        {secondChanceLots.length > 0 && (
+          <div className="space-y-3" id="second-chance-offers">
+            {secondChanceLots.map((lot) => (
+              <SecondChanceCard
+                key={lot.id}
+                auction={lot}
+                currentUser={currentUser}
+                isAr={isAr}
+                onRespond={respondToSecondChance}
+              />
+            ))}
           </div>
         )}
 

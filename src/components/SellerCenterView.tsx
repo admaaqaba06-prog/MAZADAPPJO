@@ -3,6 +3,8 @@ import { useApp, useAuctions } from '../context/AppContext';
 import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
 import { sellerNet } from '../utils/bidMath';
+import { secondChanceViewState } from '../utils/secondChanceOffer';
+import { SecondChanceCard } from './order/SecondChanceCard';
 import { OrderDetailsView } from './OrderDetailsView';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
@@ -374,6 +376,7 @@ export const SellerCenterView: React.FC = () => {
     submitVerificationRequest,
     requestWithdrawal,
     acceptBelowReserve,
+    respondToSecondChance,
     setActiveView
   } = useApp();
   const { auctions, setAuctions } = useAuctions();
@@ -1418,6 +1421,19 @@ export const SellerCenterView: React.FC = () => {
                         : offer.expiresAt?.seconds ? offer.expiresAt.seconds * 1000 : 0)
                       : 0;
                     const showAcceptOffer = offer?.status === 'pending_seller' && (!offerExpMs || offerExpMs > Date.now());
+                    // Second Chance Offer (winner defaulted). Same pure decision
+                    // the card itself makes, asked here only so the card's
+                    // wrapper margin doesn't render around nothing.
+                    //
+                    // `currentUser`, NOT `currentUser?.id` — the viewer is a USER.
+                    // An id here reads `viewer?.id === undefined`, matches neither
+                    // party, and pins this gate to false forever, silently removing
+                    // the seller's ONLY in-app surface for a pending_seller offer
+                    // (MyOrders queries by `secondChanceOffer.bidderId`, so it shows
+                    // the card to the runner-up alone). `useApp()` is implicitly
+                    // `any` in this repo, so tsc will NOT catch that mistake —
+                    // SecondChanceCard.wiring.test.ts is what catches it.
+                    const showSecondChance = secondChanceViewState(auction, currentUser, Date.now()).visible;
                     return (
                       <div key={auction.id} className="hover:bg-gray-50/50 transition-colors">
                       <div className="p-3.5 flex items-center gap-3">
@@ -1515,6 +1531,21 @@ export const SellerCenterView: React.FC = () => {
                             </span>
                           </button>
                         </div>
+                      )}
+
+                      {/* Second Chance Offer — the winner defaulted and the lot
+                          was offered to the runner-up. Same slot, same layout as
+                          the below-reserve card above; who may press what is
+                          decided in utils/secondChanceOffer, NOT here. */}
+                      {showSecondChance && (
+                        <SecondChanceCard
+                          auction={auction}
+                          currentUser={currentUser}
+                          isAr={isAr}
+                          onRespond={respondToSecondChance}
+                          compact
+                          className="mx-3.5 mb-3.5"
+                        />
                       )}
                     </div>
                     );
