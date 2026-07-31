@@ -35,6 +35,7 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
+const { resolveEscrowWinner } = require('./escrowRepair');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
@@ -4458,24 +4459,27 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         throw new functions.https.HttpsError('failed-precondition', 'المزاد لم ينتهِ بعد أو ليس في حالة مكتملة');
       }
 
-      // 4. Determine winner ID with prioritization
-      let winnerId = auctionData.currentBidderId || auctionData.highestBidderId || auctionData.winnerId || auctionData.winningBidderId || null;
-
-      // Try reading buyerId from orders/{auctionId} inside the transaction
+      // 4. Determine whose escrow is NOT a loser's.
+      //
+      // BOTH orders are read: a lot whose winner defaulted carries the dead
+      // order at orders/{auctionId} and the live one at orders/{auctionId}__sc.
+      // Reading only the base doc named the DEFAULTER, which would keep their
+      // escrow locked and refund the runner-up who actually paid. The rule
+      // lives in escrowRepair.resolveEscrowWinner so it is covered
+      // behaviourally rather than by reading this function's source.
       const orderRef = db.collection('orders').doc(auctionId);
-      const orderSnap = await transaction.get(orderRef);
-      let orderBuyerId = null;
-      let orderStatus = null;
-      if (orderSnap.exists) {
-        const orderData = orderSnap.data();
-        if (orderData) {
-          orderBuyerId = orderData.buyerId || null;
-          orderStatus = orderData.status || null;
-          if (orderBuyerId) {
-            winnerId = orderBuyerId;
-          }
-        }
-      }
+      const scOrderRef = db.collection('orders').doc(secondChanceOrderId(auctionId));
+      const [orderSnap, scOrderSnap] = await Promise.all([
+        transaction.get(orderRef),
+        transaction.get(scOrderRef),
+      ]);
+
+      const { winnerId, activeBuyerId, source: winnerSource } = resolveEscrowWinner({
+        auction: auctionData,
+        baseOrder: orderSnap.exists ? orderSnap.data() : null,
+        secondChanceOrder: scOrderSnap.exists ? scOrderSnap.data() : null,
+      });
+      console.log(`[repairStuckEscrows] ${auctionId}: winner=${winnerId || 'none'} via ${winnerSource}`);
 
       // 5. Query all locked escrows for this auction inside the transaction
       const escrowsQuery = await transaction.get(
@@ -4507,11 +4511,11 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         // Is this bidder the winner?
         const isWinner = !!(winnerId && bidderId === winnerId);
 
-        // Security check: check if this bidder is the buyer in an active (not cancelled or rejected) order
-        const isActiveBuyerInOrder = !!(orderSnap.exists && 
-                                        orderBuyerId === bidderId && 
-                                        orderStatus !== 'cancelled' && 
-                                        orderStatus !== 'rejected');
+        // Is this bidder the buyer on the GOVERNING live order? On a
+        // second-chanced lot that is the second-chance order, not the base one,
+        // and a dead order (cancelled / rejected / defaulted) yields no active
+        // buyer at all — so a bidder who never paid no longer holds an escrow.
+        const isActiveBuyerInOrder = !!(activeBuyerId && activeBuyerId === bidderId);
 
         if (isWinner || isActiveBuyerInOrder) {
           keptWinnerEscrow = true;
