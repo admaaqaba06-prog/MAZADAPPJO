@@ -31,6 +31,8 @@
 //
 // Pure: no Firestore. The caller does the reads; this decides what they mean.
 
+const { offerIsLive } = require('./secondChance');
+
 // A buyer in one of these is out. Their claim on the lot is over, so their bid
 // escrow is a loser's escrow.
 //
@@ -54,13 +56,15 @@ function isTerminalForBuyer(status) {
  * @param {object|null} input.auction        the auction doc's data
  * @param {object|null} input.baseOrder      data at orders/{auctionId}, or null
  * @param {object|null} input.secondChanceOrder data at orders/{auctionId}__sc, or null
+ * @param {number} [nowMs] clock, for judging whether a second-chance offer is still live
  * @returns {{winnerId: string|null, activeBuyerId: string|null, source: string}}
  *   `winnerId` — whose escrow to KEEP locked, or null to protect nobody.
  *   `activeBuyerId` — the buyer of the governing live order, or null.
  *   `source` — which input decided it, for the audit log.
  */
-function resolveEscrowWinner(input) {
+function resolveEscrowWinner(input, nowMs) {
   const { auction, baseOrder, secondChanceOrder } = input || {};
+  const now = Number.isFinite(nowMs) ? nowMs : Date.now();
 
   // A second-chance order can only exist after the base order defaulted, so
   // whenever it is present it is the later — and therefore the governing —
@@ -78,9 +82,21 @@ function resolveEscrowWinner(input) {
   }
 
   if (isTerminalForBuyer(governing.status)) {
-    // The sale died and was not rescued. Nobody holds this lot, so nobody's
-    // escrow is protected — including the defaulter's, which is the case the
-    // old code got wrong.
+    // The sale died — but it may be MID-RESCUE. A live second-chance offer
+    // names the runner-up on the auction doc for up to 24h before their order
+    // exists, so refunding here would release the escrow of the one person
+    // about to be handed the lot. Worse, their order is minted without an
+    // `escrowId`, so releaseOrderEscrow's fallback query would find nothing
+    // and complete the sale without ever paying the seller.
+    //
+    // This is the same principle as the no-order fallback below — protect
+    // whoever is about to receive an order — applied to a stronger signal.
+    const offer = (auction || {}).secondChanceOffer;
+    if (offer && offerIsLive(offer, now) && offer.bidderId) {
+      return { winnerId: offer.bidderId, activeBuyerId: null, source: 'pending_second_chance_offer' };
+    }
+    // Nobody holds this lot, so nobody's escrow is protected — including the
+    // defaulter's, which is the case the old code got wrong.
     return { winnerId: null, activeBuyerId: null, source };
   }
 
@@ -97,8 +113,26 @@ function resolveEscrowWinner(input) {
   return { winnerId: buyerId, activeBuyerId: buyerId, source };
 }
 
+/**
+ * Should THIS bidder's locked escrow be refunded as a loser's?
+ *
+ * Extracted because the caller's version of this line lives inside a 260-line
+ * Cloud Function that vitest cannot import, so it could only ever be asserted
+ * by regex over the source. A review inverted that line — keeping every loser
+ * locked and refunding the actual winner, on every auction — and all 19 tests
+ * stayed green. Behaviour belongs somewhere a test can execute it.
+ */
+function shouldRefundEscrow(input) {
+  const { bidderId, winnerId, activeBuyerId } = input || {};
+  if (!bidderId) return false;                    // corrupt row: never touch money
+  if (winnerId && bidderId === winnerId) return false;
+  if (activeBuyerId && bidderId === activeBuyerId) return false;
+  return true;
+}
+
 module.exports = {
   resolveEscrowWinner,
+  shouldRefundEscrow,
   isTerminalForBuyer,
   TERMINAL_BUYER_STATUSES,
 };

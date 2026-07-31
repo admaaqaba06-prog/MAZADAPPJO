@@ -35,7 +35,7 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
-const { resolveEscrowWinner } = require('./escrowRepair');
+const { resolveEscrowWinner, shouldRefundEscrow } = require('./escrowRepair');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
@@ -2017,7 +2017,18 @@ exports.refundEscrow = functions.runWith({ cors: true }).https.onCall(async (dat
           const oldAvail = wData.availableBalance || 0;
           const oldEscrow = wData.escrowBalance || 0;
 
-          const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
+          // Guard that releaseOrderEscrow and refundOrderEscrow both already
+        // have. Without it a legacy doc that is `locked` against a zeroed
+        // escrowBalance MINTS money into availableBalance, which
+        // requestWithdrawal will pay out in cash. This fix widens the set of
+        // escrows that reach here, so the gap had to close with it.
+        if (oldEscrow < refundAmtFils) {
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            `رصيد الضمان غير كافٍ للمزايد ${bidderId} — تعذر الاسترداد الآمن`
+          );
+        }
+        const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
           const newAvail = oldAvail + refundAmtFils;
 
           transaction.set(bidderWalletRef, {
@@ -4508,19 +4519,13 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         const escData = escDoc.data();
         const bidderId = escData.bidderId;
 
-        // Is this bidder the winner?
-        const isWinner = !!(winnerId && bidderId === winnerId);
-
-        // Is this bidder the buyer on the GOVERNING live order? On a
-        // second-chanced lot that is the second-chance order, not the base one,
-        // and a dead order (cancelled / rejected / defaulted) yields no active
-        // buyer at all — so a bidder who never paid no longer holds an escrow.
-        const isActiveBuyerInOrder = !!(activeBuyerId && activeBuyerId === bidderId);
-
-        if (isWinner || isActiveBuyerInOrder) {
-          keptWinnerEscrow = true;
-        } else {
+        // Delegated: this line was previously inline, and a review inverted it
+        // (keep every loser, refund the winner) with the whole suite green,
+        // because a source-regex test cannot execute a decision.
+        if (shouldRefundEscrow({ bidderId, winnerId, activeBuyerId })) {
           losingEscrowDocs.push(escDoc);
+        } else {
+          keptWinnerEscrow = true;
         }
       }
 
@@ -4585,6 +4590,17 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         const oldAvail = wState.availableBalance;
         const oldEscrow = wState.escrowBalance;
 
+        // Guard that releaseOrderEscrow and refundOrderEscrow both already
+        // have. Without it a legacy doc that is `locked` against a zeroed
+        // escrowBalance MINTS money into availableBalance, which
+        // requestWithdrawal will pay out in cash. This fix widens the set of
+        // escrows that reach here, so the gap had to close with it.
+        if (oldEscrow < refundAmtFils) {
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            `رصيد الضمان غير كافٍ للمزايد ${bidderId} — تعذر الاسترداد الآمن`
+          );
+        }
         const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
         const newAvail = oldAvail + refundAmtFils;
         const newTotal = newAvail + newEscrow;
@@ -4615,7 +4631,7 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
           reason: 'auction_lost_repair',
           titleAr: 'استرداد الضمان المالي للمزاد (إصلاح)',
           titleEn: 'Escrow Refund for Auction (Repair)',
-          descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${refundAmtJOD} د.أ تلقائياً لانتهاء المزاد وعدم فوزك (تشغيل نظام الإصلاح).`,
+          descriptionAr: `تم استرداد مبلغ الضمان بقيمة ${refundAmtJOD} د.أ تلقائياً لعدم اكتمال هذا المزاد (تشغيل نظام الإصلاح).`,
           descriptionEn: `Secure escrow refund of ${refundAmtJOD} JOD processed (Admin Repair run) for ended auction.`,
           timestamp: Date.now()
         });
@@ -4672,7 +4688,13 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         refundedCount,
         keptWinnerEscrow,
         totalRefundedAmount,
-        message: `تمت تسوية وإصلاح ${refundedCount} من الضمانات العالقة بنجاح بمجموع ${totalRefundedAmount} د.أ، وتم إبقاء ضمان الفائز محجوزاً.`
+        // Gated: winnerId is now legitimately null on any lot whose order
+        // died (defaulted / cancelled / rejected), and on those the tool
+        // refunds EVERYONE. Claiming a winner's escrow was kept would be
+        // backwards on exactly the new outcome an admin most needs to see.
+        message: keptWinnerEscrow
+          ? `تمت تسوية وإصلاح ${refundedCount} من الضمانات العالقة بنجاح بمجموع ${totalRefundedAmount} د.أ، وتم إبقاء ضمان الفائز محجوزاً.`
+          : `تمت تسوية وإصلاح ${refundedCount} من الضمانات العالقة بنجاح بمجموع ${totalRefundedAmount} د.أ. لم يبقَ أي ضمان محجوزاً — لم يكتمل بيع هذه القطعة.`
       };
     });
   } catch (error) {

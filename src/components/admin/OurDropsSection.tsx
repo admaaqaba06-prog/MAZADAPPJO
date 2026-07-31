@@ -351,11 +351,22 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                             </div>
                           )}
 
-                          {/* Temporary admin-only diagnostic panel */}
-                          <AuctionEscrowDiagnosticPanel 
-                            auctionId={item.id} 
-                            winnerId={item.currentBidderId || null} 
-                            repairResult={repairResults[item.id] || null} 
+                          {/* Temporary admin-only diagnostic panel.
+                              A live second-chance offer names the runner-up, and
+                              currentBidderId still names the defaulter it replaced —
+                              so previewing off currentBidderId showed the admin
+                              "we will refund the runner-up" immediately before the
+                              server correctly did the opposite. */}
+                          <AuctionEscrowDiagnosticPanel
+                            auctionId={item.id}
+                            winnerId={
+                              (item.secondChanceOffer?.status === 'pending_seller' ||
+                               item.secondChanceOffer?.status === 'pending_buyer' ||
+                               item.secondChanceOffer?.status === 'confirmed')
+                                ? (item.secondChanceOffer?.bidderId || null)
+                                : (item.currentBidderId || null)
+                            }
+                            repairResult={repairResults[item.id] || null}
                           />
                         </div>
                       );
