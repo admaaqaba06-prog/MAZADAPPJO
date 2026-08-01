@@ -81,6 +81,24 @@ describe('settleAction', () => {
     const s2 = settleAction(s1, { actionId: 'a1', rowId: 'approve_listing:x', ok: true });
     expect(settleAction(s2, { actionId: 'a1', rowId: 'approve_listing:x', ok: true })).toBe(s2);
   });
+
+  it('is NOT identity for a reversible double settle — the surviving hide keeps the guard open', () => {
+    // Documents the ONE combination where the no-op claim does not hold, and it
+    // is the one the two permitted call sites use. After a successful settle the
+    // hide deliberately outlives it, so the guard's second conjunct is still
+    // true and a fresh but content-identical object comes back. One wasted
+    // render, no behaviour change — asserted so nobody later "fixes" it into a
+    // clear of `hidden`, which is the money-safety bug.
+    //
+    // This is also the only place the guard's second conjunct is exercised in
+    // isolation: not pending, but still hidden.
+    const s1 = beginAction(EMPTY_ADMIN_ACTION_STATE, { actionId: 'a1', rowId: 'approve_listing:x', optimism: 'reversible' });
+    const s2 = settleAction(s1, { actionId: 'a1', rowId: 'approve_listing:x', ok: true });
+    const s3 = settleAction(s2, { actionId: 'a1', rowId: 'approve_listing:x', ok: true });
+    expect(s3).not.toBe(s2);
+    expect(isActionPending(s3, 'a1')).toBe(false);
+    expect(s3.hidden.has('approve_listing:x')).toBe(true);
+  });
 });
 
 describe('concurrent actions', () => {
@@ -113,6 +131,22 @@ describe('concurrent actions', () => {
     expect(s4.hidden.has('approve_listing:x')).toBe(true);
     expect(s4.hidden.has('approve_listing:y')).toBe(false);
   });
+
+  it('rolls back ONLY the failing action, leaving a concurrent action hidden and pending', () => {
+    // The rollback branch is the one place a settle writes to `hidden`, so a
+    // too-wide delete there un-hides somebody else's row: an admin rejects two
+    // lots, one call fails, and the OTHER lot flashes back into the queue while
+    // its own callable is still in flight.
+    const s1 = beginAction(EMPTY_ADMIN_ACTION_STATE, { actionId: 'a1', rowId: 'approve_listing:x', optimism: 'reversible' });
+    const s2 = beginAction(s1, { actionId: 'a2', rowId: 'approve_listing:y', optimism: 'reversible' });
+    const s3 = settleAction(s2, { actionId: 'a2', rowId: 'approve_listing:y', ok: false });
+
+    expect(s3.hidden.has('approve_listing:y')).toBe(false);  // the failure rolled back
+    expect(s3.hidden.has('approve_listing:x')).toBe(true);   // the bystander did NOT
+    expect(s3.hidden.size).toBe(1);
+    expect(isActionPending(s3, 'a1')).toBe(true);
+    expect(isActionPending(s3, 'a2')).toBe(false);
+  });
 });
 
 describe('pruneHidden', () => {
@@ -138,6 +172,24 @@ describe('pruneHidden', () => {
     expect(s3.hidden.has('approve_listing:x')).toBe(false);
     expect(s3.hidden.has('approve_listing:y')).toBe(true);
     expect(s3.hidden.size).toBe(1);
+  });
+
+  it('does not mutate the state it was handed', () => {
+    // Purity is not decoration here. Task 2 holds these objects in React state,
+    // and an in-place prune would change the contents of an already-committed
+    // value without scheduling a re-render — invisible until StrictMode's
+    // double-invoke or a concurrent render made it visible as a stale queue.
+    const s1 = beginAction(EMPTY_ADMIN_ACTION_STATE, { actionId: 'a1', rowId: 'approve_listing:x', optimism: 'reversible' });
+    const s2 = beginAction(s1, { actionId: 'a2', rowId: 'approve_listing:y', optimism: 'reversible' });
+    const sizeBefore = s2.hidden.size;
+    const contentsBefore = [...s2.hidden].sort();
+
+    const s3 = pruneHidden(s2, [row('approve_listing:y')]);
+
+    expect(s2.hidden.size).toBe(sizeBefore);
+    expect([...s2.hidden].sort()).toEqual(contentsBefore);
+    expect(s3.hidden.size).toBe(1);          // the copy really did change
+    expect(s3.hidden).not.toBe(s2.hidden);
   });
 
   it('returns the SAME object when nothing changed, so React does not re-render', () => {

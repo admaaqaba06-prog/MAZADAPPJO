@@ -57,11 +57,23 @@ export function settleAction(
   input: { actionId: string; rowId: string; ok: boolean },
 ): AdminActionState {
   const { actionId, rowId, ok } = input;
-  // Nothing to settle: this action is not in flight and its row is not hidden.
-  // Keeps the module's same-object-when-unchanged contract, makes a double
-  // settle a true no-op, and — the real reason — makes it impossible for a
-  // stale settle arriving after a RETRY of the same action began to clear the
-  // retry's pending flag and un-hide its row mid-flight.
+  // Nothing to settle: the action is not in flight AND its row is not hidden.
+  // Returning `state` itself keeps this module's same-object-when-unchanged
+  // contract.
+  //
+  // Scope, precisely — this guard does LESS than it looks like it does:
+  //  - It does NOT protect retries. `actionId` is per-action, not per-attempt,
+  //    so during a retry `pending.has(actionId)` is true, the guard falls
+  //    through, and a late settle from the ABANDONED attempt will clear the
+  //    retry's pending flag (and on `ok:false` un-hide its row) while the retry
+  //    is still in flight. Distinguishing attempts would require a per-attempt
+  //    id, which this design does not have. Add one before relying on retry
+  //    safety here.
+  //  - A repeated settle is a true no-op for three of the four
+  //    optimism × ok combinations, but NOT for `reversible` + `ok:true`: the
+  //    hide deliberately outlives the settle, so the second conjunct stays
+  //    false, the guard falls through and a fresh content-identical object
+  //    comes back. That costs one render and changes no behaviour.
   if (!state.pending.has(actionId) && !(rowId && state.hidden.has(rowId))) return state;
 
   const pending = new Set(state.pending);
