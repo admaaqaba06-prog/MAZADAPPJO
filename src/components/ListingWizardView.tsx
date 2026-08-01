@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
 import { resizeImage } from '../utils/resizeImage';
+import { validateDescription } from '../utils/listingDescription';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 interface ListingWizardViewProps {
@@ -18,6 +19,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
   // Step state configurations
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
   const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture'>('Electronics');
   const [duration, setDuration] = useState('3600'); // Default: 1 Hour (in seconds)
@@ -84,6 +86,11 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
       alert(isAr ? 'الرجاء إدخال اسم المنتج.' : 'Please enter the product name.');
       return;
     }
+    const descCheck = validateDescription(description, isAr);
+    if (!descCheck.ok) {
+      alert(descCheck.message);
+      return;
+    }
     if (!startingPrice || isNaN(Number(startingPrice)) || Number(startingPrice) <= 0) {
       alert(isAr ? 'حدد سعر بدء صحيح بالدينار الأردني.' : 'Specify correct JOD price.');
       return;
@@ -128,7 +135,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
       // Save under 'processing' state so Admin can click and instantly release
       await createListing({
         title,
-        description: isAr ? `معروض مميز: ${title}` : `Premium Lot: ${title}`,
+        description: description.trim(),
         category,
         startingPrice: Number(startingPrice),
         minIncrement: Math.max(5, Math.round(Number(startingPrice) * 0.05)), // Auto-computed to keep it non-technical
@@ -381,6 +388,22 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors leading-none"
+                    />
+                  </div>
+
+                  {/* Input Description */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-gray-500 block">
+                      {isAr ? 'وصف المنتج' : 'Product Description'}
+                    </span>
+                    <textarea
+                      rows={3}
+                      placeholder={isAr
+                        ? 'الحالة، ما يشمله البيع، وأي عيب أو خدش. كل ما يريد المشتري معرفته قبل المزايدة.'
+                        : "Condition, what's included, and any flaw. Everything a bidder wants to know before bidding."}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors resize-none leading-relaxed"
                     />
                   </div>
 
