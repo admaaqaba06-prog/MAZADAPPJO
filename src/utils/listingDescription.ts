@@ -21,7 +21,8 @@ export interface DescriptionCheck {
   message?: string;
 }
 
-export function validateDescription(raw: string, isAr: boolean): DescriptionCheck {
+export function validateDescription(raw: string | null | undefined, isAr: boolean): DescriptionCheck {
+  // Nullish coerces to empty, not to the text "null"/"undefined".
   const text = String(raw ?? '').trim();
   if (text.length >= DESCRIPTION_MIN) return { ok: true };
   return {
