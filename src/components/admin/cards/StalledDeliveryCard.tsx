@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { nextAdvance } from '../../../utils/orderAdvance';
 import type { ActionReason } from '../../../utils/actionQueue';
+/** Shown on the button that is waiting. A greyed-out button is indistinguishable
+ * from one still gated on its checklist — the label is what says "it registered". */
+const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
+
 
 /**
  * Wave 4 — the body of a `delivery_stalled` row.
@@ -99,7 +103,7 @@ export const StalledDeliveryCard: React.FC<StalledDeliveryCardProps> = ({
               onClick={() => onNudge(order.id, nudgeKind)}
               className="flex-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs py-2 rounded-xl disabled:opacity-50"
             >
-              {isAr ? 'تذكير' : 'Nudge'}
+              {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تذكير' : 'Nudge')}
             </button>
             {advance && (
               <button
@@ -107,7 +111,7 @@ export const StalledDeliveryCard: React.FC<StalledDeliveryCardProps> = ({
                 onClick={() => onAdvance(order, note.trim())}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF8000] text-white font-extrabold text-xs py-2 rounded-xl disabled:opacity-50"
               >
-                {isAr ? ADVANCE_LABEL[advance.action]?.ar : ADVANCE_LABEL[advance.action]?.en}
+                {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? ADVANCE_LABEL[advance.action]?.ar : ADVANCE_LABEL[advance.action]?.en)}
               </button>
             )}
           </div>

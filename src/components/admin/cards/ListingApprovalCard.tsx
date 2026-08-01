@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { ViewingSelector } from '../ViewingSelector';
 import type { ViewingMode } from '../../../utils/viewing';
+/** Shown on the button that is waiting. A greyed-out button is indistinguishable
+ * from one still gated on its checklist — the label is what says "it registered". */
+const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
+
 
 /**
  * Wave 4 — the body of an `approve_listing` row.
@@ -91,7 +95,7 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
               onClick={() => onReject(auction.id, reason.trim())}
               className="flex-1 bg-[#121318] hover:bg-gray-900 text-white font-extrabold text-xs py-2 rounded-xl disabled:opacity-50"
             >
-              {isAr ? 'تأكيد الرفض' : 'Confirm reject'}
+              {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تأكيد الرفض' : 'Confirm reject')}
             </button>
           </div>
         </div>
@@ -148,7 +152,7 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
               }}
               className={`flex-1 font-extrabold text-xs py-2 rounded-xl transition-all text-white ${canApprove ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-300 cursor-not-allowed'}`}
             >
-              {isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE'}
+              {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'الموافقة وإطلاق البث فوراً' : 'APPROVE & GO LIVE')}
             </button>
             <button
               onClick={() => { setRejecting(true); setReason(''); }}

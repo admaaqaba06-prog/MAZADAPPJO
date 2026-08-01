@@ -29,7 +29,8 @@ export interface ActionCenterHandlers {
   onRejectMembership: (requestId: string, reason: string) => void | Promise<any>;
   onApproveListing: (auctionId: string, viewing?: ViewingMode, viewingPlace?: string) => void | Promise<any>;
   onRejectListing: (auctionId: string, reason?: string) => void | Promise<any>;
-  onApprovePayout: (withdrawalId: string) => Promise<any>;
+  /** transferRef is REQUIRED — the server refuses a payout approval without it. */
+  onApprovePayout: (withdrawalId: string, transferRef: string) => Promise<any>;
   onRejectPayout: (withdrawalId: string, reason: string) => Promise<any>;
   onResolveDispute: (orderId: string, resolutionType: 'release' | 'refund' | 'resume', notes: string) => Promise<void>;
   onNudge: (orderId: string, kind: 'ship' | 'confirm_delivery') => Promise<void>;
@@ -39,13 +40,21 @@ export interface ActionCenterHandlers {
 
 export interface ActionCenterSectionProps {
   isAr: boolean;
-  queue: ActionRow[];
+  /** `readonly`: this is the memoized, optimism-filtered queue — never sort or push it. */
+  queue: readonly ActionRow[];
   /** Source records, so a row can find its entity without another subscription. */
   orders: any[];
   pendingListings: any[];
   subscriptionRequests: any[];
   withdrawals: any[];
   users: any[];
+  /**
+   * True while THIS row's action is in flight — `useAdminAction().isPending`,
+   * keyed on `ActionRow.id`. Six of the handlers below sit behind a callable
+   * that cold-starts for ~2s, and without this the button looks dead and gets
+   * clicked again.
+   */
+  isPending: (rowId: string) => boolean;
   handlers: ActionCenterHandlers;
 }
 
@@ -56,7 +65,7 @@ const SEVERITY_DOT: Record<string, string> = {
 };
 
 export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
-  isAr, queue, orders, pendingListings, subscriptionRequests, withdrawals, users, handlers,
+  isAr, queue, orders, pendingListings, subscriptionRequests, withdrawals, users, isPending, handlers,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const now = Date.now();
@@ -68,6 +77,10 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
   };
 
   const renderBody = (r: ActionRow): React.ReactNode => {
+    // One flag per ROW, not per button: `useAdminAction` gates a row's approve
+    // and its reject under the same id, so while either is in flight the whole
+    // card is busy. That is what the admin means by "I clicked it".
+    const busy = isPending(r.id);
     switch (r.kind) {
       case 'verify_order_payment': {
         const order = findOrder(r.entityId);
@@ -81,6 +94,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
             cliqSenderPhone={order.cliqSenderPhone}
             approveLabel={isAr ? 'تأكيد الدفع' : 'Mark verified'}
             isAr={isAr}
+            busy={busy}
             onApprove={() => handlers.onApproveOrderPayment(order.id)}
             onReject={(reason) => handlers.onRejectOrderPayment(order.id, reason)}
           />
@@ -97,6 +111,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
             payerName={userName(req.userId)}
             approveLabel={isAr ? 'اعتماد العضوية' : 'Approve membership'}
             isAr={isAr}
+            busy={busy}
             onApprove={() => handlers.onApproveMembership(req.id)}
             onReject={(reason) => handlers.onRejectMembership(req.id, reason)}
           />
@@ -109,6 +124,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
           <ListingApprovalCard
             auction={auction}
             isAr={isAr}
+            busy={busy}
             onApprove={handlers.onApproveListing}
             onReject={handlers.onRejectListing}
           />
@@ -122,6 +138,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
             withdrawal={w}
             userName={userName(w.userId)}
             isAr={isAr}
+            busy={busy}
             onApprove={handlers.onApprovePayout}
             onReject={handlers.onRejectPayout}
           />
@@ -130,7 +147,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
       case 'dispute': {
         const order = findOrder(r.entityId);
         if (!order) return null;
-        return <DisputeCard order={order} isAr={isAr} onResolve={handlers.onResolveDispute} />;
+        return <DisputeCard order={order} isAr={isAr} busy={busy} onResolve={handlers.onResolveDispute} />;
       }
       case 'delivery_stalled': {
         const order = findOrder(r.entityId);
@@ -140,6 +157,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
             order={order}
             reason={r.reason}
             isAr={isAr}
+            busy={busy}
             onNudge={handlers.onNudge}
             onAdvance={handlers.onAdvance}
             onOpenOrder={handlers.onOpenOrder}
