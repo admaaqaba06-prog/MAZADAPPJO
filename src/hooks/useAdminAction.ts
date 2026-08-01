@@ -25,6 +25,19 @@ export interface RunAdminAction {
   fn: () => Promise<any> | any;
 }
 
+export interface AdminActionResult {
+  ok: boolean;
+  error?: any;
+  /**
+   * True ONLY for a double-click the guard swallowed: nothing was sent, nothing
+   * failed. Call sites must branch on this before showing an error, because the
+   * naive `if (!r.ok) toast(r.error)` would put an untranslated internal string
+   * in front of an Arabic-speaking admin. Failure toasts carry the server's
+   * Arabic message; a suppressed click carries no message at all.
+   */
+  suppressed?: boolean;
+}
+
 export function useAdminAction() {
   const [state, setState] = useState<AdminActionState>(EMPTY_ADMIN_ACTION_STATE);
 
@@ -36,10 +49,12 @@ export function useAdminAction() {
   // source; the ref is only the gate.
   const inFlight = useRef<Set<string>>(new Set());
 
-  const run = useCallback(async (input: RunAdminAction): Promise<{ ok: boolean; error?: any }> => {
+  const run = useCallback(async (input: RunAdminAction): Promise<AdminActionResult> => {
     const { actionId, rowId, optimism, fn } = input;
 
-    if (inFlight.current.has(actionId)) return { ok: false, error: 'already-in-flight' };
+    // A swallowed double-click. `suppressed` is the discriminator the call site
+    // branches on — never the `error` string, which is a debugging aid only.
+    if (inFlight.current.has(actionId)) return { ok: false, suppressed: true, error: 'already-in-flight' };
     inFlight.current.add(actionId);
     setState(prev => beginAction(prev, { actionId, rowId, optimism }));
 

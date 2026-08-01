@@ -93,7 +93,13 @@ export function settleAction(
 
 export function pruneHidden(state: AdminActionState, rows: readonly ActionRow[]): AdminActionState {
   if (state.hidden.size === 0) return state;
-  const live = new Set((rows || []).map(r => r.id));
+  // Total over malformed input. This runs inside the dashboard's snapshot
+  // effect, so a single null/id-less row must not throw — that would take the
+  // whole admin panel down on a bad document.
+  const live = new Set<string>();
+  for (const r of rows || []) {
+    if (r && r.id) live.add(r.id);
+  }
   let changed = false;
   const hidden = new Set<string>();
   for (const id of state.hidden) {
@@ -114,6 +120,8 @@ export function pruneHidden(state: AdminActionState, rows: readonly ActionRow[])
 export function visibleRows(rows: readonly ActionRow[], state: AdminActionState): readonly ActionRow[] {
   if (!rows) return [];
   if (state.hidden.size === 0) return rows;
-  const filtered = rows.filter(r => !state.hidden.has(r.id));
+  // `r &&` for the same reason as pruneHidden: this is on the render path, and
+  // a null row must not throw. A null row is never hidden, so it passes through.
+  const filtered = rows.filter(r => !(r && state.hidden.has(r.id)));
   return filtered.length === rows.length ? rows : filtered;
 }

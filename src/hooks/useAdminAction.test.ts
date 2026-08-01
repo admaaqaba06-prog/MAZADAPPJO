@@ -16,10 +16,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * `useRef` hands back the SAME ref object, so the in-flight guard survives a
  * render exactly as it does in React.
  *
- * KNOWN HARNESS LIMIT: `useCallback` here ignores its dependency array, so this
- * file cannot prove `run`/`prune` are referentially stable across renders. That
- * matters for Task 4, which puts `prune` in an effect's deps — it is pinned by
- * code review, not by this suite.
+ * `useCallback` is deps-aware, following `useMySecondChanceOffers.test.ts`,
+ * which tracks dependency arrays the same way. That is what lets the identity
+ * tests below be real behavioural tests rather than a code-review promise.
  */
 
 let hookState: any[] = [];
@@ -30,7 +29,14 @@ vi.mock('react', () => ({
     if (hookState.length <= i) hookState[i] = typeof init === 'function' ? init() : init;
     return [hookState[i], (v: any) => { hookState[i] = typeof v === 'function' ? v(hookState[i]) : v; }];
   },
-  useCallback: (fn: any) => fn,
+  useCallback: (fn: any, deps: any[]) => {
+    const i = cursor++;
+    const prev = hookState[i];
+    if (prev && prev.deps.length === (deps || []).length
+        && prev.deps.every((d: any, k: number) => Object.is(d, deps[k]))) return prev.fn;
+    hookState[i] = { fn, deps: deps || [] };
+    return fn;
+  },
   useRef: (init: any) => {
     const i = cursor++;
     if (hookState.length <= i) hookState[i] = { current: init };
@@ -139,6 +145,91 @@ describe('useAdminAction.run', () => {
     const h = await render();
     const r = await h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn: async () => 'done' });
     expect(r.ok).toBe(true);
+  });
+
+  /**
+   * MUTANT GUARD — the spinner itself. `pending` must live in RENDER STATE, not
+   * in the ref. Move it into `inFlight.current` and every other test in this
+   * file still passes, because `render()` here is driven manually and cannot
+   * observe "React re-rendered". In real React that mutant makes a `confirmed`
+   * action call `setState(prev => prev)` — no state change, no re-render, and
+   * therefore NO SPINNER on any of the six money buttons, which is the entire
+   * regression this feature exists to fix. Asserting the state object directly
+   * is what closes the gap; going through `isPending` cannot.
+   */
+  it('puts pending in RENDER STATE for a confirmed action (so React re-renders)', async () => {
+    const h = await render();
+    h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn: () => new Promise(() => {}) });
+    expect((await render()).state.pending.has('a1')).toBe(true);
+  });
+
+  it('puts pending in RENDER STATE for a reversible action too', async () => {
+    const h = await render();
+    h.run({ actionId: 'a1', rowId: 'r', optimism: 'reversible', fn: () => new Promise(() => {}) });
+    expect((await render()).state.pending.has('a1')).toBe(true);
+  });
+
+  /**
+   * MUTANT GUARD — a suppressed double-click is NOT a failure. The obvious Task
+   * 4 call site is `if (!r.ok) toast(r.error)`, which would show an
+   * Arabic-speaking admin the literal string `already-in-flight`. `suppressed`
+   * is the structural discriminator so the call site branches on shape, never
+   * on a magic string.
+   */
+  it('flags a suppressed double-click with suppressed:true, not a bare failure', async () => {
+    const h = await render();
+    const first = h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn: () => new Promise(() => {}) });
+    void first;
+    const second = await h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn: async () => ({ success: true }) });
+    expect(second.ok).toBe(false);
+    expect(second.suppressed).toBe(true);
+  });
+
+  it('does NOT flag a real failure as suppressed', async () => {
+    const h = await render();
+    for (const fn of [async () => { throw new Error('boom'); }, async () => ({ success: false, message: 'nope' })]) {
+      const r = await h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn });
+      expect(r.ok).toBe(false);
+      expect(r.suppressed).toBeFalsy();
+    }
+  });
+
+  it('does NOT flag a success as suppressed', async () => {
+    const h = await render();
+    const r = await h.run({ actionId: 'a1', rowId: 'r', optimism: 'confirmed', fn: async () => ({ success: true }) });
+    expect(r.suppressed).toBeFalsy();
+  });
+});
+
+/**
+ * Task 4 puts `prune` in a snapshot effect's dependency list. An unstable
+ * identity re-fires that effect on every render. Task 1's same-object contract
+ * means `pruneHidden` returns `prev` when nothing changed, so React's Object.is
+ * bailout converges it — wasteful, not an infinite loop. But that is TWO
+ * modules holding ONE invariant between them: if `pruneHidden` ever regressed
+ * to always allocating, an unstable `prune` would become unbounded. Pin the
+ * identity here so the coupling does not rest on a promise.
+ */
+describe('useAdminAction — referential stability', () => {
+  it('keeps the same `prune` identity across renders', async () => {
+    const a = await render();
+    const b = await render();
+    expect(b.prune).toBe(a.prune);
+  });
+
+  it('keeps the same `run` identity across renders', async () => {
+    const a = await render();
+    const b = await render();
+    expect(b.run).toBe(a.run);
+  });
+
+  it('keeps both stable across a render caused by a real state change', async () => {
+    const a = await render();
+    await a.run({ actionId: 'a1', rowId: 'row-1', optimism: 'reversible', fn: async () => ({ success: true }) });
+    const b = await render();
+    expect(b.state).not.toBe(a.state);   // state really did change
+    expect(b.run).toBe(a.run);
+    expect(b.prune).toBe(a.prune);
   });
 });
 

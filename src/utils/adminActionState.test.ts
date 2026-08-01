@@ -197,6 +197,22 @@ describe('pruneHidden', () => {
     expect(pruneHidden(s1, [row('approve_listing:x')])).toBe(s1);
     expect(pruneHidden(EMPTY_ADMIN_ACTION_STATE, [])).toBe(EMPTY_ADMIN_ACTION_STATE);
   });
+
+  /**
+   * TOTALITY — this runs inside the dashboard's snapshot effect on every
+   * Firestore update. A `.map(r => r.id)` over a null element throws there, and
+   * an exception in an effect takes the whole admin panel down. One malformed
+   * document must not be able to do that.
+   */
+  it('does not throw on a null or id-less row, and ignores it', () => {
+    const s1 = beginAction(EMPTY_ADMIN_ACTION_STATE, { actionId: 'a1', rowId: 'approve_listing:x', optimism: 'reversible' });
+    expect(() => pruneHidden(s1, [null as any])).not.toThrow();
+    expect(() => pruneHidden(s1, [undefined as any, {} as any])).not.toThrow();
+    // A junk row keeps no id alive, so the hidden id is correctly pruned.
+    expect(pruneHidden(s1, [null as any]).hidden.size).toBe(0);
+    // A junk row alongside the real one must not prune the real one.
+    expect(pruneHidden(s1, [null as any, row('approve_listing:x')]).hidden.has('approve_listing:x')).toBe(true);
+  });
 });
 
 describe('visibleRows', () => {
@@ -223,5 +239,10 @@ describe('visibleRows', () => {
   it('never throws on junk', () => {
     expect(visibleRows([], EMPTY_ADMIN_ACTION_STATE)).toEqual([]);
     expect(visibleRows(undefined as any, EMPTY_ADMIN_ACTION_STATE)).toEqual([]);
+    // Same hazard as pruneHidden, but on the RENDER path: a null row here would
+    // throw during the dashboard's render, not just its effect.
+    const s = beginAction(EMPTY_ADMIN_ACTION_STATE, { actionId: 'x', rowId: 'approve_listing:a', optimism: 'reversible' });
+    expect(() => visibleRows([null as any, row('approve_listing:a')], s)).not.toThrow();
+    expect(visibleRows([null as any, row('approve_listing:a')], s)).toEqual([null]);
   });
 });
