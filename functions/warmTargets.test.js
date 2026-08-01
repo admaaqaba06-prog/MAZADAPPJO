@@ -3,7 +3,7 @@
 // the list and the short-circuit placement are both pinned.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { WARM_TARGETS, warmUrl } from './warmTargets.js';
+import { WARM_TARGETS, warmUrl, buildWarmPlan } from './warmTargets.js';
 
 const SRC = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 
@@ -82,19 +82,88 @@ describe('warmUrl', () => {
   });
 });
 
+describe('buildWarmPlan', () => {
+  // The warmer's loop is source text and cannot be asserted on properly. The
+  // plan CAN be: every question about what gets pinged is answered here, as a
+  // value, so a dropped or mangled target is an ordinary failing unit test.
+  const plan = buildWarmPlan('mazadjoapp', 'us-central1');
+
+  it('pings every target, once, in list order', () => {
+    expect(plan.map(p => p.name)).toEqual([...WARM_TARGETS]);
+  });
+
+  it('builds a well-formed callable URL for each', () => {
+    for (const { name, url } of plan) {
+      expect(url, name).toBe(`https://us-central1-mazadjoapp.cloudfunctions.net/${name}`);
+    }
+  });
+
+  it('honours the region it is given', () => {
+    const eu = buildWarmPlan('mazadjoapp', 'europe-west1');
+    expect(eu[0].url).toBe(`https://europe-west1-mazadjoapp.cloudfunctions.net/${WARM_TARGETS[0]}`);
+  });
+
+  it('sends the exact callable envelope and nothing else', () => {
+    // firebase-functions v4 `isValidRequest` requires a `data` key and rejects
+    // extra top-level keys outright — a rejected ping never reaches the handler,
+    // so the container stays cold and no test or log would say so. Deep-equal,
+    // not a shape check: an added key must fail here.
+    for (const { name, body } of plan) {
+      expect(body, name).toEqual({ data: { __warm: true } });
+    }
+  });
+});
+
 describe('the scheduled warmer is wired', () => {
-  it('exists, runs every 5 minutes, and iterates the shared list', () => {
-    const start = SRC.indexOf('exports.warmAdminCallables');
-    expect(start).toBeGreaterThan(-1);
-    const body = SRC.slice(start, start + 1200);
+  it('exists, runs every 5 minutes, and iterates the shared plan', () => {
+    const body = bodyOf('warmAdminCallables');
     expect(body).toMatch(/\.schedule\('every 5 minutes'\)/);
-    expect(body).toMatch(/WARM_TARGETS/);
     // A re-typed literal here would silently drift from the pinned list.
     expect(body).not.toMatch(/\['approveWithdrawal'/);
     // ...but that only catches a re-type that happens to START with
-    // approveWithdrawal. Mutation testing found a faithful re-type in source
-    // order survives it, which is exactly the drift this guard exists to stop.
-    // Pin the iteration itself: the loop must read the shared list.
-    expect(body).toMatch(/WARM_TARGETS\.map\(/);
+    // approveWithdrawal; a faithful re-type in source order survives it. Pin
+    // the iteration itself: what to ping comes from buildWarmPlan, never from
+    // a list assembled here.
+    expect(body).toMatch(/buildWarmPlan\(projectId, region\)/);
+    expect(body).toMatch(/plan\.map\(/);
+    // The loop body opens straight into the try/fetch. A per-target `if (name
+    // === '...') return true;` skip — the realistic "this one is noisy" edit —
+    // has nowhere to sit without breaking this.
+    expect(body).toMatch(/plan\.map\(async \(\{ name, url, body \}\) => \{\s*try \{/);
+  });
+
+  it('bounds the ping so a stall cannot time the function out', () => {
+    // Not a style point. Promise.all parked on a hung socket runs out
+    // timeoutSeconds, and Cloud Functions logs THAT at error severity — the
+    // log pollution this whole function exists to avoid, arriving by a route
+    // the try/catch never sees. Matches pollN8nHealth's bound in this file.
+    const body = bodyOf('warmAdminCallables');
+    expect(body).toMatch(/signal: AbortSignal\.timeout\(\d+\)/);
+  });
+
+  it('never throws: every ping failure is caught and counted', () => {
+    // A scheduled function that throws pollutes the error log it exists to
+    // keep clean, so the catch is load-bearing, not defensive habit.
+    const body = bodyOf('warmAdminCallables');
+    expect(body).toMatch(/\} catch \(e\) \{/);
+    expect(body).toMatch(/console\.warn/);
+    expect(body).not.toMatch(/throw /);
+  });
+
+  it('skips quietly when the project id is missing', () => {
+    // Without the guard, warmUrl builds `https://us-central1-undefined...` and
+    // all six pings fail forever — six warn lines every five minutes, which is
+    // the same log flood by another name.
+    const body = bodyOf('warmAdminCallables');
+    expect(body).toMatch(/if \(!projectId\) \{/);
+    expect(body).toMatch(/return null;/);
+  });
+
+  it('reads the deployed region rather than hardcoding it', () => {
+    // The scheduled function deploys alongside its targets, so the env read
+    // self-corrects on a region change. A bare literal would 404 every ping
+    // and report it as one warn line while cold starts quietly came back.
+    const body = bodyOf('warmAdminCallables');
+    expect(body).toMatch(/process\.env\.FUNCTION_REGION \|\| 'us-central1'/);
   });
 });

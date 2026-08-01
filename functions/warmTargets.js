@@ -34,4 +34,28 @@ function warmUrl(name, projectId, region) {
   return `https://${region}-${projectId}.cloudfunctions.net/${name}`;
 }
 
-module.exports = { WARM_TARGETS, warmUrl };
+/**
+ * The full set of pings for one warming pass: one entry per target, in list
+ * order, ready to hand to `fetch`.
+ *
+ * This exists so the warmer's loop has nothing left to decide. Source-text
+ * assertions cannot see a one-line `if (name === 'approveWithdrawal') return
+ * true;` slipped into a `WARM_TARGETS.map(...)` body — a realistic "this one is
+ * noisy, skip it for now" edit that silently drops a target back to 2-second
+ * cold starts, which is the exact regression the pinned list exists to catch.
+ * Building the plan here makes a dropped target a unit-testable fact.
+ *
+ * `body` is the callable envelope firebase-functions v4 requires: its
+ * `isValidRequest` wants POST, `application/json`, a `data` key, and NO other
+ * top-level keys. An extra key means the ping is rejected at the protocol layer
+ * and never reaches the handler — the container stays cold and nothing says so.
+ */
+function buildWarmPlan(projectId, region) {
+  return WARM_TARGETS.map((name) => ({
+    name,
+    url: warmUrl(name, projectId, region),
+    body: { data: { __warm: true } },
+  }));
+}
+
+module.exports = { WARM_TARGETS, warmUrl, buildWarmPlan };
