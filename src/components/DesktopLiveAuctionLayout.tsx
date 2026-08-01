@@ -232,6 +232,37 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
   const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
 
+  // --- The seller's own words (rendered below the product-info row) ---
+  // Trimmed, because a description is now a real seller-authored field: the
+  // concierge form writes '' deliberately rather than inventing a line from the
+  // title, so absent and whitespace-only are both live states, not hypotheses.
+  const descriptionText = String(activeAuction?.description || '').trim();
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement | null>(null);
+  const [descriptionClamped, setDescriptionClamped] = useState(false);
+
+  // Switching lots must not carry the previous lot's expanded state over — a
+  // fresh lot always opens clamped, so the first paint never shifts.
+  useEffect(() => {
+    setDescriptionExpanded(false);
+  }, [activeAuction?.id]);
+
+  // Does the clamp actually hide anything? A character-count guess is wrong at
+  // every width, so measure the rendered box: line-clamp is a CSS effect and
+  // only the clamped element can answer. Expanded, scrollHeight === clientHeight
+  // by definition, so the measurement is skipped there and the last clamped
+  // result stands. ResizeObserver covers both a new description and a window
+  // resize (this column's width is derived from viewport height).
+  useEffect(() => {
+    const el = descriptionRef.current;
+    if (!el || descriptionExpanded) return;
+    const measure = () => setDescriptionClamped(el.scrollHeight - el.clientHeight > 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [descriptionText, descriptionExpanded]);
+
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
       
@@ -623,6 +654,48 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             </div>
           );
         })()}
+
+        {/* Details — the seller's own words.
+            Its own section rather than a block in the info row above: that row
+            holds short fixed-shape values and truncates to one line, which would
+            clamp a real description to nothing. Mirrors the mobile Details
+            section (MobileAuctionView, #mobile-auction-details).
+            Absent description renders NOTHING — no heading, no empty card —
+            which is the same rule the info row above applies to itself.
+            Width is pinned to the media column (same calc as the info row) so
+            the card lines up under the video instead of spanning the pane. */}
+        {descriptionText && (
+          <div
+            className="mt-4 bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto"
+            id="desktop-auction-description"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+          >
+            <h2 className="text-[12px] font-black text-gray-900 tracking-tight">
+              {isAr ? 'التفاصيل' : 'Details'}
+            </h2>
+            <p
+              ref={descriptionRef}
+              className={`mt-2 text-[12px] leading-relaxed text-gray-600 whitespace-pre-line ${
+                descriptionExpanded ? '' : 'line-clamp-3'
+              }`}
+            >
+              {descriptionText}
+            </p>
+            {/* Only offered when the clamp is really hiding lines — a toggle
+                over a two-line description promises text that is not there. */}
+            {(descriptionClamped || descriptionExpanded) && (
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded((v) => !v)}
+                className="mt-2 text-[11px] font-bold text-[#FF6B00] hover:underline cursor-pointer"
+              >
+                {descriptionExpanded
+                  ? (isAr ? 'عرض أقل' : 'Show less')
+                  : (isAr ? 'عرض المزيد' : 'Show more')}
+              </button>
+            )}
+          </div>
+        )}
 
       </main>
 
