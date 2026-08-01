@@ -89,6 +89,28 @@ describe('the queue is filtered through the optimistic state', () => {
     expect(DASH).toMatch(/\bprune\(/);
   });
 
+  it('re-runs the prune whenever the queue changes', () => {
+    // An empty dep array type-checks and passes everything else, and then
+    // `hidden` is never reconciled again for the session: after any listing
+    // approve/reject that auction id stays hidden forever. SellerCenterView
+    // writes `status: 'processing'` back onto the SAME doc on resubmit — the
+    // normal flow the reject-reason field exists to enable — so a resubmitted
+    // lot would be invisible in the Action Center and the badge would
+    // under-count until reload. That is the exact silent vanishing this branch
+    // was built to prevent.
+    //
+    // The ledger lists "the prune effect fires every render" as an open
+    // efficiency item, which is a standing invitation to make precisely this
+    // edit. Memoize `pendingListingDrops` instead; do not empty this array.
+    const at = DASH.indexOf('adminAction.prune(actionQueue)');
+    expect(at).toBeGreaterThan(-1);
+    // The whole effect statement, not up to the first `;` — there is one inside
+    // the callback body.
+    const deps = DASH.slice(at, DASH.indexOf('\n', at));
+    expect(deps).toMatch(/\}, \[[^\]]*\badminAction\.prune\b[^\]]*\]/);
+    expect(deps).toMatch(/\}, \[[^\]]*\bactionQueue\b[^\]]*\]/);
+  });
+
   it('hands the FILTERED queue to the section, and the badge counts the same list', () => {
     // `visibleRows(` existing in a memo proves nothing on its own — the memo's
     // result has to be the thing that reaches the UI, or an optimistic hide is
@@ -98,6 +120,11 @@ describe('the queue is filtered through the optimistic state', () => {
     const el = DASH.slice(at, at + 1200);
     expect(el).toMatch(/queue=\{visibleActionQueue\}/);
     expect(el).not.toMatch(/queue=\{actionQueue\}/);
+    // And the busy oracle. Dropping this prop type-checks and passes every
+    // other test, then throws `isPending is not a function` DURING RENDER the
+    // first time an admin expands a row. There is no ErrorBoundary anywhere in
+    // src/, so the blast radius is a white screen for the whole admin app.
+    expect(el).toMatch(/isPending=\{adminAction\.isPending\}/);
     // One badge, one source (Wave 4): the count must not disagree with the list.
     expect(DASH).not.toMatch(/\bactionQueue\.length\b/);
     expect(DASH).toMatch(/\bvisibleActionQueue\.length\b/);
@@ -191,7 +218,10 @@ describe('the busy flag reaches the cards', () => {
     ]) {
       const at = SECTION.indexOf(`<${card}`);
       expect(at, card).toBeGreaterThan(-1);
-      expect(SECTION.slice(at, at + 600), card).toMatch(/busy=\{/);
+      // `busy={...}` is not enough: `busy={false}` satisfies it and silently
+      // removes the busy state from the six 2-second cold-start buttons —
+      // the entire point of this feature, on the exact surface complained about.
+      expect(SECTION.slice(at, at + 600), card).toMatch(/busy=\{busy\}/);
     }
   });
 });

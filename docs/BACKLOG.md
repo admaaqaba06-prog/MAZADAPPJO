@@ -144,6 +144,13 @@ top-down from it wasted time on problems that no longer existed.
     information. Do not "fix" it by moving the line below the gate; a test pins its placement
     against the first gate of either form (`context.auth` or `assertAdmin`).
 
+    **One consequence to hold onto:** the `__warm` path returns **HTTP 200 and writes no log
+    line**, so a flood through it is *more* invisible than the auth-rejection flood it replaced —
+    it will not trip 4xx/5xx-rate alerting, and nothing in the logs distinguishes 10 pings a day
+    from 10 million. After the May 2026 runaway API bill, that is worth naming explicitly: the
+    thing that would catch abuse here is an **invocation-count or billing** alert on these six
+    functions, not an error-rate one.
+
     **Optimistic hiding is restricted to listing approve/reject — nothing else, ever.** All eleven
     Action Center buttons get an immediate pending state, but only `onApproveListing` /
     `onRejectListing` remove their row before the server confirms: they are the only two with no

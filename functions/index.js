@@ -1267,10 +1267,17 @@ exports.warmAdminCallables = functions
       console.warn('[warmAdminCallables] no project id in env — skipping');
       return null;
     }
-    // A scheduled function deploys to the same region as its targets, so
-    // reading it back self-corrects if the deployment region ever moves. The
-    // literal is only the local-and-emulator fallback: nothing in this repo
-    // sets a region today, so everything lands in us-central1.
+    // us-central1 is where everything in this repo deploys — nothing sets a
+    // region, so that is the value that is actually used.
+    //
+    // The env read is a BEST-EFFORT FALLBACK THAT IS EXPECTED TO BE UNSET here.
+    // FUNCTION_REGION is a legacy Node 8 runtime variable and was removed on
+    // Node 10+; this is a Node 20 1st-gen deployment, so it is almost certainly
+    // undefined and the literal always wins. It does NOT self-correct on a
+    // region change — an earlier comment claimed it did, which was wrong. If
+    // this project ever moves region, CHANGE THE LITERAL; the pings would
+    // otherwise 404 and report as one warn line while cold starts quietly
+    // came back.
     const region = process.env.FUNCTION_REGION || 'us-central1';
     const plan = buildWarmPlan(projectId, region);
     const results = await Promise.all(plan.map(async ({ name, url, body }) => {

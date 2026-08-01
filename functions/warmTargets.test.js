@@ -159,10 +159,15 @@ describe('the scheduled warmer is wired', () => {
     expect(body).toMatch(/return null;/);
   });
 
-  it('reads the deployed region rather than hardcoding it', () => {
-    // The scheduled function deploys alongside its targets, so the env read
-    // self-corrects on a region change. A bare literal would 404 every ping
-    // and report it as one warn line while cold starts quietly came back.
+  it('targets us-central1, with the env read as an expected-unset fallback', () => {
+    // NOT "reads the deployed region": FUNCTION_REGION is a legacy Node 8
+    // runtime variable, removed on Node 10+. On this Node 20 1st-gen
+    // deployment it is almost certainly unset, so the literal is what is
+    // actually used and the env read does not self-correct on a region change.
+    // The old name asserted a property that does not hold. What this pins is
+    // that the fallback literal matches where this project actually deploys —
+    // a wrong literal 404s every ping and reports it as one warn line while
+    // cold starts quietly come back.
     const body = bodyOf('warmAdminCallables');
     expect(body).toMatch(/process\.env\.FUNCTION_REGION \|\| 'us-central1'/);
   });

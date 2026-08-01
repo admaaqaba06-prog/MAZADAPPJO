@@ -657,6 +657,12 @@ export const AdminDashboardView: React.FC = () => {
   // `ActionRow.id` — so a row's approve and its reject share one gate: while
   // either is in flight the whole row is busy, which is what the admin means.
   //
+  // On `delivery_stalled` that same id is shared by NUDGE and ADVANCE, which is
+  // a side effect of keying on the row rather than a decision — but it is the
+  // safe direction and should stay: it stops "nudge the seller to ship" racing
+  // "mark it shipped" on the same order. Do not split them apart for
+  // tidiness.
+  //
   // MONEY ACTIONS ARE NEVER OPTIMISTICALLY HIDDEN. The reversible optimism is
   // permitted at EXACTLY TWO of the call sites below — the listing approve and
   // the listing reject — and a test pins that as an allowlist, so a newly-added
