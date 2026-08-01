@@ -207,7 +207,12 @@ interface AppContextProps {
   markAllAsRead: () => void;
   
   // Admin Operations
-  approveListing: (id: string, viewing?: ViewingMode, viewingPlace?: string) => Promise<void>;
+  /**
+   * Resolves to the WRITE'S OUTCOME, never to `undefined`. The Action Center
+   * hides the row optimistically and un-hides it only on `success: false`, so a
+   * swallowed failure would make the lot vanish until reload.
+   */
+  approveListing: (id: string, viewing?: ViewingMode, viewingPlace?: string) => Promise<{ success: boolean }>;
   /**
    * Correct a lot's viewing AFTER approval. `approveListing` can only set it at
    * the moment of approval, and a live lot has already left the pending queue —
@@ -215,7 +220,8 @@ interface AppContextProps {
    * Firebase console. Passing '' CLEARS the claim back to "not stated".
    */
   setAuctionViewing: (id: string, viewing: ViewingMode | '', viewingPlace: string) => Promise<{ success: boolean; message?: string }>;
-  rejectListing: (id: string, reason?: string) => Promise<void>;
+  /** Reports the write's outcome — see approveListing. */
+  rejectListing: (id: string, reason?: string) => Promise<{ success: boolean }>;
   verifySeller: (userId: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
@@ -4073,7 +4079,9 @@ const fetchIP = async () => {
           : 'A settled auction cannot be re-opened — relist it as a new auction instead.',
         'error'
       );
-      return;
+      // MUST report failure: nothing was written, so an optimistic hide of this
+      // row has to be rolled back or the settled lot vanishes from the queue.
+      return { success: false };
     }
 
     const durationSec = targetA?.duration ? Number(targetA.duration) : 600; // fallback to 10 minutes (600s)
@@ -4091,8 +4099,17 @@ const fetchIP = async () => {
         ? { currentPrice: startBaseline }
         : {};
 
+    // The Action Center hides this lot's row the moment the button is pressed
+    // and un-hides it only if this call REPORTS a failure. A swallowed
+    // rejection therefore reads as success: the row stays hidden, the badge
+    // under-counts, and the lot is gone until reload. So the write promise is
+    // returned, not fired and forgotten, and the local optimistic flip below is
+    // rolled back too — the doc never changed on a failed write, so the
+    // snapshot listener will not fire and correct us.
+    const localBefore = auctions.find(a => a.id === id);
+
     const docRef = doc(db, 'auctions', id);
-    updateDoc(docRef, {
+    const writeResult = updateDoc(docRef, {
       // Per-lot viewing, set by the admin on the approval card. An approval that
       // does not set viewing spreads nothing, leaving the lot UNSET (renders
       // nothing). When a mode IS chosen the helper always writes viewingPlace
@@ -4117,6 +4134,7 @@ const fetchIP = async () => {
         descAr: `مزادك "${targetA?.title || ''}" صار مباشر الآن — بالتوفيق!`,
         descEn: `Your auction "${targetA?.title || ''}" is now live — good luck!`
       });
+      return { success: true };
     }).catch(err => {
       console.error("Firestore approve write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
@@ -4124,6 +4142,10 @@ const fetchIP = async () => {
         `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
         'alert'
       );
+      // Put the lot back exactly as it was. This notification is the ONE report
+      // of the failure — callers must not raise a second one.
+      if (localBefore) setAuctions(prev => prev.map(a => (a.id === id ? localBefore : a)));
+      return { success: false };
     });
 
     setAuctions(prev => prev.map(a => {
@@ -4143,6 +4165,10 @@ const fetchIP = async () => {
       details: 'Visual stream quality & price guide certified.'
     };
     setAdminActions(prev => [action, ...prev]);
+
+    // Returned LAST so every existing side effect keeps firing at the moment it
+    // always did — awaiting here would have delayed the local flip by the write.
+    return writeResult;
   }, [auctions, currentUser, addNotification, language, notifySellerOfListingDecision]);
 
   const rejectListing = useCallback(async (id: string, reason?: string) => {
@@ -4157,9 +4183,14 @@ const fetchIP = async () => {
       } catch { /* notification falls back to empty title */ }
     }
 
+    // Same contract as approveListing: the write promise is RETURNED so the
+    // Action Center's optimistic hide can be rolled back, and the local flip
+    // below is undone on failure because no snapshot will arrive to correct it.
+    const localBefore = auctions.find(a => a.id === id);
+
     // Write reject properties directly to Firestore database
     const docRef = doc(db, 'auctions', id);
-    updateDoc(docRef, {
+    const writeResult = updateDoc(docRef, {
       status: 'rejected',
       approvalStatus: 'rejected',
       isApproved: false,
@@ -4175,6 +4206,7 @@ const fetchIP = async () => {
         descAr: `للأسف ما تمت الموافقة على "${targetA?.title || ''}".${trimmedReason ? ` السبب: ${trimmedReason}` : ''}`,
         descEn: `Unfortunately "${targetA?.title || ''}" wasn't approved.${trimmedReason ? ` Reason: ${trimmedReason}` : ''}`
       });
+      return { success: true };
     }).catch(err => {
       console.error("Firestore reject write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
@@ -4182,6 +4214,10 @@ const fetchIP = async () => {
         `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
         'alert'
       );
+      // Put the lot back exactly as it was. This notification is the ONE report
+      // of the failure — callers must not raise a second one.
+      if (localBefore) setAuctions(prev => prev.map(a => (a.id === id ? localBefore : a)));
+      return { success: false };
     });
 
     setAuctions(prev => prev.map(a => {
@@ -4201,6 +4237,9 @@ const fetchIP = async () => {
       details: trimmedReason ? `Rejected: ${trimmedReason}` : 'Rejected without a stated reason.'
     };
     setAdminActions(prev => [action, ...prev]);
+
+    // Returned LAST — see approveListing.
+    return writeResult;
   }, [auctions, currentUser, addNotification, language, notifySellerOfListingDecision]);
 
   const verifySeller = useCallback(async (userId: string) => {

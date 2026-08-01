@@ -133,9 +133,14 @@ export const AdminPanel: React.FC = () => {
   // rejectListing): they persist approvalStatus/rejectionReason AND write the
   // cross-user Firestore /notifications doc that reaches the SELLER's bell —
   // a local addNotification here would only ever reach the admin's own bell.
+  // These two now resolve to the WRITE'S OUTCOME instead of `undefined`, so the
+  // success toast is finally conditional — it used to fire even when the write
+  // was rejected. On failure the context has ALREADY raised a detailed
+  // notification, so nothing is shown here: one failure, one report.
   const handleApproveAuction = async (auctionId: string) => {
     try {
-      await approveListing(auctionId);
+      const result = await approveListing(auctionId);
+      if (!result?.success) return;
       showToast(isAr ? 'تم الموافقة على المزاد وهو الآن مباشر!' : 'Auction approved and now live!', 'success');
     } catch (error) {
       console.error("Error approving auction:", error);
@@ -145,7 +150,8 @@ export const AdminPanel: React.FC = () => {
 
   const handleRejectAuction = async (auctionId: string, reason?: string) => {
     try {
-      await rejectListing(auctionId, reason);
+      const result = await rejectListing(auctionId, reason);
+      if (!result?.success) return;
       showToast(isAr ? 'تم رفض المزاد وإبلاغ البائع' : 'Auction rejected and seller notified', 'success');
       setRejectingId(null);
       setRejectionReason('');

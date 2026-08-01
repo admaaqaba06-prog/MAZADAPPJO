@@ -622,12 +622,13 @@ export const AdminDashboardView: React.FC = () => {
   // so the admin clicked it again. One hook now gates every one of them.
   //
   // PLACEMENT IS LOAD-BEARING: this block must stay BELOW the memo above — see
-  // that memo's TDZ note. The two hooks that follow name `actionQueue` in their
-  // DEPENDENCY ARRAYS, and a dependency array is evaluated during render at the
-  // line it is written on — it is not deferred like the callback beside it. So
-  // hoisting this throws "Cannot access 'actionQueue' before initialization"
-  // the moment the admin panel opens. `adminDashboard.render.test.tsx` executes
-  // this component to keep that honest.
+  // that memo's TDZ note. Hoisting it throws "Cannot access 'actionQueue'
+  // before initialization" the moment the admin panel opens, by two separate
+  // routes: a dependency array is an ordinary array literal built during render
+  // at the line it is written on, AND a useMemo factory runs synchronously on
+  // the first render, so the memo's body would throw too. Only the useEffect
+  // callback is genuinely deferred. `adminDashboard.render.test.tsx` executes
+  // this component to keep all of that honest.
   const adminAction = useAdminAction();
 
   // Forget an optimistic hide once the listener has actually dropped the row.

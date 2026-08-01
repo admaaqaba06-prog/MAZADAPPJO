@@ -3,14 +3,18 @@
  *
  * WHY IT EXISTS: this file's hook order is load-bearing. `actionQueue` is a
  * useMemo declared mid-body (it reads `const`s below the other memos), and the
- * optimistic-action wiring reads it in TWO dependency ARRAYS — which are
- * evaluated during render, at the line they are written on, not deferred like
- * the callbacks they sit beside. Hoisting any of that above the memo throws
- * `ReferenceError: Cannot access 'actionQueue' before initialization` the
- * instant the admin panel opens. Vite compiles it happily; the source-text
- * ordering test in admin/actionCenter.wiring.test.ts only reads line order.
- * This one runs the code. (Verified: hoisting the visibleActionQueue memo above
- * `const actionQueue` makes this test fail with exactly that ReferenceError.)
+ * optimistic-action wiring reads it in two dependency ARRAYS and in a useMemo
+ * FACTORY. Both run during render at the line they are written on — a
+ * dependency array is an ordinary array literal, and a memo factory runs
+ * synchronously on the first render. (Only a useEffect callback is deferred,
+ * and react-dom/server never runs one at all — which is why hoisting just the
+ * effect still fails this test: its dep array is enough.) Hoisting any of it
+ * above the memo throws `ReferenceError: Cannot access 'actionQueue' before
+ * initialization` the instant the admin panel opens. Vite compiles it happily;
+ * the source-text ordering test in admin/actionCenter.wiring.test.ts only reads
+ * line order. This one runs the code. (Verified: hoisting the
+ * visibleActionQueue memo above `const actionQueue` fails here with exactly
+ * that ReferenceError.)
  *
  * Vitest here is `environment: 'node'` — no jsdom, no @testing-library — so
  * this uses react-dom/server. That renders once and runs no effects, which is
@@ -60,6 +64,8 @@ vi.mock('../context/AppContext', () => ({
 }));
 
 import { AdminDashboardView } from './AdminDashboardView';
+import { ActionCenterSection } from './admin/ActionCenterSection';
+import { buildActionQueue } from '../utils/actionQueue';
 
 describe('probe', () => {
   it('executes the whole component body with a live action row', () => {
@@ -68,5 +74,53 @@ describe('probe', () => {
     expect(html).toContain('Lot awaiting approval');  // the queue produced a row
     expect(html).toContain('>1<');                    // badge counts the FILTERED queue
     expect(html).not.toContain('Working');            // nothing in flight yet
+  });
+});
+
+describe('the busy flag reaches a card at runtime', () => {
+  // Rows are collapsed by default, so the dashboard render above never reaches
+  // a card body. Without this, `busy={false}` hard-coded on a card and a
+  // missing `isPending` prop would BOTH survive the suite and `tsc` — JSX prop
+  // checking is inert here because @types/react is not installed.
+  const auction = {
+    id: 'lot-1', status: 'processing', title: 'A lot', startingPrice: 10,
+    thumbnailUrl: 'https://x/y.jpg', createdAt: Date.now() - 1000,
+  };
+  const queue = buildActionQueue(
+    { orders: [], pendingListings: [auction], subscriptionRequests: [], withdrawals: [] },
+    Date.now(),
+  );
+
+  const renderSection = (isPending: (id: string) => boolean) => renderToStaticMarkup(
+    React.createElement(ActionCenterSection, {
+      isAr: false, queue, orders: [], pendingListings: [auction],
+      subscriptionRequests: [], withdrawals: [], users: [],
+      isPending,
+      initialExpandedId: queue[0].id,
+      handlers: {} as any,
+    }),
+  );
+
+  it('builds the row id the handlers use', () => {
+    expect(queue).toHaveLength(1);
+    expect(queue[0].id).toBe('approve_listing:lot-1');
+  });
+
+  it('shows the working label while THAT row is in flight', () => {
+    const html = renderSection((id) => id === 'approve_listing:lot-1');
+    expect(html).toContain('Working');
+    expect(html).not.toContain('APPROVE &amp; GO LIVE');
+  });
+
+  it('shows the normal label when it is not', () => {
+    const html = renderSection(() => false);
+    expect(html).toContain('APPROVE &amp; GO LIVE');
+    expect(html).not.toContain('Working');
+  });
+
+  it('keys the flag on the ROW id, not on any row being busy', () => {
+    const html = renderSection((id) => id === 'approve_listing:some-other-lot');
+    expect(html).toContain('APPROVE &amp; GO LIVE');
+    expect(html).not.toContain('Working');
   });
 });

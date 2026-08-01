@@ -55,6 +55,14 @@ export interface ActionCenterSectionProps {
    * clicked again.
    */
   isPending: (rowId: string) => boolean;
+  /**
+   * Row to open on mount. Rows are collapsed by default, which means a card
+   * body — and therefore every `busy` prop below — renders only after a click.
+   * A node-only suite cannot click, so without this the busy wiring would be
+   * pinned by source text alone. (It is also the hook a deep link to one row
+   * would use.)
+   */
+  initialExpandedId?: string | null;
   handlers: ActionCenterHandlers;
 }
 
@@ -65,9 +73,10 @@ const SEVERITY_DOT: Record<string, string> = {
 };
 
 export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
-  isAr, queue, orders, pendingListings, subscriptionRequests, withdrawals, users, isPending, handlers,
+  isAr, queue, orders, pendingListings, subscriptionRequests, withdrawals, users, isPending,
+  initialExpandedId = null, handlers,
 }) => {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId);
   const now = Date.now();
 
   const findOrder = (id: string) => orders.find((o: any) => o?.id === id);
