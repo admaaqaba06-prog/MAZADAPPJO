@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
@@ -241,10 +241,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [descriptionClamped, setDescriptionClamped] = useState(false);
 
-  // Switching lots must not carry the previous lot's expanded state over — a
-  // fresh lot always opens clamped, so the first paint never shifts.
-  useEffect(() => {
+  // Switching lots must not carry the previous lot's expanded state — or its
+  // measured overflow — over. BEFORE PAINT, not after: a plain useEffect runs
+  // after the browser has already painted, so the new lot's first frame would
+  // show the previous lot's expanded body and a stale "عرض المزيد" under a
+  // short description. useLayoutEffect resets between the DOM commit and the
+  // paint, so neither is ever visible.
+  useLayoutEffect(() => {
     setDescriptionExpanded(false);
+    setDescriptionClamped(false);
   }, [activeAuction?.id]);
 
   // Does the clamp actually hide anything? A character-count guess is wrong at
@@ -253,7 +258,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // by definition, so the measurement is skipped there and the last clamped
   // result stands. ResizeObserver covers both a new description and a window
   // resize (this column's width is derived from viewport height).
-  useEffect(() => {
+  // Also pre-paint: measuring after paint would flash the toggle in a frame
+  // late, and on a lot switch the reset above has just cleared the flag.
+  // `activeAuction?.id` is a dependency in its own right — two lots can carry
+  // identical description text, and without it the reset would never re-measure.
+  useLayoutEffect(() => {
     const el = descriptionRef.current;
     if (!el || descriptionExpanded) return;
     const measure = () => setDescriptionClamped(el.scrollHeight - el.clientHeight > 1);
@@ -261,7 +270,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [descriptionText, descriptionExpanded]);
+  }, [descriptionText, descriptionExpanded, activeAuction?.id]);
 
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
