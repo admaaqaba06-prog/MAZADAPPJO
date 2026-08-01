@@ -31,7 +31,27 @@ The eleven Action Center handlers do **not** share a latency profile.
 | `onResolveDispute` | callable | cold start + txn + listener |
 | **`onApproveListing` / `onRejectListing`** | **direct client Firestore write in `AppContext`** | **listener only — no server round-trip** |
 
-Warming instances does nothing for listing approve/reject. Their entire wait is the snapshot propagating and `buildActionQueue` recomputing. **Their fix is purely client-side**, which is why the UI work cannot be skipped in favour of infrastructure.
+Warming instances does nothing for listing approve/reject — they have no server round-trip at all.
+
+> **CORRECTION (2026-08-01, whole-branch review).** The sentence that stood here — that their
+> entire wait is the snapshot propagating, so their fix is purely client-side — was **wrong**,
+> and the optimistic-hide design was built on it.
+>
+> `AppContext.approveListing` already flips the lot to `live` via `setAuctions` **synchronously**,
+> in the same React batch as the click, and `pendingListingDrops` filters on status. So the row
+> left the queue instantly *before this feature existed*. There was never a wait to fix.
+>
+> Consequences, recorded so nobody re-derives a decision from the original claim:
+> - The optimistic hide is a **no-op at both of its permitted call sites**. `hidden`,
+>   `visibleRows` and `pruneHidden` add no user-visible behaviour today. They are defence in
+>   depth if that local flip is ever removed — which is a real possibility, since it is the
+>   thing that makes a failed write need `restoreLocalAuction`.
+> - `busy` on `ListingApprovalCard` **can never render**: the card unmounts in the same batch.
+> - The branch's real value is the warmer, the pending state on the six *callable-backed*
+>   buttons, and three pre-existing bugs found while wiring.
+>
+> The error was mine: I read the call path and never traced one click through to the row
+> leaving the queue. Five per-task reviews could not see it; only an end-to-end trace could.
 
 ## Decisions taken with MJ (2026-07-31)
 
