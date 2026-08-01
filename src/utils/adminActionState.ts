@@ -57,6 +57,13 @@ export function settleAction(
   input: { actionId: string; rowId: string; ok: boolean },
 ): AdminActionState {
   const { actionId, rowId, ok } = input;
+  // Nothing to settle: this action is not in flight and its row is not hidden.
+  // Keeps the module's same-object-when-unchanged contract, makes a double
+  // settle a true no-op, and — the real reason — makes it impossible for a
+  // stale settle arriving after a RETRY of the same action began to clear the
+  // retry's pending flag and un-hide its row mid-flight.
+  if (!state.pending.has(actionId) && !(rowId && state.hidden.has(rowId))) return state;
+
   const pending = new Set(state.pending);
   pending.delete(actionId);
 
@@ -83,8 +90,18 @@ export function pruneHidden(state: AdminActionState, rows: readonly ActionRow[])
   return changed ? { pending: state.pending, hidden } : state;
 }
 
-export function visibleRows(rows: readonly ActionRow[], state: AdminActionState): ActionRow[] {
+/**
+ * `readonly` in AND out: the queue this filters is a memoized array upstream, so
+ * handing back a mutable reference would let a caller `sort`/`push` it in place.
+ *
+ * Returns the input array by identity whenever nothing was actually removed —
+ * including the case where `hidden` holds ids that match no current row, which
+ * happens for the whole window between a successful settle and the next prune.
+ * Allocating there would break `React.memo` on every render in that window.
+ */
+export function visibleRows(rows: readonly ActionRow[], state: AdminActionState): readonly ActionRow[] {
   if (!rows) return [];
-  if (state.hidden.size === 0) return rows as ActionRow[];
-  return rows.filter(r => !state.hidden.has(r.id));
+  if (state.hidden.size === 0) return rows;
+  const filtered = rows.filter(r => !state.hidden.has(r.id));
+  return filtered.length === rows.length ? rows : filtered;
 }
