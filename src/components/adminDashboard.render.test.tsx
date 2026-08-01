@@ -49,7 +49,10 @@ vi.mock('../context/AppContext', () => ({
   useApp: () => ({
     currentUser: { id: 'a', name: 'MJ', role: 'admin' },
     users: [], usersTotalCount: 0, escrows: [], orders: [],
-    approveListing: async () => {}, rejectListing: async () => {}, setAuctionViewing: async () => {},
+    // These two resolve { success } now, never undefined — a swallowed failure
+    // is what made a rejected approval hide the lot until reload.
+    approveListing: async () => ({ success: true }), rejectListing: async () => ({ success: true }),
+    setAuctionViewing: async () => {},
     verifySeller: async () => {}, banUser: async () => {}, unbanUser: async () => {},
     releaseEscrow: async () => {}, refundEscrow: async () => {}, deleteAuction: async () => {},
     repairEndedAuctionOrder: async () => {}, repairStuckEscrowsForEndedAuction: async () => {},

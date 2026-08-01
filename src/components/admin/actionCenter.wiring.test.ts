@@ -9,6 +9,7 @@ const DASH = readFileSync(new URL('../AdminDashboardView.tsx', import.meta.url),
 const SECTION = readFileSync(new URL('./ActionCenterSection.tsx', import.meta.url), 'utf8');
 const QUEUE = readFileSync(new URL('../../utils/actionQueue.ts', import.meta.url), 'utf8');
 const CONTEXT = readFileSync(new URL('../../context/AppContext.tsx', import.meta.url), 'utf8');
+const PANEL = readFileSync(new URL('../AdminPanel.tsx', import.meta.url), 'utf8');
 
 /** The six ActionKinds, read out of actionQueue.ts so this cannot drift. */
 const ACTION_KINDS: string[] = (() => {
@@ -245,8 +246,46 @@ describe('a listing decision reports its write (F1)', () => {
       // renderer, and vitest here is node-only. See the report's gap list.
       const at = CONTEXT.indexOf(fn);
       const body = CONTEXT.slice(at, CONTEXT.indexOf('\n  const ', at + 40));
-      expect(body, fn).toMatch(/const localBefore = auctions\.find\(/);
-      expect(body, fn).toMatch(/if \(localBefore\) setAuctions\(/);
+      // Exact: a predicate bound to anything but `id` leaves localBefore
+      // undefined, and the restore then no-ops on every failure.
+      expect(body, fn).toMatch(/const localBefore = auctions\.find\(a => a\.id === id\);/);
+      // The restore itself is ordinary logic now, unit-tested in
+      // utils/localAuctionRollback.test.ts — an inverted match, a no-op map and
+      // an id matching nothing all die there. This only pins that it is called.
+      expect(body, fn).toMatch(/setAuctions\(prev => restoreLocalAuction\(prev, id, localBefore\)\)/);
+    });
+
+    it(`${fn} returns its write result LAST`, () => {
+      // Hoisting `return writeResult` above the local flip and the admin-action
+      // log silently kills both — the function returns before they run.
+      const at = CONTEXT.indexOf(fn);
+      const body = CONTEXT.slice(at, CONTEXT.indexOf('\n  const ', at + 40));
+      const ret = body.lastIndexOf('return writeResult;');
+      expect(ret, fn).toBeGreaterThan(-1);
+      for (const sideEffect of ['setAuctions(prev => prev.map(', 'setAdminActions(prev => [action']) {
+        expect(body.indexOf(sideEffect), `${fn} / ${sideEffect}`).toBeGreaterThan(-1);
+        expect(body.indexOf(sideEffect), `${fn} / ${sideEffect}`).toBeLessThan(ret);
+      }
+      // Nothing but the useCallback's own closing may follow it — no statement
+      // may be added after the return, where it would never run.
+      const tail = body.slice(ret).replace('return writeResult;', '').trim();
+      expect(tail, fn).toMatch(/^\},\s*\[[^\]]*\]\);$/);
     });
   }
+
+  it('AdminPanel does not claim success on a failed write', () => {
+    // The one behavioural change in this diff with no other test touching it.
+    // Inverting or deleting the gate restores the original defect: an
+    // unconditional success toast on a rejected write.
+    for (const handler of ['handleApproveAuction', 'handleRejectAuction']) {
+      const at = PANEL.indexOf(handler);
+      expect(at, handler).toBeGreaterThan(-1);
+      const body = PANEL.slice(at, at + 500);
+      expect(body, handler).toMatch(/if \(!result\?\.success\) return;/);
+      expect(body, handler).not.toMatch(/if \(result\?\.success\) return;/);
+      // and the gate must come BEFORE the toast it guards
+      expect(body.indexOf('if (!result?.success) return;'), handler)
+        .toBeLessThan(body.indexOf('showToast'));
+    }
+  });
 });

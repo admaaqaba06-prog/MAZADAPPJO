@@ -12,6 +12,7 @@ import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
 import { blockedApprovalReason } from '../utils/approvalGuard';
+import { restoreLocalAuction } from '../utils/localAuctionRollback';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
 import type { SecondChanceAction } from '../utils/secondChanceOffer';
@@ -4136,15 +4137,30 @@ const fetchIP = async () => {
       });
       return { success: true };
     }).catch(err => {
+      // NOTE: this .catch is chained AFTER the .then, so it also sees anything
+      // the .then throws. Everything in there is safe today
+      // (notifySellerOfListingDecision early-returns without a seller id, does
+      // string work, then swallows its own write) — but a statement that threw
+      // SYNCHRONOUSLY there would make a SUCCESSFUL write report
+      // { success: false }, roll local state back and raise the failure toast.
+      // The snapshot listener heals the state within a round trip, so the
+      // residue would be a wrong toast. Do not add a throwing statement above.
       console.error("Firestore approve write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
         language === 'ar' ? '❌ فشل اعتماد المزاد' : '❌ Approve Listing Failed',
         `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
         'alert'
       );
-      // Put the lot back exactly as it was. This notification is the ONE report
-      // of the failure — callers must not raise a second one.
-      if (localBefore) setAuctions(prev => prev.map(a => (a.id === id ? localBefore : a)));
+      // Undo the local flip below. `localBefore` was captured from the
+      // render-time `auctions` closure, so this restores the lot as it looked
+      // WHEN THE BUTTON WAS PRESSED, not as of now: if a snapshot updated this
+      // lot between that moment and the write failing, those newer fields are
+      // reverted too. The next snapshot heals it. Bounded and self-correcting,
+      // but not the same claim as "exactly as it was".
+      //
+      // This notification is the ONE report of the failure — callers must not
+      // raise a second one.
+      setAuctions(prev => restoreLocalAuction(prev, id, localBefore));
       return { success: false };
     });
 
@@ -4208,15 +4224,17 @@ const fetchIP = async () => {
       });
       return { success: true };
     }).catch(err => {
+      // Also catches a synchronous throw from the .then above — see
+      // approveListing.
       console.error("Firestore reject write failed. Code:", err.code, "Message:", err.message, err);
       addNotification(
         language === 'ar' ? '❌ فشل رفض المزاد' : '❌ Reject Listing Failed',
         `Code: ${err.code || 'unknown'}. Message: ${err.message || 'unknown'}`,
         'alert'
       );
-      // Put the lot back exactly as it was. This notification is the ONE report
-      // of the failure — callers must not raise a second one.
-      if (localBefore) setAuctions(prev => prev.map(a => (a.id === id ? localBefore : a)));
+      // Undo the local flip — see approveListing for what `localBefore` does
+      // and does not guarantee. This notification is the ONE failure report.
+      setAuctions(prev => restoreLocalAuction(prev, id, localBefore));
       return { success: false };
     });
 
