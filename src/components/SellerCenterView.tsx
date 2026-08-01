@@ -442,62 +442,27 @@ export const SellerCenterView: React.FC = () => {
     return orders.filter(o => o.sellerId === currentUser.id);
   }, [orders, currentUser]);
 
-  // 1. Load / Seed Reviews
+  // 1. Load reviews (no seeding — see the note below)
   useEffect(() => {
     if (!currentUser) return;
 
     const q = query(collection(db, 'reviews'), where('sellerId', '==', currentUser.id));
-    const unsub = onSnapshot(q, async (snap) => {
+    // NOTE: this callback is deliberately NOT async.
+    //
+    // It used to be, and when a seller had no reviews it wrote three fabricated
+    // 5-star reviews into Firestore — invented reviewer names, stock-photo
+    // avatars, invented purchase histories — "to make it feel rich and genuine".
+    // Every write was refused by firestore.rules (a review's buyerId must equal
+    // the caller's uid), and because the awaits sat in an async snapshot handler
+    // with no catch, each refusal surfaced as an UNCAUGHT rejection: ~97 of them
+    // in ten seconds on the Seller Center, since the listener re-subscribes.
+    //
+    // The rules were the only thing standing between production and fake social
+    // proof attributed to real sellers. A seller with no reviews now sees that
+    // they have no reviews.
+    const unsub = onSnapshot(q, (snap) => {
       if (snap.empty) {
-        // Seed default beautiful reviews into Firestore to make it feel rich and genuine
-        const defaultReviews: Review[] = [
-          {
-            id: `rev-seed-1-${currentUser.id}`,
-            sellerId: currentUser.id,
-            buyerId: 'buyer-seed-abc',
-            buyerName: isAr ? 'أحمد الشمري' : 'Ahmad Shammari',
-            buyerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&q=80',
-            rating: 5,
-            comment: isAr 
-              ? 'بائع ممتاز ومحترف جداً! المنتج بحالة رائعة والشحن كان أسرع مما توقعت. التغليف متين وممتاز.' 
-              : 'Excellent and highly professional seller! The item is in pristine condition and shipping was ultra-fast. Safe packaging.',
-            timestamp: Date.now() - 3 * 24 * 3600 * 1000,
-            auctionTitle: isAr ? 'ساعة رولكس صبمارينر كلاسيك' : 'Rolex Submariner Classic',
-            auctionId: 'rolex-sub-1'
-          },
-          {
-            id: `rev-seed-2-${currentUser.id}`,
-            sellerId: currentUser.id,
-            buyerId: 'buyer-seed-xyz',
-            buyerName: isAr ? 'رنا حداد' : 'Rana Haddad',
-            buyerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80',
-            rating: 4,
-            comment: isAr 
-              ? 'المنتج ممتاز ومطابق للوصف تماماً. كان هناك تأخير بسيط ليلة واحدة في التسليم لكن التواصل كان رائعاً.' 
-              : 'Product matches the description perfectly. Just a minor one-day delay in delivery, but overall outstanding communication.',
-            timestamp: Date.now() - 7 * 24 * 3600 * 1000,
-            auctionTitle: isAr ? 'هاتف آيفون 15 برو ماكس' : 'iPhone 15 Pro Max',
-            auctionId: 'iphone15-2'
-          },
-          {
-            id: `rev-seed-3-${currentUser.id}`,
-            sellerId: currentUser.id,
-            buyerId: 'buyer-seed-mno',
-            buyerName: isAr ? 'سامر الكردي' : 'Samer Kordi',
-            buyerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&q=80',
-            rating: 5,
-            comment: isAr 
-              ? 'خدمة رائعة وجهاز نظيف وممتاز كما وُصف في الفيديو المرفق بالمزاد. أنصح بشدة بالتعامل مع هذا التاجر!' 
-              : 'Amazing service and pristine hardware exactly as detailed in the live video demo. High-trust merchant!',
-            timestamp: Date.now() - 15 * 24 * 3600 * 1000,
-            auctionTitle: isAr ? 'جهاز ماك بوك برو M3 Max' : 'MacBook Pro M3 Max 16"',
-            auctionId: 'macbook-3'
-          }
-        ];
-
-        for (const rev of defaultReviews) {
-          await setDoc(doc(db, 'reviews', rev.id), rev);
-        }
+        setReviews([]);
       } else {
         const fetched: Review[] = [];
         snap.forEach((d) => {
