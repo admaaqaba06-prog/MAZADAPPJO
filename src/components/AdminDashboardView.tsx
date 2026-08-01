@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ActionCenterSection } from './admin/ActionCenterSection';
 import { buildActionQueue } from '../utils/actionQueue';
+import { useAdminAction } from '../hooks/useAdminAction';
+import { visibleRows } from '../utils/adminActionState';
+import type { ViewingMode } from '../utils/viewing';
 import { useApp, useAuctions } from '../context/AppContext';
 import { translations } from '../utils/translations';
 import { isAdminUser } from '../utils/adminAuth';
@@ -612,6 +615,184 @@ export const AdminDashboardView: React.FC = () => {
     [realOrders, pendingListingDrops, subscriptionRequests, allWithdrawals],
   );
 
+  // ── Action latency ───────────────────────────────────────────────────────
+  //
+  // Six of the eleven buttons below sit behind a callable that cold-starts for
+  // ~2s, and this dashboard had NO busy state at all: the button looked dead,
+  // so the admin clicked it again. One hook now gates every one of them.
+  //
+  // PLACEMENT IS LOAD-BEARING: this block must stay BELOW the memo above — see
+  // that memo's TDZ note. Hoisting it throws "Cannot access 'actionQueue'
+  // before initialization" the moment the admin panel opens, by two separate
+  // routes: a dependency array is an ordinary array literal built during render
+  // at the line it is written on, AND a useMemo factory runs synchronously on
+  // the first render, so the memo's body would throw too. Only the useEffect
+  // callback is genuinely deferred. `adminDashboard.render.test.tsx` executes
+  // this component to keep all of that honest.
+  const adminAction = useAdminAction();
+
+  // Forget an optimistic hide once the listener has actually dropped the row.
+  // `prune` is referentially stable (useCallback with no deps), so it is safe
+  // in the dependency list; `pruneHidden` returns the same state object when
+  // nothing changed, so this cannot loop even though `actionQueue` is a fresh
+  // array on every render.
+  useEffect(() => { adminAction.prune(actionQueue); }, [actionQueue, adminAction.prune]);
+
+  // The ONE list the Action Center renders and the tab badge counts.
+  const visibleActionQueue = useMemo(
+    () => visibleRows(actionQueue, adminAction.state),
+    [actionQueue, adminAction.state],
+  );
+
+  // A membership row carries only the request id, but `approveSubscription`
+  // wants the whole request (it re-reads `.id` and names the member in its
+  // confirmation). Resolving it here is what makes the Action Center's
+  // membership buttons actually work.
+  const findSubscriptionRequest = (requestId: string) =>
+    subscriptionRequests.find((s: any) => s?.id === requestId) || { id: requestId };
+
+  // Every Action Center write, wrapped once.
+  //
+  // `actionId` and `rowId` are both `${kind}:${entityId}` — the exact form of
+  // `ActionRow.id` — so a row's approve and its reject share one gate: while
+  // either is in flight the whole row is busy, which is what the admin means.
+  //
+  // On `delivery_stalled` that same id is shared by NUDGE and ADVANCE, which is
+  // a side effect of keying on the row rather than a decision — but it is the
+  // safe direction and should stay: it stops "nudge the seller to ship" racing
+  // "mark it shipped" on the same order. Do not split them apart for
+  // tidiness.
+  //
+  // MONEY ACTIONS ARE NEVER OPTIMISTICALLY HIDDEN. The reversible optimism is
+  // permitted at EXACTLY TWO of the call sites below — the listing approve and
+  // the listing reject — and a test pins that as an allowlist, so a newly-added
+  // action is confirmed-by-omission, the safe default. A listing decision moves
+  // no money and is undoable from this same panel, so its row may vanish before
+  // the server answers. Everything else waits, including three that look
+  // reversible and are not:
+  //   - resolving a dispute runs executeOrderTransition('resolve_dispute'), and
+  //     that is where the money moves. The admin's note is reversible; the
+  //     resolution is not, and one button does both.
+  //   - advancing an order runs executeOrderTransition with a status-dependent
+  //     action, and some targets release escrow. Money-class by default rather
+  //     than per-row: a classification you re-derive per row is no
+  //     classification at all.
+  //   - a nudge moves nothing, but it sends a real WhatsApp and there is no
+  //     unsend.
+  //
+  // NOTE TO FUTURE EDITORS: the classification test reads this file as TEXT.
+  // Do not write a handler's identifier, or the literal optimism field, into a
+  // comment above the object — the test's window would find the prose instead
+  // of the code.
+  const actionCenterHandlers = {
+    onApproveListing: (auctionId: string, viewing?: ViewingMode, viewingPlace?: string) =>
+      adminAction.run({
+        actionId: `approve_listing:${auctionId}`,
+        rowId: `approve_listing:${auctionId}`,
+        optimism: 'reversible',
+        fn: () => approveListing(auctionId, viewing, viewingPlace),
+      }),
+    onRejectListing: (auctionId: string, reason?: string) =>
+      adminAction.run({
+        actionId: `approve_listing:${auctionId}`,
+        rowId: `approve_listing:${auctionId}`,
+        optimism: 'reversible',
+        fn: () => rejectListing(auctionId, reason),
+      }),
+
+    onApproveOrderPayment: (orderId: string) =>
+      adminAction.run({
+        actionId: `verify_order_payment:${orderId}`,
+        rowId: `verify_order_payment:${orderId}`,
+        optimism: 'confirmed',
+        fn: () => handleVerifyOrderPayment(orderId),
+      }),
+    onRejectOrderPayment: (orderId: string, reason: string) =>
+      adminAction.run({
+        actionId: `verify_order_payment:${orderId}`,
+        rowId: `verify_order_payment:${orderId}`,
+        optimism: 'confirmed',
+        fn: () => handleRejectOrderPayment(orderId, reason),
+      }),
+
+    onApproveMembership: (requestId: string) =>
+      adminAction.run({
+        actionId: `verify_membership:${requestId}`,
+        rowId: `verify_membership:${requestId}`,
+        optimism: 'confirmed',
+        fn: () => approveSubscription(findSubscriptionRequest(requestId)),
+      }),
+    onRejectMembership: (requestId: string, reason: string) =>
+      adminAction.run({
+        actionId: `verify_membership:${requestId}`,
+        rowId: `verify_membership:${requestId}`,
+        optimism: 'confirmed',
+        fn: () => rejectSubscription(findSubscriptionRequest(requestId), reason),
+      }),
+
+    // transferRef is NOT optional: the server refuses a payout approval without
+    // it, so it has to survive the wrapper.
+    onApprovePayout: (withdrawalId: string, transferRef: string) =>
+      adminAction.run({
+        actionId: `payout:${withdrawalId}`,
+        rowId: `payout:${withdrawalId}`,
+        optimism: 'confirmed',
+        fn: () => approveWithdrawal(withdrawalId, transferRef),
+      }),
+    onRejectPayout: (withdrawalId: string, reason: string) =>
+      adminAction.run({
+        actionId: `payout:${withdrawalId}`,
+        rowId: `payout:${withdrawalId}`,
+        optimism: 'confirmed',
+        fn: () => rejectWithdrawal(withdrawalId, reason),
+      }),
+
+    onResolveDispute: async (orderId: string, resolutionType: 'release' | 'refund' | 'resume', notes: string) => {
+      await adminAction.run({
+        actionId: `dispute:${orderId}`,
+        rowId: `dispute:${orderId}`,
+        optimism: 'confirmed',
+        fn: () => handleResolveDispute(orderId, resolutionType, notes),
+      });
+    },
+
+    onNudge: async (orderId: string, kind: 'ship' | 'confirm_delivery') => {
+      await adminAction.run({
+        actionId: `delivery_stalled:${orderId}`,
+        rowId: `delivery_stalled:${orderId}`,
+        optimism: 'confirmed',
+        fn: () => handleSendFulfillmentNudge(orderId, kind),
+      });
+    },
+
+    onAdvance: async (order: any, note: string) => {
+      const orderId = order?.id || '';
+      const result = await adminAction.run({
+        actionId: `delivery_stalled:${orderId}`,
+        rowId: `delivery_stalled:${orderId}`,
+        optimism: 'confirmed',
+        fn: () => handleAdvanceOrder(order, note),
+      });
+      // The ONLY handler whose failure is otherwise silent — handleAdvanceOrder
+      // returns {success:false} instead of alerting, and the card ignores what
+      // it returns. So report it here, and check `suppressed` FIRST: a
+      // swallowed double-click sent nothing and failed at nothing, and its
+      // `error` carries an internal untranslated marker that must never reach
+      // an Arabic-speaking admin.
+      if (result.suppressed) return { success: false };
+      if (!result.ok) {
+        const message = typeof result.error === 'string'
+          ? result.error
+          : (result.error?.message || (isAr ? 'فشل تحديث الطلب.' : 'Update failed.'));
+        alert(`❌ ${message}`);
+        return { success: false, message };
+      }
+      return { success: true };
+    },
+
+    onOpenOrder: setAdminSelectedOrderId,
+  };
+
   const pendingByUsersOnly = users.filter((u: any) => {
     const isPending = u.subscriptionStatus === 'pending';
     const hasRequest = subscriptionRequests.some((r: any) => r.userId === u.id);
@@ -672,7 +853,7 @@ export const AdminDashboardView: React.FC = () => {
           // waiting — five separate counters could disagree with the list they
           // linked to, which is what computeAttentionCounts allowed.
           const badgeFor = (tab: AdminTabId): number | null =>
-            tab === 'action-center' ? actionQueue.length : null;
+            tab === 'action-center' ? visibleActionQueue.length : null;
           const renderTab = (tab: AdminTabId) => {
             const isActive = activeTab === tab;
             const badge = badgeFor(tab);
@@ -714,26 +895,14 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'action-center' && (
           <ActionCenterSection
             isAr={isAr}
-            queue={actionQueue}
+            queue={visibleActionQueue}
             orders={realOrders}
             pendingListings={pendingListingDrops}
             subscriptionRequests={subscriptionRequests}
             withdrawals={allWithdrawals}
             users={users}
-            handlers={{
-              onApproveOrderPayment: handleVerifyOrderPayment,
-              onRejectOrderPayment: handleRejectOrderPayment,
-              onApproveMembership: approveSubscription,
-              onRejectMembership: rejectSubscription,
-              onApproveListing: approveListing,
-              onRejectListing: rejectListing,
-              onApprovePayout: approveWithdrawal,
-              onRejectPayout: rejectWithdrawal,
-              onResolveDispute: handleResolveDispute,
-              onNudge: handleSendFulfillmentNudge,
-              onAdvance: handleAdvanceOrder,
-              onOpenOrder: setAdminSelectedOrderId,
-            }}
+            isPending={adminAction.isPending}
+            handlers={actionCenterHandlers}
           />
         )}
 

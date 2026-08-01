@@ -43,6 +43,7 @@ const { emailFor } = require('./emailCopy');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
 const { maskBidderName } = require('./bidderMask');
+const { buildWarmPlan } = require('./warmTargets');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1238,6 +1239,72 @@ exports.paymentDefaultEnforcer = functions
     return null;
   });
 
+/**
+ * Keep the admin callables warm.
+ *
+ * The Action Center's buttons sit behind callables that cold-start at ~2s
+ * (measured 2026-07-31). Admins work in bursts after idle periods, which is
+ * precisely when a cold start lands. Five minutes is comfortably inside
+ * Google's idle-eviction window without being chatty.
+ *
+ * Never throws: a warmer that breaks the function log is worse than a cold
+ * start. Failures are counted and logged once, not raised. Note that a JS
+ * exception is not the only way to pollute that log — see the bounded signal
+ * below; a stalled ping that runs out the function's own timeoutSeconds is
+ * recorded by Cloud Functions at ERROR severity, which would defeat the whole
+ * point of this function through a side door the try/catch cannot cover.
+ *
+ * What to ping is decided by buildWarmPlan (warmTargets.js), not here: this
+ * loop deliberately has no per-target logic for a skip to hide in.
+ */
+exports.warmAdminCallables = functions
+  .runWith({ timeoutSeconds: 60 })
+  .pubsub
+  .schedule('every 5 minutes')
+  .onRun(async () => {
+    const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+    if (!projectId) {
+      console.warn('[warmAdminCallables] no project id in env — skipping');
+      return null;
+    }
+    // us-central1 is where everything in this repo deploys — nothing sets a
+    // region, so that is the value that is actually used.
+    //
+    // The env read is a BEST-EFFORT FALLBACK THAT IS EXPECTED TO BE UNSET here.
+    // FUNCTION_REGION is a legacy Node 8 runtime variable and was removed on
+    // Node 10+; this is a Node 20 1st-gen deployment, so it is almost certainly
+    // undefined and the literal always wins. It does NOT self-correct on a
+    // region change — an earlier comment claimed it did, which was wrong. If
+    // this project ever moves region, CHANGE THE LITERAL; the pings would
+    // otherwise 404 and report as one warn line while cold starts quietly
+    // came back.
+    const region = process.env.FUNCTION_REGION || 'us-central1';
+    const plan = buildWarmPlan(projectId, region);
+    const results = await Promise.all(plan.map(async ({ name, url, body }) => {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          // Bounded like every other outbound call here (pollN8nHealth uses the
+          // same idiom). Unbounded, one stalled ping parks Promise.all until
+          // timeoutSeconds fires and the run is logged as an error.
+          signal: AbortSignal.timeout(10000),
+        });
+        // Drain the body. Under Node 20's undici an unread response holds its
+        // connection until GC; harmless alone, but it compounds with any delay.
+        await res.arrayBuffer().catch(() => {});
+        return res.ok;
+      } catch (e) {
+        console.warn(`[warmAdminCallables] ${name} ping failed: ${e.message}`);
+        return false;
+      }
+    }));
+    const failed = results.filter(ok => !ok).length;
+    if (failed) console.warn(`[warmAdminCallables] ${failed}/${plan.length} pings failed`);
+    return null;
+  });
+
 // E5 — nudge buyers with an unpaid order still inside its payment window. One
 // reminder at ~50% remaining, a final one ~2h before expiry; idempotent via
 // remind50Sent/remindFinalSent flags. Expired orders are the enforcer's job.
@@ -2212,6 +2279,10 @@ exports.requestSubscription = functions.runWith({ cors: true }).https.onCall(asy
 const SUBSCRIPTION_ERROR_CODES = ['invalid-argument', 'not-found', 'failed-precondition'];
 
 exports.approveSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   await assertAdmin(context);
   const { reqId, userId, tier } = data || {};
 
@@ -2272,6 +2343,10 @@ exports.approveSubscription = functions.runWith({ cors: true }).https.onCall(asy
  * 'pending' — never wipes an active membership) or { userId } (direct reject).
  */
 exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   await assertAdmin(context);
   const { reqId, userId, reason } = data || {};
 
@@ -2446,6 +2521,10 @@ exports.issueDeliveryCode = functions.runWith({ cors: true }).https.onCall(async
  * this wrapper is admin-gating + the post-commit WhatsApp notify.
  */
 exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   await assertAdmin(context);
   const { orderId, action, reason } = data || {};
   if (action !== 'verify' && action !== 'reject') {
@@ -2479,6 +2558,10 @@ exports.verifyOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
  * ONLY way a nudge fires — nothing calls it on a timer/trigger.
  */
 exports.sendFulfillmentNudge = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   await assertAdmin(context);
   const { orderId, kind } = data || {};
   try {
@@ -4906,6 +4989,10 @@ exports.resetTestAuctionData = functions.runWith({ cors: true }).https.onCall(as
  * Secure admin-only withdrawal approval flow.
  */
 exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً');
   }
@@ -5080,6 +5167,10 @@ exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async
  * Refunds the withdrawal amount back to user's available balance.
  */
 exports.rejectWithdrawal = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  // Warm ping from `warmAdminCallables`, ABOVE the auth check by design: below
+  // it, it throws `unauthenticated` ~1,700x/day, burying real auth failures.
+  // Reachable unauthenticated — accepted risk, see warmTargets.js header.
+  if (data && data.__warm === true) return { warm: true };
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً');
   }

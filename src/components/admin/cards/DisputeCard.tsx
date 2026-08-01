@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+/** Shown on the button that is waiting. A greyed-out button is indistinguishable
+ * from one still gated on its checklist — the label is what says "it registered". */
+const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
+
 
 /**
  * Wave 4 — the body of a `dispute` row.
@@ -128,7 +132,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
           onClick={() => { if (canConfirm && picked) onResolve(order.id, picked, notes.trim()); }}
           className={`w-full font-extrabold text-xs py-2.5 rounded-xl text-white transition-all ${canConfirm ? (options.find(o => o.value === picked)?.tone || 'bg-gray-800') : 'bg-gray-300 cursor-not-allowed'}`}
         >
-          {isAr ? 'تأكيد القرار' : 'Confirm decision'}
+          {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تأكيد القرار' : 'Confirm decision')}
         </button>
       </div>
     </div>

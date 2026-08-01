@@ -1,0 +1,127 @@
+/**
+ * In-flight state for Action Center buttons.
+ *
+ * Two problems, one store. `pending` answers "did my click register?" — the
+ * complaint that started this, since AdminDashboardView had no busy state at
+ * all and a callable can cold-start for ~2s. `hidden` is the optimistic half,
+ * and it is deliberately narrow: only listing approve/reject may use it,
+ * because they are the only actions that move no money AND have no server
+ * round-trip to warm. See the design spec's classification section.
+ *
+ * Pure and immutable: every mutator returns a NEW object when something
+ * changed and the SAME object when nothing did, so React re-renders exactly
+ * when it should.
+ */
+import type { ActionRow } from './actionQueue';
+
+/** `'reversible'` is permitted at exactly two call sites. Everything else waits. */
+export type ActionOptimism = 'reversible' | 'confirmed';
+
+export interface AdminActionState {
+  /** Action ids currently in flight. */
+  pending: ReadonlySet<string>;
+  /** `ActionRow.id`s optimistically removed from the queue. */
+  hidden: ReadonlySet<string>;
+}
+
+export const EMPTY_ADMIN_ACTION_STATE: AdminActionState = Object.freeze({
+  pending: new Set<string>(),
+  hidden: new Set<string>(),
+});
+
+export function isActionPending(state: AdminActionState, actionId: string): boolean {
+  return state.pending.has(actionId);
+}
+
+export function beginAction(
+  state: AdminActionState,
+  input: { actionId: string; rowId: string; optimism: ActionOptimism },
+): AdminActionState {
+  const { actionId, rowId, optimism } = input;
+  // Double-click suppression lives HERE, not on the button's disabled prop —
+  // a disabled attribute is a race, a state check is not.
+  if (state.pending.has(actionId)) return state;
+
+  const pending = new Set(state.pending);
+  pending.add(actionId);
+
+  const hidden = optimism === 'reversible' && rowId
+    ? new Set(state.hidden).add(rowId)
+    : state.hidden;
+
+  return { pending, hidden };
+}
+
+export function settleAction(
+  state: AdminActionState,
+  input: { actionId: string; rowId: string; ok: boolean },
+): AdminActionState {
+  const { actionId, rowId, ok } = input;
+  // Nothing to settle: the action is not in flight AND its row is not hidden.
+  // Returning `state` itself keeps this module's same-object-when-unchanged
+  // contract.
+  //
+  // Scope, precisely — this guard does LESS than it looks like it does:
+  //  - It does NOT protect retries. `actionId` is per-action, not per-attempt,
+  //    so during a retry `pending.has(actionId)` is true, the guard falls
+  //    through, and a late settle from the ABANDONED attempt will clear the
+  //    retry's pending flag (and on `ok:false` un-hide its row) while the retry
+  //    is still in flight. Distinguishing attempts would require a per-attempt
+  //    id, which this design does not have. Add one before relying on retry
+  //    safety here.
+  //  - A repeated settle is a true no-op for three of the four
+  //    optimism × ok combinations, but NOT for `reversible` + `ok:true`: the
+  //    hide deliberately outlives the settle, so the second conjunct stays
+  //    false, the guard falls through and a fresh content-identical object
+  //    comes back. That costs one render and changes no behaviour.
+  if (!state.pending.has(actionId) && !(rowId && state.hidden.has(rowId))) return state;
+
+  const pending = new Set(state.pending);
+  pending.delete(actionId);
+
+  let hidden = state.hidden;
+  if (!ok && rowId && hidden.has(rowId)) {
+    // Rollback: the write failed, so the row must reappear.
+    const next = new Set(hidden);
+    next.delete(rowId);
+    hidden = next;
+  }
+  // On success the hide STAYS until pruneHidden sees the listener drop the row.
+  // Clearing it here would flash the row back for one frame.
+  return { pending, hidden };
+}
+
+export function pruneHidden(state: AdminActionState, rows: readonly ActionRow[]): AdminActionState {
+  if (state.hidden.size === 0) return state;
+  // Total over malformed input. This runs inside the dashboard's snapshot
+  // effect, so a single null/id-less row must not throw — that would take the
+  // whole admin panel down on a bad document.
+  const live = new Set<string>();
+  for (const r of rows || []) {
+    if (r && r.id) live.add(r.id);
+  }
+  let changed = false;
+  const hidden = new Set<string>();
+  for (const id of state.hidden) {
+    if (live.has(id)) hidden.add(id); else changed = true;
+  }
+  return changed ? { pending: state.pending, hidden } : state;
+}
+
+/**
+ * `readonly` in AND out: the queue this filters is a memoized array upstream, so
+ * handing back a mutable reference would let a caller `sort`/`push` it in place.
+ *
+ * Returns the input array by identity whenever nothing was actually removed —
+ * including the case where `hidden` holds ids that match no current row, which
+ * happens for the whole window between a successful settle and the next prune.
+ * Allocating there would break `React.memo` on every render in that window.
+ */
+export function visibleRows(rows: readonly ActionRow[], state: AdminActionState): readonly ActionRow[] {
+  if (!rows) return [];
+  if (state.hidden.size === 0) return rows;
+  // `r &&` for the same reason as pruneHidden: this is on the render path, and
+  // a null row must not throw. A null row is never hidden, so it passes through.
+  const filtered = rows.filter(r => !(r && state.hidden.has(r.id)));
+  return filtered.length === rows.length ? rows : filtered;
+}

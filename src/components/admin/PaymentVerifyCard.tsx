@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+/** Shown on the button that is waiting. A greyed-out button is indistinguishable
+ * from one still gated on its checklist — the label is what says "it registered". */
+const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
+
 import { normalizeReceiptUrl } from '../../utils/paymentReceipt';
 
 /**
@@ -162,7 +166,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
         >
-          {approveLabel}
+          {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : approveLabel}
         </button>
         <button
           disabled={busy}
@@ -219,7 +223,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {isAr ? 'تأكيد الرفض' : 'Confirm reject'}
+              {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تأكيد الرفض' : 'Confirm reject')}
             </button>
             <button
               type="button"
