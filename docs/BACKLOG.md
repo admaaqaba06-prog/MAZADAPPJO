@@ -122,6 +122,44 @@ top-down from it wasted time on problems that no longer existed.
       not reach the asking price), which is false for a second-chance recipient. Email is unaffected:
       it renders from `email_content`, which Functions produce.
 
+28. **The six admin callables are now kept warm on a 5-minute schedule** (Admin Action Latency,
+    2026-08-01 — spec: `docs/superpowers/specs/2026-07-31-admin-action-latency-design.md`).
+    Measured against production, an admin callable that did *no work at all* took **2021 ms cold**
+    and ~450 ms warm, and the Action Center had **no busy state at all**, so a button read as dead
+    for two seconds. `warmAdminCallables` (scheduled, every 5 min) now pings `verifyOrderPayment`,
+    `approveSubscription`, `rejectSubscription`, `approveWithdrawal`, `rejectWithdrawal` and
+    `sendFulfillmentNudge`. A warmer, not `minInstances`: ~$70/month of held instances buys 1.5
+    seconds on a surface one operator touches, and after May 2026 the cheap option that cannot
+    surprise anyone is the default. **Google may still evict an instance between pings — the
+    failure mode is a 2-second cold start, i.e. today's behaviour, never worse.** `minInstances`
+    stays a one-line follow-up per function if a week of measurement says the warmer is not holding.
+
+    **`__warm` is deliberately unauthenticated.** Each of the six opens with
+    `if (data && data.__warm === true) return { warm: true };` **above its auth gate** — it reads
+    nothing, writes nothing, returns a constant. Below the gate it would be dead code and every
+    ping would land as an auth failure: **~1,700 `unauthenticated` errors a day, burying the only
+    signal that would reveal a real unauthorised attempt.** Warming the functions must not cost the
+    ability to see an attack on them. The trade — a third party can invoke it to spin an instance —
+    is the same amplification the auth-rejection path already offered, and the response carries no
+    information. Do not "fix" it by moving the line below the gate; a test pins its placement
+    against the first gate of either form (`context.auth` or `assertAdmin`).
+
+    **Optimistic hiding is restricted to listing approve/reject — nothing else, ever.** All eleven
+    Action Center buttons get an immediate pending state, but only `onApproveListing` /
+    `onRejectListing` remove their row before the server confirms: they are the only two with no
+    server round-trip to warm (client Firestore writes), neither moves money, and an approval is
+    undone by a rejection. Everything else — payment verify/reject, membership, payouts, dispute
+    resolve, order advance, **and the nudge** (it sends a real WhatsApp; there is no unsend) —
+    stays in the queue until the listener delivers the real state. An admin must never be shown
+    "done" for money that has not moved. The allowlist is asserted in tests, so a new money action
+    is `'confirmed'` by omission and any attempt to widen optimism fails loudly.
+
+    **Deploy note:** merging to main **is** the functions deploy (the `Deploy Firebase` action).
+    Do not also deploy by hand — a manual deploy collides with CI on Google's function-update
+    quota and both fail (happened 2026-07-31). A large deploy can silently drop individual
+    functions on "Quota Exceeded" **while still printing `Deploy complete`**; re-list and retry by
+    name.
+
 ## 🚀 Queued projects (specced / scoped)
 
 - ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.
