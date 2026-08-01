@@ -7,6 +7,16 @@ import { WARM_TARGETS, warmUrl } from './warmTargets.js';
 
 const SRC = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 
+// Slice on the real function boundary, never on a fixed character count: a
+// `SRC.slice(start, start + 400)` window silently stops covering the line it is
+// meant to pin as soon as anyone adds a comment above it.
+function bodyOf(name) {
+  const start = SRC.indexOf(`exports.${name} =`);
+  expect(start, `${name} not found`).toBeGreaterThan(-1);
+  const next = SRC.indexOf('\nexports.', start + 1);
+  return SRC.slice(start, next === -1 ? SRC.length : next);
+}
+
 describe('WARM_TARGETS', () => {
   it('lists exactly the six admin callables behind Action Center buttons', () => {
     expect([...WARM_TARGETS].sort()).toEqual([
@@ -31,25 +41,32 @@ describe('every target short-circuits ABOVE its auth check', () => {
   // `unauthenticated` and flood Cloud Logging, destroying the only signal that
   // would reveal a real unauthorised attempt.
   for (const name of WARM_TARGETS) {
-    it(`${name} returns on __warm before touching context.auth`, () => {
-      const start = SRC.indexOf(`exports.${name} =`);
-      expect(start, `${name} not found`).toBeGreaterThan(-1);
-      const next = SRC.indexOf('\nexports.', start + 1);
-      const body = SRC.slice(start, next === -1 ? SRC.length : next);
+    it(`${name} returns on __warm before its REAL auth gate`, () => {
+      const body = bodyOf(name);
 
       const warmAt = body.indexOf('__warm');
-      const authAt = body.indexOf('context.auth');
+      // The real gate is whichever comes FIRST: the shared `assertAdmin(context)`
+      // helper (which throws `unauthenticated` itself, before anything else) or an
+      // inline `context.auth` check. Comparing against `context.auth` alone is NOT
+      // enough — four of the six gate on `await assertAdmin(context)` and only
+      // mention context.auth much further down, so a __warm line parked between
+      // the two would sit BELOW the real gate and still pass. Verified by mutant:
+      // moving verifyOrderPayment's line under its assertAdmin survived the old
+      // assertion, which is exactly the flood this test exists to prevent.
+      const gateAt = Math.min(...[/assertAdmin\(/, /context\.auth/]
+        .map((re) => { const m = body.match(re); return m ? m.index : Infinity; }));
       expect(warmAt, `${name} has no __warm short-circuit`).toBeGreaterThan(-1);
-      expect(authAt, `${name} has no auth check`).toBeGreaterThan(-1);
-      expect(warmAt, `${name}'s __warm sits BELOW its auth check`).toBeLessThan(authAt);
+      expect(gateAt, `${name} has no auth gate`).toBeLessThan(body.length);
+      expect(warmAt, `${name}'s __warm sits BELOW its real auth gate`).toBeLessThan(gateAt);
     });
 
     it(`${name}'s short-circuit reads and writes nothing`, () => {
-      const start = SRC.indexOf(`exports.${name} =`);
-      const body = SRC.slice(start, start + 400);
-      const line = body.split('\n').find(l => l.includes('__warm')) || '';
-      expect(line).toMatch(/return \{ warm: true \};/);
-      expect(line).not.toMatch(/db\.|collection\(|transaction/);
+      const line = (bodyOf(name).split('\n').find(l => l.includes('__warm')) || '').trim();
+      // Whitelist, not denylist. The same line is mandated verbatim at all six
+      // sites, so pin it exactly: a denylist of `db.` / `collection(` /
+      // `transaction` waves through `admin.firestore().doc(...).set(...)`, a
+      // `console.log(context.auth)`, or anything else smuggled onto the line.
+      expect(line).toBe('if (data && data.__warm === true) return { warm: true };');
     });
   }
 });
