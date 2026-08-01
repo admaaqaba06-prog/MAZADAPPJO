@@ -396,8 +396,13 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                     <span className="text-[11px] font-bold text-gray-500 block">
                       {isAr ? 'وصف المنتج' : 'Product Description'}
                     </span>
+                    {/* maxLength is the ONLY cap on this value: firestore.rules has
+                        no auction-description size rule (its size() <= 500 rule is
+                        notifications), so without it a 5,000-character description
+                        reaches the doc and Task 3's clamp. */}
                     <textarea
                       rows={3}
+                      maxLength={1000}
                       placeholder={isAr
                         ? 'الحالة، ما يشمله البيع، وأي عيب أو خدش. كل ما يريد المشتري معرفته قبل المزايدة.'
                         : "Condition, what's included, and any flaw. Everything a bidder wants to know before bidding."}
