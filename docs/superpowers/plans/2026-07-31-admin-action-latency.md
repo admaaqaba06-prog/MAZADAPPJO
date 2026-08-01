@@ -390,7 +390,7 @@ Expected: FAIL — cannot resolve `./useAdminAction`.
  * The `optimism` argument is the safety property: `'reversible'` is permitted
  * at exactly two call sites (listing approve/reject). See the design spec.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   EMPTY_ADMIN_ACTION_STATE, beginAction, settleAction, pruneHidden,
   isActionPending, type AdminActionState, type ActionOptimism,
@@ -407,16 +407,20 @@ export interface RunAdminAction {
 export function useAdminAction() {
   const [state, setState] = useState<AdminActionState>(EMPTY_ADMIN_ACTION_STATE);
 
+  // The double-click guard has to be SYNCHRONOUS. React 18 gives no guarantee
+  // that a functional setState updater has run by the time the next statement
+  // executes, so a flag assigned inside the updater can still read stale — two
+  // fast clicks would both pass the check and fire the callable twice. A ref is
+  // written and read in the same tick, so it cannot. `state` remains the render
+  // source; the ref is only the gate.
+  const inFlight = useRef<Set<string>>(new Set());
+
   const run = useCallback(async (input: RunAdminAction): Promise<{ ok: boolean; error?: any }> => {
     const { actionId, rowId, optimism, fn } = input;
 
-    let started = false;
-    setState(prev => {
-      const next = beginAction(prev, { actionId, rowId, optimism });
-      started = next !== prev;      // unchanged object => already in flight
-      return next;
-    });
-    if (!started) return { ok: false, error: 'already-in-flight' };
+    if (inFlight.current.has(actionId)) return { ok: false, error: 'already-in-flight' };
+    inFlight.current.add(actionId);
+    setState(prev => beginAction(prev, { actionId, rowId, optimism }));
 
     let ok = true;
     let error: any;
@@ -431,6 +435,7 @@ export function useAdminAction() {
       ok = false;
       error = e;
     } finally {
+      inFlight.current.delete(actionId);
       setState(prev => settleAction(prev, { actionId, rowId, ok }));
     }
     return ok ? { ok } : { ok, error };
@@ -462,7 +467,8 @@ Break, run, restore. Report the table.
 |---|---|
 | `run` sets pending AFTER awaiting `fn` | FAIL |
 | the `{success:false}` branch removed | FAIL |
-| the `started` guard removed | FAIL |
+| the `inFlight` ref guard removed | FAIL |
+| the guard reads `state.pending` instead of the ref (the React 18 race) | FAIL under concurrent clicks |
 | `settleAction` moved out of `finally` | FAIL (the throw case) |
 
 - [ ] **Step 6: Run the full suite and commit**
