@@ -39,6 +39,9 @@ const { resolveEscrowWinner, shouldRefundEscrow } = require('./escrowRepair');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
+// resolveLang comes straight from the copy module — notify.js re-exports copyFor
+// only, and widening its surface is not this task's business.
+const { resolveLang, pushCopyFor } = require('./messageCopy');
 const { emailFor } = require('./emailCopy');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
@@ -110,6 +113,27 @@ async function postOtpToRelay(phone, code) {
   }
 }
 
+// resolveLang for the call sites that are NOT notify() — the two FCM pushes,
+// which build their own payload and so never pass through notify()'s renderer.
+// NEVER throws, for the same reason notify() guards its own resolveLang call:
+// both sit inside settlement / bid paths where an exception would take the money
+// path with it. A language we cannot resolve degrades to Arabic (the market
+// default and the safe direction — an Arabic-only reader must never be sent
+// English by accident), never to a lost push.
+//
+// It takes a user OBJECT, not a uid: every current caller already holds the
+// recipient's user document, so resolving the language here costs zero extra
+// Firestore reads. Keep it that way — adding a read inside this helper would
+// put one on a settlement transaction's critical path.
+function safeResolveLang(user, where) {
+  try {
+    return resolveLang(user);
+  } catch (e) {
+    console.warn(`[lang] resolve failed (${where}):`, e && e.message);
+    return 'ar';
+  }
+}
+
 // Single notification choke point (E5). Resolves the event's channels, writes
 // the in-app bell doc, and hands phone+email+channels to n8n for WhatsApp/email
 // fan-out. NEVER throws — same money-path safety contract as postToN8n.
@@ -123,9 +147,23 @@ async function notify({ uid, event, data = {} }) {
       if (s.exists) user = s.data() || {};
     } catch (e) { console.warn(`[notify] user lookup ${uid} failed:`, e && e.message); }
   }
+  // The user doc is already loaded above for phone/email/name, so reading the
+  // language preference off it costs no extra Firestore read. It MUST be read
+  // after `user = s.data()` — before that assignment `user` is {} and every
+  // recipient silently gets Arabic, which looks correct in production and is
+  // invisible by eye.
+  // Guarded for the same reason every other callee in this function is: notify()
+  // runs inside settlement / escrow / bid post-commit paths that rely on it
+  // never throwing (see the header comment), and an unguarded call here would
+  // propagate. Arabic is the product default, so the degraded path is the
+  // default locale rather than a lost notification.
+  let lang = 'ar';
+  try {
+    lang = resolveLang(user);
+  } catch (e) { console.warn(`[notify] language resolve ${event} failed:`, e && e.message); }
   if (channels.inapp && uid) {
     try {
-      const c = copyFor(event, d);
+      const c = copyFor(event, d, lang);
       await db.collection('notifications').add({
         userId: uid, type: c.type, title: c.title, description: c.description,
         timestamp: Date.now(), read: false, priority: d.priority || 'medium',
@@ -134,17 +172,45 @@ async function notify({ uid, event, data = {} }) {
     } catch (e) { console.warn(`[notify] in-app ${event} failed:`, e && e.message); }
   }
   if (channels.whatsapp || channels.email) {
+    // postToN8n never throws — but its ARGUMENT EXPRESSION is evaluated by
+    // notify(), not by postToN8n, so a renderer that threw inside that literal
+    // would escape notify() entirely and land in the money paths. Each renderer
+    // is therefore evaluated into a local inside its own guard BEFORE the
+    // payload literal is built. A renderer that fails drops its own surface
+    // (the key is undefined, so JSON.stringify omits it from the wire body) and
+    // nothing else; on the happy path the payload is byte-identical to what
+    // inlining these expressions produced.
+    let emailContent;
+    if (channels.email) {
+      // Rendered email content, so the n8n workflow is a dumb template rather
+      // than a second copy map that can drift from this repo. It carries the
+      // amount, deadline, order reference and a real deep link — none of which
+      // reached the old email, which reused the terse in-app one-liner.
+      try {
+        emailContent = emailFor(event, { ...d, name: user.name || d.name || '' }, lang);
+      } catch (e) { console.warn(`[notify] email copy ${event} failed:`, e && e.message); }
+    }
+    let waText;
+    if (channels.whatsapp) {
+      // The WhatsApp body, rendered here so the n8n node forwards a string
+      // instead of keeping its own copy map. The shape — `title\ndescription`,
+      // or the title alone when there is no description — is byte-for-byte what
+      // the node produces today, so its fallback and this render are identical.
+      try {
+        const c = copyFor(event, d, lang);
+        waText = c.description ? `${c.title}\n${c.description}` : c.title;
+      } catch (e) { console.warn(`[notify] whatsapp copy ${event} failed:`, e && e.message); }
+    }
     await postToN8n(event, {
       phone: user.phoneNumber || user.phone || d.phone || '',
       email: user.email || d.email || '',
       name: user.name || d.name || '',
       channels,
       ...d,
-      // Rendered email content, so the n8n workflow is a dumb template rather
-      // than a second copy map that can drift from this repo. It carries the
-      // amount, deadline, order reference and a real deep link — none of which
-      // reached the old email, which reused the terse in-app one-liner.
-      ...(channels.email ? { email_content: emailFor(event, { ...d, name: user.name || d.name || '' }) } : {}),
+      ...(channels.email ? { email_content: emailContent } : {}),
+      // Gated on the channel, exactly as email_content is: an in-app-only event
+      // has no business carrying a WhatsApp body.
+      ...(channels.whatsapp ? { wa_text: waText } : {}),
     });
   }
 }
@@ -392,6 +458,12 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       notifyData = {
         phone: (winnerData && winnerData.phoneNumber) || '',
         fcmToken: (winnerData && winnerData.fcmToken) || '',
+        // (language) captured here, from the winner doc this transaction ALREADY
+        // read for the phone and the token — no extra read, and no read added
+        // inside the transaction. It is carried out to the post-commit push
+        // below, which is the ONE customer surface that does not go through
+        // notify() and so cannot resolve the language for itself.
+        lang: safeResolveLang(winnerData, `settleAuctionTxn winner ${winnerId}`),
         // Private "you won" notification to the winner themselves — real name.
         winnerId, winnerName: realWinnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
       };
@@ -470,13 +542,28 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     // retried transaction must never re-send it. Never throws: a dead FCM token
     // must not fail a settlement that has already committed.
     if (notifyData.fcmToken) {
-      await admin.messaging().send({
-        token: notifyData.fcmToken,
-        notification: {
-          title: 'تهانينا! لقد فزت بالمزاد 🎉',
-          body: `مبروك! لقد انتهى المزاد على "${notifyData.auctionTitle}" بعرضك الفائز بقيمة ${notifyData.finalPrice.toLocaleString()} دينار أردني.`
-        }
-      }).catch(err => console.warn(`FCM error for winner ${notifyData.winnerId}: ${err.message}`));
+      // Rendered from the SAME event copy the `auction_won` notify() call below
+      // sends to WhatsApp/email/bell, in the winner's own language. Hardcoded
+      // Arabic here meant an English-preference winner got an Arabic push
+      // seconds before the English WhatsApp for the same win.
+      //
+      // The try wraps the RENDER as well as the send: copyFor is evaluated by
+      // this function, not by send(), so the old `.catch()` on the promise could
+      // never have caught a throw from the argument expression — and this runs
+      // after the settlement transaction has committed, where throwing fails the
+      // cron run for an auction whose money has already moved.
+      try {
+        const c = copyFor('auction_won', {
+          auctionTitle: notifyData.auctionTitle,
+          totalDue: totalDueJod(notifyData.finalPrice),
+        }, notifyData.lang);
+        await admin.messaging().send({
+          token: notifyData.fcmToken,
+          notification: { title: c.title, body: c.description }
+        });
+      } catch (err) {
+        console.warn(`FCM error for winner ${notifyData.winnerId}: ${err && err.message}`);
+      }
     }
 
     await notify({ uid: notifyData.winnerId, event: 'auction_won', data: {
@@ -1498,12 +1585,26 @@ exports.onBidCreated = functions.firestore
 
           if (fcmToken) {
             console.log(`[onBidCreated] Dispatching FCM outbid notification to user ${previousBidderId}`);
-            
+
+            // (language) off the doc already fetched for the FCM token, so no
+            // extra read. Same event copy as the `outbid` notify() call below —
+            // the push and the WhatsApp for one bid must not arrive in two
+            // different languages.
+            const outbidLang = safeResolveLang(prevUserData, `outbid ${previousBidderId}`);
+            // pushCopyFor, not copyFor: the push carries the NEW PRICE, which is
+            // what actually brings a bidder back to bid again. The in-app and
+            // WhatsApp lines stay terse on purpose — see the override map in
+            // messageCopy.js. Same language, different length.
+            const c = pushCopyFor('outbid', {
+              auctionTitle: (auctionData && auctionData.title) || '',
+              amount,
+            }, outbidLang);
+
             const payload = {
               token: fcmToken,
               notification: {
-                title: 'تجاوزك أحد! ⚡',
-                body: `لقد مزاد شخص آخر بسعر أعلى (${amount.toLocaleString()} JOD) على "${auctionData.title}". زايد الآن لاسترجاع الصدارة!`
+                title: c.title,
+                body: c.description
               },
               data: {
                 click_action: 'FLUTTER_NOTIFICATION_CLICK',

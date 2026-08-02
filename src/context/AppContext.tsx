@@ -32,6 +32,7 @@ import { isEffectivelyBlocked } from '../utils/banStatus';
 import { resolveNotificationContent } from '../utils/notificationContent';
 import type { ViewingMode } from '../utils/viewing';
 import { viewingWritePayload } from '../utils/viewing';
+import { persistLanguagePreference, shouldAdoptLocalLanguage } from '../utils/languagePersistence';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -781,6 +782,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'ar';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // One pre-login language adoption per signed-in session. Reset on sign-out so
+  // a second account in the same tab still gets its own chance; a ref rather
+  // than state because flipping it must not re-render, and because the user-doc
+  // snapshot that reads it fires on every profile change.
+  const languageAdoptedRef = useRef<boolean>(false);
   // authReady gates the app boot: it flips true only once the async
   // onAuthStateChanged chain (token + Firestore doc load) has resolved in
   // EITHER direction. Until then App.tsx shows the loading splash instead of
@@ -1223,6 +1229,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         setCurrentUser(DEFAULT_UNAUTHENTICATED_USER);
         setIsAuthenticated(false);
+        // Signed out — the next account to sign in on this tab gets its own
+        // pre-login language adoption. Reset here rather than inside logout()
+        // because this branch also covers an expired or revoked session.
+        languageAdoptedRef.current = false;
         setAuthReady(true);
       }
     });
@@ -1354,6 +1364,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubUser = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
         const fbData = snap.data();
+
+        // Adopt a language chosen BEFORE signing in. `setLanguage` can only
+        // write the user document once a session exists, so a visitor who
+        // switched the landing page to English and then signed up kept that
+        // choice in localStorage alone — and every WhatsApp, email and
+        // notification kept arriving in Arabic until they toggled a SECOND
+        // time while logged in. Only fills an ABSENT field: a document that
+        // already names a language holds a real choice, possibly newer and
+        // made on another device.
+        if (shouldAdoptLocalLanguage({
+          session: { isAuthenticated, userId: currentUser.id },
+          storedLanguage: localStorage.getItem('mazad_language'),
+          docLanguage: fbData.language,
+          alreadyAdopted: languageAdoptedRef.current,
+        })) {
+          // A ref, not state: this must fire once per session and a snapshot
+          // arrives on every profile change. Set BEFORE the write so the next
+          // snapshot cannot duplicate an in-flight one.
+          languageAdoptedRef.current = true;
+          persistLanguagePreference(
+            { isAuthenticated, userId: currentUser.id },
+            localStorage.getItem('mazad_language'),
+            (uid, patch) => updateDoc(doc(db, 'users', uid), patch),
+            (err) => console.warn('[language] pre-login preference not adopted:', err)
+          );
+        }
+
         const mergedUser: User = {
           id: currentUser.id,
           name: fbData.name || currentUser.name,
@@ -2325,9 +2362,22 @@ const fetchIP = async () => {
 };
 
   const setLanguage = useCallback((lang: 'en' | 'ar') => {
+    // Local first and unconditionally: the toggle is instant, and a signed-out
+    // visitor keeps their choice (LandingView reads the same key directly).
     setLanguageState(lang);
     localStorage.setItem('mazad_language', lang);
-  }, []);
+    // Then the server's copy. Cloud Functions read users/{uid}.language to pick
+    // the language for in-app notifications, WhatsApp and email; without this
+    // write every recipient falls back to Arabic. Fire-and-forget and never
+    // awaited — the UI has already switched, so a failed write is non-fatal and
+    // the next toggle retries.
+    persistLanguagePreference(
+      { isAuthenticated, userId: currentUser?.id },
+      lang,
+      (uid, patch) => updateDoc(doc(db, 'users', uid), patch),
+      (err) => console.warn('[setLanguage] language preference not persisted:', err)
+    );
+  }, [isAuthenticated, currentUser?.id]);
 
   const login = useCallback(async (email: string, pass: string) => {
     const cleanEmail = email.toLowerCase().trim();
