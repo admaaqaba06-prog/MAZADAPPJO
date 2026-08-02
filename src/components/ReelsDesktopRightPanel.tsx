@@ -130,7 +130,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
   const nextBidAmount = minNextBid(currentItem.currentPrice, currentItem.minIncrement, currentItem.totalBids || 0);
 
   return (
-    <div className="flex flex-col h-full space-y-4 text-zinc-200 overflow-y-auto pr-1 no-scrollbar" id="reels-panel-content">
+    <div className="flex flex-col h-full space-y-4 text-zinc-200 overflow-y-auto pr-1" id="reels-panel-content">
       
       {/* 1. CURRENT PRICE & TIME LEFT */}
       <div className="grid grid-cols-2 gap-3 bg-zinc-900/85 border border-white/5 p-4 rounded-2xl shrink-0">
@@ -244,9 +244,19 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             </span>
           </div>
 
-          <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
-            {currentItem.description}
-          </p>
+          {(() => {
+            // Unstyled, so an empty description collapses to a stray gap rather
+            // than an empty card — but it is the same rule, and the same
+            // title-echo case (102 live lots copy the title into the
+            // description, which this panel prints directly under the title).
+            const text = String(currentItem.description || '').trim();
+            if (!text || text === String(currentItem.title || '').trim()) return null;
+            return (
+              <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
+                {text}
+              </p>
+            );
+          })()}
 
           {formattedSubtitle && (
             <p className="text-[9px] text-[#FF6B00] leading-relaxed font-sans font-medium italic">
@@ -294,7 +304,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           </h3>
         </div>
         
-        <div className="max-h-[140px] overflow-y-auto space-y-2 pr-1 no-scrollbar">
+        <div className="max-h-[140px] overflow-y-auto space-y-2 pr-1">
           {chatMessages && chatMessages.filter(msg => msg.auctionId === currentItem.id).length > 0 ? (
             chatMessages
               .filter(msg => msg.auctionId === currentItem.id)
@@ -365,7 +375,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 no-scrollbar min-h-[120px]">
+        <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 min-h-[120px]">
           {activeBids.length > 0 ? (
             activeBids.map((bid, index) => {
               const isWinning = index === 0;

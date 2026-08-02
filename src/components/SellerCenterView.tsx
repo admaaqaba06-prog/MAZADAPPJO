@@ -80,6 +80,7 @@ import { getOrderStatusChip, OrderStatusTone } from '../utils/orderStatusGlossar
 import { sumPaidSalesThisMonth } from '../utils/sellerSales';
 import { reviewCountLabel } from '../utils/reviewCount';
 import { displayOrderRef } from '../utils/orderRef';
+import { validateDescription } from '../utils/listingDescription';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -719,11 +720,23 @@ export const SellerCenterView: React.FC = () => {
     // admin-only and stays untouched.)
     const isResubmit = editingAuction.status === 'rejected';
 
+    // The wizard's 20-character floor was a CREATION-time speed bump only: a
+    // seller could publish at 20 and edit down to "a" here, because this path
+    // wrote `description: editDesc` untrimmed, unvalidated and uncapped. The
+    // textarea's HTML `required` is satisfied by "   ". Same rule, same
+    // message, same alert idiom as the wizard — so the floor is a property of
+    // the data rather than of one form.
+    const descCheck = validateDescription(editDesc, isAr);
+    if (!descCheck.ok) {
+      alert(descCheck.message);
+      return;
+    }
+
     try {
       const docRef = doc(db, 'auctions', editingAuction.id);
       const patch: any = {
         title: editTitle,
-        description: editDesc,
+        description: editDesc.trim(),
         startingPrice: editStartingPrice,
         category: editCategory,
         duration: editDuration,
@@ -2132,6 +2145,7 @@ export const SellerCenterView: React.FC = () => {
               <div>
                 <label className="block mb-1 text-gray-600">{isAr ? 'الوصف' : 'Description'}</label>
                 <textarea
+                  maxLength={1000}
                   required
                   rows={3}
                   value={editDesc}

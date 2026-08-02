@@ -5,10 +5,23 @@
  * rebuild around it can be proven not to change what publishes. `now` is
  * injected rather than read from Date.now() so the shape is testable.
  *
- * Note: `condition` and `specs` are deliberately absent. The current form
- * collects both but uses them only for the WhatsApp caption — they have
- * never reached the auction document. Preserved as-is; changing it is a
- * product decision, not a refactor.
+ * Note: `condition` is still deliberately absent — the form collects it but it
+ * has never reached the auction document. Preserved as-is.
+ *
+ * `specs` USED to be absent for the same reason, and that turned out to be the
+ * third fabrication path in this codebase. The payload set
+ * `description: productName.trim()` — a copy of the title — so every lot in
+ * every Mazad drop published a "description" that merely repeated its own
+ * heading. 102 of 115 real auctions carried exactly that, and the desktop
+ * bidding screen now renders descriptions, which would have surfaced the echo
+ * on the highest-traffic surface.
+ *
+ * The content was already being collected: the builder's
+ * «المواصفات (سطر لكل مواصفة)» field, whose own hint reads "تظهر في نص المنشور
+ * فقط" — appears in the post caption only. Real per-lot detail, captured and
+ * discarded. It is now the description. When a drop carries no specs the
+ * description is EMPTY, because an empty description is honest and a duplicated
+ * title is not.
  */
 
 import { channelToCategory, type DropChannel } from './dropChannel';
@@ -26,6 +39,8 @@ export const slugifyVendor = (name: string): string =>
 
 export interface DropPayloadInput {
   productName: string;
+  /** One spec per line, already split and trimmed by the caller. Becomes the description. */
+  specs: string[];
   startingPrice: string;
   channel: DropChannel;
   durationSeconds: number;
@@ -54,7 +69,8 @@ export function buildDropPayload(
 
   return {
     title: input.productName.trim(),
-    description: input.productName.trim(),
+    // NOT a copy of the title — see the header. Empty when there are no specs.
+    description: (input.specs ?? []).map((x) => String(x).trim()).filter(Boolean).join('\n'),
     category: channelToCategory(input.channel),
     startingPrice: priceNum,
     minIncrement: Math.max(5, Math.round(priceNum * 0.05)),

@@ -180,9 +180,25 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
             <h1 className="text-base font-black text-gray-900 leading-tight">
               {auction.title}
             </h1>
-            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed bg-zinc-50 border border-zinc-100 p-3 rounded-xl">
-              {auction.description}
-            </p>
+            {(() => {
+              // This box carries its own background, border and padding, so an
+              // unguarded empty description renders a ~30px empty grey card
+              // under the title. Production had zero empty descriptions until
+              // the concierge form started writing '' deliberately; that state
+              // is live now, on Discovery, LiveStream and the Seller Center.
+              //
+              // The title-echo case is suppressed for the same reason it is on
+              // the bidding screens: 102 live lots copy the title into the
+              // description, and this box sits directly under the title, so it
+              // would print the same string twice.
+              const text = String(auction.description || '').trim();
+              if (!text || text === String(auction.title || '').trim()) return null;
+              return (
+                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed bg-zinc-50 border border-zinc-100 p-3 rounded-xl">
+                  {text}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Condition tile — real seller-provided field only; hidden when absent. */}

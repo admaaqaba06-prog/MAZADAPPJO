@@ -162,10 +162,15 @@ export const SellView: React.FC = () => {
           // Concierge stays OPTIONAL — Mazad writes the copy before approval —
           // but a blank description is an honest blank, not the product name.
           //
-          // Keep the empty string. Do NOT "clean this up" to `|| undefined`:
-          // DropBuilderView's lot-picker search calls a.description.toLowerCase()
-          // unguarded, so an undefined description is a TypeError that breaks
-          // admin item search. '' is the only safe blank.
+          // Keep the empty string rather than `undefined` — a blank field is a
+          // blank value, and every display surface guards on a trimmed
+          // non-empty string, so '' renders nothing anywhere.
+          //
+          // (An earlier version of this comment claimed `undefined` would crash
+          // DropBuilderView's lot-picker search on `a.description.toLowerCase()`.
+          // That is FALSE: `auctionDocMap.ts` coerces `data.description || ''`
+          // when the doc is read, so no component ever sees `undefined`. The
+          // value is right; the stated reason was not.)
           description: cDesc.trim(),
           // Seller picks the drop channel; category is derived from it (same
           // mapping the self-serve drop builder uses) so discovery filters and
