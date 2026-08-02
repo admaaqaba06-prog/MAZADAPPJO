@@ -91,6 +91,18 @@ function resolveEndMs(data) {
  * cleanly back to an AuctionItem. Price is normalized to JOD units (from
  * integer fils when present); endTime + endsAt are the SAME sortable epoch-ms
  * number (customRanking is asc(endsAt), ending-soon first).
+ *
+ * `startMode` is indexed because the client's `isAwaitingFirstBidDoc`
+ * (src/utils/auctionPhase.ts) requires `startMode === 'first_bid'`. Without the
+ * field on a hit that predicate is false, and `resolveEndTime`
+ * (src/utils/liveAuctionFields.ts) falls through to its `now + 1h` default — so
+ * a first_bid lot whose clock has not started renders a fabricated countdown in
+ * search. An awaiting lot has neither `endsAt` nor `endTime`, so `resolveEndMs`
+ * returns 0 and both fields are falsy on the record; `totalBids` is not indexed,
+ * so `(totalBids || 0) === 0` holds. Adding `startMode` therefore satisfies all
+ * four conjuncts of that predicate on a hit alone. A first_bid lot that HAS
+ * received a bid carries a real `endsAt`/`endTime` (applyBidWrites stamps both),
+ * so the predicate stays false for it.
  */
 function buildAlgoliaRecord(id, data) {
   const d = data || {};
@@ -103,6 +115,7 @@ function buildAlgoliaRecord(id, data) {
     category: d.category ?? '',
     condition: d.condition ?? '',
     status: d.status,
+    startMode: d.startMode ?? null,
     currentPrice: d.currentPriceFils != null ? d.currentPriceFils / 1000 : (d.currentPrice ?? 0),
     endTime: endMs,
     endsAt: endMs,
