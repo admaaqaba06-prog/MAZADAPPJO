@@ -61,6 +61,54 @@ export function canPersistLanguage(session: LanguageSession | null | undefined):
 }
 
 /**
+ * A language stored on the user document, or `null` when the document carries
+ * no real preference.
+ *
+ * Junk counts as ABSENT, deliberately. `resolveLang` already treats `'fr'`,
+ * `'EN'`, `7` and `{}` as Arabic, so such a value is not a preference anyone
+ * expressed — it is noise, and letting a real local choice replace it is an
+ * improvement rather than a loss.
+ */
+export function storedDocLanguage(docLanguage: unknown): Language | null {
+  return docLanguage === 'en' || docLanguage === 'ar' ? docLanguage : null;
+}
+
+/**
+ * Whether a signed-in user's document should ADOPT the language this browser
+ * already holds.
+ *
+ * The gap this closes: someone switches the landing page to English, then signs
+ * up. `setLanguage` only writes the user document when a session exists, so the
+ * choice they made seconds earlier lived in `localStorage` alone and every
+ * WhatsApp, email and notification kept arriving in Arabic until they toggled a
+ * SECOND time while logged in.
+ *
+ * Only adopts when the document has NO language of its own. A document that
+ * already says `'ar'` or `'en'` holds a deliberate choice — possibly made on
+ * another device more recently than this browser's — and overwriting it with
+ * whatever this `localStorage` happens to contain would trade one silent wrong
+ * language for another. Server wins; absence does not.
+ *
+ * `storedLanguage` must be the RAW `localStorage` value, and `null` when the key
+ * is absent. Absence is the signal that the visitor never chose: the app boots
+ * to Arabic without writing the key, so a missing key is a default and a present
+ * key is an expressed preference. Passing a defaulted `'ar'` here would make
+ * every signed-in Arabic reader write the field once for no reason.
+ */
+export function shouldAdoptLocalLanguage(args: {
+  session: LanguageSession | null | undefined;
+  storedLanguage: unknown;
+  docLanguage: unknown;
+  alreadyAdopted?: boolean;
+}): boolean {
+  if (args.alreadyAdopted === true) return false;
+  if (!canPersistLanguage(args.session)) return false;
+  if (storedDocLanguage(args.docLanguage) !== null) return false;
+  // Only an explicit, valid local choice is worth writing.
+  return args.storedLanguage === 'en' || args.storedLanguage === 'ar';
+}
+
+/**
  * Fire-and-forget persistence of the language preference.
  *
  * Never throws and never returns a promise: the caller is a UI event handler

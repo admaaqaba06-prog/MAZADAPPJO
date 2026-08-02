@@ -250,8 +250,13 @@ describe('setLanguage persists the preference to the user document', () => {
   });
 
   it('imports it from the module that owns the rules', () => {
+    // Matches the NAME within the import set rather than the exact line: the
+    // module legitimately exports more than one thing now (shouldAdoptLocalLanguage
+    // joined it), and pinning the literal line made adding a sibling import a
+    // false failure. What must hold is that the helper comes from THIS module,
+    // not that it arrives alone.
     expect(stripComments(SRC)).toMatch(
-      /import \{ persistLanguagePreference \} from '\.\.\/utils\/languagePersistence';/
+      /import\s*\{[^}]*\bpersistLanguagePreference\b[^}]*\}\s*from\s*'\.\.\/utils\/languagePersistence'/
     );
   });
 
@@ -383,5 +388,66 @@ describe('the write the landing toggle reaches is guarded, signed out and sentin
       { isAuthenticated: true, userId: 'realuid123' }, 'en', a.writeDoc
     )).toBe(true);
     expect(a.writes).toEqual([{ uid: 'realuid123', patch: { language: 'en' } }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pre-login adoption, wired into the post-auth user-doc snapshot.
+//
+// Source-text because vitest here is node-only and AppContext cannot be
+// rendered. Every anchor throws — a slice that silently came back empty would
+// make each assertion below vacuous, which has shipped on this branch before.
+// ---------------------------------------------------------------------------
+const SNAP_ANCHOR = 'const unsubUser = onSnapshot(userRef';
+
+function snapshotHandler(src: string): string {
+  const i = src.indexOf(SNAP_ANCHOR);
+  if (i === -1) throw new Error(`user-doc snapshot anchor moved: ${SNAP_ANCHOR}`);
+  const open = src.indexOf('{', src.indexOf('(snap)', i));
+  if (open === -1) throw new Error('snapshot handler has no block body — anchor moved');
+  return balanced(src, open);
+}
+
+const SNAP = snapshotHandler(SRC);
+
+describe('a language chosen before signing in is adopted after signing in', () => {
+  it('calls the shared rule inside the user-doc snapshot', () => {
+    // Not a second hand-rolled guard: the sentinel-id trap lives in
+    // canPersistLanguage, and re-implementing it here would reintroduce it.
+    expect(SNAP).toMatch(/shouldAdoptLocalLanguage\(/);
+    expect(SRC).toMatch(/import\s*\{[^}]*shouldAdoptLocalLanguage[^}]*\}\s*from\s*'\.\.\/utils\/languagePersistence'/);
+  });
+
+  it('passes the doc language and the stored value, not just a session', () => {
+    const call = balanced(SNAP, SNAP.indexOf('(', at(SNAP, /shouldAdoptLocalLanguage\(/, 'adoption call')));
+    expect(call).toMatch(/docLanguage:\s*fbData\.language/);
+    expect(call).toMatch(/storedLanguage:\s*localStorage\.getItem\('mazad_language'\)/);
+    expect(call).toMatch(/isAuthenticated/);
+  });
+
+  it('writes through the SAME persistence path as the toggle', () => {
+    expect(SNAP).toMatch(/persistLanguagePreference\(/);
+    // and via updateDoc on the users collection, like setLanguage does
+    expect(SNAP).toMatch(/updateDoc\(doc\(db,\s*'users',\s*uid\),\s*patch\)/);
+  });
+
+  it('marks the session adopted BEFORE writing, so a second snapshot cannot duplicate it', () => {
+    // The snapshot fires on every profile change. If the flag were set after
+    // the await-less write, two snapshots in flight would both write.
+    const setFlag = at(SNAP, /languageAdoptedRef\.current\s*=\s*true/, 'adopted flag set');
+    const write = at(SNAP, /persistLanguagePreference\(/, 'persist call');
+    expect(setFlag).toBeLessThan(write);
+  });
+
+  it('uses a ref, not state — flipping it must not re-render', () => {
+    expect(SRC).toMatch(/const languageAdoptedRef\s*=\s*useRef<boolean>\(false\)/);
+  });
+
+  it('resets on sign-out so the next account gets its own adoption', () => {
+    // In the auth-state listener's signed-out branch, which also covers an
+    // expired or revoked session — not only an explicit logout().
+    const i = at(SRC, /setCurrentUser\(DEFAULT_UNAUTHENTICATED_USER\);\s*\n\s*setIsAuthenticated\(false\);/, 'signed-out branch');
+    const after = SRC.slice(i, i + 600);
+    expect(after).toMatch(/languageAdoptedRef\.current\s*=\s*false/);
   });
 });
