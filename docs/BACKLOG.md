@@ -74,13 +74,25 @@ top-down from it wasted time on problems that no longer existed.
     (نضخات، العاب، مكبتج، اااااااا، علم), so MJ can write a real description at approval and no data
     migration is needed. The other 8 are ended/completed/draft and moot. **The 102 are the live
     problem** — they arrived through the WhatsApp/admin drop-builder path, which that change did not
-    touch, and they still render a duplicate of the title under `التفاصيل` on both surfaces.
+    touch.
 
-28. **Mobile's description guard is untrimmed.** `MobileAuctionView.tsx:525` gates on
-    `activeAuction?.description &&`, so a whitespace-only description renders a blank `<p>` under the
-    heading. Unreachable before 2026-08-02 (nothing could write a blank); **reachable now** — the
-    concierge path writes `''` by design. Desktop uses a trimmed guard. One-line fix, deliberately
-    left out of scope so mobile stayed untouched.
+    **Display-suppressed 2026-08-02**, on all four surfaces that print a description (desktop
+    bidding aside, mobile lot page, `AuctionDetailsModal`, `ReelsDesktopRightPanel`): a trimmed
+    description equal to the trimmed title renders nothing. **The write is NOT fixed.**
+    `src/utils/dropPayload.ts:57` still does `description: input.productName.trim()`, so every new
+    Mazad drop still stores an echo — the last live fabrication path, and the reason decision #3
+    ("no fabrication anywhere") is not yet achieved. That is the real fix and it is still open.
+
+28. ~~**Mobile's description guard is untrimmed.**~~ ✅ **Fixed 2026-08-02** as part of the
+    title-echo suppression; mobile now derives a trimmed value and returns `null` for both the
+    empty and the echo case.
+
+    **Correcting the rationale that was recorded here:** the entry claimed a blank description
+    rendered a blank `<p>` on mobile. That was wrong — `''` is falsy, so mobile hid it correctly;
+    only *whitespace-only* slipped through, a much narrower hole. **The real open gap is a
+    different one:** `SellerCenterView.tsx:726` (`handleEditSubmit`) is an unvalidated, untrimmed,
+    uncapped third seller write path. A seller can create at the 20-character floor and then edit
+    down to `"a"`, so Task 1's floor is a creation-time speed bump, not a data invariant. Open.
 
 15. ~~**`misc` lots are unfindable and mislabelled**~~ ✅ **Fixed 2026-07-26.** Two halves:
     `channelToCategory` sends the `misc` drop channel to the stored value `Fashion`, and no
@@ -195,7 +207,14 @@ top-down from it wasted time on problems that no longer existed.
     Now: **required on the self-serve path** with a **20-character floor after trimming**
     (`src/utils/listingDescription.ts`, one constant), a real textarea in the wizard, **both
     fabrications deleted**, and a Details section on the desktop bidding screen (clamped to 4 lines
-    with a show-more gated on *measured* overflow). Mobile untouched.
+    with a show-more gated on *measured* overflow).
+
+    **Two fabrications, not three.** `src/utils/dropPayload.ts:57` does
+    `description: input.productName.trim()` — the admin drop path, still live, still writing an echo
+    for every new Mazad drop. The spec scoped it out believing the drop builder already had a real
+    field; that field is `descriptionEn`/`descriptionAr` on the **drop**, not the per-lot
+    `description`. **Decision #3 ("no fabrication anywhere") is therefore not achieved by this
+    branch** — see item 27. The display is suppressed; the write is not.
 
     **The floor guarantees length, not content.** `Samsung Galaxy S24 Ultra` is 24 characters and
     clears 20. A `description !== title` check was considered and **rejected**: title-duplication is
@@ -204,10 +223,23 @@ top-down from it wasted time on problems that no longer existed.
     deleted. A title-equality check in the wizard would guard a door the problem never came through.
     Revisit once real submissions are visible.
 
-    **The concierge path writes `description: ''` on purpose — do not "clean it up".**
-    `DropBuilderView.tsx:263` calls `a.description.toLowerCase()` **unguarded** in the admin
-    lot-picker search, so the obvious refactor (`cDesc.trim() || undefined`) is a TypeError that
-    breaks admin item search. `''` is the only safe blank. The comment lives at the `SellView` line.
+    **That ruling was right for the wizard and wrong as a general rule.** Task 3 opened a different
+    door — the *display*. The desktop card would have surfaced all 102 echoes on the highest-traffic
+    screen in the app, so the same check was added at the **display layer** on 2026-08-02, on all
+    four surfaces that print a description (desktop aside, mobile lot page, `AuctionDetailsModal`,
+    `ReelsDesktopRightPanel`). Exact-and-trimmed equality, not fuzzy: the failure mode of a loose
+    match is suppressing a real description, which is worse than showing a redundant one. **The
+    capture-layer ruling stands; only the display-layer conclusion changed.**
+
+    **The concierge path writes `description: ''` on purpose.** A blank field is a blank value, and
+    every display surface now guards on a trimmed non-empty string, so `''` renders nothing
+    anywhere. The comment lives at the `SellView` line.
+
+    **Correction (2026-08-02): the reason originally recorded here was false.** It claimed
+    `cDesc.trim() || undefined` would be a TypeError because `DropBuilderView.tsx:263` calls
+    `a.description.toLowerCase()` unguarded. It cannot: `auctionDocMap.ts:63` coerces
+    `data.description || ''` when the doc is read, so **no component ever sees `undefined`**. The
+    value is right; the constraint does not exist. Recorded so it is not rediscovered as one.
 
     **`maxLength={1000}` on the textarea is the only cap that exists.** `firestore.rules` places
     **no constraint at all** on `auctions.description` — the `size() <= 500` rule at
