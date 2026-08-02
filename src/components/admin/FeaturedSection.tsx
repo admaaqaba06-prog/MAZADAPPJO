@@ -96,7 +96,17 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
     return m;
   }, [featured]);
 
+  const sameOrder = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((x, i) => x === b[i]);
+
   const applyOrder = async (nextIds: string[]) => {
+    // Nothing to write. Reached when `reorder` rejected a stale drag, or when a
+    // pin was refused at the cap — both would otherwise rewrite every rank to
+    // the value it already holds.
+    if (sameOrder(currentIds, nextIds)) {
+      setPending(null);
+      return;
+    }
     setError(null);
     setPending(nextIds);
     setSaving(true);
@@ -200,7 +210,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                 )}
                 <button
                   onClick={() => void applyOrder(unpin(currentIds, id))}
-                  className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  disabled={saving}
+                  className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={isAr ? 'إزالة من المميزة' : 'Unpin'}
                 >
                   <X className="w-3.5 h-3.5" />
@@ -266,7 +277,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                     setTerm('');
                     void applyOrder(pin(currentIds, lot.id));
                   }}
-                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-orange-50 transition-colors cursor-pointer"
+                  disabled={saving}
+                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-orange-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAr ? 'تمييز' : 'Pin'}
                 </button>
