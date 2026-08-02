@@ -93,7 +93,7 @@ describe('an absent description renders NOTHING', () => {
 
 describe('long descriptions cannot push the bid controls off screen', () => {
   it('clamps by default', () => {
-    expect(SRC).toMatch(/line-clamp-3/);
+    expect(SRC).toMatch(/line-clamp-4/);
   });
 
   it('has a show-more toggle bound to state', () => {
@@ -110,7 +110,7 @@ describe('long descriptions cannot push the bid controls off screen', () => {
   it('applies the clamp in the collapsed state, not the expanded one', () => {
     // Polarity, pinned. Swapped, the class lands on the expanded branch and the
     // toggle reads backwards for every bidder.
-    expect(descriptionSection()).toMatch(/descriptionExpanded\s*\?\s*''\s*:\s*'line-clamp-3'/);
+    expect(descriptionSection()).toMatch(/descriptionExpanded\s*\?\s*''\s*:\s*'line-clamp-4'/);
   });
 
   it('the toggle label is bilingual', () => {
@@ -143,7 +143,7 @@ describe('the toggle only appears when the clamp is actually hiding something', 
   it('the ref the measurement reads is actually ON the paragraph', () => {
     // Detach it and the measurement silently never runs: `descriptionClamped`
     // stays false, the toggle never appears, and EVERY long description is
-    // permanently truncated to three lines with no way to read the rest —
+    // permanently truncated to four lines with no way to read the rest —
     // precisely the failure this section exists to prevent. Class strings and
     // markup all still look correct, which is why this needs its own assertion.
     expect(descriptionSection()).toMatch(/<p\s+ref=\{descriptionRef\}/);
@@ -207,19 +207,55 @@ describe('switching lots resets the section BEFORE the next paint', () => {
   });
 });
 
-describe('the section keeps the media column geometry', () => {
-  it('matches the product-info row width instead of spanning the whole pane', () => {
-    // The video canvas is `aspect-[9/16]` of `h-[calc(100vh-220px)]` and the
-    // info row pins itself to exactly that width. A full-width card underneath
-    // them would be roughly twice the media column on a 1440px desktop.
-    const width = /w-\[calc\(\(100vh-220px\)\*9\/16\)\]\s+max-w-full\s+mx-auto/g;
-    expect(SRC.match(width)?.length).toBe(2);
-    expect(descriptionSection()).toMatch(width);
+describe('the section lives in the aside, below the bid panel', () => {
+  // It was first built under the video in <main>. That column is sized so the
+  // video plus the product-info row exactly fill it — 12px of slack at every
+  // viewport size — so the card opened BELOW THE FOLD of a pane that had never
+  // scrolled, and the whole payload of the feature was invisible. The aside
+  // already scrolls and already holds the long-form cards.
+  const guard = () => {
+    const at = SRC.indexOf('{descriptionText &&');
+    expect(at).toBeGreaterThan(-1);
+    return at;
+  };
+
+  it('is not in <main>', () => {
+    expect(guard()).toBeGreaterThan(SRC.indexOf('</main>'));
+  });
+
+  it('is inside the right-hand aside', () => {
+    const aside = SRC.indexOf('id="desktop-live-new-aside-panel"');
+    expect(aside).toBeGreaterThan(-1);
+    expect(guard()).toBeGreaterThan(aside);
+    expect(guard()).toBeLessThan(SRC.indexOf('</aside>', aside));
+  });
+
+  it('comes after the bid panel, so it cannot push the bid controls down', () => {
+    // The bid controls are the reason this column exists; anything above them
+    // moves them at first paint.
+    expect(guard()).toBeGreaterThan(SRC.indexOf('id="desktop-bid-panel"'));
+    expect(guard()).toBeLessThan(SRC.indexOf('Card 3: Bid History'));
+  });
+
+  it('carries no viewport-derived width', () => {
+    // The media-column pin it used to have (`w-[calc((100vh-220px)*9/16)]`)
+    // would overflow this fixed 360px column at tall viewports. The info row
+    // in <main> is now the only place that calc appears.
+    const width = /w-\[calc\(\(100vh-220px\)\*9\/16\)\]/g;
+    expect(SRC.match(width)?.length).toBe(1);
+    expect(descriptionSection()).not.toMatch(/w-\[calc|max-w-full|mx-auto/);
   });
 
   it('does not let the flex column squash it', () => {
-    // Every other child of <main> is `shrink-0`; a shrinkable one would absorb
-    // the overflow instead of letting the column scroll.
+    // Every sibling card in the aside is `shrink-0`; a shrinkable one would be
+    // compressed by the cards below instead of letting the column scroll.
     expect(descriptionSection()).toMatch(/shrink-0/);
+  });
+
+  it('gives the Arabic heading an explicit line-height', () => {
+    // `text-[12px]` sets font-size only; Arabic descenders clip under the ~1.2
+    // normal default. `text-xs` is the same size WITH a 1rem line-height.
+    expect(descriptionSection()).toMatch(/<h2 className="text-xs /);
+    expect(descriptionSection()).not.toMatch(/<h2 className="text-\[12px\]/);
   });
 });
