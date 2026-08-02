@@ -12,6 +12,8 @@ import {
   normalizeLanguage,
   canPersistLanguage,
   persistLanguagePreference,
+  storedDocLanguage,
+  shouldAdoptLocalLanguage,
   UNAUTHENTICATED_ID,
   type LanguagePatch,
 } from './languagePersistence';
@@ -191,5 +193,97 @@ describe('persistLanguagePreference — a failed write is non-fatal', () => {
   it('tolerates a writer that returns no promise', () => {
     expect(() => persistLanguagePreference(SIGNED_IN, 'en', () => undefined)).not.toThrow();
     expect(() => persistLanguagePreference(SIGNED_IN, 'en', () => 42)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pre-login adoption.
+//
+// The gap: someone switches the landing page to English, then signs up.
+// `setLanguage` only writes the user doc when a session exists, so that choice
+// lived in localStorage alone and every message kept arriving in Arabic until
+// they toggled a SECOND time while logged in.
+// ---------------------------------------------------------------------------
+describe('storedDocLanguage', () => {
+  it('recognises only a real stored preference', () => {
+    expect(storedDocLanguage('en')).toBe('en');
+    expect(storedDocLanguage('ar')).toBe('ar');
+  });
+
+  it('treats junk as ABSENT, matching resolveLang treating it as Arabic', () => {
+    for (const junk of [undefined, null, '', ' ', 'EN', 'AR', 'fr', 'en-US', 7, {}, [], true]) {
+      expect(storedDocLanguage(junk), JSON.stringify(junk)).toBeNull();
+    }
+  });
+});
+
+describe('shouldAdoptLocalLanguage', () => {
+  const signedIn = { isAuthenticated: true, userId: 'u-1' };
+
+  it('adopts an explicit local choice when the doc has no language', () => {
+    for (const stored of ['en', 'ar']) {
+      expect(shouldAdoptLocalLanguage({
+        session: signedIn, storedLanguage: stored, docLanguage: undefined,
+      }), stored).toBe(true);
+    }
+  });
+
+  it('NEVER overwrites a language the doc already holds', () => {
+    // A stored preference may be newer and from another device. Server wins.
+    for (const docLang of ['ar', 'en']) {
+      for (const stored of ['ar', 'en']) {
+        expect(shouldAdoptLocalLanguage({
+          session: signedIn, storedLanguage: stored, docLanguage: docLang,
+        }), `${stored} over ${docLang}`).toBe(false);
+      }
+    }
+  });
+
+  it('adopts over a JUNK doc value — that is noise, not a preference', () => {
+    for (const junk of ['fr', 'EN', 7, {}, '']) {
+      expect(shouldAdoptLocalLanguage({
+        session: signedIn, storedLanguage: 'en', docLanguage: junk,
+      }), JSON.stringify(junk)).toBe(true);
+    }
+  });
+
+  it('does nothing when the visitor never chose (no localStorage key)', () => {
+    // A missing key is the app's Arabic DEFAULT, not a choice. Adopting it
+    // would make every signed-in Arabic reader write the field for no reason.
+    for (const stored of [null, undefined, '', 'fr', 'EN', 7, {}]) {
+      expect(shouldAdoptLocalLanguage({
+        session: signedIn, storedLanguage: stored, docLanguage: undefined,
+      }), JSON.stringify(stored)).toBe(false);
+    }
+  });
+
+  it('does nothing signed out, or for the truthy sentinel id', () => {
+    for (const session of [
+      null, undefined,
+      { isAuthenticated: false, userId: 'u-1' },
+      { isAuthenticated: true, userId: UNAUTHENTICATED_ID },
+      { isAuthenticated: true, userId: '   ' },
+      { isAuthenticated: true, userId: undefined },
+    ]) {
+      expect(shouldAdoptLocalLanguage({
+        session: session as never, storedLanguage: 'en', docLanguage: undefined,
+      }), JSON.stringify(session)).toBe(false);
+    }
+  });
+
+  it('fires at most once per session', () => {
+    expect(shouldAdoptLocalLanguage({
+      session: signedIn, storedLanguage: 'en', docLanguage: undefined, alreadyAdopted: true,
+    })).toBe(false);
+  });
+
+  it('round-trips through the server reader', async () => {
+    // Whatever this writes must read back as the SAME language server-side,
+    // or the adoption silently changes nothing.
+    const { resolveLang } = require('../../functions/messageCopy.js');
+    for (const stored of ['en', 'ar']) {
+      expect(shouldAdoptLocalLanguage({ session: signedIn, storedLanguage: stored, docLanguage: null })).toBe(true);
+      expect(resolveLang({ language: normalizeLanguage(stored) }), stored).toBe(stored);
+    }
   });
 });
