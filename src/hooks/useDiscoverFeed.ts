@@ -31,7 +31,13 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { PAGE, hasNewerDrops, isDisplayableLive } from '../utils/discoverQuery';
+import { isAwaitingFirstBidDoc } from '../utils/auctionPhase';
+import {
+  ALL_TAB_FIRST_BID_LIMIT,
+  PAGE,
+  hasNewerDrops,
+  isDisplayableLive,
+} from '../utils/discoverQuery';
 import {
   filsToUnits,
   mapLiveAuctionFields,
@@ -44,6 +50,13 @@ import { AuctionItem } from '../types';
 /** What the Discover feed exposes to its consumer (Task 5). */
 export interface UseDiscoverFeedResult {
   liveItems: AuctionItem[];
+  /**
+   * Awaiting-first-bid lots. Populated in `first_bid` mode (the Be the First
+   * chip — paginated, and `liveItems` stays empty) AND on the All chip (a
+   * `limit(8)` preview, alongside a full `liveItems`). Empty under any specific
+   * category chip: first-bid lots are not category-scoped (see the spec).
+   */
+  firstBidItems: AuctionItem[];
   upcomingItems: AuctionItem[];
   loading: boolean;
   loadingMore: boolean;
@@ -128,20 +141,49 @@ function buildUpcomingQuery() {
 }
 
 /**
- * Build the "Be the First" query: LIVE `first_bid` lots, newest first. These go
- * live with NO `endsAt` until the first bid lands, so the ending-soon feed
- * (`orderBy('endsAt')`) excludes them entirely — this dedicated query surfaces
- * them. Ordering by `createdAt desc` keeps a stable, index-backed shape;
- * un-started lots are then kept client-side via `isAwaitingFirstBid`.
+ * Build the "Be the First" query: LIVE `first_bid` lots, newest first,
+ * optionally cursor-paged and size-capped. These go live with NO `endsAt` until
+ * the first bid lands, so the ending-soon feed (`orderBy('endsAt')`) excludes
+ * them entirely — this dedicated query surfaces them. Ordering by `createdAt
+ * desc` keeps a stable, index-backed shape; lots whose clock has since started
+ * are dropped client-side via `isAwaitingFirstBidDoc`.
+ *
+ * Mirrors the pure `buildFirstBidFeedConstraints` descriptor, which is where
+ * this shape is unit-tested.
  */
-function buildFirstBidQuery() {
-  return query(
-    collection(db, 'auctions'),
+function buildFirstBidQuery(
+  cursor: QueryDocumentSnapshot<DocumentData> | null,
+  pageSize: number = PAGE,
+) {
+  const constraints: QueryConstraint[] = [
     where('status', '==', 'live'),
     where('startMode', '==', 'first_bid'),
     orderBy('createdAt', 'desc'),
-    limit(PAGE),
-  );
+  ];
+  if (cursor) constraints.push(startAfter(cursor));
+  constraints.push(limit(pageSize));
+  return query(collection(db, 'auctions'), ...constraints);
+}
+
+/**
+ * Keep only lots still awaiting their first bid, and drop simulator data.
+ *
+ * Filters RAW doc data, not mapped items: `resolveEndTime` returns null only
+ * because it consults the same predicate, so filtering here on the raw doc is
+ * the authoritative check and stays correct regardless of mapping order.
+ *
+ * The `isSimulated` clause is parity with `isDisplayableLive`, not a live fix —
+ * `simulateSpawnAuction` writes no `startMode`, so simulated docs already fail
+ * this query's `where`. It exists so that stays true if the simulator ever
+ * gains a first-bid option.
+ */
+function keepAwaitingFirstBid(docs: QueryDocumentSnapshot<DocumentData>[]): AuctionItem[] {
+  return docs
+    .filter((d) => {
+      const x = d.data() as any;
+      return isAwaitingFirstBidDoc(x) && x.isSimulated !== true;
+    })
+    .map(mapFeedDoc);
 }
 
 /**
@@ -185,6 +227,7 @@ export function useDiscoverFeed(
   feedMode: 'default' | 'first_bid' = 'default',
 ): UseDiscoverFeedResult {
   const [liveItems, setLiveItems] = useState<AuctionItem[]>([]);
+  const [firstBidItems, setFirstBidItems] = useState<AuctionItem[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -229,35 +272,40 @@ export function useDiscoverFeed(
       setError(null);
     }
     try {
-      // "Be the First" mode: a single dedicated query for live first_bid lots
-      // awaiting their first bid. No upcoming list, no pagination, no new-drops
-      // detector, category filtering ignored (see the effect/loadMore guards).
+      // "Be the First" mode: a dedicated paginated query for live first_bid
+      // lots awaiting their first bid. No upcoming list, no new-drops detector,
+      // category filtering ignored (see the effect/loadMore guards). Results
+      // land in `firstBidItems` and `liveItems` stays EMPTY — which is what
+      // keeps the "Live now" section header and the orange live-now strip (both
+      // rendered off `liveItems`) from claiming these lots have a clock.
       if (feedMode === 'first_bid') {
-        const fbSnap = await getDocs(buildFirstBidQuery());
+        const fbSnap = await getDocs(buildFirstBidQuery(null));
         if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
-        // Filter the RAW doc data before mapping: `mapFeedDoc` → `resolveEndTime`
-        // synthesizes a truthy `endTime` (now+1h) for any doc missing
-        // `endsAt`/`endTime` — exactly the state of an awaiting-first-bid lot —
-        // so filtering the mapped item with `isAwaitingFirstBid` (which requires
-        // `!endTime`) would always be false and the feed would always be empty.
-        const live = fbSnap.docs
-          .filter((doc) => {
-            const x = doc.data();
-            return !x.endsAt && !x.endTime && !((x.totalBids || 0) > 0);
-          })
-          .map(mapFeedDoc);
-        cursorRef.current = null;
-        hasMoreLiveRef.current = false;
-        setLiveItems(live);
+        cursorRef.current = fbSnap.docs[fbSnap.docs.length - 1] ?? null;
+        // Keyed off the RAW page length, not the filtered count: a page whose
+        // lots have all since received a first bid filters to empty but must
+        // still advance the cursor. Same contract as the ending-soon feed.
+        hasMoreLiveRef.current = fbSnap.docs.length === PAGE;
+        setFirstBidItems(keepAwaitingFirstBid(fbSnap.docs));
+        setLiveItems([]);
         setUpcomingItems([]);
-        setHasMoreLive(false);
+        setHasMoreLive(fbSnap.docs.length === PAGE);
         setLoading(false);
         return;
       }
 
-      const [liveSnap, upSnap] = await Promise.all([
+      // The All chip (no category clause) additionally previews first-bid lots,
+      // which the ending-soon query structurally cannot return. Capped at the
+      // query level rather than sliced client-side, so it costs 8 reads not 24.
+      // Any specific category chip skips it: first-bid lots are not
+      // category-scoped in this slice (see the spec's Scope section).
+      const isAllChip = !categoryMatchesRef.current || categoryMatchesRef.current.length === 0;
+      const [liveSnap, upSnap, fbSnap] = await Promise.all([
         getDocs(buildLiveQuery(categoryMatchesRef.current, null)),
         getDocs(buildUpcomingQuery()),
+        isAllChip
+          ? getDocs(buildFirstBidQuery(null, ALL_TAB_FIRST_BID_LIMIT))
+          : Promise.resolve(null),
       ]);
       if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
 
@@ -277,6 +325,7 @@ export function useDiscoverFeed(
       newestCreatedRef.current = newest;
 
       setLiveItems(live);
+      setFirstBidItems(fbSnap ? keepAwaitingFirstBid(fbSnap.docs) : []);
       setUpcomingItems(upcoming);
       setHasMoreLive(liveSnap.docs.length === PAGE);
       setNewestLoadedCreatedAt(newest);
@@ -297,8 +346,6 @@ export function useDiscoverFeed(
   }, [loadPage1, enabled]);
 
   const loadMore = useCallback(() => {
-    // "Be the First" is a single non-paginated page — nothing more to load.
-    if (feedMode === 'first_bid') return;
     if (!hasMoreLiveRef.current || loadingMoreRef.current) return;
     const cursor = cursorRef.current;
     if (!cursor) return;
@@ -306,6 +353,32 @@ export function useDiscoverFeed(
 
     loadingMoreRef.current = true;
     if (mountedRef.current) setLoadingMore(true);
+
+    // "Be the First" pages its own query and appends to `firstBidItems`; every
+    // other mode pages the ending-soon feed into `liveItems`.
+    if (feedMode === 'first_bid') {
+      getDocs(buildFirstBidQuery(cursor))
+        .then((snap) => {
+          if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
+          cursorRef.current = snap.docs[snap.docs.length - 1] ?? cursorRef.current;
+          hasMoreLiveRef.current = snap.docs.length === PAGE;
+          const more = keepAwaitingFirstBid(snap.docs);
+          setFirstBidItems((prev) => {
+            const seen = new Set(prev.map((a) => a.id));
+            return [...prev, ...more.filter((a) => !seen.has(a.id))];
+          });
+          setHasMoreLive(snap.docs.length === PAGE);
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        })
+        .catch((e) => {
+          loadingMoreRef.current = false;
+          if (reqId !== reqIdRef.current || !mountedRef.current) return;
+          setError(e);
+          setLoadingMore(false);
+        });
+      return;
+    }
 
     getDocs(buildLiveQuery(categoryMatchesRef.current, cursor))
       .then((snap) => {
@@ -385,6 +458,7 @@ export function useDiscoverFeed(
 
   return {
     liveItems,
+    firstBidItems,
     upcomingItems,
     loading,
     loadingMore,
