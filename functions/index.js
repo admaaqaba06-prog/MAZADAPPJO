@@ -39,6 +39,9 @@ const { resolveEscrowWinner, shouldRefundEscrow } = require('./escrowRepair');
 const { resolvePaymentDefaultBan, isEffectivelyBlocked } = require('./banLadder');
 const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
+// resolveLang comes straight from the copy module — notify.js re-exports copyFor
+// only, and widening its surface is not this task's business.
+const { resolveLang } = require('./messageCopy');
 const { emailFor } = require('./emailCopy');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
@@ -123,9 +126,14 @@ async function notify({ uid, event, data = {} }) {
       if (s.exists) user = s.data() || {};
     } catch (e) { console.warn(`[notify] user lookup ${uid} failed:`, e && e.message); }
   }
+  // The user doc is already loaded above for phone/email/name, so reading the
+  // language preference off it costs no extra Firestore read. It MUST be read
+  // after the lookup — before it, `user` is {} and every recipient silently
+  // gets Arabic, which looks correct in production and is invisible by eye.
+  const lang = resolveLang(user);
   if (channels.inapp && uid) {
     try {
-      const c = copyFor(event, d);
+      const c = copyFor(event, d, lang);
       await db.collection('notifications').add({
         userId: uid, type: c.type, title: c.title, description: c.description,
         timestamp: Date.now(), read: false, priority: d.priority || 'medium',
@@ -144,7 +152,17 @@ async function notify({ uid, event, data = {} }) {
       // than a second copy map that can drift from this repo. It carries the
       // amount, deadline, order reference and a real deep link — none of which
       // reached the old email, which reused the terse in-app one-liner.
-      ...(channels.email ? { email_content: emailFor(event, { ...d, name: user.name || d.name || '' }) } : {}),
+      ...(channels.email ? { email_content: emailFor(event, { ...d, name: user.name || d.name || '' }, lang) } : {}),
+      // The WhatsApp body, rendered here so the n8n node forwards a string
+      // instead of keeping its own copy map. The shape — `title\ndescription`,
+      // or the title alone when there is no description — is byte-for-byte what
+      // the node produces today, so its fallback and this render are identical.
+      // Gated on the channel, exactly as email_content is: an in-app-only event
+      // has no business carrying a WhatsApp body.
+      ...(channels.whatsapp ? { wa_text: (() => {
+        const c = copyFor(event, d, lang);
+        return c.description ? `${c.title}\n${c.description}` : c.title;
+      })() } : {}),
     });
   }
 }
