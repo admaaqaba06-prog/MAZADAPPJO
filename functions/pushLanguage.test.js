@@ -31,7 +31,7 @@ import { createRequire } from 'node:module';
 
 const SRC = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 const requireCjs = createRequire(import.meta.url);
-const { copyFor, resolveLang } = requireCjs('./messageCopy.js');
+const { copyFor, pushCopyFor, resolveLang } = requireCjs('./messageCopy.js');
 const { CHANNEL_POLICY } = requireCjs('./notify.js');
 const { totalDueJod } = requireCjs('./settlement.js');
 
@@ -130,6 +130,17 @@ function makeMessaging(seen, { sendThrows = false } = {}) {
   };
 }
 
+// The push-override renderer, injected the same way as copyFor so the outbid
+// block under test calls the REAL pushCopyFor and the asserted strings are the
+// strings a bidder's phone shows.
+function makePushCopyFor(seen, { copyThrows = false } = {}) {
+  return (event, data, lang) => {
+    seen.copyFor.push({ event, data, lang });
+    if (copyThrows) throw new Error('copy renderer exploded');
+    return pushCopyFor(event, data, lang);
+  };
+}
+
 function makeCopyFor(seen, { copyThrows = false } = {}) {
   return (event, data, lang) => {
     seen.copyFor.push({ event, data, lang });
@@ -203,13 +214,14 @@ function runNotifyDataCapture(winnerData, opts = {}) {
 function runOutbidPush(prevUserData, opts = {}) {
   const seen = freshSeen();
   const factory = new Function('deps', `
-    const { admin, copyFor, safeResolveLang, console,
+    const { admin, copyFor, pushCopyFor, safeResolveLang, console,
             fcmToken, previousBidderId, prevUserData, auctionData, auctionId, amount } = deps;
     return (async () => { ${OUTBID_PUSH} })();
   `);
   const done = factory({
     admin: makeMessaging(seen, opts),
     copyFor: makeCopyFor(seen, opts),
+    pushCopyFor: makePushCopyFor(seen, opts),
     safeResolveLang: makeSafeResolveLang(seen, opts),
     console: { warn: (...a) => seen.warned.push(a.join(' ')), log: (...a) => seen.logged.push(a.join(' ')) },
     fcmToken: 'tok-1',
@@ -354,23 +366,33 @@ describe('outbid FCM push speaks the outbid bidder language', () => {
     expect(seen.resolveLang).toEqual([{ language: 'en', fcmToken: 'tok-1' }]); // the LOADED doc, not {}
   });
 
-  it('pushes the English outbid copy — the same copy the WhatsApp carries', async () => {
+  // The push is deliberately NOT the WhatsApp line. A phone alert is the only
+  // surface a bidder sees without opening anything, so it names the NEW PRICE —
+  // that is what brings them back to bid. Same language, more information.
+  // MJ's call, 2026-08-02.
+  it('pushes the English outbid copy AND states the new price', async () => {
     const { seen, done } = runOutbidPush({ language: 'en' });
     await done;
-    const expected = copyFor('outbid', { auctionTitle: 'Rolex Datejust' }, 'en');
+    const expected = pushCopyFor('outbid', { auctionTitle: 'Rolex Datejust', amount: 250 }, 'en');
     expect(seen.sent.length).toBe(1);
     expect(seen.sent[0].notification.title).toBe(expected.title);
     expect(seen.sent[0].notification.body).toBe(expected.description);
-    expect(seen.sent[0].notification.title).toBe('You have been outbid');
+    // The amount itself — this is the whole point of the override.
+    expect(seen.sent[0].notification.body).toMatch(/250/);
     expect(ARABIC.test(seen.sent[0].notification.body)).toBe(false);
+    // and it must be MORE than the terse shared line, not equal to it
+    expect(seen.sent[0].notification.body)
+      .not.toBe(copyFor('outbid', { auctionTitle: 'Rolex Datejust' }, 'en').description);
   });
 
-  it('pushes the Arabic outbid copy to an Arabic-preference bidder', async () => {
+  it('pushes the Arabic outbid copy, with the price in Western digits', async () => {
     const { seen, done } = runOutbidPush({});
     await done;
-    const expected = copyFor('outbid', { auctionTitle: 'Rolex Datejust' }, 'ar');
+    const expected = pushCopyFor('outbid', { auctionTitle: 'Rolex Datejust', amount: 250 }, 'ar');
     expect(seen.sent[0].notification.title).toBe(expected.title);
     expect(seen.sent[0].notification.body).toBe(expected.description);
+    expect(seen.sent[0].notification.body).toMatch(/250/);
+    expect(seen.sent[0].notification.body).not.toMatch(/[٠-٩]/); // ARABIC_UI_DIGITS
     expect(ARABIC.test(seen.sent[0].notification.title)).toBe(true);
   });
 
@@ -420,7 +442,7 @@ describe('no hardcoded Arabic survives in either push', () => {
   it('both pushes render through copyFor rather than an inline string', () => {
     for (const block of [WINNER_PUSH, OUTBID_PUSH]) {
       const code = stripComments(block);
-      expect(code).toMatch(/copyFor\(/);
+      expect(code).toMatch(/(push)?[cC]opyFor\(/);
       // title/body come from the rendered copy object, not from a literal.
       expect(code).toMatch(/title:\s*c\.title/);
       expect(code).toMatch(/body:\s*c\.description/);
@@ -433,7 +455,10 @@ describe('no hardcoded Arabic survives in either push', () => {
     expect(Object.keys(CHANNEL_POLICY)).toContain('auction_won');
     expect(Object.keys(CHANNEL_POLICY)).toContain('outbid');
     expect(stripComments(WINNER_PUSH)).toMatch(/copyFor\(\s*'auction_won'/);
-    expect(stripComments(OUTBID_PUSH)).toMatch(/copyFor\(\s*'outbid'/);
+    expect(stripComments(OUTBID_PUSH)).toMatch(/pushCopyFor\(\s*'outbid'/);
+  // and the amount must actually reach it — a push override with no price is
+  // the bug this override exists to fix.
+  expect(stripComments(OUTBID_PUSH)).toMatch(/amount/);
   });
 });
 
@@ -552,5 +577,73 @@ describe('the imports these guards depend on actually resolve', () => {
     }
     if (!source) throw new Error('no require() in index.js destructures resolveLang — anchor moved');
     expect(typeof requireCjs(source).resolveLang).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pushCopyFor — push-only wording.
+//
+// Exists because the shared `outbid` entry is also the WhatsApp and in-app line.
+// Adding the price there would have changed all three surfaces; MJ wanted it on
+// the push only (2026-08-02). The override therefore has to be provably narrow:
+// one event, both languages, everything else untouched.
+// ---------------------------------------------------------------------------
+describe('pushCopyFor — the outbid push carries the new price', () => {
+  it('states the amount in BOTH languages, in Western digits, naming the lot', () => {
+    for (const lang of ['ar', 'en']) {
+      const c = pushCopyFor('outbid', { auctionTitle: 'ساعة', amount: 150 }, lang);
+      expect(c.description, lang).toMatch(/150/);
+      expect(c.description, lang).not.toMatch(/[٠-٩]/);
+      expect(c.description, lang).toContain('ساعة');
+      expect(c.title.trim().length, lang).toBeGreaterThan(0);
+    }
+    // Each in its own language — neither leaks into the other.
+    expect(ARABIC.test(pushCopyFor('outbid', { auctionTitle: 'X', amount: 1 }, 'en').description)).toBe(false);
+    expect(ARABIC.test(pushCopyFor('outbid', { auctionTitle: 'X', amount: 1 }, 'ar').description)).toBe(true);
+  });
+
+  it('leaves the SHARED copy alone — WhatsApp and in-app must not gain the price', () => {
+    // The reason this function exists. Anyone "simplifying" it by editing the
+    // shared outbid entry instead changes the WhatsApp message too, and fails here.
+    for (const lang of ['ar', 'en']) {
+      expect(copyFor('outbid', { auctionTitle: 'ساعة', amount: 150 }, lang).description, lang)
+        .not.toMatch(/150/);
+    }
+  });
+
+  it('overrides EXACTLY ONE event — every other event falls through untouched', () => {
+    for (const event of Object.keys(CHANNEL_POLICY)) {
+      if (event === 'outbid') continue;
+      const d = { auctionTitle: 'X', totalDue: '5', amount: 5, orderId: 'o1', topBid: 3 };
+      for (const lang of ['ar', 'en']) {
+        expect(pushCopyFor(event, d, lang), `${event}/${lang}`).toEqual(copyFor(event, d, lang));
+      }
+    }
+  });
+
+  it('falls back to the shared copy when there is no price to state', () => {
+    for (const lang of ['ar', 'en']) {
+      expect(pushCopyFor('outbid', { auctionTitle: 'X' }, lang))
+        .toEqual(copyFor('outbid', { auctionTitle: 'X' }, lang));
+    }
+  });
+
+  it('treats a zero bid as a real amount, not a missing one', () => {
+    expect(pushCopyFor('outbid', { auctionTitle: 'X', amount: 0 }, 'en').description).toMatch(/\b0\b/);
+  });
+
+  it('defaults to Arabic for an unknown language, like every other renderer', () => {
+    for (const junk of ['fr', 'EN', '', null, undefined, 7, {}]) {
+      const c = pushCopyFor('outbid', { auctionTitle: 'X', amount: 9 }, junk);
+      expect(ARABIC.test(c.title), String(junk)).toBe(true);
+    }
+  });
+
+  it('is imported from the module that actually exports it', () => {
+    const code = stripComments(SRC);
+    const i = code.indexOf("require('./messageCopy')");
+    if (i === -1) throw new Error("anchor not found: require('./messageCopy') in index.js");
+    const decl = code.slice(code.lastIndexOf('const', i), i);
+    expect(decl).toMatch(/pushCopyFor/);
   });
 });

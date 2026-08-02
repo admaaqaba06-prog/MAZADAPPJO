@@ -158,4 +158,40 @@ function copyFor(event, data = {}, lang = 'ar') {
   return FALLBACK[l];
 }
 
-module.exports = { copyFor, resolveLang, SUPPORTED_LANGS };
+/**
+ * Push-only wording, for the few events where a phone alert should say more
+ * than the in-app line.
+ *
+ * A push is the only surface a bidder sees without opening anything, so for
+ * `outbid` the NEW PRICE is the whole point — it is what decides whether they
+ * come back and bid again. The in-app and WhatsApp copy deliberately stays
+ * terse (the amount is one tap away there), so this cannot be fixed by editing
+ * the shared entry without also changing the WhatsApp message.
+ *
+ * Everything not overridden here falls through to `copyFor`, so a push can
+ * never silently lose an event: adding one to CHANNEL_POLICY needs no change
+ * in this map. Overrides carry BOTH languages — `pushLanguage.test.js` asserts
+ * every override has an `ar` and an `en` and that the shared copy is unchanged.
+ *
+ * @param {string} event
+ * @param {object} data
+ * @param {'ar'|'en'} lang unknown languages fall back to Arabic
+ * @returns {{type: string, title: string, description: string}}
+ */
+function pushCopyFor(event, data = {}, lang = 'ar') {
+  const l = SUPPORTED_LANGS.includes(lang) ? lang : 'ar';
+  const base = copyFor(event, data, l);
+  // Same title derivation as build(), so the push names the lot exactly as the
+  // in-app line does rather than inventing a second convention.
+  const t = data.auctionTitle || data.orderId || '';
+  // Western digits, per ARABIC_UI_DIGITS, in both languages.
+  const amt = data.amount === 0 || data.amount ? String(data.amount) : '';
+  if (event === 'outbid' && amt) {
+    return l === 'en'
+      ? { ...base, title: 'You have been outbid ⚡', description: `Someone bid ${amt} JOD on "${t}".` }
+      : { ...base, title: 'تمت المزايدة عليك ⚡', description: `زايد أحدهم بـ ${amt} د.أ على "${t}".` };
+  }
+  return base;
+}
+
+module.exports = { copyFor, pushCopyFor, resolveLang, SUPPORTED_LANGS };

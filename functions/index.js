@@ -41,7 +41,7 @@ const { onAuctionWriteAlgolia } = require('./algoliaSync');
 const { channelsFor, copyFor, dueReminders } = require('./notify');
 // resolveLang comes straight from the copy module — notify.js re-exports copyFor
 // only, and widening its surface is not this task's business.
-const { resolveLang } = require('./messageCopy');
+const { resolveLang, pushCopyFor } = require('./messageCopy');
 const { emailFor } = require('./emailCopy');
 const { buildReturnClaim, canRequestReturn } = require('./returns');
 const { buildBuyerRating, canSellerRateOrder } = require('./ratings');
@@ -1591,8 +1591,13 @@ exports.onBidCreated = functions.firestore
             // the push and the WhatsApp for one bid must not arrive in two
             // different languages.
             const outbidLang = safeResolveLang(prevUserData, `outbid ${previousBidderId}`);
-            const c = copyFor('outbid', {
+            // pushCopyFor, not copyFor: the push carries the NEW PRICE, which is
+            // what actually brings a bidder back to bid again. The in-app and
+            // WhatsApp lines stay terse on purpose — see the override map in
+            // messageCopy.js. Same language, different length.
+            const c = pushCopyFor('outbid', {
               auctionTitle: (auctionData && auctionData.title) || '',
+              amount,
             }, outbidLang);
 
             const payload = {
