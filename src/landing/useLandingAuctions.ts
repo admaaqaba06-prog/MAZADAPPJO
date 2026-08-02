@@ -10,7 +10,13 @@ export interface LandingAuction {
   category: AuctionItem['category'];
   currentPrice: number;
   totalBids: number;
-  endTime: number;
+  /**
+   * Epoch millis, or null for a clockless (awaiting-first-bid) lot — inherited
+   * from `AuctionItem.endTime`. `curateLandingAuctions` filters those out with a
+   * `typeof === 'number'` check before mapping, so a curated LandingAuction
+   * always holds a number; `mapToLandingAuction` on its own does not guarantee it.
+   */
+  endTime: number | null;
   imageUrl: string;
   isFeatured: boolean;
   isVerified: boolean;

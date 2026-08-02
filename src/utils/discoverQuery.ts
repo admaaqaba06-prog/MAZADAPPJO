@@ -96,7 +96,10 @@ export function hasNewerDrops(
  * and not already past its end time (a missing `endTime` is treated as live).
  */
 export function isDisplayableLive(
-  a: { status?: string; endTime?: number; isSimulated?: boolean },
+  // `endTime` is null for a clockless awaiting-first-bid lot (mapFeedDoc →
+  // resolveEndTime); the `!a.endTime` guard below treats it as live, which is
+  // correct — such a lot IS open and accepting bids.
+  a: { status?: string; endTime?: number | null; isSimulated?: boolean },
   now: number,
 ): boolean {
   return a.status === 'live' && a.isSimulated !== true && (!a.endTime || a.endTime > now);
