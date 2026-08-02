@@ -6,6 +6,7 @@ import { BidConfirm } from './feedback';
 import { isAuctionOpen, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { minNextBid } from '../utils/bidMath';
+import { priceLabel } from '../utils/bidLabels';
 import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { useAuctionDoc } from '../hooks/useAuctionDoc';
@@ -141,7 +142,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
       {/* 1. CURRENT PRICE & TIME LEFT */}
       <div className="grid grid-cols-2 gap-3 bg-zinc-900/85 border border-white/5 p-4 rounded-2xl shrink-0">
         <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
-          <span className="text-[8px] text-zinc-500 font-bold block uppercase">{isAr ? 'السعر الحالي' : 'CURRENT PRICE'}</span>
+          <span className="text-[8px] text-zinc-500 font-bold block uppercase">{priceLabel(currentItem.totalBids, isAr)}</span>
           <span className="text-base font-black text-[#FF6B00]">{currentItem.currentPrice.toLocaleString()} JOD</span>
         </div>
         <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">

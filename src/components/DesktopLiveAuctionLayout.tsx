@@ -25,6 +25,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { priceLabel } from '../utils/bidLabels';
 import { isEffectivelyBlocked } from '../utils/banStatus';
 import { compactJod } from '../utils/bidFormat';
 import { formatAmmanClock } from '../utils/ammanTime';
@@ -893,7 +894,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 {/* Current Bid */}
                 <div className="flex flex-col text-left rtl:text-right">
                   <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                    {isAr ? 'العطاء الحالي' : 'Current Bid'}
+                    {priceLabel(activeAuction?.totalBids, isAr)}
                   </span>
                   <span className="text-lg font-black text-[#E85D04] font-mono tabular-nums mt-0.5 leading-none">
                     <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-gray-500">JOD</span>

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { priceLabel } from '../utils/bidLabels';
 import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
@@ -275,7 +276,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {/* Bid values pricing table */}
           <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-3 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-gray-500 font-bold">{isAr ? 'السعر التجاري الحالي' : 'CURRENT HIGH BID'}</span>
+              <span className="text-gray-500 font-bold">{priceLabel(auction.totalBids, isAr)}</span>
               <span className="text-sm font-black text-[#FF6B00] font-mono">{auction.currentPrice.toLocaleString()} JOD</span>
             </div>
             <div className="flex justify-between items-center text-xs border-t border-zinc-200/50 pt-2">

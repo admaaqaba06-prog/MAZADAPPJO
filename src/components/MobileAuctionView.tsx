@@ -14,6 +14,7 @@ import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { CountdownPill } from './auction/CountdownPill';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { minNextBid, isViewerWinner } from '../utils/bidMath';
+import { priceLabel, bidCtaLabel } from '../utils/bidLabels';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { useChat } from '../context/AppContext';
 import { resolveViewing } from '../utils/viewing';
@@ -457,7 +458,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             <div className="flex items-end justify-between">
               <div>
                 <span className="block text-[10px] font-bold text-[#999] uppercase tracking-wide">
-                  {isAr ? 'المزايدة الحالية' : 'Current bid'}
+                  {priceLabel(activeAuction?.totalBids, isAr)}
                 </span>
                 <div className="text-[24px] font-black text-[#0A0A0A] leading-none" dir="ltr">
                   {reduce ? (
@@ -638,7 +639,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         >
           {isGuest
             ? (isAr ? 'سجّل مجاناً وزايد' : 'Sign up to bid')
-            : (isAr ? 'قدّم مزايدة' : 'Place Bid')}
+            : bidCtaLabel(activeAuction?.totalBids, isAr)}
           {!isGuest && (
             <small className="font-bold opacity-85 text-[12px]" dir="ltr">
               · {Math.round(minNext).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'} ›
