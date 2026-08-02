@@ -295,6 +295,75 @@ describe('emailFor — both languages', () => {
     }
   });
 
+  it('gives every English event preview text and a working button', () => {
+    // The preheader is what the inbox list shows; empty or truncated, the client
+    // scrapes the markup instead and the row reads as a header fragment. The CTA
+    // label is the only thing on the button.
+    for (const ev of EMAIL_EVENTS) {
+      const e = emailFor(ev, { auctionTitle: 'Rolex', orderId: 'o1' }, 'en');
+      expect(e.preheader.trim().length, `${ev} preheader`).toBeGreaterThan(0);
+      expect(e.preheader, `${ev} preheader`).toBe(e.intro.slice(0, 120));
+      if (e.cta) {
+        expect(e.cta.label.trim().length, `${ev} cta label`).toBeGreaterThan(0);
+        expect(e.cta.url, `${ev} cta url`).toContain('mazad-jo.com');
+      }
+    }
+  });
+
+  it('gives each English event its OWN button label, not one generic word', () => {
+    // "Open" everywhere is fluent, non-Arabic and useless — the label is the
+    // instruction. Pay / confirm receipt / review the offer are different asks.
+    const labels = EMAIL_EVENTS
+      .map(ev => emailFor(ev, { auctionTitle: 'Rolex', orderId: 'o1' }, 'en').cta)
+      .filter(Boolean).map(c => c.label);
+    expect(new Set(labels).size).toBeGreaterThan(labels.length / 2);
+  });
+
+  it('links to the same place whatever the language', () => {
+    // The URL is not copy. A language must not append itself to a deep link, or
+    // reach a different route.
+    const data = { auctionTitle: 'Rolex', orderId: 'o1', auctionId: 'a1' };
+    for (const ev of EMAIL_EVENTS) {
+      const ar = emailFor(ev, data, 'ar').cta;
+      const en = emailFor(ev, data, 'en').cta;
+      expect(Boolean(ar), ev).toBe(Boolean(en));
+      if (ar) expect(en.url, ev).toBe(ar.url);
+    }
+  });
+
+  it('gives every event copy that belongs to THAT event', () => {
+    // A copy-paste inside a 16-entry map — order_shipped handed the
+    // order_delivered wording — is fluent, non-Arabic, non-generic and tells a
+    // buyer their parcel arrived when it has only left. Nothing above catches
+    // it; distinctness does.
+    for (const lang of ['ar', 'en']) {
+      for (const field of ['subject', 'heading', 'intro']) {
+        const seen = new Map();
+        for (const ev of EMAIL_EVENTS) {
+          const v = emailFor(ev, { auctionTitle: 'Rolex', orderId: 'o1' }, lang)[field];
+          expect(seen.has(v), `${lang}/${field}: ${ev} duplicates ${seen.get(v)} — «${v}»`).toBe(false);
+          seen.set(v, ev);
+        }
+      }
+    }
+  });
+
+  it('never promises a deadline it does not render', () => {
+    // The deadline ROW appears only when the payload carries paymentDeadlineAt.
+    // auction_won and payment_due are emitted with `paymentHours` instead (see
+    // functions/index.js), which this module does not read — so an intro saying
+    // "the deadline below" / «الموعد أدناه» points at a row that is not there.
+    for (const lang of ['ar', 'en']) {
+      for (const ev of EMAIL_EVENTS) {
+        const e = emailFor(ev, { auctionTitle: 'Rolex', orderId: 'o1', paymentHours: 24, totalDue: 105 }, lang);
+        const hasDeadlineRow = e.details.some(r => /deadline|موعد/.test(r.label));
+        expect(hasDeadlineRow, `${ev}/${lang} fixture`).toBe(false);
+        expect(e.intro, `${ev}/${lang}`).not.toMatch(/deadline below|date below/i);
+        expect(e.intro, `${ev}/${lang}`).not.toMatch(/الموعد أدناه|المهلة أدناه|التاريخ أدناه/);
+      }
+    }
+  });
+
   it('defaults to Arabic when no language is given — every existing caller', () => {
     const a = emailFor('payment_due', { auctionTitle: 'ساعة', orderId: 'o1' });
     const b = emailFor('payment_due', { auctionTitle: 'ساعة', orderId: 'o1' }, 'ar');
@@ -367,13 +436,20 @@ describe('emailFor — both languages', () => {
   });
 });
 
+// "Your bid / the bidding was too low", however it is phrased. The runner-up
+// must never be told this: their bid was fine, the WINNER FAILED TO PAY. A
+// denylist of one verb is dodged by a synonym — "fell short of the asking
+// price" reads exactly as false to the recipient as "did not reach" — so the
+// pattern covers the CONCEPT, not a phrase.
+const BID_FELL_SHORT = /(did not (reach|meet)|didn't (reach|meet)|fell short|short of|below (the|your) (asking )?price|under (the|your) (asking )?price|too low)/i;
+
 describe('emailFor — the second chance says what actually happened, in English', () => {
   const base = { auctionTitle: 'Rolex', auctionId: 'a1' };
 
   it('states the defaulted winner as a fact to both recipients', () => {
-    // Asserted POSITIVELY. A denylist of one phrase is defeated by rewording;
-    // the real requirement is that the runner-up and the seller are TOLD the
-    // winner failed to pay, because that is the entire reason for the email.
+    // Asserted POSITIVELY. A denylist alone is defeated by rewording; the real
+    // requirement is that the runner-up and the seller are TOLD the winner
+    // failed to pay, because that is the entire reason for the email.
     for (const offerStatus of ['pending_seller', 'pending_buyer', 'something_else']) {
       const e = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus }, 'en');
       expect(e.intro.toLowerCase(), offerStatus).toMatch(/winner/);
@@ -385,11 +461,30 @@ describe('emailFor — the second chance says what actually happened, in English
     }
   });
 
+  it('never tells the RUNNER-UP their bid fell short, however it is worded', () => {
+    // The seller is deliberately excluded: "below your asking price" is TRUE
+    // for them and is the decision they are being asked to make. It is false
+    // only for the runner-up, whose bid is the one being accepted.
+    for (const offerStatus of ['pending_buyer', 'something_else', undefined]) {
+      const e = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus }, 'en');
+      expect(e.intro, String(offerStatus)).not.toMatch(BID_FELL_SHORT);
+      expect(e.subject, String(offerStatus)).not.toMatch(BID_FELL_SHORT);
+      expect(e.heading, String(offerStatus)).not.toMatch(BID_FELL_SHORT);
+    }
+    // And the Arabic runner-up branch, for the same reason.
+    const ar = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus: 'pending_buyer' }, 'ar');
+    expect(ar.intro).not.toContain('لم تبلغ المزايدات السعر المطلوب');
+    expect(ar.intro).not.toContain('أقل من السعر المطلوب');
+    expect(ar.intro).toContain('لم يكمل الفائز');
+  });
+
   it('keeps the below-reserve wording when there is no second chance', () => {
-    // The false sentence the branch exists to avoid is TRUE here, and must stay:
-    // if it disappeared the branch would be indistinguishable from no branch.
+    // The sentence the branch exists to avoid is TRUE here, and must stay: if it
+    // disappeared the branch would be indistinguishable from no branch. Matched
+    // by concept so that rewording it to "did not meet" is not simultaneously
+    // blessed here and failed by the runner-up guard above.
     const e = emailFor('below_reserve_offer', base, 'en');
-    expect(e.intro.toLowerCase()).toMatch(/did not reach/);
+    expect(e.intro).toMatch(BID_FELL_SHORT);
     expect(e.intro.toLowerCase()).not.toMatch(/winner/);
   });
 
@@ -453,6 +548,53 @@ describe('formatJod / formatDeadline carry the language', () => {
   it('returns empty for an unusable timestamp in English too', () => {
     expect(formatDeadline(null, 'en')).toBe('');
     expect(formatDeadline('nonsense', 'en')).toBe('');
+  });
+
+  it('renders the same Amman deadline from any machine, in any zone', () => {
+    // Asserting "12:00" alone is VACUOUS on a UTC+3 runner: drop `timeZone:
+    // 'Asia/Amman'` and Amman, Istanbul and Riyadh all still print 12:00. The
+    // property that actually matters is that the output does not depend on the
+    // machine, so sweep the zones and demand ONE answer.
+    const before = process.env.TZ;
+    try {
+      for (const lang of ['ar', 'en']) {
+        const outs = ['UTC', 'Asia/Amman', 'America/New_York', 'Pacific/Kiritimati'].map((tz) => {
+          process.env.TZ = tz;
+          return formatDeadline(Date.UTC(2026, 6, 30, 9, 0, 0), lang);
+        });
+        expect(new Set(outs).size, `${lang}: ${outs.join(' | ')}`).toBe(1);
+        expect(outs[0], lang).toMatch(/12:00/);
+      }
+    } finally {
+      if (before === undefined) delete process.env.TZ; else process.env.TZ = before;
+    }
+  });
+});
+
+describe('the two languages state the same facts', () => {
+  it('makes the refund→bank delay conditional in BOTH languages', () => {
+    // Unconditional, this told the customer money was on its way to their bank.
+    // It is not: wallet→bank happens only on a withdrawal REQUEST, and that is
+    // admin-approved (approveWithdrawal). The condition must survive rewording.
+    const ar = emailFor('order_refunded', { auctionTitle: 'ساعة' }, 'ar').intro;
+    expect(ar).toContain('حسابك البنكي');
+    expect(ar).toMatch(/إذا|عند/); // the promise is conditional, not a statement
+    expect(ar).toContain('محفظتك');
+
+    const en = emailFor('order_refunded', { auctionTitle: 'Rolex' }, 'en').intro;
+    expect(en).toMatch(/bank account/i);
+    expect(en).toMatch(/\b(if|once|when) you withdraw/i);
+    expect(en).toMatch(/wallet/i);
+  });
+
+  it('calls the ban temporary in English wherever Arabic calls it temporary', () => {
+    // English must not be harsher than Arabic about a punitive consequence.
+    const ar = emailFor('account_banned', {}, 'ar');
+    const en = emailFor('account_banned', {}, 'en');
+    expect(ar.subject).toContain('مؤقت');
+    expect(en.subject).toMatch(/temporar/i);
+    expect(en.heading).toMatch(/temporar/i);
+    expect(en.intro).toMatch(/temporar/i);
   });
 });
 
@@ -519,6 +661,33 @@ describe('brandFor — the identity stays, the labels translate', () => {
     expect(b.address).toContain('شارع المدينة المنورة');
     expect(b.labels.registration).toMatch(ARABIC);
     expect(brandFor(undefined)).toEqual(b);
+  });
+
+  it('keeps the footer digits Western in both languages, per the numeral policy', () => {
+    // «مجمع سعد ٤» and «من ١٠ … ٧» carried Arabic-Indic digits. Nothing rendered
+    // BRAND, so nothing caught it; Task 4 puts it in front of a customer.
+    for (const lang of ['ar', 'en']) {
+      const b = brandFor(lang);
+      expect(b.address, `${lang} address`).not.toMatch(/[٠-٩]/);
+      expect(b.hours, `${lang} hours`).not.toMatch(/[٠-٩]/);
+    }
+  });
+
+  it('states the opening hours on the same clock as every deadline — 24-hour', () => {
+    expect(brandFor('en').hours).not.toMatch(/\b(am|pm)\b/i);
+    expect(brandFor('en').hours).toMatch(/\b19:00\b/);
+  });
+
+  it('cannot be edited by one email on its way out', () => {
+    // brandFor() hands the SAME label object to every caller, so an assignment
+    // here would follow every later email out of the door and corrupt the
+    // exported constant with it.
+    const e = emailFor('payment_due', {}, 'en');
+    try { e.brand.labels.registration = 'PWNED'; } catch { /* frozen throws in strict mode */ }
+    try { BRAND.registration = 'PWNED'; } catch { /* ditto */ }
+    expect(e.brand.labels.registration).toBe('Commercial registration');
+    expect(emailFor('payment_due', {}, 'en').brand.labels.registration).toBe('Commercial registration');
+    expect(BRAND.registration).toBe('200213982');
   });
 
   it('is what the email carries, in the email´s language', () => {

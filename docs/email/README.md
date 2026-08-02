@@ -18,9 +18,23 @@ rendered an in-app toast inside an HTML shell. The live payment reminder read:
 No amount. No deadline. No order reference. A stray space inside the quotes. A
 generic "افتح التطبيق" button — while the order carried all of it.
 
-In-app has to be terse; email has room. `emailFor(event, data)` is the email's
-own copy, and the webhook payload now carries it rendered as `email_content`, so
-n8n is a dumb template rather than a second copy map that drifts from this repo.
+In-app has to be terse; email has room. `emailFor(event, data, lang)` is the
+email's own copy, and the webhook payload now carries it rendered as
+`email_content`, so n8n is a dumb template rather than a second copy map that
+drifts from this repo.
+
+`lang` is `'ar'` or `'en'` and **defaults to `'ar'`** — anything else, including
+junk and a missing argument, means Arabic. The rendered language comes back as
+`email_content.lang`, and the footer block (`email_content.brand`) is already
+resolved for it: render `brand.name`, `brand.legal`, `brand.address`,
+`brand.hours` and `brand.labels.*` rather than hard-coding Arabic footer labels,
+or an English email ships with an Arabic footer. Every original `BRAND` key is
+still present alongside those.
+
+The registered identity does **not** translate: `brand.registration` and the
+English `legalName` are stated identically in both languages. The address and
+opening hours are the one exception — they are wayfinding prose, and an
+English-only reader cannot navigate by Arabic script.
 
 ## Wiring it in n8n
 

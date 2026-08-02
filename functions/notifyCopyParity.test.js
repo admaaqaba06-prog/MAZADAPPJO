@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 const fs = require('fs');
 const path = require('path');
 const { copyFor: appCopyFor } = require('./notify.js');
+const { emailFor } = require('./emailCopy.js');
 
 // Drift guard: the n8n relay (n8n/build-messages.js) hand-mirrors this repo's
 // functions/notify.js -> copyFor(). Two copies of the same Arabic strings means
@@ -29,15 +30,72 @@ const n8nCopyForSrc = sliceCopyFor(n8nSrc);
 // eslint-disable-next-line no-new-func
 const n8nCopyFor = new Function(`${n8nCopyForSrc}\nreturn copyFor;`)();
 
-// Extract the top-level event keys (4-space indent) from a copyFor slice.
+/**
+ * Slice the `const M = { … }` object literal, ending at its OWN closing brace.
+ *
+ * This used to slice to end-of-file, which fails open: any later 4-space
+ * `key:` in the file — a second map, an options object — silently joined the
+ * event key set, so the two sides could agree on a key neither map contains.
+ * Brace-matching ends the slice where the map ends.
+ *
+ * Braces inside `${…}` template holes balance themselves, so naive counting is
+ * correct for these two files. A stray unbalanced brace inside a string literal
+ * would end the slice early — which shows up as a WRONG key set and a red test,
+ * not as a silent pass. Failing loud is the point.
+ */
+function sliceEventMap(src) {
+  const anchor = src.indexOf('const M = {');
+  if (anchor === -1) throw new Error('`const M = {` not found — the event map moved or was renamed');
+  const open = src.indexOf('{', anchor);
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(open, i + 1);
+  }
+  throw new Error('`const M = {` never closes — unbalanced braces');
+}
+
+// Extract the top-level event keys (4-space indent) from the event map.
 function eventKeys(copyForSrc) {
-  const mStart = copyForSrc.indexOf('const M = {');
-  const body = copyForSrc.slice(mStart);
+  const body = sliceEventMap(copyForSrc);
   const keys = [];
   const re = /^ {4}([a-z_]+):/gm;
   let m;
   while ((m = re.exec(body)) !== null) keys.push(m[1]);
   return keys.sort();
+}
+
+/**
+ * Run the WHOLE n8n node, not a slice of its source.
+ *
+ * Its only n8n dependencies are `$input.all()` at module scope and a top-level
+ * `return out`, both legal inside a Function body — so injecting `$input` runs
+ * the real emitting loop. This matters: source-text matching cannot tell a node
+ * that READS `email_content` from one that merely names it in a comment, and it
+ * was exactly that gap that let `emailFor()` ship dead on 2026-07-29 and stay
+ * dead. Every forwarding assertion below is behavioural for that reason.
+ */
+function runNode(body) {
+  // eslint-disable-next-line no-new-func
+  const out = new Function('$input', n8nSrc)({ all: () => [{ json: { body } }] });
+  return out[0].json;
+}
+
+/** A payload shaped like the one `notify()` posts, with both channels live. */
+function payload(extra = {}) {
+  return {
+    event: 'auction_won',
+    phone: '0791234567',
+    email: 'winner@example.com',
+    name: 'علي',
+    channels: { inapp: true, whatsapp: true, email: true },
+    auctionTitle: 'ساعة رولكس',
+    orderId: 'ORD-1',
+    orderRef: 'MZ-000123',
+    totalDue: 105,
+    paymentDeadlineAt: 1785000000000,
+    ...extra,
+  };
 }
 
 const CANONICAL_EVENTS = [

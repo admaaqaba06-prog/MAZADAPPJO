@@ -50,7 +50,9 @@ Pure — no Firestore, no network — so every branch is testable.
 
 ### `functions/emailCopy.js`
 
-`emailFor(event, data, lang)`. The structure already supports this — `CONTENT`, `secondChanceContent`, `BRAND` and `detailRows` each need an English sibling. `BRAND`'s legal identity (name, registration, address) stays Arabic-primary with English labels, since the entity's registered name is not translated.
+`emailFor(event, data, lang)`. The structure already supports this — `CONTENT`, `secondChanceContent`, `BRAND` and `detailRows` each need an English sibling. `BRAND`'s legal identity (registered name, registration number) is stated identically in both languages with only its **labels** translated, since a registered name is not translated.
+
+**Exception, approved 2026-08-02 (Task 2):** the ADDRESS and OPENING HOURS *are* translated, not just labelled. They were originally scoped as identity; they are not. They are wayfinding prose — an English-only reader cannot navigate by Arabic script, and «مقابل حبيبة» / "opposite Habibah" is how Amman addressing genuinely works, so a label alone leaves the value unusable. `BRAND.addressEn` / `BRAND.hoursEn` therefore exist alongside the Arabic. This is a deliberate deviation from "only labels translate", not drift. Related: both languages' hours and address use **Western digits** per `ARABIC_UI_DIGITS`, and `hoursEn` is 24-hour to match every deadline the module renders.
 
 ### `notify()` in `functions/index.js`
 

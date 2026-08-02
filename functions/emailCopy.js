@@ -43,26 +43,41 @@ function normalizeLang(lang) {
  * (below) change language, plus the address and opening hours, which are prose
  * rather than identity.
  */
-const BRAND = {
+const BRAND = Object.freeze({
   nameAr: 'مزاد جو',
   nameEn: 'MAZAD JO',
   legalName: 'Al Hani Commercial Brokerage LLC',
   legalNameAr: 'شركة الهاني للوساطة التجارية ذ.م.م',
   registration: '200213982',
-  addressAr: 'عمّان — شارع المدينة المنورة — مجمع سعد ٤ — مقابل حبيبة',
+  // Western digits, per ARABIC_UI_DIGITS — «مجمع سعد ٤» and «من ١٠ … ٧» carried
+  // Arabic-Indic ones, which contradicted the app-wide policy and had simply
+  // never been rendered anywhere to be noticed.
+  addressAr: 'عمّان — شارع المدينة المنورة — مجمع سعد 4 — مقابل حبيبة',
+  // The address and the opening hours are the ONE deliberate exception to
+  // "identity does not translate": they are wayfinding prose, not identity, and
+  // an English-only reader cannot navigate by Arabic script. "Opposite Habibah"
+  // is how Amman addressing genuinely works. Approved 2026-08-02; recorded in
+  // docs/superpowers/specs/2026-08-02-global-language-design.md.
   addressEn: 'Amman — Al Madina Al Munawara Street — Saad 4 Complex — opposite Habibah',
-  hoursAr: 'من ١٠ صباحاً حتى ٧ مساءً، السبت إلى الخميس',
-  hoursEn: '10:00 AM to 7:00 PM, Saturday to Thursday',
+  hoursAr: 'من 10 صباحاً حتى 7 مساءً، السبت إلى الخميس',
+  // 24-hour, matching every deadline this module renders.
+  hoursEn: '10:00 to 19:00, Saturday to Thursday',
   supportPhone: '+962781444899',
   paymentsPhone: '+962785446498',
   termsUrl: `${SITE}/terms`,
   privacyUrl: `${SITE}/privacy`,
   site: SITE,
-};
+});
 
-/** The words WRAPPING the identity — these are the only part that translates. */
-const BRAND_LABELS = {
-  ar: {
+/**
+ * The words WRAPPING the identity — these are the only part that translates.
+ *
+ * Frozen, and so is BRAND: `brandFor()` hands the SAME label object to every
+ * caller, so an assignment to `email.brand.labels.registration` would otherwise
+ * follow every later email out of the door.
+ */
+const BRAND_LABELS = Object.freeze({
+  ar: Object.freeze({
     registration: 'السجل التجاري',
     address: 'العنوان',
     hours: 'ساعات العمل',
@@ -70,8 +85,8 @@ const BRAND_LABELS = {
     payments: 'الدفعات',
     terms: 'الشروط والأحكام',
     privacy: 'سياسة الخصوصية',
-  },
-  en: {
+  }),
+  en: Object.freeze({
     registration: 'Commercial registration',
     address: 'Address',
     hours: 'Working hours',
@@ -79,8 +94,8 @@ const BRAND_LABELS = {
     payments: 'Payments',
     terms: 'Terms & Conditions',
     privacy: 'Privacy Policy',
-  },
-};
+  }),
+});
 
 /**
  * The footer block for one language: every original BRAND key is kept (nothing
@@ -232,8 +247,12 @@ const CONTENT_AR = {
   },
   payment_due: {
     subject: (t) => `دفعة مستحقة — ${t}`,
+    // «قبل الموعد أدناه» pointed at a row that is not always there: the deadline
+    // row renders only when the payload carries `paymentDeadlineAt`, and the
+    // payment_due / auction_won emit sites send `paymentHours` instead — which
+    // this module does not read. The email promised a deadline it did not show.
     heading: 'دفعة مستحقة',
-    intro: 'مزادك بانتظار الدفع. أكمل التحويل عبر كليك قبل الموعد أدناه، ثم ارفع صورة الإيصال في التطبيق.',
+    intro: 'مزادك بانتظار الدفع. أكمل التحويل عبر كليك قبل انتهاء المهلة، ثم ارفع صورة الإيصال في التطبيق.',
     cta: 'ادفع الآن',
   },
   payment_reminder: {
@@ -281,7 +300,11 @@ const CONTENT_AR = {
   order_refunded: {
     subject: (t) => `تم استرداد مبلغ ${t}`,
     heading: 'تم استرداد المبلغ',
-    intro: 'تمت إعادة المبلغ إلى محفظتك. قد يستغرق ظهوره في حسابك البنكي بضعة أيام عمل.',
+    // The bank sentence used to be unconditional — «قد يستغرق ظهوره في حسابك
+    // البنكي بضعة أيام عمل» — which told the customer money was on its way to
+    // their bank when it was not: wallet→bank only happens if they REQUEST a
+    // withdrawal, and that request is admin-approved (approveWithdrawal).
+    intro: 'تمت إعادة المبلغ إلى محفظتك. إذا قمت بسحبه فقد يستغرق ظهوره في حسابك البنكي بضعة أيام عمل.',
     cta: 'عرض الطلب',
   },
   membership_rejected: {
@@ -331,13 +354,16 @@ const CONTENT_EN = {
   auction_won: {
     subject: (t) => `Congratulations! You won ${t}`,
     heading: 'Congratulations, you won 🎉',
-    intro: 'You won the auction. Complete payment within the deadline below and the item is reserved for you.',
+    // NOT "the deadline below" — the deadline row renders only when the payload
+    // carries `paymentDeadlineAt`, and this event's emit site sends
+    // `paymentHours`, which this module does not read. See payment_due.
+    intro: 'You won the auction. Complete payment within the payment window and the item is reserved for you.',
     cta: 'Complete payment',
   },
   payment_due: {
     subject: (t) => `Payment due — ${t}`,
     heading: 'Payment due',
-    intro: 'Your auction is awaiting payment. Send the transfer by CliQ before the deadline below, then upload a photo of the receipt in the app.',
+    intro: 'Your auction is awaiting payment. Send the transfer by CliQ before the payment window closes, then upload a photo of the receipt in the app.',
     cta: 'Pay now',
   },
   payment_reminder: {
@@ -386,6 +412,9 @@ const CONTENT_EN = {
     subject: (t) => `Refund issued for ${t}`,
     heading: 'Refund issued',
     intro: 'The amount has been returned to your wallet. If you withdraw it, it may take a few working days to appear in your bank account.',
+    // The conditional is load-bearing in BOTH languages: wallet→bank happens
+    // only on an admin-approved withdrawal request, so an unconditional promise
+    // would be false. Pinned by test.
     cta: 'View order',
   },
   membership_rejected: {
@@ -401,9 +430,13 @@ const CONTENT_EN = {
     cta: 'Resend proof',
   },
   account_banned: {
-    subject: () => 'Your account has been restricted',
-    heading: 'Account restricted',
-    intro: 'Bidding from your account has been restricted. If you believe this is a mistake, contact support on the numbers below.',
+    // "temporarily", matching the Arabic «مؤقتاً». English must not be harsher
+    // than Arabic about a punitive consequence. Stating the ACTUAL length (48
+    // hours vs 3 months) was considered and deferred: this layer is not given
+    // the ban duration, so it is plumbing rather than a wording change.
+    subject: () => 'Your account has been temporarily restricted',
+    heading: 'Account temporarily restricted',
+    intro: 'Bidding from your account has been temporarily restricted. If you believe this is a mistake, contact support on the numbers below.',
     cta: null,
   },
   ban_lifted: {
