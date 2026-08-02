@@ -159,10 +159,21 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Top-left: LIVE badge + (when relevant) your winning/outbid state */}
         <div className="absolute top-2.5 left-2.5 rtl:left-auto rtl:right-2.5 z-10 flex flex-col items-start gap-1.5">
-          {d.status === 'live' && (
+          {/* Three distinct states share this corner. Red + pulse = a clock is
+              running. Amber, no pulse = open for bids but the clock has not
+              started (the first bid starts it). Brand orange #E85D04 is
+              deliberately NOT used here — it is the CTA colour, so an orange
+              badge would not read as a state. */}
+          {d.status === 'live' && !awaitingFirstBid && (
             <div className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
               <span>{isAr ? 'مباشر' : 'LIVE'}</span>
+            </div>
+          )}
+          {d.status === 'live' && awaitingFirstBid && (
+            <div className="bg-amber-400 text-zinc-900 font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
+              <Zap className="w-2.5 h-2.5 fill-zinc-900" />
+              <span>{isAr ? 'كن أول مزايد' : 'BE THE FIRST'}</span>
             </div>
           )}
           {!itemIsEnded && hasUserBid && (
@@ -215,7 +226,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
         {!itemIsEnded && (
           <div className="absolute inset-0 z-10 hidden lg:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <span className="bg-[#E85D04]/95 backdrop-blur-xs text-white text-xs font-black px-4 py-2 rounded-full shadow-lg">
-              {d.status === 'live' ? (isAr ? '🔴 دخول البث' : '🔴 Join live') : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
+              {awaitingFirstBid
+                ? (isAr ? '⚡ كن أول مزايد' : '⚡ Be the first to bid')
+                : d.status === 'live'
+                  ? (isAr ? '🔴 دخول البث' : '🔴 Join live')
+                  : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
             </span>
           </div>
         )}
