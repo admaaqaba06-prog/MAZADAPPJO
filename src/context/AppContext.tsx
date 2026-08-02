@@ -11,7 +11,7 @@ import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
-import { blockedApprovalReason } from '../utils/approvalGuard';
+import { blockedApprovalReason, approvalClockFields } from '../utils/approvalGuard';
 import { restoreLocalAuction } from '../utils/localAuctionRollback';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
 import { filterSimulated } from '../utils/simVisibility';
@@ -4173,8 +4173,15 @@ const fetchIP = async () => {
       isApproved: true,
       approvedAt: serverTimestamp(),
       approvedBy: currentUser?.id || 'admin-system',
-      endTime: freshEndTime, // Respect the real duration (e.g. 6 hours)
-      endsAt: endsAtTimestamp,
+      // The countdown, re-baselined from the lot's real `duration` (e.g. 6
+      // hours) so it starts when the lot actually goes live. A first_bid lot
+      // gets NEITHER key: the helper returns {} for one, so the write carries no
+      // endTime and no endsAt and the lot goes live clockless — the server
+      // stamps both on the first bid. Omitting keys does not clear them:
+      // updateDoc merges, so an endTime already on the doc survives this write.
+      // Same rule as scheduledAuctionOpener and the autoRelistSweep child in
+      // functions/index.js.
+      ...approvalClockFields(targetA, freshEndTime, endsAtTimestamp),
       ...priceReset
     }).then(() => {
       // Tell the seller their listing passed the gate — ONLY once the status
@@ -4214,9 +4221,13 @@ const fetchIP = async () => {
       return { success: false };
     });
 
+    // Local optimistic flip. The clock spread is the same helper call on the same
+    // `targetA`, so local state and the write agree by construction: on a
+    // first_bid lot neither one sets endTime/endsAt, and the row keeps whatever
+    // it already had rather than showing a countdown until the snapshot lands.
     setAuctions(prev => prev.map(a => {
       if (a.id === id) {
-        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, endTime: freshEndTime, endsAt: endsAtTimestamp, ...priceReset };
+        return { ...a, status: 'live', approvalStatus: 'approved', isApproved: true, ...approvalClockFields(targetA, freshEndTime, endsAtTimestamp), ...priceReset };
       }
       return a;
     }));
