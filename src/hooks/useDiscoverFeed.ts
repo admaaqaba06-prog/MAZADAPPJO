@@ -9,9 +9,11 @@
 // collection; `refresh()` re-pulls page 1 (which clears the pill).
 //
 // This hook is Firestore-bound: it composes the already-tested pure helpers in
-// `discoverQuery` (`PAGE`, `isDisplayableLive`, `hasNewerDrops`) and the shared
-// field mapping in `liveAuctionFields`, so it carries no new pure logic of its
-// own (no dedicated unit test — see the plan's Task 3).
+// `discoverQuery` (`PAGE`, `ALL_TAB_FIRST_BID_LIMIT`, `isDisplayableLive`,
+// `hasNewerDrops` — see discoverQuery.test.ts), `isAwaitingFirstBidDoc` from
+// `auctionPhase` (auctionPhase.test.ts), and the shared field mapping in
+// `liveAuctionFields`, so it carries no new pure logic of its own and has no
+// dedicated unit test — vitest here is node-only, so a hook cannot be rendered.
 //
 // Consumed by `DiscoveryFeedView` (the Discover grid) and `LiveStreamView`
 // (the live room's own ending-soon list).

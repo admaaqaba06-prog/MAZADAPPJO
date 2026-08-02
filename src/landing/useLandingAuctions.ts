@@ -11,10 +11,15 @@ export interface LandingAuction {
   currentPrice: number;
   totalBids: number;
   /**
-   * Epoch millis, or null for a clockless (awaiting-first-bid) lot — inherited
-   * from `AuctionItem.endTime`. `curateLandingAuctions` filters those out with a
-   * `typeof === 'number'` check before mapping, so a curated LandingAuction
-   * always holds a number; `mapToLandingAuction` on its own does not guarantee it.
+   * Epoch millis. NOT the mapped `AuctionItem.endTime`: this file never goes
+   * through `resolveEndTime` — `fetchLandingAuctions` spreads the RAW doc
+   * (`{ id, ...d.data() }`), so `mapToLandingAuction` copies the raw field
+   * straight across. A clockless (awaiting-first-bid) lot stores neither
+   * `endTime` nor `endsAt`, so this lands as `undefined` (absent), not `null`;
+   * the `| null` here is only reachable if a doc literally stores null.
+   * `curateLandingAuctions` filters both out with a `typeof === 'number'` check
+   * before mapping, so a curated LandingAuction always holds a number;
+   * `mapToLandingAuction` on its own does not guarantee it.
    */
   endTime: number | null;
   imageUrl: string;

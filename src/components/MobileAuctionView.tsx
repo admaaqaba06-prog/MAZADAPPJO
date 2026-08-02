@@ -474,16 +474,28 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 </div>
               </div>
               <div className="text-end">
+                {/* E3 first_bid: a clockless lot renders "Awaiting first bid"
+                    in the value slot, so the label must NOT say "Ends in" —
+                    same Status/الحالة swap DesktopLiveAuctionLayout uses. */}
                 <span className="block text-[10px] font-bold text-[#999] uppercase tracking-wide">
-                  {isAr ? 'ينتهي خلال' : 'Ends in'}
+                  {isAwaitingFirstBid(activeAuction)
+                    ? (isAr ? 'الحالة' : 'Status')
+                    : (isAr ? 'ينتهي خلال' : 'Ends in')}
                 </span>
+                {/* The value slot is sized for `01:23:45`; the awaiting label
+                    is a ~18-char sentence that wraps out of the row at 16px,
+                    so ONLY that state gets a smaller size. */}
                 <CountdownPill
                   variant="mobile"
                   endTime={activeAuction?.endTime}
                   status={activeAuction?.status}
                   isAr={isAr}
                   awaitingFirstBid={isAwaitingFirstBid(activeAuction)}
-                  className="text-[16px] font-black text-[#F05123] tabular-nums"
+                  className={
+                    isAwaitingFirstBid(activeAuction)
+                      ? 'text-[13px] font-black text-[#F05123] leading-tight'
+                      : 'text-[16px] font-black text-[#F05123] tabular-nums'
+                  }
                 />
               </div>
             </div>

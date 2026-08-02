@@ -83,10 +83,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
   // per-card setInterval (~80 concurrent timers with a full grid). Only
-  // ticks while the card is on/near screen (useIsOnScreen); returns null
-  // when there's no endTime, in which case we preserve today's frozen
-  // 120s placeholder display exactly as before (a separate correctness
-  // fix, out of scope for this perf pass).
+  // ticks while the card is on/near screen (useIsOnScreen); returns null when
+  // there's no endTime. A clockless lot therefore never shows a fabricated
+  // countdown: an awaiting-first-bid lot is caught earlier by the `⏳ Awaiting
+  // first bid` badge (which pre-empts the countdown badge entirely), and any
+  // other null case falls through to the countdown badge, which renders `—`.
   const cardRef = useRef<HTMLDivElement>(null);
   const isOnScreen = useIsOnScreen(cardRef);
   // Live-on-visible (Slice 1): only the paginated path (`liveEnabled`) opts in;
@@ -419,7 +420,12 @@ export const DiscoveryFeedView: React.FC = () => {
   const categoryMatches = React.useMemo<string[] | null>(() => {
     if (selectedCategory === 'All') return null;
     const pill = categoriesList.find((c) => c.name === selectedCategory);
-    return pill?.match ?? [selectedCategory];
+    // A chip may declare `match: null` DELIBERATELY ('Be the First') meaning
+    // "no category clause". `??` would collapse that to `['Be the First']` — a
+    // category value nothing is stored under. Only a chip with no entry at all
+    // falls back to its own name.
+    if (!pill) return [selectedCategory];
+    return pill.match;
   }, [selectedCategory, categoriesList]);
 
   // "Be the First" is a special chip: it switches the hook to a dedicated query
@@ -471,7 +477,10 @@ export const DiscoveryFeedView: React.FC = () => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
+    // Both grid lengths are here as the "grid grew, re-observe" trigger: in
+    // first_bid mode liveList.length is permanently 0, so on its own it is a
+    // dead signal for the mode that carries all the inventory.
+  }, [feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length, firstBidList.length]);
 
   // Infinite-scroll sentinel for the Algolia SEARCH results (Slice 2). Same
   // IntersectionObserver pattern as the paginated feed above: when the sentinel
@@ -593,10 +602,14 @@ export const DiscoveryFeedView: React.FC = () => {
   // get a plain quick fade — no cascade replay on every keystroke.
   const gridStaggerDone = React.useRef(false);
   React.useEffect(() => {
-    if (!showSkeleton && (liveList.length > 0 || upcomingList.length > 0)) {
+    // firstBidList MUST be in this condition: on the "Be the First" chip
+    // useDiscoverFeed deliberately leaves liveList/upcomingList empty, so
+    // without it the flag could never latch there and every repaint (e.g. a
+    // search keystroke re-filtering the grid) would replay the cascade.
+    if (!showSkeleton && (liveList.length > 0 || firstBidList.length > 0 || upcomingList.length > 0)) {
       gridStaggerDone.current = true;
     }
-  }, [showSkeleton, liveList.length, upcomingList.length]);
+  }, [showSkeleton, liveList.length, firstBidList.length, upcomingList.length]);
 
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
