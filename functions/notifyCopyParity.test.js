@@ -78,8 +78,13 @@ const DATA_VARIANTS = [
 
 describe('n8n build-messages.js mirrors functions/notify.js copyFor (drift guard)', () => {
   it('both cover exactly the same 20 events', () => {
-    const appSrc = fs.readFileSync(path.join(__dirname, 'notify.js'), 'utf8');
-    const appKeys = eventKeys(sliceCopyFor(appSrc));
+    // The app-side Arabic map moved out of notify.js and into messageCopy.js
+    // (one bilingual source; notify.js now re-exports copyFor). The n8n node
+    // still hand-mirrors it, so this comparison still guards drift — it just
+    // reads the map where the map now lives. The behavioural assertions below
+    // are unchanged and are what actually proves the Arabic did not move.
+    const appSrc = fs.readFileSync(path.join(__dirname, 'messageCopy.js'), 'utf8');
+    const appKeys = eventKeys(appSrc);
     const n8nKeys = eventKeys(n8nCopyForSrc);
     expect(appKeys).toEqual(CANONICAL_EVENTS);
     expect(n8nKeys).toEqual(CANONICAL_EVENTS);
