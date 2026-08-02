@@ -170,3 +170,244 @@ describe('n8n build-messages.js mirrors functions/notify.js copyFor (drift guard
     expect(a).toEqual({ type: 'info', title: 'تنبيه', description: '' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Forwarding.
+//
+// The drift guard above compares the two copyFor implementations. Both were
+// correct on 2026-07-29 and the branded bilingual email STILL shipped dead for
+// four days, because nothing asserted that the node reads what the server sent.
+// So every assertion below runs the real node through runNode() and looks at
+// what it EMITS. Source-text matching is not used: `/email_content/` passes on a
+// comment, which is exactly the hole that let this ship.
+// ---------------------------------------------------------------------------
+
+/** Values chosen so their presence in the output can only have come from the payload. */
+const SENTINEL = {
+  subject: 'ZZ-SUBJECT-ZZ',
+  preheader: 'ZZ-PREHEADER-ZZ',
+  heading: 'ZZ-HEADING-ZZ',
+  intro: 'ZZ-INTRO-ZZ',
+  rowLabel: 'ZZ-ROW-LABEL-ZZ',
+  rowValue: 'ZZ-ROW-VALUE-ZZ',
+  ctaLabel: 'ZZ-CTA-LABEL-ZZ',
+  ctaUrl: 'https://example.test/zz-cta-url',
+  wa: 'ZZ-WHATSAPP-BODY-ZZ',
+};
+
+/**
+ * A REAL `emailFor()` render — brand, labels and lang exactly as the server
+ * builds them — with the copy fields swapped for sentinels. Real brand so the
+ * footer assertions test the shipped values; sentinel copy so a passing
+ * assertion cannot be satisfied by the node's own Arabic.
+ */
+function serverContent(lang = 'ar', over = {}) {
+  const real = emailFor('payment_due', {
+    auctionTitle: 'ساعة رولكس', orderRef: 'MZ-000123',
+    totalDue: 105, paymentDeadlineAt: 1785000000000, orderId: 'ORD-1',
+  }, lang);
+  return {
+    ...real,
+    subject: SENTINEL.subject,
+    preheader: SENTINEL.preheader,
+    heading: SENTINEL.heading,
+    intro: SENTINEL.intro,
+    details: [{ label: SENTINEL.rowLabel, value: SENTINEL.rowValue }],
+    cta: { label: SENTINEL.ctaLabel, url: SENTINEL.ctaUrl },
+    ...over,
+  };
+}
+
+// The node's OWN Arabic for payload()'s event, i.e. what it emits when it
+// ignores the payload. Every "not its own" assertion is against this.
+const LOCAL = n8nCopyFor('auction_won', payload());
+
+describe('the node forwards the email the server rendered', () => {
+  it('emits the server subject, not its own title', () => {
+    const out = runNode(payload({ email_content: serverContent('ar') }));
+    expect(out.subject).toBe(SENTINEL.subject);
+    expect(out.subject).not.toBe(LOCAL.title);
+  });
+
+  it('renders heading, intro and preheader from the server content', () => {
+    const { html } = runNode(payload({ email_content: serverContent('ar') }));
+    expect(html).toContain(SENTINEL.heading);
+    expect(html).toContain(SENTINEL.intro);
+    expect(html).toContain(SENTINEL.preheader);
+    // The node's own copy must be nowhere in the message it forwarded.
+    expect(html).not.toContain(LOCAL.title);
+    expect(html).not.toContain(LOCAL.description);
+  });
+
+  it('renders the detail rows the server sent', () => {
+    const ec = serverContent('ar', {
+      details: [
+        { label: 'ZZ-L1-ZZ', value: 'ZZ-V1-ZZ' },
+        { label: 'ZZ-L2-ZZ', value: 'ZZ-V2-ZZ' },
+      ],
+    });
+    const { html } = runNode(payload({ email_content: ec }));
+    for (const s of ['ZZ-L1-ZZ', 'ZZ-V1-ZZ', 'ZZ-L2-ZZ', 'ZZ-V2-ZZ']) expect(html).toContain(s);
+  });
+
+  it('renders the CTA label AND its url', () => {
+    const { html } = runNode(payload({ email_content: serverContent('ar') }));
+    expect(html).toContain(SENTINEL.ctaLabel);
+    expect(html).toContain(`href="${SENTINEL.ctaUrl}"`);
+    // The hardcoded button the legacy template ships must not survive alongside it.
+    expect(html).not.toContain('افتح التطبيق');
+  });
+
+  it('renders the brand footer — legal name, registration, address, hours — each with its label', () => {
+    const ec = serverContent('ar');
+    const { html } = runNode(payload({ email_content: ec }));
+    const b = ec.brand;
+    for (const v of [b.legal, b.registration, b.address, b.hours,
+      b.labels.registration, b.labels.address, b.labels.hours]) {
+      expect(typeof v).toBe('string');
+      expect(v.length).toBeGreaterThan(0);
+      expect(html).toContain(v);
+    }
+  });
+
+  it('renders the support numbers the account_banned copy points at ("the numbers below")', () => {
+    const ec = serverContent('ar');
+    const { html } = runNode(payload({ email_content: ec }));
+    expect(html).toContain(ec.brand.supportPhone);
+    expect(html).toContain(ec.brand.paymentsPhone);
+  });
+
+  it('renders the ENGLISH brand values for an English email', () => {
+    const ec = serverContent('en');
+    const { html } = runNode(payload({ email_content: ec }));
+    expect(html).toContain('Al Hani Commercial Brokerage LLC');
+    expect(html).toContain('Commercial registration');
+    expect(html).toContain('Working hours');
+    expect(html).not.toContain('السجل التجاري');
+  });
+});
+
+describe('the node forwards the WhatsApp text the server rendered', () => {
+  it('emits wa_text verbatim, not its own render', () => {
+    const out = runNode(payload({ wa_text: SENTINEL.wa }));
+    expect(out.waText).toBe(SENTINEL.wa);
+    expect(out.waText).not.toContain(LOCAL.title);
+  });
+
+  it('treats an empty wa_text as absent rather than sending a blank message', () => {
+    const out = runNode(payload({ wa_text: '   ' }));
+    expect(out.waText.trim().length).toBeGreaterThan(0);
+    expect(out.waText).toContain(LOCAL.title);
+  });
+});
+
+describe('direction and language follow the server content, not the template', () => {
+  it('an Arabic email is rtl/ar and right-aligned', () => {
+    const { html } = runNode(payload({ email_content: serverContent('ar') }));
+    expect(html).toContain('dir="rtl"');
+    expect(html).toContain('lang="ar"');
+    expect(html).toContain('text-align:right');
+    expect(html).not.toContain('text-align:left');
+  });
+
+  // n8n/build-messages.js hardcoded `<html dir="rtl" lang="ar">`, so an English
+  // email would have rendered right-to-left and been announced as Arabic by a
+  // screen reader. The direction is a property of the content, not of the node.
+  it('an English email is ltr/en and left-aligned', () => {
+    const { html } = runNode(payload({ email_content: serverContent('en') }));
+    expect(html).toContain('dir="ltr"');
+    expect(html).toContain('lang="en"');
+    expect(html).toContain('text-align:left');
+    expect(html).not.toContain('dir="rtl"');
+    expect(html).not.toContain('lang="ar"');
+    expect(html).not.toContain('text-align:right');
+  });
+});
+
+describe('the local render survives as the fallback', () => {
+  // Not optional, and not decoration: with the copy moved server-side, a bad or
+  // missing render would otherwise mean a blank subject and a blank body landing
+  // in a customer's inbox. This is the mitigation the spec names.
+  it('renders its own subject, html and waText when the server sent neither field', () => {
+    const out = runNode(payload());
+    expect(out.subject).toBe(LOCAL.title);
+    expect(out.html).toContain(LOCAL.title);
+    // HTML-escaped in the body (the description quotes the lot title), verbatim
+    // in the WhatsApp text.
+    expect(out.html).toContain(LOCAL.description.replace(/"/g, '&quot;'));
+    expect(out.waText).toBe(`${LOCAL.title}\n${LOCAL.description}`);
+  });
+
+  it('still keeps a copyFor of its own to fall back to', () => {
+    // Behavioural: an unknown event proves the map is consulted, not just present.
+    const out = runNode(payload({ event: 'does_not_exist' }));
+    expect(out.subject).toBe('تنبيه');
+    expect(out.html).toContain('تنبيه');
+  });
+
+  // A malformed render is the realistic failure — a deploy half-lands, a field
+  // is renamed, the payload is truncated. None of these may throw (a throw in
+  // the Code node kills BOTH channels) and none may send an empty email.
+  const MALFORMED = [
+    ['null', null],
+    ['an empty object', {}],
+    ['a string', 'oops'],
+    ['an array', []],
+    ['a subject with no heading', { subject: 'x', details: [], cta: null, brand: {} }],
+    ['a heading with no subject', { heading: 'x', details: [], cta: null, brand: {} }],
+    ['an empty subject', { subject: '  ', heading: 'x', brand: {} }],
+  ];
+  for (const [label, ec] of MALFORMED) {
+    it(`does not throw and does not send a blank when email_content is ${label}`, () => {
+      let out;
+      expect(() => { out = runNode(payload({ email_content: ec })); }).not.toThrow();
+      expect(out.subject).toBe(LOCAL.title);
+      expect(out.html).toContain(LOCAL.title);
+      expect(out.html.length).toBeGreaterThan(200);
+    });
+  }
+
+  it('omits the rows table entirely when details is empty, missing or all-blank', () => {
+    const blank = [{ label: 'ZZ-BLANK-LABEL-ZZ', value: '   ' }, { label: 'ZZ-NULL-LABEL-ZZ', value: null }];
+    for (const details of [[], undefined, null, 'nonsense', blank]) {
+      const { html } = runNode(payload({ email_content: serverContent('ar', { details }) }));
+      expect(html).toContain(SENTINEL.heading);   // it still rendered the email
+      // A row rendered present-but-blank claims information the email does not
+      // have, which is worse than the row being absent.
+      expect(html).not.toContain('<tr><td style="padding:10px 14px');
+      expect(html).not.toContain('ZZ-BLANK-LABEL-ZZ');
+      expect(html).not.toContain('ZZ-NULL-LABEL-ZZ');
+    }
+  });
+
+  it('omits the button entirely when cta is null or incomplete', () => {
+    for (const cta of [null, undefined, {}, { label: 'x' }, { url: 'https://x.test' }]) {
+      const { html } = runNode(payload({ email_content: serverContent('ar', { cta }) }));
+      expect(html).toContain(SENTINEL.heading);
+      expect(html).not.toContain('<a href=');
+    }
+  });
+});
+
+describe('everything interpolated from the payload is escaped', () => {
+  // Auction titles are user-supplied and reach the heading, the subject, the
+  // rows and the CTA. Unescaped, one lot title is an HTML injection into every
+  // recipient's inbox.
+  const XSS = '<script>alert("x")</script>';
+  it('escapes heading, intro, rows, cta and brand', () => {
+    const ec = serverContent('ar', {
+      heading: XSS,
+      intro: XSS,
+      preheader: XSS,
+      details: [{ label: XSS, value: XSS }],
+      cta: { label: XSS, url: `https://x.test/"${XSS}` },
+      brand: { ...serverContent('ar').brand, legal: XSS, address: XSS, hours: XSS },
+    });
+    const { html } = runNode(payload({ email_content: ec, name: XSS }));
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('alert("x")');
+    expect(html).toContain('&lt;script&gt;');
+    // The quote must not be able to close the href and start a new attribute.
+    expect(html).not.toMatch(/href="https:\/\/x\.test\/"/);
+  });
+});

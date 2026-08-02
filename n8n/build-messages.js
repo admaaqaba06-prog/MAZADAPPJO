@@ -1,13 +1,22 @@
-// Build Messages — single choke point for WhatsApp + email copy.
+// Build Messages — forwards the message Cloud Functions already rendered.
 //
-// MIRRORS functions/notify.js -> copyFor() in the mazadjo repo. Same wording,
-// same interpolation. If you edit copy there, edit it here too (and vice versa).
-// Covers all 20 events in CHANNEL_POLICY; unknown events fall back to the same
-// safe default as the app ({ title: 'تنبيه', description: '' }).
+// Cloud Functions render every customer message in the RECIPIENT'S LANGUAGE and
+// put it on the payload as `email_content` (a structure: subject / preheader /
+// heading / intro / details / cta / brand) and `wa_text` (a string). This node
+// templates that structure; it does not decide wording. Copy changes therefore
+// ship from the repo with tests and review, and need no paste here.
 //
-// Channel gating is NOT decided here — Cloud Functions already resolved it and
-// sends `channels` on the payload. We only surface it as sendWhatsapp/sendEmail
-// so the two IF nodes downstream stay dumb.
+// `copyFor` and `buildHtml` below stay as the FALLBACK, used only when the
+// payload carries no usable render — a half-landed deploy, a renamed field, a
+// truncated body. Without them the server would be a single point of failure
+// for message copy and a bad render would post a blank subject and a blank body
+// into a customer's inbox. They mirror functions/messageCopy.js verbatim and
+// functions/notifyCopyParity.test.js fails the moment they drift, so if you
+// edit copy there, edit it here too.
+//
+// Channel gating is NOT decided here either — Cloud Functions already resolved
+// it and sends `channels` on the payload. We only surface it as sendWhatsapp/
+// sendEmail so the two IF nodes downstream stay dumb.
 
 function copyFor(event, data) {
   const d = data || {};
@@ -60,8 +69,118 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-// Plain RTL table layout — no external CSS/images, so it renders the same in
-// Gmail/Outlook/Apple Mail without a fetch.
+// --- small guards, so a malformed payload degrades instead of throwing. A
+// throw in this Code node aborts the run before EITHER send node, so one bad
+// field would silence WhatsApp as well as email.
+function obj(v) {
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+function txt(v) {
+  return v == null ? '' : String(v);
+}
+function has(v) {
+  return txt(v).trim() !== '';
+}
+
+/**
+ * The server's render, or null to fall back to the local one.
+ *
+ * `subject` and `heading` must both be real strings: they are the two fields
+ * with no sane default — a blank subject line is the most visible thing an
+ * email can get wrong, and a body with no heading is not a message. Everything
+ * else (details, cta, brand) is optional and degrades inside the template.
+ */
+function usableContent(v) {
+  const ec = obj(v);
+  const ok = (s) => typeof s === 'string' && s.trim() !== '';
+  return ok(ec.subject) && ok(ec.heading) ? ec : null;
+}
+
+/**
+ * Template for the server-rendered content. Same table-based, inline-styled,
+ * fetch-free shape as buildHtml below, so it renders identically in Gmail,
+ * Outlook and Apple Mail.
+ *
+ * DIRECTION IS A PROPERTY OF THE CONTENT, NOT OF THIS FILE. buildHtml is
+ * hardcoded rtl/ar because it only ever renders this node's own Arabic; here
+ * the server may hand us either language, and an English email laid out
+ * right-to-left and announced as Arabic by a screen reader is visibly broken.
+ *
+ * Every interpolated value is escaped. Lot titles are user-supplied and reach
+ * the heading, the rows and the CTA; unescaped, one title is an HTML injection
+ * into every recipient's inbox.
+ */
+function buildHtmlFromContent(ec, name) {
+  const en = ec.lang === 'en';
+  const dir = en ? 'ltr' : 'rtl';
+  const align = en ? 'left' : 'right';
+  const brand = obj(ec.brand);
+  const labels = obj(brand.labels);
+  // The ONLY wording this template owns is the greeting; everything else is the
+  // server's. Keep it that way.
+  const greet = has(name)
+    ? (en ? `Hi ${esc(name)},` : `مرحباً ${esc(name)}،`)
+    : (en ? 'Hi,' : 'مرحباً،');
+  const brandName = has(brand.name) ? esc(brand.name) : (en ? 'MAZAD JO' : 'مزاد جو');
+
+  // Absent rows render NOTHING — a present-but-blank row claims information the
+  // email does not have, which is worse than the row being missing.
+  const rows = (Array.isArray(ec.details) ? ec.details : []).filter((r) => r && has(r.value));
+  const rowsHtml = rows.length
+    ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;border:1px solid #eef0f2;border-radius:8px;">'
+      + rows.map((r) => '<tr>'
+        + `<td style="padding:10px 14px;font-family:Tahoma,Arial,sans-serif;font-size:13px;color:#8a9099;text-align:${align};white-space:nowrap;">${esc(r.label)}</td>`
+        + `<td style="padding:10px 14px;font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#111111;text-align:${align};">${esc(r.value)}</td>`
+        + '</tr>').join('')
+      + '</table>'
+    : '';
+
+  // Same rule for the button: no label or no url means no button, never a dead one.
+  const cta = obj(ec.cta);
+  const ctaHtml = has(cta.label) && has(cta.url)
+    ? `<a href="${esc(cta.url)}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">${esc(cta.label)}</a>`
+    : '';
+
+  // Footer identity. The labels are the server's translations; the legal name
+  // and registration number are not translated — they are what is filed.
+  const line = (label, value) => (has(value)
+    ? `<div style="margin:0 0 4px;">${has(label) ? `${esc(label)}: ` : ''}${esc(value)}</div>`
+    : '');
+  const footer = (has(brand.legal) ? `<div style="margin:0 0 6px;color:#6b7280;">${esc(brand.legal)}</div>` : '')
+    + line(labels.registration, brand.registration)
+    + line(labels.address, brand.address)
+    + line(labels.hours, brand.hours)
+    // account_banned tells the recipient to "contact support on the numbers
+    // below" and carries no CTA — without these lines that sentence is a lie.
+    + line(labels.support, brand.supportPhone)
+    + line(labels.payments, brand.paymentsPhone);
+
+  return `<!doctype html><html dir="${dir}" lang="${en ? 'en' : 'ar'}"><head><meta charset="utf-8">`
+    + '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f5f6f8;">'
+    // Inbox preview text. Without it clients scrape the first visible markup,
+    // which is how the header ends up as the preview line.
+    + `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(ec.preheader)}</div>`
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f6f8;padding:24px 12px;">'
+    + '<tr><td align="center">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">'
+    + `<tr><td style="padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;text-align:${align};">${brandName}</td></tr>`
+    + `<tr><td style="padding:24px;font-family:Tahoma,Arial,sans-serif;text-align:${align};">`
+    + `<p style="margin:0 0 12px;font-size:14px;color:#555555;">${greet}</p>`
+    + `<h1 style="margin:0 0 12px;font-size:20px;line-height:1.4;color:#111111;">${esc(ec.heading)}</h1>`
+    + (has(ec.intro) ? `<p style="margin:0 0 22px;font-size:15px;line-height:1.8;color:#333333;">${esc(ec.intro)}</p>` : '')
+    + rowsHtml
+    + ctaHtml
+    + '</td></tr>'
+    + `<tr><td style="padding:16px 24px;background:#fafbfc;border-top:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:12px;color:#8a9099;text-align:${align};">`
+    + footer
+    + '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+}
+
+// FALLBACK ONLY. Plain RTL table layout — no external CSS/images, so it renders
+// the same in Gmail/Outlook/Apple Mail without a fetch. Hardcoded rtl/ar is
+// correct here: this only ever renders copyFor's Arabic.
 function buildHtml(c, name) {
   const greet = name ? `مرحباً ${esc(name)}،` : 'مرحباً،';
   const body = esc(c.description);
@@ -91,7 +210,12 @@ for (const item of $input.all()) {
   const phone = String(b.phone || '').replace(/[^0-9]/g, '');
   const email = String(b.email || '').trim();
   const name = b.name || '';
-  const waText = c.description ? `${c.title}\n${c.description}` : c.title;
+  // Prefer what the server rendered in the recipient's language; fall back to
+  // the local render only when it did not send a usable one.
+  const ec = usableContent(b.email_content);
+  const waText = has(b.wa_text)
+    ? b.wa_text
+    : (c.description ? `${c.title}\n${c.description}` : c.title);
 
   out.push({
     json: {
@@ -105,8 +229,8 @@ for (const item of $input.all()) {
       title: c.title,
       description: c.description,
       waText,
-      subject: c.title,
-      html: buildHtml(c, name),
+      subject: ec ? ec.subject : c.title,
+      html: ec ? buildHtmlFromContent(ec, name) : buildHtml(c, name),
     },
   });
 }
