@@ -132,9 +132,17 @@ function buildAlgoliaRecord(id, data) {
  * longer indexable (transitioned out of live/upcoming, or flagged simulated);
  * otherwise upsert the record. A transient Algolia error is LOGGED and
  * swallowed — never thrown — so a failed index write can't spin the Cloud
- * Function into an infinite retry storm (the per-minute backfill/next-write
- * reconciles it). deleteObject on a non-existent objectID is a safe Algolia
- * no-op.
+ * Function into an infinite retry storm.
+ *
+ * ⚠️ Swallowing means NOTHING retries it automatically: there is no scheduled
+ * Algolia reconciler anywhere in `functions/` (the pubsub schedules that do
+ * exist — the auction opener/closer, relist/payment/health sweeps — never touch
+ * the index). A dropped write is reconciled only by the NEXT write to that
+ * auction doc re-firing this trigger, or by a human running
+ * `node scripts/algolia-backfill.cjs` (a manual CLI, not deployed). A lot that
+ * stops being written to can therefore sit stale in the index indefinitely.
+ *
+ * deleteObject on a non-existent objectID is a safe Algolia no-op.
  */
 // Only registered in the Cloud Functions runtime (where firebase-functions +
 // algoliasearch resolve); skipped in the pure-helper unit-test env.

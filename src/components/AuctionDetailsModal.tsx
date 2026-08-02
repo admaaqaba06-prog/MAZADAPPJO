@@ -125,7 +125,16 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
       return;
     }
     const endsAtMs = auction.endTime;
-    const interval = setInterval(() => {
+    // Ticked ONCE up front as well as on the interval (same idiom as
+    // ReelsDesktopRightPanel): `timeLeftStr` is state that persists across the
+    // awaiting→started flip. When the first bid lands with the modal open, the
+    // badge swaps to the Clock icon + `font-mono` on that render while
+    // `timeLeftStr` still holds "Awaiting first bid"; the leading tick
+    // overwrites it in the same commit's effect pass instead of up to a second
+    // later, so the mismatch lasts one frame rather than one tick. Same reason
+    // a freshly opened lot no longer paints the '00:00:00' initial state for
+    // that second.
+    const tick = () => {
       const remainingSecs = Math.max(0, Math.floor((endsAtMs - serverNow()) / 1000));
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
@@ -137,7 +146,9 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
       } else {
         setTimeLeftStr(isAr ? 'منتهي' : 'Ended');
       }
-    }, 1000);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
   }, [auction, isAr]);
@@ -192,9 +203,12 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                 bid" / "بانتظار أول مزايدة" by the effect above for that state, so
                 a Clock icon beside it would label a no-clock sentence with a
                 clock, and `font-mono` would set an ~18-char sentence in digit
-                type (especially wide in Arabic). Same awaiting-ONLY swap the
-                other first_bid surfaces use — the countdown branch keeps its
-                icon and class strings byte-for-byte. */}
+                type (especially wide in Arabic). The swap is awaiting-ONLY —
+                the countdown branch below keeps its Clock icon and class
+                strings byte-for-byte. The Hourglass is local to THIS surface;
+                the other first_bid surfaces avoid the clock their own way
+                (DiscoveryFeedView: a `Zap` "BE THE FIRST" badge plus a `⏳`
+                emoji pill; auction/CountdownPill: a bare label, no icon). */}
             <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} bg-black/55 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2`}>
               {awaitingFirstBid ? (
                 <>
