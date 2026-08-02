@@ -240,6 +240,7 @@ const created = (overrides: Partial<DropPayloadInput> = {}) =>
   buildDropPayload(
     {
       productName: 'iPhone 15 Pro',
+      specs: [],
       startingPrice: '250',
       channel: 'misc',
       durationSeconds: 1800,

@@ -314,7 +314,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Scrollable Auction cards list */}
-        <div className="flex-1 p-3 space-y-2.5 overflow-y-auto no-scrollbar">
+        <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
           {liveAuctions.map((item) => {
             const isActive = item.id === activeAuction.id;
             const itemPrice = item.currentPrice;
@@ -408,7 +408,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
       {/* ======================================================================
           COLUMN 2: MAIN HERO VIDEO AND INFO (Flex-1)
           ====================================================================== */}
-      <main className="flex-1 h-full flex flex-col p-4 overflow-y-auto no-scrollbar" id="desktop-live-main-content">
+      <main className="flex-1 h-full flex flex-col p-4 overflow-y-auto" id="desktop-live-main-content">
         
         {/* Top Header Row (Back to Live Auctions & Breadcrumbs) */}
         <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 select-none shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
@@ -680,7 +680,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           COLUMN 3: RIGHT PANEL (360px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[360px] bg-white border-l border-gray-200 shrink-0 h-full p-4 gap-4 overflow-y-auto no-scrollbar"
+        className="hidden lg:flex flex-col w-[360px] bg-white border-l border-gray-200 shrink-0 h-full p-4 gap-4 overflow-y-auto"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-new-aside-panel"
       >
@@ -1134,7 +1134,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {isAr ? 'عرض الكل' : 'See all'}
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
+          <div className="flex-1 overflow-y-auto space-y-2">
             {(() => {
               // The bids subcollection feed (recentBids) may be empty/not
               // loaded even when the auction doc says bids exist — fall back
@@ -1201,7 +1201,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           </div>
 
           {/* Messages list */}
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 mb-2 flex flex-col justify-end">
+          <div className="flex-1 overflow-y-auto space-y-3 mb-2 flex flex-col justify-end">
             {activeComments && activeComments.length > 0 ? (
               activeComments.map((msg) => (
                 <div key={msg.id} className="flex items-start gap-2.5">

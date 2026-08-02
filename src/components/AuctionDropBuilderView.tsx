@@ -338,6 +338,7 @@ export default function AuctionDropBuilderView() {
         buildDropPayload(
           {
             productName: form.productName,
+            specs,
             startingPrice: form.startingPrice,
             channel: form.channel,
             durationSeconds: form.durationSeconds,
@@ -450,6 +451,7 @@ export default function AuctionDropBuilderView() {
       const payload = buildDropPayload(
         {
           productName: form.productName,
+          specs,
           startingPrice: form.startingPrice,
           channel: form.channel,
           durationSeconds: form.durationSeconds,
