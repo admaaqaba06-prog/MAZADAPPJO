@@ -239,6 +239,53 @@ describe('the node forwards the email the server rendered', () => {
     expect(html).not.toContain(LOCAL.description);
   });
 
+  // Present is not enough. The preheader is INBOX PREVIEW text: it exists to be
+  // scraped by the client and never shown. Un-hidden, it opens every email with
+  // a duplicate of the sentence the reader already saw in their inbox list — and
+  // the previous version of this test, which only asserted presence, was green
+  // for exactly that markup.
+  it('keeps the preheader hidden, and renders it exactly once', () => {
+    const { html } = runNode(payload({ email_content: serverContent('ar') }));
+    const m = html.match(/<div style="([^"]*)">ZZ-PREHEADER-ZZ<\/div>/);
+    expect(m, 'the preheader must sit in its own styled <div>').not.toBeNull();
+    expect(m[1]).toContain('display:none');
+    expect(m[1]).toContain('max-height:0');
+    expect(m[1]).toContain('overflow:hidden');
+    expect(html.split(SENTINEL.preheader).length - 1).toBe(1);
+  });
+
+  // The greeting is the ONE string this template still owns, so nothing else
+  // would notice it disappearing.
+  it('renders the greeting in the language of the content', () => {
+    const ar = runNode(payload({ email_content: serverContent('ar'), name: 'ZZ-NAME-ZZ' }));
+    expect(ar.html).toContain('مرحباً ZZ-NAME-ZZ،');
+    const en = runNode(payload({ email_content: serverContent('en'), name: 'ZZ-NAME-ZZ' }));
+    expect(en.html).toContain('Hi ZZ-NAME-ZZ,');
+    // With no recipient name the email still opens on a greeting, not a blank line.
+    for (const [lang, greet] of [['ar', 'مرحباً،'], ['en', 'Hi,']]) {
+      const out = runNode(payload({ email_content: serverContent(lang), name: '' }));
+      expect(out.html).toContain(greet);
+    }
+  });
+
+  it('renders brand.name as the header — and no header at all when it is absent', () => {
+    const base = serverContent('ar').brand;
+    const named = runNode(payload({
+      email_content: serverContent('ar', { brand: { ...base, name: 'ZZ-BRAND-NAME-ZZ' } }),
+    }));
+    expect(named.html).toContain('ZZ-BRAND-NAME-ZZ');
+
+    // No invented default: the greeting is the only wording this template owns,
+    // and a hardcoded brand name would be the second — and the wrong one on the
+    // day the brand is renamed.
+    for (const name of ['', '   ', null, undefined]) {
+      const { html } = runNode(payload({ email_content: serverContent('ar', { brand: { ...base, name } }) }));
+      expect(html).toContain(SENTINEL.heading);   // it still rendered the email
+      expect(html).not.toContain('مزاد جو');
+      expect(html).not.toContain('MAZAD JO');
+    }
+  });
+
   it('renders the detail rows the server sent', () => {
     const ec = serverContent('ar', {
       details: [
@@ -299,15 +346,69 @@ describe('the node forwards the WhatsApp text the server rendered', () => {
     expect(out.waText.trim().length).toBeGreaterThan(0);
     expect(out.waText).toContain(LOCAL.title);
   });
+
+  // `wa_text` goes STRAIGHT into the WhatsApp send body, so it has to be
+  // type-guarded exactly as `email_content` is. Accepting it on truthiness alone
+  // delivers "[object Object]" to a customer.
+  const NON_STRING_WA = [
+    ['an object', { a: 1 }],
+    ['an array', ['x', 'y']],
+    ['a number', 42],
+    ['a boolean', true],
+  ];
+  for (const [label, wa] of NON_STRING_WA) {
+    it(`falls back to the local render when wa_text is ${label}`, () => {
+      const out = runNode(payload({ wa_text: wa }));
+      expect(typeof out.waText).toBe('string');
+      expect(out.waText).not.toContain('[object Object]');
+      expect(out.waText).toBe(`${LOCAL.title}\n${LOCAL.description}`);
+    });
+  }
 });
+
+/** The style attribute of every `<td>` that carries one. */
+function styledCells(html) {
+  return Array.from(html.matchAll(/<td style="([^"]*)"/g)).map((m) => m[1]);
+}
+
+/**
+ * Alignment has to be on EVERY cell, not merely somewhere in the document.
+ *
+ * Gmail and Outlook.com strip `<html>`/`<head>`/`<body>`, so the per-cell inline
+ * `text-align` is the only alignment that survives there: a cell that loses it
+ * falls back to the client's default and the email renders half-aligned. The
+ * previous version of this assertion only required `text-align:right` to appear
+ * *somewhere*, so deleting it from the footer — or from any single cell — left
+ * the suite green.
+ */
+function expectAlignedThroughout(html, align) {
+  const other = align === 'left' ? 'right' : 'left';
+  const cells = styledCells(html);
+  // header, body, row label, row value, footer — for serverContent()'s one row.
+  expect(cells.length).toBe(5);
+  expect(cells.filter((s) => !s.includes(`text-align:${align};`))).toEqual([]);
+  expect(cells.filter((s) => s.includes(`text-align:${other};`))).toEqual([]);
+}
+
+/**
+ * What Gmail and Outlook.com actually hand to their renderer: the document-level
+ * tags removed. Anything set only on `<html>` is gone by this point.
+ */
+function stripDocumentTags(html) {
+  return html
+    .replace(/<!doctype[^>]*>/i, '')
+    .replace(/<head[\s\S]*?<\/head>/i, '')
+    .replace(/<\/?(?:html|body)[^>]*>/gi, '');
+}
 
 describe('direction and language follow the server content, not the template', () => {
   it('an Arabic email is rtl/ar and right-aligned', () => {
     const { html } = runNode(payload({ email_content: serverContent('ar') }));
     expect(html).toContain('dir="rtl"');
     expect(html).toContain('lang="ar"');
-    expect(html).toContain('text-align:right');
-    expect(html).not.toContain('text-align:left');
+    expect(html).not.toContain('dir="ltr"');
+    expect(html).not.toContain('lang="en"');
+    expectAlignedThroughout(html, 'right');
   });
 
   // n8n/build-messages.js hardcoded `<html dir="rtl" lang="ar">`, so an English
@@ -317,10 +418,75 @@ describe('direction and language follow the server content, not the template', (
     const { html } = runNode(payload({ email_content: serverContent('en') }));
     expect(html).toContain('dir="ltr"');
     expect(html).toContain('lang="en"');
-    expect(html).toContain('text-align:left');
     expect(html).not.toContain('dir="rtl"');
     expect(html).not.toContain('lang="ar"');
-    expect(html).not.toContain('text-align:right');
+    expectAlignedThroughout(html, 'left');
+  });
+
+  // Gmail and Outlook.com are the two biggest clients and both strip <html>,
+  // <head> and <body>. dir/lang set only on <html> therefore reach nobody there.
+  it('dir and lang survive a client that strips <html>, <head> and <body>', () => {
+    for (const [lang, dir] of [['ar', 'rtl'], ['en', 'ltr']]) {
+      const { html } = runNode(payload({ email_content: serverContent(lang) }));
+      const rendered = stripDocumentTags(html);
+      expect(rendered).not.toContain('<html');
+      expect(rendered).not.toContain('<body');
+      expect(rendered).not.toContain('<head');
+      expect(rendered, `dir lost when <html> is stripped (${lang})`).toContain(`dir="${dir}"`);
+      expect(rendered, `lang lost when <html> is stripped (${lang})`).toContain(`lang="${lang}"`);
+      expectAlignedThroughout(rendered, lang === 'en' ? 'left' : 'right');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NO PREFERENCE MEANS ARABIC.
+//
+// The audience is Jordanian; English is opt-in. So the Arabic shell has to be
+// what an unresolved, missing or junk `lang` produces. Written as `ec.lang !==
+// 'ar'` the template does the opposite — every payload whose language the server
+// failed to resolve gets an English LTR email — and no test noticed, because
+// nothing here ever sent a payload without a valid `lang`.
+// ---------------------------------------------------------------------------
+describe('a missing or unrecognised lang falls back to ARABIC, never English', () => {
+  const MISSING = Symbol('absent');
+  const NO_PREFERENCE = [
+    ['the key is absent', MISSING],
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty string', ''],
+    ['whitespace', '  '],
+    ['an unrecognised code', 'fr'],
+    ['a locale rather than a code', 'en-US'],
+    ['mis-cased', 'EN'],
+    ['a number', 7],
+    ['an object', {}],
+  ];
+
+  for (const [label, lang] of NO_PREFERENCE) {
+    it(`renders the Arabic RTL shell when ${label}`, () => {
+      const ec = serverContent('ar');
+      if (lang === MISSING) delete ec.lang; else ec.lang = lang;
+      const { html } = runNode(payload({ email_content: ec }));
+
+      expect(html).toContain('dir="rtl"');
+      expect(html).toContain('lang="ar"');
+      expect(html).not.toContain('dir="ltr"');
+      expect(html).not.toContain('lang="en"');
+      expectAlignedThroughout(html, 'right');
+      // The greeting is the one string the template picks by language, so it is
+      // the tell that the Arabic branch — not just the Arabic payload — ran.
+      expect(html).toContain('مرحباً');
+      expect(html).not.toContain('Hi ');
+    });
+  }
+
+  it("and 'en' — spelled exactly — is still honoured", () => {
+    const ec = serverContent('ar');
+    ec.lang = 'en';
+    const { html } = runNode(payload({ email_content: ec }));
+    expect(html).toContain('dir="ltr"');
+    expect(html).toContain('lang="en"');
   });
 });
 
@@ -393,21 +559,130 @@ describe('everything interpolated from the payload is escaped', () => {
   // Auction titles are user-supplied and reach the heading, the subject, the
   // rows and the CTA. Unescaped, one lot title is an HTML injection into every
   // recipient's inbox.
-  const XSS = '<script>alert("x")</script>';
-  it('escapes heading, intro, rows, cta and brand', () => {
+  //
+  // Every field gets its OWN tagged payload, so this pins esc() PER FIELD. A
+  // single shared XSS string only proves that *something* was escaped — dropping
+  // esc() from brand.name, from a footer label, or from the registration number
+  // survived that version of the test.
+  const xss = (tag) => `<script>alert("${tag}")</script>`;
+  const escaped = (tag) => `&lt;script&gt;alert(&quot;${tag}&quot;)&lt;/script&gt;`;
+
+  it('escapes every field it interpolates — copy, cta, brand identity and footer labels', () => {
+    const base = serverContent('ar').brand;
     const ec = serverContent('ar', {
-      heading: XSS,
-      intro: XSS,
-      preheader: XSS,
-      details: [{ label: XSS, value: XSS }],
-      cta: { label: XSS, url: `https://x.test/"${XSS}` },
-      brand: { ...serverContent('ar').brand, legal: XSS, address: XSS, hours: XSS },
+      heading: xss('HEADING'),
+      intro: xss('INTRO'),
+      preheader: xss('PREHEADER'),
+      details: [{ label: xss('ROWLABEL'), value: xss('ROWVALUE') }],
+      cta: { label: xss('CTALABEL'), url: `https://x.test/"${xss('CTAURL')}` },
+      brand: {
+        ...base,
+        name: xss('BRANDNAME'),
+        legal: xss('LEGAL'),
+        registration: xss('REGISTRATION'),
+        address: xss('ADDRESS'),
+        hours: xss('HOURS'),
+        supportPhone: xss('SUPPORTPHONE'),
+        paymentsPhone: xss('PAYMENTSPHONE'),
+        labels: {
+          registration: xss('LBLREG'),
+          address: xss('LBLADDR'),
+          hours: xss('LBLHOURS'),
+          support: xss('LBLSUPPORT'),
+          payments: xss('LBLPAYMENTS'),
+        },
+      },
     });
-    const { html } = runNode(payload({ email_content: ec, name: XSS }));
+    const { html } = runNode(payload({ email_content: ec, name: xss('NAME') }));
+
     expect(html).not.toContain('<script>');
-    expect(html).not.toContain('alert("x")');
-    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('</script>');
+
+    const FIELDS = [
+      'HEADING', 'INTRO', 'PREHEADER', 'ROWLABEL', 'ROWVALUE', 'CTALABEL', 'NAME',
+      'BRANDNAME', 'LEGAL', 'REGISTRATION', 'ADDRESS', 'HOURS',
+      'SUPPORTPHONE', 'PAYMENTSPHONE',
+      'LBLREG', 'LBLADDR', 'LBLHOURS', 'LBLSUPPORT', 'LBLPAYMENTS',
+    ];
+    for (const tag of FIELDS) {
+      // Rendered (so the escaping is actually reachable) AND escaped.
+      expect(html, `${tag} was not rendered escaped`).toContain(escaped(tag));
+      expect(html, `${tag} was rendered raw`).not.toContain(xss(tag));
+    }
     // The quote must not be able to close the href and start a new attribute.
     expect(html).not.toMatch(/href="https:\/\/x\.test\/"/);
+  });
+
+  // esc() stops a quote closing the attribute; it says nothing about the SCHEME.
+  // The server builds this url from SITE today — the allowlist is what keeps a
+  // live `javascript:` link out of an inbox if that ever changes.
+  it('renders no button at all when cta.url is not http(s)', () => {
+    const HOSTILE = [
+      'javascript:alert(1)',
+      '  javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      '\tjavascript:alert(1)',
+      'data:text/html,PHNjcmlwdD4=',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      '//evil.test/x',
+      'mazad-jo.com/x',
+    ];
+    for (const url of HOSTILE) {
+      const { html } = runNode(payload({
+        email_content: serverContent('ar', { cta: { label: SENTINEL.ctaLabel, url } }),
+      }));
+      expect(html).toContain(SENTINEL.heading);      // the email still rendered
+      expect(html, `rendered a link for ${url}`).not.toContain('<a href=');
+      expect(html).not.toContain(SENTINEL.ctaLabel); // no dead label either
+    }
+  });
+
+  it('still renders an http(s) cta.url', () => {
+    for (const url of ['https://mazad-jo.com/x', 'http://mazad-jo.com/x', 'HTTPS://mazad-jo.com/x']) {
+      const { html } = runNode(payload({
+        email_content: serverContent('ar', { cta: { label: SENTINEL.ctaLabel, url } }),
+      }));
+      expect(html).toContain(`href="${url}"`);
+      expect(html).toContain(SENTINEL.ctaLabel);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The checked-in workflow export must not drift from the node source.
+//
+// `n8n/webhook-receiver-v2.json` is what the README calls the recoverable /
+// rollback copy, and it is what gets re-imported into n8n Cloud. When it carried
+// the PRE-forwarder node body, importing it silently reverted this entire task
+// and no test noticed — a stale copy living outside the repo is the exact
+// failure this project exists to end.
+// ---------------------------------------------------------------------------
+describe('the workflow export embeds the same node source', () => {
+  const WF_PATH = path.join(__dirname, '..', 'n8n', 'webhook-receiver-v2.json');
+  const workflow = JSON.parse(fs.readFileSync(WF_PATH, 'utf8'));
+  const buildNode = workflow.nodes.find((n) => n.name === 'Build Messages');
+
+  it('has a Build Messages Code node', () => {
+    expect(buildNode, 'Build Messages node missing from the export').toBeTruthy();
+    expect(buildNode.type).toBe('n8n-nodes-base.code');
+    expect(typeof buildNode.parameters.jsCode).toBe('string');
+  });
+
+  it('its jsCode is identical to n8n/build-messages.js', () => {
+    // If this fails: re-embed the file into the export (they are ONE artefact,
+    // committed together). Do not edit the JSON by hand and do not relax this.
+    expect(buildNode.parameters.jsCode.trimEnd()).toBe(n8nSrc.trimEnd());
+  });
+
+  it('the embedded copy really forwards — not just matches by string', () => {
+    // eslint-disable-next-line no-new-func
+    const out = new Function('$input', buildNode.parameters.jsCode)({
+      all: () => [{ json: { body: payload({ email_content: serverContent('ar'), wa_text: SENTINEL.wa }) } }],
+    })[0].json;
+    expect(out.subject).toBe(SENTINEL.subject);
+    expect(out.waText).toBe(SENTINEL.wa);
+    expect(out.html).toContain(SENTINEL.heading);
+    expect(out.html).not.toContain(LOCAL.title);
   });
 });

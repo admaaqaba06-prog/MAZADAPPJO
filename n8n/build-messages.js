@@ -111,17 +111,23 @@ function usableContent(v) {
  * into every recipient's inbox.
  */
 function buildHtmlFromContent(ec, name) {
+  // NO PREFERENCE MEANS ARABIC. English is opt-in and must be spelled exactly:
+  // a missing, null or unrecognised `lang` renders the Arabic RTL shell. The
+  // comparison is deliberately `=== 'en'` and not `!== 'ar'` — the second form
+  // sends an English email to every recipient whose language the server failed
+  // to resolve, which is the majority of this audience.
   const en = ec.lang === 'en';
   const dir = en ? 'ltr' : 'rtl';
+  const lg = en ? 'en' : 'ar';
   const align = en ? 'left' : 'right';
   const brand = obj(ec.brand);
   const labels = obj(brand.labels);
   // The ONLY wording this template owns is the greeting; everything else is the
-  // server's. Keep it that way.
+  // server's. Keep it that way — see the header row below, which is omitted
+  // rather than filled with a brand name this file invented.
   const greet = has(name)
     ? (en ? `Hi ${esc(name)},` : `مرحباً ${esc(name)}،`)
     : (en ? 'Hi,' : 'مرحباً،');
-  const brandName = has(brand.name) ? esc(brand.name) : (en ? 'MAZAD JO' : 'مزاد جو');
 
   // Absent rows render NOTHING — a present-but-blank row claims information the
   // email does not have, which is worse than the row being missing.
@@ -136,9 +142,15 @@ function buildHtmlFromContent(ec, name) {
     : '';
 
   // Same rule for the button: no label or no url means no button, never a dead one.
+  // The url additionally has to be http(s). esc() stops a quote closing the
+  // attribute but says nothing about the SCHEME, so without this a payload
+  // carrying `javascript:` (or `data:`) would render as a live link in the
+  // recipient's client. The server builds this url from SITE today; the
+  // allowlist is what keeps that true if it ever stops being.
   const cta = obj(ec.cta);
-  const ctaHtml = has(cta.label) && has(cta.url)
-    ? `<a href="${esc(cta.url)}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">${esc(cta.label)}</a>`
+  const ctaUrl = /^https?:\/\//i.test(txt(cta.url).trim()) ? txt(cta.url).trim() : '';
+  const ctaHtml = has(cta.label) && ctaUrl
+    ? `<a href="${esc(ctaUrl)}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">${esc(cta.label)}</a>`
     : '';
 
   // Footer identity. The labels are the server's translations; the legal name
@@ -155,16 +167,31 @@ function buildHtmlFromContent(ec, name) {
     + line(labels.support, brand.supportPhone)
     + line(labels.payments, brand.paymentsPhone);
 
-  return `<!doctype html><html dir="${dir}" lang="${en ? 'en' : 'ar'}"><head><meta charset="utf-8">`
+  // Absent brand name renders NO header row — the same rule as the detail rows
+  // and the button. A hardcoded default here would be a second string this
+  // template owns, and it would be the wrong one the day the brand is renamed.
+  const headerHtml = has(brand.name)
+    ? `<tr><td style="padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;text-align:${align};">${esc(brand.name)}</td></tr>`
+    : '';
+
+  // DIRECTION HAS TO SURVIVE SANITISING. Gmail and Outlook.com strip <html>,
+  // <head> and <body> before rendering, so `dir`/`lang` set only on <html> are
+  // simply gone in the two biggest clients — leaving an English email with its
+  // inline text-align but an RTL base direction and no language for a screen
+  // reader. Both attributes are therefore repeated on body-level elements (the
+  // wrapper div and the outer table) that survive that strip.
+  return `<!doctype html><html dir="${dir}" lang="${lg}"><head><meta charset="utf-8">`
     + '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
     + '<body style="margin:0;padding:0;background:#f5f6f8;">'
+    + `<div dir="${dir}" lang="${lg}" style="margin:0;padding:0;">`
     // Inbox preview text. Without it clients scrape the first visible markup,
-    // which is how the header ends up as the preview line.
+    // which is how the header ends up as the preview line. It MUST stay hidden:
+    // un-hidden it repeats the preview sentence at the top of every email.
     + `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(ec.preheader)}</div>`
-    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f6f8;padding:24px 12px;">'
+    + `<table role="presentation" dir="${dir}" lang="${lg}" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f6f8;padding:24px 12px;">`
     + '<tr><td align="center">'
-    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">'
-    + `<tr><td style="padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;text-align:${align};">${brandName}</td></tr>`
+    + `<table role="presentation" dir="${dir}" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">`
+    + headerHtml
     + `<tr><td style="padding:24px;font-family:Tahoma,Arial,sans-serif;text-align:${align};">`
     + `<p style="margin:0 0 12px;font-size:14px;color:#555555;">${greet}</p>`
     + `<h1 style="margin:0 0 12px;font-size:20px;line-height:1.4;color:#111111;">${esc(ec.heading)}</h1>`
@@ -175,7 +202,7 @@ function buildHtmlFromContent(ec, name) {
     + `<tr><td style="padding:16px 24px;background:#fafbfc;border-top:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:12px;color:#8a9099;text-align:${align};">`
     + footer
     + '</td></tr>'
-    + '</table></td></tr></table></body></html>';
+    + '</table></td></tr></table></div></body></html>';
 }
 
 // FALLBACK ONLY. Plain RTL table layout — no external CSS/images, so it renders
@@ -213,7 +240,11 @@ for (const item of $input.all()) {
   // Prefer what the server rendered in the recipient's language; fall back to
   // the local render only when it did not send a usable one.
   const ec = usableContent(b.email_content);
-  const waText = has(b.wa_text)
+  // Type-guarded the same way `email_content` is: `wa_text` goes STRAIGHT into
+  // the WhatsApp send body, so a number, array or object forwarded on
+  // truthiness alone would deliver "[object Object]" to a customer. Anything
+  // that is not a non-blank string falls back to the local render.
+  const waText = (typeof b.wa_text === 'string' && b.wa_text.trim() !== '')
     ? b.wa_text
     : (c.description ? `${c.title}\n${c.description}` : c.title);
 

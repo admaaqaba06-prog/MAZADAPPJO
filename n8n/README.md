@@ -40,6 +40,20 @@ forwards `wa_text` as-is. It decides **no wording**. Direction and `lang` come
 from `email_content.lang`, so an English email renders `dir="ltr" lang="en"`
 and left-aligned rather than being forced RTL.
 
+Three rules the template enforces on what it is handed:
+
+- **No preference means Arabic.** English is opt-in and spelled exactly `'en'`;
+  a missing, null or unrecognised `lang` renders the Arabic RTL shell. The
+  audience is Jordanian — an unresolved language must not fall to English.
+- **`dir`/`lang` are set on a body-level wrapper as well as on `<html>`.** Gmail
+  and Outlook.com strip `<html>`, `<head>` and `<body>` before rendering, so
+  attributes set only on the document element reach nobody in the two biggest
+  clients. Alignment is inline on every cell for the same reason.
+- **`wa_text` is used only when it is a string**, and `cta.url` only when it is
+  `http:`/`https:`. Anything else falls back to the local render / renders no
+  button — a non-string `wa_text` would send `[object Object]` to a customer,
+  and `esc()` stops a quote closing the `href` but says nothing about the scheme.
+
 > **This paste is the last one needed for copy changes.** Wording, subjects,
 > detail rows, CTA labels and the footer all change in the repo from here on —
 > in review, with tests — and reach production on the next Functions deploy.
@@ -95,6 +109,25 @@ to `incoming`, activate.
 Prefer editing `build-messages.js` here, then paste into the `Build Messages`
 node (or PUT the workflow via the public API). Re-export after any UI edit so
 this copy does not drift.
+
+**`build-messages.js` and `webhook-receiver-v2.json` are one artefact — commit
+them together.** The export embeds the node body in
+`nodes[Build Messages].parameters.jsCode`, and re-importing the export is a
+supported recovery path, so a stale export silently reverts whatever the file
+says. `functions/notifyCopyParity.test.js` fails if the embedded copy is not
+byte-identical to the file, and separately runs the *embedded* copy to prove it
+still forwards. To re-embed after editing the file:
+
+```
+python3 - <<'PY'
+import json
+d = json.load(open('n8n/webhook-receiver-v2.json', encoding='utf-8'))
+src = open('n8n/build-messages.js', encoding='utf-8').read()
+next(n for n in d['nodes'] if n['name'] == 'Build Messages')['parameters']['jsCode'] = src
+open('n8n/webhook-receiver-v2.json', 'w', encoding='utf-8').write(
+    json.dumps(d, indent=2, ensure_ascii=False))
+PY
+```
 
 `build-messages.js` is a bare Code-node body: `$input` is injected and the file
 ends in a top-level `return out;`. It is therefore **not a module** — no
