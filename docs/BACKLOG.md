@@ -68,6 +68,20 @@ top-down from it wasted time on problems that no longer existed.
     but some of those sales are old and may be sitting unfulfilled. Deferred by MJ 2026-07-28 — no
     outreach for now. Worth pulling order age + status per seller before any push.
 
+27. **Every existing auction description is still fabricated.** The 2026-08-02 change (item 29) fixed
+    **creation only**. Of the 115 real auctions measured 2026-08-01, 13 carry `Premium Lot: {title}`
+    and 102 carry a pasted product name; **5 of the 13 are still `processing` in the Action Center**
+    (نضخات، العاب، مكبتج، اااااااا، علم), so MJ can write a real description at approval and no data
+    migration is needed. The other 8 are ended/completed/draft and moot. **The 102 are the live
+    problem** — they arrived through the WhatsApp/admin drop-builder path, which that change did not
+    touch, and they still render a duplicate of the title under `التفاصيل` on both surfaces.
+
+28. **Mobile's description guard is untrimmed.** `MobileAuctionView.tsx:525` gates on
+    `activeAuction?.description &&`, so a whitespace-only description renders a blank `<p>` under the
+    heading. Unreachable before 2026-08-02 (nothing could write a blank); **reachable now** — the
+    concierge path writes `''` by design. Desktop uses a trimmed guard. One-line fix, deliberately
+    left out of scope so mobile stayed untouched.
+
 15. ~~**`misc` lots are unfindable and mislabelled**~~ ✅ **Fixed 2026-07-26.** Two halves:
     `channelToCategory` sends the `misc` drop channel to the stored value `Fashion`, and no
     discovery chip matched it (chips were All / Cars / Real Estate / Phones / Watches /
@@ -166,6 +180,59 @@ top-down from it wasted time on problems that no longer existed.
     quota and both fail (happened 2026-07-31). A large deploy can silently drop individual
     functions on "Quota Exceeded" **while still printing `Deploy complete`**; re-list and retry by
     name.
+
+29. **Sellers now write their own descriptions, and nothing invents one** (Auction Description,
+    2026-08-02 — spec: `docs/superpowers/specs/2026-08-01-auction-description-design.md`).
+    Measured against production: of **115** real auctions, **13** carried the string
+    `Premium Lot: {title}`, **0** were empty, and the other **102** held pasted product names
+    (`iPhone 17 pro max`, `⌚ *Apple Watch Ultra* – مستعملة`). **Zero carried a real description.**
+    Mobile's `التفاصيل` section was never broken — it was faithfully rendering a duplicate of the
+    title. The cause was **capture, not display**: `ListingWizardView` (self-serve) had **no
+    description input at all** and fabricated one from the title; `SellView` (concierge) had a real
+    field but fell back to the product name when blank. Same pattern as the fabricated seller reviews
+    removed in PR #198 — the app inventing content to fill a gap.
+
+    Now: **required on the self-serve path** with a **20-character floor after trimming**
+    (`src/utils/listingDescription.ts`, one constant), a real textarea in the wizard, **both
+    fabrications deleted**, and a Details section on the desktop bidding screen (clamped to 4 lines
+    with a show-more gated on *measured* overflow). Mobile untouched.
+
+    **The floor guarantees length, not content.** `Samsung Galaxy S24 Ultra` is 24 characters and
+    clears 20. A `description !== title` check was considered and **rejected**: title-duplication is
+    the dominant production pattern (102/115), but those arrived through the WhatsApp/admin
+    drop-builder path, which is out of scope, while the wizard produced only the 13 fabrications now
+    deleted. A title-equality check in the wizard would guard a door the problem never came through.
+    Revisit once real submissions are visible.
+
+    **The concierge path writes `description: ''` on purpose — do not "clean it up".**
+    `DropBuilderView.tsx:263` calls `a.description.toLowerCase()` **unguarded** in the admin
+    lot-picker search, so the obvious refactor (`cDesc.trim() || undefined`) is a TypeError that
+    breaks admin item search. `''` is the only safe blank. The comment lives at the `SellView` line.
+
+    **`maxLength={1000}` on the textarea is the only cap that exists.** `firestore.rules` places
+    **no constraint at all** on `auctions.description` — the `size() <= 500` rule at
+    `firestore.rules:555` is **notifications**, not auctions. A rules-level cap is the real fix if
+    the write path ever matters.
+
+    **Desktop placement is deliberate and load-bearing.** The section was first built under the
+    product-info card in `<main>`; at `scrollTop: 0` a bidder saw a **~12px sliver of white card and
+    nothing else**, because `<main>` has only ~12px of slack (content box `100vh−96` vs stack
+    `100vh−108`; the `vh` terms cancel, so it holds at every window size) and the card adds ~152px.
+    The whole feature was below the fold on the highest-traffic screen. **MJ ruled: relocate into the
+    right `<aside>`**, which already scrolls independently — so `<main>` does not scroll at all, and
+    the reading order becomes seller → what it costs → what the lot *is* → history → chat. It sits
+    directly below `#desktop-bid-panel`; anything above it moves the bid controls at first paint.
+    The heading is `text-xs`, **not** `text-[12px]` — an arbitrary Tailwind value sets font-size only
+    and inherits `line-height: normal`, and Arabic faces run 15–35% taller, which risked clipping
+    `التفاصيل`. `text-xs` carries an explicit `line-height: 1rem`. Don't reintroduce either.
+
+    **`no-scrollbar` is a dead class repo-wide** — 0 occurrences in built CSS, 8 in source. Anyone
+    reaching for it to fix a scroll affordance is reaching for nothing.
+
+    **Evidence caveat worth keeping:** a built-CSS grep does **not** prove a component is wired to a
+    utility. Tailwind v4 scans non-ignored markdown, and the plan doc for this change contains
+    `line-clamp-3`/`line-clamp-4` in code blocks — so the class is emitted even with the component
+    gutted. Only mutation testing proves the wiring.
 
 ## 🚀 Queued projects (specced / scoped)
 
