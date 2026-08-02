@@ -13,9 +13,10 @@
  * (AppContext) — browsing cannot reach most of the inventory, searching can.
  * `useAdminAuctionSearch` creates no Firestore listeners and writes nothing.
  */
-import React, { useMemo, useState } from 'react';
-import { Star, Search, X, GripVertical, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Star, Search, X, GripVertical, Loader2, AlertTriangle } from 'lucide-react';
 import { Reorder } from 'motion/react';
+import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { AuctionItem } from '../../types';
 import { FEATURED_CAP, canPin, pin, unpin, reorder } from '../../utils/featuredRank';
 import { commitFeaturedOrder } from '../../services/featuredService';
@@ -23,8 +24,16 @@ import { useAdminAuctionSearch } from '../../hooks/useAdminAuctionSearch';
 import { db } from '../../services/firebase';
 
 export interface FeaturedSectionProps {
-  auctions: AuctionItem[];
   isAr: boolean;
+}
+
+/** The few fields a featured row renders. Read straight off the doc. */
+interface FeaturedRow {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  status: string;
+  featuredRank: number;
 }
 
 // Only a LIVE lot can be featured: the feed query filters status == 'live', so
@@ -34,30 +43,58 @@ function isPinnable(a: AuctionItem): boolean {
   return a?.status === 'live';
 }
 
-const FeaturedSection: React.FC<FeaturedSectionProps> = ({ auctions, isAr }) => {
+const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
   const [term, setTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Holds the dragged order for the moment between drop and the auctions
-  // subscription catching up, so a row does not snap back mid-write.
+  const [featured, setFeatured] = useState<FeaturedRow[]>([]);
+  // Holds the dragged order for the moment between drop and the subscription
+  // catching up, so a row does not snap back mid-write.
   const [pending, setPending] = useState<string[] | null>(null);
 
-  // Derived from the subscription every render — NOT local state. A write that
-  // fails simply never changes this, which IS the revert.
-  const featured = useMemo(
-    () =>
-      auctions
-        .filter((a: any) => typeof a?.featuredRank === 'number')
-        .sort((a: any, b: any) => a.featuredRank - b.featuredRank),
-    [auctions],
-  );
+  // Its OWN subscription, deliberately not the `auctions` array the rest of the
+  // dashboard uses: that one is capped at limit(100) against 241 production
+  // auctions, so a lot pinned via search from outside the newest-100 window
+  // would be invisible here — the counter would under-report, the cap could be
+  // exceeded, and two lots would end up claiming the same rank.
+  //
+  // NO status filter: a lot that ended while pinned must still be listed, or
+  // there is no way to unpin it. Ordering by a single field needs only the
+  // automatic index, so this adds no composite index.
+  useEffect(() => {
+    const q = query(
+      collection(db, 'auctions'),
+      where('featuredRank', '>', 0),
+      orderBy('featuredRank', 'asc'),
+      limit(FEATURED_CAP * 2),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: FeaturedRow[] = snap.docs.map((d) => {
+          const x = d.data() as any;
+          return {
+            id: d.id,
+            title: x.title || '',
+            thumbnailUrl: x.thumbnailUrl || x.imageUrl || '',
+            status: x.status || '',
+            featuredRank: x.featuredRank,
+          };
+        });
+        setFeatured(rows);
+      },
+      (e) => setError(e.message),
+    );
+    return unsub;
+  }, []);
+
   const currentIds = useMemo(() => featured.map((a) => a.id), [featured]);
   const shown = pending ?? currentIds;
   const byId = useMemo(() => {
-    const m: Record<string, AuctionItem> = {};
-    for (const a of auctions) m[a.id] = a;
+    const m: Record<string, FeaturedRow> = {};
+    for (const a of featured) m[a.id] = a;
     return m;
-  }, [auctions]);
+  }, [featured]);
 
   const applyOrder = async (nextIds: string[]) => {
     setError(null);
@@ -148,6 +185,19 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ auctions, isAr }) => 
                 <span className="flex-1 min-w-0 truncate text-[12px] font-extrabold text-gray-900" title={lot.title}>
                   {lot.title}
                 </span>
+                {/* A pin outlives nothing quietly: the feed filters status ==
+                    'live', so a lot that ended while pinned simply stops
+                    appearing. Flag it here so it can be cleared deliberately
+                    rather than sitting in the list looking active. */}
+                {lot.status !== 'live' && (
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1 text-[9.5px] font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md"
+                    title={isAr ? 'لم يعد مباشراً — لا يظهر في الاستكشاف' : 'No longer live — not shown on Discover'}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    {lot.status || (isAr ? 'غير معروف' : 'unknown')}
+                  </span>
+                )}
                 <button
                   onClick={() => void applyOrder(unpin(currentIds, id))}
                   className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"

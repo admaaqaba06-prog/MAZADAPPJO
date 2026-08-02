@@ -961,7 +961,7 @@ export const AdminDashboardView: React.FC = () => {
                 at the top of Our drops rather than in a seventh tab — the Wave 4
                 re-cut collapsed tabs deliberately. */}
             <div className="mb-4">
-              <FeaturedSection auctions={auctions} isAr={isAr} />
+              <FeaturedSection isAr={isAr} />
             </div>
             <OurDropsSection
               isAr={isAr}
