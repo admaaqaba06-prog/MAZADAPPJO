@@ -3,6 +3,7 @@
 // keeping them pure keeps the query shape testable without touching Firestore.
 
 import { AuctionItem } from '../types';
+import { FEATURED_CAP } from './featuredRank';
 
 /** Page size for the paginated Discover feeds. */
 export const PAGE = 24;
@@ -115,6 +116,47 @@ export function buildUpcomingFeedConstraints({
     startAfter: cursor ?? null,
     limit: PAGE,
   };
+}
+
+/**
+ * Build the constraint descriptor for admin-featured lots.
+ *
+ * `featuredRank > 0` plus `orderBy('featuredRank')` deliberately relies on
+ * Firestore excluding docs that lack the ordered field — an unfeatured lot has
+ * no `featuredRank` at all, so it cannot appear. That is the same exclusion that
+ * hid every first-bid lot from the live feed (#202); here it is the intent, and
+ * it is why no backfill onto existing docs is needed.
+ *
+ * Needs the composite index (status ASC, featuredRank ASC), which must be
+ * deployed BEFORE this query ships — a missing composite index fails the query
+ * outright.
+ *
+ * Deliberately un-scoped by category, matching the first-bid feed: featuring is
+ * an All / Be-the-First surface only.
+ */
+export function buildFeaturedFeedConstraints(): FeedConstraints {
+  return {
+    where: [
+      ['status', '==', 'live'],
+      ['featuredRank', '>', 0],
+    ],
+    orderBy: [['featuredRank', 'asc']],
+    startAfter: null,
+    limit: FEATURED_CAP,
+  };
+}
+
+/**
+ * Put featured lots at the head of a feed list, de-duplicated.
+ *
+ * The featured query and the page query are separate reads, so a featured lot is
+ * usually ALSO in the page — it must render once, at the top. Featured order is
+ * authoritative; the page keeps its own order below.
+ */
+export function mergeFeatured(base: AuctionItem[], featured: AuctionItem[]): AuctionItem[] {
+  if (featured.length === 0) return base;
+  const featuredIds = new Set(featured.map((x) => x.id));
+  return [...featured, ...base.filter((x) => !featuredIds.has(x.id))];
 }
 
 /**
