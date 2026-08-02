@@ -150,6 +150,58 @@ describe('a failed listing write is reported, not swallowed', () => {
     });
   });
 
+  /**
+   * The clock half of the approval write, asserted on the payload updateDoc
+   * actually received — `approvalClockFields` is unit-tested next door, this is
+   * the wiring: that approveListing spreads it, and that nothing further down
+   * the payload puts endTime/endsAt back.
+   *
+   * A first_bid lot's countdown starts on the FIRST BID (the server stamps
+   * endsAt in applyBidWrites). An approval that stamped one instead would give
+   * the lot a deadline nobody bid to start, hide the "Awaiting first bid" state
+   * (isAwaitingFirstBidDoc requires both fields absent) and hand
+   * scheduledAuctionCloser a time at which to settle it unsold.
+   */
+  it('approving a first_bid lot writes NEITHER endTime nor endsAt', async () => {
+    updateDoc.mockResolvedValue(undefined);
+    getDoc.mockResolvedValue({
+      exists: () => true,
+      id: 'lot-1',
+      data: () => ({ status: 'processing', startMode: 'first_bid', duration: 600, title: 'Clockless lot' }),
+    });
+    await withContext(async (ctx) => {
+      await ctx.approveListing('lot-1');
+      expect(updateDoc).toHaveBeenCalledTimes(1);
+      const payload = updateDoc.mock.calls[0][1];
+      // Absent keys, not undefined/null values: Firestore rejects `undefined`,
+      // and updateDoc merges by key, so an omitted key is the only way to write
+      // "no clock" without touching what the doc already holds.
+      expect('endTime' in payload).toBe(false);
+      expect('endsAt' in payload).toBe(false);
+      // The rest of the go-live write is unchanged.
+      expect(payload.status).toBe('live');
+      expect(payload.approvalStatus).toBe('approved');
+    });
+  });
+
+  it('approving a lot with no startMode still writes both clock keys', async () => {
+    // Every seller-wizard / concierge submission — no startMode is written on
+    // those paths — so this is the ordinary approval, unchanged.
+    updateDoc.mockResolvedValue(undefined);
+    getDoc.mockResolvedValue({
+      exists: () => true,
+      id: 'lot-1',
+      data: () => ({ status: 'processing', duration: 600, title: 'Normal lot' }),
+    });
+    await withContext(async (ctx) => {
+      await ctx.approveListing('lot-1');
+      const payload = updateDoc.mock.calls[0][1];
+      expect(typeof payload.endTime).toBe('number');
+      expect(payload.endTime).toBeGreaterThan(Date.now());
+      expect(payload.endsAt).toBeTruthy();
+    });
+  });
+
   it('refuses an already-settled lot AND reports the refusal', async () => {
     // The guard returns before any write. It has to report failure too, or the
     // dead lot is optimistically hidden and never comes back — the same

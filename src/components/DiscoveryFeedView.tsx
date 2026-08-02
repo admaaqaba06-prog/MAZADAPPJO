@@ -83,10 +83,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
   // per-card setInterval (~80 concurrent timers with a full grid). Only
-  // ticks while the card is on/near screen (useIsOnScreen); returns null
-  // when there's no endTime, in which case we preserve today's frozen
-  // 120s placeholder display exactly as before (a separate correctness
-  // fix, out of scope for this perf pass).
+  // ticks while the card is on/near screen (useIsOnScreen); returns null when
+  // there's no endTime. A clockless lot therefore never shows a fabricated
+  // countdown: an awaiting-first-bid lot is caught earlier by the `⏳ Awaiting
+  // first bid` badge (which pre-empts the countdown badge entirely), and any
+  // other null case falls through to the countdown badge, which renders `—`.
   const cardRef = useRef<HTMLDivElement>(null);
   const isOnScreen = useIsOnScreen(cardRef);
   // Live-on-visible (Slice 1): only the paginated path (`liveEnabled`) opts in;
@@ -159,10 +160,21 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Top-left: LIVE badge + (when relevant) your winning/outbid state */}
         <div className="absolute top-2.5 left-2.5 rtl:left-auto rtl:right-2.5 z-10 flex flex-col items-start gap-1.5">
-          {d.status === 'live' && (
+          {/* Three distinct states share this corner. Red + pulse = a clock is
+              running. Amber, no pulse = open for bids but the clock has not
+              started (the first bid starts it). Brand orange #E85D04 is
+              deliberately NOT used here — it is the CTA colour, so an orange
+              badge would not read as a state. */}
+          {d.status === 'live' && !awaitingFirstBid && (
             <div className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
               <span>{isAr ? 'مباشر' : 'LIVE'}</span>
+            </div>
+          )}
+          {d.status === 'live' && awaitingFirstBid && (
+            <div className="bg-amber-400 text-zinc-900 font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
+              <Zap className="w-2.5 h-2.5 fill-zinc-900" />
+              <span>{isAr ? 'كن أول مزايد' : 'BE THE FIRST'}</span>
             </div>
           )}
           {!itemIsEnded && hasUserBid && (
@@ -215,7 +227,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
         {!itemIsEnded && (
           <div className="absolute inset-0 z-10 hidden lg:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <span className="bg-[#E85D04]/95 backdrop-blur-xs text-white text-xs font-black px-4 py-2 rounded-full shadow-lg">
-              {d.status === 'live' ? (isAr ? '🔴 دخول البث' : '🔴 Join live') : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
+              {awaitingFirstBid
+                ? (isAr ? '⚡ كن أول مزايد' : '⚡ Be the first to bid')
+                : d.status === 'live'
+                  ? (isAr ? '🔴 دخول البث' : '🔴 Join live')
+                  : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
             </span>
           </div>
         )}
@@ -404,7 +420,12 @@ export const DiscoveryFeedView: React.FC = () => {
   const categoryMatches = React.useMemo<string[] | null>(() => {
     if (selectedCategory === 'All') return null;
     const pill = categoriesList.find((c) => c.name === selectedCategory);
-    return pill?.match ?? [selectedCategory];
+    // A chip may declare `match: null` DELIBERATELY ('Be the First') meaning
+    // "no category clause". `??` would collapse that to `['Be the First']` — a
+    // category value nothing is stored under. Only a chip with no entry at all
+    // falls back to its own name.
+    if (!pill) return [selectedCategory];
+    return pill.match;
   }, [selectedCategory, categoriesList]);
 
   // "Be the First" is a special chip: it switches the hook to a dedicated query
@@ -420,15 +441,17 @@ export const DiscoveryFeedView: React.FC = () => {
     const matchesSearch = (item: AuctionItem) => matchesAuctionSearch(item, searchTerm);
     return {
       liveList: feed.liveItems.filter(matchesSearch),
+      firstBidList: feed.firstBidItems.filter(matchesSearch),
       upcomingList: feed.upcomingItems.filter(matchesSearch),
     };
-  }, [feed.liveItems, feed.upcomingItems, searchTerm]);
+  }, [feed.liveItems, feed.firstBidItems, feed.upcomingItems, searchTerm]);
 
   // The lists + loading state the grid actually renders — the paginated feed is
   // now the only source (category chips drive the server re-query; search
   // filters the loaded page).
   const liveList = paginatedLists.liveList;
   const upcomingList = paginatedLists.upcomingList;
+  const firstBidList = paginatedLists.firstBidList;
   const showSkeleton = feed.loading;
 
   // Algolia search results (Slice 2). Called unconditionally (hooks rule); stays
@@ -454,7 +477,10 @@ export const DiscoveryFeedView: React.FC = () => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length]);
+    // Both grid lengths are here as the "grid grew, re-observe" trigger: in
+    // first_bid mode liveList.length is permanently 0, so on its own it is a
+    // dead signal for the mode that carries all the inventory.
+  }, [feed.hasMoreLive, feed.loadingMore, feed.loadMore, liveList.length, firstBidList.length]);
 
   // Infinite-scroll sentinel for the Algolia SEARCH results (Slice 2). Same
   // IntersectionObserver pattern as the paginated feed above: when the sentinel
@@ -576,10 +602,14 @@ export const DiscoveryFeedView: React.FC = () => {
   // get a plain quick fade — no cascade replay on every keystroke.
   const gridStaggerDone = React.useRef(false);
   React.useEffect(() => {
-    if (!showSkeleton && (liveList.length > 0 || upcomingList.length > 0)) {
+    // firstBidList MUST be in this condition: on the "Be the First" chip
+    // useDiscoverFeed deliberately leaves liveList/upcomingList empty, so
+    // without it the flag could never latch there and every repaint (e.g. a
+    // search keystroke re-filtering the grid) would replay the cascade.
+    if (!showSkeleton && (liveList.length > 0 || firstBidList.length > 0 || upcomingList.length > 0)) {
       gridStaggerDone.current = true;
     }
-  }, [showSkeleton, liveList.length, upcomingList.length]);
+  }, [showSkeleton, liveList.length, firstBidList.length, upcomingList.length]);
 
   // Dead-stream guard: only enter the live room when an auction is genuinely
   // live. Otherwise stay on Discover and say so — never fall back to auctions[0].
@@ -1018,7 +1048,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <AuctionCardSkeleton key={n} />
             ))}
           </div>
-        ) : (liveList.length > 0 || upcomingList.length > 0 || feed.hasMoreLive) ? (
+        ) : (liveList.length > 0 || firstBidList.length > 0 || upcomingList.length > 0 || feed.hasMoreLive) ? (
           <div className="space-y-10">
             {liveList.length > 0 && (
               <section id="live-now-section">
@@ -1038,6 +1068,62 @@ export const DiscoveryFeedView: React.FC = () => {
                       className="feed-card-in h-full"
                       style={{
                         animationDelay: `${gridStaggerDone.current ? 0 : Math.min(index * 0.04, 0.32)}s`,
+                      }}
+                    >
+                      <PremiumAuctionCard
+                        item={item}
+                        currentUser={currentUser}
+                        bids={bids}
+                        orders={orders}
+                        sellerProfiles={sellerProfiles}
+                        isAr={isAr}
+                        onJoinLive={handleJoinLive}
+                        onSelectLot={setSelectedLotId}
+                        setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                        setActiveView={setActiveView}
+                        liveEnabled={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Awaiting-first-bid lots. Their own section rather than mixed into
+                the grid above: they have no endsAt, so any position in an
+                ending-soon ordering would be arbitrary. On the All chip this is
+                a capped preview (see ALL_TAB_FIRST_BID_LIMIT) with a link to
+                the full paged view; on the Be the First chip it IS the feed. */}
+            {firstBidList.length > 0 && (
+              <section id="be-the-first-section">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                    {isAr ? 'كن أول مزايد' : 'Be the first'}
+                  </h2>
+                  <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
+                    {firstBidList.length}
+                  </span>
+                  {selectedCategory === 'All' && (
+                    <button
+                      onClick={() => setSelectedCategory('Be the First')}
+                      className="ms-auto text-[11px] font-bold text-[#E85D04] hover:text-[#c94d03] transition-colors cursor-pointer"
+                    >
+                      {isAr ? 'عرض الكل ←' : 'See all →'}
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {firstBidList.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="feed-card-in h-full"
+                      style={{
+                        animationDelay: `${
+                          gridStaggerDone.current
+                            ? 0
+                            : Math.min((liveList.length + index) * 0.04, 0.32)
+                        }s`,
                       }}
                     >
                       <PremiumAuctionCard

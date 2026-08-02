@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAuctionOpen, isLiveNow, getLiveAuctions, getFirstLiveAuction } from './auctionPhase';
+import { isAuctionOpen, isLiveNow, getLiveAuctions, getFirstLiveAuction, isAwaitingFirstBid, isAwaitingFirstBidDoc } from './auctionPhase';
 
 const NOW = 1_000_000;
 
@@ -46,5 +46,53 @@ describe('isAuctionOpen', () => {
     expect(isAuctionOpen('completed')).toBe(false);
     expect(isAuctionOpen(undefined)).toBe(false);
     expect(isAuctionOpen(null)).toBe(false);
+  });
+});
+
+describe('isAwaitingFirstBid', () => {
+  it('true for a mapped first_bid item with no clock and no bids', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null, totalBids: 0 })).toBe(true);
+  });
+  it('true when totalBids is absent entirely (never-bid item)', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null })).toBe(true);
+  });
+  it('false once the clock has started (endTime set)', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: 123, totalBids: 0 })).toBe(false);
+  });
+  it('false once a bid has landed', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null, totalBids: 1 })).toBe(false);
+  });
+  it('false for scheduled lots, which always have a clock', () => {
+    expect(isAwaitingFirstBid({ startMode: 'scheduled', endTime: null, totalBids: 0 })).toBe(false);
+  });
+  it('false for null/undefined input rather than throwing', () => {
+    expect(isAwaitingFirstBid(null)).toBe(false);
+    expect(isAwaitingFirstBid(undefined)).toBe(false);
+  });
+});
+
+describe('isAwaitingFirstBidDoc', () => {
+  it('true for a live first_bid doc with no clock and no bids', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'first_bid', totalBids: 0 })).toBe(true);
+  });
+  it('true when totalBids is absent entirely (never-bid doc)', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'first_bid' })).toBe(true);
+  });
+  it('false once a bid has landed', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'first_bid', totalBids: 1 })).toBe(false);
+  });
+  it('false once the server has stamped endsAt', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'first_bid', endsAt: { seconds: 5 }, totalBids: 0 })).toBe(false);
+  });
+  it('false when a legacy endTime is present', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'first_bid', endTime: 123, totalBids: 0 })).toBe(false);
+  });
+  it('false for scheduled lots, which always have a clock', () => {
+    expect(isAwaitingFirstBidDoc({ startMode: 'scheduled', totalBids: 0 })).toBe(false);
+    expect(isAwaitingFirstBidDoc({ totalBids: 0 })).toBe(false);
+  });
+  it('false for null/undefined input rather than throwing', () => {
+    expect(isAwaitingFirstBidDoc(null)).toBe(false);
+    expect(isAwaitingFirstBidDoc(undefined)).toBe(false);
   });
 });

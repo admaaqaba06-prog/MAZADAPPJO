@@ -9,8 +9,9 @@ import {
   X, 
   ShieldCheck, 
   MapPin, 
-  Clock, 
-  ThumbsUp, 
+  Clock,
+  Hourglass,
+  ThumbsUp,
   Eye, 
   Coins, 
   ChevronRight, 
@@ -105,10 +106,36 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
       ? (isAr ? 'مستعمل' : 'Used')
       : null;
 
+  // Clockless (awaiting-first-bid) lot. Deliberately the SAME condition the
+  // timer effect below uses to write the awaiting copy into `timeLeftStr`,
+  // rather than `isAwaitingFirstBid(auction)`: the badge only needs to know
+  // which STRING it is rendering, and keying it off a second, stricter
+  // predicate (which also requires `startMode === 'first_bid'` and no bids)
+  // could put the clock icon back next to the awaiting sentence whenever the
+  // two disagree.
+  const awaitingFirstBid = auction?.endTime == null;
+
   useEffect(() => {
     if (!auction) return;
-    const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((auction.endTime - serverNow()) / 1000));
+    // No clock yet (awaiting first bid): show the awaiting copy and start no
+    // interval. Without this, `null - serverNow()` clamps to 0 and the modal
+    // reads "Ended" on a lot that has not started.
+    if (auction.endTime == null) {
+      setTimeLeftStr(isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid');
+      return;
+    }
+    const endsAtMs = auction.endTime;
+    // Ticked ONCE up front as well as on the interval (same idiom as
+    // ReelsDesktopRightPanel): `timeLeftStr` is state that persists across the
+    // awaiting→started flip. When the first bid lands with the modal open, the
+    // badge swaps to the Clock icon + `font-mono` on that render while
+    // `timeLeftStr` still holds "Awaiting first bid"; the leading tick
+    // overwrites it in the same commit's effect pass instead of up to a second
+    // later, so the mismatch lasts one frame rather than one tick. Same reason
+    // a freshly opened lot no longer paints the '00:00:00' initial state for
+    // that second.
+    const tick = () => {
+      const remainingSecs = Math.max(0, Math.floor((endsAtMs - serverNow()) / 1000));
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);
@@ -119,7 +146,9 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
       } else {
         setTimeLeftStr(isAr ? 'منتهي' : 'Ended');
       }
-    }, 1000);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
   }, [auction, isAr]);
@@ -169,10 +198,29 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             
-            {/* Countdown floating badge */}
+            {/* Countdown floating badge — or, for a clockless (awaiting-first-bid)
+                lot, the awaiting badge. `timeLeftStr` is set to "Awaiting first
+                bid" / "بانتظار أول مزايدة" by the effect above for that state, so
+                a Clock icon beside it would label a no-clock sentence with a
+                clock, and `font-mono` would set an ~18-char sentence in digit
+                type (especially wide in Arabic). The swap is awaiting-ONLY —
+                the countdown branch below keeps its Clock icon and class
+                strings byte-for-byte. The Hourglass is local to THIS surface;
+                the other first_bid surfaces avoid the clock their own way
+                (DiscoveryFeedView: a `Zap` "BE THE FIRST" badge plus a `⏳`
+                emoji pill; auction/CountdownPill: a bare label, no icon). */}
             <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} bg-black/55 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2`}>
-              <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
-              <span className="text-xs font-black text-white font-mono tracking-tight">{timeLeftStr}</span>
+              {awaitingFirstBid ? (
+                <>
+                  <Hourglass className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] font-black text-white leading-tight tracking-tight">{timeLeftStr}</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
+                  <span className="text-xs font-black text-white font-mono tracking-tight">{timeLeftStr}</span>
+                </>
+              )}
             </div>
           </div>
 

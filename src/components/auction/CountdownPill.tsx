@@ -27,7 +27,15 @@ import { formatCountdown } from '../../utils/bidFormat';
    ====================================================================== */
 
 interface CountdownPillProps {
-  endTime: number;
+  /**
+   * Epoch millis, or null when the lot has NO clock yet (awaiting first bid —
+   * `resolveEndTime` returns null for those docs). Null is runtime-safe here but
+   * NOT self-describing: the desktop branch resolves `(target ?? 0) - now` and
+   * renders "Auction ended". The sibling `awaitingFirstBid` prop is the only
+   * thing that keeps a clockless lot off that path — a call site that passes a
+   * null `endTime` without it renders "Auction ended" on a lot that never started.
+   */
+  endTime: number | null;
   status: string;
   isAr: boolean;
   className?: string;

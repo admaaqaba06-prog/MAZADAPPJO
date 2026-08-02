@@ -15,7 +15,13 @@
 - **`tsc` is not a safety net.** The repo has no `@types/react` and no `strict` mode, so `.tsx` call sites are unchecked. `npm run lint` (`tsc --noEmit`) will catch `.ts` files only. Verify `.tsx` changes by reading them.
 - **Bilingual copy is mandatory.** Every user-visible string needs an Arabic and an English form, selected via the existing `isAr` boolean. Never ship an English-only string.
 - **RTL:** every directional Tailwind class needs its `rtl:` counterpart, matching the surrounding code (e.g. `right-2.5 rtl:right-auto rtl:left-2.5`).
-- **Branch:** work on `feat/awaiting-first-bid`, branched from `main`. Do **not** commit to `feat/global-language` — that is PR #201's branch and has unrelated in-flight work.
+- **Branch / workspace:** all work happens in the isolated worktree at
+  `/Users/mj/code/mazadjo/.claude/worktrees/awaiting-first-bid`, on branch
+  `worktree-awaiting-first-bid` (branched from `origin/main`). Never `cd` to
+  `/Users/mj/code/mazadjo` itself and never switch branches there — a second
+  Claude session is actively committing to `feat/global-language` in that
+  checkout, and a branch switch under it would send its next edit to the wrong
+  branch.
 - **Run `npm test` before every commit.** The full suite, not a single file.
 - **Never write to Firestore from the client** in this plan. All changes are read-path only.
 

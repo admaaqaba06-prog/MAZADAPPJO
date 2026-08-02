@@ -23,6 +23,27 @@ export function isAwaitingFirstBid(
   );
 }
 
+/**
+ * The RAW-DOC twin of `isAwaitingFirstBid`. It exists because raw doc data
+ * carries the SERVER field name `endsAt`, which no mapped `AuctionItem` has —
+ * so the doc-shaped check cannot be expressed with `isAwaitingFirstBid`.
+ * `resolveEndTime` (liveAuctionFields) calls this predicate first and returns
+ * null for an awaiting lot, which is what keeps the mapped item's `endTime`
+ * null and lets `isAwaitingFirstBid` recognise it post-mapping.
+ *
+ * Checks both `endsAt` (what the server stamps on the first bid) and `endTime`
+ * (the legacy field): either one present means the clock has started.
+ */
+export function isAwaitingFirstBidDoc(data: any): boolean {
+  if (!data) return false;
+  return (
+    data.startMode === 'first_bid' &&
+    !data.endsAt &&
+    !data.endTime &&
+    (data.totalBids || 0) === 0
+  );
+}
+
 /** Genuinely live right now: status 'live' AND not past its end time. */
 export function isLiveNow(auction: LiveCheckable, now: number = Date.now()): boolean {
   return auction.status === 'live' && (!auction.endTime || auction.endTime > now);

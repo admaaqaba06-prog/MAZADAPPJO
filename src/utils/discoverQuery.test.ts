@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_TAB_FIRST_BID_LIMIT,
   PAGE,
+  buildFirstBidFeedConstraints,
   buildLiveFeedConstraints,
   buildUpcomingFeedConstraints,
   hasNewerDrops,
@@ -135,6 +137,37 @@ describe('buildUpcomingFeedConstraints', () => {
       startAfter: cursor,
       limit: 24,
     });
+  });
+});
+
+describe('buildFirstBidFeedConstraints', () => {
+  it('filters to live first_bid lots ordered newest-first', () => {
+    const c = buildFirstBidFeedConstraints({});
+    expect(c.where).toEqual([
+      ['status', '==', 'live'],
+      ['startMode', '==', 'first_bid'],
+    ]);
+    expect(c.orderBy).toEqual([['createdAt', 'desc']]);
+  });
+
+  it('defaults to the full page size and no cursor', () => {
+    const c = buildFirstBidFeedConstraints({});
+    expect(c.limit).toBe(PAGE);
+    expect(c.startAfter).toBeNull();
+  });
+
+  it('carries a cursor through for infinite scroll', () => {
+    const cursor = { __cursor: true };
+    expect(buildFirstBidFeedConstraints({ cursor }).startAfter).toBe(cursor);
+  });
+
+  it('accepts a smaller limit for the All-tab preview section', () => {
+    expect(buildFirstBidFeedConstraints({ limit: ALL_TAB_FIRST_BID_LIMIT }).limit).toBe(8);
+  });
+
+  it('never adds a category clause — first-bid lots are not category-scoped', () => {
+    const c = buildFirstBidFeedConstraints({});
+    expect(c.where.some(([field]) => field === 'category')).toBe(false);
   });
 });
 

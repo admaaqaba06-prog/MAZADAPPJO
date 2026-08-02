@@ -54,7 +54,11 @@ export const ReelsDesktopRightPanel: React.FC = () => {
 
   React.useEffect(() => {
     if (!currentItem) return;
-    const interval = setInterval(() => {
+    // Ticked ONCE up front as well as on the interval: `timeLeftStr` starts at
+    // the '00:00:00' placeholder, and waiting a full second before the first
+    // tick left an awaiting-first-bid lot rendering "00:00:00" under the
+    // "Status" label for that second.
+    const tick = () => {
       // E3 first_bid: a live lot with no clock yet shows the awaiting label, not a timer.
       if (isAwaitingFirstBid(currentItem)) {
         setTimeLeftStr(isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid');
@@ -82,7 +86,9 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         // "next window" clock. The server closer flips the status shortly.
         setTimeLeftStr(isAr ? 'انتهى المزاد' : 'Auction ended');
       }
-    }, 1000);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
   }, [currentItem, isAr]);
@@ -139,12 +145,27 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           <span className="text-base font-black text-[#FF6B00]">{currentItem.currentPrice.toLocaleString()} JOD</span>
         </div>
         <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
+          {/* E3 first_bid: `timeLeftStr` becomes "Awaiting first bid" for a
+              clockless lot, so the label must NOT say "TIME LEFT" — same
+              Status/الحالة swap DesktopLiveAuctionLayout uses. */}
           <span className="text-[8px] text-zinc-500 font-bold block uppercase">
-            {!isAuctionOpen(currentItem.status) && currentItem.scheduledStartAt
-              ? (isAr ? 'يبدأ خلال' : 'STARTS IN')
-              : (isAr ? 'الوقت المتبقي' : 'TIME LEFT')}
+            {isAwaitingFirstBid(currentItem)
+              ? (isAr ? 'الحالة' : 'STATUS')
+              : !isAuctionOpen(currentItem.status) && currentItem.scheduledStartAt
+                ? (isAr ? 'يبدأ خلال' : 'STARTS IN')
+                : (isAr ? 'الوقت المتبقي' : 'TIME LEFT')}
           </span>
-          <span className="text-xs font-black text-emerald-400 font-mono mt-0.5 block">
+          {/* The awaiting label is a ~18-char sentence, not a clock: monospace
+              at text-xs overflows this half of the 2-col grid and pushes the
+              row taller than the price box beside it. Prose sizing for that
+              state only; the countdown keeps its mono digits. */}
+          <span
+            className={
+              isAwaitingFirstBid(currentItem)
+                ? 'text-[10px] font-black text-emerald-400 leading-tight mt-0.5 block'
+                : 'text-xs font-black text-emerald-400 font-mono mt-0.5 block'
+            }
+          >
             {timeLeftStr}
           </span>
         </div>

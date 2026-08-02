@@ -52,3 +52,42 @@ export function blockedApprovalReason(
   }
   return null;
 }
+
+/**
+ * The clock half of an approval write: both `endTime` and `endsAt`, or NEITHER.
+ *
+ * "Approve & go live" re-baselines the countdown from `duration` at approval
+ * time, which is right for a scheduled lot — its end is a fixed window that must
+ * start when the lot actually opens, not when it was created. A `first_bid` lot
+ * is the opposite: it opens with no end at all and the server stamps `endsAt` on
+ * the FIRST BID (`applyBidWrites` in functions/index.js). Writing a clock at
+ * approval time therefore starts a countdown nobody bid to start —
+ * `isAwaitingFirstBidDoc` stops matching (it requires both fields absent), so the
+ * lot renders a fabricated countdown instead of "Awaiting first bid", and
+ * `scheduledAuctionCloser` settles it unsold when that countdown runs out.
+ *
+ * So this returns `{}` for a first_bid lot. Spread into the `updateDoc` payload
+ * that means the two keys are ABSENT from the write — not `undefined` (Firestore
+ * rejects that value) and not `null` (a written value, which is not what the two
+ * server go-live paths produce). Because updateDoc merges by key, an absent key
+ * leaves whatever the document already stores untouched: this omits a clock, it
+ * does not clear one. Nothing on the approval path erases a pre-existing
+ * `endTime`/`endsAt`.
+ *
+ * The same rule, expressed the same way, as the two server-side go-live paths:
+ * `scheduledAuctionOpener` (`if (fd.startMode !== 'first_bid')`) and the
+ * `autoRelistSweep` child (`if (startMode !== 'first_bid')`), both in
+ * functions/index.js.
+ *
+ * `endsAt` is passed in rather than built here so this stays a pure function the
+ * node test environment can run — the call site passes the `Timestamp` it
+ * already constructed.
+ */
+export function approvalClockFields<T>(
+  auction: { startMode?: string | null } | null | undefined,
+  endTimeMs: number,
+  endsAt: T,
+): { endTime: number; endsAt: T } | Record<string, never> {
+  if (auction?.startMode === 'first_bid') return {};
+  return { endTime: endTimeMs, endsAt };
+}

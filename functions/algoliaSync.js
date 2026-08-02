@@ -91,6 +91,18 @@ function resolveEndMs(data) {
  * cleanly back to an AuctionItem. Price is normalized to JOD units (from
  * integer fils when present); endTime + endsAt are the SAME sortable epoch-ms
  * number (customRanking is asc(endsAt), ending-soon first).
+ *
+ * `startMode` is indexed because the client's `isAwaitingFirstBidDoc`
+ * (src/utils/auctionPhase.ts) requires `startMode === 'first_bid'`. Without the
+ * field on a hit that predicate is false, and `resolveEndTime`
+ * (src/utils/liveAuctionFields.ts) falls through to its `now + 1h` default — so
+ * a first_bid lot whose clock has not started renders a fabricated countdown in
+ * search. An awaiting lot has neither `endsAt` nor `endTime`, so `resolveEndMs`
+ * returns 0 and both fields are falsy on the record; `totalBids` is not indexed,
+ * so `(totalBids || 0) === 0` holds. Adding `startMode` therefore satisfies all
+ * four conjuncts of that predicate on a hit alone. A first_bid lot that HAS
+ * received a bid carries a real `endsAt`/`endTime` (applyBidWrites stamps both),
+ * so the predicate stays false for it.
  */
 function buildAlgoliaRecord(id, data) {
   const d = data || {};
@@ -103,6 +115,7 @@ function buildAlgoliaRecord(id, data) {
     category: d.category ?? '',
     condition: d.condition ?? '',
     status: d.status,
+    startMode: d.startMode ?? null,
     currentPrice: d.currentPriceFils != null ? d.currentPriceFils / 1000 : (d.currentPrice ?? 0),
     endTime: endMs,
     endsAt: endMs,
@@ -119,9 +132,17 @@ function buildAlgoliaRecord(id, data) {
  * longer indexable (transitioned out of live/upcoming, or flagged simulated);
  * otherwise upsert the record. A transient Algolia error is LOGGED and
  * swallowed — never thrown — so a failed index write can't spin the Cloud
- * Function into an infinite retry storm (the per-minute backfill/next-write
- * reconciles it). deleteObject on a non-existent objectID is a safe Algolia
- * no-op.
+ * Function into an infinite retry storm.
+ *
+ * ⚠️ Swallowing means NOTHING retries it automatically: there is no scheduled
+ * Algolia reconciler anywhere in `functions/` (the pubsub schedules that do
+ * exist — the auction opener/closer, relist/payment/health sweeps — never touch
+ * the index). A dropped write is reconciled only by the NEXT write to that
+ * auction doc re-firing this trigger, or by a human running
+ * `node scripts/algolia-backfill.cjs` (a manual CLI, not deployed). A lot that
+ * stops being written to can therefore sit stale in the index indefinitely.
+ *
+ * deleteObject on a non-existent objectID is a safe Algolia no-op.
  */
 // Only registered in the Cloud Functions runtime (where firebase-functions +
 // algoliasearch resolve); skipped in the pure-helper unit-test env.

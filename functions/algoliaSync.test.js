@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+// Cross-boundary import: the CLIENT predicate that consumes these records. It is
+// imported here so the "awaiting first bid" cases assert the real consumer's
+// verdict on a real record, not a restatement of the predicate's logic.
+import { isAwaitingFirstBidDoc } from '../src/utils/auctionPhase';
 const { isIndexable, buildAlgoliaRecord, resolveEndMs } = require('./algoliaSync');
 
 describe('isIndexable', () => {
@@ -52,6 +56,7 @@ describe('buildAlgoliaRecord', () => {
       category: 'watches',
       condition: 'used',
       status: 'live',
+      startMode: 'scheduled',
       currentPriceFils: 125500,
       endTime: 1_800_000_000_000,
       sellerName: 'MJ',
@@ -67,6 +72,7 @@ describe('buildAlgoliaRecord', () => {
       category: 'watches',
       condition: 'used',
       status: 'live',
+      startMode: 'scheduled',
       currentPrice: 125.5,
       endTime: 1_800_000_000_000,
       endsAt: 1_800_000_000_000,
@@ -82,7 +88,7 @@ describe('buildAlgoliaRecord', () => {
     expect(rec.currentPrice).toBe(42);
   });
 
-  it('defaults missing fields (empty strings, price 0, endTime 0)', () => {
+  it('defaults missing fields (empty strings, price 0, endTime 0, startMode null)', () => {
     const rec = buildAlgoliaRecord('a', { status: 'live' });
     expect(rec).toEqual({
       objectID: 'a',
@@ -92,6 +98,7 @@ describe('buildAlgoliaRecord', () => {
       category: '',
       condition: '',
       status: 'live',
+      startMode: null,
       currentPrice: 0,
       endTime: 0,
       endsAt: 0,
@@ -122,5 +129,64 @@ describe('buildAlgoliaRecord', () => {
     expect(rec.objectID).toBe('only-id');
     expect(rec.id).toBe('only-id');
     expect(rec.currentPrice).toBe(0);
+  });
+});
+
+describe('buildAlgoliaRecord — startMode (awaiting-first-bid in search)', () => {
+  // An awaiting first_bid lot: live and accepting bids, but the duration clock
+  // has not started, so the doc carries NO endsAt/endTime and no bids.
+  const awaitingDoc = { status: 'live', title: 'Clockless lot', startMode: 'first_bid', totalBids: 0 };
+  // The same lot after its first bid: the server (applyBidWrites) stamps both
+  // endTime (number) and endsAt (Timestamp) to now + duration.
+  const bidOnDoc = {
+    status: 'live',
+    title: 'Clock started',
+    startMode: 'first_bid',
+    totalBids: 1,
+    endTime: 1_800_000_000_000,
+    endsAt: { toMillis: () => 1_800_000_000_000 },
+  };
+
+  it('indexes startMode for an awaiting first_bid lot, with endTime/endsAt 0', () => {
+    const rec = buildAlgoliaRecord('a', awaitingDoc);
+    expect(rec.startMode).toBe('first_bid');
+    expect(rec.endTime).toBe(0);
+    expect(rec.endsAt).toBe(0);
+  });
+
+  it('indexes startMode for a first_bid lot that already has a bid, with a real endTime', () => {
+    const rec = buildAlgoliaRecord('a', bidOnDoc);
+    expect(rec.startMode).toBe('first_bid');
+    expect(rec.endTime).toBe(1_800_000_000_000);
+    expect(rec.endsAt).toBe(1_800_000_000_000);
+  });
+
+  it('carries a scheduled lot through as scheduled, never first_bid', () => {
+    const rec = buildAlgoliaRecord('a', { status: 'upcoming', startMode: 'scheduled' });
+    expect(rec.startMode).toBe('scheduled');
+    expect(rec.startMode).not.toBe('first_bid');
+  });
+
+  it('defaults a doc with no startMode to null, never the string first_bid', () => {
+    const rec = buildAlgoliaRecord('a', { status: 'live' });
+    expect(rec.startMode).toBe(null);
+    expect(rec.startMode).not.toBe('first_bid');
+  });
+
+  // End-to-end across the functions/ → src/ boundary: the record this indexer
+  // produces is fed to the CLIENT predicate that decides whether search renders
+  // "Awaiting first bid" or a countdown. Before startMode was indexed the
+  // awaiting case returned false here and the client fabricated `now + 1h`.
+  it('makes the client isAwaitingFirstBidDoc predicate true for an awaiting record', () => {
+    expect(isAwaitingFirstBidDoc(buildAlgoliaRecord('a', awaitingDoc))).toBe(true);
+  });
+
+  it('keeps the client predicate false for a first_bid record that has a bid', () => {
+    expect(isAwaitingFirstBidDoc(buildAlgoliaRecord('a', bidOnDoc))).toBe(false);
+  });
+
+  it('keeps the client predicate false for scheduled and startMode-less records', () => {
+    expect(isAwaitingFirstBidDoc(buildAlgoliaRecord('a', { status: 'upcoming', startMode: 'scheduled' }))).toBe(false);
+    expect(isAwaitingFirstBidDoc(buildAlgoliaRecord('a', { status: 'live' }))).toBe(false);
   });
 });
