@@ -435,15 +435,17 @@ export const DiscoveryFeedView: React.FC = () => {
     const matchesSearch = (item: AuctionItem) => matchesAuctionSearch(item, searchTerm);
     return {
       liveList: feed.liveItems.filter(matchesSearch),
+      firstBidList: feed.firstBidItems.filter(matchesSearch),
       upcomingList: feed.upcomingItems.filter(matchesSearch),
     };
-  }, [feed.liveItems, feed.upcomingItems, searchTerm]);
+  }, [feed.liveItems, feed.firstBidItems, feed.upcomingItems, searchTerm]);
 
   // The lists + loading state the grid actually renders — the paginated feed is
   // now the only source (category chips drive the server re-query; search
   // filters the loaded page).
   const liveList = paginatedLists.liveList;
   const upcomingList = paginatedLists.upcomingList;
+  const firstBidList = paginatedLists.firstBidList;
   const showSkeleton = feed.loading;
 
   // Algolia search results (Slice 2). Called unconditionally (hooks rule); stays
@@ -1033,7 +1035,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <AuctionCardSkeleton key={n} />
             ))}
           </div>
-        ) : (liveList.length > 0 || upcomingList.length > 0 || feed.hasMoreLive) ? (
+        ) : (liveList.length > 0 || firstBidList.length > 0 || upcomingList.length > 0 || feed.hasMoreLive) ? (
           <div className="space-y-10">
             {liveList.length > 0 && (
               <section id="live-now-section">
@@ -1053,6 +1055,62 @@ export const DiscoveryFeedView: React.FC = () => {
                       className="feed-card-in h-full"
                       style={{
                         animationDelay: `${gridStaggerDone.current ? 0 : Math.min(index * 0.04, 0.32)}s`,
+                      }}
+                    >
+                      <PremiumAuctionCard
+                        item={item}
+                        currentUser={currentUser}
+                        bids={bids}
+                        orders={orders}
+                        sellerProfiles={sellerProfiles}
+                        isAr={isAr}
+                        onJoinLive={handleJoinLive}
+                        onSelectLot={setSelectedLotId}
+                        setGlobalSelectedOrderId={setGlobalSelectedOrderId}
+                        setActiveView={setActiveView}
+                        liveEnabled={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Awaiting-first-bid lots. Their own section rather than mixed into
+                the grid above: they have no endsAt, so any position in an
+                ending-soon ordering would be arbitrary. On the All chip this is
+                a capped preview (see ALL_TAB_FIRST_BID_LIMIT) with a link to
+                the full paged view; on the Be the First chip it IS the feed. */}
+            {firstBidList.length > 0 && (
+              <section id="be-the-first-section">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                    {isAr ? 'كن أول مزايد' : 'Be the first'}
+                  </h2>
+                  <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
+                    {firstBidList.length}
+                  </span>
+                  {selectedCategory === 'All' && (
+                    <button
+                      onClick={() => setSelectedCategory('Be the First')}
+                      className="ms-auto text-[11px] font-bold text-[#E85D04] hover:text-[#c94d03] transition-colors cursor-pointer"
+                    >
+                      {isAr ? 'عرض الكل ←' : 'See all →'}
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {firstBidList.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="feed-card-in h-full"
+                      style={{
+                        animationDelay: `${
+                          gridStaggerDone.current
+                            ? 0
+                            : Math.min((liveList.length + index) * 0.04, 0.32)
+                        }s`,
                       }}
                     >
                       <PremiumAuctionCard
