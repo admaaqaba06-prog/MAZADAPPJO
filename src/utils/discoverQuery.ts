@@ -59,6 +59,47 @@ export function buildLiveFeedConstraints({
 }
 
 /**
+ * How many first-bid lots the All tab previews before its "See all" link.
+ * The Be the First chip is the paged view; All is a merchandising slot, so it
+ * stays short enough not to bury the Upcoming section below it.
+ */
+export const ALL_TAB_FIRST_BID_LIMIT = 8;
+
+/**
+ * Build the constraint descriptor for the "Be the First" feed: LIVE `first_bid`
+ * lots, newest first.
+ *
+ * These lots have NO `endsAt` until the first bid lands, and Firestore drops
+ * docs that are missing the field an query orders by — so the ending-soon feed
+ * (`orderBy('endsAt')`) cannot see them at all. That is why this is a separate
+ * query rather than a filter on the live one.
+ *
+ * Deliberately un-scoped by category: a category clause would need a second
+ * composite index, and the All tab plus the Be the First chip are the only two
+ * surfaces that render these (see the spec's Scope section).
+ *
+ * Backed by the existing `(status ASC, startMode ASC, createdAt DESC)` index in
+ * firestore.indexes.json — no new index, no deploy ordering concern.
+ */
+export function buildFirstBidFeedConstraints({
+  cursor,
+  limit,
+}: {
+  cursor?: unknown;
+  limit?: number;
+}): FeedConstraints {
+  return {
+    where: [
+      ['status', '==', 'live'],
+      ['startMode', '==', 'first_bid'],
+    ],
+    orderBy: [['createdAt', 'desc']],
+    startAfter: cursor ?? null,
+    limit: limit ?? PAGE,
+  };
+}
+
+/**
  * Build the constraint descriptor for the upcoming feed.
  * Filters to `status === 'upcoming'`, orders by `scheduledStartAt asc`, and
  * paginates from `cursor`.
