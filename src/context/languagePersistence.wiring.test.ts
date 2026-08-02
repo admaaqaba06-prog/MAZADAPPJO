@@ -17,6 +17,7 @@
 // also appeared in a comment.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { persistLanguagePreference } from '../utils/languagePersistence';
 
 const SRC = readFileSync(new URL('./AppContext.tsx', import.meta.url), 'utf8');
 const LANDING = readFileSync(new URL('../landing/LandingView.tsx', import.meta.url), 'utf8');
@@ -137,6 +138,36 @@ function at(text: string, re: RegExp, label: string): number {
 const CALL = setLanguageCall(SRC);
 const BODY = setLanguageBody(CALL);
 
+// --- The landing page carries a SECOND language toggle (two buttons, desktop
+// and mobile nav) with its own `lang` state. App.tsx renders LandingView for
+// signed-in users too — "the logo routes here" — so that toggle is reached by
+// customers with a live, writable uid. It wrote localStorage alone, which meant
+// switching there changed the UI and left users/{uid}.language untouched: an
+// Arabic-reading customer kept getting English WhatsApp and email indefinitely.
+// It now delegates to the same `setLanguage` pinned above.
+const TOGGLE_ANCHOR = 'const toggleLang = ';
+
+/** The arrow-function body of LandingView's `toggleLang`. Throws if it moved. */
+function landingToggleBody(src: string): string {
+  const start = src.indexOf(TOGGLE_ANCHOR);
+  if (start === -1) throw new Error(`anchor moved — '${TOGGLE_ANCHOR}' is not in LandingView`);
+  if (src.indexOf(TOGGLE_ANCHOR, start + 1) !== -1) {
+    throw new Error('anchor is ambiguous — toggleLang is declared more than once');
+  }
+  const open = src.indexOf('{', start);
+  if (open === -1) throw new Error('toggleLang has no block body — anchor moved');
+  // Guard against slicing a destructured PARAMETER instead of the body: whatever
+  // sits between the anchor and that brace must be an empty arrow head. A shape
+  // change fails loudly here rather than yielding a plausible wrong slice.
+  const head = src.slice(start, open);
+  if (!/^const toggleLang = \(\s*\)\s*=>\s*$/.test(head)) {
+    throw new Error(`toggleLang is no longer a zero-argument arrow — got '${head.trim()}'`);
+  }
+  return stripComments(balanced(src, open));
+}
+
+const TOGGLE = landingToggleBody(LANDING);
+
 describe('the test helpers fail loudly rather than vacuously', () => {
   it('throws when the setLanguage anchor is gone', () => {
     expect(() => setLanguageCall('const somethingElse = 1;')).toThrow(/anchor moved/);
@@ -172,6 +203,21 @@ describe('the test helpers fail loudly rather than vacuously', () => {
     expect(BODY.length).toBeGreaterThan(50);
     expect(CALL).toMatch(/^\(/);
     expect(CALL).toMatch(/\)$/);
+  });
+
+  it('throws when the landing toggle anchor is gone', () => {
+    expect(() => landingToggleBody('const somethingElse = 1;')).toThrow(/anchor moved/);
+  });
+
+  it('throws rather than slicing a destructured parameter as the toggle body', () => {
+    expect(() => landingToggleBody('const toggleLang = ({ next }) => setLang(next);'))
+      .toThrow(/zero-argument arrow/);
+  });
+
+  it('really did slice the live landing toggle, not an empty string', () => {
+    expect(TOGGLE.length).toBeGreaterThan(50);
+    expect(TOGGLE).toMatch(/^\{/);
+    expect(TOGGLE).toMatch(/\}$/);
   });
 });
 
@@ -260,5 +306,82 @@ describe('a failed write can never break the toggle', () => {
     const persist = at(BODY, /persistLanguagePreference\(/, 'the persistence call');
     const write = at(BODY, /updateDoc\(/, 'the Firestore write');
     expect(persist).toBeLessThan(write);
+  });
+});
+
+describe("the landing page's own toggle persists too", () => {
+  it('still flips its local state and the shared localStorage key', () => {
+    // LandingView renders from its own `lang` state, so this is what makes the
+    // marketing page switch at all. Neither may be dropped in favour of the
+    // context call: the context's `language` is not what this page reads.
+    expect(TOGGLE).toMatch(/setLang\(next\)/);
+    expect(TOGGLE).toMatch(/localStorage\.setItem\('mazad_language',\s*next\)/);
+  });
+
+  it('reaches users/{uid}.language through the context setLanguage', () => {
+    // The fix for "the second toggle does not persist". Delete this call and a
+    // signed-in customer switching language here keeps receiving WhatsApp and
+    // email in the language they had before — the exact defect this branch exists
+    // to remove.
+    expect(TOGGLE).toMatch(/setLanguage\(next\)/);
+    expect(stripComments(LANDING)).toMatch(/import \{ useApp \} from "\.\.\/context\/AppContext";/);
+    expect(stripComments(LANDING)).toMatch(/const \{ setLanguage \} = useApp\(\);/);
+  });
+
+  it('flips locally BEFORE it persists', () => {
+    // Same rule as the app toggle: the UI switch must not be behind the network.
+    const state = at(TOGGLE, /setLang\(next\)/, 'the local state flip');
+    const store = at(TOGGLE, /localStorage\.setItem\('mazad_language'/, 'the localStorage write');
+    const persist = at(TOGGLE, /setLanguage\(next\)/, 'the persistence call');
+    expect(state).toBeLessThan(store);
+    expect(store).toBeLessThan(persist);
+  });
+
+  it('never awaits it and never writes Firestore itself', () => {
+    // A second, un-guarded implementation is the failure mode this delegation
+    // exists to prevent: `updateDoc` here would bypass canPersistLanguage and
+    // write users/unauthenticated for every logged-out visitor who taps it.
+    expect(TOGGLE).not.toMatch(/\bawait\b/);
+    expect(stripComments(LANDING)).not.toMatch(/updateDoc\(/);
+    expect(stripComments(LANDING)).not.toMatch(/persistLanguagePreference\(/);
+  });
+});
+
+describe('the write the landing toggle reaches is guarded, signed out and sentinel alike', () => {
+  // Behavioural, not source-text: the landing toggle's write path ends in
+  // persistLanguagePreference via setLanguage, and the value of delegating is
+  // that THIS guard covers it. Loosening the guard to a truthy id — the naive
+  // `if (currentUser?.id)` — fires a doomed write to users/unauthenticated on
+  // every visitor tap of the landing toggle, and fails here.
+  const attempts = () => {
+    const writes: Array<{ uid: string; patch: unknown }> = [];
+    return {
+      writes,
+      writeDoc: (uid: string, patch: unknown) => { writes.push({ uid, patch }); },
+    };
+  };
+
+  it('writes nothing for a logged-out visitor holding the sentinel id', () => {
+    const a = attempts();
+    expect(persistLanguagePreference(
+      { isAuthenticated: false, userId: 'unauthenticated' }, 'en', a.writeDoc
+    )).toBe(false);
+    // Even if the flag were wrongly true, the sentinel is never a document.
+    expect(persistLanguagePreference(
+      { isAuthenticated: true, userId: 'unauthenticated' }, 'en', a.writeDoc
+    )).toBe(false);
+    // And a real uid with no session is still not a write we may make.
+    expect(persistLanguagePreference(
+      { isAuthenticated: false, userId: 'realuid123' }, 'en', a.writeDoc
+    )).toBe(false);
+    expect(a.writes).toEqual([]);
+  });
+
+  it('writes the normalised language for a real signed-in session', () => {
+    const a = attempts();
+    expect(persistLanguagePreference(
+      { isAuthenticated: true, userId: 'realuid123' }, 'en', a.writeDoc
+    )).toBe(true);
+    expect(a.writes).toEqual([{ uid: 'realuid123', patch: { language: 'en' } }]);
   });
 });

@@ -82,18 +82,39 @@ function has(v) {
   return txt(v).trim() !== '';
 }
 
+// The footer labels this template pairs with a printed value. Their presence is
+// what tells a POST-BILINGUAL `email_content` apart from a pre-bilingual one:
+// before functions/emailCopy.js grew brandFor(), `brand` was the raw frozen
+// BRAND object, which has no `labels` at all (and no `name`/`legal`/`address`/
+// `hours` either).
+const FOOTER_LABEL_KEYS = ['registration', 'address', 'hours', 'support', 'payments'];
+
 /**
  * The server's render, or null to fall back to the local one.
  *
  * `subject` and `heading` must both be real strings: they are the two fields
  * with no sane default — a blank subject line is the most visible thing an
- * email can get wrong, and a body with no heading is not a message. Everything
- * else (details, cta, brand) is optional and degrades inside the template.
+ * email can get wrong, and a body with no heading is not a message.
+ *
+ * THE BRAND CHECK IS THE PASTE-ORDER GUARD, and it is not cosmetic. If this node
+ * is pasted BEFORE the Functions deploy lands, the still-deployed Functions send
+ * the old `email_content` — subject and heading both present, so a subject/
+ * heading-only gate accepts it — and this template then renders an email with no
+ * header row, no company name, no legal name, no address, no hours, and a footer
+ * of three bare unlabelled numbers. That was measured, not imagined. Requiring
+ * the labels sends such a payload to the local fallback instead: today's Arabic
+ * email, which is complete and correct. A degraded-but-whole message beats a
+ * mutilated branded one, in either paste order.
  */
 function usableContent(v) {
   const ec = obj(v);
   const ok = (s) => typeof s === 'string' && s.trim() !== '';
-  return ok(ec.subject) && ok(ec.heading) ? ec : null;
+  if (!ok(ec.subject) || !ok(ec.heading)) return null;
+  const labels = obj(obj(ec.brand).labels);
+  for (const k of FOOTER_LABEL_KEYS) {
+    if (!ok(labels[k])) return null;
+  }
+  return ec;
 }
 
 /**
@@ -233,20 +254,29 @@ const out = [];
 for (const item of $input.all()) {
   const b = (item.json && item.json.body) || {};
   const ch = b.channels || {};
-  const c = copyFor(b.event, b);          // per-event data is spread onto the body
   const phone = String(b.phone || '').replace(/[^0-9]/g, '');
   const email = String(b.email || '').trim();
   const name = b.name || '';
   // Prefer what the server rendered in the recipient's language; fall back to
   // the local render only when it did not send a usable one.
   const ec = usableContent(b.email_content);
+  // The local Arabic render is the FALLBACK, so it is built only when a surface
+  // actually has nothing else to use — per surface, since WhatsApp and email can
+  // fall back independently. It used to run on every item and its `title` /
+  // `description` were emitted on the output object, where no downstream node
+  // reads them (`Send: WhatsApp` uses `waText`, `Send: Email` uses `subject` and
+  // `html`); dead Arabic fields on a payload whose whole point is that this node
+  // owns no wording. Memoised, so two fallbacks on one item still build once.
+  // (per-event data is spread onto the body, so `b` is also copyFor's data arg)
+  let localCopy = null;
+  const local = () => (localCopy || (localCopy = copyFor(b.event, b)));
   // Type-guarded the same way `email_content` is: `wa_text` goes STRAIGHT into
   // the WhatsApp send body, so a number, array or object forwarded on
   // truthiness alone would deliver "[object Object]" to a customer. Anything
   // that is not a non-blank string falls back to the local render.
   const waText = (typeof b.wa_text === 'string' && b.wa_text.trim() !== '')
     ? b.wa_text
-    : (c.description ? `${c.title}\n${c.description}` : c.title);
+    : (local().description ? `${local().title}\n${local().description}` : local().title);
 
   out.push({
     json: {
@@ -257,11 +287,9 @@ for (const item of $input.all()) {
       // additionally require the destination to actually exist.
       sendWhatsapp: ch.whatsapp === true && phone.length >= 8,
       sendEmail: ch.email === true && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email),
-      title: c.title,
-      description: c.description,
       waText,
-      subject: ec ? ec.subject : c.title,
-      html: ec ? buildHtmlFromContent(ec, name) : buildHtml(c, name),
+      subject: ec ? ec.subject : local().title,
+      html: ec ? buildHtmlFromContent(ec, name) : buildHtml(local(), name),
     },
   });
 }

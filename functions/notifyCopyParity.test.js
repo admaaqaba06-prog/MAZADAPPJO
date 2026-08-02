@@ -555,6 +555,163 @@ describe('the local render survives as the fallback', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// THE PASTE-ORDER GUARD.
+//
+// This node and functions/emailCopy.js ship separately: the node is pasted into
+// n8n by hand, the module goes out with a Firebase deploy. Paste-then-deploy is
+// therefore a real window, and in it the still-deployed OLD emailFor sends an
+// `email_content` whose `brand` is the raw frozen BRAND — no `labels`, no
+// `name`, no `legal`, no `address`, no `hours`. Subject and heading are both
+// present, so a subject/heading-only gate ACCEPTS it, and the branded template
+// then renders an email with no header row, no company name and a footer of
+// three bare unlabelled numbers. That was measured on the real artefacts, and
+// the runbook used to claim the order was "safe either way".
+//
+// It is safe now because the node rejects that shape and falls back to its own
+// Arabic email — complete, correct, and exactly what customers get today.
+// ---------------------------------------------------------------------------
+describe('a PRE-BILINGUAL email_content is rejected rather than half-rendered', () => {
+  const { BRAND } = require('./emailCopy.js');
+
+  /** Exactly what `emailFor` returned before brandFor(): raw BRAND, no `lang`. */
+  function preBilingualContent() {
+    const ec = serverContent('ar');
+    delete ec.lang;
+    ec.brand = BRAND;
+    return ec;
+  }
+
+  it('the old shape really is the one that has no labels (the premise, pinned)', () => {
+    // If BRAND ever grows a `labels` key this whole guard becomes vacuous, and
+    // this is where that is caught.
+    expect(BRAND.labels).toBeUndefined();
+    expect(BRAND.name).toBeUndefined();
+    for (const k of ['legal', 'address', 'hours']) expect(BRAND[k]).toBeUndefined();
+  });
+
+  it('falls back to the local Arabic email instead of a brandless one', () => {
+    const out = runNode(payload({ email_content: preBilingualContent() }));
+    // Rejected: the server's copy is nowhere in what shipped.
+    expect(out.subject).toBe(LOCAL.title);
+    expect(out.html).not.toContain(SENTINEL.subject);
+    expect(out.html).not.toContain(SENTINEL.heading);
+    // And what shipped is the whole fallback email, not a stump: its own header,
+    // its own body, its own footer.
+    expect(out.html).toContain('مزاد جو');
+    expect(out.html).toContain(LOCAL.title);
+    expect(out.html).toContain('هذه رسالة آلية من مزاد جو، لا حاجة للرد عليها.');
+  });
+
+  it('never prints the bare unlabelled footer that the old shape produced', () => {
+    const { html } = runNode(payload({ email_content: preBilingualContent() }));
+    // The exact regression: registration number and both phone numbers rendered
+    // as three anonymous lines because there were no labels to pair them with.
+    for (const v of [BRAND.registration, BRAND.supportPhone, BRAND.paymentsPhone]) {
+      expect(typeof v).toBe('string');
+      expect(html).not.toContain(v);
+    }
+  });
+
+  it('the real emailFor render still satisfies the labels contract', () => {
+    // Non-vacuity, and a rename alarm: if emailCopy.js renames a footer label,
+    // the guard would silently send EVERY recipient to the local fallback. This
+    // fails first and says why.
+    for (const lang of ['ar', 'en']) {
+      const ec = emailFor('payment_due', { auctionTitle: 'ساعة', totalDue: 105 }, lang);
+      for (const k of ['registration', 'address', 'hours', 'support', 'payments']) {
+        expect(typeof ec.brand.labels[k], `brand.labels.${k} missing for ${lang}`).toBe('string');
+        expect(ec.brand.labels[k].trim().length).toBeGreaterThan(0);
+      }
+      const out = runNode(payload({ email_content: { ...ec, subject: SENTINEL.subject } }));
+      expect(out.subject).toBe(SENTINEL.subject);
+    }
+  });
+
+  it('one missing footer label is enough to reject the render', () => {
+    const base = serverContent('ar').brand;
+    for (const k of ['registration', 'address', 'hours', 'support', 'payments']) {
+      const labels = { ...base.labels };
+      delete labels[k];
+      const out = runNode(payload({
+        email_content: serverContent('ar', { brand: { ...base, labels } }),
+      }));
+      expect(out.subject, `a missing '${k}' label must reject the render`).toBe(LOCAL.title);
+    }
+    // Control: untouched labels are accepted, so the loop above is not passing
+    // for some unrelated reason.
+    const ok = runNode(payload({ email_content: serverContent('ar') }));
+    expect(ok.subject).toBe(SENTINEL.subject);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The local Arabic render is the FALLBACK. On the happy path the node owns no
+// wording at all, so it must not build any — it used to run copyFor on every
+// item and emit its `title`/`description` on the output, where nothing reads
+// them (`Send: WhatsApp` uses `waText`; `Send: Email` uses `subject`/`html`).
+// ---------------------------------------------------------------------------
+describe('the local Arabic render is built only when a surface actually needs it', () => {
+  /**
+   * A payload that COUNTS copyFor calls. `secondChance` is read unconditionally
+   * at the top of copyFor and nowhere else in the node, so a getter on it is an
+   * exact invocation counter — behavioural, where source-text could not tell an
+   * eager call from a lazy one.
+   */
+  function countingPayload(extra = {}) {
+    const body = payload(extra);
+    const counter = { calls: 0 };
+    Object.defineProperty(body, 'secondChance', {
+      get() { counter.calls++; return undefined; },
+      enumerable: true,
+      configurable: true,
+    });
+    return { body, counter };
+  }
+
+  it('the counter really counts (the probe is not vacuous)', () => {
+    const { body, counter } = countingPayload();
+    const out = runNode(body);
+    // Nothing server-rendered: both surfaces fall back, so copyFor must run…
+    expect(counter.calls).toBeGreaterThan(0);
+    expect(out.subject).toBe(LOCAL.title);
+  });
+
+  it('does not build it at all when the server rendered both surfaces', () => {
+    const { body, counter } = countingPayload({
+      email_content: serverContent('ar'),
+      wa_text: SENTINEL.wa,
+    });
+    const out = runNode(body);
+    expect(out.subject).toBe(SENTINEL.subject);
+    expect(out.waText).toBe(SENTINEL.wa);
+    expect(counter.calls, 'copyFor ran on the server-rendered happy path').toBe(0);
+  });
+
+  it('builds it exactly once when only one surface falls back', () => {
+    // WhatsApp missing, email fine.
+    const wa = countingPayload({ email_content: serverContent('ar') });
+    expect(runNode(wa.body).waText).toBe(`${LOCAL.title}\n${LOCAL.description}`);
+    expect(wa.counter.calls, 'the fallback render is not memoised').toBe(1);
+    // Email missing, WhatsApp fine.
+    const em = countingPayload({ wa_text: SENTINEL.wa });
+    expect(runNode(em.body).subject).toBe(LOCAL.title);
+    expect(em.counter.calls, 'the fallback render is not memoised').toBe(1);
+  });
+
+  it('emits no dead copy fields on the output', () => {
+    // `title`/`description` were emitted on every item and consumed by nothing.
+    // Re-adding them would force the eager render back.
+    const out = runNode(payload({ email_content: serverContent('ar'), wa_text: SENTINEL.wa }));
+    expect('title' in out).toBe(false);
+    expect('description' in out).toBe(false);
+    expect(Object.keys(out).sort()).toEqual([
+      'email', 'event', 'html', 'idempotencyKey', 'name', 'phone',
+      'sendEmail', 'sendWhatsapp', 'subject', 'waText',
+    ]);
+  });
+});
+
 describe('everything interpolated from the payload is escaped', () => {
   // Auction titles are user-supplied and reach the heading, the subject, the
   // rows and the CTA. Unescaped, one lot title is an HTML injection into every

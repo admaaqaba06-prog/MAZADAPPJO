@@ -294,10 +294,19 @@ top-down from it wasted time on problems that no longer existed.
     copy change.** It renders `email_content` / `wa_text` straight from the Functions payload
     instead of holding its own copy, so **from here on, message wording changes ship with a merge
     alone**. Two caveats:
-    - **The paste is still required once, after the merge.** Until it happens the node ignores
-      both fields and renders locally — which is exactly today's behaviour, so the order is safe
-      either way: nothing breaks if the paste is late, it simply stays Arabic-only with the old
-      email shell.
+    - **The paste is still required once, and the order is: merge → let the Firebase deploy
+      finish → then paste.** Not the other way round. *Merge-first* is genuinely safe and was
+      verified by running the new Functions payload through the OLD node: it consumes only the
+      fields it always did, ignores `email_content`/`wa_text`, and renders exactly today's Arabic
+      email — so a late paste costs nothing but a mixed-language window (English in-app bell,
+      Arabic WhatsApp/email) that self-heals on the paste. *Paste-first* is a different story: the
+      still-deployed old `emailFor` sends an `email_content` whose `brand` is the raw `BRAND` with
+      no `labels`, and a subject/heading-only gate would accept it and render a customer-visible
+      email with no header, no company name, no address, no hours and a footer of three bare
+      unlabelled numbers. That was measured, not theorised. **`usableContent()` in
+      `n8n/build-messages.js` now also requires the five footer labels**, so the pre-bilingual
+      shape is rejected and falls back to the node's own complete Arabic email — the window is
+      now merely suboptimal rather than broken. Follow the order anyway.
     - **`functions/emailCopy.js` was dead code from 2026-07-29 (`fad74be`) until this shipped.**
       Functions built `email_content` for three days and the deployed node never read it, so the
       branded email shell — Al Hani footer, amount, `MZ-` order reference — reached nobody. The

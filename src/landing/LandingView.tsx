@@ -41,6 +41,7 @@ import { translations, TranslationType } from "./translations";
 import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
+import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
 import AuctionRulesModal from "../components/AuctionRulesModal";
@@ -327,12 +328,31 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
 }
 
 export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/962781444899" }: { onEnter: (target?: string) => void; whatsappUrl?: string }) {
+  // App.tsx renders this view for SIGNED-IN users too (the logo routes here), so
+  // this toggle is not a visitor-only control: it is the most prominent language
+  // switch in the product and a logged-in customer reaches it. It used to write
+  // localStorage alone, which the server cannot read — so switching here changed
+  // the UI while `users/{uid}.language` kept its old value and every WhatsApp
+  // message, email and in-app notification carried on in the previous language.
+  // Delegating to the context's `setLanguage` is what closes that: it owns the
+  // one persistence path (src/utils/languagePersistence.ts), including the
+  // signed-out guard. Not re-implemented here — one write, one guard.
+  const { setLanguage } = useApp();
   const [lang, setLang] = useState<"ar" | "en">(() => (localStorage.getItem('mazad_language') === 'en' ? 'en' : 'ar'));
   const toggleLang = () => {
     const next = lang === "ar" ? "en" : "ar";
     emitLandingEvent('language_switched', { to: next });
+    // Local flip and localStorage FIRST and unconditionally: this page renders
+    // from its own `lang` state, and the switch must be instant and total
+    // regardless of what happens next.
     setLang(next);
     localStorage.setItem('mazad_language', next);
+    // Then the shared path: app-wide state + the fire-and-forget write to
+    // users/{uid}.language. It writes only for a real signed-in session — a
+    // logged-out visitor's currentUser.id is the truthy sentinel
+    // 'unauthenticated' — never awaits, and swallows its own failures, so a
+    // dead network cannot leave this toggle half-applied.
+    setLanguage(next);
   };
   const t: TranslationType = translations[lang];
 

@@ -40,8 +40,13 @@ forwards `wa_text` as-is. It decides **no wording**. Direction and `lang` come
 from `email_content.lang`, so an English email renders `dir="ltr" lang="en"`
 and left-aligned rather than being forced RTL.
 
-Three rules the template enforces on what it is handed:
+Four rules the template enforces on what it is handed:
 
+- **An `email_content` without the bilingual `brand` is not usable.**
+  `usableContent()` requires `subject`, `heading`, and all five footer labels
+  (`brand.labels.registration/address/hours/support/payments`). Anything else
+  goes to the local Arabic fallback. See "Paste order" below — this is the guard,
+  not a nicety.
 - **No preference means Arabic.** English is opt-in and spelled exactly `'en'`;
   a missing, null or unrecognised `lang` renders the Arabic RTL shell. The
   audience is Jordanian — an unresolved language must not fall to English.
@@ -58,6 +63,32 @@ Three rules the template enforces on what it is handed:
 > detail rows, CTA labels and the footer all change in the repo from here on —
 > in review, with tests — and reach production on the next Functions deploy.
 > Re-paste this node only if the *template or forwarding logic* itself changes.
+
+### Paste order: merge, let the deploy finish, THEN paste
+
+The two halves ship separately — this node by hand, `functions/emailCopy.js` with
+a Firebase deploy — so the order matters and it is **not** symmetric. An earlier
+version of this file said it was "safe either way". It was not.
+
+- **Merge first (correct).** The old node consumes only the fields it always did
+  and ignores `email_content` / `wa_text`, so until the paste lands every message
+  is exactly today's Arabic. The one visible effect is a mixed-language window —
+  in-app bell in the recipient's language, WhatsApp and email still Arabic — and
+  it self-heals the moment you paste. Verified by running the new payload through
+  the old node body.
+- **Paste first (don't).** The still-deployed old `emailFor` sends an
+  `email_content` whose `brand` is the raw `BRAND`: no `labels`, no `name`, no
+  `legal`, no `address`, no `hours`. Subject and heading are both present, so the
+  original subject/heading-only gate accepted it and the branded template rendered
+  an email with **no header row, no company name, no address, no hours and a
+  footer of three bare unlabelled numbers** — measured on the real artefacts.
+
+The footer-labels requirement in `usableContent()` exists for exactly that case:
+the pre-bilingual shape is now rejected and falls back to the node's own complete
+Arabic email, so a wrong-order paste degrades instead of mutilating.
+`functions/notifyCopyParity.test.js` feeds that shape through the real node and
+asserts the fallback. **Follow the order anyway** — the guard is a floor, not a
+licence.
 
 **`copyFor` and `buildHtml` remain in the node ONLY as the fallback**, used when
 the payload carries no usable render (a half-landed deploy, a renamed field, a
