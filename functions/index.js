@@ -128,9 +128,18 @@ async function notify({ uid, event, data = {} }) {
   }
   // The user doc is already loaded above for phone/email/name, so reading the
   // language preference off it costs no extra Firestore read. It MUST be read
-  // after the lookup — before it, `user` is {} and every recipient silently
-  // gets Arabic, which looks correct in production and is invisible by eye.
-  const lang = resolveLang(user);
+  // after `user = s.data()` — before that assignment `user` is {} and every
+  // recipient silently gets Arabic, which looks correct in production and is
+  // invisible by eye.
+  // Guarded for the same reason every other callee in this function is: notify()
+  // runs inside settlement / escrow / bid post-commit paths that rely on it
+  // never throwing (see the header comment), and an unguarded call here would
+  // propagate. Arabic is the product default, so the degraded path is the
+  // default locale rather than a lost notification.
+  let lang = 'ar';
+  try {
+    lang = resolveLang(user);
+  } catch (e) { console.warn(`[notify] language resolve ${event} failed:`, e && e.message); }
   if (channels.inapp && uid) {
     try {
       const c = copyFor(event, d, lang);
@@ -142,27 +151,45 @@ async function notify({ uid, event, data = {} }) {
     } catch (e) { console.warn(`[notify] in-app ${event} failed:`, e && e.message); }
   }
   if (channels.whatsapp || channels.email) {
+    // postToN8n never throws — but its ARGUMENT EXPRESSION is evaluated by
+    // notify(), not by postToN8n, so a renderer that threw inside that literal
+    // would escape notify() entirely and land in the money paths. Each renderer
+    // is therefore evaluated into a local inside its own guard BEFORE the
+    // payload literal is built. A renderer that fails drops its own surface
+    // (the key is undefined, so JSON.stringify omits it from the wire body) and
+    // nothing else; on the happy path the payload is byte-identical to what
+    // inlining these expressions produced.
+    let emailContent;
+    if (channels.email) {
+      // Rendered email content, so the n8n workflow is a dumb template rather
+      // than a second copy map that can drift from this repo. It carries the
+      // amount, deadline, order reference and a real deep link — none of which
+      // reached the old email, which reused the terse in-app one-liner.
+      try {
+        emailContent = emailFor(event, { ...d, name: user.name || d.name || '' }, lang);
+      } catch (e) { console.warn(`[notify] email copy ${event} failed:`, e && e.message); }
+    }
+    let waText;
+    if (channels.whatsapp) {
+      // The WhatsApp body, rendered here so the n8n node forwards a string
+      // instead of keeping its own copy map. The shape — `title\ndescription`,
+      // or the title alone when there is no description — is byte-for-byte what
+      // the node produces today, so its fallback and this render are identical.
+      try {
+        const c = copyFor(event, d, lang);
+        waText = c.description ? `${c.title}\n${c.description}` : c.title;
+      } catch (e) { console.warn(`[notify] whatsapp copy ${event} failed:`, e && e.message); }
+    }
     await postToN8n(event, {
       phone: user.phoneNumber || user.phone || d.phone || '',
       email: user.email || d.email || '',
       name: user.name || d.name || '',
       channels,
       ...d,
-      // Rendered email content, so the n8n workflow is a dumb template rather
-      // than a second copy map that can drift from this repo. It carries the
-      // amount, deadline, order reference and a real deep link — none of which
-      // reached the old email, which reused the terse in-app one-liner.
-      ...(channels.email ? { email_content: emailFor(event, { ...d, name: user.name || d.name || '' }, lang) } : {}),
-      // The WhatsApp body, rendered here so the n8n node forwards a string
-      // instead of keeping its own copy map. The shape — `title\ndescription`,
-      // or the title alone when there is no description — is byte-for-byte what
-      // the node produces today, so its fallback and this render are identical.
+      ...(channels.email ? { email_content: emailContent } : {}),
       // Gated on the channel, exactly as email_content is: an in-app-only event
       // has no business carrying a WhatsApp body.
-      ...(channels.whatsapp ? { wa_text: (() => {
-        const c = copyFor(event, d, lang);
-        return c.description ? `${c.title}\n${c.description}` : c.title;
-      })() } : {}),
+      ...(channels.whatsapp ? { wa_text: waText } : {}),
     });
   }
 }
