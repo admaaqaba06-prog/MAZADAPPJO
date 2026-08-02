@@ -13,7 +13,8 @@
 // field mapping in `liveAuctionFields`, so it carries no new pure logic of its
 // own (no dedicated unit test — see the plan's Task 3).
 //
-// ADDITIVE: nothing consumes this yet (Task 5 wires it into DiscoveryFeedView).
+// Consumed by `DiscoveryFeedView` (the Discover grid) and `LiveStreamView`
+// (the live room's own ending-soon list).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {

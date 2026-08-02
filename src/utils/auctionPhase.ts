@@ -24,11 +24,12 @@ export function isAwaitingFirstBid(
 }
 
 /**
- * The RAW-DOC twin of `isAwaitingFirstBid`. Takes Firestore doc data (server
- * field names: `endsAt`, not the mapped `endTime`) so it can be consulted
- * BEFORE mapping — which is the only point where the absence of a clock is
- * still observable. `resolveEndTime` fabricates `now + 1h` for a doc with no
- * end field, so by the time an AuctionItem exists the state is unrecoverable.
+ * The RAW-DOC twin of `isAwaitingFirstBid`. It exists because raw doc data
+ * carries the SERVER field name `endsAt`, which no mapped `AuctionItem` has —
+ * so the doc-shaped check cannot be expressed with `isAwaitingFirstBid`.
+ * `resolveEndTime` (liveAuctionFields) calls this predicate first and returns
+ * null for an awaiting lot, which is what keeps the mapped item's `endTime`
+ * null and lets `isAwaitingFirstBid` recognise it post-mapping.
  *
  * Checks both `endsAt` (what the server stamps on the first bid) and `endTime`
  * (the legacy field): either one present means the clock has started.

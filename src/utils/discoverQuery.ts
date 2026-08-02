@@ -70,7 +70,7 @@ export const ALL_TAB_FIRST_BID_LIMIT = 8;
  * lots, newest first.
  *
  * These lots have NO `endsAt` until the first bid lands, and Firestore drops
- * docs that are missing the field an query orders by — so the ending-soon feed
+ * docs that are missing the field a query orders by — so the ending-soon feed
  * (`orderBy('endsAt')`) cannot see them at all. That is why this is a separate
  * query rather than a filter on the live one.
  *
