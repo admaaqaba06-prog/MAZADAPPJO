@@ -163,7 +163,13 @@ function formatDeadline(value, lang = 'ar') {
     return new Intl.DateTimeFormat(normalizeLang(lang) === 'en' ? 'en-US' : 'en-GB', {
       timeZone: 'Asia/Amman',
       day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: false,
+      // hourCycle, NOT hour12. `hour12: false` leaves the choice between h23
+      // (00-23) and h24 (01-24) to the runtime's ICU, so the SAME midnight
+      // deadline rendered "00:00" on one Node build and "24:00" on another —
+      // caught by CI against a local run that disagreed. "24:00" on a payment
+      // deadline reads as the wrong day to a customer. h23 is pinned here, and
+      // `hour12` is dropped because it OVERRIDES hourCycle when both are given.
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(new Date(ms));
   } catch {
     return '';

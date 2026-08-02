@@ -541,6 +541,19 @@ describe('formatJod / formatDeadline carry the language', () => {
   it('keeps 24-hour time in English so a payment deadline cannot be read 12 hours out', () => {
     // 21:00 UTC on the 29th is 00:00 on the 30th in Amman.
     expect(formatDeadline(Date.UTC(2026, 6, 29, 21, 0, 0), 'en')).toMatch(/00:00/);
+    // NEVER h24. `hour12: false` alone let ICU pick between 00-23 and 01-24, so
+    // this same midnight rendered "24:00" on CI while passing locally. A payment
+    // deadline of "24:00" reads as the wrong DAY to the customer who has to meet
+    // it. Asserted in both languages and against every hour that can roll over.
+    expect(formatDeadline(Date.UTC(2026, 6, 29, 21, 0, 0), 'en')).not.toMatch(/24:/);
+    expect(formatDeadline(Date.UTC(2026, 6, 29, 21, 0, 0), 'ar')).toMatch(/00:00/);
+    expect(formatDeadline(Date.UTC(2026, 6, 29, 21, 0, 0), 'ar')).not.toMatch(/24:/);
+    for (let h = 0; h < 24; h++) {
+      // 21:00 UTC is 00:00 Amman, so h steps one Amman hour at a time.
+      const rendered = formatDeadline(Date.UTC(2026, 6, 29, 21, 0, 0) + h * 3600000, 'en');
+      expect(rendered, `Amman hour ${h}`).toMatch(/\b([01][0-9]|2[0-3]):[0-5][0-9]\b/);
+      expect(rendered, `Amman hour ${h}`).not.toMatch(/\b24:/);
+    }
     // 13:00 UTC is 16:00 Amman — "4:00" with no meridiem would be ambiguous.
     expect(formatDeadline(Date.UTC(2026, 6, 30, 13, 0, 0), 'en')).toMatch(/16:00/);
   });
