@@ -220,12 +220,20 @@ Manual:
 - MJ's preview pass on `/discover` before merge — this is a customer-facing
   layout change and goes through the preview gate.
 
-## Out of scope
+## Not in this spec
 
-- **#203** (zero-bid lots labelled "Current bid") — same branch, separate change.
-- **#206** (feed is not realtime) — own spec.
-- **#207** (admin panel performance) — this spec routes *around* the 100-doc cap
-  via search; it does not fix it.
+Everything below ships in the same PR on this branch. It is separated here so
+this document — and the plan generated from it — stays about featuring.
+
+- **#203** (zero-bid lots labelled "Current bid") — no spec needed: a copy change
+  in four components reusing the `startingBid` strings already in
+  `translations.ts`. Ships first; it is the bug the partner actually reported.
+- **#206** (feed is not realtime) — needs its own design pass. Subscribing a
+  paged feed at 241 auctions has read-cost and re-render implications that want
+  measuring before committing.
+- **#207** (admin panel performance) — needs its own design pass; paginate,
+  server-side search or virtualize are materially different answers. This spec
+  routes *around* the 100-doc cap via search; it does not fix it.
 - **Landing page coupling.** Deferred by decision until the feature has been
   used. Turning it on later is one line in `auctionDocMap.ts` — derive
   `isFeatured` from `featuredRank` — plus one test. Because nothing ever writes
