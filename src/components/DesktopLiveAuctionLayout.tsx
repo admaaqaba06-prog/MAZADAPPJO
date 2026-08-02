@@ -232,11 +232,21 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
   const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
 
-  // --- The seller's own words (rendered below the product-info row) ---
+  // --- The seller's own words (rendered in the bidding aside) ---
   // Trimmed, because a description is now a real seller-authored field: the
   // concierge form writes '' deliberately rather than inventing a line from the
   // title, so absent and whitespace-only are both live states, not hypotheses.
-  const descriptionText = String(activeAuction?.description || '').trim();
+  //
+  // A description that only repeats the title is not a description. 102 live
+  // lots carry an exact copy, and `dropPayload.ts` still writes
+  // `description: input.productName.trim()` for every admin drop — so without
+  // this the card would render the lot title a few pixels under the lot title
+  // on essentially every live lot. Suppressed here at the single source of
+  // truth rather than in the JSX, so the guard, the clamp and the overflow
+  // measurement all agree on what counts as a description.
+  const rawDescriptionText = String(activeAuction?.description || '').trim();
+  const auctionTitleText = String(activeAuction?.title || '').trim();
+  const descriptionText = rawDescriptionText === auctionTitleText ? '' : rawDescriptionText;
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [descriptionClamped, setDescriptionClamped] = useState(false);

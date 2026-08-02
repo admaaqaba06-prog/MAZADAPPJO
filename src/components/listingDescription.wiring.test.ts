@@ -91,7 +91,10 @@ describe('the wizard captures a real description', () => {
   });
 
   it('caps the length, since nothing downstream does', () => {
-    expect(WIZ).toMatch(/<textarea[\s\S]{0,600}?maxLength=\{1000\}/);
+    // Anchored on the attributes themselves, not on a character window: a
+    // `[\s\S]{0,600}?` gap would happily match a DIFFERENT textarea added above
+    // this one and report the description field as capped while it is not.
+    expect(WIZ).toMatch(/<textarea\s*rows=\{3\}\s*maxLength=\{1000\}/);
   });
 
   it('passes the seller-typed value to createListing', () => {

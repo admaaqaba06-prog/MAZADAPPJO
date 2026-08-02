@@ -522,11 +522,21 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
               {isAr ? 'التفاصيل' : 'Details'}
             </h2>
 
-            {activeAuction?.description && (
-              <p className="mt-2 text-[13px] leading-relaxed text-[#444] whitespace-pre-line">
-                {activeAuction.description}
-              </p>
-            )}
+            {(() => {
+              // A description that only repeats the title is not a description:
+              // 102 live lots carry an exact copy, and `dropPayload.ts` still
+              // writes `description: input.productName.trim()` for every admin
+              // drop, so this renders the title again directly under the title.
+              // Trimmed, so '' (which the concierge form now writes on purpose)
+              // and whitespace-only both vanish rather than leaving a blank <p>.
+              const text = String(activeAuction?.description || '').trim();
+              if (!text || text === String(activeAuction?.title || '').trim()) return null;
+              return (
+                <p className="mt-2 text-[13px] leading-relaxed text-[#444] whitespace-pre-line">
+                  {text}
+                </p>
+              );
+            })()}
 
             <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-[#ECECEA] text-[12px]">
               {conditionChip && (

@@ -61,8 +61,30 @@ describe('an absent description renders NOTHING', () => {
     // check (`activeAuction?.description !== undefined`) admits '' and '   ',
     // both of which Task 2 now writes deliberately.
     expect(SRC).toMatch(
-      /const\s+descriptionText\s*=\s*String\(\s*activeAuction\??\.description\s*\|\|\s*''\s*\)\.trim\(\)/,
+      /const\s+rawDescriptionText\s*=\s*String\(\s*activeAuction\??\.description\s*\|\|\s*''\s*\)\.trim\(\)/,
     );
+  });
+});
+
+describe('a description that merely echoes the title renders NOTHING', () => {
+  // 102 live lots carry a description that is an exact copy of their title,
+  // and `dropPayload.ts` still writes `description: input.productName.trim()`
+  // for every admin drop — a third fabrication path, still live. Without this
+  // the card prints the lot title a few pixels under the lot title on
+  // essentially every live lot.
+  it('compares the trimmed description against the trimmed title', () => {
+    expect(SRC).toMatch(/const\s+auctionTitleText\s*=\s*String\(\s*activeAuction\??\.title\s*\|\|\s*''\s*\)\.trim\(\)/);
+    expect(SRC).toMatch(
+      /const\s+descriptionText\s*=\s*rawDescriptionText\s*===\s*auctionTitleText\s*\?\s*''\s*:\s*rawDescriptionText/,
+    );
+  });
+
+  it('suppresses it at the derivation, not in the JSX', () => {
+    // One source of truth: the guard, the clamp and the overflow measurement
+    // must all agree on what counts as a description. A second condition bolted
+    // onto the JSX would leave the measurement running on text nobody renders.
+    expect(descriptionSection()).not.toMatch(/title/);
+    expect(SRC).toMatch(/\{\s*descriptionText\s*&&\s*\(/);
   });
 
   it('gates the section on that trimmed string and nothing else', () => {
@@ -113,8 +135,14 @@ describe('long descriptions cannot push the bid controls off screen', () => {
     expect(descriptionSection()).toMatch(/descriptionExpanded\s*\?\s*''\s*:\s*'line-clamp-4'/);
   });
 
-  it('the toggle label is bilingual', () => {
-    expect(SRC).toMatch(/عرض المزيد|عرض أقل/);
+  it('the toggle label is bilingual in BOTH states', () => {
+    // The original assertion was `/عرض المزيد|عرض أقل/` — an alternation, so
+    // one Arabic label satisfied it and neither English label was asserted
+    // anywhere. Replacing both English strings with Arabic left all 30 tests
+    // green: an English-locale bidder would have got Arabic labels in silence.
+    const section = descriptionSection();
+    expect(section).toMatch(/isAr \? 'عرض المزيد' : 'Show more'/);
+    expect(section).toMatch(/isAr \? 'عرض أقل' : 'Show less'/);
   });
 
   it('preserves seller line breaks', () => {

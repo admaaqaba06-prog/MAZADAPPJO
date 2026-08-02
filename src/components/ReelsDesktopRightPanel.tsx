@@ -244,9 +244,19 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             </span>
           </div>
 
-          <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
-            {currentItem.description}
-          </p>
+          {(() => {
+            // Unstyled, so an empty description collapses to a stray gap rather
+            // than an empty card — but it is the same rule, and the same
+            // title-echo case (102 live lots copy the title into the
+            // description, which this panel prints directly under the title).
+            const text = String(currentItem.description || '').trim();
+            if (!text || text === String(currentItem.title || '').trim()) return null;
+            return (
+              <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
+                {text}
+              </p>
+            );
+          })()}
 
           {formattedSubtitle && (
             <p className="text-[9px] text-[#FF6B00] leading-relaxed font-sans font-medium italic">
