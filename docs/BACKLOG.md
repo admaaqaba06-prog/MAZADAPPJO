@@ -266,6 +266,57 @@ top-down from it wasted time on problems that no longer existed.
     `line-clamp-3`/`line-clamp-4` in code blocks — so the class is emitted even with the component
     gutted. Only mutation testing proves the wiring.
 
+30. **Customer messaging is bilingual, and `users/{uid}.language` is what decides it**
+    (Global Language, 2026-08-02). Every customer-facing message — in-app notification, WhatsApp
+    and email — is now rendered by Cloud Functions in the **recipient's** language, not the
+    sender's and not the app's. One field drives all three: `users/{uid}.language`, read by
+    `resolveLang` in `functions/messageCopy.js`.
+
+    **Arabic is the default and the fallback, and it is not a soft default.** `resolveLang` returns
+    `'en'` **only** on an exact `'en'`; a missing user doc, a missing field, a junk value, `'EN'`,
+    a non-string — everything else is Arabic. That is the correct bias for this market, and it
+    means **no backfill is needed**: the ~all existing users have no `language` field and keep
+    receiving Arabic exactly as before. The client mirrors the same rule before it writes
+    (`normalizeLanguage`, `src/utils/languagePersistence.ts`), and a test runs both
+    implementations over the same inputs so the two cannot drift.
+
+    **The language toggle now writes that field.** Before this, `setLanguage` wrote only
+    `localStorage`, which the server cannot read — so a customer could run the whole app in English
+    and still get every message in Arabic. The write is **best-effort by design**: the UI flips
+    first, the Firestore write is fire-and-forget with its failure swallowed to a `console.warn`,
+    and the next toggle retries. A signed-out visitor writes nothing (their `currentUser.id` is the
+    sentinel `'unauthenticated'` — **truthy**, so a plain `if (currentUser?.id)` guard fires a
+    doomed write on every visitor toggle; don't reintroduce that shape). **No `firestore.rules`
+    change was needed** — `match /users/{userId}`'s `allow update` gates self-writes by
+    **denylist**, and `language` is on none of the excluded lists.
+
+    **The n8n Build Messages node is now a forwarder, and this is the last paste it needs for a
+    copy change.** It renders `email_content` / `wa_text` straight from the Functions payload
+    instead of holding its own copy, so **from here on, message wording changes ship with a merge
+    alone**. Two caveats:
+    - **The paste is still required once, and the order is: merge → let the Firebase deploy
+      finish → then paste.** Not the other way round. *Merge-first* is genuinely safe and was
+      verified by running the new Functions payload through the OLD node: it consumes only the
+      fields it always did, ignores `email_content`/`wa_text`, and renders exactly today's Arabic
+      email — so a late paste costs nothing but a mixed-language window (English in-app bell,
+      Arabic WhatsApp/email) that self-heals on the paste. *Paste-first* is a different story: the
+      still-deployed old `emailFor` sends an `email_content` whose `brand` is the raw `BRAND` with
+      no `labels`, and a subject/heading-only gate would accept it and render a customer-visible
+      email with no header, no company name, no address, no hours and a footer of three bare
+      unlabelled numbers. That was measured, not theorised. **`usableContent()` in
+      `n8n/build-messages.js` now also requires the five footer labels**, so the pre-bilingual
+      shape is rejected and falls back to the node's own complete Arabic email — the window is
+      now merely suboptimal rather than broken. Follow the order anyway.
+    - **`functions/emailCopy.js` was dead code from 2026-07-29 (`fad74be`) until this shipped.**
+      Functions built `email_content` for three days and the deployed node never read it, so the
+      branded email shell — Al Hani footer, amount, `MZ-` order reference — reached nobody. The
+      lesson generalises: **a server-side render that no deployed consumer reads is invisible to
+      every test in this repo.** Verify a payload field end-to-end at the node, not at the emitter.
+
+    **The English copy is new and unreviewed by a human.** Tests prove all twenty events carry a
+    non-empty string in both languages; they cannot prove it reads well to a customer. Read the
+    English strings before they reach anyone.
+
 ## 🚀 Queued projects (specced / scoped)
 
 - ~~**Delivery is trust + paper**~~ ✅ **Shipped 2026-07-28 (Wave 3).** The handoff used to be: driver delivers, buyer signs a paper receipt, driver films it and WhatsApps CS. "There is no system." There is now — a three-photo evidence chain (seller prepares → seller dispatches with a `DC-XXXXX` code visible → buyer photographs receipt and types the code), where the buyer's confirmation releases escrow with no admin in the happy path. The paper receipt survives as an offline physical fallback; **the app is the system of record.** Design: `docs/superpowers/specs/2026-07-28-wave3-delivery-evidence-design.md`.

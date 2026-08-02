@@ -32,6 +32,7 @@ import { isEffectivelyBlocked } from '../utils/banStatus';
 import { resolveNotificationContent } from '../utils/notificationContent';
 import type { ViewingMode } from '../utils/viewing';
 import { viewingWritePayload } from '../utils/viewing';
+import { persistLanguagePreference } from '../utils/languagePersistence';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -2325,9 +2326,22 @@ const fetchIP = async () => {
 };
 
   const setLanguage = useCallback((lang: 'en' | 'ar') => {
+    // Local first and unconditionally: the toggle is instant, and a signed-out
+    // visitor keeps their choice (LandingView reads the same key directly).
     setLanguageState(lang);
     localStorage.setItem('mazad_language', lang);
-  }, []);
+    // Then the server's copy. Cloud Functions read users/{uid}.language to pick
+    // the language for in-app notifications, WhatsApp and email; without this
+    // write every recipient falls back to Arabic. Fire-and-forget and never
+    // awaited — the UI has already switched, so a failed write is non-fatal and
+    // the next toggle retries.
+    persistLanguagePreference(
+      { isAuthenticated, userId: currentUser?.id },
+      lang,
+      (uid, patch) => updateDoc(doc(db, 'users', uid), patch),
+      (err) => console.warn('[setLanguage] language preference not persisted:', err)
+    );
+  }, [isAuthenticated, currentUser?.id]);
 
   const login = useCallback(async (email: string, pass: string) => {
     const cleanEmail = email.toLowerCase().trim();
