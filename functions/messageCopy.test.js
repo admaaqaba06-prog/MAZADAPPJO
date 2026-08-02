@@ -11,6 +11,30 @@ const { CHANNEL_POLICY } = require('./notify.js');
 
 const EVENTS = Object.keys(CHANNEL_POLICY);
 
+// The same variant set functions/notifyCopyParity.test.js drives its byte-identity
+// check with. Every event is run against every variant, so whichever event uses a
+// given field is covered regardless of which one it is — and, crucially, every
+// sub-branch is actually entered.
+const DATA_VARIANTS = [
+  undefined,
+  {},
+  { auctionTitle: 'ساعة رولكس', totalDue: 105, paymentHours: 48, topBid: 90, orderId: 'ORD-1', amount: 100, trackingNumber: 'TRK9' },
+  { orderId: 'ORD-2' },
+  { reason: 'payment_default' },
+  { reason: 'payment_default_repeat' },
+  { reason: 'admin' },
+  { reason: 'حساب مكرر' },
+  { outcome: 'refunded' },
+  { outcome: 'denied' },
+  { auctionTitle: 'x "y" & <z>' },
+  { auctionTitle: 'ساعة رولكس', topBid: 90, secondChance: true, offerStatus: 'pending_seller' },
+  { auctionTitle: 'ساعة رولكس', topBid: 90, secondChance: true, offerStatus: 'pending_buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true },
+  { auctionTitle: 'ساعة رولكس', secondChance: false, offerStatus: 'pending_buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'buyer' },
+  { auctionTitle: 'ساعة رولكس', secondChance: true, declinedBy: 'seller' },
+];
+
 describe('completeness — no event may ship half-translated', () => {
   it('covers exactly the events the n8n contract routes', () => {
     // 20 keys. The live workflow silently drops anything else, so an event
@@ -38,9 +62,16 @@ describe('completeness — no event may ship half-translated', () => {
     }
   });
 
-  it('keeps the same `type` in both languages — it drives the in-app icon', () => {
-    for (const event of EVENTS) {
-      expect(copyFor(event, {}, 'en').type, event).toBe(copyFor(event, {}, 'ar').type);
+  it('keeps the same `type` in both languages, in every sub-branch — it drives the in-app icon', () => {
+    // Empty `data` alone enters NO sub-branch, so English below_reserve_declined's
+    // second-chance branch could carry `type: 'order'` where Arabic carries
+    // 'info' and the two recipients would see different icons for the identical
+    // event. Drive it with the full variant set instead.
+    for (const data of DATA_VARIANTS) {
+      for (const event of EVENTS) {
+        const label = `${event} / ${JSON.stringify(data)}`;
+        expect(copyFor(event, data, 'en').type, label).toBe(copyFor(event, data, 'ar').type);
+      }
     }
   });
 });
@@ -63,11 +94,17 @@ describe('sub-branches exist in both languages', () => {
     expect(seen.size).toBe(6);
   });
 
-  it('return_resolved differs between refunded and not', () => {
+  it('return_resolved differs between refunded and not, and neither branch is blank', () => {
     for (const lang of SUPPORTED_LANGS) {
       const a = copyFor('return_resolved', { auctionTitle: 'X', outcome: 'refunded' }, lang);
       const b = copyFor('return_resolved', { auctionTitle: 'X', outcome: 'rejected' }, lang);
       expect(a.description, lang).not.toBe(b.description);
+      // `not.toBe(theOtherBranch)` alone is satisfied by '': an approved refund
+      // would then send an empty WhatsApp and email body. The completeness test
+      // does not reach here — it probes { auctionTitle, totalDue } and lands on
+      // the non-refunded branch.
+      expect(a.description.trim().length, `refunded/${lang}`).toBeGreaterThan(0);
+      expect(b.description.trim().length, `rejected/${lang}`).toBeGreaterThan(0);
     }
   });
 
@@ -80,21 +117,34 @@ describe('sub-branches exist in both languages', () => {
     }
   });
 
-  it('a second-chance recipient is never told their bids fell short', () => {
-    // The whole reason this event branches. Arabic: «لم تبلغ المزايدات».
+  it('a second-chance recipient is TOLD the winner defaulted, not merely spared one phrasing', () => {
+    // Positive assertion, replacing a denylist that was weak in English and
+    // VACUOUS in Arabic:
+    //   - `not.toMatch(/did not (reach|meet)/)` let "Your bids fell short on X"
+    //     through untouched — the exact falsehood the branch exists to prevent.
+    //   - `not.toMatch(/لم تبلغ المزايدات/)` asserted against a phrase that has
+    //     never appeared in this copy map at all (it lives in
+    //     functions/emailCopy.js:155), so it could not fail for any input.
+    //
+    // A second-chance recipient's bids did NOT fall short — the winner failed to
+    // pay. Require that fact to be present rather than banning one way of
+    // omitting it; fell-short wording cannot satisfy a positive check.
     for (const status of ['pending_seller', 'pending_buyer']) {
-      const ar = copyFor('below_reserve_offer', { auctionTitle: 'X', topBid: 10, secondChance: true, offerStatus: status }, 'ar');
-      expect(ar.description).not.toMatch(/لم تبلغ المزايدات/);
-      const en = copyFor('below_reserve_offer', { auctionTitle: 'X', topBid: 10, secondChance: true, offerStatus: status }, 'en');
-      expect(en.description.toLowerCase()).not.toMatch(/did not (reach|meet)/);
+      const d = { auctionTitle: 'X', topBid: 10, secondChance: true, offerStatus: status };
+      expect(copyFor('below_reserve_offer', d, 'ar').description, `ar/${status}`).toMatch(/لم يكمل الفائز/);
+      expect(copyFor('below_reserve_offer', d, 'en').description, `en/${status}`).toMatch(/never paid/i);
     }
   });
 
-  it('below_reserve_declined distinguishes a buyer decline on a second chance', () => {
+  it('below_reserve_declined distinguishes a buyer decline on a second chance, and neither branch is blank', () => {
     for (const lang of SUPPORTED_LANGS) {
       const a = copyFor('below_reserve_declined', { auctionTitle: 'X', secondChance: true, declinedBy: 'buyer' }, lang);
       const b = copyFor('below_reserve_declined', { auctionTitle: 'X' }, lang);
       expect(a.description, lang).not.toBe(b.description);
+      // Same hole as return_resolved: '' differs from the other branch, so the
+      // second-chance branch could ship an empty body and stay green.
+      expect(a.description.trim().length, `second-chance/${lang}`).toBeGreaterThan(0);
+      expect(b.description.trim().length, `plain/${lang}`).toBeGreaterThan(0);
     }
   });
 });

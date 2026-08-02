@@ -55,7 +55,7 @@ function build(lang, data) {
       below_reserve_offer: !sc
         ? { type: 'info', title: 'Offer below your price', description: `The highest bid on "${t}" is ${d.topBid || ''} JOD — accept it?` }
         : d.offerStatus === 'pending_seller'
-          ? { type: 'info', title: 'Second chance — your decision', description: `The winner of "${t}" never paid. The next bid is ${d.topBid || ''} JOD, under your asking price — accept it?` }
+          ? { type: 'info', title: 'Second chance — your decision', description: `The winner of "${t}" never paid. The next-highest bid is ${d.topBid || ''} JOD, under your asking price — accept it?` }
           : { type: 'info', title: 'A second chance for you', description: `The winner of "${t}" never paid, so the item is offered to you at your bid of ${d.topBid || ''} JOD — accept it?` },
       below_reserve_seller_accepted: { type: 'win', title: 'The seller accepted your offer', description: `The seller accepted your bid on "${t}". Confirm to buy.` },
       below_reserve_declined: sc && d.declinedBy === 'buyer'
@@ -66,7 +66,7 @@ function build(lang, data) {
       order_shipped: { type: 'order', title: 'Shipped', description: `Your order "${t}" has been shipped.` },
       order_delivered: { type: 'order', title: 'Delivered', description: `Your order "${t}" has been delivered.` },
       order_completed: { type: 'order', title: 'Order complete', description: `Your order "${t}" is complete.` },
-      order_refunded: { type: 'refund', title: 'Refunded', description: `The amount for your order "${t}" has been refunded.` },
+      order_refunded: { type: 'refund', title: 'Refunded', description: `Your order "${t}" has been refunded.` },
       membership_rejected: { type: 'subscription', title: 'Membership review', description: d.reason || 'Your membership request was not approved.' },
       order_payment_rejected: { type: 'order', title: 'Payment proof rejected', description: d.reason || 'Please send your payment proof again.' },
       account_banned: { type: 'alert', title: 'Account restricted', description:
@@ -79,7 +79,7 @@ function build(lang, data) {
       return_requested: { type: 'order', title: 'Return requested', description: `A return request was opened on "${t}". Please review it.` },
       return_resolved: { type: 'order', title: 'Return request outcome',
         description: d.outcome === 'refunded'
-          ? `The return of "${t}" was approved and the amount will go back to your wallet.`
+          ? `The return of "${t}" was approved and the amount will be returned to your wallet.`
           : `The return request for "${t}" was reviewed and not approved.` },
     };
   }
