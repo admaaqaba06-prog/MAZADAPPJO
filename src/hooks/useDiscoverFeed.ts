@@ -394,7 +394,18 @@ export function useDiscoverFeed(
       // this the feed would be led by a card showing 🏁 ENDED. The awaiting half
       // needs no such guard — it has no clock to be past.
       setLiveItems(mergeFeatured(live, feat.live.filter((a) => isDisplayableLive(a, now))));
-      setFirstBidItems(fbSnap ? mergeFeatured(keepAwaitingFirstBid(fbSnap.docs), feat.awaiting) : []);
+      // Re-trimmed to ALL_TAB_FIRST_BID_LIMIT after the merge. That cap exists so
+      // the All-tab preview does not bury the Upcoming section below it; without
+      // the trim, 6 featured lots on top of an 8-lot preview would render 14 and
+      // defeat it. The Be-the-First chip (the paged view) is NOT trimmed.
+      setFirstBidItems(
+        fbSnap
+          ? mergeFeatured(keepAwaitingFirstBid(fbSnap.docs), feat.awaiting).slice(
+              0,
+              ALL_TAB_FIRST_BID_LIMIT,
+            )
+          : [],
+      );
       setUpcomingItems(upcoming);
       setHasMoreLive(liveSnap.docs.length === PAGE);
       setNewestLoadedCreatedAt(newest);
