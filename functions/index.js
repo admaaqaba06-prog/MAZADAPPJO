@@ -113,6 +113,27 @@ async function postOtpToRelay(phone, code) {
   }
 }
 
+// resolveLang for the call sites that are NOT notify() — the two FCM pushes,
+// which build their own payload and so never pass through notify()'s renderer.
+// NEVER throws, for the same reason notify() guards its own resolveLang call:
+// both sit inside settlement / bid paths where an exception would take the money
+// path with it. A language we cannot resolve degrades to Arabic (the market
+// default and the safe direction — an Arabic-only reader must never be sent
+// English by accident), never to a lost push.
+//
+// It takes a user OBJECT, not a uid: every current caller already holds the
+// recipient's user document, so resolving the language here costs zero extra
+// Firestore reads. Keep it that way — adding a read inside this helper would
+// put one on a settlement transaction's critical path.
+function safeResolveLang(user, where) {
+  try {
+    return resolveLang(user);
+  } catch (e) {
+    console.warn(`[lang] resolve failed (${where}):`, e && e.message);
+    return 'ar';
+  }
+}
+
 // Single notification choke point (E5). Resolves the event's channels, writes
 // the in-app bell doc, and hands phone+email+channels to n8n for WhatsApp/email
 // fan-out. NEVER throws — same money-path safety contract as postToN8n.
@@ -437,6 +458,12 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       notifyData = {
         phone: (winnerData && winnerData.phoneNumber) || '',
         fcmToken: (winnerData && winnerData.fcmToken) || '',
+        // (language) captured here, from the winner doc this transaction ALREADY
+        // read for the phone and the token — no extra read, and no read added
+        // inside the transaction. It is carried out to the post-commit push
+        // below, which is the ONE customer surface that does not go through
+        // notify() and so cannot resolve the language for itself.
+        lang: safeResolveLang(winnerData, `settleAuctionTxn winner ${winnerId}`),
         // Private "you won" notification to the winner themselves — real name.
         winnerId, winnerName: realWinnerName, finalPrice, auctionTitle: auctionData.title || '', auctionId,
       };
@@ -515,13 +542,28 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     // retried transaction must never re-send it. Never throws: a dead FCM token
     // must not fail a settlement that has already committed.
     if (notifyData.fcmToken) {
-      await admin.messaging().send({
-        token: notifyData.fcmToken,
-        notification: {
-          title: 'تهانينا! لقد فزت بالمزاد 🎉',
-          body: `مبروك! لقد انتهى المزاد على "${notifyData.auctionTitle}" بعرضك الفائز بقيمة ${notifyData.finalPrice.toLocaleString()} دينار أردني.`
-        }
-      }).catch(err => console.warn(`FCM error for winner ${notifyData.winnerId}: ${err.message}`));
+      // Rendered from the SAME event copy the `auction_won` notify() call below
+      // sends to WhatsApp/email/bell, in the winner's own language. Hardcoded
+      // Arabic here meant an English-preference winner got an Arabic push
+      // seconds before the English WhatsApp for the same win.
+      //
+      // The try wraps the RENDER as well as the send: copyFor is evaluated by
+      // this function, not by send(), so the old `.catch()` on the promise could
+      // never have caught a throw from the argument expression — and this runs
+      // after the settlement transaction has committed, where throwing fails the
+      // cron run for an auction whose money has already moved.
+      try {
+        const c = copyFor('auction_won', {
+          auctionTitle: notifyData.auctionTitle,
+          totalDue: totalDueJod(notifyData.finalPrice),
+        }, notifyData.lang);
+        await admin.messaging().send({
+          token: notifyData.fcmToken,
+          notification: { title: c.title, body: c.description }
+        });
+      } catch (err) {
+        console.warn(`FCM error for winner ${notifyData.winnerId}: ${err && err.message}`);
+      }
     }
 
     await notify({ uid: notifyData.winnerId, event: 'auction_won', data: {
@@ -1543,12 +1585,21 @@ exports.onBidCreated = functions.firestore
 
           if (fcmToken) {
             console.log(`[onBidCreated] Dispatching FCM outbid notification to user ${previousBidderId}`);
-            
+
+            // (language) off the doc already fetched for the FCM token, so no
+            // extra read. Same event copy as the `outbid` notify() call below —
+            // the push and the WhatsApp for one bid must not arrive in two
+            // different languages.
+            const outbidLang = safeResolveLang(prevUserData, `outbid ${previousBidderId}`);
+            const c = copyFor('outbid', {
+              auctionTitle: (auctionData && auctionData.title) || '',
+            }, outbidLang);
+
             const payload = {
               token: fcmToken,
               notification: {
-                title: 'تجاوزك أحد! ⚡',
-                body: `لقد مزاد شخص آخر بسعر أعلى (${amount.toLocaleString()} JOD) على "${auctionData.title}". زايد الآن لاسترجاع الصدارة!`
+                title: c.title,
+                body: c.description
               },
               data: {
                 click_action: 'FLUTTER_NOTIFICATION_CLICK',
