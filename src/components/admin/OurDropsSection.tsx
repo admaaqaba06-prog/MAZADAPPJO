@@ -237,7 +237,10 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
               </h3>
 
               {(() => {
-                const completedAuctions = auctions.filter(a => a.status === 'completed' || (a.status === 'live' && a.endTime < Date.now()));
+                // `typeof === 'number'` before the comparison: an awaiting-first-bid
+                // lot now carries endTime null, and `null < Date.now()` is true —
+                // which would list a lot that has not started under COMPLETED.
+                const completedAuctions = auctions.filter(a => a.status === 'completed' || (a.status === 'live' && typeof a.endTime === 'number' && a.endTime < Date.now()));
                 
                 if (completedAuctions.length === 0) {
                   return (

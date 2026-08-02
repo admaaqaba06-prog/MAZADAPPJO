@@ -8,6 +8,7 @@
 // always resolves from `endsAt` first, then `endTime`, identically on both).
 
 import { AuctionItem } from '../types';
+import { isAwaitingFirstBidDoc } from './auctionPhase';
 
 /**
  * Normalise a Firestore timestamp-ish value → epoch millis. Accepts a number,
@@ -35,8 +36,15 @@ export function parseAuctionTimestamp(val: any): number {
  * Resolve a lot's end time (epoch millis) from a raw doc: prefer the `endsAt`
  * Timestamp (the field anti-snipe extensions write), fall back to `endTime`,
  * then to a safe default. Guards against a NaN parse.
+ *
+ * Returns `null` for an awaiting-first-bid lot. That lot genuinely HAS no end
+ * time — the server stamps `endsAt = now + duration` on the first bid — and the
+ * old `now + 1h` fallback here was indistinguishable from a real clock, which
+ * made `isAwaitingFirstBid()` (it requires `!endTime`) return false at every
+ * call site in the app. Callers must treat null as "no clock yet", not as zero.
  */
-export function resolveEndTime(data: any): number {
+export function resolveEndTime(data: any): number | null {
+  if (isAwaitingFirstBidDoc(data)) return null;
   let t = Date.now() + 3600000;
   if (data.endsAt) {
     t = parseAuctionTimestamp(data.endsAt);

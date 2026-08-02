@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAuctionOpen, isLiveNow, getLiveAuctions, getFirstLiveAuction, isAwaitingFirstBidDoc } from './auctionPhase';
+import { isAuctionOpen, isLiveNow, getLiveAuctions, getFirstLiveAuction, isAwaitingFirstBid, isAwaitingFirstBidDoc } from './auctionPhase';
 
 const NOW = 1_000_000;
 
@@ -46,6 +46,28 @@ describe('isAuctionOpen', () => {
     expect(isAuctionOpen('completed')).toBe(false);
     expect(isAuctionOpen(undefined)).toBe(false);
     expect(isAuctionOpen(null)).toBe(false);
+  });
+});
+
+describe('isAwaitingFirstBid', () => {
+  it('true for a mapped first_bid item with no clock and no bids', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null, totalBids: 0 })).toBe(true);
+  });
+  it('true when totalBids is absent entirely (never-bid item)', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null })).toBe(true);
+  });
+  it('false once the clock has started (endTime set)', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: 123, totalBids: 0 })).toBe(false);
+  });
+  it('false once a bid has landed', () => {
+    expect(isAwaitingFirstBid({ startMode: 'first_bid', endTime: null, totalBids: 1 })).toBe(false);
+  });
+  it('false for scheduled lots, which always have a clock', () => {
+    expect(isAwaitingFirstBid({ startMode: 'scheduled', endTime: null, totalBids: 0 })).toBe(false);
+  });
+  it('false for null/undefined input rather than throwing', () => {
+    expect(isAwaitingFirstBid(null)).toBe(false);
+    expect(isAwaitingFirstBid(undefined)).toBe(false);
   });
 });
 

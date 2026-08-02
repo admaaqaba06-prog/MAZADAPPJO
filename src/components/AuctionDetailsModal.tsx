@@ -107,8 +107,16 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
 
   useEffect(() => {
     if (!auction) return;
+    // No clock yet (awaiting first bid): show the awaiting copy and start no
+    // interval. Without this, `null - serverNow()` clamps to 0 and the modal
+    // reads "Ended" on a lot that has not started.
+    if (auction.endTime == null) {
+      setTimeLeftStr(isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid');
+      return;
+    }
+    const endsAtMs = auction.endTime;
     const interval = setInterval(() => {
-      const remainingSecs = Math.max(0, Math.floor((auction.endTime - serverNow()) / 1000));
+      const remainingSecs = Math.max(0, Math.floor((endsAtMs - serverNow()) / 1000));
       if (remainingSecs > 0) {
         const hrs = Math.floor(remainingSecs / 3600);
         const mins = Math.floor((remainingSecs % 3600) / 60);

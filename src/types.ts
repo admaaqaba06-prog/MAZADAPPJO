@@ -106,7 +106,13 @@ export interface AuctionItem {
    * Rendered after videoUrl + thumbnailUrl — see utils/auctionMedia.ts.
    */
   mediaUrls?: string[];
-  endTime: number; // Unix timestamp
+  /**
+   * Unix timestamp (epoch millis), or null for an awaiting-first-bid lot whose
+   * clock has not started — see utils/auctionPhase.isAwaitingFirstBidDoc.
+   * Callers doing arithmetic MUST guard: `null - now` is a large negative
+   * number and `null < now` is true, both of which read as "already ended".
+   */
+  endTime: number | null;
   duration: number; // in seconds
   paymentWindowHours?: number; // hours winner has to pay before default-block; defaults to 24 server-side
   antiSnipeWindowSec?: number; // final-seconds window that triggers a soft-close extension; default 30 server-side
