@@ -553,8 +553,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-[#ECECEA] text-[12px]">
               {conditionChip && (
                 <div className="flex items-center justify-between py-2.5">
+                  {/* حالة المنتج, not الحالة: the price row above now labels the
+                      awaiting-first-bid STATUS الحالة, and two different rows on
+                      one screen reading الحالة is ambiguous in Arabic. Matches
+                      SellView's condition field (`حالة المنتج`) and the desktop
+                      product row. English is unaffected. */}
                   <dt className="font-bold text-[#999]">
-                    {isAr ? 'الحالة' : 'Condition'}
+                    {isAr ? 'حالة المنتج' : 'Condition'}
                   </dt>
                   <dd className="font-bold text-[#333]">{conditionChip}</dd>
                 </div>
