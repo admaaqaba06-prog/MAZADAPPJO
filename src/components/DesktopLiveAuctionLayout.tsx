@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
@@ -231,6 +231,46 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // Gallery source items (video first, then thumbnail/mediaUrls/concierge
   // photos, de-duped) — MediaGallery owns play/pause + muted sync internally.
   const mediaItems = React.useMemo(() => getAuctionMedia(activeAuction), [activeAuction]);
+
+  // --- The seller's own words (rendered below the product-info row) ---
+  // Trimmed, because a description is now a real seller-authored field: the
+  // concierge form writes '' deliberately rather than inventing a line from the
+  // title, so absent and whitespace-only are both live states, not hypotheses.
+  const descriptionText = String(activeAuction?.description || '').trim();
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement | null>(null);
+  const [descriptionClamped, setDescriptionClamped] = useState(false);
+
+  // Switching lots must not carry the previous lot's expanded state — or its
+  // measured overflow — over. BEFORE PAINT, not after: a plain useEffect runs
+  // after the browser has already painted, so the new lot's first frame would
+  // show the previous lot's expanded body and a stale "عرض المزيد" under a
+  // short description. useLayoutEffect resets between the DOM commit and the
+  // paint, so neither is ever visible.
+  useLayoutEffect(() => {
+    setDescriptionExpanded(false);
+    setDescriptionClamped(false);
+  }, [activeAuction?.id]);
+
+  // Does the clamp actually hide anything? A character-count guess is wrong at
+  // every width, so measure the rendered box: line-clamp is a CSS effect and
+  // only the clamped element can answer. Expanded, scrollHeight === clientHeight
+  // by definition, so the measurement is skipped there and the last clamped
+  // result stands. ResizeObserver covers both a new description and a window
+  // resize (this column's width is derived from viewport height).
+  // Also pre-paint: measuring after paint would flash the toggle in a frame
+  // late, and on a lot switch the reset above has just cleared the flag.
+  // `activeAuction?.id` is a dependency in its own right — two lots can carry
+  // identical description text, and without it the reset would never re-measure.
+  useLayoutEffect(() => {
+    const el = descriptionRef.current;
+    if (!el || descriptionExpanded) return;
+    const measure = () => setDescriptionClamped(el.scrollHeight - el.clientHeight > 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [descriptionText, descriptionExpanded, activeAuction?.id]);
 
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
@@ -1020,6 +1060,59 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           {/* E4 — Auction Rules modal (opened from the bid-dock "Rules" affordance) */}
           <AuctionRulesModal isOpen={rulesOpen} onClose={() => setRulesOpen(false)} isAr={isAr} />
         </div>
+
+        {/* Card 2b: Details — the seller's own words.
+            Lives in this column, not under the video in <main>: that column is
+            sized so the video + product-info row exactly fill it (the `220` in
+            the video's height calc leaves 12px of slack at EVERY viewport size),
+            so a card there opened below the fold of a pane that has never
+            scrolled — a description nobody would ever see. This aside already
+            scrolls and already holds the long-form cards.
+            Placed directly BELOW the bid panel: the bid controls are why this
+            column exists and must keep their first-paint position, and the
+            reading order that gives — who is selling, what it costs, what the
+            lot actually is, then history and chat — puts the prose above the
+            two cards that were already below the fold rather than under them.
+            Absent description renders NOTHING — no heading, no empty card —
+            the same rule the product-info row applies to itself.
+            No width pin here: the media-column calc it used to carry would
+            overflow this fixed 360px column at tall viewports. */}
+        {descriptionText && (
+          <div
+            className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm shrink-0"
+            id="desktop-auction-description"
+            style={{ direction: isAr ? 'rtl' : 'ltr' }}
+          >
+            {/* `text-xs`, not `text-[12px]`: same size, but it carries an
+                explicit 1rem line-height. A bare `text-[12px]` sets no
+                line-height at all, and Arabic glyphs clip under the ~1.2
+                normal default. Matches the sibling card headers. */}
+            <h2 className="text-xs font-extrabold text-gray-800 uppercase tracking-wider pb-2 mb-2 border-b border-gray-50">
+              {isAr ? 'التفاصيل' : 'Details'}
+            </h2>
+            <p
+              ref={descriptionRef}
+              className={`text-[12px] leading-relaxed text-gray-600 whitespace-pre-line ${
+                descriptionExpanded ? '' : 'line-clamp-4'
+              }`}
+            >
+              {descriptionText}
+            </p>
+            {/* Only offered when the clamp is really hiding lines — a toggle
+                over a two-line description promises text that is not there. */}
+            {(descriptionClamped || descriptionExpanded) && (
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded((v) => !v)}
+                className="mt-2 text-[11px] font-bold text-[#FF6B00] hover:underline cursor-pointer"
+              >
+                {descriptionExpanded
+                  ? (isAr ? 'عرض أقل' : 'Show less')
+                  : (isAr ? 'عرض المزيد' : 'Show more')}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Card 3: Bid History Card */}
         <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col min-h-[180px] max-h-[220px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>

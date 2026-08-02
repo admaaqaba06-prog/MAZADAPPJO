@@ -159,7 +159,14 @@ export const SellView: React.FC = () => {
       await createListing(
         {
           title: cName.trim(),
-          description: cDesc.trim() || cName.trim(),
+          // Concierge stays OPTIONAL — Mazad writes the copy before approval —
+          // but a blank description is an honest blank, not the product name.
+          //
+          // Keep the empty string. Do NOT "clean this up" to `|| undefined`:
+          // DropBuilderView's lot-picker search calls a.description.toLowerCase()
+          // unguarded, so an undefined description is a TypeError that breaks
+          // admin item search. '' is the only safe blank.
+          description: cDesc.trim(),
           // Seller picks the drop channel; category is derived from it (same
           // mapping the self-serve drop builder uses) so discovery filters and
           // media fallbacks line up. The Mazad team can still refine before approving.
