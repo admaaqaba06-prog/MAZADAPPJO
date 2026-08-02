@@ -52,6 +52,20 @@ export function algoliaHitToAuction(hit: any): AuctionItem {
     currentPrice: filsToUnits(h.currentPriceFils, h.currentPrice, startingPrice),
     startingPrice,
     endTime: resolveEndTime(h),
+    // `startMode` is copied through because the CARD's awaiting check runs on
+    // the MAPPED item: `isAwaitingFirstBid(d)` (DiscoveryFeedView.tsx) reads
+    // `d.startMode`, and a search result that dropped the field showed the red
+    // LIVE badge while the browse feed showed the amber "BE THE FIRST" one for
+    // the same lot. `resolveEndTime` above already reads the field off the RAW
+    // hit (via `isAwaitingFirstBidDoc`), so without this line the mapped item
+    // carried `endTime: null` with no `startMode` to explain it.
+    //
+    // The index writes `startMode: d.startMode ?? null` (functions/algoliaSync.js),
+    // so a hit can legitimately carry null. The literal guard keeps null/any
+    // unexpected value as `undefined` rather than inventing a mode: only the two
+    // values `AuctionItem.startMode` declares pass through, so a scheduled lot
+    // can never be read as first_bid (and vice versa).
+    startMode: h.startMode === 'first_bid' || h.startMode === 'scheduled' ? h.startMode : undefined,
     // Admin Auction Lookup fields. Additive + defensive: the public AuctionCard
     // never reads these, and they stay absent (undefined/null) until the backend
     // sync indexes them — at which point the admin search lights them up with no
