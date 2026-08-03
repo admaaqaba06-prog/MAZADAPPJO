@@ -266,10 +266,15 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {auctions.map((a) => {
-                // A clockless (awaiting-first-bid) lot has no endTime at all, so
-                // it can be neither ending-soon nor expired. The old expression
-                // reached the same result only via `NaN < n` being false — this
-                // states the condition instead of relying on that.
+                // `endTime` is `number | null | undefined`, and curation admits every falsy
+                // value as clockless. The old `a.endTime - Date.now() < 3600_000` was WRONG
+                // for two of them: `null` and `0` coerce to 0, so the subtraction went large
+                // and negative and the card rendered the orange "Ending soon" badge plus a
+                // "0m" countdown on a lot whose clock had not started. `undefined` and `NaN`
+                // gave NaN, so the comparison was false and the badge was merely absent.
+                // `> 0` is what rejects `0` and `NaN`, and it keeps this predicate
+                // byte-identical to `compareLandingAuctions` — so no lot is ever sorted as
+                // clockless and rendered as clocked.
                 const hasClock = typeof a.endTime === 'number' && a.endTime > 0;
                 const endingSoon = hasClock && a.endTime - Date.now() < 3600_000;
                 return (
@@ -293,9 +298,11 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                             {t.marketplace.endingSoon}
                           </span>
                         ) : !hasClock ? (
-                          /* Amber, not the brand orange above: on every other surface
-                             orange means a clock is running, and this lot's has not
-                             started. Matches the Discover card's amber badge. */
+                          /* Same two classes as the Discover card's awaiting badge
+                             (bg-amber-400 text-zinc-900), so the card a visitor taps and
+                             the screen it opens look alike. Amber also keeps it distinct
+                             from the orange ending-soon badge that occupies this exact
+                             slot — the two states must not read as the same chip. */
                           <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-amber-400 text-zinc-900 text-xs font-semibold">
                             {t.marketplace.beTheFirst}
                           </span>
