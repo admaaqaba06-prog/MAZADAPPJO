@@ -97,7 +97,7 @@ export const ProhibitedItemsView: React.FC = () => {
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="prohibited-items-root"
     >
@@ -117,7 +117,7 @@ export const ProhibitedItemsView: React.FC = () => {
           <h1 className="text-2xl lg:text-3xl font-black text-gray-950 tracking-tight">
             {isAr ? 'الأغراض الممنوعة على مزاد جو' : 'Prohibited items on Mazad JO'}
           </h1>
-          <p className="text-xs lg:text-sm text-gray-500 font-medium max-w-md mx-auto leading-relaxed">
+          <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
             {isAr
               ? 'هاي الأغراض ممنوع إدراجها على المنصة — لأنها ممنوعة أو منظّمة قانونياً في الأردن. كل إعلان بيمر بمراجعة فريقنا، وأي غرض منها بينرفض فوراً.'
               : 'These items are not allowed on the platform — they are forbidden or legally regulated in Jordan. Every listing is reviewed by our team, and any of these is rejected immediately.'}
@@ -132,7 +132,7 @@ export const ProhibitedItemsView: React.FC = () => {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...easeOut, delay: 0.08 + i * 0.05 }}
-              className="bg-white border border-gray-200/70 rounded-2xl p-4 flex items-start gap-3.5 shadow-xs"
+              className="bg-surface-raised border border-line/70 rounded-2xl p-4 flex items-start gap-3.5 shadow-xs"
             >
               <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                 {item.icon}
@@ -141,7 +141,7 @@ export const ProhibitedItemsView: React.FC = () => {
                 <h3 className="text-sm font-black text-gray-950 tracking-tight">
                   {isAr ? item.titleAr : item.titleEn}
                 </h3>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                <p className="text-xs text-fg-muted font-medium leading-relaxed">
                   {isAr ? item.bodyAr : item.bodyEn}
                 </p>
               </div>

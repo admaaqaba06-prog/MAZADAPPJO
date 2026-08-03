@@ -59,8 +59,8 @@ export default function FirstBidCoach({ show, isAr }: FirstBidCoachProps) {
           style={{ direction: isAr ? 'rtl' : 'ltr' }}
           id="first-bid-coach"
         >
-          <div className="flex items-start gap-2 bg-white/95 border border-[#FF6B00]/40 shadow-[0_4px_16px_rgba(0,0,0,0.15)] rounded-xl px-3 py-2.5">
-            <p className="flex-1 text-[11px] font-bold text-gray-800 leading-snug">
+          <div className="flex items-start gap-2 bg-surface-raised/95 border border-[#FF6B00]/40 shadow-[0_4px_16px_rgba(0,0,0,0.15)] rounded-xl px-3 py-2.5">
+            <p className="flex-1 text-[11px] font-bold text-fg leading-snug">
               {isAr
                 ? '👆 زايد بضغطة — ما بتدفع شي إلا إذا فزت'
                 : '👆 Tap to bid — you pay nothing unless you win'}
@@ -69,13 +69,13 @@ export default function FirstBidCoach({ show, isAr }: FirstBidCoachProps) {
               type="button"
               onClick={markFirstBidDone}
               aria-label={isAr ? 'إغلاق' : 'Dismiss'}
-              className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+              className="shrink-0 text-fg-muted hover:text-fg-muted transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           {/* Little pointer toward the bid controls below */}
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white/95 border-b border-r border-[#FF6B00]/40 rotate-45" />
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-surface-raised/95 border-b border-r border-[#FF6B00]/40 rotate-45" />
         </motion.div>
       )}
     </AnimatePresence>

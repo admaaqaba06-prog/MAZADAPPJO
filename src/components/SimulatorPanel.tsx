@@ -292,7 +292,7 @@ export const SimulatorPanel: React.FC = () => {
     if (a.status === 'upcoming') return { label: 'UPCOMING', cls: 'bg-sky-50 text-sky-600 border-sky-100' };
     if (ended) return { label: 'ENDED (unsettled)', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
     if (isLiveStatus(a.status)) return { label: 'LIVE', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    return { label: String(a.status || 'unknown').toUpperCase(), cls: 'bg-gray-50 text-gray-500 border-gray-200' };
+    return { label: String(a.status || 'unknown').toUpperCase(), cls: 'bg-surface-sunken text-fg-muted border-line' };
   };
 
   const timeLeftLabel = (a: any): string => {
@@ -311,15 +311,15 @@ export const SimulatorPanel: React.FC = () => {
   return (
     <div className="space-y-4" id="simulator-panel">
       {/* ── Master toggle + banner ─────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-3">
+      <div className="bg-surface-raised p-5 rounded-3xl border border-line space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
               <FlaskConical className="w-5 h-5 text-violet-600" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-gray-900 leading-none">Auction Simulator</h3>
-              <p className="text-[10px] text-gray-400 mt-1">
+              <h3 className="text-sm font-black text-fg leading-none">Auction Simulator</h3>
+              <p className="text-[10px] text-fg-muted mt-1">
                 Spawn flagged test auctions, run bid bots, force-settle, and wipe. All data carries isSimulated.
               </p>
             </div>
@@ -332,7 +332,7 @@ export const SimulatorPanel: React.FC = () => {
             className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${enabled ? 'bg-violet-600' : 'bg-gray-200'}`}
           >
             <span
-              className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${enabled ? 'left-7' : 'left-1'}`}
+              className={`absolute top-1 w-6 h-6 rounded-full bg-surface-raised shadow transition-all ${enabled ? 'left-7' : 'left-1'}`}
             />
           </button>
         </div>
@@ -344,21 +344,21 @@ export const SimulatorPanel: React.FC = () => {
             <span className="ms-auto w-2 h-2 rounded-full bg-violet-500 animate-pulse shrink-0" />
           </div>
         ) : (
-          <div className="bg-gray-50 border border-gray-200 text-gray-500 rounded-2xl px-4 py-2.5 text-xs font-bold">
+          <div className="bg-surface-sunken border border-line text-fg-muted rounded-2xl px-4 py-2.5 text-xs font-bold">
             Simulator OFF — spawning and bots disabled. Existing test data can still be cleared below.
           </div>
         )}
 
         {panelMsg && (
-          <p className="text-[11px] font-mono text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 break-all">
+          <p className="text-[11px] font-mono text-fg-muted bg-surface-sunken border border-line rounded-xl px-3 py-2 break-all">
             {panelMsg}
           </p>
         )}
       </div>
 
       {/* ── Spawn ──────────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-4">
-        <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+      <div className="bg-surface-raised p-5 rounded-3xl border border-line space-y-4">
+        <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-fg-muted flex items-center gap-1.5">
           <Plus className="w-3.5 h-3.5" /> Spawn test auction
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -376,41 +376,41 @@ export const SimulatorPanel: React.FC = () => {
         </div>
 
         <form onSubmit={submitCustom} className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
-          <label className="col-span-2 md:col-span-2 text-[10px] font-bold text-gray-500 space-y-1">
+          <label className="col-span-2 md:col-span-2 text-[10px] font-bold text-fg-muted space-y-1">
             <span>TITLE</span>
             <input
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
               placeholder="TEST — Custom"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:border-violet-400"
+              className="w-full border border-line rounded-xl px-3 py-2 text-xs font-semibold text-fg focus:outline-none focus:border-violet-400"
             />
           </label>
-          <label className="text-[10px] font-bold text-gray-500 space-y-1">
+          <label className="text-[10px] font-bold text-fg-muted space-y-1">
             <span>PRICE (JOD)</span>
             <input
               type="number"
               min="1"
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-800 focus:outline-none focus:border-violet-400"
+              className="w-full border border-line rounded-xl px-3 py-2 text-xs font-mono text-fg focus:outline-none focus:border-violet-400"
             />
           </label>
-          <label className="text-[10px] font-bold text-gray-500 space-y-1">
+          <label className="text-[10px] font-bold text-fg-muted space-y-1">
             <span>DURATION (SEC)</span>
             <input
               type="number"
               min="10"
               value={customDuration}
               onChange={(e) => setCustomDuration(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-800 focus:outline-none focus:border-violet-400"
+              className="w-full border border-line rounded-xl px-3 py-2 text-xs font-mono text-fg focus:outline-none focus:border-violet-400"
             />
           </label>
-          <label className="text-[10px] font-bold text-gray-500 space-y-1">
+          <label className="text-[10px] font-bold text-fg-muted space-y-1">
             <span>CATEGORY</span>
             <select
               value={customCategory}
               onChange={(e) => setCustomCategory(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 bg-white focus:outline-none focus:border-violet-400"
+              className="w-full border border-line rounded-xl px-3 py-2 text-xs font-semibold text-fg bg-surface-raised focus:outline-none focus:border-violet-400"
             >
               {CATEGORY_OPTIONS.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -426,27 +426,27 @@ export const SimulatorPanel: React.FC = () => {
           </button>
         </form>
         {!enabled && (
-          <p className="text-[10px] text-gray-400 font-semibold">Turn the simulator ON to spawn.</p>
+          <p className="text-[10px] text-fg-muted font-semibold">Turn the simulator ON to spawn.</p>
         )}
       </div>
 
       {/* ── Active simulated auctions ──────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-200 space-y-3">
+      <div className="bg-surface-raised p-5 rounded-3xl border border-line space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+          <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-fg-muted flex items-center gap-1.5">
             <Gavel className="w-3.5 h-3.5" /> Simulated auctions ({simAuctions.length})
           </h4>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-gray-400">BOT PACE</span>
+            <span className="text-[10px] font-bold text-fg-muted">BOT PACE</span>
             <button
               onClick={() => setPace('slow')}
-              className={`${btnBase} ${pace === 'slow' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              className={`${btnBase} ${pace === 'slow' ? 'bg-gray-900 text-white' : 'bg-surface-sunken text-fg-muted hover:bg-surface-sunken'}`}
             >
               <Turtle className="w-3.5 h-3.5" /> Slow · 12s
             </button>
             <button
               onClick={() => setPace('fast')}
-              className={`${btnBase} ${pace === 'fast' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              className={`${btnBase} ${pace === 'fast' ? 'bg-gray-900 text-white' : 'bg-surface-sunken text-fg-muted hover:bg-surface-sunken'}`}
             >
               <Zap className="w-3.5 h-3.5" /> Fast · 4s
             </button>
@@ -455,7 +455,7 @@ export const SimulatorPanel: React.FC = () => {
         </div>
 
         {simAuctions.length === 0 ? (
-          <p className="text-xs text-gray-400 font-semibold py-4 text-center">
+          <p className="text-xs text-fg-muted font-semibold py-4 text-center">
             No simulated auctions. Spawn one above.
           </p>
         ) : (
@@ -465,23 +465,23 @@ export const SimulatorPanel: React.FC = () => {
               const live = isLiveStatus(a.status) && (auctionEndMs(a) === 0 || auctionEndMs(a) > now);
               const botPace = runningBots[a.id];
               return (
-                <div key={a.id} className="border border-gray-100 rounded-2xl p-3.5 space-y-2 bg-gray-50/40">
+                <div key={a.id} className="border border-line rounded-2xl p-3.5 space-y-2 bg-surface-sunken/40">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 ${badge.cls}`}>
                         {badge.label}
                       </span>
-                      <span className="text-xs font-black text-gray-900 truncate">{a.title || a.id}</span>
+                      <span className="text-xs font-black text-fg truncate">{a.title || a.id}</span>
                       {botPace && (
                         <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 flex items-center gap-1 shrink-0">
                           <Bot className="w-3 h-3 animate-pulse" /> BOT · {botPace.toUpperCase()}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] font-mono text-gray-600 shrink-0">
-                      <span className="font-black text-gray-900">{a.currentPrice ?? a.startingPrice ?? 0} JOD</span>
+                    <div className="flex items-center gap-3 text-[11px] font-mono text-fg-muted shrink-0">
+                      <span className="font-black text-fg">{a.currentPrice ?? a.startingPrice ?? 0} JOD</span>
                       <span>{a.totalBids ?? 0} bids</span>
-                      <span className="text-gray-400">{timeLeftLabel(a)}</span>
+                      <span className="text-fg-muted">{timeLeftLabel(a)}</span>
                     </div>
                   </div>
 
@@ -534,7 +534,7 @@ export const SimulatorPanel: React.FC = () => {
                   </div>
 
                   {rowMsg[a.id] && (
-                    <p className="text-[10px] font-mono text-gray-500 break-all">{rowMsg[a.id]}</p>
+                    <p className="text-[10px] font-mono text-fg-muted break-all">{rowMsg[a.id]}</p>
                   )}
                 </div>
               );
@@ -544,10 +544,10 @@ export const SimulatorPanel: React.FC = () => {
       </div>
 
       {/* ── Clear all ──────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-200 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-surface-raised p-5 rounded-3xl border border-line flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500">Danger zone</h4>
-          <p className="text-[10px] text-gray-400 mt-1">
+          <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-fg-muted">Danger zone</h4>
+          <p className="text-[10px] text-fg-muted mt-1">
             Stops all bots, then deletes every isSimulated auction, bid, and order.
           </p>
         </div>

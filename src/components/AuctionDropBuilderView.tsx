@@ -535,9 +535,9 @@ export default function AuctionDropBuilderView() {
   // replaced. Derived once so the two halves cannot drift apart.
   const showSuccessPanel = Boolean(createdId) && !editing;
   const sectionHeader = 'text-xs font-bold text-neutral-400 uppercase tracking-wide';
-  const label = 'block text-sm font-bold text-gray-800';
+  const label = 'block text-sm font-bold text-fg';
   const field =
-    'mt-1 w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:outline-none focus:border-[#FF6B00]';
+    'mt-1 w-full border border-line rounded-xl p-2.5 text-sm focus:outline-none focus:border-[#FF6B00]';
 
   // Relist prefills the form from a past drop. The reserve is intentionally NOT
   // carried over — it lives in the admin-only secrets doc and isn't readable here.
@@ -656,7 +656,7 @@ export default function AuctionDropBuilderView() {
               of its cover/gallery/video controls, while a note says the same
               thing with nothing to get wrong. */}
           {editing ? (
-            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+            <p className="text-[11px] text-fg-muted bg-surface-sunken border border-line rounded-xl p-2.5">
               {isAr
                 ? 'لا يمكن تغيير الوسائط من هنا. الصور والفيديو المرفوعة تبقى كما هي — لتغييرها ألغِ المزاد وأنشئه من جديد.'
                 : "Media can't be changed here. The uploaded photos and video stay as they are — to change them, cancel this drop and create it again."}
@@ -708,7 +708,7 @@ export default function AuctionDropBuilderView() {
             <span className="mt-1 block text-[11px] font-bold text-rose-600">{dropErrorText(errors.startingPrice, isAr)}</span>
           )}
           {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
-          <span className="mt-1 block text-[11px] text-gray-400">
+          <span className="mt-1 block text-[11px] text-fg-muted">
             {Number(form.startingPrice) > 0
               ? (isAr
                   ? `يستلم البائع ~${sellerNet(Number(form.startingPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
@@ -740,7 +740,7 @@ export default function AuctionDropBuilderView() {
                 className={`flex items-center justify-center text-center min-h-11 px-1.5 py-2 border rounded-xl text-xs font-bold leading-tight transition-colors cursor-pointer ${
                   form.opensMode === o.id
                     ? 'bg-[#FF6B00] text-white border-[#FF6B00]'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                    : 'bg-surface-raised text-fg border-line hover:border-gray-400'
                 }`}
               >
                 {isAr ? o.ar : o.en}
@@ -765,7 +765,7 @@ export default function AuctionDropBuilderView() {
           )}
 
           {form.opensMode === 'first_bid' && (
-            <p className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+            <p className="mt-2 text-[11px] text-fg-muted bg-surface-sunken border border-line rounded-xl p-2.5">
               {isAr ? 'يبدأ فوراً — يبدأ العدّاد مع أول مزايدة' : 'Goes live now — the timer starts on the first bid'}
             </p>
           )}
@@ -811,7 +811,7 @@ export default function AuctionDropBuilderView() {
             root's p-4 on phones only. The error line lives INSIDE the bar: it is
             the message the button just produced, and left outside it would
             render below the fold the bar is covering. */}
-        <div className="sticky bottom-0 z-10 md:static -mx-4 md:mx-0 px-4 md:px-0 py-3 md:py-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-0 border-t md:border-t-0 border-gray-200 bg-white/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none space-y-2">
+        <div className="sticky bottom-0 z-10 md:static -mx-4 md:mx-0 px-4 md:px-0 py-3 md:py-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-0 border-t md:border-t-0 border-line bg-surface-raised/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none space-y-2">
         {editing ? (
           <div className="flex gap-2">
             <button
@@ -825,7 +825,7 @@ export default function AuctionDropBuilderView() {
             <button
               type="button"
               onClick={() => { setEditing(false); setErrors({}); setError(''); }}
-              className="flex-1 border border-gray-300 rounded-2xl py-3.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              className="flex-1 border border-line rounded-2xl py-3.5 text-sm font-bold text-fg hover:bg-surface-sunken transition-colors cursor-pointer"
             >
               {isAr ? 'إلغاء التعديل' : 'Discard changes'}
             </button>

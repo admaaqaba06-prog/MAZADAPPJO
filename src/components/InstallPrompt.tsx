@@ -134,7 +134,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
       <div
         role="dialog"
         aria-label={title}
-        className={`pointer-events-auto w-full max-w-sm bg-white border border-gray-200 rounded-2xl shadow-md p-4 flex items-start gap-3 transition-all duration-300 ease-out ${
+        className={`pointer-events-auto w-full max-w-sm bg-surface-raised border border-line rounded-2xl shadow-md p-4 flex items-start gap-3 transition-all duration-300 ease-out ${
           entered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
         }`}
       >
@@ -144,10 +144,10 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-black text-gray-900 leading-tight">{title}</p>
+          <p className="text-[13px] font-black text-fg leading-tight">{title}</p>
 
           {mode === 'ios' ? (
-            <p className="text-[11px] font-medium text-gray-500 leading-snug mt-1 flex items-center gap-1 flex-wrap">
+            <p className="text-[11px] font-medium text-fg-muted leading-snug mt-1 flex items-center gap-1 flex-wrap">
               {isAr ? (
                 <>
                   <span>اضغط زر المشاركة</span>
@@ -165,7 +165,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
             </p>
           ) : (
             <>
-              <p className="text-[11px] font-medium text-gray-500 leading-snug mt-0.5">
+              <p className="text-[11px] font-medium text-fg-muted leading-snug mt-0.5">
                 {isAr ? 'ثبّت التطبيق للوصول السريع بلمسة واحدة.' : 'Install for instant one-tap access.'}
               </p>
               <button
@@ -182,7 +182,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
         <button
           onClick={handleDismiss}
           aria-label={isAr ? 'إغلاق' : 'Dismiss'}
-          className="shrink-0 -mt-1 -me-1 p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          className="shrink-0 -mt-1 -me-1 p-1.5 rounded-full text-fg-muted hover:text-fg hover:bg-surface-sunken transition-colors"
         >
           <X className="w-4 h-4" strokeWidth={2.5} />
         </button>

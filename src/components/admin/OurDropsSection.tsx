@@ -117,7 +117,7 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
         ) : losingLockedEscrows.length === 0 ? (
           <p className="text-emerald-600 font-bold text-[11px] font-sans">✅ All losing escrows refunded/released</p>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
+          <div className="bg-surface-raised border border-line rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
             {losingLockedEscrows.map((e) => (
               <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 last:border-0 pb-1.5 last:pb-0">
                 <div className="min-w-0">
@@ -247,12 +247,12 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
       </button>
             
             {/* Header */}
-            <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-              <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
+            <div className="bg-surface-raised border border-line p-5 rounded-2xl shadow-xs">
+              <h3 className="text-xs font-extrabold text-fg flex items-center gap-2">
                 <Tv className="w-4 h-4 text-[#FF6B00]" />
                 {isAr ? 'مزادات مزاد جو' : 'OUR DROPS'}
               </h3>
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-fg-muted mt-1">
                 {isAr
                   ? 'ابنِ مزادات مزاد جو وجدولها وأطلقها. مراجعة مزادات البائعين انتقلت إلى مركز الإجراءات.'
                   : "Build, schedule and launch Mazad's own auctions. Reviewing sellers' lots moved to the Action Center."}
@@ -260,8 +260,8 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
             </div>
 
             {/* List 2: Concluded Auctions Fulfillments */}
-            <div className="space-y-3 pt-4 border-t border-gray-100">
-              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-0.5 flex items-center gap-1.5">
+            <div className="space-y-3 pt-4 border-t border-line">
+              <h3 className="text-[11px] font-black text-fg-muted uppercase tracking-widest px-0.5 flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
                 {isAr ? 'المزادات المنتهية والترتيبات اللوجستية' : 'RECENTLY COMPLETED AUCTIONS & FULFILLMENT'}
               </h3>
@@ -274,7 +274,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                 
                 if (completedAuctions.length === 0) {
                   return (
-                    <div className="text-center py-10 bg-white border border-gray-200 rounded-2xl p-6 text-gray-400 text-xs shadow-xs">
+                    <div className="text-center py-10 bg-surface-raised border border-line rounded-2xl p-6 text-fg-muted text-xs shadow-xs">
                       {isAr ? 'لم ينتهِ أي مزاد بعد في النظام لتسجيل فائزين.' : 'No auctions have closed yet.'}
                     </div>
                   );
@@ -290,17 +290,17 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                       const winnerCityStr = winnerUser?.city || (item.currentBidderId ? 'Amman' : 'N/A');
 
                       return (
-                        <div key={item.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-4 shadow-xs">
+                        <div key={item.id} className="bg-surface-raised border border-line p-5 rounded-2xl space-y-4 shadow-xs">
                           {/* Minimal item tag */}
                           <div className="flex gap-3 items-center">
-                            <img src={item.thumbnailUrl} alt="Cover" className="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0" />
+                            <img src={item.thumbnailUrl} alt="Cover" className="w-11 h-11 rounded-lg object-cover border border-line shrink-0" />
                             <div className="min-w-0 flex-1">
-                              <h4 className="font-extrabold text-xs text-gray-900 truncate leading-none mt-1">{item.title}</h4>
-                              <p className="text-[11px] text-gray-500 mt-2 font-mono">
+                              <h4 className="font-extrabold text-xs text-fg truncate leading-none mt-1">{item.title}</h4>
+                              <p className="text-[11px] text-fg-muted mt-2 font-mono">
                                 {isAr ? 'السعر النهائي المبيع: ' : 'Winning Bid: '}
                                 <strong className="text-emerald-600 font-extrabold">{item.currentPrice.toLocaleString()} JOD</strong>
                                 {item.vendorName && (
-                                  <span className="text-gray-400"> · {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}</span>
+                                  <span className="text-fg-muted"> · {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}</span>
                                 )}
                               </p>
                             </div>
@@ -315,20 +315,20 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs leading-normal">
                                 <div>
-                                  <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'اسم العميل الفائز:' : 'FULL NAME'}</span>
-                                  <span className="font-bold text-gray-900">{winnerNameStr}</span>
+                                  <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'اسم العميل الفائز:' : 'FULL NAME'}</span>
+                                  <span className="font-bold text-fg">{winnerNameStr}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'رقم الهاتف للتوصيل:' : 'TELEPHONE'}</span>
+                                  <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'رقم الهاتف للتوصيل:' : 'TELEPHONE'}</span>
                                   <a href={`tel:${winnerPhoneStr}`} className="font-black text-[#FF6B00] hover:underline font-mono">{winnerPhoneStr}</a>
                                 </div>
                                 <div className="sm:mt-1">
-                                  <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'البريد الإلكتروني:' : 'EMAIL'}</span>
-                                  <span className="font-medium text-gray-800 font-mono truncate block">{winnerEmailStr}</span>
+                                  <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'البريد الإلكتروني:' : 'EMAIL'}</span>
+                                  <span className="font-medium text-fg font-mono truncate block">{winnerEmailStr}</span>
                                 </div>
                                 <div className="sm:mt-1">
-                                  <span className="text-gray-400 text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'المدينة والمنطقة:' : 'REGION'}</span>
-                                  <span className="font-bold text-gray-900">{winnerCityStr}</span>
+                                  <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'المدينة والمنطقة:' : 'REGION'}</span>
+                                  <span className="font-bold text-fg">{winnerCityStr}</span>
                                 </div>
                               </div>
                             </div>
@@ -410,8 +410,8 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
             </div>
 
             {/* List 3: Master listings deletion */}
-            <div className="space-y-3 pt-4 border-t border-gray-100">
-              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-0.5 flex items-center gap-1.5">
+            <div className="space-y-3 pt-4 border-t border-line">
+              <h3 className="text-[11px] font-black text-fg-muted uppercase tracking-widest px-0.5 flex items-center gap-1.5">
                 <Trash2 className="w-4 h-4 text-red-600" />
                 {isAr ? 'قائمة التحكم السريع وحذف المزادات' : 'MASTER PLATFORM LISTINGS DIRECTORY'}
               </h3>
@@ -429,14 +429,14 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
               })()}
 
               {auctions.length === 0 ? (
-                <div className="text-center py-8 bg-white border border-gray-200 rounded-2xl p-4 text-gray-400 text-xs shadow-xs">
+                <div className="text-center py-8 bg-surface-raised border border-line rounded-2xl p-4 text-fg-muted text-xs shadow-xs">
                   {isAr ? 'لا توجد مزادات في قاعدة البيانات.' : 'No registered entries found.'}
                 </div>
               ) : (
-                <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
+                <div className="bg-surface-raised border border-line rounded-2xl divide-y divide-line overflow-hidden shadow-xs">
                   {directoryPage<any>(auctions, directoryPages).rows.map((item: any) => {
                     let statusLabel = item.status.toUpperCase();
-                    let statusColor = 'bg-gray-100 text-gray-500';
+                    let statusColor = 'bg-surface-sunken text-fg-muted';
                     if (item.status === 'live') {
                       statusLabel = isAr ? 'مباشر الآن 🟢' : 'LIVE';
                       statusColor = 'bg-emerald-50 text-emerald-800 border border-emerald-100';
@@ -451,23 +451,23 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                     const editing = editViewingId === item.id;
 
                     return (
-                      <div key={item.id} className="text-left transition-colors hover:bg-gray-50/55">
+                      <div key={item.id} className="text-left transition-colors hover:bg-surface-sunken/55">
                       <div className="p-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <img 
                             src={item.thumbnailUrl} 
                             alt={item.title} 
-                            className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" 
+                            className="w-10 h-10 rounded-lg object-cover border border-line shrink-0" 
                           />
                           <div className="min-w-0 flex-1">
-                            <h4 className="font-extrabold text-[12px] text-gray-900 truncate" title={item.title}>
+                            <h4 className="font-extrabold text-[12px] text-fg truncate" title={item.title}>
                               {item.title}
                             </h4>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded ${statusColor}`}>
                                 {statusLabel}
                               </span>
-                              <span className="text-[10px] text-gray-400 font-mono">
+                              <span className="text-[10px] text-fg-muted font-mono">
                                 {item.currentPrice.toLocaleString()} JOD
                               </span>
                             </div>
@@ -511,13 +511,13 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               setEditPlace(typeof item.viewingPlace === 'string' ? item.viewingPlace : '');
                               setEditResult(null);
                             }}
-                            className="text-[10px] font-bold text-gray-500 hover:text-gray-800 underline underline-offset-2 cursor-pointer"
+                            className="text-[10px] font-bold text-fg-muted hover:text-fg underline underline-offset-2 cursor-pointer"
                           >
                             {isAr ? 'تعديل المعاينة' : 'Edit viewing'}
                             {item.viewing ? ` · ${item.viewing}` : ''}
                           </button>
                         ) : (
-                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 space-y-2">
+                          <div className="bg-surface-sunken border border-line rounded-xl p-2.5 space-y-2">
                             <ViewingSelector
                               value={editViewing}
                               onChange={setEditViewing}
@@ -526,7 +526,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               isAr={isAr}
                             />
                             {editResult && (
-                              <p className="text-[10px] font-bold text-gray-600">{editResult}</p>
+                              <p className="text-[10px] font-bold text-fg-muted">{editResult}</p>
                             )}
                             <div className="flex gap-2">
                               <button
@@ -552,7 +552,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               <button
                                 type="button"
                                 onClick={() => { setEditViewingId(null); setEditResult(null); }}
-                                className="flex-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-[10px] py-1.5 rounded-lg transition-all cursor-pointer"
+                                className="flex-1 bg-surface-raised hover:bg-surface-sunken border border-line text-fg font-bold text-[10px] py-1.5 rounded-lg transition-all cursor-pointer"
                               >
                                 {isAr ? 'إلغاء' : 'Cancel'}
                               </button>
@@ -573,7 +573,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                   <button
                     type="button"
                     onClick={() => setDirectoryPages((n) => n + 1)}
-                    className="w-full py-2.5 rounded-xl border border-gray-200 bg-white text-[11px] font-black text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded-xl border border-line bg-surface-raised text-[11px] font-black text-fg-muted hover:bg-surface-sunken transition-colors cursor-pointer"
                   >
                     {isAr
                       ? `عرض ${Math.min(DIRECTORY_CHUNK, page.remaining)} أخرى (${page.remaining} متبقية)`

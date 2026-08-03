@@ -16,10 +16,10 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-white border border-[#E5E5E5] rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] text-left"
+        className="bg-surface-raised border border-line rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] text-left"
       >
         {/* Header */}
-        <div className="bg-zinc-50 p-5 border-b border-[#E5E5E5] shrink-0 flex justify-between items-center">
+        <div className="bg-zinc-50 p-5 border-b border-line shrink-0 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="bg-[#FF6B00]/10 p-2 rounded-xl border border-[#FF6B00]/20">
               <Scale className="w-5 h-5 text-[#FF6B00]" />
@@ -181,7 +181,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         </div>
 
         {/* Action Button Footer */}
-        <div className="bg-zinc-50 p-4 border-t border-[#E5E5E5] shrink-0 flex gap-2">
+        <div className="bg-zinc-50 p-4 border-t border-line shrink-0 flex gap-2">
           <button
             type="button"
             onClick={onClose}

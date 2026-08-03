@@ -57,7 +57,7 @@ const activityIconFor = (type: Notification['type']) => {
     case 'subscription':
       return { Icon: Crown, wrap: 'bg-purple-500/10 text-purple-600' };
     default:
-      return { Icon: Bell, wrap: 'bg-gray-500/10 text-gray-500' };
+      return { Icon: Bell, wrap: 'bg-gray-500/10 text-fg-muted' };
   }
 };
 
@@ -141,7 +141,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
   return (
     <div 
-      className="w-full h-[100dvh] overflow-hidden text-gray-900 bg-gray-50/50 font-sans selection:bg-[#FF6B00]/20"
+      className="w-full h-[100dvh] overflow-hidden text-fg bg-surface-sunken/50 font-sans selection:bg-[#FF6B00]/20"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="desktop-frame-root"
     >
@@ -149,7 +149,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           1. MOBILE EMULATOR LAYOUT (Presented on screens below 1024px / lg)
           ====================================================================== */}
       <div 
-        className="lg:hidden h-[100dvh] max-h-[100dvh] w-full bg-[#F7F6F3] flex flex-col overflow-hidden"
+        className="lg:hidden h-[100dvh] max-h-[100dvh] w-full bg-surface flex flex-col overflow-hidden"
         id="mobile-layout-root"
       >
         {/* Main Application active view fills standard mobile viewport exactly.
@@ -169,7 +169,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           className={`relative z-20 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-4 flex items-center justify-between text-[10px] font-bold tracking-wider select-none h-16 shrink-0 transition-all duration-300 ${
             activeView === 'live'
               ? 'bg-[#111111]/95 text-zinc-400 border-t border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]'
-              : 'bg-white border-t border-gray-200/80 text-gray-500 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]'
+              : 'bg-surface-raised border-t border-line/80 text-fg-muted shadow-[0_-5px_20px_rgba(0,0,0,0.03)]'
           }`}
           id="mobile-nav-bar"
         >
@@ -180,7 +180,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'discovery'
                 ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
             }`}
           >
             <Home className="w-5 h-5" />
@@ -193,7 +193,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'orders'
                 ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
             }`}
             id="mobile-my-orders-tab-btn"
           >
@@ -220,7 +220,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`text-[9px] font-extrabold tracking-normal mt-0.5 ${
                 activeView === 'upload'
                   ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500' : 'text-gray-400'
+                  : activeView === 'live' ? 'text-zinc-500' : 'text-fg-muted'
               }`}
             >
               {isAr ? 'بيع' : 'Sell'}
@@ -233,7 +233,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'profile'
                 ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
             }`}
           >
             <User className="w-5 h-5" />
@@ -249,7 +249,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
                 activeView === 'seller-center'
                   ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
               }`}
             >
               <Store className="w-5 h-5" />
@@ -264,7 +264,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
                 activeView === 'admin'
                   ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-400 hover:text-gray-700'
+                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
               }`}
               id="mobile-admin-tab-btn"
             >
@@ -283,12 +283,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
       {/* ======================================================================
           2. THE PREMIUM THREE-COLUMN MOCKUP LAYOUT (Presented strictly on screens lg and above)
           ====================================================================== */}
-      <div className="hidden lg:flex flex-col h-[100dvh] overflow-hidden bg-[#F7F6F3]" id="desktop-premium-layout-root">
+      <div className="hidden lg:flex flex-col h-[100dvh] overflow-hidden bg-surface" id="desktop-premium-layout-root">
         
         {/* ======================================================================
             GLOBAL DESKTOP HEADER (Standard height, clean white, like the reference)
             ====================================================================== */}
-        <header className="w-full h-16 border-b border-gray-200/80 flex items-center justify-between px-6 shrink-0 z-40 bg-white text-gray-900 shadow-sm" id="global-desktop-header">
+        <header className="w-full h-16 border-b border-line/80 flex items-center justify-between px-6 shrink-0 z-40 bg-surface-raised text-fg shadow-sm" id="global-desktop-header">
           
           {/* 1. Logo & App Name (Left) — routes to the landing page (path `/`). */}
           <div
@@ -312,7 +312,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'discovery'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
               }`}
             >
               <Home className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -324,7 +324,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
               }`}
             >
               <PlusCircle className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -336,7 +336,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'orders'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
               }`}
               id="top-nav-my-orders-btn"
             >
@@ -349,7 +349,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'about'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
               }`}
               id="top-nav-how-it-works-btn"
             >
@@ -363,7 +363,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'seller-center'
                     ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+                    : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
                 }`}
               >
                 <Store className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -377,7 +377,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'admin'
                     ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-[#E85D04]'
+                    : 'text-fg-muted hover:bg-surface-sunken hover:text-[#E85D04]'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -393,7 +393,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {currentUser && (
               <div
                 onClick={() => setActiveView('wallet')}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-[#FAF9F6] border-gray-200/80 text-gray-800 hover:border-gray-300"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-surface border-line/80 text-fg hover:border-line"
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
                 <span>
@@ -407,7 +407,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Language switch */}
             <button 
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="p-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+              className="p-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold text-fg-muted hover:text-fg hover:bg-surface-sunken"
               title={language === 'en' ? 'العربية' : 'English'}
             >
               <Globe className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -420,7 +420,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Notifications */}
             <button 
               onClick={() => setShowNotifications(true)}
-              className="p-2 rounded-xl transition-colors cursor-pointer relative text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+              className="p-2 rounded-xl transition-colors cursor-pointer relative text-fg-muted hover:text-fg hover:bg-surface-sunken"
               title={isAr ? 'الإشعارات' : 'Notifications'}
             >
               <Bell className="w-4 h-4" />
@@ -452,9 +452,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   <img
                     src={resolveAvatarUrl(currentUser.avatar, currentUser.id)}
                     alt={currentUser.name}
-                    className="w-8 h-8 rounded-full object-cover border border-gray-200/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
+                    className="w-8 h-8 rounded-full object-cover border border-line/85 shadow-xs shrink-0 group-hover:border-[#E85D04] transition-colors"
                   />
-                  <span className="hidden xl:inline text-xs font-bold text-gray-700 group-hover:text-gray-900">
+                  <span className="hidden xl:inline text-xs font-bold text-fg group-hover:text-fg">
                     {currentUser.name.split(' ')[0]}
                   </span>
                 </button>
@@ -467,24 +467,24 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       onClick={() => setIsUserMenuOpen(false)}
                     />
                     <div
-                      className="absolute end-0 top-full mt-2 w-52 bg-white border border-gray-200/80 rounded-2xl shadow-lg py-1.5 z-50"
+                      className="absolute end-0 top-full mt-2 w-52 bg-surface-raised border border-line/80 rounded-2xl shadow-lg py-1.5 z-50"
                       id="header-user-menu-dropdown"
                     >
                       <button
                         onClick={() => { setIsUserMenuOpen(false); setActiveView('profile'); }}
-                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-fg hover:bg-surface-sunken flex items-center gap-2.5 cursor-pointer"
                       >
-                        <User className="w-4 h-4 text-gray-400 shrink-0 stroke-[1.75]" />
+                        <User className="w-4 h-4 text-fg-muted shrink-0 stroke-[1.75]" />
                         <span>{isAr ? 'حسابي' : 'My Profile'}</span>
                       </button>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); setIsTermsOpen(true); }}
-                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-fg hover:bg-surface-sunken flex items-center gap-2.5 cursor-pointer"
                       >
-                        <HelpCircle className="w-4 h-4 text-gray-400 shrink-0 stroke-[1.75]" />
+                        <HelpCircle className="w-4 h-4 text-fg-muted shrink-0 stroke-[1.75]" />
                         <span>{isAr ? 'الشروط والأحكام' : 'Terms & Policies'}</span>
                       </button>
-                      <div className="my-1 border-t border-gray-100" />
+                      <div className="my-1 border-t border-line" />
                       <button
                         onClick={() => {
                           setIsUserMenuOpen(false);
@@ -492,7 +492,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                             logout();
                           }
                         }}
-                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-fg-muted hover:text-red-600 hover:bg-red-50 flex items-center gap-2.5 cursor-pointer"
                         id="header-logout-btn"
                       >
                         <LogOut className="w-4 h-4 shrink-0 stroke-[1.75]" />
@@ -511,9 +511,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
         {/* WORKSPACE UNDERNEATH HEADER */}
         <div className="flex flex-1 min-h-0 w-full overflow-hidden" id="global-desktop-body">
           {activeView === 'live' ? (
-            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#F7F6F3] transition-all duration-300" id="desktop-premium-reels-layout">
+            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-surface transition-all duration-300" id="desktop-premium-reels-layout">
               <Suspense fallback={
-                <div className="flex-1 h-full flex items-center justify-center bg-[#F7F6F3]">
+                <div className="flex-1 h-full flex items-center justify-center bg-surface">
                   <div className="w-8 h-8 rounded-lg bg-[#E85D04] animate-spin"></div>
                 </div>
               }>
@@ -521,12 +521,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               </Suspense>
             </div>
           ) : (
-            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-[#F7F6F3]" id="desktop-three-column-root">
+            <div className="flex flex-1 min-h-0 w-full overflow-hidden bg-surface" id="desktop-three-column-root">
               
               {/* ======================================================================
                   COLUMN 2: CENTER / MAIN CONTENT VIEWPORT (MAX-W-1100PX)
                   ====================================================================== */}
-              <main className="flex-1 h-full bg-[#F7F6F3] overflow-y-auto flex justify-center py-8 px-8 md:px-12" id="desktop-content-container">
+              <main className="flex-1 h-full bg-surface overflow-y-auto flex justify-center py-8 px-8 md:px-12" id="desktop-content-container">
                 <div className="max-w-[1100px] w-full flex flex-col gap-8" id="desktop-content-viewport">
                   <Suspense fallback={
                     <div className="flex-1 flex items-center justify-center h-full min-h-[300px]">
@@ -541,15 +541,15 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* ======================================================================
                 COLUMN 3: RIGHT PANEL (CONTEXT & LIVE METRICS / ALERTS)
                 ====================================================================== */}
-            <aside className="w-[320px] h-full bg-white border-l border-gray-200/80 p-6 shrink-0 overflow-y-auto flex flex-col gap-6 select-none" id="right-context-panel">
+            <aside className="w-[320px] h-full bg-surface-raised border-l border-line/80 p-6 shrink-0 overflow-y-auto flex flex-col gap-6 select-none" id="right-context-panel">
               
               {/* Context Profile Block (hidden for guests — they have no profile) */}
               {!isGuest && currentUser && (
-                <div className="flex items-center gap-3 pb-5 border-b border-gray-100">
+                <div className="flex items-center gap-3 pb-5 border-b border-line">
                   <img
                     src={resolveAvatarUrl(currentUser.avatar, currentUser.id)}
                     alt={currentUser.name}
-                    className="w-10 h-10 rounded-full object-cover border border-gray-200/80 shadow-xs shrink-0"
+                    className="w-10 h-10 rounded-full object-cover border border-line/80 shadow-xs shrink-0"
                   />
                   <div className="flex flex-col text-left rtl:text-right min-w-0">
                     <span className="text-xs font-bold text-gray-950 truncate leading-tight">
@@ -566,12 +566,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {activityFeed.length > 0 ? (
                 <div className="flex flex-col gap-3" id="rail-your-activity">
                   <div className="flex items-center justify-between pb-1">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <h4 className="text-[10px] font-bold text-fg-muted uppercase tracking-wider">
                       {isAr ? 'نشاطك' : 'YOUR ACTIVITY'}
                     </h4>
                     <button
                       onClick={() => setShowNotifications(true)}
-                      className="text-gray-400 hover:text-gray-900 cursor-pointer relative"
+                      className="text-fg-muted hover:text-fg cursor-pointer relative"
                       title={isAr ? 'الإشعارات' : 'Notifications'}
                     >
                       <Bell className="w-4 h-4" />
@@ -593,10 +593,10 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                             <Icon className="w-3.5 h-3.5 stroke-[2]" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-bold text-gray-900 leading-snug truncate">
+                            <p className="text-[11px] font-bold text-fg leading-snug truncate">
                               {notif.title}
                             </p>
-                            <span className="text-[9px] text-gray-400 font-mono mt-0.5 block">
+                            <span className="text-[9px] text-fg-muted font-mono mt-0.5 block">
                               {formatRelativeTime(notif.timestamp, isAr)}
                             </span>
                           </div>
@@ -608,12 +608,12 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               ) : (
                 <div className="flex flex-col gap-4" id="rail-how-it-works">
                   <div className="flex items-center justify-between pb-1">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <h4 className="text-[10px] font-bold text-fg-muted uppercase tracking-wider">
                       {isAr ? 'كيف يعمل مزاد جو' : 'HOW MAZAD WORKS'}
                     </h4>
                     <button
                       onClick={() => setShowNotifications(true)}
-                      className="text-gray-400 hover:text-gray-900 cursor-pointer relative"
+                      className="text-fg-muted hover:text-fg cursor-pointer relative"
                       title={isAr ? 'الإشعارات' : 'Notifications'}
                     >
                       <Bell className="w-4 h-4" />
@@ -624,22 +624,22 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   </div>
 
                   {/* Compact 3-step card */}
-                  <div className="bg-[#FAF9F6] border border-gray-200/60 rounded-2xl p-4 space-y-3.5">
+                  <div className="bg-surface border border-line/60 rounded-2xl p-4 space-y-3.5">
                     <div className="flex items-start gap-2.5">
                       <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">①</span>
-                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                      <p className="text-[11px] font-bold text-fg leading-snug">
                         {isAr ? 'انضم من ١ د.أ شهرياً' : 'Join from 1 JD/mo'}
                       </p>
                     </div>
                     <div className="flex items-start gap-2.5">
                       <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">②</span>
-                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                      <p className="text-[11px] font-bold text-fg leading-snug">
                         {isAr ? 'زايد مجاناً — تدفع فقط عند الفوز' : 'Bid free — pay only if you win'}
                       </p>
                     </div>
                     <div className="flex items-start gap-2.5">
                       <span className="text-[#E85D04] font-black text-sm leading-none mt-0.5 shrink-0">③</span>
-                      <p className="text-[11px] font-bold text-gray-800 leading-snug">
+                      <p className="text-[11px] font-bold text-fg leading-snug">
                         {isAr ? 'ادفع عبر كليك (+٥٪) — استلام أو توصيل' : 'Pay via CliQ (+5%) — pickup or delivery'}
                       </p>
                     </div>
@@ -689,9 +689,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               )}
 
               {/* Security Banner footer */}
-              <div className="mt-auto bg-[#F7F6F3] rounded-xl p-3 flex gap-2 items-start border border-gray-200/50">
+              <div className="mt-auto bg-surface rounded-xl p-3 flex gap-2 items-start border border-line/50">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="text-[9.5px] text-gray-500 font-medium leading-relaxed">
+                <p className="text-[9.5px] text-fg-muted font-medium leading-relaxed">
                   {isAr
                     ? 'مدفوعاتك عبر كليك إلى حساب مزاد جو في البنك العربي.'
                     : "Payments via CliQ to Mazad JO's Arab Bank account."}

@@ -62,7 +62,7 @@ export default function DropsListPanel({ onRelist }: { onRelist?: (a: AuctionIte
         onClick={() => setOpenOnMobile((o) => !o)}
         aria-expanded={openOnMobile}
         aria-controls="drops-list-body"
-        className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-200 rounded-2xl text-sm font-black text-gray-900 bg-white cursor-pointer"
+        className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-3 border border-line rounded-2xl text-sm font-black text-fg bg-surface-raised cursor-pointer"
       >
         <span>{isAr ? 'مزاداتك' : 'Your drops'}</span>
         {/* ▾/▴ rather than a rotated ▸: CSS rotation is geometric and is NOT

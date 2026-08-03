@@ -29,6 +29,15 @@
   --color-text-inverted: #FFFFFF;
   --color-accent: #F05123;
   --color-accent-weak: #FFF1EC;
+
+  /* Utility-friendly aliases. Tailwind v4 generates a utility per @theme colour,
+     so these give `text-fg`, `text-fg-muted`, `border-line`, `text-on-accent` —
+     readable at the call site, unlike `text-text-primary`. Same values as the
+     role tokens above; both names resolve to one variable per theme. */
+  --color-fg: var(--color-text-primary);
+  --color-fg-muted: var(--color-text-muted);
+  --color-line: var(--color-border);
+  --color-on-accent: var(--color-text-inverted);
 }
 
 /* Dark theme. Selected by the attribute the pre-paint script sets, so the first

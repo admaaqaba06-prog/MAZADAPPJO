@@ -43,13 +43,13 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <p className="text-sm font-black text-gray-900 truncate">{order.auctionTitle || order.id}</p>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-sm font-black text-fg truncate">{order.auctionTitle || order.id}</p>
+        <p className="text-[11px] text-fg-muted">
           {isAr ? 'المبلغ' : 'Amount'}:{' '}
           <span dir="ltr">{Number(order.winningBidAmount || 0).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'}</span>
         </p>
         {order.disputeReason && (
-          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap pt-1">{order.disputeReason}</p>
+          <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap pt-1">{order.disputeReason}</p>
         )}
       </div>
 
@@ -58,13 +58,13 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
           <p className="text-[10px] font-extrabold uppercase font-mono text-amber-800">
             {isAr ? 'طلب إرجاع من المشتري' : 'Buyer return claim'}
           </p>
-          <p className="text-[11px] font-bold text-gray-800">
+          <p className="text-[11px] font-bold text-fg">
             {claim.reason === 'damaged'
               ? (isAr ? 'وصل تالفاً' : 'Arrived damaged')
               : (isAr ? 'مخالف للوصف' : 'Not as described')}
           </p>
           {claim.description && (
-            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{claim.description}</p>
+            <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{claim.description}</p>
           )}
           {Array.isArray(claim.photoUrls) && claim.photoUrls.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
@@ -77,8 +77,8 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
           )}
           {claim.sellerResponse && (
             <div className="pt-1 border-t border-amber-200">
-              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'رد البائع' : "Seller's response"}</p>
-              <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{claim.sellerResponse}</p>
+              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'رد البائع' : "Seller's response"}</p>
+              <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{claim.sellerResponse}</p>
             </div>
           )}
         </div>
@@ -88,7 +88,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
           buyer's receipt photo is exactly what a delivery dispute turns on. */}
       {(order.sentPhotoUrl || order.receivedPhotoUrl) && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+          <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
             {isAr ? 'سلسلة إثبات التسليم' : 'Delivery evidence chain'}
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -98,8 +98,8 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
               { url: order.receivedPhotoUrl, ar: 'الاستلام', en: 'Received' },
             ].filter(p => p.url).map((p, i) => (
               <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="block">
-                <img src={p.url} alt="" className="w-full aspect-square rounded-lg object-cover border border-gray-200" />
-                <span className="block text-[9px] font-mono uppercase text-gray-400 mt-0.5">{isAr ? p.ar : p.en}</span>
+                <img src={p.url} alt="" className="w-full aspect-square rounded-lg object-cover border border-line" />
+                <span className="block text-[9px] font-mono uppercase text-fg-muted mt-0.5">{isAr ? p.ar : p.en}</span>
               </a>
             ))}
           </div>
@@ -112,7 +112,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
             <button
               key={o.value}
               onClick={() => setPicked(o.value)}
-              className={`text-[10px] font-extrabold py-2 rounded-xl border transition-all ${picked === o.value ? 'border-[#FF6B00] bg-orange-50 text-gray-900' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`text-[10px] font-extrabold py-2 rounded-xl border transition-all ${picked === o.value ? 'border-[#FF6B00] bg-orange-50 text-fg' : 'border-line bg-surface-raised text-fg-muted hover:bg-surface-sunken'}`}
             >
               {isAr ? o.ar : o.en}
             </button>
@@ -124,7 +124,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder={isAr ? 'سبب القرار (إلزامي)...' : 'Reason for this decision (required)...'}
-          className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
+          className="w-full text-xs border border-line rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
         />
 
         <button

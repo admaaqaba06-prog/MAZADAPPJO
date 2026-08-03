@@ -63,12 +63,12 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
           // Click through to full size — a small crop hides both detail and
           // framing, so an approver could not inspect what they were approving.
           <a href={auction.thumbnailUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-            <img src={auction.thumbnailUrl} alt="" className="w-20 h-20 rounded-xl object-cover border border-gray-200" />
+            <img src={auction.thumbnailUrl} alt="" className="w-20 h-20 rounded-xl object-cover border border-line" />
           </a>
         )}
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-black text-gray-900 truncate">{auction.title || (isAr ? 'بدون عنوان' : 'Untitled')}</p>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-sm font-black text-fg truncate">{auction.title || (isAr ? 'بدون عنوان' : 'Untitled')}</p>
+          <p className="text-[11px] text-fg-muted">
             {isAr ? 'السعر الابتدائي' : 'Starting price'}: <span dir="ltr">{Number(auction.startingPrice || 0).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'}</span>
           </p>
         </div>
@@ -81,12 +81,12 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder={isAr ? 'سبب الرفض...' : 'Reason for rejection...'}
-            className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
+            className="w-full text-xs border border-line rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
           />
           <div className="flex gap-2">
             <button
               onClick={() => { setRejecting(false); setReason(''); }}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl border border-gray-200"
+              className="flex-1 bg-surface-sunken hover:bg-gray-200 text-fg font-semibold text-xs py-2 rounded-xl border border-line"
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </button>
@@ -130,7 +130,7 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
 
             <div className="space-y-1.5">
               {items.map(({ key, en, ar }) => (
-                <label key={key} className="flex items-start gap-2 text-[11px] text-gray-700 font-medium cursor-pointer select-none">
+                <label key={key} className="flex items-start gap-2 text-[11px] text-fg font-medium cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={checklist[key]}
@@ -156,7 +156,7 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
             </button>
             <button
               onClick={() => { setRejecting(true); setReason(''); }}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl border border-gray-200"
+              className="flex-1 bg-surface-sunken hover:bg-gray-200 text-fg font-semibold text-xs py-2 rounded-xl border border-line"
             >
               {isAr ? 'رفض الطلب' : 'REJECT'}
             </button>

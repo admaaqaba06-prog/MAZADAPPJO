@@ -219,7 +219,7 @@ export const SellView: React.FC = () => {
   const backButton = (
     <button
       onClick={() => setMode('choose')}
-      className="inline-flex items-center gap-1 text-xs font-black text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1 text-xs font-black text-fg-muted hover:text-fg transition-colors cursor-pointer"
     >
       <BackChevron className="w-4 h-4" />
       <span>{isAr ? 'رجوع' : 'Back'}</span>
@@ -228,7 +228,7 @@ export const SellView: React.FC = () => {
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto w-full bg-[#F7F6F3] font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full bg-surface font-sans"
       dir={isAr ? 'rtl' : 'ltr'}
       id="sell-view-root"
     >
@@ -244,7 +244,7 @@ export const SellView: React.FC = () => {
             className="min-h-full flex items-center justify-center p-6"
             id="sell-success-screen"
           >
-            <div className="max-w-md w-full bg-white border border-gray-200/80 rounded-3xl shadow-sm p-8 text-center space-y-5">
+            <div className="max-w-md w-full bg-surface-raised border border-line/80 rounded-3xl shadow-sm p-8 text-center space-y-5">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -260,7 +260,7 @@ export const SellView: React.FC = () => {
                   : 'Got it — Mazad JO will review & approve your listing, then it goes live 🌹'}
               </h1>
 
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+              <p className="text-xs text-fg-muted font-medium leading-relaxed">
                 {isAr
                   ? 'بتقدر تتابع حالة مزادك أول بأول من مركز البائع.'
                   : 'You can track your listing status anytime from your Seller Center.'}
@@ -277,7 +277,7 @@ export const SellView: React.FC = () => {
 
               <button
                 onClick={() => setMode('choose')}
-                className="text-xs font-bold text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                className="text-xs font-bold text-fg-muted hover:text-fg transition-colors cursor-pointer"
               >
                 {isAr ? 'أضف منتج آخر' : 'Add another item'}
               </button>
@@ -317,41 +317,41 @@ export const SellView: React.FC = () => {
               <h2 className="text-base font-black text-gray-950">
                 {isAr ? 'خلّي مزاد جو يدرجه لك 🤝' : 'Let Mazad list it for you 🤝'}
               </h2>
-              <p className="text-xs text-gray-500 font-medium">
+              <p className="text-xs text-fg-muted font-medium">
                 {isAr
                   ? 'ابعثلنا تفاصيل منتجك وفريقنا بجهّز المزاد كامل وبنزّله بعد الموافقة.'
                   : 'Send us your item details — our team builds the full listing and publishes it after review.'}
               </p>
             </div>
 
-            <form onSubmit={handleConciergeSubmit} className="bg-white border border-gray-200/80 rounded-3xl shadow-sm p-5 space-y-4 text-xs font-bold text-gray-700">
+            <form onSubmit={handleConciergeSubmit} className="bg-surface-raised border border-line/80 rounded-3xl shadow-sm p-5 space-y-4 text-xs font-bold text-fg">
               {/* Item name */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'اسم المنتج' : 'Item name'}</label>
+                <label className="block text-fg-muted">{isAr ? 'اسم المنتج' : 'Item name'}</label>
                 <input
                   type="text"
                   value={cName}
                   onChange={(e) => setCName(e.target.value)}
                   placeholder={isAr ? 'مثال: iPhone 15 Pro Max' : 'e.g. iPhone 15 Pro Max'}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors"
+                  className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors"
                 />
               </div>
 
               {/* Short description */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'وصف قصير' : 'Short description'}</label>
+                <label className="block text-fg-muted">{isAr ? 'وصف قصير' : 'Short description'}</label>
                 <textarea
                   rows={2}
                   value={cDesc}
                   onChange={(e) => setCDesc(e.target.value)}
                   placeholder={isAr ? 'الموديل، الحالة، أي ملاحظات...' : 'Model, condition details, any notes...'}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors resize-none"
+                  className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors resize-none"
                 />
               </div>
 
               {/* Condition */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'حالة المنتج' : 'Condition'}</label>
+                <label className="block text-fg-muted">{isAr ? 'حالة المنتج' : 'Condition'}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { value: 'new' as const, label: isAr ? 'جديد' : 'New' },
@@ -364,7 +364,7 @@ export const SellView: React.FC = () => {
                       className={`py-3 rounded-xl font-black text-center border transition-all cursor-pointer ${
                         cCondition === opt.value
                           ? 'bg-[#FF6B00] border-transparent text-white shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                          : 'bg-surface-raised border-line text-fg-muted hover:border-line'
                       }`}
                     >
                       {opt.label}
@@ -375,7 +375,7 @@ export const SellView: React.FC = () => {
 
               {/* Category / channel (required) */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'فئة المنتج' : 'Category'}</label>
+                <label className="block text-fg-muted">{isAr ? 'فئة المنتج' : 'Category'}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {DROP_CHANNELS.map(opt => {
                     const label = opt.value === 'phones'
@@ -391,7 +391,7 @@ export const SellView: React.FC = () => {
                         className={`py-3 rounded-xl font-black text-center border transition-all cursor-pointer ${
                           cChannel === opt.value
                             ? 'bg-[#FF6B00] border-transparent text-white shadow-sm'
-                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                            : 'bg-surface-raised border-line text-fg-muted hover:border-line'
                         }`}
                       >
                         {label}
@@ -403,17 +403,17 @@ export const SellView: React.FC = () => {
 
               {/* Expected price */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'السعر المتوقع (دينار)' : 'Expected price (JOD)'}</label>
+                <label className="block text-fg-muted">{isAr ? 'السعر المتوقع (دينار)' : 'Expected price (JOD)'}</label>
                 <input
                   type="number"
                   min="1"
                   value={cPrice}
                   onChange={(e) => setCPrice(e.target.value)}
                   placeholder="100"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors"
+                  className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors"
                 />
                 {/* E1 — seller take estimate: ~95% of the final price after Mazad's 5% commission. */}
-                <p className="text-[11px] text-gray-400 font-medium">
+                <p className="text-[11px] text-fg-muted font-medium">
                   {Number(cPrice) > 0
                     ? (isAr
                         ? `ستستلم ~${sellerNet(Number(cPrice)).toLocaleString('en-US')} دينار (تقريباً ٩٥٪ بعد عمولة مزاد ٥٪)`
@@ -426,10 +426,10 @@ export const SellView: React.FC = () => {
 
               {/* Photos (1–3) */}
               <div className="space-y-1.5">
-                <label className="block text-gray-600">{isAr ? 'الصور (١–٣ صور)' : 'Photos (1–3)'}</label>
+                <label className="block text-fg-muted">{isAr ? 'الصور (١–٣ صور)' : 'Photos (1–3)'}</label>
                 <div className="flex gap-2 flex-wrap">
                   {cPhotos.map((photo, idx) => (
-                    <div key={photo.url} className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                    <div key={photo.url} className="relative w-20 h-20 rounded-xl overflow-hidden border border-line bg-surface-sunken">
                       <img src={photo.url} alt="" className="w-full h-full object-cover" />
                       <button
                         type="button"
@@ -442,7 +442,7 @@ export const SellView: React.FC = () => {
                     </div>
                   ))}
                   {cPhotos.length < 3 && (
-                    <label className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 hover:border-[#FF6B00] hover:bg-orange-50/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-gray-400 hover:text-[#FF6B00]">
+                    <label className="w-20 h-20 rounded-xl border-2 border-dashed border-line hover:border-[#FF6B00] hover:bg-orange-50/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-fg-muted hover:text-[#FF6B00]">
                       <ImagePlus className="w-5 h-5" />
                       <span className="text-[9px] font-black">{isAr ? 'أضف' : 'Add'}</span>
                       <input
@@ -462,15 +462,15 @@ export const SellView: React.FC = () => {
 
               {/* Contact */}
               <div className="space-y-1">
-                <label className="block text-gray-600">{isAr ? 'رقم التواصل (هاتف / واتساب)' : 'Your contact (phone / WhatsApp)'}</label>
+                <label className="block text-fg-muted">{isAr ? 'رقم التواصل (هاتف / واتساب)' : 'Your contact (phone / WhatsApp)'}</label>
                 <div className="relative">
-                  <Phone className="w-4 h-4 text-gray-400 absolute top-1/2 -translate-y-1/2 start-4" />
+                  <Phone className="w-4 h-4 text-fg-muted absolute top-1/2 -translate-y-1/2 start-4" />
                   <input
                     type="tel"
                     value={cContact}
                     onChange={(e) => setCContact(e.target.value)}
                     placeholder="07XXXXXXXX"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 ps-11 pe-4 font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors"
+                    className="w-full bg-surface-sunken border border-line rounded-xl py-3 ps-11 pe-4 font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors"
                     dir="ltr"
                   />
                 </div>
@@ -478,7 +478,7 @@ export const SellView: React.FC = () => {
 
               {/* Wave 4 — required ownership + legality attestation */}
               <label
-                className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none"
+                className="flex items-start gap-2.5 bg-surface-sunken border border-line rounded-xl p-3.5 cursor-pointer select-none"
                 id="concierge-ownership-attestation"
               >
                 <input
@@ -487,7 +487,7 @@ export const SellView: React.FC = () => {
                   onChange={(e) => setCAttested(e.target.checked)}
                   className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
                 />
-                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                <span className="text-[11px] font-bold text-fg leading-relaxed">
                   {isAr
                     ? 'أُقرّ بأن هذا الغرض ملكي وقانوني للبيع في الأردن'
                     : 'I confirm I own this item and it is legal to sell in Jordan.'}
@@ -495,14 +495,14 @@ export const SellView: React.FC = () => {
               </label>
 
               {/* E3 Slice B — auto-relist opt-in */}
-              <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none">
+              <label className="flex items-start gap-2.5 bg-surface-sunken border border-line rounded-xl p-3.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={cAutoRelist}
                   onChange={(e) => setCAutoRelist(e.target.checked)}
                   className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
                 />
-                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                <span className="text-[11px] font-bold text-fg leading-relaxed">
                   {isAr
                     ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)'
                     : 'Auto-relist if unsold (up to 2×)'}
@@ -534,7 +534,7 @@ export const SellView: React.FC = () => {
                 )}
               </button>
 
-              <p className="text-[10px] text-gray-400 font-medium text-center leading-relaxed">
+              <p className="text-[10px] text-fg-muted font-medium text-center leading-relaxed">
                 {isAr
                   ? 'فريقنا بكمّل تفاصيل المزاد وبتواصل معك قبل النشر.'
                   : 'Our team completes the listing details and contacts you before it goes live.'}
@@ -559,7 +559,7 @@ export const SellView: React.FC = () => {
               <h1 className="text-xl font-black text-gray-950">
                 {isAr ? 'بيع على مزاد جو' : 'Sell on Mazad JO'}
               </h1>
-              <p className="text-xs text-gray-500 font-medium leading-relaxed max-w-sm mx-auto">
+              <p className="text-xs text-fg-muted font-medium leading-relaxed max-w-sm mx-auto">
                 {isAr
                   ? 'كل المزادات بمرّ فيها فريقنا للمراجعة والموافقة قبل ما تنزل مباشر.'
                   : 'Every listing is reviewed & approved by our team before it goes live.'}
@@ -609,7 +609,7 @@ export const SellView: React.FC = () => {
                     </div>
                     <div className="space-y-1.5 relative">
                       <h3 className="text-base font-black text-gray-950 leading-tight">{card.title}</h3>
-                      <p className="text-xs text-gray-500 font-medium leading-relaxed min-h-[48px]">{card.desc}</p>
+                      <p className="text-xs text-fg-muted font-medium leading-relaxed min-h-[48px]">{card.desc}</p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#FF6B00] mt-auto relative">
                       <span>{card.cta}</span>
@@ -633,7 +633,7 @@ export const SellView: React.FC = () => {
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-[#FF6B00] transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-fg-muted hover:text-[#FF6B00] transition-colors"
                 id="sell-whatsapp-fallback"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
@@ -651,7 +651,7 @@ export const SellView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveView('prohibited-items')}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-fg-muted hover:text-rose-600 transition-colors cursor-pointer"
                 id="sell-prohibited-items-link"
               >
                 <Ban className="w-3.5 h-3.5" />

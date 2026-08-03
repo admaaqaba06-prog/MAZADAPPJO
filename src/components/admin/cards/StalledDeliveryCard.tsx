@@ -61,8 +61,8 @@ export const StalledDeliveryCard: React.FC<StalledDeliveryCardProps> = ({
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <p className="text-sm font-black text-gray-900 truncate">{order.auctionTitle || order.id}</p>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-sm font-black text-fg truncate">{order.auctionTitle || order.id}</p>
+        <p className="text-[11px] text-fg-muted">
           <span dir="ltr">{Number(order.winningBidAmount || 0).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'}</span>
           {' · '}
           {isAr ? 'المشتري' : 'Buyer'}: {order.buyerName || '—'}
@@ -95,13 +95,13 @@ export const StalledDeliveryCard: React.FC<StalledDeliveryCardProps> = ({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={isAr ? 'ملاحظة داخلية (اتصلنا بالبائع، المندوب يستلم الثلاثاء…)' : 'Internal note (called the seller, courier collects Tuesday…)'}
-            className="w-full text-[11px] border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#FF6B00]"
+            className="w-full text-[11px] border border-line rounded-xl px-3 py-2 focus:outline-none focus:border-[#FF6B00]"
           />
           <div className="flex gap-2">
             <button
               disabled={busy}
               onClick={() => onNudge(order.id, nudgeKind)}
-              className="flex-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs py-2 rounded-xl disabled:opacity-50"
+              className="flex-1 bg-surface-raised hover:bg-surface-sunken text-fg border border-line font-bold text-xs py-2 rounded-xl disabled:opacity-50"
             >
               {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تذكير' : 'Nudge')}
             </button>
@@ -120,7 +120,7 @@ export const StalledDeliveryCard: React.FC<StalledDeliveryCardProps> = ({
 
       <button
         onClick={() => onOpenOrder(order.id)}
-        className="w-full text-[11px] font-bold text-gray-500 hover:text-gray-800 underline"
+        className="w-full text-[11px] font-bold text-fg-muted hover:text-fg underline"
       >
         {isAr ? 'فتح تفاصيل الطلب' : 'Open order details'}
       </button>

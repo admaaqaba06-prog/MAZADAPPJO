@@ -34,7 +34,7 @@ export interface MediaPickerProps {
 }
 
 const zone =
-  'flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors';
+  'flex flex-col items-center justify-center border-2 border-dashed border-line rounded-xl cursor-pointer hover:bg-surface-sunken transition-colors';
 
 export const MediaPicker: React.FC<MediaPickerProps> = ({
   isAr,
@@ -70,7 +70,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
     <div className="space-y-4">
       {/* COVER */}
       <div className="space-y-2">
-        <span className="block text-xs font-extrabold text-gray-900">
+        <span className="block text-xs font-extrabold text-fg">
           {isAr ? 'صورة الغلاف' : 'Cover image'}
         </span>
         {coverUrl ? (
@@ -87,7 +87,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
         ) : (
           <label className={`${zone} p-6`}>
             <span className="text-2xl">🖼️</span>
-            <span className="text-xs font-bold text-gray-600 mt-2">
+            <span className="text-xs font-bold text-fg-muted mt-2">
               {isAr ? 'اضغط لرفع صورة الغلاف' : 'Tap to add a cover image'}
             </span>
             <input
@@ -102,7 +102,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
 
       {/* GALLERY */}
       <div className="space-y-2">
-        <span className="block text-xs font-extrabold text-gray-900">
+        <span className="block text-xs font-extrabold text-fg">
           {isAr
             ? `صور إضافية (حتى ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — اختياري)`
             : `Extra photos (up to ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — optional)`}
@@ -123,7 +123,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
           {gallery.length < MAX_GALLERY_PHOTOS && (
             <label className={`${zone} aspect-square`}>
               <span className="text-xl">📸</span>
-              <span className="text-[10px] font-bold text-gray-500 mt-1 text-center px-1">
+              <span className="text-[10px] font-bold text-fg-muted mt-1 text-center px-1">
                 {isAr ? 'إضافة صورة' : 'Add photo'}
               </span>
               <input
@@ -139,7 +139,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             </label>
           )}
         </div>
-        <span className="block text-[11px] text-gray-400">
+        <span className="block text-[11px] text-fg-muted">
           {isAr
             ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد'
             : 'Bidders can swipe through these inside the live room'}
@@ -148,14 +148,14 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
 
       {/* VIDEO */}
       <div className="space-y-2">
-        <span className="block text-xs font-extrabold text-gray-900">
+        <span className="block text-xs font-extrabold text-fg">
           {isAr ? 'فيديو المنتج (اختياري)' : 'Product video (optional)'}
         </span>
         {videoFile ? (
-          <div className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <span className="text-xs font-bold text-gray-700 truncate">
+          <div className="flex items-center justify-between gap-3 bg-surface-sunken border border-line rounded-xl p-3">
+            <span className="text-xs font-bold text-fg truncate">
               🎥 {videoFile.name}
-              <span className="block text-[10px] font-mono text-gray-400">
+              <span className="block text-[10px] font-mono text-fg-muted">
                 {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
               </span>
             </span>
@@ -170,7 +170,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
         ) : (
           <label className={`${zone} p-5`}>
             <span className="text-2xl">🎥</span>
-            <span className="text-xs font-bold text-gray-600 mt-2">
+            <span className="text-xs font-bold text-fg-muted mt-2">
               {isAr ? 'اضغط لرفع فيديو' : 'Tap to add a video'}
             </span>
             <input
