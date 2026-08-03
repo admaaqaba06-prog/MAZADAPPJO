@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ViewingSelector } from '../ViewingSelector';
 import type { ViewingMode } from '../../../utils/viewing';
 import { docHasMedia } from '../../../utils/listingMedia';
+import { REJECTION_PRESETS } from '../../../utils/rejectionReasons';
 /** Shown on the button that is waiting. A greyed-out button is indistinguishable
  * from one still gated on its checklist — the label is what says "it registered". */
 const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
@@ -79,6 +80,25 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
 
       {rejecting ? (
         <div className="space-y-2">
+          {/* Presets, because the seller now READS this string as their next
+              action. A tapped preset stores its key, which the seller side
+              renders bilingually; free text still works and is echoed as-is. */}
+          <div className="flex flex-wrap gap-1.5">
+            {REJECTION_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setReason(p.key)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-colors cursor-pointer ${
+                  reason === p.key
+                    ? 'bg-amber-100 border-amber-300 text-amber-900'
+                    : 'bg-surface-raised border-line text-fg-muted hover:text-fg'
+                }`}
+              >
+                {isAr ? p.ar : p.en}
+              </button>
+            ))}
+          </div>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
