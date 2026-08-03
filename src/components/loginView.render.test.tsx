@@ -150,25 +150,49 @@ describe('LoginView layout', () => {
     expect(steps).toBe(2);  // desktop story + mobile story
   });
 
-  it('puts the live lots BELOW the sign-in card, not beside it', () => {
-    // MJ's call after seeing it beside the form: the form is the primary action
-    // and leads; the inventory is proof underneath rather than something
-    // competing for first attention. Asserted by document order, so moving the
-    // activity block back above or into the left column fails here.
-    const html = render();
-    const card = html.indexOf('Continue with Google');
-    const lots = html.indexOf('lots live right now');
-    expect(card, 'sign-in card present').toBeGreaterThan(-1);
-    expect(lots, 'activity block present').toBeGreaterThan(-1);
-    expect(lots).toBeGreaterThan(card);
-  });
-
-  it('keeps the lots out of the desktop story column', () => {
-    // The left column is trust + how-it-works only. If the activity block leaked
-    // back into it the count would render twice.
+  it('renders the lots twice — once per breakpoint, in different places', () => {
+    // MJ's arrangement, settled over two rounds of preview:
+    //   DESKTOP — the lots lead the left column, beside the card (room for both).
+    //   MOBILE  — the same lots move BELOW the card, so the form is the first
+    //             thing on a small screen and nothing can push the buttons down.
+    // Both copies are in the markup; CSS picks one. Anything else means a
+    // breakpoint lost its lots.
     const html = render();
     const occurrences = html.split('lots live right now').length - 1;
-    expect(occurrences).toBe(1);
+    expect(occurrences).toBe(2);
+  });
+
+  it('puts the MOBILE lots below the card and the DESKTOP lots above it', () => {
+    // Document order distinguishes them: the desktop left column is emitted
+    // before the card, the mobile block after it.
+    const html = render();
+    const card = html.indexOf('Continue with Google');
+    const firstLots = html.indexOf('lots live right now');
+    const lastLots = html.lastIndexOf('lots live right now');
+    expect(card).toBeGreaterThan(-1);
+    expect(firstLots, 'desktop lots precede the card').toBeLessThan(card);
+    expect(lastLots, 'mobile lots follow the card').toBeGreaterThan(card);
+  });
+
+  it('gates each copy to its own breakpoint', () => {
+    // A first version asserted `lg:hidden` appeared somewhere after the card —
+    // which the mobile STORY block satisfies, so dropping the gate from the
+    // mobile ACTIVITY block survived and desktop would have shown the lots
+    // twice. Bound the search instead: markup order is
+    //   [desktop column] card [mobile lots] [mobile story]
+    // so the slice between the card and the SECOND lots marker contains the
+    // mobile lots wrapper and nothing else.
+    const html = render();
+    const marker = 'lots live right now';
+    const first = html.indexOf(marker);
+    const second = html.indexOf(marker, first + 1);
+    const card = html.indexOf('Continue with Google');
+    expect(second, 'two lots blocks').toBeGreaterThan(-1);
+
+    expect(html.slice(0, first), 'desktop lots sit in a hidden lg:block column')
+      .toMatch(/hidden lg:block/);
+    expect(html.slice(card, second), 'mobile lots wrapper is lg:hidden')
+      .toMatch(/lg:hidden/);
   });
 
   it('keeps the deep-link banner untouched', () => {

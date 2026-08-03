@@ -345,10 +345,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       */}
       <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-12 lg:pt-24 z-10">
 
-        {/* Desktop left column: the STORY only — trust and how it works. The
-            live lots are not here; they sit under the card (see below). */}
+        {/* Desktop left column: everything — the lots, then trust, then how it
+            works. There is room beside the card here, so the inventory leads.
+            On MOBILE the same lots move under the card instead (see below), so
+            the form is the first thing on a small screen. */}
         <div className="hidden lg:block lg:flex-1">
-          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="story" />
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="full" />
         </div>
 
         <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center">
@@ -645,11 +647,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
       </div>
 
-        {/* The live lots sit DIRECTLY UNDER the sign-in card, on every
-            breakpoint. The form is the primary action and leads; the inventory
-            is proof beneath it rather than something competing with it for
-            first attention. */}
-        <div className="w-full max-w-md mt-6">
+        {/* MOBILE ONLY: the live lots sit under the card, so the form leads on
+            a small screen. Desktop shows them in the left column instead — the
+            markup carries both and CSS picks one. */}
+        <div className="lg:hidden w-full max-w-md mt-6">
           <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="activity" />
         </div>
 
