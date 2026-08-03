@@ -8,6 +8,8 @@ import { mapAuthError } from '../utils/authErrors';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from '../utils/deepLink';
 import { PhoneInput } from './ui/PhoneInput';
 import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react';
+import { SignInMarketingPanel } from './SignInMarketingPanel';
+import { useLandingAuctions } from '../landing/useLandingAuctions';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -116,6 +118,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const cameFromAuctionLink =
     !!parseAuctionIdFromPath(window.location.pathname) ||
     !!parseAuctionIdFromSearch(window.location.search);
+
+  // Live inventory for the marketing panel. `useLandingAuctions` is a
+  // module-level cached single getDocs (limit 60) — a visitor who touched the
+  // landing page pays nothing and a direct arrival pays one read. No new query,
+  // no index, no listener. The panel renders nothing until it resolves, and the
+  // sign-in form never waits on it.
+  const landingAuctions = useLandingAuctions();
+  const panelLang: 'ar' | 'en' = isAr ? 'ar' : 'en';
 
   const clearRecaptcha = () => {
     // A consumed/errored verifier can't be reused — clear + null AND wipe the
@@ -319,10 +329,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         </button>
       </header>
 
+      {/*
+        Two columns on lg: marketing left, the sign-in card right. Below lg it is
+        one column, ordered message → card → steps. That mobile ordering is the
+        deliberate trade recorded in the spec, and the compact block above is
+        kept short so the buttons stay reachable without scrolling.
+      */}
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-12 z-10">
+
+        {/* Desktop: the full panel is the left column. */}
+        <div className="hidden lg:block lg:flex-1">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="full" />
+        </div>
+
+        <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center">
+
+        {/* Mobile: the compact block sits above the card. */}
+        <div className="lg:hidden w-full max-w-md mt-16 mb-4">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="compact" />
+        </div>
+
       {/* Deep-link context: the visitor followed a live-auction link — say so */}
       {cameFromAuctionLink && (
         <div
-          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 mt-16"
+          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 lg:mt-16"
           id="deep-link-auction-banner"
         >
           {isAr ? '⚡ سجّل دخولك للمشاركة في المزاد المباشر' : '⚡ Sign in to join the live auction'}
@@ -330,7 +360,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       )}
 
       {/* Center White Modal Box */}
-      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
+      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-8 lg:mb-16' : 'mb-8 lg:my-16'}`}>
 
         {/* Title */}
         <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">
@@ -609,6 +639,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
           </button>
         )}
 
+      </div>
+
+        {/* Mobile: the three steps sit BELOW the card, so the compact block
+            above stays short and the buttons stay above the fold. */}
+        <div className="lg:hidden w-full max-w-md mt-6 mb-8">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="steps" />
+        </div>
+
+        </div>
       </div>
 
       {/* Policy Footer */}
