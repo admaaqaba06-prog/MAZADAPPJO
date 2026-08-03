@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { curateLandingAuctions, mapToLandingAuction } from './useLandingAuctions';
+import { compareLandingAuctions, curateLandingAuctions, mapToLandingAuction } from './useLandingAuctions';
+import type { LandingAuction } from './useLandingAuctions';
 import type { AuctionItem } from '../types';
 
 const NOW = 1_000_000_000_000;
@@ -168,12 +169,71 @@ describe('curateLandingAuctions — ordering', () => {
     expect(out.map(a => a.id)).toEqual(['dated', 'nodate']);
   });
 
-  it('keeps two undated clockless lots in a defined order — comparator never returns NaN', () => {
+  // Named for what it actually asserts: input order is preserved. It does NOT
+  // test the comparator's no-NaN property — a NaN-returning comparator produces
+  // this identical output on V8. That property is tested directly against
+  // `compareLandingAuctions` below.
+  it('keeps two undated clockless lots in their input order', () => {
     const out = curateLandingAuctions([
       auction({ id: 'n1', endTime: undefined } as any),
       auction({ id: 'n2', endTime: undefined } as any),
     ], NOW);
     expect(out.map(a => a.id)).toEqual(['n1', 'n2']);
+  });
+
+  it('treats a NaN endTime as clockless, ordering it behind clocked lots', () => {
+    const out = curateLandingAuctions([
+      auction({ id: 'nan', endTime: NaN as any }),
+      auction({ id: 'ok', endTime: NOW + 60_000 }),
+    ], NOW);
+    expect(out.map(a => a.id)).toEqual(['ok', 'nan']);
+  });
+});
+
+// These assert the comparator's CONTRACT (its return value), not the sorted
+// output. That distinction is the whole point: a comparator that returns NaN
+// sorts identically to one that returns 0 on V8, so no assertion on a sorted
+// array can catch it. This is the only reason compareLandingAuctions is exported.
+describe('compareLandingAuctions — totality contract', () => {
+  const lot = (o: Partial<AuctionItem>) => mapToLandingAuction(auction(o));
+
+  it('never returns NaN for two undated clockless lots (the both-undefined pair)', () => {
+    const x = lot({ id: 'n1', endTime: undefined } as any);
+    const y = lot({ id: 'n2', endTime: undefined } as any);
+    expect(Number.isNaN(compareLandingAuctions(x, y))).toBe(false);
+    expect(Number.isNaN(compareLandingAuctions(y, x))).toBe(false);
+  });
+
+  it('never returns NaN for two lots with a NaN endTime', () => {
+    const x = lot({ id: 'x', endTime: NaN as any });
+    const y = lot({ id: 'y', endTime: NaN as any });
+    expect(Number.isNaN(compareLandingAuctions(x, y))).toBe(false);
+  });
+
+  // 16 shapes = featured/unfeatured x ranked/unranked x clocked/clockless x
+  // dated/undated, compared every way round including against themselves.
+  it('returns a real number for every pair across all field combinations', () => {
+    const variants: LandingAuction[] = [];
+    for (const isFeatured of [true, false]) {
+      for (const featuredRank of [1, undefined]) {
+        for (const endTime of [NOW + 60_000, undefined]) {
+          for (const createdAt of [500, undefined]) {
+            variants.push(lot({
+              id: `v${variants.length}`, isFeatured, featuredRank, endTime, createdAt,
+            } as any));
+          }
+        }
+      }
+    }
+    expect(variants).toHaveLength(16);
+
+    for (const x of variants) {
+      for (const y of variants) {
+        const r = compareLandingAuctions(x, y);
+        expect(typeof r).toBe('number');
+        expect(Number.isNaN(r)).toBe(false);
+      }
+    }
   });
 });
 
