@@ -12,17 +12,30 @@ const requireCjs = createRequire(import.meta.url);
 const { buildAlgoliaRecord } = requireCjs('../../../functions/algoliaSync');
 
 describe('SEARCH_CATEGORY_MATCHES', () => {
-  it('mirrors the DiscoveryFeedView chip → canonical alias lists (Cars→Vehicles)', () => {
-    // Keep in sync with `categoriesList` in DiscoveryFeedView.tsx.
+  it('is derived from the one taxonomy, keyed by the chip label', () => {
+    // No longer hand-maintained: it is generated from utils/categories.ts, so
+    // it cannot drift from the Discover chips the way it had already drifted
+    // (the catch-all chip had no entry at all, making search inside it
+    // unfiltered).
     expect(SEARCH_CATEGORY_MATCHES).toEqual({
-      Cars: ['Cars', 'Vehicles'],
-      'Real Estate': ['Real Estate'],
-      Phones: ['Phones', 'Electronics'],
-      Watches: ['Watches'],
+      Vehicles: ['Vehicles', 'Cars'],
+      Phones: ['Phones'],
       Electronics: ['Electronics'],
+      Watches: ['Watches', 'Luxury'],
       Appliances: ['Appliances'],
       'Home & Furniture': ['Home & Furniture'],
+      'Real Estate': ['Real Estate'],
+      Other: ['Fashion', 'Misc'],
     });
+  });
+
+  it('gives the catch-all chip a facet group, which it never had', () => {
+    expect(SEARCH_CATEGORY_MATCHES.Other).toEqual(['Fashion', 'Misc']);
+  });
+
+  it('reaches legacy Luxury lots from the Watches chip', () => {
+    // Seller-listed watches stored 'Luxury' and were unreachable from search.
+    expect(SEARCH_CATEGORY_MATCHES.Watches).toContain('Luxury');
   });
 });
 
@@ -194,20 +207,28 @@ describe('buildFacetFilters', () => {
     expect(buildFacetFilters({ category: 'Nonsense' })).toBeUndefined();
   });
 
-  it('builds a single-value OR group for a chip with one match', () => {
-    expect(buildFacetFilters({ category: 'Watches' })).toEqual([['category:Watches']]);
+  it('builds a single-value OR group for a chip with no legacy aliases', () => {
+    expect(buildFacetFilters({ category: 'Appliances' })).toEqual([['category:Appliances']]);
   });
 
-  it('builds an OR group over the full canonical alias list (Cars→Vehicles)', () => {
-    expect(buildFacetFilters({ category: 'Cars' })).toEqual([
-      ['category:Cars', 'category:Vehicles'],
+  it('builds a two-value OR group for a chip that absorbed a legacy value', () => {
+    expect(buildFacetFilters({ category: 'Watches' })).toEqual([
+      ['category:Watches', 'category:Luxury'],
     ]);
   });
 
-  it('builds an OR group for Phones (Phones + Electronics aliases)', () => {
-    expect(buildFacetFilters({ category: 'Phones' })).toEqual([
-      ['category:Phones', 'category:Electronics'],
+  it('builds an OR group over the full canonical alias list (Vehicles absorbs Cars)', () => {
+    expect(buildFacetFilters({ category: 'Vehicles' })).toEqual([
+      ['category:Vehicles', 'category:Cars'],
     ]);
+  });
+
+  it('keeps Phones and Electronics distinct', () => {
+    // They used to be the same bucket: the seller picker offered both labels
+    // and wrote 'Electronics' for each, so the Phones chip had to match
+    // Electronics too and therefore also returned laptops and televisions.
+    expect(buildFacetFilters({ category: 'Phones' })).toEqual([['category:Phones']]);
+    expect(buildFacetFilters({ category: 'Electronics' })).toEqual([['category:Electronics']]);
   });
 
   it('builds a status-only OR group when statuses given without a category', () => {
@@ -217,16 +238,16 @@ describe('buildFacetFilters', () => {
   });
 
   it('combines category + statuses as two AND-ed groups (category ORs AND status ORs)', () => {
-    expect(buildFacetFilters({ category: 'Cars', statuses: ['live', 'upcoming'] })).toEqual([
-      ['category:Cars', 'category:Vehicles'],
+    expect(buildFacetFilters({ category: 'Vehicles', statuses: ['live', 'upcoming'] })).toEqual([
+      ['category:Vehicles', 'category:Cars'],
       ['status:live', 'status:upcoming'],
     ]);
   });
 
   it('ignores an empty statuses array (no status group)', () => {
     expect(buildFacetFilters({ statuses: [] })).toBeUndefined();
-    expect(buildFacetFilters({ category: 'Watches', statuses: [] })).toEqual([
-      ['category:Watches'],
+    expect(buildFacetFilters({ category: 'Appliances', statuses: [] })).toEqual([
+      ['category:Appliances'],
     ]);
   });
 });

@@ -47,6 +47,10 @@ describe('INITIAL_FORM', () => {
       viewing: '',
       viewingPlace: '',
       channel: 'misc',
+      // Added when category stopped being derived from `channel`. The default
+      // is a real category rather than the old catch-all, so a drop published
+      // without touching this select is filed somewhere a buyer would look.
+      category: 'Electronics',
       opensMode: 'now',
       scheduledLocal: '',
       durationSeconds: 1800,
@@ -112,6 +116,7 @@ describe('afterCreateAnother', () => {
       productName: 'Galaxy S24',
       startingPrice: '99',
       condition: 'مستعملة',
+      category: 'Phones',
       specsText: '512GB',
       vendorName: 'Al Hani',
       marketPrice: '400',

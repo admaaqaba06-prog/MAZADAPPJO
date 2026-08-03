@@ -12,16 +12,27 @@ export function channelLabel(value: DropChannel, lang: 'en' | 'ar'): string {
   return lang === 'ar' ? found.ar : found.en;
 }
 
-// Maps a drop channel to one of AuctionItem.category's existing values, since
-// category drives the app's discovery filter and media-fallback logic.
-export function channelToCategory(value: DropChannel): 'Electronics' | 'Vehicles' | 'Fashion' {
-  switch (value) {
-    case 'cars':
-      return 'Vehicles';
-    case 'phones':
-      return 'Electronics';
-    case 'misc':
-    default:
-      return 'Fashion';
-  }
+// `channelToCategory` lived here and is gone. It mapped these three channels
+// onto three category values and sent everything else to 'Fashion', which is
+// how a television ended up in the catch-all bucket — and, through
+// createListing's keyword fallback, wearing a stock photo of a shoe.
+//
+// The channel is still a real concept: it routes a drop to its WhatsApp
+// audience. It just no longer doubles as the buyer-facing category, which is
+// now picked explicitly from `utils/categories.ts`.
+
+/**
+ * Category → WhatsApp routing channel. The DIRECTION matters: deriving the
+ * routing audience from what the item IS is sound, whereas the old inverse
+ * (deriving the item's category from its audience) could only ever produce
+ * three categories and sent everything else to the catch-all.
+ *
+ * Lossy on purpose — there are three audiences and eight categories, so
+ * anything that is not a phone or a vehicle goes to the misc broadcast.
+ */
+export function categoryToChannel(category: string): DropChannel {
+  const key = (category || '').trim().toLowerCase();
+  if (key === 'phones') return 'phones';
+  if (key === 'vehicles' || key === 'cars') return 'cars';
+  return 'misc';
 }

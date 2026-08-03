@@ -16,7 +16,14 @@ export interface DropFormValues {
   reservePrice: string;
   viewing: ViewingMode | '';
   viewingPlace: string;
+  /** WhatsApp broadcast audience. No longer decides the category. */
   channel: DropChannel;
+  /**
+   * Canonical stored category (utils/categories.ts), picked explicitly. It used
+   * to be derived from `channel`, which meant three channels produced three
+   * categories and everything else fell into the 'Fashion' catch-all.
+   */
+  category: string;
   opensMode: OpensMode;
   scheduledLocal: string;
   durationSeconds: number;
@@ -37,6 +44,7 @@ export const INITIAL_FORM: DropFormValues = {
   viewing: '',
   viewingPlace: '',
   channel: 'misc',
+  category: 'Electronics',
   opensMode: 'now',
   scheduledLocal: '',
   durationSeconds: 1800,
@@ -62,6 +70,7 @@ export function afterCreateAnother(prev: DropFormValues): DropFormValues {
     condition: prev.condition,
     vendorName: prev.vendorName,
     channel: prev.channel,
+    category: prev.category,
     opensMode: prev.opensMode,
     durationSeconds: prev.durationSeconds,
     paymentWindowHours: prev.paymentWindowHours,

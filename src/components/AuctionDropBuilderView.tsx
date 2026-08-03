@@ -11,6 +11,7 @@ import {
 import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
+import { CATEGORIES } from '../utils/categories';
 import { buildDropPayload } from '../utils/dropPayload';
 import {
   INITIAL_FORM,
@@ -341,6 +342,7 @@ export default function AuctionDropBuilderView() {
             specs,
             startingPrice: form.startingPrice,
             channel: form.channel,
+            category: form.category,
             durationSeconds: form.durationSeconds,
             paymentWindowHours: form.paymentWindowHours,
             antiSnipeSec: form.antiSnipeSec,
@@ -454,6 +456,7 @@ export default function AuctionDropBuilderView() {
           specs,
           startingPrice: form.startingPrice,
           channel: form.channel,
+          category: form.category,
           durationSeconds: form.durationSeconds,
           paymentWindowHours: form.paymentWindowHours,
           antiSnipeSec: form.antiSnipeSec,
@@ -559,6 +562,7 @@ export default function AuctionDropBuilderView() {
       startingPrice: String(a.startingPrice),
       condition: a.condition ?? prev.condition,
       channel: a.channel || prev.channel,
+      category: a.category || prev.category,
       marketPrice: a.marketPrice ? String(a.marketPrice) : prev.marketPrice,
       durationSeconds: a.duration || prev.durationSeconds,
       paymentWindowHours: a.paymentWindowHours || prev.paymentWindowHours,
@@ -780,6 +784,23 @@ export default function AuctionDropBuilderView() {
           >
             {DURATION_PRESETS.map((d) => (
               <option key={d.seconds} value={d.seconds}>{isAr ? d.ar : d.en}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Category decides where buyers FIND the lot; channel decides which
+            WhatsApp audience it is broadcast to. These were one control until
+            the taxonomy was unified, which is why every non-phone, non-car lot
+            was filed under the 'Fashion' catch-all. */}
+        <label className={label}>
+          {isAr ? 'الفئة' : 'Category'}
+          <select
+            className={field}
+            value={form.category}
+            onChange={(e) => setField('category', e.target.value)}
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{isAr ? c.labelAr : c.labelEn}</option>
             ))}
           </select>
         </label>
