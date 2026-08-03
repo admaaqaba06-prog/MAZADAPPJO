@@ -48,6 +48,7 @@ import { matchesAuctionSearch } from '../utils/auctionSearch';
 import { formatCountdown } from '../utils/bidFormat';
 import AuctionRulesModal from './AuctionRulesModal';
 import ListingImage from './ui/ListingImage';
+import { cleanTitle } from '../utils/listingTitle';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
 
@@ -216,9 +217,13 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
             🏁 {isAr ? 'انتهى' : 'ENDED'}
           </div>
         ) : awaitingFirstBid ? (
-          <div className="absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 bg-black/75 text-white border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-black flex items-center gap-1 shadow-md backdrop-blur-xs">
-            <span>⏳ {isAr ? 'بانتظار أول مزايدة' : 'Awaiting first bid'}</span>
-          </div>
+          // Nothing. This corner is the CLOCK, and an awaiting-first-bid lot has
+          // no clock — the first bid starts it. It used to carry an "Awaiting
+          // first bid" chip, which said the same thing as the amber "BE THE
+          // FIRST" badge in the opposite corner: one lot, two badges, one
+          // message. The amber badge survives because it asks for the bid
+          // rather than describing the wait.
+          null
         ) : (
           <div className={`absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 px-2.5 py-1 rounded-full text-[10px] font-mono font-black flex items-center gap-1 shadow-md border ${
             isCritical
@@ -231,8 +236,8 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Bottom: title + price on the scrim — the merchandise stays the hero */}
         <div className="absolute inset-x-0 bottom-0 p-3 z-10 text-left rtl:text-right">
-          <h3 className="font-extrabold text-sm text-white leading-snug line-clamp-1 drop-shadow-sm">
-            {item.title}
+          <h3 className="font-extrabold text-sm text-white leading-snug line-clamp-2 drop-shadow-sm">
+            {cleanTitle(item.title)}
           </h3>
           <div className="flex items-end justify-between gap-2 mt-1">
             <span className="text-lg font-black text-white leading-none flex items-baseline gap-1 drop-shadow-sm">

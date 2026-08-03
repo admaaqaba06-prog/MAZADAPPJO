@@ -18,6 +18,7 @@ import { priceLabel, bidCtaLabel } from '../utils/bidLabels';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { useChat } from '../context/AppContext';
 import { resolveViewing } from '../utils/viewing';
+import { cleanTitle } from '../utils/listingTitle';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -418,7 +419,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
         {/* ----- TITLE + TRUST CHIPS ----- */}
         <div className="px-4 pt-4">
           <h1 className="text-[19px] font-black tracking-tight text-fg leading-tight">
-            {activeAuction?.title}
+            {cleanTitle(activeAuction?.title)}
           </h1>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {isInspected && (

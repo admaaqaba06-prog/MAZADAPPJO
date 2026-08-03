@@ -14,6 +14,7 @@ import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { ContactCompletionModal } from './components/ContactCompletionModal';
 import { isProfileComplete } from './utils/jordanCities';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
+import { BootSplash, ViewSkeleton } from './components/FeedbackStates';
 
 // Named exports require mapping to default in React's lazy
 const DiscoveryFeedView = lazy(() => import('./components/DiscoveryFeedView').then(m => ({ default: m.DiscoveryFeedView })));
@@ -208,14 +209,7 @@ function MainAppShell() {
   // than flashing Landing/Login for a user who is actually still signed in.
   if (!authReady) {
     return (
-      <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
-            M
-          </div>
-          <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">Loading Mazad...</span>
-        </div>
-      </div>
+      <BootSplash />
     );
   }
 
@@ -280,14 +274,7 @@ function MainAppShell() {
     return (
       <div className="relative min-h-screen flex flex-col w-full">
         <DesktopFrame>
-          <Suspense fallback={
-            <div className="flex-1 flex flex-col items-center justify-center bg-surface-raised p-12 min-h-[400px] font-sans">
-              <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
-                M
-              </div>
-              <span className="text-[10px] text-fg-muted font-mono tracking-widest uppercase mt-3">Loading view...</span>
-            </div>
-          }>
+          <Suspense fallback={<ViewSkeleton />}>
             <ActiveViewRenderer />
           </Suspense>
         </DesktopFrame>
@@ -325,14 +312,7 @@ function MainAppShell() {
       )}
 
       <DesktopFrame>
-        <Suspense fallback={
-          <div className="flex-1 flex flex-col items-center justify-center bg-surface-raised p-12 min-h-[400px] font-sans">
-            <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
-              M
-            </div>
-            <span className="text-[10px] text-fg-muted font-mono tracking-widest uppercase mt-3">Loading view...</span>
-          </div>
-        }>
+        <Suspense fallback={<ViewSkeleton />}>
           <ActiveViewRenderer />
         </Suspense>
 
@@ -380,16 +360,7 @@ export default function App() {
     // no longer surfaces internal 'alert' errors (Wave D allowlist).
     <ToastProvider>
       <AppProvider>
-      <Suspense fallback={
-        <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
-              M
-            </div>
-            <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">Loading Mazad...</span>
-          </div>
-        </div>
-      }>
+      <Suspense fallback={<BootSplash />}>
         <MainAppShell />
       </Suspense>
       </AppProvider>
