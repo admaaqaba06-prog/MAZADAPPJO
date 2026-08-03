@@ -1201,10 +1201,10 @@ export const SellerCenterView: React.FC = () => {
                             <ActionIcon className="w-5 h-5" />
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-fg truncate">{meta.label}</p>
-                            <p className="text-[11px] text-fg-muted font-bold tabular-nums">{countText}</p>
+                            <p className="text-sm font-black text-fg-on-light truncate">{meta.label}</p>
+                            <p className="text-[11px] text-fg-on-light/70 font-bold tabular-nums">{countText}</p>
                           </div>
-                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-surface-raised/80 border border-black/5 text-[11px] font-black text-fg">
+                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-surface-on-light/80 border border-black/5 text-[11px] font-black text-fg-on-light">
                             <span>{meta.cta}</span>
                             <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
                           </span>

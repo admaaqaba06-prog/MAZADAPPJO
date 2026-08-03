@@ -44,6 +44,10 @@
      filled accent; this is dark on a light tint. Defined outside the
      [data-theme] block so it never varies. */
   --color-fg-on-light: #0A0A0A;
+  /* The surface those permanently-light cards sit on. Constant for the same
+     reason `fg-on-light` is: a semantic status tint does not flip, so anything
+     layered on it must not either. */
+  --color-surface-on-light: #FFFFFF;
 }
 
 /* Dark theme. Selected by the attribute the pre-paint script sets, so the first
