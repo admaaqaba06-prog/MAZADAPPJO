@@ -42,6 +42,7 @@ import { translations, TranslationType } from "./translations";
 import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
+import { priceLabel } from '../utils/bidLabels';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
@@ -266,7 +267,17 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {auctions.map((a) => {
-                const endingSoon = a.endTime - Date.now() < 3600_000;
+                // `endTime` is `number | null | undefined`, and curation admits every falsy
+                // value as clockless. The old `a.endTime - Date.now() < 3600_000` was WRONG
+                // for two of them: `null` and `0` coerce to 0, so the subtraction went large
+                // and negative and the card rendered the orange "Ending soon" badge plus a
+                // "0m" countdown on a lot whose clock had not started. `undefined` and `NaN`
+                // gave NaN, so the comparison was false and the badge was merely absent.
+                // `> 0` is what rejects `0` and `NaN`, and it keeps this predicate
+                // byte-identical to `compareLandingAuctions` — so no lot is ever sorted as
+                // clockless and rendered as clocked.
+                const hasClock = typeof a.endTime === 'number' && a.endTime > 0;
+                const endingSoon = hasClock && a.endTime - Date.now() < 3600_000;
                 return (
                   <Reveal key={a.id}>
                     <button
@@ -287,6 +298,18 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                           <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-[#F05123] text-white text-xs font-semibold">
                             {t.marketplace.endingSoon}
                           </span>
+                        ) : !hasClock ? (
+                          /* Same two classes as the Discover card's awaiting badge
+                             (bg-amber-400 text-fg-on-light, DiscoveryFeedView.tsx:175),
+                             so the card a visitor taps and the screen it opens look
+                             alike. Amber also keeps it distinct from the orange
+                             ending-soon badge that occupies this exact slot — the two
+                             states must not read as the same chip. Black-on-amber is
+                             correct in BOTH themes, which is why this badge is not
+                             tokenised the way the surrounding text is. */
+                          <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-amber-400 text-fg-on-light text-xs font-semibold">
+                            {t.marketplace.beTheFirst}
+                          </span>
                         ) : null}
                       </div>
                       <div className="p-4">
@@ -294,12 +317,18 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                         <h3 className="mt-1 font-semibold text-fg line-clamp-1">{a.title}</h3>
                         <div className="mt-3 flex items-end justify-between">
                           <div>
-                            <span className="block text-xs text-fg/50">{t.marketplace.currentBid}</span>
+                            <span className="block text-xs text-fg/50">{priceLabel(a.totalBids, lang === 'ar')}</span>
                             <span dir="ltr" className="block font-bold text-fg">{formatPrice(a.currentPrice)}</span>
                           </div>
                           <div className="text-end">
                             <span dir="ltr" className="block text-xs text-fg/50">{a.totalBids} {t.marketplace.bids}</span>
-                            <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
+                            {/* Clockless lots render NOTHING here: their state is
+                                already carried by the "Be the first" badge above,
+                                and formatTimeLeft would emit the literal "NaNm"
+                                for an absent endTime. */}
+                            {hasClock ? (
+                              <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime as number)}</span>
+                            ) : null}
                           </div>
                         </div>
                         <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>

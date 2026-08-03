@@ -116,7 +116,7 @@ export interface TranslationType {
   };
   marketplace: {
     badge: string; title: string; subtitle: string; currentBid: string; bids: string;
-    verified: string; endingSoon: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
+    verified: string; endingSoon: string; beTheFirst: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
     unavailableTitle: string; unavailableDesc: string;
     sellerCtaText: string; sellerCtaBtn: string;
     categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture', string>;
@@ -343,6 +343,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       bids: "مزايدة",
       verified: "موثّقة",
       endingSoon: "ينتهي قريباً",
+      beTheFirst: "كن أول مزايد",
       viewBtn: "شاهد المزاد",
       emptyTitle: "المزادات تنطلق يومياً",
       emptyDesc: "كن من أوائل البائعين — اعرض سلعتك الآن وتصدَّر الصفحة.",
@@ -580,6 +581,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       bids: "bids",
       verified: "Verified",
       endingSoon: "Ending soon",
+      beTheFirst: "Be the first",
       viewBtn: "View auction",
       emptyTitle: "New auctions launch daily",
       emptyDesc: "Be one of the first sellers — list your item now and lead the page.",
