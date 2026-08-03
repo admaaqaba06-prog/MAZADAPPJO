@@ -73,7 +73,7 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
                     </span>
                   )}
                   {profile.isVerified && (
-                    <span className="bg-emerald-50 text-emerald-805 border border-emerald-100 text-[8.5px] font-black px-1.5 py-0.5 rounded">
+                    <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 text-[8.5px] font-black px-1.5 py-0.5 rounded">
                       {isAr ? 'موثق ✓' : 'VERIFIED ✓'}
                     </span>
                   )}

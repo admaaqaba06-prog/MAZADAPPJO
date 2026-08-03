@@ -195,7 +195,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   <div className="space-y-0.5 mt-2">
                     <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'الضمان المالي' : 'ESCROW STATE'}</span>
                     <span className={`font-black uppercase ${
-                      order.escrowStatus === 'released' ? 'text-emerald-650' : 'text-blue-650'
+                      order.escrowStatus === 'released' ? 'text-emerald-600' : 'text-blue-600'
                     }`}>
                       {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
                        order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released') :
@@ -207,7 +207,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                 <div className="bg-surface p-3 rounded-2xl border border-line flex justify-between items-center text-[10px] pl-2 ml-2">
                   <div className="space-y-0.5">
                     <span className="text-[8.5px] text-fg-muted font-mono uppercase block">{isAr ? 'الدفع' : 'PAYMENT'}</span>
-                    <span className={`font-black ${order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'}`}>
+                    <span className={`font-black ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع' : 'PAID') : (isAr ? 'غير مدفوع' : 'UNPAID')}
                     </span>
                   </div>

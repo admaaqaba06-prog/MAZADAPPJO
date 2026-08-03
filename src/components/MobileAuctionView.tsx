@@ -628,7 +628,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
       {/* ================= STICKY PLACE-BID CTA ================= */}
       <div
-        className="absolute bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-4 bg-gradient-to-t from-white via-white to-transparent"
+        className="absolute bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-4 bg-gradient-to-t from-[var(--color-surface-raised)] via-[var(--color-surface-raised)] to-transparent"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
       >
         <button

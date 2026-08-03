@@ -265,7 +265,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
           {activeTab === 'upload' ? (
             <label 
               htmlFor="video-upload-input"
-              className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-[#FFF8F3] hover:bg-[#FFF4EB] transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
+              className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-accent-weak hover:bg-accent-weak transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
               id="video-tap-area"
             >
               <div className="flex flex-col items-center text-center space-y-2.5">

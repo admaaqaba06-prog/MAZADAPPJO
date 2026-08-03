@@ -38,6 +38,12 @@
   --color-fg-muted: var(--color-text-muted);
   --color-line: var(--color-border);
   --color-on-accent: var(--color-text-inverted);
+  /* Text on a surface that is LIGHT IN BOTH THEMES — the amber/orange tinted
+     chips and badges. Constant on purpose: those backgrounds do not flip, so
+     their text must not either. The mirror of `on-accent`, which is light on a
+     filled accent; this is dark on a light tint. Defined outside the
+     [data-theme] block so it never varies. */
+  --color-fg-on-light: #0A0A0A;
 }
 
 /* Dark theme. Selected by the attribute the pre-paint script sets, so the first

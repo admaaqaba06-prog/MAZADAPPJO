@@ -19,30 +19,30 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         className="bg-surface-raised border border-line rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] text-left"
       >
         {/* Header */}
-        <div className="bg-zinc-50 p-5 border-b border-line shrink-0 flex justify-between items-center">
+        <div className="bg-surface-sunken p-5 border-b border-line shrink-0 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="bg-[#FF6B00]/10 p-2 rounded-xl border border-[#FF6B00]/20">
               <Scale className="w-5 h-5 text-[#FF6B00]" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-zinc-900 font-sans">Terms of Use & Privacy Policies</h2>
+              <h2 className="text-sm font-black text-fg font-sans">Terms of Use & Privacy Policies</h2>
               <p className="text-[10px] text-zinc-500 mt-0.5">Mazad JO | Jordan Bidding Platforms</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 active:scale-95 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-surface-sunken border border-line flex items-center justify-center text-zinc-500 hover:text-fg hover:bg-surface-sunken active:scale-95 transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Scrollable Document Content */}
-        <div className="p-6 overflow-y-auto space-y-7 text-zinc-700 text-xs font-sans leading-relaxed scrollbar-thin">
+        <div className="p-6 overflow-y-auto space-y-7 text-fg text-xs font-sans leading-relaxed scrollbar-thin">
           
           {/* Welcome Intro */}
-          <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-200 text-center space-y-1">
+          <div className="bg-surface-sunken p-4 rounded-2xl border border-line text-center space-y-1">
             <Sparkles className="w-5 h-5 text-[#FF6B00] mx-auto animate-pulse" />
             <h3 className="font-extrabold text-[#FF6B00] text-sm font-sans">Welcome to Mazad JO</h3>
             <p className="text-[10px] text-zinc-500">Jordan's Premier Smart Online Live Bidding Platform</p>
@@ -50,11 +50,11 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 1. SECTOR: PAYMENT POLICY */}
           <div className="space-y-2.5">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
               <span>💸 Payment & Settlements</span>
             </h4>
-            <ul className="space-y-2 list-none pl-0 text-zinc-700">
+            <ul className="space-y-2 list-none pl-0 text-fg">
               <li className="flex items-start gap-1.5">
                 <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
                 <span>The winning bid must be fully settled and processed to verification within <strong>3 hours</strong> of auction end.</span>
@@ -64,10 +64,10 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
                 <div>
                   <span className="block mb-1">Approved payment channels within Jordan:</span>
                   <div className="flex flex-wrap gap-1.5 mt-1">
-                    <span className="bg-zinc-50 px-2.5 py-1 rounded-lg border border-zinc-200 text-[10px] text-zinc-700">Credit Card</span>
-                    <span className="bg-zinc-50 px-2.5 py-1 rounded-lg border border-zinc-200 text-[10px] text-zinc-700">CliQ Instant Transfer</span>
-                    <span className="bg-zinc-50 px-2.5 py-1 rounded-lg border border-zinc-200 text-[10px] text-zinc-700">Mobile Wallets</span>
-                    <span className="bg-zinc-50 px-2.5 py-1 rounded-lg border border-zinc-200 text-[10px] text-zinc-700">Pay on Delivery (VIP Tier Only)</span>
+                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Credit Card</span>
+                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">CliQ Instant Transfer</span>
+                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Mobile Wallets</span>
+                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Pay on Delivery (VIP Tier Only)</span>
                   </div>
                 </div>
               </li>
@@ -80,11 +80,11 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 2. SECTOR: SHIPPING POLICY */}
           <div className="space-y-2.5">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
               <span>🚚 Dispatch & Courier Delivery</span>
             </h4>
-            <ul className="space-y-2 list-none pl-0 text-zinc-700">
+            <ul className="space-y-2 list-none pl-0 text-fg">
               <li className="flex items-start gap-1.5">
                 <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
                 <span>Standard verified shipments are processed and dispatched within <strong>1 to 6 business days</strong>.</span>
@@ -102,12 +102,12 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 3. SECTOR: RETURNS & REFUNDS */}
           <div className="space-y-4">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
               <span>🔄 Buyer Protection & Returns</span>
             </h4>
 
-            <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 space-y-1.5">
+            <div className="bg-surface-sunken rounded-xl p-3 border border-line space-y-1.5">
               <span className="text-[#FF6B00] font-extrabold text-[11px] block font-sans">🛡️ How your payment is protected:</span>
               <p className="text-[11px] text-zinc-600 leading-normal">
                 When you win and pay, Mazad JO <strong>holds your payment</strong> and does not release it to the seller until you receive the item, verify it, and approve the release. If there is a problem or the item does not match the listing <strong>before you approve release</strong>, open a dispute and Mazad JO will mediate and return your held funds.
@@ -124,11 +124,11 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 4. SECTOR: SELLER RESPONSIBILITIES */}
           <div className="space-y-2.5">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
               <span>⚖️ Merchant & Seller Conduct</span>
             </h4>
-            <ul className="space-y-2 list-none pl-0 text-zinc-700">
+            <ul className="space-y-2 list-none pl-0 text-fg">
               <li className="flex items-start gap-1.5">
                 <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
                 <span>Merchants are held strictly responsible for accurate battery levels, localized defects, transparent colors, and physical body disclosures.</span>
@@ -142,7 +142,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 5. SECTOR: COMMISSIONS & FEES */}
           <div className="space-y-2.5">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
               <span>📊 Service Commission Rates</span>
             </h4>
@@ -154,11 +154,11 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           {/* 6. PRIVACY SECURITY */}
           <div className="space-y-2.5 bg-transparent p-0 border-none">
-            <h4 className="font-black text-zinc-900 text-xs flex items-center gap-2 pb-1 border-b border-zinc-200 font-sans">
+            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
               <span className="text-emerald-700">🔒 Privacy, Encrypted Store & Data Protection</span>
             </h4>
-            <ul className="space-y-2 list-none pl-0 text-zinc-700">
+            <ul className="space-y-2 list-none pl-0 text-fg">
               <li className="flex items-start gap-1.5">
                 <span className="text-emerald-600 mt-0.5 select-none">•</span>
                 <span>All transaction screenshots, receiver addresses, and phone numbers are stored securely with our payment and infrastructure providers, used only to operate the service, and never sold to third parties.</span>
@@ -173,7 +173,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
           </div>
 
           {/* Revision Footnote */}
-          <div className="text-center text-zinc-400 text-[10px] space-y-1 font-mono pt-3 border-t border-zinc-200/80">
+          <div className="text-center text-zinc-400 text-[10px] space-y-1 font-mono pt-3 border-t border-line/80">
             <p>Last Document Revision Date: June 2026</p>
             <p className="font-sans font-extrabold text-[#FF6B00]">All Rights Reserved © Mazad JO | Jordan Auctions</p>
           </div>
@@ -181,7 +181,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         </div>
 
         {/* Action Button Footer */}
-        <div className="bg-zinc-50 p-4 border-t border-line shrink-0 flex gap-2">
+        <div className="bg-surface-sunken p-4 border-t border-line shrink-0 flex gap-2">
           <button
             type="button"
             onClick={onClose}

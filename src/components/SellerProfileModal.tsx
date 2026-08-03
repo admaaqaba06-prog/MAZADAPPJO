@@ -424,7 +424,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                         {[1, 2, 3, 4, 5].map((s) => (
                           <Star 
                             key={s} 
-                            className={`w-3.5 h-3.5 ${s <= rev.rating ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
+                            className={`w-3.5 h-3.5 ${s <= rev.rating ? 'text-amber-400 fill-amber-400' : 'text-fg'}`}
                           />
                         ))}
                       </div>

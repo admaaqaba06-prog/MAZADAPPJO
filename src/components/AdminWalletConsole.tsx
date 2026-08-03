@@ -65,12 +65,12 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
 }) => {
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F3F6F8] pb-4 overscroll-contain select-none font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface-sunken pb-4 overscroll-contain select-none font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="admin-treasury-root"
     >
       {/* Admin Fintech Header Banner */}
-      <div className="p-4 px-5 flex items-center justify-between border-b border-line/80 sticky top-0 bg-[#F3F6F8]/90 backdrop-blur-md z-40">
+      <div className="p-4 px-5 flex items-center justify-between border-b border-line/80 sticky top-0 bg-surface-sunken/90 backdrop-blur-md z-40">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-[#FF6B00]"></div>
           <h2 className="text-[12px] font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
@@ -431,7 +431,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
               </div>
 
               <div className="p-5 space-y-4 overflow-y-auto">
-                <div className="p-3 bg-[#FFF9F5] border border-[#FF6B00]/10 rounded-2xl space-y-2 text-xs">
+                <div className="p-3 bg-accent-weak border border-[#FF6B00]/10 rounded-2xl space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-fg-muted">{isAr ? 'اسم مرسل الحوالة' : 'Sender User'}:</span>
                     <strong className="font-black text-fg">{selectedProofEscrow.bidderName}</strong>
@@ -482,7 +482,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                     <button
                       type="button"
                       onClick={() => handleAdminRejectDeposit(selectedProofEscrow.id)}
-                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-650 hover:bg-red-50 text-xs font-bold cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold cursor-pointer"
                     >
                       {isAr ? 'رفض الطلب ❌' : 'Reject & Void ❌'}
                     </button>

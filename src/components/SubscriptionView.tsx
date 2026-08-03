@@ -405,7 +405,7 @@ export const SubscriptionView: React.FC = () => {
         </div>
 
         {/* BANK TRANSFER INFO BOX */}
-        <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-5 mb-6 space-y-3 font-sans">
+        <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-5 mb-6 space-y-3 font-sans">
           <div className="text-xs font-black text-fg uppercase tracking-tight font-mono">
             {isAr ? 'بيانات التحويل المصرفي / Bank Transfer Info' : 'Transfer Payment To:'}
           </div>
@@ -537,7 +537,7 @@ export const SubscriptionView: React.FC = () => {
             showAcceptError && !acceptedRules
               ? 'border-red-400 bg-red-50/60'
               : acceptedRules
-                ? 'border-[#FF6B00]/40 bg-[#FFF8F3]'
+                ? 'border-[#FF6B00]/40 bg-accent-weak'
                 : 'border-line bg-surface-sunken/50'
           }`}
           id="auction-rules-accept-gate"

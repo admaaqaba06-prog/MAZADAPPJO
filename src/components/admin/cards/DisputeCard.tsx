@@ -112,7 +112,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ order, isAr, busy, onR
             <button
               key={o.value}
               onClick={() => setPicked(o.value)}
-              className={`text-[10px] font-extrabold py-2 rounded-xl border transition-all ${picked === o.value ? 'border-[#FF6B00] bg-orange-50 text-fg' : 'border-line bg-surface-raised text-fg-muted hover:bg-surface-sunken'}`}
+              className={`text-[10px] font-extrabold py-2 rounded-xl border transition-all ${picked === o.value ? 'border-[#FF6B00] bg-orange-50 text-fg-on-light' : 'border-line bg-surface-raised text-fg-muted hover:bg-surface-sunken'}`}
             >
               {isAr ? o.ar : o.en}
             </button>

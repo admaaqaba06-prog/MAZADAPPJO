@@ -78,12 +78,12 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
             </span>
           )}
           {isDuplicateReceipt && (
-            <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
+            <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
               ⚠ {isAr ? 'إيصال مكرر' : 'Duplicate receipt'}
             </span>
           )}
           {phoneAmountDup && (
-            <span className="text-[10px] bg-red-50 text-red-650 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
+            <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
               ⚠ {isAr ? 'نفس الهاتف والمبلغ لطلب آخر' : 'Same phone + amount as another order'}
             </span>
           )}
@@ -174,7 +174,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           className={`font-bold text-xs px-4 py-2 rounded-xl min-w-[100px] border transition-all ${
             busy
               ? 'bg-surface-sunken text-fg-muted border-line cursor-not-allowed'
-              : 'bg-red-50 hover:bg-red-100 text-red-650 border-red-100 cursor-pointer'
+              : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-100 cursor-pointer'
           }`}
         >
           {isAr ? 'رفض' : 'Reject'}
@@ -184,7 +184,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
       {/* Inline reject reason box */}
       {rejecting && (
         <div className="bg-red-50/50 border border-red-100 rounded-xl p-3 space-y-2.5 animate-fadeIn">
-          <p className="text-[10px] font-bold text-red-650 uppercase">
+          <p className="text-[10px] font-bold text-red-600 uppercase">
             {isAr ? 'سبب الرفض' : 'Rejection reason'}
           </p>
           <div className="flex flex-wrap gap-1.5">

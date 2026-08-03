@@ -597,7 +597,7 @@ export const SellView: React.FC = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...easeOut, delay: 0.08 + i * 0.06 }}
-                    className="group relative overflow-hidden bg-gradient-to-b from-white to-[#FFF7F1] border border-orange-100/70 hover:border-[#FF6B00]/45 rounded-3xl shadow-[0_2px_16px_rgba(255,107,0,0.05)] hover:shadow-[0_10px_30px_rgba(255,107,0,0.14)] p-6 text-start flex flex-col gap-4 transition-all duration-300 cursor-pointer active:scale-[0.99] hover:-translate-y-0.5"
+                    className="group relative overflow-hidden bg-gradient-to-b from-[var(--color-surface-raised)] to-[var(--color-accent-weak)] border border-orange-100/70 hover:border-[#FF6B00]/45 rounded-3xl shadow-[0_2px_16px_rgba(255,107,0,0.05)] hover:shadow-[0_10px_30px_rgba(255,107,0,0.14)] p-6 text-start flex flex-col gap-4 transition-all duration-300 cursor-pointer active:scale-[0.99] hover:-translate-y-0.5"
                     id={`sell-card-${card.id}`}
                     style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   >

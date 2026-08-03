@@ -294,7 +294,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
   return (
     <div 
-      className="min-h-screen w-full bg-neutral-50 text-fg flex flex-col justify-center items-center p-4 md:p-8 font-sans select-none relative"
+      className="min-h-screen w-full bg-surface-sunken text-fg flex flex-col justify-center items-center p-4 md:p-8 font-sans select-none relative"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="login-view-root"
     >
@@ -330,7 +330,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       )}
 
       {/* Center White Modal Box */}
-      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
+      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
 
         {/* Title */}
         <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">

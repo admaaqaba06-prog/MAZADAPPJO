@@ -181,7 +181,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-fg flex items-center justify-center transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-surface-sunken hover:bg-surface-sunken text-fg flex items-center justify-center transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -243,7 +243,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
               const text = String(auction.description || '').trim();
               if (!text || text === String(auction.title || '').trim()) return null;
               return (
-                <p className="text-xs text-fg-muted mt-1.5 leading-relaxed bg-zinc-50 border border-zinc-100 p-3 rounded-xl">
+                <p className="text-xs text-fg-muted mt-1.5 leading-relaxed bg-surface-sunken border border-line p-3 rounded-xl">
                   {text}
                 </p>
               );
@@ -274,16 +274,16 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           </div>
 
           {/* Bid values pricing table */}
-          <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-3 space-y-2">
+          <div className="bg-surface-sunken border border-line/60 rounded-xl p-3 space-y-2">
             <div className="flex justify-between items-center text-xs">
               <span className="text-fg-muted font-bold">{priceLabel(auction.totalBids, isAr)}</span>
               <span className="text-sm font-black text-[#FF6B00] font-mono">{auction.currentPrice.toLocaleString()} JOD</span>
             </div>
-            <div className="flex justify-between items-center text-xs border-t border-zinc-200/50 pt-2">
+            <div className="flex justify-between items-center text-xs border-t border-line/50 pt-2">
               <span className="text-fg-muted">{isAr ? 'صاحب العرض القيادي' : 'LEADING BIDDER'}</span>
               <span className="text-[11px] font-bold text-fg">{auction.currentBidderName || (isAr ? 'لا مزايدات حتى الآن' : 'No offers yet')}</span>
             </div>
-            <div className="flex justify-between items-center text-[10.5px] border-t border-zinc-200/50 pt-2 text-zinc-500">
+            <div className="flex justify-between items-center text-[10.5px] border-t border-line/50 pt-2 text-zinc-500">
               <span>{isAr ? 'الحد الأدنى للزيادة' : 'MIN INCREMENTAL'}</span>
               <span className="font-mono">{auction.minIncrement} JOD</span>
             </div>

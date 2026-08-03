@@ -172,7 +172,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
             </div>
           )}
           {d.status === 'live' && awaitingFirstBid && (
-            <div className="bg-amber-400 text-zinc-900 font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
+            <div className="bg-amber-400 text-fg-on-light font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
               <Zap className="w-2.5 h-2.5 fill-zinc-900" />
               <span>{isAr ? 'كن أول مزايد' : 'BE THE FIRST'}</span>
             </div>
@@ -962,7 +962,7 @@ export const DiscoveryFeedView: React.FC = () => {
                  brand; bilingual/RTL. */
               <div className="min-h-[58vh] flex items-center justify-center">
                 <div
-                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-[var(--color-surface-raised)] to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
                   style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   id="discover-search-error"
                 >
@@ -982,7 +982,7 @@ export const DiscoveryFeedView: React.FC = () => {
             ) : searchMode.results.length === 0 ? (
               <div className="min-h-[58vh] flex items-center justify-center">
                 <div
-                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-[var(--color-surface-raised)] to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
                   style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   id="discover-search-empty"
                 >
@@ -1101,7 +1101,7 @@ export const DiscoveryFeedView: React.FC = () => {
                   <h2 className="text-sm font-black text-fg uppercase tracking-tight">
                     {isAr ? 'كن أول مزايد' : 'Be the first'}
                   </h2>
-                  <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-mono font-black bg-amber-400 text-fg-on-light px-2 py-0.5 rounded-full">
                     {firstBidList.length}
                   </span>
                   {selectedCategory === 'All' && (
@@ -1206,7 +1206,7 @@ export const DiscoveryFeedView: React.FC = () => {
              into the middle of the feed area instead of pinning it to the top). */
           <div className="min-h-[58vh] flex items-center justify-center">
           <div
-            className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            className="w-full text-center py-16 px-6 bg-gradient-to-b from-[var(--color-surface-raised)] to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="feedback-empty-state"
           >

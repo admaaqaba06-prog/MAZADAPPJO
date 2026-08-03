@@ -192,7 +192,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
               </div>
             </>
           ) : (
-            <div className="w-full max-w-sm bg-zinc-50 border border-zinc-100 rounded-3xl p-8 shadow-sm flex flex-col items-center space-y-6">
+            <div className="w-full max-w-sm bg-surface-sunken border border-line rounded-3xl p-8 shadow-sm flex flex-col items-center space-y-6">
               <div className="relative flex items-center justify-center">
                 <Loader2 className="w-16 h-16 text-[#FF6B00] animate-spin stroke-[1.5]" />
                 <div className="absolute text-xs font-bold text-fg">
@@ -275,7 +275,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
               {/* STEP 1.5 — Thumbnail Image */}
               <div className="space-y-2.5">
-                <label className="text-xs lg:text-sm font-extrabold text-[#111827] flex items-center gap-1.5">
+                <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
                   <span className="text-[#FF6B00]">①.⑤</span> 
                   {isAr ? 'صورة غلاف المزاد (اختياري)' : 'Auction Thumbnail Image (Optional)'}
                 </label>
@@ -320,7 +320,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
               {/* STEP 1.6 — Extra gallery photos (Wave 2 media gallery) */}
               <div className="space-y-2.5">
-                <label className="text-xs lg:text-sm font-extrabold text-[#111827] flex items-center gap-1.5">
+                <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
                   <span className="text-[#FF6B00]">①.⑥</span>
                   {isAr ? 'صور إضافية للمعرض (حتى ٣ — اختياري)' : 'Extra Gallery Photos (up to 3 — Optional)'}
                 </label>

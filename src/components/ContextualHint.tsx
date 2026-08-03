@@ -43,7 +43,7 @@ export const ContextualHint: React.FC<ContextualHintProps> = ({
         initial={{ opacity: 0, y: -8, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
-        className={`relative overflow-hidden p-4 rounded-2xl bg-slate-50 border border-slate-100/80 shadow-sm flex gap-3 text-slate-700 leading-relaxed ${className}`}
+        className={`relative overflow-hidden p-4 rounded-2xl bg-surface-sunken border border-line/80 shadow-sm flex gap-3 text-fg leading-relaxed ${className}`}
         id={`contextual-hint-${hintKey}`}
       >
         {/* Glow pulsing beacon effect to guide first-time users */}
@@ -55,7 +55,7 @@ export const ContextualHint: React.FC<ContextualHintProps> = ({
         {/* Text */}
         <div className="flex-1 flex flex-col gap-0.5 text-xs text-right rtl:text-right ltr:text-left">
           {displayTitle && (
-            <h4 className="font-bold text-slate-800 flex items-center gap-1.5 mb-1 text-sm leading-tight">
+            <h4 className="font-bold text-fg flex items-center gap-1.5 mb-1 text-sm leading-tight">
               <span>{displayTitle}</span>
             </h4>
           )}
@@ -65,7 +65,7 @@ export const ContextualHint: React.FC<ContextualHintProps> = ({
         {/* Dismiss Button */}
         <button
           onClick={handleDismiss}
-          className="shrink-0 text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer self-start"
+          className="shrink-0 text-slate-400 hover:text-fg p-1 rounded-lg hover:bg-surface-sunken/50 transition-colors cursor-pointer self-start"
           aria-label="Dismiss hint"
           id={`dismiss-${hintKey}-btn`}
         >

@@ -316,7 +316,7 @@ function MainAppShell() {
       {maintenanceMode.enabled && isStrictAdmin && (
         <div 
           onClick={() => setActiveView('admin')}
-          className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-400 transition-colors shrink-0 z-50 text-center w-full"
+          className="bg-amber-500 text-fg-on-light px-4 py-2 text-xs font-black tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-400 transition-colors shrink-0 z-50 text-center w-full"
         >
           <span className="inline-block animate-pulse">⚠️</span>
           <span>MAINTENANCE MODE IS ACTIVE FOR PUBLIC USERS — CLICK HERE TO OPEN OPERATIONAL HEALTH CONTROL PANEL</span>

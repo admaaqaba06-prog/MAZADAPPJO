@@ -284,7 +284,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   }, [descriptionText, descriptionExpanded, activeAuction?.id]);
 
   return (
-    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
+    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-surface-sunken relative select-none" id="mazad-jo-desktop-live-platform">
       
       {/* Toast Overlay */}
       {showToast && (
@@ -326,7 +326,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 onClick={() => onSelectAuction(item.id)}
                 className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all border text-left cursor-pointer group select-none relative overflow-hidden ${
                   isActive 
-                    ? 'bg-orange-50/70 border-[#E85D04] text-fg font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
+                    ? 'bg-orange-50/70 border-[#E85D04] text-fg-on-light font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
                     : 'bg-surface-sunken/50 border-transparent hover:bg-surface-sunken/80 text-fg-muted hover:text-fg'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
@@ -448,7 +448,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         {/* Video Card Player Wrapper with empty space background - Sticky top */}
         <div 
-          className="sticky top-0 z-30 w-full bg-gradient-to-b from-[#ffffff] via-[#fafafa] to-[#ffffff] border border-line/80 rounded-2xl flex items-center justify-center py-0 shadow-sm shrink-0 overflow-hidden" 
+          className="sticky top-0 z-30 w-full bg-gradient-to-b from-[var(--color-surface-raised)] via-[var(--color-surface)] to-[var(--color-surface-raised)] border border-line/80 rounded-2xl flex items-center justify-center py-0 shadow-sm shrink-0 overflow-hidden" 
           id="professional-video-wrapper-outer"
         >
           {/* Video Card Player Canvas with overlays */}
@@ -618,7 +618,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             blocks.push({
               key: 'auctionId',
               icon: (
-                <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+                <div className="w-9 h-9 rounded-full bg-surface-sunken flex items-center justify-center text-zinc-500">
                   <Trophy className="w-4.5 h-4.5" />
                 </div>
               ),

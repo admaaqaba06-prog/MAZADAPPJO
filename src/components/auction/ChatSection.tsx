@@ -95,7 +95,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
                 height={30}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                className="w-[30px] h-[30px] rounded-full object-cover bg-[#EAEAEA] shrink-0"
+                className="w-[30px] h-[30px] rounded-full object-cover bg-surface-sunken shrink-0"
               />
               <div className="min-w-0">
                 <span className="text-[11px] font-extrabold text-fg leading-none block">

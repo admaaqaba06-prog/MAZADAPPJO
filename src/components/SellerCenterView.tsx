@@ -86,7 +86,7 @@ import { validateDescription } from '../utils/listingDescription';
  *  seller orders table's brand-orange default while the label comes from the
  *  shared glossary (no more raw codes rendered). */
 const ORDER_STATUS_TONE_CHIP: Record<OrderStatusTone, string> = {
-  neutral: 'bg-zinc-100 text-zinc-500',
+  neutral: 'bg-surface-sunken text-zinc-500',
   info: 'bg-orange-50 text-orange-700 border border-orange-100',
   warning: 'bg-orange-50 text-orange-700 border border-orange-100',
   success: 'bg-emerald-50 text-emerald-700 border border-emerald-100',

@@ -138,7 +138,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
       );
     } else {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-slate-50 text-slate-500 border border-slate-100 uppercase">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-surface-sunken text-slate-500 border border-line uppercase">
           {isAr ? 'إشعار عادي' : 'Standard'}
         </span>
       );
@@ -194,7 +194,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
               className="w-screen max-w-md bg-surface-raised shadow-2xl flex flex-col h-full"
             >
               {/* Header */}
-              <div className="p-5 border-b border-line flex flex-col bg-zinc-50 shrink-0 gap-4">
+              <div className="p-5 border-b border-line flex flex-col bg-surface-sunken shrink-0 gap-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="relative">
@@ -240,7 +240,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     )}
                     <button 
                       onClick={onClose}
-                      className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-fg-muted flex items-center justify-center transition-all cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-surface-sunken hover:bg-surface-sunken text-fg-muted flex items-center justify-center transition-all cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -349,7 +349,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                               {getPriorityBadge(item.priority)}
                               <button
                                 onClick={(e) => handleRemoveOne(item.id, e)}
-                                className="w-5 h-5 rounded-md bg-surface-sunken hover:bg-rose-50 text-fg-muted hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                className="w-5 h-5 rounded-md bg-surface-sunken hover:bg-rose-50 text-fg-on-light hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
                                 title={isAr ? 'حذف الإشعار' : 'Delete notification'}
                               >
                                 <X className="w-3 h-3" />

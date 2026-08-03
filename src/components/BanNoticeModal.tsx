@@ -83,18 +83,18 @@ export const BanNoticeModal: React.FC<BanNoticeModalProps> = ({ onClose }) => {
         id="ban-notice-modal"
       >
         {/* Header */}
-        <div className="bg-[#FFF8F3] p-5 border-b border-[#F0E4D8] shrink-0 flex justify-between items-center gap-3">
+        <div className="bg-accent-weak p-5 border-b border-line shrink-0 flex justify-between items-center gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <div className="bg-[#FF6B00]/10 p-2 rounded-xl border border-[#FF6B00]/20 shrink-0">
               <ShieldAlert className="w-5 h-5 text-[#FF6B00]" />
             </div>
-            <h2 className="text-sm font-black text-zinc-900 min-w-0">{title}</h2>
+            <h2 className="text-sm font-black text-fg min-w-0">{title}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={isAr ? 'إغلاق' : 'Close'}
-            className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 active:scale-95 transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-full bg-surface-sunken border border-line flex items-center justify-center text-zinc-500 hover:text-fg hover:bg-surface-sunken active:scale-95 transition-all cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -102,16 +102,16 @@ export const BanNoticeModal: React.FC<BanNoticeModalProps> = ({ onClose }) => {
 
         {/* Body */}
         <div className="p-5 overflow-y-auto scrollbar-thin space-y-3">
-          <div className="bg-[#FBFAF8] border border-[#EFEAE3] rounded-2xl p-4">
-            <p className="text-xs font-bold text-zinc-800 leading-relaxed">{reason}</p>
+          <div className="bg-surface-sunken border border-line rounded-2xl p-4">
+            <p className="text-xs font-bold text-fg leading-relaxed">{reason}</p>
           </div>
-          <div className="bg-[#FBFAF8] border border-[#EFEAE3] rounded-2xl p-4">
-            <p className="text-xs text-zinc-700 leading-relaxed font-medium">{liftLine}</p>
+          <div className="bg-surface-sunken border border-line rounded-2xl p-4">
+            <p className="text-xs text-fg leading-relaxed font-medium">{liftLine}</p>
           </div>
         </div>
 
         {/* Footer action */}
-        <div className="bg-zinc-50 p-4 border-t border-line shrink-0">
+        <div className="bg-surface-sunken p-4 border-t border-line shrink-0">
           <button
             type="button"
             onClick={onClose}
