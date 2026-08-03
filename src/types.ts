@@ -277,11 +277,16 @@ export interface Notification {
   userId: string;
   title: string;
   description: string;
-  type: 'info' | 'outbid' | 'win' | 'refund' | 'verify' | 'alert' | 'bid' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
+  // 'withdrawal' is written by functions/index.js (the payout callables) and
+  // was missing here — the server produced a type the client could not name.
+  type: 'info' | 'outbid' | 'win' | 'refund' | 'verify' | 'alert' | 'bid' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin' | 'withdrawal';
   priority?: 'high' | 'medium' | 'low';
   timestamp: number;
   read: boolean;
   auctionId?: string;
+  /** Written by every order-related server notification; used to route the
+   *  notification to its Buying/Selling tab (see utils/notifications.ts). */
+  orderId?: string;
 }
 
 // adminActions rows exist in two historical shapes (see src/utils/adminAudit.ts).

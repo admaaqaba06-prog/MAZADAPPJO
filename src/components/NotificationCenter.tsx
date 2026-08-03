@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { userFacingNotifications } from '../utils/notifications';
+import { notificationAudience, userFacingNotifications } from '../utils/notifications';
 import { isAdminUser } from '../utils/adminAuth';
 import type { Notification as AppNotification } from '../types';
 import { 
@@ -30,11 +30,19 @@ interface NotificationCenterProps {
   onClose: () => void;
 }
 
-type NotificationFilterType = 'all' | 'outbid' | 'bid' | 'win' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
+// Two kinds of chip share one control: an AUDIENCE ('buying'/'selling') and a
+// TYPE. A user thinks "what happened with my sales?", not "show me type=win",
+// and the same type serves both sides — a seller's payout and a buyer's win are
+// both 'win', separable only through the order (see notificationAudience).
+type NotificationFilterType =
+  | 'all' | 'buying' | 'selling'
+  | 'outbid' | 'bid' | 'win' | 'loss' | 'wallet' | 'order' | 'subscription' | 'admin';
 
-// Regular users only see the bidder-relevant alert kinds (Wave D, spec §5);
-// admins keep the full unfiltered stream for ops visibility.
-const USER_FILTER_CHIPS: readonly NotificationFilterType[] = ['all', 'outbid', 'win', 'loss', 'order', 'subscription'];
+const AUDIENCE_FILTERS: readonly NotificationFilterType[] = ['buying', 'selling'];
+
+// Regular users lead with the audience split; admins keep the full unfiltered
+// type stream for ops visibility.
+const USER_FILTER_CHIPS: readonly NotificationFilterType[] = ['all', 'buying', 'selling', 'outbid', 'win', 'order', 'subscription'];
 const ADMIN_FILTER_CHIPS: readonly NotificationFilterType[] = ['all', 'outbid', 'bid', 'win', 'loss', 'wallet', 'order', 'subscription', 'admin'];
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
@@ -44,7 +52,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
     markAsRead,
     markAllAsRead,
     language,
-    currentUser
+    currentUser,
+    orders
   } = useApp();
 
   const [selectedFilter, setSelectedFilter] = useState<NotificationFilterType>('all');
@@ -148,6 +157,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
   const getCategoryLabel = (type: NotificationFilterType) => {
     switch (type) {
       case 'all': return isAr ? 'الكل' : 'All';
+      case 'buying': return isAr ? 'شرائي' : 'Buying';
+      case 'selling': return isAr ? 'مبيعاتي' : 'Selling';
       case 'outbid': return isAr ? 'تجاوز العرض' : 'Outbid';
       case 'bid': return isAr ? 'مزايدة' : 'Bidding';
       case 'win': return isAr ? 'فوز' : 'Win';
@@ -168,6 +179,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
     // AppContext, but guard here too so a contentless doc can't slip through.
     if (!n.title?.trim() && !n.description?.trim()) return false;
     if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'buying' || selectedFilter === 'selling') {
+      return notificationAudience(n, currentUser?.id, orders) === selectedFilter;
+    }
     return n.type === selectedFilter;
   });
 
@@ -250,7 +264,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                 {/* Filter Tabs Chips */}
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1.5 shrink-0 select-none">
                   {filterChips.map((filter) => {
-                    const count = filter === 'all'
+                    const count = AUDIENCE_FILTERS.includes(filter)
+                      ? visibleNotifications.filter(n => notificationAudience(n, currentUser?.id, orders) === filter).length
+                      : filter === 'all'
                       ? visibleNotifications.length
                       : visibleNotifications.filter(n => n.type === filter).length;
                     
