@@ -82,6 +82,7 @@ export const AdminDashboardView: React.FC = () => {
     currentUser,
     users,
     usersTotalCount,
+    auctionsTotalCount,
     escrows,
     orders,
     approveListing,
@@ -967,6 +968,7 @@ export const AdminDashboardView: React.FC = () => {
               isAr={isAr}
               isLoading={isLoading}
               auctions={auctions}
+              auctionsTotalCount={auctionsTotalCount}
               orders={orders}
               users={users}
               rejectingId={rejectingId}

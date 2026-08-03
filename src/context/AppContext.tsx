@@ -11,6 +11,7 @@ import { nextHeartbeatDelayMs } from '../utils/heartbeat';
 import { resizeImage } from '../utils/resizeImage';
 import { mapAuthError } from '../utils/authErrors';
 import { isAdminUser, isAdminOrSeller } from '../utils/adminAuth';
+import { ADMIN_AUCTIONS_CAP } from '../utils/adminDirectory';
 import { blockedApprovalReason, approvalClockFields } from '../utils/approvalGuard';
 import { restoreLocalAuction } from '../utils/localAuctionRollback';
 import { MAZAD_STORE_NAME, MAZAD_STORE_LOGO } from '../constants/mazadStore';
@@ -128,6 +129,10 @@ interface AppContextProps {
   // True account total from a server aggregation (the `users` listener is capped);
   // null until the count query resolves. Use for total-account stats, not users.length.
   usersTotalCount: number | null;
+  // True auction total from a server aggregation (the `auctions` listener is
+  // capped at ADMIN_AUCTIONS_CAP); null until the count query resolves. Use for
+  // "showing X of Y", never auctions.length.
+  auctionsTotalCount: number | null;
   sellerProfiles: SellerProfile[];
   setSellerProfiles: React.Dispatch<React.SetStateAction<SellerProfile[]>>;
   // NOTE (Wave 3c / PF2): `auctions` / `setAuctions` / `auctionsLoaded` moved
@@ -488,6 +493,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // `users.length` is NOT the true account total. This holds the real count from
   // a server-side aggregation query so admin stats don't undercount. null = unknown.
   const [usersTotalCount, setUsersTotalCount] = useState<number | null>(null);
+  const [auctionsTotalCount, setAuctionsTotalCount] = useState<number | null>(null);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>(() => {
     const saved = localStorage.getItem('mazad_seller_profiles');
     return saved ? JSON.parse(saved) : INITIAL_SELLERS;
@@ -1573,7 +1579,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // so a fresh 'processing' listing always lands inside the window: with no
     // ordering, an unbounded read past 100 auctions could strand a new listing
     // outside the cap and it would never surface for approval.
-    const q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(100));
+    const q = query(auctionsRefCol, orderBy('createdAt', 'desc'), limit(ADMIN_AUCTIONS_CAP));
+
+    // True total, so the cap above stops being SILENT. The admin directory used
+    // to render this capped array whole with nothing saying 141 of 241 lots
+    // were missing — a silent cap reads as "this is everything", which is the
+    // same class of bug as #202. Best-effort and one-shot, exactly like the
+    // users count; a failure leaves it null and the UI claims nothing.
+    getCountFromServer(auctionsRefCol)
+      .then(res => setAuctionsTotalCount(res.data().count))
+      .catch(err => console.warn('Firestore auctions count query failed:', err));
+
     const unsub = onSnapshot(q, (snap) => {
       setAuctionsLoaded(true);
       if (snap.empty) {
@@ -5308,6 +5324,7 @@ const fetchIP = async () => {
       sellerProfile, setSellerProfile,
       users, setUsers,
       usersTotalCount,
+      auctionsTotalCount,
       sellerProfiles, setSellerProfiles,
       bids, setBids,
       wallet, setWallet,
@@ -5417,7 +5434,7 @@ const fetchIP = async () => {
   }), [
     // State / memo values (auctions/auctionsLoaded intentionally NOT here —
     // they live in AuctionsContext so bid churn can't touch this identity)
-    currentUser, sellerProfile, users, usersTotalCount, sellerProfiles,
+    currentUser, sellerProfile, users, usersTotalCount, auctionsTotalCount, sellerProfiles,
     bids, wallet, escrows, visibleOrders, notifications,
     adminActions, adminActionsError, reviews, verificationRequests,
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
