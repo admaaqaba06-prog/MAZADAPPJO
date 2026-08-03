@@ -116,7 +116,13 @@ describe('theme ratchet', () => {
   // has no colour at all. One of these shipped (`text-gray-405`) and rendered
   // an admin label with no styling until it was caught.
   it('uses no non-existent Tailwind shade', () => {
-    const shades = SOURCE.match(/(?:text|bg|border)-(?:gray|zinc|slate|neutral)-(\d+)/g) ?? [];
+    // Widened from gray/zinc/slate/neutral to EVERY family and every colour
+    // property. The narrow version missed `text-red-650` on the admin Erase
+    // button — a destructive control rendering pale-on-pale because the class
+    // emitted nothing — plus six more across orange, emerald and blue.
+    const FAMILIES = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
+    const re = new RegExp(`(?:text|bg|border|ring|divide|from|via|to)-(?:${FAMILIES})-\\d+`, 'g');
+    const shades = SOURCE.match(re) ?? [];
     const VALID = new Set(['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']);
     const bogus = shades.filter((s) => !VALID.has(s.split('-').pop()!));
     expect(bogus).toEqual([]);

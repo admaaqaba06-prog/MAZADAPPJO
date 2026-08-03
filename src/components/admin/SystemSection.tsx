@@ -547,14 +547,14 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableLiveAuctions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableLiveAuctions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableLiveAuctions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableLiveAuctions', !featureFlags?.enableLiveAuctions)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableLiveAuctions ? 'bg-emerald-505 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableLiveAuctions ? 'bg-emerald-500 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
@@ -580,14 +580,14 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableSubscriptions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableSubscriptions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableSubscriptions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableSubscriptions', !featureFlags?.enableSubscriptions)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableSubscriptions ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableSubscriptions ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
@@ -613,14 +613,14 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableWallets ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableWallets ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableWallets ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableWallets', !featureFlags?.enableWallets)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableWallets ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableWallets ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
@@ -646,14 +646,14 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enablePushNotifications ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enablePushNotifications ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enablePushNotifications ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enablePushNotifications', !featureFlags?.enablePushNotifications)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enablePushNotifications ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enablePushNotifications ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
@@ -680,14 +680,14 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableGuestBrowsing ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableGuestBrowsing ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableGuestBrowsing ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableGuestBrowsing', !featureFlags?.enableGuestBrowsing)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableGuestBrowsing ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableGuestBrowsing ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                       id="admin-guest-browsing-toggle"
                     >

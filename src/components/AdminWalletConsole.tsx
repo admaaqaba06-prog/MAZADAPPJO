@@ -482,7 +482,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                     <button
                       type="button"
                       onClick={() => handleAdminRejectDeposit(selectedProofEscrow.id)}
-                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-650 hover:bg-red-50 text-xs font-bold cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold cursor-pointer"
                     >
                       {isAr ? 'رفض الطلب ❌' : 'Reject & Void ❌'}
                     </button>

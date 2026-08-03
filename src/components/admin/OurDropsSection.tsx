@@ -486,7 +486,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               deleteAuction(item.id);
                             }
                           }}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-650 text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
                         >
                           <span>{isAr ? 'مسح' : 'Erase'}</span>
                         </button>
