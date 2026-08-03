@@ -71,12 +71,10 @@ html[data-theme] body {
      theme (MJ, 2026-08-03). The radial-gradient accents below keep their rgba
      orange, which reads on both backgrounds.
 
-     CURRENTLY MASKED, deliberately: LandingView's own root div carries
-     `bg-[#FFFFFF] text-[#0A0A0A]` (LandingView.tsx:853) and paints over this.
-     Flipping that one class in this slice would darken the page while its ~100
-     white cards and light-tuned copy stayed put — a visibly broken marketing
-     page. The class goes when the landing page is migrated in slice 3; this
-     token wiring is the groundwork waiting for it. */
+     No longer masked (slice 3): LandingView's root carried
+     `bg-[#FFFFFF] text-[#0A0A0A]` and painted over this until its palette was
+     migrated alongside it. It now uses `bg-surface-raised text-fg` — raised
+     rather than surface, so light mode stays exactly #FFFFFF as before. */
   background-color: var(--color-surface);
   color: var(--color-text-primary);
   background-image:
