@@ -35,22 +35,35 @@ const RULES = [
     words: ['rolex', 'omega', 'seiko', 'casio', 'watch', 'ساعة', 'ساعه', 'رولكس'],
   },
   {
+    // Small kitchen and household electricals dominate the real catch-all, and
+    // this list is drawn from the actual titles in it rather than guessed. Two
+    // spellings of microwave are both live in the data (ميكروويف / ميكرويف).
+    //
+    // It must stay AHEAD of Home & Furniture: "برادة مياه طاولة" is a water
+    // cooler, and matching furniture's طاولة first filed it as furniture.
     category: 'Appliances',
     words: [
       'fridge', 'refrigerator', 'washing machine', 'microwave', 'oven',
-      'ثلاجة', 'غسالة', 'فرن', 'مايكرويف', 'مكيف',
+      'blender', 'air fryer', 'deep fryer', 'kettle', 'ice maker', 'tower fan',
+      'ثلاجة', 'غسالة', 'فرن', 'مايكرويف', 'ميكروويف', 'ميكرويف', 'مكيف',
+      'خلاط', 'مقلى', 'قلاية', 'غلاية', 'إبريق غلي', 'صانعة ثلج', 'مروحة',
+      'سلاقة', 'طباخ', 'مكنسة', 'برادة', 'كشاف', 'مطحنة', 'شواية',
     ],
   },
   {
     category: 'Electronics',
     words: [
-      'tv', 'television', 'laptop', 'macbook', 'playstation', 'xbox', 'ipad',
-      'tablet', 'camera', 'شاشة', 'تلفزيون', 'لابتوب', 'كمبيوتر', 'كاميرا',
+      'tv', 'television', 'laptop', 'macbook', 'playstation', 'ps4', 'ps5',
+      'xbox', 'ipad', 'tablet', 'camera',
+      'شاشة', 'تلفزيون', 'لابتوب', 'كمبيوتر', 'كاميرا', 'ايباد', 'آيباد',
     ],
   },
   {
     category: 'Home & Furniture',
-    words: ['sofa', 'couch', 'wardrobe', 'كنبة', 'طاولة', 'كرسي', 'خزانة', 'سرير'],
+    words: [
+      'sofa', 'couch', 'wardrobe',
+      'كنبة', 'طاولة', 'كرسي', 'خزانة', 'سرير', 'طقم كورنر',
+    ],
   },
   {
     category: 'Real Estate',

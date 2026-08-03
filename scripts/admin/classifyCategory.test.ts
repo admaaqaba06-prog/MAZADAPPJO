@@ -61,3 +61,40 @@ describe('classifyCategory', () => {
     }
   });
 });
+
+describe('the real catch-all vocabulary', () => {
+  // Every title below is a REAL one from the production Fashion bucket, taken
+  // from the backfill's phase-1 report. The first pass of this classifier left
+  // all of them unclassified.
+  it.each([
+    ['ميكروويف منزلي رقمي عملاق', 'Appliances'],
+    ['🍽️ * ميكرويف *Sona* مع شواية', 'Appliances'],
+    ['خلاط البيك ستيل مع مطحنة', 'Appliances'],
+    ['مقلى هواء/قلاية هوائية ذكية بدون زيت', 'Appliances'],
+    ['صانعة ثلج منزلية سريعة', 'Appliances'],
+    ['إبريق غلي الماء الكهربائي (غلاية)', 'Appliances'],
+    ['مروحة عمودية/برجية ذكية', 'Appliances'],
+    ['سلاقة بيض كهربائية Sonifer', 'Appliances'],
+    ['مكنسة *Panasonic MC-CG713', 'Appliances'],
+    ['كشاف طاقة شمسية LED – *500 واط*', 'Appliances'],
+    ['PS4', 'Electronics'],
+    ['📱  ايباد 11 (iPad 11)', 'Electronics'],
+    ['طاولة زجاج مودرن', 'Home & Furniture'],
+    ['طقم كورنر', 'Home & Furniture'],
+  ])('reads %s as %s', (title, expected) => {
+    expect(classifyCategory(title)).toBe(expected);
+  });
+
+  it('reads a water cooler as an appliance, not as furniture', () => {
+    // 'برادة مياه طاولة' contains طاولة (table). Appliances must be checked
+    // first or a water cooler is filed as furniture.
+    expect(classifyCategory('برادة مياه طاولة موصولة مباشرة بالخط')).toBe('Appliances');
+  });
+
+  it('still declines the genuinely ambiguous ones', () => {
+    // Left for a human, deliberately.
+    for (const t of ['علم', 'العاب', 'مكبتج', 'دلة قهوة']) {
+      expect(classifyCategory(t), t).toBeNull();
+    }
+  });
+});
