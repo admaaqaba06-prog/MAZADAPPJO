@@ -338,7 +338,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
                     className="w-5 h-5 rounded-full object-cover border border-white/10"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-1 min-w-0 bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/5">
+                  <div className="flex-1 min-w-0 bg-surface-raised/5 px-2.5 py-1.5 rounded-xl border border-white/5">
                     <span className="font-extrabold text-zinc-300 block truncate">{msg.userName}</span>
                     <p className="text-zinc-200 mt-0.5 leading-snug">{msg.text}</p>
                   </div>
@@ -372,7 +372,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             name="commentText"
             type="text"
             placeholder={isAr ? 'أضف تعليقاً...' : 'Add comment...'}
-            className="flex-grow h-7 px-2 bg-white/5 border border-white/10 rounded-lg text-zinc-100 text-[10px] outline-none focus:border-[#FF6B00]/70"
+            className="flex-grow h-7 px-2 bg-surface-raised/5 border border-white/10 rounded-lg text-zinc-100 text-[10px] outline-none focus:border-[#FF6B00]/70"
           />
           <button 
             type="submit"

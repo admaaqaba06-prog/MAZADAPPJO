@@ -130,7 +130,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
           {/* Close Button */}
           <button
             onClick={onDismiss}
-            className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
+            className="absolute top-4 right-4 md:top-6 md:right-6 bg-surface-raised/10 hover:bg-surface-raised/20 text-white rounded-full p-2.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
           >
             <X className="w-6 h-6" />
           </button>
@@ -259,7 +259,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                           onDismiss();
                           setActiveView('discovery');
                         }}
-                        className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        className="mt-4 w-full bg-surface-raised/10 hover:bg-surface-raised/20 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
                       >
                         {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
                       </button>
@@ -275,7 +275,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                         {isAr ? 'انتهى المزاد' : 'Auction Ended'}
                       </h2>
 
-                      <div className="w-full bg-white/5 rounded-2xl py-3 px-6 border border-white/5 my-2">
+                      <div className="w-full bg-surface-raised/5 rounded-2xl py-3 px-6 border border-white/5 my-2">
                         <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
                           {isAr ? 'المزايد الأعلى' : 'Winner'}
                         </p>
@@ -300,7 +300,7 @@ const AuctionCountdownLayer: React.FC<AuctionCountdownLayerProps> = ({
                           onDismiss();
                           setActiveView('discovery');
                         }}
-                        className="mt-4 w-full bg-white/15 hover:bg-white/25 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                        className="mt-4 w-full bg-surface-raised/15 hover:bg-surface-raised/25 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
                       >
                         {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
                       </button>
@@ -646,7 +646,7 @@ export const LiveStreamView: React.FC = () => {
 
   if (!hasLiveAuctions || !activeAuction) {
     return (
-      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#070709] p-6 text-gray-400 h-full min-h-[500px]" id="no-live-stream-fallback">
+      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#070709] p-6 text-fg-muted h-full min-h-[500px]" id="no-live-stream-fallback">
         <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center text-3xl mb-4 animate-pulse">
           📺
         </div>

@@ -284,7 +284,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   }, [descriptionText, descriptionExpanded, activeAuction?.id]);
 
   return (
-    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-[#fafafa] relative select-none" id="mazad-jo-desktop-live-platform">
+    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-surface-sunken relative select-none" id="mazad-jo-desktop-live-platform">
       
       {/* Toast Overlay */}
       {showToast && (
@@ -297,15 +297,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           COLUMN 1: DARK LEFT SIDEBAR (280px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[280px] bg-white shrink-0 h-full border-r border-gray-200/80" 
+        className="hidden lg:flex flex-col w-[280px] bg-surface-raised shrink-0 h-full border-r border-line/80" 
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-auctions-sidebar"
       >
         {/* Header section with count badge */}
-        <div className="p-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+        <div className="p-4 border-b border-line shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-            <span className="text-xs font-black tracking-wider text-gray-900 uppercase font-sans">
+            <span className="text-xs font-black tracking-wider text-fg uppercase font-sans">
               {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
             </span>
           </div>
@@ -326,13 +326,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 onClick={() => onSelectAuction(item.id)}
                 className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all border text-left cursor-pointer group select-none relative overflow-hidden ${
                   isActive 
-                    ? 'bg-orange-50/70 border-[#E85D04] text-gray-900 font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
-                    : 'bg-gray-50/50 border-transparent hover:bg-gray-100/80 text-gray-500 hover:text-gray-900'
+                    ? 'bg-accent-weak/70 border-[#E85D04] text-fg font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
+                    : 'bg-surface-sunken/50 border-transparent hover:bg-surface-sunken/80 text-fg-muted hover:text-fg'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
               >
                 {/* Thumbnail */}
-                <div className="w-12 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200/60 relative">
+                <div className="w-12 h-16 rounded-lg bg-surface-sunken overflow-hidden shrink-0 border border-line/60 relative">
                   <img 
                     src={item.thumbnailUrl} 
                     alt={item.title} 
@@ -352,17 +352,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
                 {/* Info Block */}
                 <div className="min-w-0 flex-grow text-left rtl:text-right">
-                  <h4 className="text-[11px] font-bold text-gray-800 truncate group-hover:text-gray-900 transition-colors">
+                  <h4 className="text-[11px] font-bold text-fg truncate group-hover:text-fg transition-colors">
                     {item.title}
                   </h4>
                   <p className="text-[11px] text-[#E85D04] font-black mt-1 leading-none font-sans">
                     {itemPrice.toLocaleString()} JOD
                   </p>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="inline-block text-[8px] font-black uppercase bg-gray-100 border border-gray-200/60 text-gray-500 px-1.5 py-0.5 rounded-md leading-none">
+                    <span className="inline-block text-[8px] font-black uppercase bg-surface-sunken border border-line/60 text-fg-muted px-1.5 py-0.5 rounded-md leading-none">
                       {item.category || (isAr ? 'إلكترونيات' : 'ELECTRONICS')}
                     </span>
-                    <span className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
+                    <span className="text-[8px] text-fg-muted font-mono flex items-center gap-1">
                       <Eye className="w-2.5 h-2.5" />
                       {itemBidCount} {isAr ? 'مزايدة' : 'bids'}
                     </span>
@@ -377,17 +377,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         {activeSellerProfile && (
           <div 
             onClick={() => setSelectedProfileId(activeSellerProfile.userId)}
-            className="mt-auto p-3 m-3 bg-gray-50/80 hover:bg-gray-100 border border-gray-100 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+            className="mt-auto p-3 m-3 bg-surface-sunken/80 hover:bg-surface-sunken border border-line rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <img
                 src={resolveAvatarUrl(activeSellerProfile.storeLogo, activeSellerProfile.userId)}
                 alt=""
-                className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
+                className="w-8 h-8 rounded-full object-cover border border-line shrink-0"
               />
               <div className="min-w-0 text-left rtl:text-right">
-                <span className="text-[11px] font-bold text-gray-800 truncate block leading-tight">
+                <span className="text-[11px] font-bold text-fg truncate block leading-tight">
                   {activeSellerProfile.storeName || 'MAZAD JO Store'}
                 </span>
                 {/* Gated on the seller's REAL verificationStatus (isVerified, derived
@@ -401,7 +401,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 )}
               </div>
             </div>
-            <span className="text-gray-400 font-sans text-xs">›</span>
+            <span className="text-fg-muted font-sans text-xs">›</span>
           </div>
         )}
       </aside>
@@ -412,29 +412,29 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
       <main className="flex-1 h-full flex flex-col p-4 overflow-y-auto" id="desktop-live-main-content">
         
         {/* Top Header Row (Back to Live Auctions & Breadcrumbs) */}
-        <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 select-none shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+        <div className="flex items-center justify-between mb-3 text-xs font-semibold text-fg-muted select-none shrink-0 animate-fade-in" id="live-top-navigation-bar" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
           
           {/* Back button */}
           <button
             onClick={() => setActiveView('discovery')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors cursor-pointer font-bold tracking-wide"
+            className="flex items-center gap-2 text-fg-muted hover:text-fg transition-colors cursor-pointer font-bold tracking-wide"
           >
             <span className="text-sm font-sans">{isAr ? '←' : '←'}</span>
             <span>{isAr ? 'العودة للمزادات المباشرة' : 'Back to Live Auctions'}</span>
           </button>
 
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-semibold" id="live-breadcrumbs">
+          <div className="flex items-center gap-1.5 text-[11px] text-fg-muted font-semibold" id="live-breadcrumbs">
             <span 
               onClick={() => setActiveView('discovery')}
-              className="hover:text-gray-600 cursor-pointer transition-colors"
+              className="hover:text-fg-muted cursor-pointer transition-colors"
             >
               {isAr ? 'الرئيسية' : 'Home'}
             </span>
             <span className="text-gray-300 font-mono">/</span>
             <span 
               onClick={() => setActiveView('discovery')}
-              className="hover:text-gray-600 cursor-pointer transition-colors"
+              className="hover:text-fg-muted cursor-pointer transition-colors"
             >
               {isAr ? 'المزادات المباشرة' : 'Live Auctions'}
             </span>
@@ -448,7 +448,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         {/* Video Card Player Wrapper with empty space background - Sticky top */}
         <div 
-          className="sticky top-0 z-30 w-full bg-gradient-to-b from-[#ffffff] via-[#fafafa] to-[#ffffff] border border-gray-200/80 rounded-2xl flex items-center justify-center py-0 shadow-sm shrink-0 overflow-hidden" 
+          className="sticky top-0 z-30 w-full bg-gradient-to-b from-[var(--color-surface-raised)] via-[var(--color-surface)] to-[var(--color-surface-raised)] border border-line/80 rounded-2xl flex items-center justify-center py-0 shadow-sm shrink-0 overflow-hidden" 
           id="professional-video-wrapper-outer"
         >
           {/* Video Card Player Canvas with overlays */}
@@ -570,7 +570,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               ),
               label: isAr ? 'حالة المنتج' : 'Product Condition',
               value: (
-                <span className="text-[11px] font-black text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                <span className="text-[11px] font-black text-fg mt-1 flex items-center gap-1.5 leading-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   {conditionText}
                 </span>
@@ -595,7 +595,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               label: isAr ? 'المعاينة' : 'Viewing',
               value: (
                 <span
-                  className="text-[11px] font-black text-gray-800 mt-1 leading-none block max-w-full truncate"
+                  className="text-[11px] font-black text-fg mt-1 leading-none block max-w-full truncate"
                   title={viewing.label}
                 >
                   {viewing.label}
@@ -618,13 +618,13 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             blocks.push({
               key: 'auctionId',
               icon: (
-                <div className="w-9 h-9 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500">
+                <div className="w-9 h-9 rounded-full bg-surface-sunken flex items-center justify-center text-zinc-500">
                   <Trophy className="w-4.5 h-4.5" />
                 </div>
               ),
               label: isAr ? 'رقم المزاد' : 'Auction ID',
               value: (
-                <span className="text-[11px] font-mono font-bold text-gray-800 mt-1 flex items-center gap-1.5 leading-none">
+                <span className="text-[11px] font-mono font-bold text-fg mt-1 flex items-center gap-1.5 leading-none">
                   <span>#{auctionNumberLabel}</span>
                   <button
                     onClick={() => {
@@ -632,7 +632,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       // into Discover search finds this lot.
                       navigator.clipboard.writeText(auctionNumberLabel);
                     }}
-                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                    className="text-fg-muted hover:text-fg-muted cursor-pointer"
                     title="Copy"
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -646,7 +646,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
           return (
             <div
-              className={`bg-white border border-gray-200/80 rounded-2xl p-3.5 mt-3 flex items-center ${
+              className={`bg-surface-raised border border-line/80 rounded-2xl p-3.5 mt-3 flex items-center ${
                 blocks.length > 1 ? 'justify-between' : 'justify-center'
               } shadow-xs shrink-0 w-[calc((100vh-220px)*9/16)] max-w-full mx-auto`}
               id="desktop-product-info-row"
@@ -656,7 +656,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 <div
                   key={block.key}
                   className={`flex items-center gap-2.5 ${block.shrinkable ? 'min-w-0' : ''} ${
-                    i > 0 ? 'border-l rtl:border-r rtl:border-l-0 border-gray-100 pl-4 pr-4' : ''
+                    i > 0 ? 'border-l rtl:border-r rtl:border-l-0 border-line pl-4 pr-4' : ''
                   }`}
                 >
                   {block.icon}
@@ -664,7 +664,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       (row → block → this text column → the truncating value);
                       for the others their parent never shrinks, so it is inert. */}
                   <div className="text-left rtl:text-right min-w-0">
-                    <span className="text-[9px] text-gray-400 font-bold block uppercase leading-none">
+                    <span className="text-[9px] text-fg-muted font-bold block uppercase leading-none">
                       {block.label}
                     </span>
                     {block.value}
@@ -681,20 +681,20 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
           COLUMN 3: RIGHT PANEL (360px)
           ====================================================================== */}
       <aside 
-        className="hidden lg:flex flex-col w-[360px] bg-white border-l border-gray-200 shrink-0 h-full p-4 gap-4 overflow-y-auto"
+        className="hidden lg:flex flex-col w-[360px] bg-surface-raised border-l border-line shrink-0 h-full p-4 gap-4 overflow-y-auto"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="desktop-live-new-aside-panel"
       >
         
         {/* Card 1: Seller Store Summary */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0">
+          <div className="flex items-center justify-between pb-3 border-b border-line">
             <div className="flex items-center gap-3">
               {activeSellerProfile ? (
                 <img
                   src={resolveAvatarUrl(activeSellerProfile.storeLogo, activeSellerProfile.userId)}
                   alt=""
-                  className="w-11 h-11 rounded-full object-cover border border-gray-100 shrink-0 animate-fade-in"
+                  className="w-11 h-11 rounded-full object-cover border border-line shrink-0 animate-fade-in"
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -703,7 +703,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </div>
               )}
               <div className="text-left rtl:text-right min-w-0 flex-1">
-                <h4 className="text-xs font-black text-gray-900 leading-none flex items-center gap-1">
+                <h4 className="text-xs font-black text-fg leading-none flex items-center gap-1">
                   <span className="truncate">{activeSellerProfile?.storeName || 'MAZAD JO Store'}</span>
                   {isVerified && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-50 shrink-0" />}
                 </h4>
@@ -714,7 +714,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 )}
               </div>
             </div>
-            <button className="px-3.5 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50 text-[11px] font-bold text-gray-700 transition-all cursor-pointer">
+            <button className="px-3.5 py-1.5 rounded-full border border-line hover:bg-surface-sunken text-[11px] font-bold text-fg transition-all cursor-pointer">
               {isAr ? 'متابعة' : 'Follow'}
             </button>
           </div>
@@ -723,23 +723,23 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             <div className="grid grid-cols-3 gap-2 pt-1 text-center">
               {!!activeSellerProfile?.rating && (
                 <div className="flex flex-col items-center">
-                  <span className="text-[11px] font-black text-gray-800 flex items-center gap-0.5">
+                  <span className="text-[11px] font-black text-fg flex items-center gap-0.5">
                     <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                     {activeSellerProfile.rating.toFixed(1)}
                   </span>
-                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Rating</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Rating</span>
                 </div>
               )}
               {!!activeSellerProfile?.totalSales && (
-                <div className="flex flex-col items-center border-x border-gray-100">
-                  <span className="text-[11px] font-black text-gray-800">{activeSellerProfile.totalSales}</span>
-                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Sales</span>
+                <div className="flex flex-col items-center border-x border-line">
+                  <span className="text-[11px] font-black text-fg">{activeSellerProfile.totalSales}</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Sales</span>
                 </div>
               )}
               {!!trustScore && (
                 <div className="flex flex-col items-center">
-                  <span className="text-[11px] font-black text-gray-800">{trustScore}%</span>
-                  <span className="text-[8px] text-gray-400 font-semibold uppercase mt-1">Trust</span>
+                  <span className="text-[11px] font-black text-fg">{trustScore}%</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Trust</span>
                 </div>
               )}
             </div>
@@ -760,7 +760,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             columns (video included). Anchoring them to this card is the whole
             point of the overlay; overflow-hidden clips them to its rounded
             corners. Safe for FirstBidCoach — it is relative + in-flow. */}
-        <div className="relative overflow-hidden bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }} id="desktop-bid-panel">
+        <div className="relative overflow-hidden bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col gap-3 shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }} id="desktop-bid-panel">
           {isEnded ? (
             <div className="w-full bg-amber-50/60 border border-amber-200 rounded-2xl p-4 text-center flex flex-col items-center justify-center gap-3.5">
               {(() => {
@@ -777,7 +777,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         <span className="text-emerald-600 font-black text-sm block">
                           {isAr ? 'مبروك 🎉 ربحت المزاد' : 'Congratulations! You won the auction'}
                         </span>
-                        <span className="text-gray-500 text-[11px] font-semibold block">
+                        <span className="text-fg-muted text-[11px] font-semibold block">
                           {isAr ? 'الطلب صار بانتظار الدفع/التأكيد' : 'The order is pending payment/confirmation'}
                         </span>
                         {activeAuction?.marketPrice && activeAuction.marketPrice > activePrice ? (
@@ -805,14 +805,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 } else if (hasUserBid) {
                   return (
                     <>
-                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-2xl">
+                      <div className="w-12 h-12 rounded-full bg-surface-sunken flex items-center justify-center text-2xl">
                         🏁
                       </div>
                       <div className="space-y-1">
-                        <span className="text-gray-800 font-black text-sm block">
+                        <span className="text-fg font-black text-sm block">
                           {isAr ? 'انتهى المزاد' : 'Auction Ended'}
                         </span>
-                        <span className="text-gray-500 text-[11px] block font-bold">
+                        <span className="text-fg-muted text-[11px] block font-bold">
                           {isAr ? 'لم تربح هذه المرة' : 'You did not win this time'}
                         </span>
                         <span className="text-emerald-600 text-[10.5px] font-bold block bg-emerald-50 border border-emerald-200 py-1 px-2.5 rounded-lg mt-1">
@@ -823,7 +823,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         onClick={() => {
                           setActiveView('discovery');
                         }}
-                        className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                        className="w-full py-2 bg-surface-sunken hover:bg-gray-200 text-fg rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
                       >
                         {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
                       </button>
@@ -832,15 +832,15 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 } else {
                   return (
                     <>
-                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-xl">
+                      <div className="w-12 h-12 rounded-full bg-surface-sunken flex items-center justify-center text-xl">
                         🏁
                       </div>
                       <div className="space-y-1">
-                        <span className="text-gray-800 font-black text-sm block">
+                        <span className="text-fg font-black text-sm block">
                           {isAr ? 'انتهى المزاد' : 'Auction Ended'}
                         </span>
                         {activeAuction?.currentBidderName && (
-                          <span className="text-gray-400 text-[10px] block">
+                          <span className="text-fg-muted text-[10px] block">
                             {isAr ? `الفائز: ${activeAuction.currentBidderName} بقيمة ${activePrice} د.أ` : `Winner: ${activeAuction.currentBidderName} at ${activePrice} JOD`}
                           </span>
                         )}
@@ -849,7 +849,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         onClick={() => {
                           setActiveView('discovery');
                         }}
-                        className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
+                        className="w-full py-2 bg-surface-sunken hover:bg-gray-200 text-fg rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
                       >
                         {isAr ? 'تصفح مزادات أخرى' : 'Browse other auctions'}
                       </button>
@@ -864,7 +864,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   Moved off the media overlay onto the bid panel so it reads
                   honestly. Renders only in the live (!isEnded) branch. */}
               <span className="bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md inline-flex items-center gap-1 shadow-sm w-fit">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping shrink-0" />
+                <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-ping shrink-0" />
                 {isAr ? 'مزايدة مباشرة' : 'LIVE BIDDING'}
               </span>
 
@@ -881,7 +881,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       <Pressable
                         key={amount}
                         onClick={() => setPendingBid(amount)}
-                        className="flex-1 py-1.5 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-orange-100"
+                        className="flex-1 py-1.5 rounded-xl bg-accent-weak border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-accent-weak"
                       >
                         {isAr ? 'زايد' : 'Bid'} {compactJod(amount)} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JOD'}</span>
                       </Pressable>
@@ -890,14 +890,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 );
               })()}
 
-              <div className="grid grid-cols-3 gap-4 border-b border-gray-100 pb-2.5">
+              <div className="grid grid-cols-3 gap-4 border-b border-line pb-2.5">
                 {/* Current Bid */}
                 <div className="flex flex-col text-left rtl:text-right">
-                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                  <span className="text-[9px] text-fg-muted font-bold uppercase tracking-wider">
                     {priceLabel(activeAuction?.totalBids, isAr)}
                   </span>
                   <span className="text-lg font-black text-[#E85D04] font-mono tabular-nums mt-0.5 leading-none">
-                    <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-gray-500">JOD</span>
+                    <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-fg-muted">JOD</span>
                   </span>
                   <span className="text-[9px] text-emerald-600 font-semibold mt-1 block leading-none">
                     +{(activeAuction.minIncrement || 10)} JOD
@@ -915,8 +915,8 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 </div>
 
                 {/* Time Remaining */}
-                <div className="flex flex-col items-center justify-center border-x border-gray-100 px-2">
-                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                <div className="flex flex-col items-center justify-center border-x border-line px-2">
+                  <span className="text-[9px] text-fg-muted font-bold uppercase tracking-wider mb-0.5">
                     {isAwaitingFirstBid(activeAuction)
                       ? (isAr ? 'الحالة' : 'Status')
                       : !isAuctionOpen(activeAuction?.status) && activeAuction?.scheduledStartAt
@@ -933,7 +933,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     className="text-sm font-bold font-mono tracking-wider"
                   />
                   {!isAwaitingFirstBid(activeAuction) && (
-                    <span className="text-[8px] text-gray-400 tracking-widest uppercase mt-0.5">
+                    <span className="text-[8px] text-fg-muted tracking-widest uppercase mt-0.5">
                       HRS : MIN : SEC
                     </span>
                   )}
@@ -941,14 +941,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
                 {/* Top Bidder */}
                 <div className="flex flex-col text-right rtl:text-left">
-                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                  <span className="text-[9px] text-fg-muted font-bold uppercase tracking-wider">
                     {isAr ? 'المزايد الأعلى' : 'Top Bidder'}
                   </span>
-                  <span className="text-xs font-bold text-gray-800 truncate mt-1 leading-none">
+                  <span className="text-xs font-bold text-fg truncate mt-1 leading-none">
                     {recentBids?.[0]?.name || activeAuction.currentBidderName || (isAr ? 'لا يوجد عطاء' : 'No bidder')}
                   </span>
                   {typeof trustScore === 'number' && (
-                    <span className="text-[9px] text-gray-400 font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
+                    <span className="text-[9px] text-fg-muted font-medium mt-1 leading-none flex items-center gap-0.5 justify-end">
                       ★ {trustScore}%
                     </span>
                   )}
@@ -999,7 +999,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {/* Bid CTA (hidden until the auction is open) */}
               <div className="w-full">
                 {!isAuctionOpen(activeAuction?.status) ? (
-                  <div className="w-full rounded-xl bg-gray-100 text-gray-700 text-center p-4">
+                  <div className="w-full rounded-xl bg-surface-sunken text-fg text-center p-4">
                     <div className="text-sm opacity-80">{isAr ? 'يبدأ المزاد' : 'Auction starts'}</div>
                     <div className="text-lg font-bold">
                       {activeAuction?.scheduledStartAt ? formatAmmanClock(activeAuction.scheduledStartAt) : (isAr ? 'قريباً' : 'Soon')}
@@ -1033,7 +1033,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                           : `Bid ${nextBidAmount.toLocaleString()} JOD`}
                       </span>
                     </Pressable>
-                    <p className="text-[11px] text-gray-400 text-center mt-1">
+                    <p className="text-[11px] text-fg-muted text-center mt-1">
                       {isAr
                         ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
                         : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
@@ -1042,7 +1042,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     <button
                       type="button"
                       onClick={() => setRulesOpen(true)}
-                      className="mx-auto mt-1.5 flex items-center gap-1 text-[10.5px] font-bold text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer"
+                      className="mx-auto mt-1.5 flex items-center gap-1 text-[10.5px] font-bold text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer"
                       id="desktop-bid-rules-link"
                     >
                       <Info className="w-3 h-3" />
@@ -1090,7 +1090,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
             overflow this fixed 360px column at tall viewports. */}
         {descriptionText && (
           <div
-            className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm shrink-0"
+            className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm shrink-0"
             id="desktop-auction-description"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
           >
@@ -1098,12 +1098,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 explicit 1rem line-height. A bare `text-[12px]` sets no
                 line-height at all, and Arabic glyphs clip under the ~1.2
                 normal default. Matches the sibling card headers. */}
-            <h2 className="text-xs font-extrabold text-gray-800 uppercase tracking-wider pb-2 mb-2 border-b border-gray-50">
+            <h2 className="text-xs font-extrabold text-fg uppercase tracking-wider pb-2 mb-2 border-b border-line">
               {isAr ? 'التفاصيل' : 'Details'}
             </h2>
             <p
               ref={descriptionRef}
-              className={`text-[12px] leading-relaxed text-gray-600 whitespace-pre-line ${
+              className={`text-[12px] leading-relaxed text-fg-muted whitespace-pre-line ${
                 descriptionExpanded ? '' : 'line-clamp-4'
               }`}
             >
@@ -1126,12 +1126,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         )}
 
         {/* Card 3: Bid History Card */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col min-h-[180px] max-h-[220px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
-            <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
+        <div className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col min-h-[180px] max-h-[220px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-line shrink-0">
+            <span className="text-xs font-extrabold text-fg uppercase tracking-wider">
               {isAr ? 'سجل المزايدات' : 'Bid History'}
             </span>
-            <button className="text-[10px] font-bold text-gray-400 hover:text-gray-600">
+            <button className="text-[10px] font-bold text-fg-muted hover:text-fg-muted">
               {isAr ? 'عرض الكل' : 'See all'}
             </button>
           </div>
@@ -1159,27 +1159,27 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     key={bid.id || index}
                     className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
                       isHighest 
-                        ? 'bg-orange-50/50 border-orange-200/60' 
-                        : 'bg-white border-gray-100'
+                        ? 'bg-accent-weak/50 border-orange-200/60' 
+                        : 'bg-surface-raised border-line'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200/60 flex items-center justify-center font-bold text-[10px] text-gray-500 shrink-0 uppercase">
+                      <div className="w-7 h-7 rounded-full bg-surface-sunken border border-line/60 flex items-center justify-center font-bold text-[10px] text-fg-muted shrink-0 uppercase">
                         {bid.name?.[0] || 'U'}
                       </div>
                       <div className="min-w-0 text-left rtl:text-right">
-                        <span className="text-[11px] font-bold text-gray-800 block truncate leading-none">{bid.name}</span>
-                        <span className="text-[9px] text-gray-400 mt-1 block leading-none">{bid.time || 'Just now'}</span>
+                        <span className="text-[11px] font-bold text-fg block truncate leading-none">{bid.name}</span>
+                        <span className="text-[9px] text-fg-muted mt-1 block leading-none">{bid.time || 'Just now'}</span>
                       </div>
                     </div>
-                    <span className={`text-xs font-black font-mono ${isHighest ? 'text-[#E85D04]' : 'text-gray-700'}`}>
-                      {bid.amount.toLocaleString()} <span className="text-[8.5px] font-normal text-gray-400">JOD</span>
+                    <span className={`text-xs font-black font-mono ${isHighest ? 'text-[#E85D04]' : 'text-fg'}`}>
+                      {bid.amount.toLocaleString()} <span className="text-[8.5px] font-normal text-fg-muted">JOD</span>
                     </span>
                   </div>
                 );
               })
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                <div className="h-full flex items-center justify-center text-fg-muted text-xs">
                   {isAr ? 'لا يوجد عطاءات بعد' : 'No bids yet'}
                 </div>
               );
@@ -1188,16 +1188,16 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
         </div>
 
         {/* Card 4: Modern Live Chat */}
-        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col h-[280px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
+        <div className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col h-[280px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-line shrink-0">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
+              <span className="text-xs font-extrabold text-fg uppercase tracking-wider">
                 {isAr ? 'الدردشة الحية' : 'Live Chat'}
               </span>
             </div>
             {activeComments && activeComments.length > 0 && (
-              <span className="text-[9px] text-gray-400 font-bold">● {activeComments.length.toLocaleString()}</span>
+              <span className="text-[9px] text-fg-muted font-bold">● {activeComments.length.toLocaleString()}</span>
             )}
           </div>
 
@@ -1209,19 +1209,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <img
                     src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
                     alt=""
-                    className="w-6 h-6 rounded-full object-cover shrink-0 border border-gray-100"
+                    className="w-6 h-6 rounded-full object-cover shrink-0 border border-line"
                     referrerPolicy="no-referrer"
                   />
                   <div className="flex-1 min-w-0 text-left rtl:text-right">
-                    <span className="text-[10px] font-bold text-gray-400 block leading-none mb-1">{msg.userName}</span>
-                    <div className={`inline-block px-3 py-1.5 text-xs text-gray-800 bg-gray-50 rounded-2xl border border-gray-100 leading-snug max-w-[90%] break-words ${isAr ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
+                    <span className="text-[10px] font-bold text-fg-muted block leading-none mb-1">{msg.userName}</span>
+                    <div className={`inline-block px-3 py-1.5 text-xs text-fg bg-surface-sunken rounded-2xl border border-line leading-snug max-w-[90%] break-words ${isAr ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
                       {msg.text}
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+              <div className="h-full flex items-center justify-center text-fg-muted text-xs">
                 {!isAuthenticated
                   ? (isAr ? 'سجّل دخولك لعرض الدردشة الحية' : 'Sign in to see the live chat')
                   : (isAr ? 'أرسل رسالة للبث المباشر...' : 'Send a message to start chatting...')}
@@ -1241,14 +1241,14 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               {isAr ? 'سجّل مجاناً للمشاركة في الدردشة' : 'Sign up free to join the chat'}
             </button>
           ) : (
-            <form onSubmit={onCommentSubmit} className="flex items-center gap-2 border border-gray-200 rounded-xl px-2.5 py-1.5 bg-gray-50 shrink-0">
-              <Smile className="w-4 h-4 text-gray-400 shrink-0 cursor-pointer hover:text-gray-600" />
+            <form onSubmit={onCommentSubmit} className="flex items-center gap-2 border border-line rounded-xl px-2.5 py-1.5 bg-surface-sunken shrink-0">
+              <Smile className="w-4 h-4 text-fg-muted shrink-0 cursor-pointer hover:text-fg-muted" />
               <input
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder={isAr ? 'اكتب تعليقاً...' : 'Type a message...'}
-                className="flex-1 text-xs text-gray-800 placeholder-gray-400 outline-none bg-transparent"
+                className="flex-1 text-xs text-fg placeholder-gray-400 outline-none bg-transparent"
               />
               <button type="submit" className="text-[#E85D04] hover:text-orange-600 shrink-0 transition-colors cursor-pointer">
                 <Send className="w-4 h-4" />

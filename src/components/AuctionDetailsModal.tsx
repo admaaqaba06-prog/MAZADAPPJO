@@ -164,24 +164,24 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
       />
       
       <div 
-        className="relative bg-white text-gray-800 w-full max-w-md h-[100dvh] md:h-auto md:max-h-[85vh] md:rounded-[24px] overflow-hidden flex flex-col shadow-2xl z-10 animate-in slide-in-from-bottom duration-300"
+        className="relative bg-surface-raised text-fg w-full max-w-md h-[100dvh] md:h-auto md:max-h-[85vh] md:rounded-[24px] overflow-hidden flex flex-col shadow-2xl z-10 animate-in slide-in-from-bottom duration-300"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
       >
         
         {/* Modal Top Header with Lot title & category */}
-        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/70 shrink-0">
+        <div className="p-4 border-b border-line flex justify-between items-center bg-surface-sunken/70 shrink-0">
           <div>
             <span className="text-[9px] bg-[#FF6B00]/10 text-[#FF6B00] px-2 py-0.5 rounded-full font-black uppercase font-mono">
               {isAr ? 'تفاصيل المزاد والضمان' : `LOT DETAILS • ${auction.category.toUpperCase()}`}
             </span>
-            <h3 className="text-xs font-black text-gray-900 mt-1 uppercase tracking-tight">
+            <h3 className="text-xs font-black text-fg mt-1 uppercase tracking-tight">
               {isAr ? 'مواصفات المعروض القانونية' : 'OFFICIAL SECURED CHARACTERISTICS'}
             </h3>
           </div>
           
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-gray-700 flex items-center justify-center transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-surface-sunken hover:bg-surface-sunken text-fg flex items-center justify-center transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -226,7 +226,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           </div>
 
           <div>
-            <h1 className="text-base font-black text-gray-900 leading-tight">
+            <h1 className="text-base font-black text-fg leading-tight">
               {auction.title}
             </h1>
             {(() => {
@@ -243,7 +243,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
               const text = String(auction.description || '').trim();
               if (!text || text === String(auction.title || '').trim()) return null;
               return (
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed bg-zinc-50 border border-zinc-100 p-3 rounded-xl">
+                <p className="text-xs text-fg-muted mt-1.5 leading-relaxed bg-surface-sunken border border-line p-3 rounded-xl">
                   {text}
                 </p>
               );
@@ -253,9 +253,9 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {/* Condition tile — real seller-provided field only; hidden when absent. */}
           {conditionLabel && (
             <div className="grid grid-cols-1 gap-2.5">
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100" style={{ textAlign: isAr ? 'right' : 'left' }}>
-                <span className="text-[9px] text-gray-400 font-bold uppercase block">{isAr ? 'حالة السلعة' : 'CONDITION'}</span>
-                <span className="text-xs font-black text-gray-800 font-mono mt-0.5 block">{conditionLabel}</span>
+              <div className="bg-surface-sunken p-3 rounded-xl border border-line" style={{ textAlign: isAr ? 'right' : 'left' }}>
+                <span className="text-[9px] text-fg-muted font-bold uppercase block">{isAr ? 'حالة السلعة' : 'CONDITION'}</span>
+                <span className="text-xs font-black text-fg font-mono mt-0.5 block">{conditionLabel}</span>
               </div>
             </div>
           )}
@@ -263,7 +263,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {/* Buyer-protection banner — honest Mazad-holds-funds model (no regulated/audited claim). */}
           <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-3 flex gap-2.5 items-start">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-[10px] leading-relaxed text-gray-600">
+            <div className="text-[10px] leading-relaxed text-fg-muted">
               <span className="text-emerald-800 font-black uppercase text-[10px] block mb-0.5">
                 {isAr ? 'حماية المشتري' : 'BUYER PROTECTION'}
               </span>
@@ -274,16 +274,16 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           </div>
 
           {/* Bid values pricing table */}
-          <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-3 space-y-2">
+          <div className="bg-surface-sunken border border-line/60 rounded-xl p-3 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-gray-500 font-bold">{priceLabel(auction.totalBids, isAr)}</span>
+              <span className="text-fg-muted font-bold">{priceLabel(auction.totalBids, isAr)}</span>
               <span className="text-sm font-black text-[#FF6B00] font-mono">{auction.currentPrice.toLocaleString()} JOD</span>
             </div>
-            <div className="flex justify-between items-center text-xs border-t border-zinc-200/50 pt-2">
-              <span className="text-gray-500">{isAr ? 'صاحب العرض القيادي' : 'LEADING BIDDER'}</span>
-              <span className="text-[11px] font-bold text-gray-800">{auction.currentBidderName || (isAr ? 'لا مزايدات حتى الآن' : 'No offers yet')}</span>
+            <div className="flex justify-between items-center text-xs border-t border-line/50 pt-2">
+              <span className="text-fg-muted">{isAr ? 'صاحب العرض القيادي' : 'LEADING BIDDER'}</span>
+              <span className="text-[11px] font-bold text-fg">{auction.currentBidderName || (isAr ? 'لا مزايدات حتى الآن' : 'No offers yet')}</span>
             </div>
-            <div className="flex justify-between items-center text-[10.5px] border-t border-zinc-200/50 pt-2 text-zinc-500">
+            <div className="flex justify-between items-center text-[10.5px] border-t border-line/50 pt-2 text-zinc-500">
               <span>{isAr ? 'الحد الأدنى للزيادة' : 'MIN INCREMENTAL'}</span>
               <span className="font-mono">{auction.minIncrement} JOD</span>
             </div>
@@ -318,7 +318,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
           {/* Interactive instant bidding triggers */}
           {auction.status === 'live' && (
             <div className="space-y-2">
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+              <span className="text-[10px] text-fg-muted font-bold uppercase tracking-wider block">
                 {isAr ? 'مزايدة فورية بلمسة واحدة' : 'ONE-TOUCH INSTANT BID'}
               </span>
               
@@ -333,7 +333,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                           key={amount}
                           disabled={submitting}
                           onClick={() => openConfirm(amount)}
-                          className="py-2.5 bg-white hover:bg-[#FF6B00] hover:text-white border border-gray-200 text-gray-800 font-black rounded-xl text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="py-2.5 bg-surface-raised hover:bg-[#FF6B00] hover:text-white border border-line text-fg font-black rounded-xl text-xs font-mono transition-all text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-[10.5px]">
                             {amount > auction.currentPrice
@@ -344,7 +344,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
                         </button>
                       ))}
                     </div>
-                    <p className="text-[11px] text-gray-400 text-center mt-1">
+                    <p className="text-[11px] text-fg-muted text-center mt-1">
                       {isAr
                         ? `المجموع عند الفوز: ${totalWithPremium(base).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
                         : `Total if you win: ${totalWithPremium(base).toLocaleString()} JOD (incl. 5% buyer's premium)`}
@@ -378,7 +378,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
         </div>
 
         {/* Modal sticky bottom action - join live rooms */}
-        <div className="p-4 border-t border-gray-100 bg-white flex gap-3 shrink-0">
+        <div className="p-4 border-t border-line bg-surface-raised flex gap-3 shrink-0">
           <button
             onClick={() => {
               setActiveAuctionId(auction.id);
@@ -393,7 +393,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
 
           <button
             onClick={onClose}
-            className="px-4 py-3 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-xs font-bold uppercase cursor-pointer"
+            className="px-4 py-3 border border-line hover:bg-surface-sunken text-fg-muted rounded-xl text-xs font-bold uppercase cursor-pointer"
           >
             {isAr ? 'إغلاق' : 'CLOSE'}
           </button>

@@ -56,7 +56,7 @@ export const SubscriptionView: React.FC = () => {
       price: SUBSCRIPTION_TIERS.monthly.price,
       period: t.planMonthlyUnit,
       badge: null,
-      color: 'border-gray-200'
+      color: 'border-line'
     },
     {
       id: 'semiannual', // 4 JD / 6 months (see translations planQuarterlyUnit) — was mislabeled 'quarterly'
@@ -205,7 +205,7 @@ export const SubscriptionView: React.FC = () => {
 
   return (
     <div
-      className="h-full w-full overflow-y-auto bg-white text-gray-900 flex flex-col justify-between p-6 md:p-12 pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans select-none"
+      className="h-full w-full overflow-y-auto bg-surface-raised text-fg flex flex-col justify-between p-6 md:p-12 pb-[calc(6rem+env(safe-area-inset-bottom))] font-sans select-none"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="subscription-view-root"
     >
@@ -213,23 +213,23 @@ export const SubscriptionView: React.FC = () => {
       <Confetti fire={celebrate} onDone={() => setCelebrate(false)} />
 
       {/* Top Header */}
-      <header className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-gray-100 pb-4">
+      <header className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-line pb-4">
         <div className="flex items-center gap-1.5">
           <div className="w-6 h-6 rounded bg-[#FF6B00] text-white flex items-center justify-center font-bold text-xs" />
-          <span className="font-mono text-xs font-black tracking-wider text-gray-400 uppercase">{t.appName} EXECUTIVE GATE</span>
+          <span className="font-mono text-xs font-black tracking-wider text-fg-muted uppercase">{t.appName} EXECUTIVE GATE</span>
         </div>
 
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-            className="text-[10px] font-black tracking-wider font-mono border border-gray-200 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 uppercase"
+            className="text-[10px] font-black tracking-wider font-mono border border-line px-2.5 py-1.5 rounded-lg hover:bg-surface-sunken uppercase"
           >
             {t.langLabel}
           </button>
           
           <button 
             onClick={logout}
-            className="text-[10.5px] font-extrabold text-gray-400 hover:text-red-500 hover:underline"
+            className="text-[10.5px] font-extrabold text-fg-muted hover:text-red-500 hover:underline"
           >
             {t.logout}
           </button>
@@ -246,11 +246,11 @@ export const SubscriptionView: React.FC = () => {
               <div className="mx-auto w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
               </div>
-              <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">
+              <h1 className="text-xl md:text-2xl font-black text-fg tracking-tight">
                 {isAr ? 'عضويتك فعّالة' : "You're a member"}
               </h1>
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider text-gray-500 font-mono">
+                <span className="text-xs font-black uppercase tracking-wider text-fg-muted font-mono">
                   {plans.find(p => p.id === currentTierId)?.name || currentTierId}
                 </span>
                 <span className="text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
@@ -258,7 +258,7 @@ export const SubscriptionView: React.FC = () => {
                 </span>
               </div>
               {formatExpiry(currentUser?.subscriptionExpiry) && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-fg-muted">
                   {isAr ? 'يتجدد / ينتهي في ' : 'Renews / expires '}{formatExpiry(currentUser?.subscriptionExpiry)}
                 </p>
               )}
@@ -274,13 +274,13 @@ export const SubscriptionView: React.FC = () => {
             )}
 
             {/* Member benefits */}
-            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-              <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3">
+            <div className="bg-surface-sunken border border-line rounded-2xl p-4">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-fg-muted mb-3">
                 {isAr ? 'مزايا العضوية' : 'Member benefits'}
               </h2>
               <ul className="space-y-2">
                 {memberBenefits.map((b, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs font-medium text-gray-700">
+                  <li key={i} className="flex items-start gap-2 text-xs font-medium text-fg">
                     <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{b}</span>
                   </li>
@@ -290,12 +290,12 @@ export const SubscriptionView: React.FC = () => {
 
             {/* Upgrade options (only tiers above the current one) */}
             {isTopTier ? (
-              <div className="text-center text-xs text-gray-400 font-semibold py-2">
+              <div className="text-center text-xs text-fg-muted font-semibold py-2">
                 {isAr ? '👑 أنت على أعلى باقة.' : "👑 You're on the top plan."}
               </div>
             ) : (
               <div>
-                <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3">
+                <h2 className="text-[11px] font-black uppercase tracking-wider text-fg-muted mb-3">
                   {isAr ? 'ترقية العضوية' : 'Upgrade'}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -303,12 +303,12 @@ export const SubscriptionView: React.FC = () => {
                     <button
                       key={p.id}
                       onClick={() => { setSelectedPlan(p); setUpgrading(true); }}
-                      className={`relative rounded-2xl border-2 p-4 text-start hover:bg-gray-50/50 transition-all cursor-pointer ${p.color}`}
+                      className={`relative rounded-2xl border-2 p-4 text-start hover:bg-surface-sunken/50 transition-all cursor-pointer ${p.color}`}
                     >
-                      <h3 className="font-black text-xs uppercase tracking-wider text-gray-400 font-mono">{p.name}</h3>
+                      <h3 className="font-black text-xs uppercase tracking-wider text-fg-muted font-mono">{p.name}</h3>
                       <div className="flex items-baseline mt-1">
-                        <span className="text-2xl font-black text-gray-900 font-mono">{p.price}</span>
-                        <span className="text-[10px] text-gray-500 font-mono font-bold uppercase ms-1">{p.period}</span>
+                        <span className="text-2xl font-black text-fg font-mono">{p.price}</span>
+                        <span className="text-[10px] text-fg-muted font-mono font-bold uppercase ms-1">{p.period}</span>
                       </div>
                       <span className="mt-2 inline-block text-[10px] font-black text-[#E85D04]">
                         {isAr ? 'ترقية ←' : 'Upgrade →'}
@@ -316,7 +316,7 @@ export const SubscriptionView: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-400 text-center mt-3">
+                <p className="text-[10px] text-fg-muted text-center mt-3">
                   {isAr ? 'الترقية = باقة جديدة كاملة بالسعر الأعلى؛ تبقى عضويتك فعّالة أثناء المراجعة.' : 'Upgrade = a fresh full term at the higher tier; your membership stays active during review.'}
                 </p>
               </div>
@@ -329,12 +329,12 @@ export const SubscriptionView: React.FC = () => {
             <div className="mx-auto w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <Hourglass className="w-6 h-6 text-emerald-600" />
             </div>
-            <h1 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+            <h1 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">
               {isAr
                 ? '✅ استلمنا طلبك — قيد المراجعة'
                 : '✅ We got your request — under review'}
             </h1>
-            <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+            <p className="text-xs text-fg-muted max-w-sm mx-auto leading-relaxed">
               {isAr
                 ? 'سنفعّل عضويتك خلال دقائق. لا حاجة لإعادة الإرسال — ستصلك إشعار فور التفعيل.'
                 : 'We will activate your membership within minutes. No need to resubmit — you will be notified the moment it goes live.'}
@@ -351,19 +351,19 @@ export const SubscriptionView: React.FC = () => {
         {currentUser?.subscriptionStatus === 'active' && upgrading && (
           <button
             onClick={() => setUpgrading(false)}
-            className="mb-4 text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 cursor-pointer"
+            className="mb-4 text-xs font-bold text-fg-muted hover:text-fg flex items-center gap-1 cursor-pointer"
           >
             ← {isAr ? 'رجوع للعضوية' : 'Back to membership'}
           </button>
         )}
         <div className="text-center space-y-3 mb-8">
-          <div className="mx-auto w-10 h-10 rounded-full bg-orange-100/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
+          <div className="mx-auto w-10 h-10 rounded-full bg-accent-weak/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-5 h-5 fill-current text-white stroke-[#FF6B00]" />
           </div>
-          <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight leading-tight uppercase font-mono">
+          <h1 className="text-xl md:text-2xl font-black text-fg tracking-tight leading-tight uppercase font-mono">
             {t.paywallTitle}
           </h1>
-          <p className="text-xs text-gray-500 max-w-lg mx-auto leading-relaxed">
+          <p className="text-xs text-fg-muted max-w-lg mx-auto leading-relaxed">
             {t.paywallSub}
           </p>
         </div>
@@ -375,7 +375,7 @@ export const SubscriptionView: React.FC = () => {
               <div 
                 key={p.id}
                 onClick={() => setSelectedPlan(p)}
-                className={`relative rounded-2xl border-2 p-5 cursor-pointer hover:bg-gray-50/50 transition-all ${isSelected ? p.color : 'border-gray-100'}`}
+                className={`relative rounded-2xl border-2 p-5 cursor-pointer hover:bg-surface-sunken/50 transition-all ${isSelected ? p.color : 'border-line'}`}
                 id={`plan-${p.id}-card`}
               >
                 {p.badge && (
@@ -386,16 +386,16 @@ export const SubscriptionView: React.FC = () => {
 
                 <div className="flex flex-col h-full justify-between space-y-4">
                   <div>
-                    <h3 className="font-black text-xs uppercase tracking-wider text-gray-400 font-mono">
+                    <h3 className="font-black text-xs uppercase tracking-wider text-fg-muted font-mono">
                       {p.name}
                     </h3>
                     <div className="flex items-baseline mt-1">
-                      <span className="text-2xl font-black text-gray-900 font-mono">{p.price}</span>
-                      <span className="text-[10px] text-gray-500 font-mono font-bold uppercase">{p.period}</span>
+                      <span className="text-2xl font-black text-fg font-mono">{p.price}</span>
+                      <span className="text-[10px] text-fg-muted font-mono font-bold uppercase">{p.period}</span>
                     </div>
                   </div>
 
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#FF6B00] bg-[#FF6B00]' : 'border-gray-200'}`}>
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#FF6B00] bg-[#FF6B00]' : 'border-line'}`}>
                     {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[4]" />}
                   </div>
                 </div>
@@ -405,49 +405,49 @@ export const SubscriptionView: React.FC = () => {
         </div>
 
         {/* BANK TRANSFER INFO BOX */}
-        <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-5 mb-6 space-y-3 font-sans">
-          <div className="text-xs font-black text-gray-800 uppercase tracking-tight font-mono">
+        <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-5 mb-6 space-y-3 font-sans">
+          <div className="text-xs font-black text-fg uppercase tracking-tight font-mono">
             {isAr ? 'بيانات التحويل المصرفي / Bank Transfer Info' : 'Transfer Payment To:'}
           </div>
-          <div className="space-y-1.5 text-xs text-gray-800">
+          <div className="space-y-1.5 text-xs text-fg">
             {/* CliQ alias — PRIMARY transfer target (IBAN stays as fallback) */}
             <div className="border-b border-orange-100 pb-1.5 space-y-0.5">
               <div className="flex justify-between items-center gap-2">
-                <span className="font-bold text-gray-500">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
+                <span className="font-bold text-fg-muted">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-mono font-black text-gray-900 select-all">{CLIQ_ALIAS}</span>
+                  <span className="font-mono font-black text-fg select-all">{CLIQ_ALIAS}</span>
                   <button
                     type="button"
                     onClick={handleCopyAlias}
-                    className="p-1 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                    className="p-1 bg-surface-raised border border-line rounded-lg text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                   >
                     {copiedAlias ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
-              <p className="text-[9.5px] text-gray-500 font-bold">
+              <p className="text-[9.5px] text-fg-muted font-bold">
                 {isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias'}
               </p>
             </div>
             <div className="flex justify-between border-b border-orange-100 pb-1.5">
-              <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
-              <span className="font-black text-gray-900 font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
+              <span className="font-bold text-fg-muted">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
+              <span className="font-black text-fg font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
             </div>
             <div className="flex justify-between pb-1.5">
-              <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
+              <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
               <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
             </div>
           </div>
         </div>
 
         {/* TWO NEW INPUT FIELDS */}
-        <div className="bg-gray-50/50 border border-gray-200 rounded-2xl p-5 mb-6 space-y-4">
-          <div className="text-xs font-black text-gray-800 uppercase tracking-tight font-mono">
+        <div className="bg-surface-sunken/50 border border-line rounded-2xl p-5 mb-6 space-y-4">
+          <div className="text-xs font-black text-fg uppercase tracking-tight font-mono">
             {isAr ? 'معلومات التحقق من التحويل' : 'VERIFICATION DETAILS'}
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-gray-600">
+            <label className="block text-[11px] font-bold text-fg-muted">
               {isAr ? 'الاسم الثلاثي / Your Full Name' : 'Your Full Name / الاسم الثلاثي'} <span className="text-red-500">*</span>
             </label>
             <input
@@ -456,12 +456,12 @@ export const SubscriptionView: React.FC = () => {
               value={transferFullName}
               onChange={(e) => setTransferFullName(e.target.value)}
               placeholder={isAr ? 'أدخل اسمك الثلاثي كما هو في الهوية' : 'Enter your full name as on your ID'}
-              className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-gray-800 text-xs focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00]"
+              className="w-full bg-surface-raised border border-line rounded-xl py-2.5 px-3.5 text-fg text-xs focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00]"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-gray-600">
+            <label className="block text-[11px] font-bold text-fg-muted">
               {isAr ? 'رقم الهاتف المحول منه / Phone Number Used' : 'Phone Number Used for Transfer / رقم الهاتف المحول منه'} <span className="text-red-500">*</span>
             </label>
             <input
@@ -470,15 +470,15 @@ export const SubscriptionView: React.FC = () => {
               value={transferPhone}
               onChange={(e) => setTransferPhone(e.target.value)}
               placeholder="07XXXXXXXX"
-              className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-gray-800 text-xs focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
+              className="w-full bg-surface-raised border border-line rounded-xl py-2.5 px-3.5 text-fg text-xs focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] font-mono"
             />
           </div>
         </div>
 
         {/* Upload field for payment screenshot / ارفع إيصال الدفع */}
-        <div className="bg-gray-50/50 border border-gray-200 rounded-2xl p-5 mb-6 space-y-3.5">
+        <div className="bg-surface-sunken/50 border border-line rounded-2xl p-5 mb-6 space-y-3.5">
           <div className="flex justify-between items-center">
-            <label className="text-xs font-black text-gray-800 uppercase tracking-tight font-mono">
+            <label className="text-xs font-black text-fg uppercase tracking-tight font-mono">
               {isAr ? 'ارفع إيصال الدفع / Upload Payment Screenshot' : 'Upload Payment Screenshot / ارفع إيصال الدفع'}
             </label>
             {paymentProofImage && (
@@ -488,7 +488,7 @@ export const SubscriptionView: React.FC = () => {
             )}
           </div>
           
-          <div className="relative border-2 border-dashed border-gray-200 hover:border-gray-400 transition-all rounded-xl p-5 flex flex-col items-center justify-center bg-white cursor-pointer group min-h-[140px]">
+          <div className="relative border-2 border-dashed border-line hover:border-gray-400 transition-all rounded-xl p-5 flex flex-col items-center justify-center bg-surface-raised cursor-pointer group min-h-[140px]">
             <input 
               type="file" 
               accept="image/png, image/jpeg, image/jpg" 
@@ -501,30 +501,30 @@ export const SubscriptionView: React.FC = () => {
                 <img 
                   src={paymentProofImage} 
                   alt="Payment Proof" 
-                  className="max-h-56 w-auto object-contain rounded-lg border border-gray-200 shadow-sm"
+                  className="max-h-56 w-auto object-contain rounded-lg border border-line shadow-sm"
                   referrerPolicy="no-referrer"
                 />
                 <button
                   type="button"
-                  className="text-[10px] text-gray-400 font-bold hover:text-[#FF6B00] transition-colors"
+                  className="text-[10px] text-fg-muted font-bold hover:text-[#FF6B00] transition-colors"
                 >
                   {isAr ? 'تغيير لقطة الشاشة' : 'Click to change screenshot'}
                 </button>
               </div>
             ) : (
               <div className="flex flex-col items-center text-center space-y-2">
-                <UploadCloud className="w-8 h-8 text-gray-400 group-hover:text-[#FF6B00] transition-colors" />
-                <p className="text-xs text-gray-700 font-extrabold">{isAr ? 'اضغط هنا لرفع إيصال الدفعة' : 'Click here to upload payment screenshot'}</p>
-                <p className="text-[9.5px] text-gray-400 font-mono">PNG, JPG format images only</p>
+                <UploadCloud className="w-8 h-8 text-fg-muted group-hover:text-[#FF6B00] transition-colors" />
+                <p className="text-xs text-fg font-extrabold">{isAr ? 'اضغط هنا لرفع إيصال الدفعة' : 'Click here to upload payment screenshot'}</p>
+                <p className="text-[9.5px] text-fg-muted font-mono">PNG, JPG format images only</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Feature Checks */}
-        <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50 mb-6 space-y-2.5">
+        <div className="bg-surface-sunken/50 p-4 rounded-2xl border border-line/50 mb-6 space-y-2.5">
           {t.plansFeatures.map((feat, index) => (
-            <div key={index} className="flex gap-2 items-start text-xs text-gray-600 leading-normal">
+            <div key={index} className="flex gap-2 items-start text-xs text-fg-muted leading-normal">
               <Check className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5" />
               <span>{feat}</span>
             </div>
@@ -537,8 +537,8 @@ export const SubscriptionView: React.FC = () => {
             showAcceptError && !acceptedRules
               ? 'border-red-400 bg-red-50/60'
               : acceptedRules
-                ? 'border-[#FF6B00]/40 bg-[#FFF8F3]'
-                : 'border-gray-200 bg-gray-50/50'
+                ? 'border-[#FF6B00]/40 bg-accent-weak'
+                : 'border-line bg-surface-sunken/50'
           }`}
           id="auction-rules-accept-gate"
         >
@@ -552,7 +552,7 @@ export const SubscriptionView: React.FC = () => {
             }}
             className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
           />
-          <label htmlFor="accept-auction-rules" className="text-[11px] font-bold text-gray-700 leading-relaxed cursor-pointer">
+          <label htmlFor="accept-auction-rules" className="text-[11px] font-bold text-fg leading-relaxed cursor-pointer">
             {isAr ? 'لقد قرأت وأوافق على ' : 'I have read and accept the '}
             <button
               type="button"
@@ -564,7 +564,7 @@ export const SubscriptionView: React.FC = () => {
             </button>
             {isAr ? '.' : '.'}
             <span className="text-red-500"> *</span>
-            <span className="block mt-1 text-[10px] font-semibold text-gray-400">
+            <span className="block mt-1 text-[10px] font-semibold text-fg-muted">
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); setRulesOpen(true); }}
@@ -592,7 +592,7 @@ export const SubscriptionView: React.FC = () => {
             className={`w-full font-black text-xs py-4 rounded-xl transition-all flex items-center justify-center gap-1 border border-transparent ${
               acceptedRules
                 ? 'bg-[#FF6B00] text-white shadow-[0_4px_16px_rgba(255,107,0,0.3)] hover:brightness-105 cursor-pointer'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-200 text-fg-muted cursor-not-allowed'
             }`}
             id="activate-paywall-sub-btn"
           >
@@ -601,7 +601,7 @@ export const SubscriptionView: React.FC = () => {
           </button>
         )}
 
-        <p className="text-[9.5px] text-gray-400 leading-relaxed text-center mt-4">
+        <p className="text-[9.5px] text-fg-muted leading-relaxed text-center mt-4">
           {t.subLockText}
         </p>
         </>
@@ -609,11 +609,11 @@ export const SubscriptionView: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-[10px] text-gray-400 font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-gray-100 w-full mt-auto flex flex-col items-center gap-2">
+      <footer className="text-center text-[10px] text-fg-muted font-mono tracking-wide max-w-sm mx-auto pt-6 border-t border-line w-full mt-auto flex flex-col items-center gap-2">
         <button
           type="button"
           onClick={() => setRulesOpen(true)}
-          className="text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer underline underline-offset-2 uppercase"
+          className="text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer underline underline-offset-2 uppercase"
         >
           {isAr ? 'قواعد المزاد' : 'Auction Rules'}
         </button>

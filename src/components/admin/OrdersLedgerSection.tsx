@@ -6,7 +6,7 @@ import { displayOrderRef } from '../../utils/orderRef';
 /** Text-colour-only classes per glossary tone — keeps this ledger's brand-orange
  *  default while the visible label now comes from the shared glossary. */
 const STATUS_TONE_TEXT: Record<OrderStatusTone, string> = {
-  neutral: 'text-gray-500',
+  neutral: 'text-fg-muted',
   info: 'text-[#E85D04]',
   warning: 'text-[#E85D04]',
   success: 'text-emerald-600',
@@ -58,18 +58,18 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
   return (
     <div className="space-y-4">
       {/* Header and Stats */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-3xl border border-gray-200">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surface-raised p-5 rounded-3xl border border-line">
         <div className="space-y-1">
-          <h3 className="text-lg font-black text-gray-900">{isAr ? 'نظام تتبع وإدارة الطلبات' : 'Order Fulfillment Ledger'}</h3>
-          <p className="text-xs text-gray-500">{isAr ? 'عرض وتتبع جميع عمليات الفوز والطلبات المنبثقة من المزادات المغلقة.' : 'Audit and track all won listings, escrow transactions, and shipping states.'}</p>
+          <h3 className="text-lg font-black text-fg">{isAr ? 'نظام تتبع وإدارة الطلبات' : 'Order Fulfillment Ledger'}</h3>
+          <p className="text-xs text-fg-muted">{isAr ? 'عرض وتتبع جميع عمليات الفوز والطلبات المنبثقة من المزادات المغلقة.' : 'Audit and track all won listings, escrow transactions, and shipping states.'}</p>
         </div>
         <div className="flex gap-2.5">
           {/* Wave 3: stat chips are REAL metrics — sim orders excluded;
               the ledger list below still shows them while the simulator
               is ON, so TOTAL notes how many are simulated. */}
-          <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl text-center min-w-[100px]">
-            <span className="text-[10px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'إجمالي الطلبات' : 'TOTAL'}</span>
-            <span className="text-lg font-black text-gray-900 font-mono">{realOrders.length}</span>
+          <div className="bg-surface-sunken border border-line p-3 rounded-2xl text-center min-w-[100px]">
+            <span className="text-[10px] text-fg-muted font-mono uppercase block font-black">{isAr ? 'إجمالي الطلبات' : 'TOTAL'}</span>
+            <span className="text-lg font-black text-fg font-mono">{realOrders.length}</span>
             {simOrdersCount > 0 && (
               <span className="text-[9px] text-violet-500 font-mono block font-bold">
                 +{simOrdersCount} 🧪 sim
@@ -92,7 +92,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
       </div>
 
       {/* Filter buttons bar */}
-      <div className="bg-white p-2 rounded-2xl border border-gray-200 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+      <div className="bg-surface-raised p-2 rounded-2xl border border-line flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         {(['all', 'waiting_payment', 'paid', 'preparing_shipment', 'out_for_delivery', 'shipped', 'delivered', 'completed', 'disputed', 'defaulted'] as const).map((filterOpt) => {
           const label = isAr
             ? (filterOpt === 'all' ? 'الكل' :
@@ -124,12 +124,12 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
               className={`px-3 py-2 rounded-xl text-[11px] font-black tracking-tight whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                 isSelected
                   ? 'bg-[#E85D04] text-white shadow-sm shadow-[#E85D04]/15'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
               }`}
             >
               <span>{label}</span>
               <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full font-black ${
-                isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                isSelected ? 'bg-surface-raised/20 text-white' : 'bg-surface-sunken text-fg-muted'
               }`}>
                 {count}
               </span>
@@ -151,7 +151,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
             return (
               <div
                 key={order.id}
-                className="bg-white border border-gray-200 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
+                className="bg-surface-raised border border-line rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
               >
                 {/* Left vertical neon status tag depending on order state */}
                 <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${
@@ -163,39 +163,39 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   <img
                     src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
                     alt={order.auctionTitle}
-                    className="w-12 h-12 rounded-2xl object-cover border border-gray-100"
+                    className="w-12 h-12 rounded-2xl object-cover border border-line"
                     referrerPolicy="no-referrer"
                   />
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <h4 className="font-black text-gray-900 text-xs truncate leading-snug">{order.auctionTitle}</h4>
-                    <p className="text-[10px] text-gray-400 font-mono">
+                    <h4 className="font-black text-fg text-xs truncate leading-snug">{order.auctionTitle}</h4>
+                    <p className="text-[10px] text-fg-muted font-mono">
                       ID: <span className="font-bold select-all">{displayOrderRef(order)}</span>
                     </p>
                     {formattedDate && (
-                      <p className="text-[9px] text-gray-400 font-mono">{formattedDate}</p>
+                      <p className="text-[9px] text-fg-muted font-mono">{formattedDate}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="border-t border-gray-100 my-1 pl-2" />
+                <div className="border-t border-line my-1 pl-2" />
 
                 <div className="grid grid-cols-2 gap-2 text-[10.5px] pl-2">
                   <div className="space-y-0.5">
-                    <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'البائع والمزكّي' : 'SELLER'}</span>
-                    <span className="font-extrabold text-gray-800">{order.sellerName}</span>
+                    <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'البائع والمزكّي' : 'SELLER'}</span>
+                    <span className="font-extrabold text-fg">{order.sellerName}</span>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'المشتري الفائز' : 'WINNING BUYER'}</span>
-                    <span className="font-extrabold text-gray-800">{order.buyerName}</span>
+                    <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'المشتري الفائز' : 'WINNING BUYER'}</span>
+                    <span className="font-extrabold text-fg">{order.buyerName}</span>
                   </div>
                   <div className="space-y-0.5 mt-2">
-                    <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'القيمة والمبلغ' : 'BID AMOUNT'}</span>
+                    <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'القيمة والمبلغ' : 'BID AMOUNT'}</span>
                     <span className="font-black text-[#E85D04] font-mono">{order.winningBidAmount.toLocaleString()} JOD</span>
                   </div>
                   <div className="space-y-0.5 mt-2">
-                    <span className="text-[9px] text-gray-400 font-mono block uppercase">{isAr ? 'الضمان المالي' : 'ESCROW STATE'}</span>
+                    <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'الضمان المالي' : 'ESCROW STATE'}</span>
                     <span className={`font-black uppercase ${
-                      order.escrowStatus === 'released' ? 'text-emerald-650' : 'text-blue-650'
+                      order.escrowStatus === 'released' ? 'text-emerald-600' : 'text-blue-600'
                     }`}>
                       {order.escrowStatus === 'pending' ? (isAr ? 'محتجز بالضمان' : 'Held in Escrow') :
                        order.escrowStatus === 'released' ? (isAr ? 'تم التحرير للبائع' : 'Released') :
@@ -204,16 +204,16 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-gray-100 flex justify-between items-center text-[10px] pl-2 ml-2">
+                <div className="bg-surface p-3 rounded-2xl border border-line flex justify-between items-center text-[10px] pl-2 ml-2">
                   <div className="space-y-0.5">
-                    <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الدفع' : 'PAYMENT'}</span>
-                    <span className={`font-black ${order.paymentStatus === 'paid' ? 'text-emerald-650' : 'text-amber-600'}`}>
+                    <span className="text-[8.5px] text-fg-muted font-mono uppercase block">{isAr ? 'الدفع' : 'PAYMENT'}</span>
+                    <span className={`font-black ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.paymentStatus === 'paid' ? (isAr ? 'مدفوع' : 'PAID') : (isAr ? 'غير مدفوع' : 'UNPAID')}
                     </span>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الشحن والتوزيع' : 'SHIPPING'}</span>
-                    <span className="font-black text-gray-700">
+                    <span className="text-[8.5px] text-fg-muted font-mono uppercase block">{isAr ? 'الشحن والتوزيع' : 'SHIPPING'}</span>
+                    <span className="font-black text-fg">
                       {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'NOT STARTED') :
                        order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'PREPARING') :
                        order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'SHIPPED') :
@@ -221,7 +221,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                     </span>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[8.5px] text-gray-400 font-mono uppercase block">{isAr ? 'الحالة العامة' : 'STATUS'}</span>
+                    <span className="text-[8.5px] text-fg-muted font-mono uppercase block">{isAr ? 'الحالة العامة' : 'STATUS'}</span>
                     <span className={`font-black uppercase ${STATUS_TONE_TEXT[statusChip.tone]}`}>
                       {statusChip.label}
                     </span>
@@ -231,7 +231,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                 {/* View Details / Manage button for Admin */}
                 <button
                   onClick={() => onOpenOrder(order.id)}
-                  className="w-[calc(100%-8px)] ml-2 bg-gray-50 hover:bg-[#E85D04] hover:text-white text-gray-700 font-black py-2.5 rounded-2xl text-[10.5px] transition-all tracking-wider border border-gray-200 hover:border-[#E85D04] flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] mt-3"
+                  className="w-[calc(100%-8px)] ml-2 bg-surface-sunken hover:bg-[#E85D04] hover:text-white text-fg font-black py-2.5 rounded-2xl text-[10.5px] transition-all tracking-wider border border-line hover:border-[#E85D04] flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono active:scale-[0.99] mt-3"
                   id={`btn-admin-view-order-${order.id}`}
                 >
                   <FileCheck2 className="w-3.5 h-3.5" />
@@ -242,14 +242,14 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
           })}
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-3xl border border-gray-200 p-6">
-          <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100 mx-auto mb-3">
-            <Database className="w-5 h-5 text-gray-400" />
+        <div className="text-center py-12 bg-surface-raised rounded-3xl border border-line p-6">
+          <div className="w-12 h-12 rounded-full bg-surface-sunken flex items-center justify-center text-gray-300 border border-line mx-auto mb-3">
+            <Database className="w-5 h-5 text-fg-muted" />
           </div>
-          <p className="font-extrabold text-gray-700 text-xs uppercase tracking-wide">
+          <p className="font-extrabold text-fg text-xs uppercase tracking-wide">
             {isAr ? 'لا يوجد طلبات بهذا الفلتر' : 'No Orders Match Filter'}
           </p>
-          <p className="text-[10px] text-gray-400 leading-relaxed mt-1 max-w-[280px] mx-auto">
+          <p className="text-[10px] text-fg-muted leading-relaxed mt-1 max-w-[280px] mx-auto">
             {isAr
               ? 'لم يتم العثور على أي طلبات تتبع هذا التبويب حالياً.'
               : 'No orders recorded in this state yet.'}

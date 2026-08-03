@@ -199,7 +199,7 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="bg-white border border-[#E5E5E5] rounded-2xl p-5 flex flex-col shadow-md transition-all overflow-hidden font-sans relative" dir="rtl" id="admin-sidebar-curation-panel">
+    <div className="bg-surface-raised border border-line rounded-2xl p-5 flex flex-col shadow-md transition-all overflow-hidden font-sans relative" dir="rtl" id="admin-sidebar-curation-panel">
       
       {/* Toast Alert overlay */}
       {toastMessage && (
@@ -210,10 +210,10 @@ export const AdminPanel: React.FC = () => {
       )}
 
       {/* Modern Dashboard Curation Header */}
-      <div className="flex gap-1.5 p-1 bg-zinc-100 rounded-xl mb-4 text-xs font-bold">
+      <div className="flex gap-1.5 p-1 bg-surface-sunken rounded-xl mb-4 text-xs font-bold">
         <button
           onClick={() => setActiveTab('auctions')}
-          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auctions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auctions' ? 'bg-surface-raised text-fg shadow-sm' : 'text-zinc-500 hover:text-fg'}`}
         >
           <Film className="w-3.5 h-3.5 text-[#FF6B00]" />
           <span>{isAr ? 'المعروضات المعلقة' : 'Pending Reels'}</span>
@@ -226,7 +226,7 @@ export const AdminPanel: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('subscriptions')}
-          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'subscriptions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'subscriptions' ? 'bg-surface-raised text-fg shadow-sm' : 'text-zinc-500 hover:text-fg'}`}
         >
           <User className="w-3.5 h-3.5 text-[#FF6B00]" />
           <span>{isAr ? 'الاشتراكات' : 'Subscriptions'}</span>
@@ -248,15 +248,15 @@ export const AdminPanel: React.FC = () => {
             </div>
           ) : (
             pendingAuctions.map((item) => (
-              <div key={item.id} className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-3 shadow-xs">
+              <div key={item.id} className="p-3 bg-surface-sunken rounded-2xl border border-line space-y-3 shadow-xs">
                 <div className="flex justify-between items-start">
                   <div className="min-w-0 flex-1">
-                    <span className="bg-orange-100 text-[#FF6B00] text-[8px] font-black font-mono px-1.5 py-0.5 rounded uppercase">
+                    <span className="bg-accent-weak text-[#FF6B00] text-[8px] font-black font-mono px-1.5 py-0.5 rounded uppercase">
                       {item.category || (isAr ? 'عام' : 'GENERAL')}
                     </span>
-                    <h4 className="font-extrabold text-[12px] text-zinc-900 truncate mt-1">{item.title}</h4>
+                    <h4 className="font-extrabold text-[12px] text-fg truncate mt-1">{item.title}</h4>
                     <p className="text-[10px] text-zinc-400 mt-0.5 font-mono">
-                      {isAr ? 'بواسطة: ' : 'Seller: '} <span className="font-sans font-bold text-zinc-700">{item.sellerName || item.createdByName || 'N/A'}</span>
+                      {isAr ? 'بواسطة: ' : 'Seller: '} <span className="font-sans font-bold text-fg">{item.sellerName || item.createdByName || 'N/A'}</span>
                     </p>
                   </div>
                   <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 uppercase tracking-widest font-mono">
@@ -266,7 +266,7 @@ export const AdminPanel: React.FC = () => {
 
                 {/* Real-time Video Stream Player Preview */}
                 {item.videoUrl && (
-                  <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black border border-zinc-200">
+                  <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black border border-line">
                     <video
                       src={item.videoUrl}
                       controls
@@ -300,7 +300,7 @@ export const AdminPanel: React.FC = () => {
                           setRejectingId(null);
                           setRejectionReason('');
                         }}
-                        className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] px-3 py-1.5 rounded-xl transition-all border border-zinc-200 cursor-pointer"
+                        className="bg-surface-sunken hover:bg-surface-sunken text-fg font-bold text-[10.5px] px-3 py-1.5 rounded-xl transition-all border border-line cursor-pointer"
                       >
                         {isAr ? 'إلغاء' : 'Cancel'}
                       </button>
@@ -320,7 +320,7 @@ export const AdminPanel: React.FC = () => {
                         setRejectingId(item.id);
                         setRejectionReason('');
                       }}
-                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-gray-200 flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 bg-surface-sunken hover:bg-surface-sunken text-fg font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-line flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                       {isAr ? 'رفض' : 'REJECT'}
@@ -342,26 +342,26 @@ export const AdminPanel: React.FC = () => {
             </div>
           ) : (
             pendingRequests.map((u) => (
-              <div key={u.id} className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-3 shadow-xs">
-                <div className="flex justify-between items-center text-[11px] font-bold text-zinc-800">
+              <div key={u.id} className="p-3 bg-surface-sunken rounded-2xl border border-line space-y-3 shadow-xs">
+                <div className="flex justify-between items-center text-[11px] font-bold text-fg">
                   <span>{u.name}</span>
                   <span className="text-[#FF6B00] text-[9px] font-black uppercase">
                     {isAr ? 'إيصال معلق' : 'Reviewing'}
                   </span>
                 </div>
 
-                <div className="bg-white border border-zinc-200 p-2.5 rounded-xl text-[11px] space-y-1">
+                <div className="bg-surface-raised border border-line p-2.5 rounded-xl text-[11px] space-y-1">
                   <div>
                     <span className="font-extrabold text-zinc-500">{isAr ? 'اسم المحول: ' : 'Transfer Name: '}</span>
-                    <span className="font-bold text-zinc-900">{u.transferFullName || 'N/A'}</span>
+                    <span className="font-bold text-fg">{u.transferFullName || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="font-extrabold text-zinc-500">{isAr ? 'هاتف المحول: ' : 'Transfer Phone: '}</span>
-                    <span className="font-mono font-bold text-zinc-900">{u.transferPhone || 'N/A'}</span>
+                    <span className="font-mono font-bold text-fg">{u.transferPhone || 'N/A'}</span>
                   </div>
                 </div>
                 
-                <div className="w-full rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                <div className="w-full rounded-xl overflow-hidden border border-line bg-surface-raised">
                   <img 
                     src={u.paymentProofImage} 
                     alt={isAr ? 'إيصال الدفع' : 'Payment Proof'} 
@@ -391,7 +391,7 @@ export const AdminPanel: React.FC = () => {
       </div>
 
       {/* Reset All Auctions Engine Section */}
-      <div className="mt-4 pt-4 border-t border-zinc-200">
+      <div className="mt-4 pt-4 border-t border-line">
         <button
           onClick={handleResetAllAuctions}
           disabled={isResetting}

@@ -34,7 +34,7 @@ const toMillis = (raw: any): number => {
 /** Chip (bg/text/border) classes per glossary tone — preserves the old
  *  per-status pill palette while the label now comes from the shared glossary. */
 const STATUS_TONE_CLASS: Record<OrderStatusTone, string> = {
-  neutral: 'bg-gray-100 text-gray-600 border-gray-200',
+  neutral: 'bg-surface-sunken text-fg-muted border-line',
   info: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   warning: 'bg-amber-50 text-amber-700 border-amber-200',
   success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -191,7 +191,7 @@ export const MyOrdersView: React.FC = () => {
 
   if (selectedOrderId) {
     return (
-      <div className="w-full h-full overflow-y-auto bg-[#F7F6F3] p-4 md:p-0 pb-[calc(6rem+env(safe-area-inset-bottom))]" id="my-orders-details-wrap">
+      <div className="w-full h-full overflow-y-auto bg-surface p-4 md:p-0 pb-[calc(6rem+env(safe-area-inset-bottom))]" id="my-orders-details-wrap">
         <OrderDetailsView orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} />
       </div>
     );
@@ -200,11 +200,11 @@ export const MyOrdersView: React.FC = () => {
   const Chevron = isAr ? ChevronLeft : ChevronRight;
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-[#F7F6F3]" id="my-orders-view-root">
+    <div className="w-full h-full overflow-y-auto bg-surface" id="my-orders-view-root">
       <div className="max-w-3xl mx-auto w-full p-4 md:p-0 space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))] animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-gray-200 shadow-xs mt-2 md:mt-0">
-          <h2 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2 uppercase font-mono">
+        <div className="flex items-center justify-between bg-surface-raised px-5 py-4 rounded-2xl border border-line shadow-xs mt-2 md:mt-0">
+          <h2 className="text-sm font-black text-fg tracking-tight flex items-center gap-2 uppercase font-mono">
             <ShoppingBag className="w-4 h-4 text-[#FF6B00]" />
             <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
           </h2>
@@ -229,13 +229,13 @@ export const MyOrdersView: React.FC = () => {
             hasn't created yet — the winner never dead-ends here. */}
         {hasUnsettledWin && (
           <div
-            className="flex items-center gap-3 bg-white border border-amber-200 rounded-2xl px-5 py-3.5 shadow-xs"
+            className="flex items-center gap-3 bg-surface-raised border border-amber-200 rounded-2xl px-5 py-3.5 shadow-xs"
             id="order-finalizing-hint"
           >
             <Clock className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
             <div className="min-w-0 space-y-0.5">
-              <p className="text-xs font-black text-gray-950">{t.ordersFinalizingTitle}</p>
-              <p className="text-[10.5px] text-gray-400 font-semibold leading-relaxed">{t.ordersFinalizingHint}</p>
+              <p className="text-xs font-black text-fg">{t.ordersFinalizingTitle}</p>
+              <p className="text-[10.5px] text-fg-muted font-semibold leading-relaxed">{t.ordersFinalizingHint}</p>
             </div>
           </div>
         )}
@@ -258,15 +258,15 @@ export const MyOrdersView: React.FC = () => {
 
         {myOrders.length === 0 ? (
           /* Empty state */
-          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-            <div className="w-14 h-14 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] mx-auto">
+          <div className="text-center py-16 bg-surface-raised rounded-2xl border border-line p-6 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-accent-weak border border-orange-100 flex items-center justify-center text-[#FF6B00] mx-auto">
               <ShoppingBag className="w-6 h-6" />
             </div>
             <div className="space-y-1.5">
-              <p className="font-black text-gray-950 text-sm">
+              <p className="font-black text-fg text-sm">
                 {isAr ? 'لا مشتريات بعد — زايد واربح!' : 'No purchases yet — bid and win!'}
               </p>
-              <p className="text-[11px] text-gray-400 leading-relaxed max-w-[280px] mx-auto">
+              <p className="text-[11px] text-fg-muted leading-relaxed max-w-[280px] mx-auto">
                 {isAr
                   ? 'عند فوزك بمزاد سيظهر طلبك هنا مع تفاصيل الدفع عبر كليك.'
                   : 'When you win an auction, your order appears here with CliQ payment details.'}
@@ -294,19 +294,19 @@ export const MyOrdersView: React.FC = () => {
                   tabIndex={0}
                   onClick={() => setSelectedOrderId(order.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedOrderId(order.id); } }}
-                  className="w-full text-left rtl:text-right bg-white border border-gray-200 hover:border-orange-200 rounded-2xl p-4 transition-all cursor-pointer active:scale-[0.995] shadow-xs flex items-center gap-4"
+                  className="w-full text-left rtl:text-right bg-surface-raised border border-line hover:border-orange-200 rounded-2xl p-4 transition-all cursor-pointer active:scale-[0.995] shadow-xs flex items-center gap-4"
                   id={`my-order-card-${order.id}`}
                 >
                   <img
                     src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
                     alt={order.auctionTitle}
-                    className="w-16 h-16 rounded-2xl object-cover border border-gray-200 bg-gray-100 shrink-0"
+                    className="w-16 h-16 rounded-2xl object-cover border border-line bg-surface-sunken shrink-0"
                     referrerPolicy="no-referrer"
                   />
 
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-black text-gray-950 text-xs truncate leading-snug max-w-full">
+                      <h4 className="font-black text-fg text-xs truncate leading-snug max-w-full">
                         {order.auctionTitle}
                       </h4>
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase font-mono shrink-0 ${STATUS_TONE_CLASS[chip.tone]}`}>
@@ -341,7 +341,7 @@ export const MyOrdersView: React.FC = () => {
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleDeclineBelowReserve(order.auctionId); }}
                             disabled={belowReserveBusyId === order.auctionId}
-                            className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 border border-gray-200 font-black text-[10.5px] px-3.5 py-2 rounded-xl transition-all cursor-pointer active:scale-[0.98] uppercase font-mono"
+                            className="inline-flex items-center gap-1.5 bg-surface-sunken hover:bg-gray-200 disabled:opacity-60 text-fg border border-line font-black text-[10.5px] px-3.5 py-2 rounded-xl transition-all cursor-pointer active:scale-[0.98] uppercase font-mono"
                             id={`decline-below-reserve-${order.id}`}
                           >
                             {isAr ? 'ارفض' : 'Decline'}
@@ -369,14 +369,14 @@ export const MyOrdersView: React.FC = () => {
                   {/* Total — prominent, right-aligned column (mirrors the Discover price treatment) */}
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="text-right rtl:text-left leading-tight">
-                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide font-mono">
+                      <p className="text-[9px] text-fg-muted font-bold uppercase tracking-wide font-mono">
                         {isAr ? 'المجموع' : 'Total'}
                       </p>
                       <p className="text-sm font-black text-[#FF6B00] font-mono whitespace-nowrap">
                         {totalDue.toLocaleString()}{' '}
                         <span className="text-[10px]">{isAr ? 'د.أ' : 'JOD'}</span>
                       </p>
-                      <p className="text-[8.5px] text-gray-400 font-semibold">
+                      <p className="text-[8.5px] text-fg-muted font-semibold">
                         {isAr ? 'شامل العمولة' : 'incl. premium'}
                       </p>
                     </div>

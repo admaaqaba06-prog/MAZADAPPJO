@@ -100,7 +100,7 @@ export const OnboardingModal: React.FC = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="relative w-full max-w-md overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-2xl flex flex-col"
+          className="relative w-full max-w-md overflow-hidden bg-surface-raised rounded-3xl border border-line shadow-2xl flex flex-col"
           id="onboarding-card"
         >
           {/* Header Progress and Skip / Language toggle */}
@@ -115,7 +115,7 @@ export const OnboardingModal: React.FC = () => {
                         ? 'w-6 bg-slate-800' 
                         : num < step 
                           ? 'w-2 bg-slate-400' 
-                          : 'w-2 bg-slate-200'
+                          : 'w-2 bg-surface-sunken'
                     }`}
                   />
                 ))}
@@ -124,7 +124,7 @@ export const OnboardingModal: React.FC = () => {
               {/* Language Switcher */}
               <button
                 onClick={() => setOnboardingLang(prev => prev === 'ar' ? 'en' : 'ar')}
-                className="text-[10px] font-black text-slate-400 hover:text-slate-700 bg-slate-100/60 hover:bg-slate-100 px-2 py-1 rounded-md transition-all cursor-pointer uppercase"
+                className="text-[10px] font-black text-slate-400 hover:text-fg bg-surface-sunken/60 hover:bg-surface-sunken px-2 py-1 rounded-md transition-all cursor-pointer uppercase"
                 id="onboarding-lang-toggle"
               >
                 {onboardingLang === 'ar' ? 'English' : 'عربي'}
@@ -133,7 +133,7 @@ export const OnboardingModal: React.FC = () => {
             
             <button
               onClick={handleSkip}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-1 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-full"
+              className="text-xs font-semibold text-slate-500 hover:text-fg transition-colors flex items-center gap-1 bg-surface-sunken hover:bg-surface-sunken px-3 py-1.5 rounded-full"
               id="onboarding-skip-btn"
             >
               {isAr ? 'تخطي' : 'Skip'}
@@ -148,7 +148,7 @@ export const OnboardingModal: React.FC = () => {
               {currentStepData.icon}
             </div>
 
-            <h3 className="text-xl font-bold text-slate-800 mb-3 leading-snug">
+            <h3 className="text-xl font-bold text-fg mb-3 leading-snug">
               {isAr ? currentStepData.titleAr : currentStepData.titleEn}
             </h3>
 
@@ -172,7 +172,7 @@ export const OnboardingModal: React.FC = () => {
               {step > 1 && (
                 <button
                   onClick={() => setStep(step - 1)}
-                  className="w-full py-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                  className="w-full py-2 text-sm font-semibold text-slate-500 hover:text-fg transition-colors"
                   id="onboarding-back-btn"
                 >
                   {isAr ? 'السابق' : 'Back'}
@@ -182,7 +182,7 @@ export const OnboardingModal: React.FC = () => {
               {/* Footer: How-it-works link (marks onboarding done, opens explainer) */}
               <button
                 onClick={handleHowItWorks}
-                className="w-full py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-700 underline underline-offset-2 decoration-slate-200 hover:decoration-slate-400 transition-colors cursor-pointer"
+                className="w-full py-1.5 text-xs font-semibold text-slate-400 hover:text-fg underline underline-offset-2 decoration-slate-200 hover:decoration-slate-400 transition-colors cursor-pointer"
                 id="onboarding-how-it-works-link"
               >
                 {isAr ? 'كيف يعمل مزاد جو؟' : 'How does Mazad JO work?'}

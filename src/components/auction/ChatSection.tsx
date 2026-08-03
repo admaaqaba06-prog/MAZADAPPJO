@@ -40,13 +40,13 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
 
   return (
     <section
-      className="mt-4 border-t border-[#ECECEA]"
+      className="mt-4 border-t border-line"
       id="mobile-auction-chat"
       aria-label={isAr ? 'الدردشة' : 'Chat'}
     >
       {/* ----- Header: title + a small live message count ----- */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#ECECEA]">
-        <h2 className="text-[15px] font-black text-[#0A0A0A]">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-line">
+        <h2 className="text-[15px] font-black text-fg">
           {isAr ? 'الدردشة' : 'Chat'}
         </h2>
         <span
@@ -62,7 +62,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
       {/* ----- Message list ----- */}
       <div className="px-4 py-3.5 flex flex-col gap-3">
         {count === 0 && (
-          <p className="text-[12px] text-[#999] font-medium py-4 text-center">
+          <p className="text-[12px] text-fg-muted font-medium py-4 text-center">
             {isAr
               ? 'لا توجد رسائل بعد — كن أول من يكتب.'
               : 'No messages yet — be the first to write.'}
@@ -95,13 +95,13 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
                 height={30}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                className="w-[30px] h-[30px] rounded-full object-cover bg-[#EAEAEA] shrink-0"
+                className="w-[30px] h-[30px] rounded-full object-cover bg-surface-sunken shrink-0"
               />
               <div className="min-w-0">
-                <span className="text-[11px] font-extrabold text-[#0A0A0A] leading-none block">
+                <span className="text-[11px] font-extrabold text-fg leading-none block">
                   {msg.userName}
                 </span>
-                <p className="text-[12.5px] text-[#333] leading-snug mt-0.5 break-words">
+                <p className="text-[12.5px] text-fg leading-snug mt-0.5 break-words">
                   {msg.text}
                 </p>
               </div>
@@ -112,11 +112,11 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
 
       {/* ----- Composer (guest gate vs working input) ----- */}
       {isGuest ? (
-        <div className="px-4 pt-3 pb-4 border-t border-[#ECECEA]">
+        <div className="px-4 pt-3 pb-4 border-t border-line">
           <button
             type="button"
             onClick={requestSignIn}
-            className="w-full py-3 rounded-full bg-[#F7F7F7] border border-[#ECECEA] text-[13px] font-black text-[#0A0A0A] active:scale-[0.99] transition-transform cursor-pointer"
+            className="w-full py-3 rounded-full bg-surface border border-line text-[13px] font-black text-fg active:scale-[0.99] transition-transform cursor-pointer"
           >
             {isAr ? '💬 سجّل للدردشة' : '💬 Sign up to chat'}
           </button>
@@ -124,7 +124,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
       ) : (
         <form
           onSubmit={onCommentSubmit}
-          className="flex gap-2.5 items-center px-4 pt-3 pb-4 border-t border-[#ECECEA]"
+          className="flex gap-2.5 items-center px-4 pt-3 pb-4 border-t border-line"
           dir={isAr ? 'rtl' : 'ltr'}
         >
           <input
@@ -132,7 +132,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder={isAr ? 'اكتب تعليقاً…' : 'Write a comment…'}
-            className="flex-1 h-10 px-4 bg-[#F7F7F7] rounded-full text-[12.5px] text-[#0A0A0A] placeholder-[#999] outline-none border border-transparent focus:border-[#F05123]/40 transition-colors"
+            className="flex-1 h-10 px-4 bg-surface rounded-full text-[12.5px] text-fg placeholder-[#999] outline-none border border-transparent focus:border-[#F05123]/40 transition-colors"
             aria-label={isAr ? 'اكتب تعليقاً' : 'Write a comment'}
           />
           <button

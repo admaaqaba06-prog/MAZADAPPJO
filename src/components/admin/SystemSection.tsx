@@ -56,7 +56,7 @@ const HealthStatusCard: React.FC<{
     ok: 'bg-emerald-50/60 border-emerald-100 text-emerald-700',
     warn: 'bg-amber-50/60 border-amber-100 text-amber-700',
     bad: 'bg-rose-50/60 border-rose-100 text-rose-700',
-    neutral: 'bg-gray-50 border-gray-200 text-gray-400',
+    neutral: 'bg-surface-sunken border-line text-fg-muted',
   };
   const dotStyles: Record<StatusSeverity, string> = {
     ok: 'bg-emerald-500',
@@ -67,13 +67,13 @@ const HealthStatusCard: React.FC<{
   return (
     <div className={`border rounded-2xl p-4 shadow-xs flex flex-col gap-1.5 ${styles[severity]}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+        <span className="text-[10px] font-extrabold uppercase tracking-wide text-fg-muted flex items-center gap-1.5">
           <span aria-hidden="true">{icon}</span> {label}
         </span>
         <span className={`w-2 h-2 rounded-full shrink-0 ${dotStyles[severity]}`} />
       </div>
       <p className="text-lg font-black leading-none font-mono">{value}</p>
-      {subtext && <p className="text-[9px] font-mono text-gray-400 leading-snug">{subtext}</p>}
+      {subtext && <p className="text-[9px] font-mono text-fg-muted leading-snug">{subtext}</p>}
     </div>
   );
 };
@@ -365,19 +365,19 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       {/* ══════════════ ZONE 1: OPERATIONS ══════════════ */}
       <section className="space-y-6">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+          <span className="text-[11px] font-black uppercase tracking-widest text-fg-muted">
             {isAr ? 'العمليات' : 'OPERATIONS'}
           </span>
-          <span className="h-px flex-1 bg-gray-100" />
+          <span className="h-px flex-1 bg-surface-sunken" />
         </div>
 
         {/* Header Description */}
-        <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-          <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
+        <div className="bg-surface-raised border border-line p-5 rounded-2xl shadow-xs">
+          <h3 className="text-xs font-extrabold text-fg flex items-center gap-2">
             <Activity className="w-4 h-4 text-[#FF6B00] animate-pulse" />
             {isAr ? 'مركز التحكم التشغيلي والجاهزية الفنية' : 'OPERATIONAL CONTROL CENTER & SYSTEM HEALTH'}
           </h3>
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="text-[11px] text-fg-muted mt-1">
             {isAr
               ? 'قم بإدارة حالة الصيانة الطارئة للعامة، بوابات المزايدين والمحافظ بنظام كليك، ومعاينة سجل الأخطاء والعمليات فورا.'
               : 'Manage system-wide maintenance mode, toggle key transaction gates, and monitor operational log streams.'}
@@ -428,11 +428,11 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
           <div className="lg:col-span-2 space-y-6">
 
             {/* 1. Maintenance Toggle Card */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="bg-surface-raised border border-line rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2">
-                  <Server className="w-4 h-4 text-gray-400" />
-                  <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+                  <Server className="w-4 h-4 text-fg-muted" />
+                  <h4 className="text-xs font-extrabold text-fg uppercase">
                     {isAr ? 'مفتاح الصيانة الطارئة' : 'Emergency Maintenance'}
                   </h4>
                 </div>
@@ -445,7 +445,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   }`}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-surface-raised shadow-lg ring-0 transition duration-200 ease-in-out ${
                       maintEnabled ? (isAr ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
                     }`}
                   />
@@ -475,7 +475,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
               {/* Settings Fields */}
               <div className="space-y-3.5 pt-1">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                  <label className="block text-[10px] font-bold text-fg-muted uppercase mb-1">
                     {isAr ? 'الوقت المتوقع للإنجاز' : 'Expected Duration Estimate'}
                   </label>
                   <input
@@ -483,31 +483,31 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                     value={maintDuration}
                     onChange={(e) => setMaintDuration(e.target.value)}
                     placeholder="e.g. 1 hr, 30 mins"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none"
+                    className="w-full bg-surface-sunken border border-line rounded-xl px-3 py-2 text-xs font-mono focus:bg-surface-raised focus:ring-1 focus:ring-[#FF6B00] outline-none"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-fg-muted uppercase mb-1">
                       {isAr ? 'رسالة الصيانة (عربي)' : 'Maintenance Message (Arabic)'}
                     </label>
                     <textarea
                       rows={3}
                       value={maintMsgAr}
                       onChange={(e) => setMaintMsgAr(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-right focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
+                      className="w-full bg-surface-sunken border border-line rounded-xl p-3 text-xs text-right focus:bg-surface-raised focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-fg-muted uppercase mb-1">
                       {isAr ? 'رسالة الصيانة (إنجليزي)' : 'Maintenance Message (English)'}
                     </label>
                     <textarea
                       rows={3}
                       value={maintMsgEn}
                       onChange={(e) => setMaintMsgEn(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-left focus:bg-white focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
+                      className="w-full bg-surface-sunken border border-line rounded-xl p-3 text-xs text-left focus:bg-surface-raised focus:ring-1 focus:ring-[#FF6B00] outline-none leading-relaxed"
                     />
                   </div>
                 </div>
@@ -524,22 +524,22 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
             </div>
 
             {/* 2. Feature Flags Switchboard */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+            <div className="bg-surface-raised border border-line rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-line">
+                <Settings className="w-4 h-4 text-fg-muted" />
+                <h4 className="text-xs font-extrabold text-fg uppercase">
                   {isAr ? 'بوابات الميزات الفعالة' : 'Feature Gates & System Valves'}
                 </h4>
               </div>
 
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-line">
                 {/* Live Auctions Gate */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
                       {isAr ? 'المزايدات المباشرة' : 'Live Auctions & Bidding'}
                     </h5>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
                         ? 'تعطيل قدرة الأعضاء على تقديم مزايدات جديدة على المعروضات.'
                         : 'Disable public users from locking or sending real-time bids.'}
@@ -547,18 +547,18 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableLiveAuctions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableLiveAuctions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableLiveAuctions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableLiveAuctions', !featureFlags?.enableLiveAuctions)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableLiveAuctions ? 'bg-emerald-505 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableLiveAuctions ? 'bg-emerald-500 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
                           featureFlags?.enableLiveAuctions ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
                         }`}
                       />
@@ -569,10 +569,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 {/* Subscriptions Gate */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
                       {isAr ? 'بوابات دفع الاشتراكات الممتازة' : 'Subscription Upgrades'}
                     </h5>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
                         ? 'توقيف مؤقت لاستلام طلبات تجديد أو ترقية باقات كليك الذهبية.'
                         : 'Prevent cliq-based gold member upgrades during updates.'}
@@ -580,18 +580,18 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableSubscriptions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableSubscriptions ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableSubscriptions ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableSubscriptions', !featureFlags?.enableSubscriptions)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableSubscriptions ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableSubscriptions ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
                           featureFlags?.enableSubscriptions ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
                         }`}
                       />
@@ -602,10 +602,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 {/* Wallets Deposits Gate */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
                       {isAr ? 'شحن المحافظ المالية (كليك)' : 'Digital Wallet Deposits'}
                     </h5>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
                         ? 'حظر شحن أرصدة المزايدة أو رفع إيصالات التحويل لتدقيقها.'
                         : 'Lock wallet deposit modules during transaction reconciliation.'}
@@ -613,18 +613,18 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableWallets ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableWallets ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableWallets ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableWallets', !featureFlags?.enableWallets)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableWallets ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableWallets ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
                           featureFlags?.enableWallets ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
                         }`}
                       />
@@ -635,10 +635,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 {/* Push Notifications Gate */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
                       {isAr ? 'الإشعارات الفورية (Web Push)' : 'Web Push Notification Services'}
                     </h5>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
                         ? 'إغلاق أو تفعيل خوادم إرسال التنبيهات المباشرة لمتصفحات الهواتف والويب.'
                         : 'Toggle native web push alerts for outbids and payment confirmations.'}
@@ -646,18 +646,18 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enablePushNotifications ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enablePushNotifications ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enablePushNotifications ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enablePushNotifications', !featureFlags?.enablePushNotifications)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enablePushNotifications ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enablePushNotifications ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
                           featureFlags?.enablePushNotifications ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
                         }`}
                       />
@@ -669,10 +669,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                     login-gated front door instantly, no redeploy) */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h5 className="text-xs font-extrabold text-gray-900 leading-none">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
                       {isAr ? 'التصفح كزائر (بدون تسجيل)' : 'Guest Browsing (logged-out visitors)'}
                     </h5>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
                         ? 'السماح للزوار بتصفح المزادات ومشاهدتها بدون حساب — المزايدة والدردشة والحفظ تتطلب التسجيل.'
                         : 'Let logged-out visitors browse and watch auctions read-only — bidding, chat and saving still require signup.'}
@@ -680,19 +680,19 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
-                      featureFlags?.enableGuestBrowsing ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-650'
+                      featureFlags?.enableGuestBrowsing ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     }`}>
                       {featureFlags?.enableGuestBrowsing ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
                     </span>
                     <button
                       onClick={() => updateFeatureFlag('enableGuestBrowsing', !featureFlags?.enableGuestBrowsing)}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        featureFlags?.enableGuestBrowsing ? 'bg-emerald-650 bg-emerald-600' : 'bg-gray-200'
+                        featureFlags?.enableGuestBrowsing ? 'bg-emerald-600 bg-emerald-600' : 'bg-gray-200'
                       }`}
                       id="admin-guest-browsing-toggle"
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
                           featureFlags?.enableGuestBrowsing ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
                         }`}
                       />
@@ -704,19 +704,19 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
           </div>
 
           {/* Right Side: Real-time Operations & Logs */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex flex-col h-[600px] lg:h-[720px]">
-            <div className="pb-3 border-b border-gray-100">
-              <h4 className="text-xs font-extrabold text-gray-900 uppercase flex items-center gap-2">
+          <div className="bg-surface-raised border border-line rounded-2xl p-5 shadow-xs flex flex-col h-[600px] lg:h-[720px]">
+            <div className="pb-3 border-b border-line">
+              <h4 className="text-xs font-extrabold text-fg uppercase flex items-center gap-2">
                 <Activity className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
                 {isAr ? 'سجل العمليات والصحة الفنية المباشر' : 'Live System Operations Stream'}
               </h4>
-              <p className="text-[10px] text-gray-400 mt-1">
+              <p className="text-[10px] text-fg-muted mt-1">
                 {isAr ? 'تحديثات حية ومباشرة للأخطاء وحركات الدفع والمزايدة في المملكة.' : 'Live stream of payment approvals, bid placement fails, or critical errors.'}
               </p>
             </div>
 
             {/* Filter Selector */}
-            <div className="flex gap-1.5 py-3 overflow-x-auto shrink-0 scrollbar-none border-b border-gray-100">
+            <div className="flex gap-1.5 py-3 overflow-x-auto shrink-0 scrollbar-none border-b border-line">
               {(['all', 'error', 'bid_fail', 'payment_fail'] as const).map((filter) => {
                 const label = isAr
                   ? (filter === 'all' ? 'الكل' : filter === 'error' ? 'أخطاء نظام' : filter === 'bid_fail' ? 'فشل المزايدة' : 'فشل مالي')
@@ -730,7 +730,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                     className={`text-[9px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider font-mono transition-colors ${
                       isSelected
                         ? 'bg-slate-900 text-white'
-                        : 'bg-gray-105 hover:bg-gray-100 text-gray-500 bg-gray-100'
+                        : 'bg-surface-sunken hover:bg-surface text-fg-muted'
                     }`}
                   >
                     {label}
@@ -744,10 +744,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
               {filteredHealthLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-4">
                   <CheckCircle className="w-8 h-8 text-emerald-400 mb-2" />
-                  <p className="text-[11px] font-extrabold text-gray-900">
+                  <p className="text-[11px] font-extrabold text-fg">
                     {isAr ? 'قنوات الأنظمة تعمل بسلامة ١٠٠٪' : 'Core Systems running smoothly'}
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-[10px] text-fg-muted mt-1">
                     {isAr ? 'لا توجد أخطاء تشغيلية أو تحذيرات معلقة في سجلات هذا الفلتر.' : 'No warnings or failures captured in this operational channel.'}
                   </p>
                 </div>
@@ -760,7 +760,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   let typeBadgeBg = 'bg-rose-50 text-rose-700 border-rose-100';
                   let typeLabel = 'SYSTEM';
                   if (isBid) {
-                    typeBadgeBg = 'bg-orange-50 text-orange-700 border-orange-100';
+                    typeBadgeBg = 'bg-accent-weak text-orange-700 border-orange-100';
                     typeLabel = 'BID_FAIL';
                   } else if (isPay) {
                     typeBadgeBg = 'bg-amber-50 text-amber-700 border-amber-100';
@@ -768,28 +768,28 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   }
 
                   return (
-                    <div key={log.id} className="bg-gray-50/50 border border-gray-200 rounded-xl p-3 space-y-2 text-[11px] hover:bg-gray-50 transition-colors animate-fadeIn">
+                    <div key={log.id} className="bg-surface-sunken/50 border border-line rounded-xl p-3 space-y-2 text-[11px] hover:bg-surface-sunken transition-colors animate-fadeIn">
                       <div className="flex items-center justify-between">
                         <span className={`text-[8px] font-black tracking-widest font-mono px-2 py-0.5 rounded border ${typeBadgeBg}`}>
                           {typeLabel}
                         </span>
-                        <span className="text-[9px] font-mono text-gray-400">
+                        <span className="text-[9px] font-mono text-fg-muted">
                           {log.timestamp ? new Date(log.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US') : ''}
                         </span>
                       </div>
 
                       <div className="space-y-1">
-                        <h5 className="font-extrabold text-gray-900 leading-snug">{log.title}</h5>
-                        <p className="text-gray-500 text-[10px] leading-relaxed break-words">{log.details}</p>
+                        <h5 className="font-extrabold text-fg leading-snug">{log.title}</h5>
+                        <p className="text-fg-muted text-[10px] leading-relaxed break-words">{log.details}</p>
                       </div>
 
-                      <div className="pt-1.5 border-t border-gray-100 flex flex-col gap-0.5 text-[9px] text-gray-400 font-mono">
+                      <div className="pt-1.5 border-t border-line flex flex-col gap-0.5 text-[9px] text-fg-muted font-mono">
                         <p>
-                          <span className="font-semibold text-gray-500">By:</span> {log.userEmail || 'anonymous'}
+                          <span className="font-semibold text-fg-muted">By:</span> {log.userEmail || 'anonymous'}
                         </p>
                         {log.browser && (
                           <p className="truncate" title={log.browser}>
-                            <span className="font-semibold text-gray-500">UA:</span> {log.browser}
+                            <span className="font-semibold text-fg-muted">UA:</span> {log.browser}
                           </p>
                         )}
                       </div>
@@ -805,27 +805,27 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       {/* ══════════════ ZONE 2: MONITORING ══════════════ */}
       <section className="space-y-4">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+          <span className="text-[11px] font-black uppercase tracking-widest text-fg-muted">
             {isAr ? 'المراقبة' : 'MONITORING'}
           </span>
-          <span className="h-px flex-1 bg-gray-100" />
+          <span className="h-px flex-1 bg-surface-sunken" />
         </div>
 
-        <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-          <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+        <div className="bg-surface-raised border border-line p-5 rounded-2xl shadow-xs">
+          <h3 className="text-sm font-extrabold text-fg flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
             {isAr ? 'جلسات النشاط النشطة' : 'ACTIVE USER SESSIONS'}
           </h3>
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="text-[11px] text-fg-muted mt-1">
             {isAr ? 'عرض تفاصيل الأجهزة، الجلسات النشطة، وتاريخ آخر ظهور للمستخدمين لمنع إساءة استخدام الحسابات.' : 'View real-time session indicators, platforms, and devices logged onto the platform.'}
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-surface-raised border border-line rounded-2xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold">
+                <tr className="bg-surface-sunken border-b border-line text-fg-muted font-bold">
                   <th className="p-4 text-start">{isAr ? 'المستخدم' : 'USER'}</th>
                   <th className="p-4 text-start">{isAr ? 'الجهاز المتصل' : 'DEVICE'}</th>
                   <th className="p-4 text-start">{isAr ? 'نظام التشغيل' : 'PLATFORM'}</th>
@@ -834,39 +834,39 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   <th className="p-4 text-start">{isAr ? 'عنوان IP' : 'IP ADDRESS'}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {users.filter((u: any) => u.sessionId).length > 0 ? (
                   users.filter((u: any) => u.sessionId).map((u: any) => (
-                    <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={u.id} className="hover:bg-surface-sunken/50 transition-colors">
                       <td className="p-4 text-start">
                         <div className="flex items-center gap-2.5">
                           <img src={u.avatar} className="w-8 h-8 rounded-lg object-cover" />
                           <div className="min-w-0">
-                            <p className="font-extrabold text-gray-950 leading-none truncate">{u.name}</p>
-                            <p className="text-[10px] text-gray-400 mt-1 font-mono truncate">{u.email}</p>
+                            <p className="font-extrabold text-fg leading-none truncate">{u.name}</p>
+                            <p className="text-[10px] text-fg-muted mt-1 font-mono truncate">{u.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 font-medium text-gray-700 text-start">{u.deviceInfo || 'Unknown Device'}</td>
+                      <td className="p-4 font-medium text-fg text-start">{u.deviceInfo || 'Unknown Device'}</td>
                       <td className="p-4 text-start">
-                        <span className="bg-gray-100 text-gray-800 font-mono text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                        <span className="bg-surface-sunken text-fg font-mono text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
                           {u.platform || 'Web'}
                         </span>
                       </td>
-                      <td className="p-4 font-mono text-gray-500 text-start">
+                      <td className="p-4 font-mono text-fg-muted text-start">
                         {u.lastSeen ? new Date(u.lastSeen).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A'}
                       </td>
-                      <td className="p-4 font-mono text-gray-500 text-start">
+                      <td className="p-4 font-mono text-fg-muted text-start">
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString(isAr ? 'ar-JO' : 'en-US') : 'N/A'}
                       </td>
-                      <td className="p-4 font-mono text-gray-600 text-start">
+                      <td className="p-4 font-mono text-fg-muted text-start">
                         {u.lastLoginIP || 'N/A'}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-400">
+                    <td colSpan={6} className="p-8 text-center text-fg-muted">
                       {isAr ? 'لا توجد جلسات نشطة مسجلة حالياً.' : 'No active sessions logged at the moment.'}
                     </td>
                   </tr>
@@ -892,22 +892,22 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         </p>
 
         {/* Onboarding & Welcome Flow Testing Controls */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+        <div className="bg-surface-raised border border-line rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-line">
             <RotateCcw className="w-4 h-4 text-[#FF6B00]" />
-            <h4 className="text-xs font-extrabold text-gray-900 uppercase">
+            <h4 className="text-xs font-extrabold text-fg uppercase">
               {isAr ? 'بيئة تجربة المستخدم والتعليمات' : 'User Onboarding & Guides Testing'}
             </h4>
           </div>
 
-          <p className="text-[11px] text-gray-500 leading-relaxed">
+          <p className="text-[11px] text-fg-muted leading-relaxed">
             {isAr
               ? 'أداة اختبار لإعادة تهيئة دليل المستخدم الجديد وتنبيهات التعليمات السياقية لغايات الفحص الفني.'
               : 'Developer testing utility to reset the new-user onboarding walkthrough and all contextual guides.'}
           </p>
 
           <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-400 text-[10px] block uppercase font-bold">
+            <span className="text-fg-muted text-[10px] block uppercase font-bold">
               {isAr ? 'حالة دليل المستخدم' : 'GUIDES ENGINE STATE'}
             </span>
             <button
@@ -927,7 +927,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         </div>
 
         {/* 4. Live Auction Force Reactivation */}
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="bg-accent-weak border border-orange-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-orange-100">
             <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" style={{ animationDuration: '6s' }} />
             <h4 className="text-xs font-extrabold text-orange-950 uppercase">
@@ -984,7 +984,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         {isAdminUser(currentUser) && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 Loading simulator…
               </div>
             }

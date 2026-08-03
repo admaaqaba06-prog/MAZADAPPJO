@@ -10,17 +10,93 @@
   --font-inter: "Inter", sans-serif;
   --color-ink: #0A0A0A;
   --color-ink-soft: #4B4B4B;
-  --color-surface: #F7F7F7;
   --color-orange: #F05123;
   --color-orange-light: #FFF1EC;
   --color-green: #16A34A;
+
+  /* Semantic theme tokens — named for ROLE, not colour, because "surface"
+     means something in both themes and "white" cannot. Light values reproduce
+     today's palette exactly, so this slice is a visual no-op in light mode.
+     Dark values below are a FIRST PASS, tuned in slice 2 against real screens. */
+  --color-surface: #F7F7F7;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-sunken: #EFEFEF;
+  --color-border: #E5E5E5;
+  --color-text-primary: #0A0A0A;
+  --color-text-muted: #4B4B4B;
+  /* Reads on a filled accent. Light in BOTH themes — this is what the 354
+     `text-white` labels migrated in slice 2 actually mean. */
+  --color-text-inverted: #FFFFFF;
+  --color-accent: #F05123;
+  --color-accent-weak: #FFF1EC;
+
+  /* Utility-friendly aliases. Tailwind v4 generates a utility per @theme colour,
+     so these give `text-fg`, `text-fg-muted`, `border-line`, `text-on-accent` —
+     readable at the call site, unlike `text-text-primary`. Same values as the
+     role tokens above; both names resolve to one variable per theme. */
+  --color-fg: var(--color-text-primary);
+  --color-fg-muted: var(--color-text-muted);
+  --color-line: var(--color-border);
+  --color-on-accent: var(--color-text-inverted);
+  /* Text on a surface that is LIGHT IN BOTH THEMES — the amber/orange tinted
+     chips and badges. Constant on purpose: those backgrounds do not flip, so
+     their text must not either. The mirror of `on-accent`, which is light on a
+     filled accent; this is dark on a light tint. Defined outside the
+     [data-theme] block so it never varies. */
+  --color-fg-on-light: #0A0A0A;
+}
+
+/* Dark theme. Selected by the attribute the pre-paint script sets, so the first
+   frame is already correct. An attribute rather than a class: greppable,
+   settable without React, and it cannot collide with Tailwind's own `dark:`
+   variant. The accent is deliberately IDENTICAL across themes — it is the
+   brand, and it carries on both backgrounds. */
+[data-theme='dark'] {
+  --color-surface: #0F0F10;
+  --color-surface-raised: #17181A;
+  --color-surface-sunken: #0A0A0B;
+  --color-border: #2A2C30;
+  --color-text-primary: #F2F2F3;
+  --color-text-muted: #A0A3A8;
+  --color-text-inverted: #FFFFFF;
+  --color-accent: #F05123;
+  --color-accent-weak: rgba(240, 81, 35, 0.14);
+}
+
+/* Native control chrome. THE fix for dropdowns: an <option> list, a scrollbar,
+   a date picker, a checkbox and an autofilled input are painted by the browser,
+   not by our CSS, and they follow `color-scheme` — nothing else. Without this a
+   <select> can look perfectly dark while the list it opens is white with white
+   text on it. Set on :root so it covers the whole document including popups. */
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* The page itself, so the area outside any component is themed too. Without
+   this the body stays white behind a dark app on short pages and on overscroll. */
+html[data-theme] body {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
 }
 
 /* Landing page base — scoped so it never restyles the app shell */
 .landing-root {
   font-family: "IBM Plex Sans Arabic", sans-serif;
-  background-color: #FFFFFF;
-  color: #0A0A0A;
+  /* Was #FFFFFF / #0A0A0A. On tokens now — the landing page is in scope for the
+     theme (MJ, 2026-08-03). The radial-gradient accents below keep their rgba
+     orange, which reads on both backgrounds.
+
+     No longer masked (slice 3): LandingView's root carried
+     `bg-[#FFFFFF] text-[#0A0A0A]` and painted over this until its palette was
+     migrated alongside it. It now uses `bg-surface-raised text-fg` — raised
+     rather than surface, so light mode stays exactly #FFFFFF as before. */
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
   background-image:
     radial-gradient(circle at 10% 20%, rgba(240, 81, 35, 0.015) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(240, 81, 35, 0.015) 0%, transparent 45%);

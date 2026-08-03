@@ -40,25 +40,25 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <p className="text-sm font-black text-gray-900">{userName}</p>
-        <p className="text-2xl font-black text-gray-950" dir="ltr">
+        <p className="text-sm font-black text-fg">{userName}</p>
+        <p className="text-2xl font-black text-fg" dir="ltr">
           {Number(withdrawal.amount || 0).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'}
         </p>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1">
+      <div className="bg-surface-sunken border border-line rounded-xl p-3 space-y-1">
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'الطريقة' : 'Method'}</span>
-          <span className="font-bold text-gray-800">{method}</span>
+          <span className="text-fg-muted font-bold uppercase font-mono">{isAr ? 'الطريقة' : 'Method'}</span>
+          <span className="font-bold text-fg">{method}</span>
         </div>
         <div className="flex items-center justify-between text-[11px] gap-3">
-          <span className="text-gray-500 font-bold uppercase font-mono shrink-0">{isAr ? 'الوجهة' : 'Destination'}</span>
-          <span className="font-mono text-gray-800 truncate" dir="ltr">{destination}</span>
+          <span className="text-fg-muted font-bold uppercase font-mono shrink-0">{isAr ? 'الوجهة' : 'Destination'}</span>
+          <span className="font-mono text-fg truncate" dir="ltr">{destination}</span>
         </div>
         {details.accountHolderName && (
           <div className="flex items-center justify-between text-[11px] gap-3">
-            <span className="text-gray-500 font-bold uppercase font-mono shrink-0">{isAr ? 'اسم صاحب الحساب' : 'Account holder'}</span>
-            <span className="font-bold text-gray-800 truncate">{details.accountHolderName}</span>
+            <span className="text-fg-muted font-bold uppercase font-mono shrink-0">{isAr ? 'اسم صاحب الحساب' : 'Account holder'}</span>
+            <span className="font-bold text-fg truncate">{details.accountHolderName}</span>
           </div>
         )}
       </div>
@@ -70,12 +70,12 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder={isAr ? 'سبب الرفض...' : 'Reason for rejection...'}
-            className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
+            className="w-full text-xs border border-line rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
           />
           <div className="flex gap-2">
             <button
               onClick={() => { setRejecting(false); setReason(''); }}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl border border-gray-200"
+              className="flex-1 bg-surface-sunken hover:bg-gray-200 text-fg font-semibold text-xs py-2 rounded-xl border border-line"
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </button>
@@ -91,7 +91,7 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
       ) : (
         <div className="space-y-2">
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+            <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
               {isAr ? 'رقم عملية التحويل عبر كليك' : 'CliQ transfer reference'}
             </p>
             <input
@@ -100,9 +100,9 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
               value={transferRef}
               onChange={(e) => setTransferRef(e.target.value)}
               placeholder={isAr ? 'من إشعار التحويل' : 'From your transfer confirmation'}
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00]"
+              className="w-full bg-surface-raised border border-line rounded-xl px-3 py-2 text-xs font-mono text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00]"
             />
-            <p className="text-[10px] text-gray-400 leading-snug">
+            <p className="text-[10px] text-fg-muted leading-snug">
               {isAr
                 ? 'أرسل المبلغ أولاً، ثم سجّل رقم العملية هنا. لا يمكن اعتماد السحب بدونه.'
                 : 'Send the money first, then record its reference here. A payout cannot be approved without it.'}
@@ -118,7 +118,7 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
           </button>
           <button
             onClick={() => { setRejecting(true); setReason(''); }}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl border border-gray-200"
+            className="flex-1 bg-surface-sunken hover:bg-gray-200 text-fg font-semibold text-xs py-2 rounded-xl border border-line"
           >
             {isAr ? 'رفض' : 'Reject'}
           </button>

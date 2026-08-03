@@ -810,7 +810,7 @@ export const AdminDashboardView: React.FC = () => {
   if (adminSelectedOrderId) {
     return (
       <div 
-        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 p-4 md:p-6 overscroll-contain select-none font-sans text-gray-800"
+        className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface-sunken/50 p-4 md:p-6 overscroll-contain select-none font-sans text-fg"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="admin-order-details-pane"
       >
@@ -823,33 +823,33 @@ export const AdminDashboardView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-gray-50/50 pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans text-gray-800 animate-fadeIn"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface-sunken/50 pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans text-fg animate-fadeIn"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="admin-dashboard-root"
     >
       
       {/* Top Header - Streamlined & Elegant */}
-      <div className="p-5 flex items-center justify-between border-b border-gray-100 bg-white sticky top-0 z-40 shadow-xs">
+      <div className="p-5 flex items-center justify-between border-b border-line bg-surface-raised sticky top-0 z-40 shadow-xs">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-[#E85D04]/10 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-[#E85D04]" />
           </div>
           <div>
-            <h2 className="text-sm font-black text-gray-900 leading-none">
+            <h2 className="text-sm font-black text-fg leading-none">
               {isAr ? 'لوحة التحكم والإشراف' : 'Control & Administration Panel'}
             </h2>
-            <p className="text-[10px] text-gray-400 mt-1">
+            <p className="text-[10px] text-fg-muted mt-1">
               {isAr ? 'إدارة المزادات، الحسابات، الدفعات والضمان' : 'Manage live auctions, accounts, payouts, and escrow'}
             </p>
           </div>
         </div>
-        <span className="text-[10px] bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+        <span className="text-[10px] bg-surface-sunken text-fg px-3 py-1 rounded-full font-bold uppercase tracking-wider">
           {isAr ? 'حساب مدير النظام' : 'SYSTEM ADMIN'}
         </span>
       </div>
 
       {/* Navigation Submenu - Premium Tab Buttons */}
-      <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
+      <div className="bg-surface-raised border-b border-line px-4 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
         {(() => {
           // Wave 4: one badge, one source. The queue's length IS how much is
           // waiting — five separate counters could disagree with the list they
@@ -866,7 +866,7 @@ export const AdminDashboardView: React.FC = () => {
                 className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
                   isActive
                     ? 'bg-gray-900 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
                 <span>{isAr ? TAB_META[tab].ar : TAB_META[tab].en}</span>
@@ -914,7 +914,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'audit' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -929,7 +929,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'orders' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -953,7 +953,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'our-drops' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -990,7 +990,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'members' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1015,7 +1015,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'auction-lookup' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1030,7 +1030,7 @@ export const AdminDashboardView: React.FC = () => {
         {activeTab === 'system' && (
           <React.Suspense
             fallback={
-              <div className="bg-white p-5 rounded-3xl border border-gray-200 text-xs text-gray-400 font-semibold">
+              <div className="bg-surface-raised p-5 rounded-3xl border border-line text-xs text-fg-muted font-semibold">
                 {isAr ? 'جاري التحميل…' : 'Loading…'}
               </div>
             }
@@ -1067,17 +1067,17 @@ export const AdminDashboardView: React.FC = () => {
           className="fixed inset-0 bg-black/85 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setViewReceiptUrl(null)}
         >
-          <div className="relative max-w-lg w-full bg-white rounded-3xl p-3 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="relative max-w-lg w-full bg-surface-raised rounded-3xl p-3 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <img 
               src={viewReceiptUrl} 
               alt="Receipt Full Preview" 
               className="w-full max-h-[70vh] object-contain rounded-2xl"
             />
             <div className="mt-3.5 flex justify-between items-center px-1">
-              <span className="text-[10px] text-gray-400 font-mono uppercase">{isAr ? 'إثبات تحويل كليك' : 'CliQ Transfer Proof'}</span>
+              <span className="text-[10px] text-fg-muted font-mono uppercase">{isAr ? 'إثبات تحويل كليك' : 'CliQ Transfer Proof'}</span>
               <button 
                 onClick={() => setViewReceiptUrl(null)}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl px-4 py-2 text-xs font-black uppercase transition-all"
+                className="bg-surface-sunken hover:bg-gray-200 text-fg rounded-xl px-4 py-2 text-xs font-black uppercase transition-all"
               >
                 {isAr ? 'إغلاق' : 'Close'}
               </button>

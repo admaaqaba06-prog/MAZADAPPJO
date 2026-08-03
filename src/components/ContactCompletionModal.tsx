@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveMissingContact } from '../utils/guestGate';
 import { DEFAULT_COUNTRY } from '../utils/phoneNumber';
 import type { CountryCode } from 'libphonenumber-js';
 import { mapAuthError } from '../utils/authErrors';
 import { PhoneInput } from './ui/PhoneInput';
-import { Phone, Mail, ShieldCheck, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Phone, Mail, ShieldCheck, Loader2, ArrowRight, ArrowLeft, MessageCircle } from 'lucide-react';
+import { useResendCooldown } from '../hooks/useResendCooldown';
+import { auth } from '../services/firebase';
 
 // Deliberately loose email check — email is UNVERIFIED in E5 (receipts only), so
 // this only catches typos/blanks. Matches guestGate.EMAIL_RE.
@@ -30,7 +32,14 @@ interface ContactCompletionModalProps {
  * Only the field(s) resolveMissingContact(currentUser) reports as missing render.
  */
 export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ open, onClose, onComplete }) => {
-  const { currentUser, language, requestWhatsappOtp, attachWhatsappPhone, saveEmail } = useApp();
+  const {
+    currentUser, language, requestWhatsappOtp, attachWhatsappPhone, saveEmail,
+    // The SMS fallback. These have existed on the context since E5 — written for
+    // THIS modal (see their comment in AppContext) and consumed by nothing until
+    // now. They link the credential to the current uid rather than signing into
+    // a new phone account, so the wallet and history survive.
+    linkPhoneSendCode, linkPhoneToAccount,
+  } = useApp();
   const isAr = language === 'ar';
 
   // Live missing-contact evaluation — mirrors of currentUser (written by the
@@ -47,6 +56,16 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   const [codeSent, setCodeSent] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneErr, setPhoneErr] = useState('');
+
+  // WhatsApp is the DEFAULT, not merely the first option: Firebase's SMS routing
+  // to Jordanian carriers is the slow, lossy path this product deliberately
+  // moved off (docs/superpowers/specs/2026-07-23-local-sms-otp-provider-design.md).
+  // SMS exists here for people who do not use WhatsApp.
+  const [channel, setChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  // Set by the SMS branch only; the confirm step needs it to build the credential.
+  const verificationIdRef = useRef<string | null>(null);
+  const recaptchaRef = useRef<any>(null);
+  const { cooldown, start: startCooldown, clear: clearCooldown } = useResendCooldown();
 
   // Email flow state
   const [email, setEmail] = useState('');
@@ -72,19 +91,39 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     }
     setPhoneBusy(true);
     try {
-      // Sends a 6-digit code over WhatsApp (no reCAPTCHA). ok:false means the
-      // server-side cooldown/rate-limit is active — surface the wait, not an error.
-      const res = await requestWhatsappOtp(e164);
-      if (res.ok) {
+      if (channel === 'sms') {
+        // Firebase phone auth needs an invisible reCAPTCHA. Built lazily and
+        // reused, mirroring LoginView — constructing a second verifier against
+        // the same container throws.
+        if (!recaptchaRef.current) {
+          const { RecaptchaVerifier } = await import('firebase/auth');
+          const verifier = new RecaptchaVerifier(auth, 'contact-recaptcha-container', { size: 'invisible' });
+          await verifier.render();
+          recaptchaRef.current = verifier;
+        }
+        verificationIdRef.current = await linkPhoneSendCode(e164, recaptchaRef.current);
         setCodeSent(true);
+        startCooldown();
       } else {
-        const secs = res.retryAfterSec ?? 60;
-        setPhoneErr(isAr
-          ? `الرجاء الانتظار ${secs} ثانية قبل إعادة إرسال الرمز.`
-          : `Please wait ${secs}s before requesting another code.`);
+        // Sends a 6-digit code over WhatsApp (no reCAPTCHA). ok:false means the
+        // server-side cooldown/rate-limit is active — surface the wait, not an error.
+        const res = await requestWhatsappOtp(e164);
+        if (res.ok) {
+          setCodeSent(true);
+          startCooldown();
+        } else {
+          // Honour the SERVER's wait in the resend UI rather than starting a
+          // fresh 60s that would let the button re-enable before it is allowed.
+          const secs = res.retryAfterSec ?? 60;
+          setCodeSent(true);
+          startCooldown(secs);
+          setPhoneErr(isAr
+            ? `الرجاء الانتظار ${secs} ثانية قبل إعادة إرسال الرمز.`
+            : `Please wait ${secs}s before requesting another code.`);
+        }
       }
     } catch (e: any) {
-      console.warn('Contact phone WhatsApp OTP (send code) failed:', e);
+      console.warn(`Contact phone OTP (send, ${channel}) failed:`, e);
       setPhoneErr(mapAuthError(e, isAr));
     } finally {
       setPhoneBusy(false);
@@ -105,18 +144,43 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     }
     setPhoneBusy(true);
     try {
+      if (channel === 'sms') {
+        if (!verificationIdRef.current) {
+          setPhoneErr(isAr ? 'أعد إرسال الرمز.' : 'Request a new code.');
+          return;
+        }
+        // Links the credential to THIS uid (never signs into a separate phone
+        // account), then mirrors currentUser so the completion effect proceeds.
+        // Throws on a bad code, so reaching the next line means it worked.
+        await linkPhoneToAccount(verificationIdRef.current, smsCode.trim());
+        clearCooldown();
+        setCodeSent(false);
+        setSmsCode('');
+        verificationIdRef.current = null;
+        return;
+      }
       // Verifies the code + attaches the number to THIS uid server-side. On success
       // the wrapper writes the phone to the user doc and mirrors currentUser, so the
       // completion effect proceeds (or the email field renders if still missing).
       const res = await attachWhatsappPhone(e164, smsCode.trim());
       if (res.ok) {
+        clearCooldown();
         setCodeSent(false);
         setSmsCode('');
       } else {
         setPhoneErr(isAr ? 'رمز غير صحيح أو منتهي الصلاحية.' : 'Incorrect or expired code.');
       }
     } catch (e: any) {
-      console.warn('Contact phone WhatsApp OTP (verify) failed:', e);
+      console.warn(`Contact phone OTP (verify, ${channel}) failed:`, e);
+      // The SMS path throws this when the number is already on another Firebase
+      // account. Same meaning as the callable's already-exists — never merge or
+      // orphan this user's wallet by linking it anyway.
+      if (e?.code === 'auth/credential-already-in-use' || e?.code === 'auth/account-exists-with-different-credential') {
+        setPhoneErr(isAr
+          ? 'هذا الرقم مسجّل على حساب آخر. استخدم رقماً مختلفاً.'
+          : 'This number is already on another account. Use a different number.');
+        return;
+      }
       // The number already belongs to a different account — do NOT merge/orphan
       // this user's wallet/history. Tell them plainly.
       if (e?.code === 'functions/already-exists') {
@@ -135,6 +199,13 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     setCodeSent(false);
     setSmsCode('');
     setPhoneErr('');
+    // MUST invalidate: a verificationId belongs to the number it was issued for.
+    // Kept across a number change, the SMS branch would link the OLD number to
+    // this account while the UI showed the new one.
+    verificationIdRef.current = null;
+    // The cooldown belongs to the previous number too — a fresh number should
+    // not inherit its wait.
+    clearCooldown();
   };
 
   const handleSaveEmail = async () => {
@@ -160,7 +231,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
-        className="relative bg-white text-gray-900 w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
+        className="relative bg-surface-raised text-fg w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="contact-completion-modal"
         role="dialog"
@@ -168,13 +239,13 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
       >
         {/* Headline */}
         <div className="text-center space-y-3 mb-6">
-          <div className="mx-auto w-11 h-11 rounded-full bg-orange-50 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
+          <div className="mx-auto w-11 h-11 rounded-full bg-accent-weak border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-6 h-6" />
           </div>
-          <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+          <h2 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">
             {isAr ? 'أكمل معلومات التواصل' : 'Complete your contact info'}
           </h2>
-          <p className="text-xs text-gray-500 max-w-xs mx-auto leading-normal">
+          <p className="text-xs text-fg-muted max-w-xs mx-auto leading-normal">
             {isAr
               ? 'نحتاج طريقة للتواصل معك حول مزايداتك وطلباتك قبل المتابعة.'
               : 'We need a way to reach you about your bids and orders before you continue.'}
@@ -185,13 +256,47 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           {/* Phone — only when missing */}
           {needsPhone && (
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              {/* The label used to sit OUTSIDE this branch, so after sending it
+                  still read "Phone number" above a code box — and the number the
+                  code went to was nowhere on screen. */}
+              <span className="text-[11px] font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5" />
-                {isAr ? 'رقم الهاتف' : 'Phone number'}
+                {!codeSent
+                  ? (isAr ? 'رقم الهاتف' : 'Phone number')
+                  : (isAr ? 'رمز التحقق' : 'Verification code')}
               </span>
+
+              {codeSent && phone.e164 && (
+                <p className="text-[11px] text-fg-muted font-medium" dir="ltr">
+                  {channel === 'sms'
+                    ? (isAr ? `أُرسل برسالة نصية إلى ${phone.e164}` : `Sent by SMS to ${phone.e164}`)
+                    : (isAr ? `أُرسل عبر واتساب إلى ${phone.e164}` : `Sent on WhatsApp to ${phone.e164}`)}
+                </p>
+              )}
 
               {!codeSent ? (
                 <>
+                  {/* Channel choice, same two options as sign-in. WhatsApp is
+                      pre-selected because Firebase's SMS route to Jordanian
+                      carriers is the slow one. */}
+                  <div className="flex gap-2">
+                    {(['whatsapp', 'sms'] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setChannel(c)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-black border transition-colors cursor-pointer ${
+                          channel === c
+                            ? 'bg-[#FF6B00]/10 border-[#FF6B00] text-[#FF6B00]'
+                            : 'bg-surface-raised border-line text-fg-muted hover:border-line'
+                        }`}
+                      >
+                        {c === 'whatsapp'
+                          ? <><MessageCircle className="w-3.5 h-3.5" />{isAr ? 'واتساب' : 'WhatsApp'}</>
+                          : <><Phone className="w-3.5 h-3.5" />{isAr ? 'رسالة نصية' : 'SMS'}</>}
+                      </button>
+                    ))}
+                  </div>
                   <PhoneInput
                     value={{ country: phone.country, national: phone.national }}
                     onChange={setPhone}
@@ -214,7 +319,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                       <span>{isAr ? 'إرسال الرمز' : 'Send code'}</span>
                     )}
                   </button>
-                  <p className="text-[11px] text-gray-400 font-medium text-center">
+                  <p className="text-[11px] text-fg-muted font-medium text-center">
                     {isAr ? 'قد يستغرق وصول الرمز حتى دقيقة' : 'The code can take up to a minute to arrive.'}
                   </p>
                 </>
@@ -227,7 +332,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                     placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
                     value={smsCode}
                     onChange={e => setSmsCode(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-gray-50 tracking-widest text-center"
+                    className="w-full border border-line rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-surface-sunken tracking-widest text-center"
                     id="contact-code-input"
                   />
                   <button
@@ -246,16 +351,34 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                       <span>{isAr ? 'تأكيد' : 'Verify'}</span>
                     )}
                   </button>
+                  {/* Resend. Disabled for the whole cooldown so a second tap
+                      cannot outrun the server's own rate limit — when the server
+                      reports a wait, that wait is what counts down here. */}
+                  <button
+                    type="button"
+                    disabled={cooldown > 0 || phoneBusy}
+                    onClick={handleSendCode}
+                    className="w-full text-xs font-bold text-[#FF6B00] hover:text-[#c94d03] transition-colors cursor-pointer disabled:text-fg-muted disabled:cursor-not-allowed"
+                    id="contact-resend-btn"
+                  >
+                    {cooldown > 0
+                      ? (isAr ? `إعادة الإرسال خلال ${cooldown} ثانية` : `Resend in ${cooldown}s`)
+                      : (isAr ? 'إعادة إرسال الرمز' : 'Resend code')}
+                  </button>
                   <button
                     type="button"
                     onClick={handlePhoneBack}
-                    className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                    className="w-full text-xs text-fg-muted hover:text-fg font-semibold transition-colors"
                     id="contact-phone-back-btn"
                   >
                     {isAr ? 'تغيير الرقم' : 'Change number'}
                   </button>
                 </>
               )}
+
+              {/* Invisible reCAPTCHA host for the SMS branch. Must exist in the
+                  DOM before RecaptchaVerifier renders into it. */}
+              <div id="contact-recaptcha-container" />
 
               {phoneErr && (
                 <p className="text-xs font-bold text-red-500" role="alert" id="contact-phone-error">{phoneErr}</p>
@@ -266,7 +389,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           {/* Email — only when missing */}
           {needsEmail && (
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5" />
                 {isAr ? 'البريد الإلكتروني' : 'Email address'}
               </span>
@@ -277,7 +400,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-gray-50 text-left"
+                className="w-full border border-line rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-surface-sunken text-left"
                 id="contact-completion-email"
               />
               <button
@@ -309,7 +432,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           <button
             type="button"
             onClick={onClose}
-            className="w-full text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
+            className="w-full text-xs text-fg-muted hover:text-fg font-bold transition-colors cursor-pointer"
             id="contact-completion-dismiss"
           >
             {isAr ? 'لاحقاً' : 'Not now'}

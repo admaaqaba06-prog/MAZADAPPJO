@@ -7,7 +7,7 @@ import { displayOrderRef } from '../utils/orderRef';
 /** Text-colour-only classes per glossary tone — the old inline label used a
  *  green/orange split; this preserves that while sourcing the label centrally. */
 const STATUS_TONE_TEXT: Record<OrderStatusTone, string> = {
-  neutral: 'text-gray-600',
+  neutral: 'text-fg-muted',
   info: 'text-[#FF8000]',
   warning: 'text-[#FF8000]',
   success: 'text-emerald-600',
@@ -28,7 +28,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5 uppercase font-mono">
+        <h3 className="text-sm font-black text-fg tracking-tight flex items-center gap-1.5 uppercase font-mono">
           <span>{isAr ? 'طلبات الشراء الخاصة بي' : 'MY BUYING ORDERS'}</span>
         </h3>
         <span className="text-[10px] bg-[#FF8000]/10 text-[#FF8000] border border-[#FF8000]/20 font-mono font-black px-2.5 py-0.5 rounded-full">
@@ -43,7 +43,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
           titleEn="Congratulations on Your First Win! 🏆"
           descAr="مبروك الفوز بمزادك الأول! أكمل الدفع عبر كليك، ومزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة."
           descEn="Congratulations on your first win! Complete your payment via CliQ — Mazad holds it and only releases it to the seller after you receive the item and confirm it matches."
-          className="bg-orange-50/70 border-orange-100 text-gray-700"
+          className="bg-accent-weak/70 border-orange-100 text-fg"
         />
       )}
 
@@ -63,23 +63,23 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
             return (
               <div
                 key={order.id}
-                className="bg-white border border-gray-200 rounded-3xl p-5 space-y-4 relative overflow-hidden"
+                className="bg-surface-raised border border-line rounded-3xl p-5 space-y-4 relative overflow-hidden"
               >
                 {/* Header info */}
                 <div className="flex gap-4 items-start">
                   <img
                     src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
                     alt={order.auctionTitle}
-                    className="w-16 h-16 rounded-2xl object-cover border border-gray-200"
+                    className="w-16 h-16 rounded-2xl object-cover border border-line"
                     referrerPolicy="no-referrer"
                   />
                   <div className="space-y-1 min-w-0 flex-1">
-                    <h4 className="font-black text-gray-900 text-sm truncate leading-snug">
+                    <h4 className="font-black text-fg text-sm truncate leading-snug">
                       {order.auctionTitle}
                     </h4>
-                    <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1">
+                    <p className="text-[10px] text-fg-muted font-mono flex items-center gap-1">
                       <span>ID:</span>
-                      <span className="font-bold select-all text-gray-700">{displayOrderRef(order)}</span>
+                      <span className="font-bold select-all text-fg">{displayOrderRef(order)}</span>
                       {formattedDate && (
                         <>
                           <span className="text-gray-300">•</span>
@@ -88,24 +88,24 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                       )}
                     </p>
                     <div className="text-base font-black text-[#FF8000] font-mono mt-1">
-                      {order.winningBidAmount.toLocaleString()} <span className="text-[10px] font-sans font-bold text-gray-500">JOD</span>
+                      {order.winningBidAmount.toLocaleString()} <span className="text-[10px] font-sans font-bold text-fg-muted">JOD</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="border-t border-gray-100 my-1" />
+                <div className="border-t border-line my-1" />
 
                 {/* Grid stats */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-200 space-y-0.5">
-                    <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الطلب' : 'ORDER STATUS'}</span>
+                  <div className="bg-surface-sunken p-2.5 rounded-2xl border border-line space-y-0.5">
+                    <span className="text-[9px] text-fg-muted font-mono uppercase block font-black">{isAr ? 'حالة الطلب' : 'ORDER STATUS'}</span>
                     <span className={`font-black text-[10.5px] uppercase ${STATUS_TONE_TEXT[statusChip.tone]}`}>
                       {statusChip.label}
                     </span>
                   </div>
 
-                  <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-200 space-y-0.5">
-                    <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT'}</span>
+                  <div className="bg-surface-sunken p-2.5 rounded-2xl border border-line space-y-0.5">
+                    <span className="text-[9px] text-fg-muted font-mono uppercase block font-black">{isAr ? 'حالة الدفع' : 'PAYMENT'}</span>
                     <span className={`font-black text-[10.5px] uppercase ${
                       order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-500'
                     }`}>
@@ -113,9 +113,9 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                     </span>
                   </div>
 
-                  <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-200 space-y-0.5">
+                  <div className="bg-surface-sunken p-2.5 rounded-2xl border border-line space-y-0.5">
                     <span className="text-[9px] text-[#FF8000] font-mono uppercase block font-black">{isAr ? 'الشحن والتوصيل' : 'SHIPPING'}</span>
-                    <span className="font-black text-gray-700 text-[10.5px] uppercase">
+                    <span className="font-black text-fg text-[10.5px] uppercase">
                       {order.shippingStatus === 'not_started' ? (isAr ? 'لم يبدأ بعد' : 'Not Started') :
                        order.shippingStatus === 'preparing' ? (isAr ? 'قيد التجهيز' : 'Preparing') :
                        order.shippingStatus === 'shipped' ? (isAr ? 'تم الشحن' : 'Shipped') :
@@ -123,8 +123,8 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                     </span>
                   </div>
 
-                  <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-200 space-y-0.5">
-                    <span className="text-[9px] text-gray-400 font-mono uppercase block font-black">{isAr ? 'المبلغ المحجوز' : 'ESCROW STATUS'}</span>
+                  <div className="bg-surface-sunken p-2.5 rounded-2xl border border-line space-y-0.5">
+                    <span className="text-[9px] text-fg-muted font-mono uppercase block font-black">{isAr ? 'المبلغ المحجوز' : 'ESCROW STATUS'}</span>
                     <span className={`font-black text-[10.5px] uppercase ${
                       order.escrowStatus === 'released' ? 'text-emerald-600' : 'text-blue-600'
                     }`}>
@@ -141,7 +141,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
                   className={`w-full font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] ${
                     order.status === 'waiting_payment'
                       ? 'bg-[#FF8000] hover:bg-orange-600 text-white shadow-md'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 hover:border-[#FF8000]'
+                      : 'bg-surface-sunken hover:bg-gray-200 text-fg border border-line hover:border-[#FF8000]'
                   }`}
                   id={`btn-view-buyer-order-${order.id}`}
                 >
@@ -153,14 +153,14 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
           })}
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-3xl border border-gray-200 p-6">
-          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 border border-gray-200 mx-auto mb-3">
+        <div className="text-center py-12 bg-surface-raised rounded-3xl border border-line p-6">
+          <div className="w-12 h-12 rounded-full bg-surface-sunken flex items-center justify-center text-fg-muted border border-line mx-auto mb-3">
             <ShoppingBag className="w-5 h-5" />
           </div>
-          <p className="font-extrabold text-gray-900 text-xs uppercase tracking-wide">
+          <p className="font-extrabold text-fg text-xs uppercase tracking-wide">
             {isAr ? 'لا يوجد طلبات شراء حالية' : 'No Orders Yet'}
           </p>
-          <p className="text-[10px] text-gray-500 leading-relaxed mt-1.5 max-w-[280px] mx-auto">
+          <p className="text-[10px] text-fg-muted leading-relaxed mt-1.5 max-w-[280px] mx-auto">
             {isAr 
               ? 'عند فوزك بمزاد وإنهائه بنجاح، ستظهر تفاصيل الدفع والاستلام الفوري هنا مباشرة.' 
               : 'When you win an auction and it concludes successfully, your payment and tracking cards appear here.'}

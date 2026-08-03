@@ -294,7 +294,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
   return (
     <div 
-      className="min-h-screen w-full bg-neutral-50 text-gray-900 flex flex-col justify-center items-center p-4 md:p-8 font-sans select-none relative"
+      className="min-h-screen w-full bg-surface-sunken text-fg flex flex-col justify-center items-center p-4 md:p-8 font-sans select-none relative"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="login-view-root"
     >
@@ -305,16 +305,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
             M
           </div>
           <div>
-            <span className="font-mono font-black text-base text-gray-900 tracking-tight">{t.appName}</span>
+            <span className="font-mono font-black text-base text-fg tracking-tight">{t.appName}</span>
           </div>
         </div>
 
         <button 
           onClick={handleLanguageToggle}
-          className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-semibold hover:bg-gray-50 transition-colors shadow-sm"
+          className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-line bg-surface-raised text-xs font-semibold hover:bg-surface-sunken transition-colors shadow-sm"
           id="lang-toggle-btn"
         >
-          <Globe className="w-3.5 h-3.5 text-gray-400" />
+          <Globe className="w-3.5 h-3.5 text-fg-muted" />
           <span>{t.langLabel}</span>
         </button>
       </header>
@@ -330,10 +330,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       )}
 
       {/* Center White Modal Box */}
-      <div className={`w-full max-w-md bg-white rounded-3xl p-6 md:p-8 border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
+      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
 
         {/* Title */}
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight text-center mb-6">
+        <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">
           {isAr ? 'يا هلا فيك — سجّل دخولك' : 'Welcome — sign in'}
         </h1>
 
@@ -396,7 +396,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                       </>
                     )}
                   </button>
-                  <p className="text-[11px] text-gray-400 font-medium text-center" id="wa-delivery-hint">
+                  <p className="text-[11px] text-fg-muted font-medium text-center" id="wa-delivery-hint">
                     {isAr ? 'سنرسل الرمز إلى رقمك على واتساب' : "We'll send the code to your number on WhatsApp."}
                   </p>
                 </>
@@ -409,7 +409,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                     placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
                     value={waCode}
                     onChange={(e) => setWaCode(e.target.value)}
-                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all tracking-widest text-center"
+                    className="w-full h-11 bg-surface-raised border border-line rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-fg placeholder-gray-400 transition-all tracking-widest text-center"
                     id="wa-code-input"
                   />
                   <button
@@ -429,13 +429,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                     )}
                   </button>
                   <div className="text-center space-y-1 pt-1" id="wa-resend-block">
-                    <p className="text-[11px] text-gray-400 font-medium">
+                    <p className="text-[11px] text-fg-muted font-medium">
                       {isAr
                         ? `أرسلنا رمزاً عبر واتساب إلى ${phone.e164 ?? ''}. لم يصلك؟`
                         : `We sent a code on WhatsApp to ${phone.e164 ?? ''}. Didn't get it?`}
                     </p>
                     {cooldown > 0 ? (
-                      <span className="text-xs text-gray-400 font-semibold" id="wa-resend-cooldown">
+                      <span className="text-xs text-fg-muted font-semibold" id="wa-resend-cooldown">
                         {isAr ? `أعد الإرسال خلال ${cooldown} ث` : `Resend in ${cooldown}s`}
                       </span>
                     ) : (
@@ -467,7 +467,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               <button
                 type="button"
                 onClick={handlePhoneBack}
-                className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                className="w-full text-xs text-fg-muted hover:text-fg font-semibold transition-colors"
                 id="phone-back-btn"
               >
                 {isAr ? 'رجوع' : 'Back'}
@@ -499,7 +499,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                       <span>{isAr ? 'إرسال الرمز' : 'Send code'}</span>
                     )}
                   </button>
-                  <p className="text-[11px] text-gray-400 font-medium text-center" id="phone-delivery-hint">
+                  <p className="text-[11px] text-fg-muted font-medium text-center" id="phone-delivery-hint">
                     {isAr ? 'قد يستغرق وصول الرمز حتى دقيقة' : 'The code can take up to a minute to arrive.'}
                   </p>
                 </>
@@ -512,7 +512,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                     placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
                     value={smsCode}
                     onChange={(e) => setSmsCode(e.target.value)}
-                    className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-gray-900 placeholder-gray-400 transition-all tracking-widest text-center"
+                    className="w-full h-11 bg-surface-raised border border-line rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-fg placeholder-gray-400 transition-all tracking-widest text-center"
                     id="phone-code-input"
                   />
                   <button
@@ -532,13 +532,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                     )}
                   </button>
                   <div className="text-center space-y-1 pt-1" id="phone-resend-block">
-                    <p className="text-[11px] text-gray-400 font-medium">
+                    <p className="text-[11px] text-fg-muted font-medium">
                       {isAr
                         ? `أرسلنا رمزاً إلى ${phone.e164 ?? ''}. لم يصلك؟`
                         : `We sent a code to ${phone.e164 ?? ''}. Didn't get it?`}
                     </p>
                     {cooldown > 0 ? (
-                      <span className="text-xs text-gray-400 font-semibold" id="phone-resend-cooldown">
+                      <span className="text-xs text-fg-muted font-semibold" id="phone-resend-cooldown">
                         {isAr ? `أعد الإرسال خلال ${cooldown} ث` : `Resend in ${cooldown}s`}
                       </span>
                     ) : (
@@ -570,7 +570,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               <button
                 type="button"
                 onClick={handlePhoneBack}
-                className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                className="w-full text-xs text-fg-muted hover:text-fg font-semibold transition-colors"
                 id="phone-back-btn"
               >
                 {isAr ? 'رجوع' : 'Back'}
@@ -580,16 +580,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
           {/* Divider */}
           <div className="flex items-center gap-3" aria-hidden="true">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-[11px] text-gray-400 font-semibold">{isAr ? 'أو' : 'or'}</span>
-            <div className="flex-1 h-px bg-gray-100" />
+            <div className="flex-1 h-px bg-surface-sunken" />
+            <span className="text-[11px] text-fg-muted font-semibold">{isAr ? 'أو' : 'or'}</span>
+            <div className="flex-1 h-px bg-surface-sunken" />
           </div>
 
           {/* Continue with Google (secondary) */}
           <button
             type="button"
             onClick={handleGoogleClick}
-            className="w-full h-11 flex items-center justify-center gap-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 text-sm font-bold rounded-full shadow-sm transition-all"
+            className="w-full h-11 flex items-center justify-center gap-3 bg-surface-raised hover:bg-surface-sunken border border-line text-fg text-sm font-bold rounded-full shadow-sm transition-all"
             id="google-login-btn"
           >
             <GoogleIcon />
@@ -602,7 +602,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
           <button
             type="button"
             onClick={onBack}
-            className="w-full mt-4 text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
+            className="w-full mt-4 text-xs text-fg-muted hover:text-fg font-bold transition-colors cursor-pointer"
             id="login-continue-browsing-btn"
           >
             {isAr ? '← متابعة التصفح بدون تسجيل' : '← Continue browsing without an account'}
@@ -612,7 +612,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       </div>
 
       {/* Policy Footer */}
-      <footer className="text-center text-[11px] text-gray-400 font-medium tracking-wide max-w-xs mx-auto pt-4 border-t border-gray-100 w-full mt-auto">
+      <footer className="text-center text-[11px] text-fg-muted font-medium tracking-wide max-w-xs mx-auto pt-4 border-t border-line w-full mt-auto">
         {t.tagline}
       </footer>
     </div>

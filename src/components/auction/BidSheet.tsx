@@ -137,7 +137,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
           id="mobile-bid-sheet"
         >
           <motion.div
-            className="relative bg-white text-[#0A0A0A] font-alexandria rounded-t-[26px] px-4 pt-[18px] pb-5 shadow-[0_-20px_50px_rgba(0,0,0,0.3)]"
+            className="relative bg-surface-raised text-fg font-alexandria rounded-t-[26px] px-4 pt-[18px] pb-5 shadow-[0_-20px_50px_rgba(0,0,0,0.3)]"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
             initial={from}
             animate={enter}
@@ -146,26 +146,26 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Grab handle + close */}
-            <div className="w-[38px] h-1 rounded-full bg-[#ddd] mx-auto mb-3.5" />
+            <div className="w-[38px] h-1 rounded-full bg-surface-sunken mx-auto mb-3.5" />
             <button
               type="button"
               onClick={onClose}
               aria-label={isAr ? 'إغلاق' : 'Close'}
-              className="absolute top-3 w-8 h-8 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#666] active:scale-95 transition-transform cursor-pointer"
+              className="absolute top-3 w-8 h-8 rounded-full bg-surface flex items-center justify-center text-fg-muted active:scale-95 transition-transform cursor-pointer"
               style={{ insetInlineEnd: '12px' }}
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[15px] font-black text-[#0A0A0A]">
+              <h3 className="text-[15px] font-black text-fg">
                 {isAr ? 'قدّم مزايدتك' : 'Place your bid'}
               </h3>
               {onOpenRules && (
                 <button
                   type="button"
                   onClick={onOpenRules}
-                  className="flex items-center gap-1 text-[11px] font-bold text-[#999] hover:text-[#F05123] transition-colors cursor-pointer shrink-0"
+                  className="flex items-center gap-1 text-[11px] font-bold text-fg-muted hover:text-[#F05123] transition-colors cursor-pointer shrink-0"
                   id="bidsheet-rules-link"
                 >
                   <Info className="w-3.5 h-3.5" />
@@ -173,7 +173,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
                 </button>
               )}
             </div>
-            <p className="text-[12px] text-[#666] font-semibold mt-0.5" dir="ltr">
+            <p className="text-[12px] text-fg-muted font-semibold mt-0.5" dir="ltr">
               {isAr
                 ? `المزايدة الحالية ${fmt(currentPrice)} د.أ · الحد الأدنى التالي ${fmt(minNext)} د.أ`
                 : `Current bid ${fmt(currentPrice)} JOD · min next ${fmt(minNext)} JOD`}
@@ -196,12 +196,12 @@ export const BidSheet: React.FC<BidSheetProps> = ({
                     className={`flex-1 text-center py-3 px-1.5 rounded-[13px] border-[1.5px] font-extrabold text-[13px] transition-colors active:scale-95 cursor-pointer disabled:opacity-50 ${
                       i === 0
                         ? 'border-[#F05123] bg-[#F05123]/[0.06] text-[#F05123]'
-                        : 'border-[#ECECEA] text-[#0A0A0A]'
+                        : 'border-line text-fg'
                     }`}
                   >
                     <small
                       className={`block text-[9.5px] font-bold mb-0.5 ${
-                        i === 0 ? 'text-[#F05123]' : 'text-[#999]'
+                        i === 0 ? 'text-[#F05123]' : 'text-fg-muted'
                       }`}
                       dir="ltr"
                     >
@@ -216,10 +216,10 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             {/* Or enter a custom amount — validated by validateCustomBid. */}
             <div
               className={`flex items-center justify-between mt-3 border-[1.5px] rounded-[13px] px-3.5 py-2.5 ${
-                customError ? 'border-[#F04438]' : 'border-[#ECECEA]'
+                customError ? 'border-[#F04438]' : 'border-line'
               }`}
             >
-              <span className="text-[12px] text-[#666] font-bold">
+              <span className="text-[12px] text-fg-muted font-bold">
                 {isAr ? 'أو أدخل مبلغاً' : 'Or enter amount'}
               </span>
               <div className="flex items-baseline gap-1">
@@ -238,9 +238,9 @@ export const BidSheet: React.FC<BidSheetProps> = ({
                     if (e.key === 'Enter') stageCustom();
                   }}
                   placeholder={fmt(minNext)}
-                  className="w-[92px] text-end bg-transparent outline-none text-[20px] font-black text-[#0A0A0A] tabular-nums placeholder-[#ccc]"
+                  className="w-[92px] text-end bg-transparent outline-none text-[20px] font-black text-fg tabular-nums placeholder-[#ccc]"
                 />
-                <span className="text-[12px] text-[#999] font-bold">
+                <span className="text-[12px] text-fg-muted font-bold">
                   {isAr ? 'د.أ' : 'JOD'}
                 </span>
               </div>
@@ -252,7 +252,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             )}
 
             {/* Premium total for the chosen amount (5% buyer's premium). */}
-            <p className="text-center text-[11px] text-[#999] font-semibold my-3" dir={isAr ? 'rtl' : 'ltr'}>
+            <p className="text-center text-[11px] text-fg-muted font-semibold my-3" dir={isAr ? 'rtl' : 'ltr'}>
               {isAr
                 ? `المجموع عند الفوز: ${fmt(totalWithPremium(chosen))} د.أ (شامل عمولة المشتري ٥٪)`
                 : `Total if you win: ${fmt(totalWithPremium(chosen))} JOD (incl. 5% buyer's premium)`}

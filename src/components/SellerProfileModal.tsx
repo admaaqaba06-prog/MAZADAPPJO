@@ -182,7 +182,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
     premium_verified: 'bg-amber-500/10 text-amber-400 border border-amber-500/35',
     verified: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/35',
     pending: 'bg-blue-500/10 text-blue-400 border border-blue-500/35',
-    not_verified: 'bg-gray-500/10 text-gray-400 border border-gray-500/35'
+    not_verified: 'bg-gray-500/10 text-fg-muted border border-gray-500/35'
   };
 
   const statusLabels = {
@@ -424,7 +424,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                         {[1, 2, 3, 4, 5].map((s) => (
                           <Star 
                             key={s} 
-                            className={`w-3.5 h-3.5 ${s <= rev.rating ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
+                            className={`w-3.5 h-3.5 ${s <= rev.rating ? 'text-amber-400 fill-amber-400' : 'text-fg'}`}
                           />
                         ))}
                       </div>

@@ -134,7 +134,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     <div ref={rootRef} className="relative w-full" dir={dir} id={id}>
       {/* Cohesive input group: focus-within lifts the whole shell to the orange ring. */}
       <div
-        className={`flex items-stretch w-full h-11 bg-white border border-gray-200 rounded-xl overflow-hidden transition-all focus-within:border-[#FF6B00] focus-within:ring-1 focus-within:ring-[#FF6B00] ${
+        className={`flex items-stretch w-full h-11 bg-surface-raised border border-line rounded-xl overflow-hidden transition-all focus-within:border-[#FF6B00] focus-within:ring-1 focus-within:ring-[#FF6B00] ${
           disabled ? 'opacity-60' : ''
         }`}
       >
@@ -146,14 +146,14 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           aria-label={countryAria}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex items-center gap-1.5 px-3 shrink-0 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed ${
+          className={`flex items-center gap-1.5 px-3 shrink-0 text-sm font-semibold text-fg hover:bg-surface-sunken transition-colors disabled:cursor-not-allowed ${
             isAr ? 'border-l' : 'border-r'
-          } border-gray-200`}
+          } border-line`}
         >
           <span className="text-base leading-none">{selected?.flag ?? ''}</span>
           <span className="tabular-nums" dir="ltr">{selected?.dialCode ?? ''}</span>
           <ChevronDown
-            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ease-out ${
+            className={`w-4 h-4 text-fg-muted transition-transform duration-200 ease-out ${
               open ? 'rotate-180' : ''
             }`}
           />
@@ -170,7 +170,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           placeholder={numberPlaceholder}
           value={national}
           onChange={handleNumberChange}
-          className={`flex-1 min-w-0 h-full bg-transparent px-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed ${
+          className={`flex-1 min-w-0 h-full bg-transparent px-4 text-sm text-fg placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed ${
             isAr ? 'text-right' : 'text-left'
           }`}
         />
@@ -179,16 +179,16 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
       {/* Dropdown */}
       {open && (
         <div
-          className={`absolute z-50 mt-1 w-full min-w-[16rem] bg-white border border-gray-200 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden origin-top animate-[phoneDropIn_150ms_ease-out] ${
+          className={`absolute z-50 mt-1 w-full min-w-[16rem] bg-surface-raised border border-line rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden origin-top animate-[phoneDropIn_150ms_ease-out] ${
             isAr ? 'right-0' : 'left-0'
           }`}
           role="listbox"
         >
           {/* Search box */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-line">
             <div className="relative">
               <Search
-                className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none ${
+                className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-fg-muted pointer-events-none ${
                   isAr ? 'right-3' : 'left-3'
                 }`}
               />
@@ -199,7 +199,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={searchPlaceholder}
                 aria-label={searchPlaceholder}
-                className={`w-full h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] transition-all ${
+                className={`w-full h-9 bg-surface-sunken border border-line rounded-lg text-sm text-fg placeholder-gray-400 focus:outline-none focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] transition-all ${
                   isAr ? 'pr-9 pl-3 text-right' : 'pl-9 pr-3 text-left'
                 }`}
               />
@@ -209,7 +209,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           {/* Scrollable list */}
           <div className="max-h-[260px] overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs font-medium text-gray-400">
+              <div className="px-3 py-6 text-center text-xs font-medium text-fg-muted">
                 {isAr ? 'لا توجد نتائج' : 'No matches'}
               </div>
             ) : (
@@ -222,13 +222,13 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
                     role="option"
                     aria-selected={isSel}
                     onClick={() => handleSelectCountry(c.iso2)}
-                    className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                    className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-surface-sunken transition-colors ${
                       isAr ? 'text-right' : 'text-left'
                     } ${isSel ? 'bg-[#FF6B00]/5' : ''}`}
                   >
                     <span className="text-base leading-none shrink-0">{c.flag}</span>
-                    <span className="flex-1 min-w-0 truncate text-gray-900">{c.name}</span>
-                    <span className="tabular-nums text-gray-500 shrink-0" dir="ltr">
+                    <span className="flex-1 min-w-0 truncate text-fg">{c.name}</span>
+                    <span className="tabular-nums text-fg-muted shrink-0" dir="ltr">
                       {c.dialCode}
                     </span>
                     {isSel && <Check className="w-4 h-4 text-[#FF6B00] shrink-0" />}

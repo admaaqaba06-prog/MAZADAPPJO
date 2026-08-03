@@ -180,9 +180,9 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-3xl border border-gray-200 p-5">
+      <div className="bg-surface-raised rounded-3xl border border-line p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-black text-gray-950">{isAr ? 'بحاجة إلى انتباهك' : 'Needs your attention'}</h2>
+          <h2 className="text-sm font-black text-fg">{isAr ? 'بحاجة إلى انتباهك' : 'Needs your attention'}</h2>
           {queue.length > 0 && (
             <span className="min-w-6 h-6 px-2 inline-flex items-center justify-center rounded-full bg-[#FF6B00] text-white text-xs font-black">
               {queue.length}
@@ -191,7 +191,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
         </div>
 
         {queue.length === 0 ? (
-          <p className="text-xs font-semibold text-gray-400">
+          <p className="text-xs font-semibold text-fg-muted">
             {isAr ? 'كل شيء تحت السيطرة — لا يوجد ما ينتظر.' : 'All clear — nothing waiting.'}
           </p>
         ) : (
@@ -200,7 +200,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
               const open = expandedId === r.id;
               const age = formatWaitingFor(r.waitingSinceMs, now, isAr ? 'ar' : 'en');
               return (
-                <div key={r.id} className={`rounded-2xl border transition ${open ? 'border-[#FF6B00] bg-orange-50/20' : 'border-gray-200 hover:border-orange-300'}`}>
+                <div key={r.id} className={`rounded-2xl border transition ${open ? 'border-[#FF6B00] bg-accent-weak/20' : 'border-line hover:border-orange-300'}`}>
                   <button
                     type="button"
                     onClick={() => setExpandedId(open ? null : r.id)}
@@ -209,10 +209,10 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
                     <span className="flex items-center gap-2.5 min-w-0">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${SEVERITY_DOT[r.severity]}`} />
                       <span className="min-w-0">
-                        <span className="block text-xs font-bold text-gray-800 truncate">
+                        <span className="block text-xs font-bold text-fg truncate">
                           {isAr ? r.label.ar : r.label.en}
                         </span>
-                        <span className="block text-[10px] font-mono uppercase text-gray-400 mt-0.5">
+                        <span className="block text-[10px] font-mono uppercase text-fg-muted mt-0.5">
                           {[age, r.amountFils !== undefined
                             ? `${(r.amountFils / 1000).toLocaleString('en-US')} ${isAr ? 'د.أ' : 'JOD'}`
                             : ''].filter(Boolean).join(' · ')}
@@ -222,9 +222,9 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
                     <span className="text-gray-300 text-xs shrink-0">{open ? '▲' : '▼'}</span>
                   </button>
                   {open && (
-                    <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+                    <div className="px-4 pb-4 pt-1 border-t border-line">
                       {renderBody(r) ?? (
-                        <p className="text-[11px] text-gray-400 font-semibold">
+                        <p className="text-[11px] text-fg-muted font-semibold">
                           {isAr ? 'تم التعامل مع هذا العنصر — سيختفي بعد التحديث.' : 'This item was already handled — it will disappear on the next refresh.'}
                         </p>
                       )}

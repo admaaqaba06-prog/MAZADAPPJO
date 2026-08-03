@@ -57,7 +57,7 @@ export interface DropSuccessPanelProps {
 }
 
 const action =
-  'flex-1 border border-gray-300 rounded-xl py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  'flex-1 border border-line rounded-xl py-2.5 text-xs font-bold text-fg hover:bg-surface-sunken transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 
 export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
   isAr, auctionNumber, title, startingPrice, coverUrl, opensLabel, durationLabel,
@@ -69,25 +69,25 @@ export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
   const bids = bidCountOf(lot);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+    <div className="bg-surface-raised border border-line rounded-2xl p-5 space-y-4">
       <div>
         <h2 className="text-base font-black text-emerald-700">
           ✅ {isAr ? `تم إنشاء المزاد رقم ${auctionNumber ?? '—'}` : `Auction #${auctionNumber ?? '—'} created`}
         </h2>
-        <p className="mt-1 text-xs font-bold text-gray-500">{opensLabel} · {durationLabel}</p>
+        <p className="mt-1 text-xs font-bold text-fg-muted">{opensLabel} · {durationLabel}</p>
       </div>
 
       <div className="flex items-center gap-3">
-        {coverUrl && <img src={coverUrl} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-200" />}
+        {coverUrl && <img src={coverUrl} alt="" className="w-14 h-14 rounded-xl object-cover border border-line" />}
         <div className="min-w-0">
-          <p className="font-extrabold text-sm text-gray-900 truncate">{title}</p>
-          <p className="text-xs text-gray-500 font-mono">
+          <p className="font-extrabold text-sm text-fg truncate">{title}</p>
+          <p className="text-xs text-fg-muted font-mono">
             {isAr ? 'يبدأ من ' : 'Starting at '}{startingPrice.toLocaleString('en-US')} JOD
           </p>
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-xl p-2.5 text-xs break-all font-mono text-gray-700">{finalLink}</div>
+      <div className="border border-line rounded-xl p-2.5 text-xs break-all font-mono text-fg">{finalLink}</div>
 
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={onCopyLink} className={action}>{isAr ? 'نسخ الرابط' : 'Copy link'}</button>
@@ -96,21 +96,21 @@ export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
         <button type="button" onClick={onDownloadMedia} disabled={!canDownloadMedia} className={action}>{isAr ? 'تنزيل الوسائط' : 'Download media'}</button>
       </div>
       {!canDownloadMedia ? (
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-fg-muted">
           {isAr ? 'لا توجد وسائط لهذا المزاد — لم تُضف صور ولا فيديو.' : 'No media on this drop — no photos and no video were added.'}
         </p>
       ) : !canCopyImage && (
         // Download works (there is a video and/or gallery photos), Copy image
         // does not — it can only ever copy a cover.
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-fg-muted">
           {isAr ? 'نسخ الصورة يحتاج صورة غلاف — استخدم تنزيل الوسائط.' : 'Copy image needs a cover image — use Download media instead.'}
         </p>
       )}
-      {copyMessage && <p className="text-[11px] text-gray-500">{copyMessage}</p>}
+      {copyMessage && <p className="text-[11px] text-fg-muted">{copyMessage}</p>}
 
-      <pre className="whitespace-pre-wrap border border-gray-200 rounded-xl p-3 text-xs bg-gray-50 max-h-64 overflow-y-auto" style={{ direction: 'rtl' }}>{caption}</pre>
+      <pre className="whitespace-pre-wrap border border-line rounded-xl p-3 text-xs bg-surface-sunken max-h-64 overflow-y-auto" style={{ direction: 'rtl' }}>{caption}</pre>
 
-      <div className="pt-2 border-t border-gray-100 space-y-2">
+      <div className="pt-2 border-t border-line space-y-2">
         <button
           type="button"
           onClick={onCreateAnother}
@@ -127,7 +127,7 @@ export const DropSuccessPanel: React.FC<DropSuccessPanelProps> = ({
           ) : (
             // Not a button: the lock is the point. Shown whether or not an edit
             // handler exists, because "why is Edit gone" is the question it answers.
-            <p className="flex-1 text-[11px] font-bold text-gray-500 self-center">
+            <p className="flex-1 text-[11px] font-bold text-fg-muted self-center">
               {isAr
                 ? `عليه ${bids} مزايدة — لم يعد قابلاً للتعديل`
                 : `${bids} bid${bids === 1 ? '' : 's'} placed — no longer editable`}

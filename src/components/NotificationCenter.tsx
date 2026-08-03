@@ -138,7 +138,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
       );
     } else {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-slate-50 text-slate-500 border border-slate-100 uppercase">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-tight bg-surface-sunken text-slate-500 border border-line uppercase">
           {isAr ? 'إشعار عادي' : 'Standard'}
         </span>
       );
@@ -191,10 +191,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
               animate={{ x: 0 }}
               exit={{ x: isAr ? '-100%' : '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-screen max-w-md bg-white shadow-2xl flex flex-col h-full"
+              className="w-screen max-w-md bg-surface-raised shadow-2xl flex flex-col h-full"
             >
               {/* Header */}
-              <div className="p-5 border-b border-gray-100 flex flex-col bg-zinc-50 shrink-0 gap-4">
+              <div className="p-5 border-b border-line flex flex-col bg-surface-sunken shrink-0 gap-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="relative">
@@ -208,10 +208,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                       )}
                     </div>
                     <div>
-                      <h2 className="text-sm font-extrabold text-gray-900 tracking-tight uppercase">
+                      <h2 className="text-sm font-extrabold text-fg tracking-tight uppercase">
                         {isAr ? 'مركز الإشعارات الذكي' : 'Smart Alerts Center'}
                       </h2>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                      <p className="text-[10px] text-fg-muted font-bold uppercase mt-0.5">
                         {isAr ? `${unreadCount} تنبيهات معلقة` : `${unreadCount} pending notifications`}
                       </p>
                     </div>
@@ -240,7 +240,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     )}
                     <button 
                       onClick={onClose}
-                      className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-gray-500 flex items-center justify-center transition-all cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-surface-sunken hover:bg-surface-sunken text-fg-muted flex items-center justify-center transition-all cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -262,12 +262,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         className={`px-3 py-1.5 rounded-full text-[10.5px] font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
                           isSelected
                             ? 'bg-gray-950 text-white shadow-xs scale-102'
-                            : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+                            : 'bg-surface-raised border border-line text-fg-muted hover:border-line'
                         }`}
                       >
                         <span>{getCategoryLabel(filter)}</span>
                         {count > 0 && (
-                          <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                          <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-full font-mono ${isSelected ? 'bg-surface-raised/20 text-white' : 'bg-surface-sunken text-fg-muted'}`}>
                             {count}
                           </span>
                         )}
@@ -278,18 +278,18 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
               </div>
 
               {/* List body */}
-              <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+              <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-surface-sunken/50">
                 {/* Native Push Notification Request Banner */}
                 {('Notification' in window) && Notification.permission !== 'granted' && (
-                  <div className="p-3.5 rounded-2xl border border-[#FF6B00]/20 bg-[#FF6B00]/5 text-gray-900 flex flex-col gap-2 shrink-0">
+                  <div className="p-3.5 rounded-2xl border border-[#FF6B00]/20 bg-[#FF6B00]/5 text-fg flex flex-col gap-2 shrink-0">
                     <div className="flex items-start gap-2.5">
                       <Bell className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5 animate-bounce" />
                       <div>
-                        <h4 className="text-[11px] font-black tracking-tight uppercase text-gray-900 flex items-center gap-1.5">
+                        <h4 className="text-[11px] font-black tracking-tight uppercase text-fg flex items-center gap-1.5">
                           {isAr ? 'تفعيل تنبيهات المتصفح الفورية' : 'Enable Native Notifications'}
                           <Sparkles className="w-3 h-3 text-[#FF6B00]" />
                         </h4>
-                        <p className="text-[10px] text-gray-500 font-medium leading-normal mt-0.5">
+                        <p className="text-[10px] text-fg-muted font-medium leading-normal mt-0.5">
                           {isAr 
                             ? 'احصل على تحديثات فورية حول المزادات التي تزايد عليها، والمكاسب، وتنبيهات المحفظة مباشرة على جهازك.' 
                             : 'Get real-time system alerts on outbids, won auctions, and wallet updates directly on your device.'}
@@ -326,8 +326,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         onClick={() => markAsRead(item.id)}
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
                           item.read 
-                            ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50/50' 
-                            : 'bg-white border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-gray-950 shadow-xs hover:bg-orange-50/5'
+                            ? 'bg-surface-raised border-line text-fg hover:bg-surface-sunken/50' 
+                            : 'bg-surface-raised border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-fg shadow-xs hover:bg-accent-weak/5'
                         }`}
                         id={`notification-card-${item.id}`}
                       >
@@ -342,14 +342,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         {/* Text */}
                         <div className="space-y-1.5 pr-4 min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                            <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-gray-900' : 'font-extrabold text-gray-950'}`}>
+                            <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-fg' : 'font-extrabold text-fg'}`}>
                               {item.title}
                             </h4>
                             <div className="flex items-center gap-1.5">
                               {getPriorityBadge(item.priority)}
                               <button
                                 onClick={(e) => handleRemoveOne(item.id, e)}
-                                className="w-5 h-5 rounded-md bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                className="w-5 h-5 rounded-md bg-surface-sunken hover:bg-rose-50 text-fg-muted hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
                                 title={isAr ? 'حذف الإشعار' : 'Delete notification'}
                               >
                                 <X className="w-3 h-3" />
@@ -357,11 +357,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                             </div>
                           </div>
                           
-                          <p className="text-[11px] text-gray-500 leading-normal font-semibold">
+                          <p className="text-[11px] text-fg-muted leading-normal font-semibold">
                             {item.description}
                           </p>
 
-                          <div className="flex items-center gap-1 text-[9px] font-mono text-gray-400 mt-1">
+                          <div className="flex items-center gap-1 text-[9px] font-mono text-fg-muted mt-1">
                             <Clock className="w-3 h-3" />
                             <span>
                               {new Date(item.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')} - {new Date(item.timestamp).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -372,13 +372,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     ))
                   ) : (
                     <div className="py-20 flex flex-col items-center justify-center text-center px-4" id="empty-notifications-state-clean">
-                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-4 animate-pulse">
+                      <div className="w-16 h-16 rounded-full bg-surface-sunken flex items-center justify-center text-fg-muted mb-4 animate-pulse">
                         <Bell className="w-7 h-7 stroke-[1.5]" />
                       </div>
-                      <h4 className="text-xs font-black text-gray-800 tracking-tight uppercase">
+                      <h4 className="text-xs font-black text-fg tracking-tight uppercase">
                         {isAr ? 'لا توجد إشعارات حالياً' : 'No notifications at the moment'}
                       </h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-1.5 max-w-xs leading-relaxed">
+                      <p className="text-[10px] text-fg-muted font-bold uppercase mt-1.5 max-w-xs leading-relaxed">
                         {isAr 
                           ? 'أنت على اطلاع بكل شيء! لا توجد تنبيهات مزايدات أو حركات مالية في هذا القسم.' 
                           : 'You are all caught up! No financial records, bidding activity, or administrative notifications found here.'}

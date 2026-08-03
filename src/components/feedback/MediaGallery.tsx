@@ -280,11 +280,11 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
           className="relative flex-1 min-h-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-orange-50 to-orange-100/60 text-center px-6"
           id="media-gallery-empty"
         >
-          <div className="w-16 h-16 rounded-2xl bg-white/70 border border-[#FF6B00]/20 flex items-center justify-center shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-surface-raised/70 border border-[#FF6B00]/20 flex items-center justify-center shadow-sm">
             <ImageOff className="w-7 h-7 text-[#FF6B00]" strokeWidth={1.75} />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-black text-gray-800 leading-tight">
+            <span className="text-sm font-black text-fg leading-tight">
               {isAr ? 'الصور قريباً' : 'Photos coming soon'}
             </span>
             <span className="text-[11px] font-semibold text-[#FF6B00]/80 leading-tight">
@@ -317,7 +317,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                 e.stopPropagation();
                 setExpanded(false);
               }}
-              className="absolute top-4 end-4 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+              className="absolute top-4 end-4 z-10 w-10 h-10 rounded-full bg-surface-raised/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-surface-raised/20 transition-colors cursor-pointer"
               aria-label={isAr ? 'إغلاق' : 'Close'}
             >
               <X className="w-5 h-5" />
@@ -342,7 +342,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                     e.stopPropagation();
                     setOverlayMuted(m => !m);
                   }}
-                  className="absolute bottom-4 end-4 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+                  className="absolute bottom-4 end-4 z-10 w-10 h-10 rounded-full bg-surface-raised/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-surface-raised/20 transition-colors cursor-pointer"
                   aria-label={
                     overlayMuted ? (isAr ? 'تشغيل الصوت' : 'Unmute') : isAr ? 'كتم الصوت' : 'Mute'
                   }
@@ -474,7 +474,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                     setIndex(i);
                   }}
                   className={`pointer-events-auto w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
-                    i === index ? 'bg-white scale-125' : 'bg-white/40'
+                    i === index ? 'bg-surface-raised scale-125' : 'bg-surface-raised/40'
                   }`}
                   aria-label={`${isAr ? 'الوسائط' : 'Media'} ${i + 1}`}
                 />

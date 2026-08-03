@@ -373,7 +373,7 @@ export const WalletView: React.FC = () => {
   if (selectedOrderId) {
     return (
       <div 
-        className="flex-1 bg-[#F7F6F3] text-gray-900 p-4 md:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] overflow-y-auto"
+        className="flex-1 bg-surface text-fg p-4 md:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))] overflow-y-auto"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="order-details-pane-rebuilt"
       >
@@ -393,7 +393,7 @@ export const WalletView: React.FC = () => {
             {/* Desktop Only header */}
             <div className="hidden lg:block space-y-1">
               <h1 className="text-2xl font-black tracking-tight">{localT.myWallet}</h1>
-              <p className="text-gray-500 text-sm">{localT.howMuchYouHave}</p>
+              <p className="text-fg-muted text-sm">{localT.howMuchYouHave}</p>
             </div>
 
             {/* Premium Balance display */}
@@ -429,16 +429,16 @@ export const WalletView: React.FC = () => {
             </div>
 
             {/* Detailed Held-in-Escrow Explanation Card */}
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 md:p-6 space-y-4" id="locked-amount-details-card">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 md:p-6 space-y-4" id="locked-amount-details-card">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
                   <Lock className="w-4 h-4" />
                 </div>
                 <div className="text-left rtl:text-right">
-                  <h3 className="font-extrabold text-sm text-gray-900">
+                  <h3 className="font-extrabold text-sm text-fg">
                     {isAr ? 'تفاصيل المبالغ المحفوظة بالضمان' : 'Held-in-Escrow Details'}
                   </h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
+                  <p className="text-[10px] text-fg-muted mt-0.5">
                     {isAr ? 'دفعات مزاداتك الفائزة المحفوظة حتى تأكيد الاستلام' : 'Payments for won auctions, held until you confirm delivery'}
                   </p>
                 </div>
@@ -446,7 +446,7 @@ export const WalletView: React.FC = () => {
 
               {wallet.escrowBalance > 0 ? (
                 <div className="space-y-4 text-left rtl:text-right">
-                  <p className="text-xs text-gray-500 leading-relaxed">
+                  <p className="text-xs text-fg-muted leading-relaxed">
                     {isAr
                       ? 'هذه دفعاتك عن مزادات فزت بها. يحتفظ مزاد بالمبلغ ولا يحوّله للبائع إلا بعد استلامك القطعة وتأكيدك أنها مطابقة.'
                       : 'These are your payments for auctions you won. Mazad holds each amount and only releases it to the seller after you receive the item and confirm it matches.'}
@@ -454,16 +454,16 @@ export const WalletView: React.FC = () => {
 
                   <div className="space-y-2.5">
                     {currentLockedEscrows.map((escrow) => (
-                      <div key={escrow.id} className="bg-gray-100 border border-gray-200 p-4 rounded-2xl space-y-2">
+                      <div key={escrow.id} className="bg-surface-sunken border border-line p-4 rounded-2xl space-y-2">
                         <div className="flex justify-between items-center gap-2">
-                          <span className="font-extrabold text-xs text-gray-900 truncate max-w-[70%]">
+                          <span className="font-extrabold text-xs text-fg truncate max-w-[70%]">
                             {escrow.auctionTitle}
                           </span>
                           <span className="font-mono font-black text-xs text-rose-600 shrink-0">
                             {escrow.amount.toLocaleString()} JOD
                           </span>
                         </div>
-                        <div className="text-[11px] text-gray-500 space-y-1.5 pt-2 border-t border-gray-100 text-left rtl:text-right">
+                        <div className="text-[11px] text-fg-muted space-y-1.5 pt-2 border-t border-line text-left rtl:text-right">
                           <div>
                             <span className="text-[#FF6B00] font-bold">● {isAr ? 'سبب الحفظ:' : 'Why Held:'}</span>{' '}
                             {isAr
@@ -482,11 +482,11 @@ export const WalletView: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-5 bg-gray-100 rounded-2xl border border-dashed border-gray-200 p-4">
-                  <p className="text-xs text-gray-700 font-extrabold">
+                <div className="text-center py-5 bg-surface-sunken rounded-2xl border border-dashed border-line p-4">
+                  <p className="text-xs text-fg font-extrabold">
                     {isAr ? 'لا يوجد أي مبالغ محفوظة بالضمان حالياً' : 'No payments held in escrow currently'}
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-1 px-4 leading-relaxed max-w-sm mx-auto">
+                  <p className="text-[10px] text-fg-muted mt-1 px-4 leading-relaxed max-w-sm mx-auto">
                     {isAr
                       ? 'المزايدة مجانية — تدفع فقط عند الفوز. عند فوزك بمزاد ودفعك عبر كليك، يظهر المبلغ هنا محفوظاً حتى تأكيد الاستلام.'
                       : 'Bidding is free — you only pay when you win. When you win and pay via CliQ, your payment appears here, held until you confirm delivery.'}
@@ -497,33 +497,33 @@ export const WalletView: React.FC = () => {
 
             {/* Quick Navigation grid */}
             <div className="space-y-3">
-              <h3 className="text-xs uppercase font-mono font-black tracking-widest text-gray-500">{isAr ? 'الوصول السريع للمهام' : 'Quick Actions'}</h3>
+              <h3 className="text-xs uppercase font-mono font-black tracking-widest text-fg-muted">{isAr ? 'الوصول السريع للمهام' : 'Quick Actions'}</h3>
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => setWalletSubView('transactions')}
-                  className="bg-white border border-gray-200 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  className="bg-surface-raised border border-line hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
                   id="action-transactions-home"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-surface-sunken flex items-center justify-center text-fg-muted group-hover:scale-105 transition-transform">
                     <History className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-sm text-gray-900">{localT.transactions}</h4>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{isAr ? 'عرض عملياتك المالية بالتفصيل' : 'View financial entries log'}</p>
+                    <h4 className="font-extrabold text-sm text-fg">{localT.transactions}</h4>
+                    <p className="text-[11px] text-fg-muted mt-0.5">{isAr ? 'عرض عملياتك المالية بالتفصيل' : 'View financial entries log'}</p>
                   </div>
                 </button>
 
                 <button 
                   onClick={() => setWalletSubView('orders')}
-                  className="bg-white border border-gray-200 hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
+                  className="bg-surface-raised border border-line hover:border-[#FF6B00]/30 rounded-3xl p-5 text-left flex flex-col justify-between h-32 transition-all cursor-pointer group"
                   id="action-orders-home"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-surface-sunken flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
                     <ShoppingBag className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-sm text-gray-900">{localT.orders}</h4>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{isAr ? 'متابعة بضائعك المباعة والمشتراة' : 'Track won listings & sales'}</p>
+                    <h4 className="font-extrabold text-sm text-fg">{localT.orders}</h4>
+                    <p className="text-[11px] text-fg-muted mt-0.5">{isAr ? 'متابعة بضائعك المباعة والمشتراة' : 'Track won listings & sales'}</p>
                   </div>
                 </button>
               </div>
@@ -532,7 +532,7 @@ export const WalletView: React.FC = () => {
             {/* Recent Activity lists */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-gray-500">{localT.recentActivity}</h3>
+                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-fg-muted">{localT.recentActivity}</h3>
                 <button 
                   onClick={() => setWalletSubView('transactions')}
                   className="text-xs text-[#FF6B00] font-black hover:underline cursor-pointer"
@@ -553,7 +553,7 @@ export const WalletView: React.FC = () => {
                     return (
                       <div 
                         key={act.id} 
-                        className="bg-white border border-gray-200 p-4 rounded-3xl flex items-center justify-between"
+                        className="bg-surface-raised border border-line p-4 rounded-3xl flex items-center justify-between"
                       >
                         <div className="min-w-0 flex-1 flex items-center gap-3.5">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
@@ -562,16 +562,16 @@ export const WalletView: React.FC = () => {
                             {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                           </div>
                           <div className="min-w-0">
-                            <h5 className="font-extrabold text-sm text-gray-900 truncate">{act.title}</h5>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate font-mono">{act.subtitle}</p>
+                            <h5 className="font-extrabold text-sm text-fg truncate">{act.title}</h5>
+                            <p className="text-xs text-fg-muted mt-0.5 truncate font-mono">{act.subtitle}</p>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0 font-mono">
-                          <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-gray-700'}`}>
+                          <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-fg'}`}>
                             {isPositive ? '+' : ''}{act.amount.toLocaleString()} JOD
                           </span>
-                          <span className="text-[10px] text-gray-400 uppercase font-black block mt-1">
+                          <span className="text-[10px] text-fg-muted uppercase font-black block mt-1">
                             {new Date(act.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {month: 'short', day: 'numeric'})}
                           </span>
                         </div>
@@ -579,10 +579,10 @@ export const WalletView: React.FC = () => {
                     );
                   })
                 ) : (
-                  <div className="text-center py-8 bg-white border border-gray-200 rounded-3xl p-6">
-                    <HelpCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="font-extrabold text-sm text-gray-500 uppercase tracking-wider">{localT.emptyActivity}</p>
-                    <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">{localT.emptyActivityDesc}</p>
+                  <div className="text-center py-8 bg-surface-raised border border-line rounded-3xl p-6">
+                    <HelpCircle className="w-8 h-8 text-fg-muted mx-auto mb-2" />
+                    <p className="font-extrabold text-sm text-fg-muted uppercase tracking-wider">{localT.emptyActivity}</p>
+                    <p className="text-xs text-fg-muted mt-1 max-w-sm mx-auto">{localT.emptyActivityDesc}</p>
                   </div>
                 )}
               </div>
@@ -596,18 +596,18 @@ export const WalletView: React.FC = () => {
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setWalletSubView('wallet-home')}
-                className="w-10 h-10 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 cursor-pointer active:scale-95"
+                className="w-10 h-10 rounded-2xl bg-surface-raised border border-line flex items-center justify-center text-fg-muted hover:text-fg cursor-pointer active:scale-95"
               >
                 <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
               </button>
               <div>
                 <h1 className="text-xl font-black">{localT.transactions}</h1>
-                <p className="text-xs text-gray-500">{isAr ? 'مستندات العمليات والتدفقات النقدية' : 'Financial transactions ledger'}</p>
+                <p className="text-xs text-fg-muted">{isAr ? 'مستندات العمليات والتدفقات النقدية' : 'Financial transactions ledger'}</p>
               </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex bg-white border border-gray-200 p-1 rounded-2xl gap-1">
+            <div className="flex bg-surface-raised border border-line p-1 rounded-2xl gap-1">
               {(['all', 'in', 'out'] as const).map((filter) => {
                 const label = filter === 'all' ? localT.allTx : filter === 'in' ? localT.moneyInTx : localT.moneyOutTx;
                 return (
@@ -617,7 +617,7 @@ export const WalletView: React.FC = () => {
                     className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase ${
                       txFilter === filter
                         ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                        : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                     }`}
                   >
                     {label}
@@ -634,7 +634,7 @@ export const WalletView: React.FC = () => {
                   return (
                     <div 
                       key={tx.id} 
-                      className="bg-white border border-gray-200 p-4.5 rounded-3xl flex items-center justify-between"
+                      className="bg-surface-raised border border-line p-4.5 rounded-3xl flex items-center justify-between"
                     >
                       <div className="min-w-0 flex-1 flex items-center gap-4">
                         <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
@@ -643,13 +643,13 @@ export const WalletView: React.FC = () => {
                           {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                         </div>
                         <div className="min-w-0">
-                          <h5 className="font-extrabold text-sm text-gray-900 truncate">{tx.title}</h5>
-                          <p className="text-xs text-gray-500 mt-0.5 truncate font-mono">{tx.subtitle}</p>
+                          <h5 className="font-extrabold text-sm text-fg truncate">{tx.title}</h5>
+                          <p className="text-xs text-fg-muted mt-0.5 truncate font-mono">{tx.subtitle}</p>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0 font-mono">
-                        <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-gray-700'}`}>
+                        <span className={`font-black text-sm block ${isPositive ? 'text-[#10B981]' : 'text-fg'}`}>
                           {isPositive ? '+' : ''}{tx.amount.toLocaleString()} JOD
                         </span>
                         
@@ -661,7 +661,7 @@ export const WalletView: React.FC = () => {
                           ) : (
                             <span className="text-[9px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-full uppercase font-mono">{isAr ? 'ملغي' : 'REJECTED'}</span>
                           )}
-                          <span className="text-[10px] text-gray-400 font-bold block">
+                          <span className="text-[10px] text-fg-muted font-bold block">
                             {new Date(tx.timestamp).toLocaleDateString(isAr ? 'ar-JO' : 'en-US')}
                           </span>
                         </div>
@@ -670,10 +670,10 @@ export const WalletView: React.FC = () => {
                   );
                 })
               ) : (
-                <div className="text-center py-12 bg-white border border-gray-200 rounded-3xl p-6">
-                  <History className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                  <p className="font-extrabold text-sm text-gray-500 uppercase tracking-wider">{isAr ? 'لا يوجد عمليات ضمن هذا الفلتر' : 'No transactions found'}</p>
-                  <p className="text-xs text-gray-400 mt-1">{isAr ? 'جرب تغيير خيار التصفية — دفعات مزاداتك الفائزة ستظهر هنا.' : 'Try changing your filter — payments for auctions you win will appear here.'}</p>
+                <div className="text-center py-12 bg-surface-raised border border-line rounded-3xl p-6">
+                  <History className="w-10 h-10 text-fg-muted mx-auto mb-3" />
+                  <p className="font-extrabold text-sm text-fg-muted uppercase tracking-wider">{isAr ? 'لا يوجد عمليات ضمن هذا الفلتر' : 'No transactions found'}</p>
+                  <p className="text-xs text-fg-muted mt-1">{isAr ? 'جرب تغيير خيار التصفية — دفعات مزاداتك الفائزة ستظهر هنا.' : 'Try changing your filter — payments for auctions you win will appear here.'}</p>
                 </div>
               )}
             </div>
@@ -686,24 +686,24 @@ export const WalletView: React.FC = () => {
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setWalletSubView('wallet-home')}
-                className="w-10 h-10 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 cursor-pointer active:scale-95"
+                className="w-10 h-10 rounded-2xl bg-surface-raised border border-line flex items-center justify-center text-fg-muted hover:text-fg cursor-pointer active:scale-95"
               >
                 <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
               </button>
               <div>
                 <h1 className="text-xl font-black">{localT.orders}</h1>
-                <p className="text-xs text-gray-500">{isAr ? 'إدارة العقود والمبيعات والمشتريات' : 'Fulfillment operations & shipping tracking'}</p>
+                <p className="text-xs text-fg-muted">{isAr ? 'إدارة العقود والمبيعات والمشتريات' : 'Fulfillment operations & shipping tracking'}</p>
               </div>
             </div>
 
             {/* Buying/Selling tabs */}
-            <div className="flex bg-white border border-gray-200 p-1 rounded-2xl gap-1">
+            <div className="flex bg-surface-raised border border-line p-1 rounded-2xl gap-1">
               <button
                 onClick={() => setOrdersTab('buying')}
                 className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
                   ordersTab === 'buying'
                     ? 'bg-[#FF6B00] text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
                 <ShoppingBag className="w-4 h-4" />
@@ -714,7 +714,7 @@ export const WalletView: React.FC = () => {
                 className={`flex-1 py-3 text-center rounded-xl text-xs font-black transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
                   ordersTab === 'selling'
                     ? 'bg-[#FF6B00] text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
                 <Package className="w-4 h-4" />
@@ -722,7 +722,7 @@ export const WalletView: React.FC = () => {
               </button>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 md:p-6 space-y-4 text-gray-900">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 md:p-6 space-y-4 text-fg">
               {ordersTab === 'buying' ? (
                 <MyOrdersList
                   isAr={isAr}
@@ -747,7 +747,7 @@ export const WalletView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 bg-[#F7F6F3] text-gray-900 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      className="flex-1 bg-surface text-fg overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="wallet-rebuild-root-container"
     >
@@ -758,14 +758,14 @@ export const WalletView: React.FC = () => {
           
           {/* Left Column: Navigation Sidebar */}
           <div className="col-span-3 space-y-4 sticky top-6">
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 space-y-4">
-              <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 space-y-4">
+              <div className="flex items-center gap-3 border-b border-line pb-4">
                 <div className="w-10 h-10 rounded-2xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
                   <Wallet className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="font-mono font-black text-xs tracking-widest text-[#FF6B00]">{isAr ? 'محفظة المزاد' : 'MAZAD WALLET'}</h2>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">{isAr ? 'تحكم مالي شامل' : 'Instant Secure FinTech'}</p>
+                  <p className="text-[10px] text-fg-muted uppercase font-bold">{isAr ? 'تحكم مالي شامل' : 'Instant Secure FinTech'}</p>
                 </div>
               </div>
 
@@ -775,7 +775,7 @@ export const WalletView: React.FC = () => {
                   className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
                     walletSubView === 'wallet-home'
                       ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                      : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                   }`}
                   id="side-nav-home"
                 >
@@ -788,7 +788,7 @@ export const WalletView: React.FC = () => {
                   className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
                     walletSubView === 'transactions'
                       ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                      : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                   }`}
                   id="side-nav-transactions"
                 >
@@ -801,7 +801,7 @@ export const WalletView: React.FC = () => {
                   className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-3 ${
                     walletSubView === 'orders'
                       ? 'bg-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/10'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                      : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                   }`}
                   id="side-nav-orders"
                 >
@@ -821,12 +821,12 @@ export const WalletView: React.FC = () => {
           <div className="col-span-3 space-y-6 sticky top-6">
             
             {/* Security Trust card */}
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 space-y-3.5">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 space-y-3.5">
               <div className="flex items-center gap-2 text-[#FF6B00]">
                 <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
-                <h4 className="font-extrabold text-sm text-gray-900">{localT.secureSummary}</h4>
+                <h4 className="font-extrabold text-sm text-fg">{localT.secureSummary}</h4>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
+              <p className="text-xs text-fg-muted leading-relaxed">
                 {isAr
                   ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
                   : "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes."}
@@ -834,12 +834,12 @@ export const WalletView: React.FC = () => {
             </div>
 
             {/* Support / Help card */}
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 space-y-3.5">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 space-y-3.5">
               <div className="flex items-center gap-2 text-amber-500">
                 <HelpCircle className="w-5 h-5" />
-                <h4 className="font-extrabold text-sm text-gray-900">{localT.helpSupport}</h4>
+                <h4 className="font-extrabold text-sm text-fg">{localT.helpSupport}</h4>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
+              <p className="text-xs text-fg-muted leading-relaxed">
                 {localT.helpDesc}
               </p>
             </div>
@@ -855,7 +855,7 @@ export const WalletView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xl font-black">{isAr ? 'رصيدي ومحفظتي' : 'My Wallet'}</h1>
-                  <p className="text-xs text-gray-500 mt-0.5">{currentUser?.name}</p>
+                  <p className="text-xs text-fg-muted mt-0.5">{currentUser?.name}</p>
                 </div>
                 <div className="w-9 h-9 rounded-2xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
                   <Wallet className="w-5 h-5" />
@@ -896,38 +896,38 @@ export const WalletView: React.FC = () => {
 
               {/* Quick Actions List (Compact) */}
               <div className="space-y-2.5">
-                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-gray-500">{isAr ? 'الوصول السريع' : 'Quick Actions'}</h3>
+                <h3 className="text-xs uppercase font-mono font-black tracking-widest text-fg-muted">{isAr ? 'الوصول السريع' : 'Quick Actions'}</h3>
                 
                 <button 
                   onClick={() => setWalletSubView('transactions')}
-                  className="w-full bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
+                  className="w-full bg-surface-raised border border-line rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500">
+                    <div className="w-9 h-9 rounded-xl bg-surface-sunken flex items-center justify-center text-fg-muted">
                       <History className="w-4.5 h-4.5" />
                     </div>
                     <div>
-                      <h4 className="font-extrabold text-sm text-gray-900">{localT.transactions}</h4>
-                      <p className="text-[10px] text-gray-500 mt-0.5">{isAr ? 'مستندات وكشوفات الحساب' : 'Review your transaction entries'}</p>
+                      <h4 className="font-extrabold text-sm text-fg">{localT.transactions}</h4>
+                      <p className="text-[10px] text-fg-muted mt-0.5">{isAr ? 'مستندات وكشوفات الحساب' : 'Review your transaction entries'}</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-fg-muted" />
                 </button>
 
                 <button 
                   onClick={() => setWalletSubView('orders')}
-                  className="w-full bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
+                  className="w-full bg-surface-raised border border-line rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500">
+                    <div className="w-9 h-9 rounded-xl bg-surface-sunken flex items-center justify-center text-fg-muted">
                       <ShoppingBag className="w-4.5 h-4.5" />
                     </div>
                     <div>
-                      <h4 className="font-extrabold text-sm text-gray-900">{localT.orders}</h4>
-                      <p className="text-[10px] text-gray-500 mt-0.5">{isAr ? 'تتبع فوز ومبيعات مزاداتك' : 'Manage buyer & seller orders'}</p>
+                      <h4 className="font-extrabold text-sm text-fg">{localT.orders}</h4>
+                      <p className="text-[10px] text-fg-muted mt-0.5">{isAr ? 'تتبع فوز ومبيعات مزاداتك' : 'Manage buyer & seller orders'}</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-fg-muted" />
                 </button>
 
                 {/*
@@ -944,25 +944,25 @@ export const WalletView: React.FC = () => {
                   <button
                     onClick={handleActivateSeller}
                     disabled={isActivatingSeller}
-                    className="w-full bg-white border border-[#FF6B00]/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left disabled:opacity-50"
+                    className="w-full bg-surface-raised border border-[#FF6B00]/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-99 transition-all text-left disabled:opacity-50"
                     id="activate-seller-btn"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
+                      <div className="w-9 h-9 rounded-xl bg-accent-weak flex items-center justify-center text-[#FF6B00]">
                         <Store className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-sm text-gray-900">
+                        <h4 className="font-extrabold text-sm text-fg">
                           {isActivatingSeller
                             ? (isAr ? 'جارٍ التفعيل…' : 'Activating…')
                             : (isAr ? 'ابدأ البيع على مزاد' : 'Start selling on Mazad')}
                         </h4>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-[10px] text-fg-muted mt-0.5">
                           {isAr ? 'فعّل حساب البائع وتابع مبيعاتك وطلباتك' : 'Activate your seller account to manage sales & orders'}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <ChevronRight className="w-4 h-4 text-fg-muted" />
                   </button>
                 )}
               </div>
@@ -970,7 +970,7 @@ export const WalletView: React.FC = () => {
               {/* Recent Activity */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs uppercase font-mono font-black tracking-widest text-gray-500">{localT.recentActivity}</h3>
+                  <h3 className="text-xs uppercase font-mono font-black tracking-widest text-fg-muted">{localT.recentActivity}</h3>
                   <button 
                     onClick={() => setWalletSubView('transactions')}
                     className="text-xs text-[#FF6B00] font-black hover:underline cursor-pointer"
@@ -986,7 +986,7 @@ export const WalletView: React.FC = () => {
                       return (
                         <div 
                           key={act.id} 
-                          className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center justify-between"
+                          className="bg-surface-raised border border-line p-4 rounded-2xl flex items-center justify-between"
                         >
                           <div className="min-w-0 flex-1 flex items-center gap-3">
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
@@ -995,13 +995,13 @@ export const WalletView: React.FC = () => {
                               {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                             </div>
                             <div className="min-w-0">
-                              <h5 className="font-extrabold text-xs text-gray-900 truncate">{act.title}</h5>
-                              <p className="text-[10px] text-gray-500 mt-0.5 truncate font-mono">{act.subtitle}</p>
+                              <h5 className="font-extrabold text-xs text-fg truncate">{act.title}</h5>
+                              <p className="text-[10px] text-fg-muted mt-0.5 truncate font-mono">{act.subtitle}</p>
                             </div>
                           </div>
 
                           <div className="text-right shrink-0 font-mono">
-                            <span className={`font-black text-xs block ${isPositive ? 'text-[#10B981]' : 'text-gray-700'}`}>
+                            <span className={`font-black text-xs block ${isPositive ? 'text-[#10B981]' : 'text-fg'}`}>
                               {isPositive ? '+' : ''}{act.amount.toLocaleString()} JOD
                             </span>
                           </div>
@@ -1009,8 +1009,8 @@ export const WalletView: React.FC = () => {
                       );
                     })
                   ) : (
-                    <div className="text-center py-7 bg-white border border-gray-200 rounded-2xl p-5">
-                      <p className="font-bold text-xs text-gray-400 uppercase tracking-wide">{localT.emptyActivity}</p>
+                    <div className="text-center py-7 bg-surface-raised border border-line rounded-2xl p-5">
+                      <p className="font-bold text-xs text-fg-muted uppercase tracking-wide">{localT.emptyActivity}</p>
                     </div>
                   )}
                 </div>

@@ -23,27 +23,27 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
-        className="relative bg-white text-gray-900 w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
+        className="relative bg-surface-raised text-fg w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="subscription-renew-modal"
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100 text-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer z-10"
+          className="absolute top-4 right-4 p-1 rounded-full hover:bg-surface-sunken text-fg-muted min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Headline */}
         <div className="text-center space-y-3 mb-6 mt-2">
-          <div className="mx-auto w-11 h-11 rounded-full bg-orange-150 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
+          <div className="mx-auto w-11 h-11 rounded-full bg-accent-weak border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-6 h-6 fill-current text-white stroke-[#FF6B00]" />
           </div>
-          <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+          <h2 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">
             {isAr ? 'انضم عشان تزايد وتربح 🔨' : 'Join to bid & win 🔨'}
           </h2>
-          <p className="text-xs text-gray-500 max-w-xs mx-auto leading-normal">
+          <p className="text-xs text-fg-muted max-w-xs mx-auto leading-normal">
             {isAr
               ? 'العضوية بتبدأ من دينار بالشهر عبر كليك — بتزايد مجاناً وما بتدفع إلا إذا فزت (+٥٪). بتتفعّل خلال دقائق.'
               : 'Membership from 1 JD/month via CliQ — bid free, pay only if you win (+5%). Activated in minutes.'}
@@ -63,7 +63,7 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
         {/* Secondary: how the whole loop works */}
         <button
           onClick={handleHowItWorks}
-          className="w-full mt-3 text-[11px] font-semibold text-gray-400 hover:text-gray-700 underline underline-offset-2 decoration-gray-200 hover:decoration-gray-400 transition-colors cursor-pointer"
+          className="w-full mt-3 text-[11px] font-semibold text-fg-muted hover:text-fg underline underline-offset-2 decoration-gray-200 hover:decoration-gray-400 transition-colors cursor-pointer"
           id="membership-how-it-works-link"
         >
           {isAr ? 'كيف يعمل؟' : 'How it works'}

@@ -36,17 +36,17 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
   const myEmail = (currentUserEmail || '').trim().toLowerCase();
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-xs">
-        <h3 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
+      <div className="bg-surface-raised border border-line p-5 rounded-2xl shadow-xs">
+        <h3 className="text-xs font-extrabold text-fg flex items-center gap-2">
           <Users className="w-4 h-4 text-[#FF6B00]" />
           {isAr ? 'سجل الأعضاء وإدارة الصلاحيات' : 'MEMBERS PRIVILEGE CONTROL'}
         </h3>
-        <p className="text-[11px] text-gray-400 mt-1">
+        <p className="text-[11px] text-fg-muted mt-1">
           {isAr ? 'عاين حسابات المشتركين وقم بتوثيق حساباتهم كبائعين معتمدين أو فرض حظر مؤقت للمخالفين.' : 'Verify user identities to certify authentic merchants or apply bidding limitations.'}
         </p>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
+      <div className="bg-surface-raised border border-line rounded-2xl divide-y divide-line overflow-hidden shadow-xs">
         {isLoading ? (
           <div className="p-4">
             <AdminListSkeleton />
@@ -57,28 +57,28 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
             profile.id === currentUserId ||
             (!!myEmail && (profile.email || '').trim().toLowerCase() === myEmail);
           return (
-          <div key={profile.id} className="p-4 flex justify-between items-center gap-4 transition-colors hover:bg-gray-50/40">
+          <div key={profile.id} className="p-4 flex justify-between items-center gap-4 transition-colors hover:bg-surface-sunken/40">
             <div className="flex items-center gap-3">
               <img
                 src={profile.avatar}
                 alt="Avatar"
-                className="w-10 h-10 rounded-xl object-cover shrink-0 border border-gray-200 shadow-xs"
+                className="w-10 h-10 rounded-xl object-cover shrink-0 border border-line shadow-xs"
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-extrabold text-xs text-gray-900 leading-none">{profile.name}</h4>
+                  <h4 className="font-extrabold text-xs text-fg leading-none">{profile.name}</h4>
                   {profile.role === 'admin' && (
                     <span className="bg-purple-50 text-purple-700 border border-purple-100 text-[8.5px] font-black px-1.5 py-0.5 rounded font-mono">
                       {isAr ? 'إدارة' : 'ADMIN'}
                     </span>
                   )}
                   {profile.isVerified && (
-                    <span className="bg-emerald-50 text-emerald-805 border border-emerald-100 text-[8.5px] font-black px-1.5 py-0.5 rounded">
+                    <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 text-[8.5px] font-black px-1.5 py-0.5 rounded">
                       {isAr ? 'موثق ✓' : 'VERIFIED ✓'}
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                <p className="text-[10px] text-fg-muted mt-1 font-mono">
                   {profile.email} • {profile.city || 'Jordan'}
                 </p>
               </div>
@@ -119,13 +119,13 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
                   {isAr ? 'فك الحظر' : 'Unban'}
                 </button>
               ) : isOwnAccount ? (
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg bg-gray-100 text-gray-400 border border-gray-200 select-none">
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg bg-surface-sunken text-fg-muted border border-line select-none">
                   {isAr ? 'أنت' : 'You'}
                 </span>
               ) : (
                 <button
                   onClick={() => onBan(profile.id)}
-                  className="bg-white text-red-600 border border-red-200 text-[10px] font-bold px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all cursor-pointer"
+                  className="bg-surface-raised text-red-600 border border-red-200 text-[10px] font-bold px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all cursor-pointer"
                 >
                   {isAr ? 'حظر' : 'Ban'}
                 </button>

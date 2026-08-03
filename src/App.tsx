@@ -98,7 +98,7 @@ function MaintenanceView() {
           <h1 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
             {isAr ? 'منصة مزاد جو | صيانة طارئة' : 'MAZAD JO | System Maintenance'}
           </h1>
-          <p className="text-gray-400 text-sm font-medium">
+          <p className="text-fg-muted text-sm font-medium">
             {isAr 
               ? 'تحديثات أمنية وتعديلات في البنية التحتية جارية الآن.' 
               : 'Security updates and infrastructure enhancements are currently in progress.'}
@@ -120,11 +120,11 @@ function MaintenanceView() {
         <div className="flex flex-col items-center gap-4 pt-4">
           <button
             onClick={() => setLanguage(isAr ? 'en' : 'ar')}
-            className="text-xs font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest font-mono"
+            className="text-xs font-bold text-fg-muted hover:text-white transition-colors uppercase tracking-widest font-mono"
           >
             {isAr ? 'Switch to English' : 'التحويل إلى العربية'}
           </button>
-          <p className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">
+          <p className="text-[10px] text-fg-muted font-mono uppercase tracking-widest">
             MAZAD JO CO. AMMAN, JORDAN
           </p>
         </div>
@@ -208,12 +208,12 @@ function MainAppShell() {
   // than flashing Landing/Login for a user who is actually still signed in.
   if (!authReady) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
             M
           </div>
-          <span className="text-xs text-gray-400 font-mono tracking-widest uppercase">Loading Mazad...</span>
+          <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">Loading Mazad...</span>
         </div>
       </div>
     );
@@ -281,11 +281,11 @@ function MainAppShell() {
       <div className="relative min-h-screen flex flex-col w-full">
         <DesktopFrame>
           <Suspense fallback={
-            <div className="flex-1 flex flex-col items-center justify-center bg-white p-12 min-h-[400px] font-sans">
+            <div className="flex-1 flex flex-col items-center justify-center bg-surface-raised p-12 min-h-[400px] font-sans">
               <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
                 M
               </div>
-              <span className="text-[10px] text-gray-400 font-mono tracking-widest uppercase mt-3">Loading view...</span>
+              <span className="text-[10px] text-fg-muted font-mono tracking-widest uppercase mt-3">Loading view...</span>
             </div>
           }>
             <ActiveViewRenderer />
@@ -303,7 +303,7 @@ function MainAppShell() {
   // and the user lands on the captured auction right after completing.
   if (!isProfileComplete(currentUser)) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-surface-raised">
         <ProfileCompletionModal />
       </div>
     );
@@ -316,7 +316,7 @@ function MainAppShell() {
       {maintenanceMode.enabled && isStrictAdmin && (
         <div 
           onClick={() => setActiveView('admin')}
-          className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-400 transition-colors shrink-0 z-50 text-center w-full"
+          className="bg-amber-500 text-fg-on-light px-4 py-2 text-xs font-black tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-400 transition-colors shrink-0 z-50 text-center w-full"
         >
           <span className="inline-block animate-pulse">⚠️</span>
           <span>MAINTENANCE MODE IS ACTIVE FOR PUBLIC USERS — CLICK HERE TO OPEN OPERATIONAL HEALTH CONTROL PANEL</span>
@@ -326,11 +326,11 @@ function MainAppShell() {
 
       <DesktopFrame>
         <Suspense fallback={
-          <div className="flex-1 flex flex-col items-center justify-center bg-white p-12 min-h-[400px] font-sans">
+          <div className="flex-1 flex flex-col items-center justify-center bg-surface-raised p-12 min-h-[400px] font-sans">
             <div className="w-8 h-8 rounded-xl bg-[#E85D04] animate-spin flex items-center justify-center font-bold text-white text-sm font-mono shadow-sm">
               M
             </div>
-            <span className="text-[10px] text-gray-400 font-mono tracking-widest uppercase mt-3">Loading view...</span>
+            <span className="text-[10px] text-fg-muted font-mono tracking-widest uppercase mt-3">Loading view...</span>
           </div>
         }>
           <ActiveViewRenderer />
@@ -381,12 +381,12 @@ export default function App() {
     <ToastProvider>
       <AppProvider>
       <Suspense fallback={
-        <div className="min-h-screen bg-white flex items-center justify-center font-sans">
+        <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
               M
             </div>
-            <span className="text-xs text-gray-400 font-mono tracking-widest uppercase">Loading Mazad...</span>
+            <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">Loading Mazad...</span>
           </div>
         </div>
       }>

@@ -110,9 +110,9 @@ export interface MoreSettingsDrawerProps {
   onChange: <K extends keyof DropFormValues>(key: K, value: DropFormValues[K]) => void;
 }
 
-const label = 'block text-sm font-bold text-gray-800';
+const label = 'block text-sm font-bold text-fg';
 const field =
-  'mt-1 w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:outline-none focus:border-[#FF6B00]';
+  'mt-1 w-full border border-line rounded-xl p-2.5 text-sm focus:outline-none focus:border-[#FF6B00]';
 
 export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
   isAr,
@@ -122,14 +122,14 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    <div className="bg-surface-raised border border-line rounded-2xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full text-start px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+        className="w-full text-start px-4 py-3 hover:bg-surface-sunken transition-colors cursor-pointer"
       >
-        <span className="flex items-center gap-2 text-sm font-black text-gray-900">
+        <span className="flex items-center gap-2 text-sm font-black text-fg">
           {/* A VERTICAL disclosure pair, not a rotated ▸. CSS `rotate-90` is a
               geometric transform: it is not mirrored by `direction: rtl`, so
               the collapsed arrow pointed rightwards — into the Arabic text it
@@ -141,13 +141,13 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
           <span aria-hidden="true" className="text-[10px] leading-none">{open ? '▴' : '▾'}</span>
           {isAr ? 'إعدادات إضافية' : 'More settings'}
         </span>
-        <span className="block mt-1 text-[11px] text-gray-400 leading-relaxed">
+        <span className="block mt-1 text-[11px] text-fg-muted leading-relaxed">
           {summarizeSettings(values, isAr)}
         </span>
       </button>
 
       {open && (
-        <div className="border-t border-gray-100 p-4 space-y-4">
+        <div className="border-t border-line p-4 space-y-4">
           <label className={label}>
             {isAr ? 'الحالة' : 'Condition'}
             <input
@@ -164,7 +164,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
               value={values.specsText}
               onChange={(e) => onChange('specsText', e.target.value)}
             />
-            <span className="mt-1 block text-[11px] text-gray-400">
+            <span className="mt-1 block text-[11px] text-fg-muted">
               {isAr ? 'تظهر في نص المنشور فقط' : 'Appears in the post caption only'}
             </span>
           </label>
@@ -197,7 +197,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
               value={values.reservePrice}
               onChange={(e) => onChange('reservePrice', e.target.value)}
             />
-            <span className="mt-1 block text-[11px] text-gray-400">
+            <span className="mt-1 block text-[11px] text-fg-muted">
               {isAr ? 'لن يُباع المنتج إذا لم تصل المزايدة لهذا السعر' : "Item won't sell if bidding doesn't reach this"}
             </span>
           </label>
@@ -223,7 +223,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
                 <option key={p.hours} value={p.hours}>{isAr ? p.label : p.en}</option>
               ))}
             </select>
-            <span className="mt-1 block text-[11px] text-gray-400">
+            <span className="mt-1 block text-[11px] text-fg-muted">
               {isAr
                 ? 'الوقت المتاح للفائز للدفع قبل تقييد الحساب. الافتراضي 24 ساعة.'
                 : 'Time the winner has to pay before their account is restricted. Default 24h.'}
@@ -241,7 +241,7 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
                 <option key={p.sec} value={p.sec}>{isAr ? p.label : p.en}</option>
               ))}
             </select>
-            <span className="mt-1 block text-[11px] text-gray-400">
+            <span className="mt-1 block text-[11px] text-fg-muted">
               {isAr
                 ? 'المزايدات في الثواني الأخيرة تُمدّد الوقت. الافتراضي 30 ثانية.'
                 : 'Bids in the final seconds extend the clock. Default 30s.'}
@@ -255,9 +255,9 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
               checked={values.autoRelist}
               onChange={(e) => onChange('autoRelist', e.target.checked)}
             />
-            <span className="font-bold text-gray-800">
+            <span className="font-bold text-fg">
               {isAr ? 'إعادة الإدراج تلقائياً إن لم يُبع (حتى مرتين)' : 'Auto-relist if unsold (up to 2×)'}
-              <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
+              <span className="mt-0.5 block text-[11px] font-normal text-fg-muted">
                 {isAr
                   ? 'يُعاد إدراج المنتج تلقائياً بعد 24 ساعة إن انتهى دون بيع.'
                   : 'The item is automatically relisted 24h after it ends unsold.'}

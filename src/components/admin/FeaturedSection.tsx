@@ -144,19 +144,19 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
     .slice(0, 8);
 
   return (
-    <div className="bg-white p-4 md:p-5 rounded-3xl border border-gray-200 space-y-4">
+    <div className="bg-surface-raised p-4 md:p-5 rounded-3xl border border-line space-y-4">
       <div className="flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-        <h3 className="text-[13px] font-black text-gray-900">
+        <h3 className="text-[13px] font-black text-fg">
           {isAr ? 'المزادات المميزة' : 'Featured lots'}
         </h3>
-        <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] font-mono font-black bg-amber-400 text-fg-on-light px-2 py-0.5 rounded-full">
           {currentIds.length}/{FEATURED_CAP}
         </span>
-        {saving && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />}
+        {saving && <Loader2 className="w-3.5 h-3.5 text-fg-muted animate-spin" />}
       </div>
 
-      <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+      <p className="text-[11px] text-fg-muted font-medium leading-relaxed">
         {isAr
           ? 'المزاد المميز يظهر أول قسمه في صفحة الاستكشاف. اسحب لإعادة الترتيب.'
           : 'A featured lot leads its section on Discover. Drag to reorder.'}
@@ -169,7 +169,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
       )}
 
       {shown.length === 0 ? (
-        <div className="text-center py-6 border border-dashed border-gray-200 rounded-2xl text-gray-400 text-[11px] font-semibold">
+        <div className="text-center py-6 border border-dashed border-line rounded-2xl text-fg-muted text-[11px] font-semibold">
           {isAr ? 'لا توجد مزادات مميزة بعد.' : 'Nothing featured yet.'}
         </div>
       ) : (
@@ -184,15 +184,15 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                 key={id}
                 value={id}
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                className="flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl p-2.5 cursor-grab active:cursor-grabbing"
+                className="flex items-center gap-2.5 bg-surface-raised border border-line rounded-xl p-2.5 cursor-grab active:cursor-grabbing"
               >
                 <GripVertical className="w-4 h-4 text-gray-300 shrink-0" aria-hidden="true" />
                 <img
                   src={lot.thumbnailUrl}
                   alt={lot.title}
-                  className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0"
+                  className="w-9 h-9 rounded-lg object-cover border border-line shrink-0"
                 />
-                <span className="flex-1 min-w-0 truncate text-[12px] font-extrabold text-gray-900" title={lot.title}>
+                <span className="flex-1 min-w-0 truncate text-[12px] font-extrabold text-fg" title={lot.title}>
                   {lot.title}
                 </span>
                 {/* A pin outlives nothing quietly: the feed filters status ==
@@ -211,7 +211,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                 <button
                   onClick={() => void applyOrder(unpin(currentIds, id))}
                   disabled={saving}
-                  className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 p-1.5 rounded-lg text-fg-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={isAr ? 'إزالة من المميزة' : 'Unpin'}
                 >
                   <X className="w-3.5 h-3.5" />
@@ -222,9 +222,9 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
         </Reorder.Group>
       )}
 
-      <div className="pt-3 border-t border-gray-100 space-y-2">
+      <div className="pt-3 border-t border-line space-y-2">
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-gray-400 absolute top-1/2 -translate-y-1/2 start-3" />
+          <Search className="w-3.5 h-3.5 text-fg-muted absolute top-1/2 -translate-y-1/2 start-3" />
           <input
             value={term}
             onChange={(e) => setTerm(e.target.value)}
@@ -238,12 +238,12 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                   ? 'ابحث عن مزاد لتمييزه…'
                   : 'Search a live lot to feature…'
             }
-            className="w-full ps-9 pe-3 py-2 rounded-xl border border-gray-200 text-[12px] font-semibold outline-none focus:border-amber-400 disabled:bg-gray-50 disabled:text-gray-400"
+            className="w-full ps-9 pe-3 py-2 rounded-xl border border-line text-[12px] font-semibold outline-none focus:border-amber-400 disabled:bg-surface-sunken disabled:text-fg-muted"
           />
         </div>
 
         {!atCap && search.active && search.loading && (
-          <div className="text-[11px] text-gray-400 font-semibold px-1">
+          <div className="text-[11px] text-fg-muted font-semibold px-1">
             {isAr ? 'جاري البحث…' : 'Searching…'}
           </div>
         )}
@@ -255,21 +255,21 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
         )}
 
         {!atCap && search.active && !search.loading && !search.error && searchResults.length === 0 && (
-          <div className="text-[11px] text-gray-400 font-semibold px-1">
+          <div className="text-[11px] text-fg-muted font-semibold px-1">
             {isAr ? 'لا توجد مزادات مباشرة مطابقة.' : 'No live lots match.'}
           </div>
         )}
 
         {!atCap && searchResults.length > 0 && (
-          <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+          <div className="border border-line rounded-xl divide-y divide-line overflow-hidden">
             {searchResults.map((lot) => (
               <div key={lot.id} className="flex items-center gap-2.5 p-2.5">
                 <img
                   src={lot.thumbnailUrl}
                   alt={lot.title}
-                  className="w-8 h-8 rounded-lg object-cover border border-gray-200 shrink-0"
+                  className="w-8 h-8 rounded-lg object-cover border border-line shrink-0"
                 />
-                <span className="flex-1 min-w-0 truncate text-[11.5px] font-bold text-gray-800" title={lot.title}>
+                <span className="flex-1 min-w-0 truncate text-[11.5px] font-bold text-fg" title={lot.title}>
                   {lot.title}
                 </span>
                 <button
@@ -278,7 +278,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                     void applyOrder(pin(currentIds, lot.id));
                   }}
                   disabled={saving}
-                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-orange-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-accent-weak transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAr ? 'تمييز' : 'Pin'}
                 </button>

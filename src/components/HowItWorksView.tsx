@@ -137,7 +137,7 @@ export const HowItWorksView: React.FC = () => {
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="how-it-works-root"
     >
@@ -154,10 +154,10 @@ export const HowItWorksView: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-[#E85D04] flex items-center justify-center text-white mx-auto shadow-md shadow-orange-500/20">
             <HelpCircle className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl lg:text-3xl font-black text-gray-950 tracking-tight">
+          <h1 className="text-2xl lg:text-3xl font-black text-fg tracking-tight">
             {isAr ? 'كيف يعمل مزاد جو؟' : 'How Mazad JO works'}
           </h1>
-          <p className="text-xs lg:text-sm text-gray-500 font-medium max-w-md mx-auto leading-relaxed">
+          <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
             {isAr
               ? 'مزادات مباشرة في الأردن — انضم، زايد مجاناً، وادفع فقط إذا فزت.'
               : 'Live auctions in Jordan — join, bid free, and pay only if you win.'}
@@ -173,19 +173,19 @@ export const HowItWorksView: React.FC = () => {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...easeOut, delay: 0.08 + i * 0.06 }}
-              className="bg-white border border-gray-200/70 rounded-2xl p-4 flex items-start gap-3.5 shadow-xs"
+              className="bg-surface-raised border border-line/70 rounded-2xl p-4 flex items-start gap-3.5 shadow-xs"
             >
-              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#E85D04] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-accent-weak border border-orange-100 text-[#E85D04] flex items-center justify-center shrink-0">
                 {step.icon}
               </div>
               <div className="min-w-0 space-y-1">
-                <h3 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2">
+                <h3 className="text-sm font-black text-fg tracking-tight flex items-center gap-2">
                   <span className="text-[#E85D04] font-black text-xs">
                     {isAr ? ['١', '٢', '٣', '٤', '٥'][i] : i + 1}
                   </span>
                   {isAr ? step.titleAr : step.titleEn}
                 </h3>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                <p className="text-xs text-fg-muted font-medium leading-relaxed">
                   {isAr ? step.bodyAr : step.bodyEn}
                 </p>
               </div>
@@ -218,7 +218,7 @@ export const HowItWorksView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveView('prohibited-items')}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-fg-muted hover:text-rose-600 transition-colors cursor-pointer"
             id="how-it-works-prohibited-items-link"
           >
             <Ban className="w-3.5 h-3.5" />
@@ -252,27 +252,27 @@ export const HowItWorksView: React.FC = () => {
           className="space-y-3"
           id="how-it-works-faq"
         >
-          <h2 className="text-sm font-black text-gray-950 uppercase tracking-wide px-1">
+          <h2 className="text-sm font-black text-fg uppercase tracking-wide px-1">
             {isAr ? 'أسئلة شائعة' : 'Common questions'}
           </h2>
-          <div className="bg-white border border-gray-200/70 rounded-2xl divide-y divide-gray-100 shadow-xs overflow-hidden">
+          <div className="bg-surface-raised border border-line/70 rounded-2xl divide-y divide-line shadow-xs overflow-hidden">
             {FAQS.map((faq, i) => {
               const isOpen = openFaq === i;
               return (
                 <div key={i}>
                   <button
                     onClick={() => setOpenFaq(isOpen ? null : i)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-start cursor-pointer hover:bg-gray-50/60 transition-colors"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-start cursor-pointer hover:bg-surface-sunken/60 transition-colors"
                     aria-expanded={isOpen}
                     id={`faq-toggle-${i}`}
                   >
-                    <span className="text-xs font-extrabold text-gray-900 leading-snug">
+                    <span className="text-xs font-extrabold text-fg leading-snug">
                       {isAr ? faq.qAr : faq.qEn}
                     </span>
                     <motion.span
                       animate={{ rotate: isOpen ? 180 : 0 }}
                       transition={{ duration: 0.25, ease: 'easeOut' }}
-                      className="shrink-0 text-gray-400"
+                      className="shrink-0 text-fg-muted"
                     >
                       <ChevronDown className="w-4 h-4" />
                     </motion.span>
@@ -286,7 +286,7 @@ export const HowItWorksView: React.FC = () => {
                         transition={{ duration: 0.25, ease: 'easeOut' }}
                         className="overflow-hidden"
                       >
-                        <p className="px-4 pb-4 text-xs text-gray-500 font-medium leading-relaxed">
+                        <p className="px-4 pb-4 text-xs text-fg-muted font-medium leading-relaxed">
                           {isAr ? faq.aAr : faq.aEn}
                         </p>
                       </motion.div>
@@ -305,7 +305,7 @@ export const HowItWorksView: React.FC = () => {
           transition={{ ...easeOut, delay: 0.5 }}
           className="text-center space-y-3 pt-2"
         >
-          <p className="text-xs text-gray-500 font-medium">
+          <p className="text-xs text-fg-muted font-medium">
             {isAr ? 'جاهز تجرب؟ المزايدة مجانية.' : 'Ready to try? Bidding is free.'}
           </p>
           <PrimaryCta id="how-it-works-cta-bottom" />

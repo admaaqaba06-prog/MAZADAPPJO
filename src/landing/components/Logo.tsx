@@ -15,7 +15,7 @@ interface LogoProps {
 export function Logo({
   className = "h-8",
   iconClassName = "h-8 w-8",
-  textClassName = "text-xl font-black text-[#0A0A0A] font-sans",
+  textClassName = "text-xl font-black text-fg font-sans",
   showText = true,
 }: LogoProps) {
   return (

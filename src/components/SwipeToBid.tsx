@@ -240,7 +240,7 @@ export const SwipeToBid: React.FC<SwipeToBidProps> = ({
         onPointerDown={startDrag}
         onPointerMove={onDrag}
         onPointerUp={endDrag}
-        className={`w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-md active:scale-95 transition-transform relative z-20 cursor-grab ${
+        className={`w-10 h-10 rounded-full bg-surface-raised flex items-center justify-center shadow-md active:scale-95 transition-transform relative z-20 cursor-grab ${
           isDragging ? 'cursor-grabbing' : ''
         }`}
         style={{

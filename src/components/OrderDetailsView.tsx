@@ -326,14 +326,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
   if (!order) {
     return (
-      <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-4 max-w-lg mx-auto mt-10">
+      <div className="bg-surface-raised border border-line rounded-3xl p-8 text-center space-y-4 max-w-lg mx-auto mt-10">
         <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto">
           <AlertTriangle className="w-8 h-8" />
         </div>
-        <h3 className="text-lg font-black text-gray-900 uppercase font-mono">
+        <h3 className="text-lg font-black text-fg uppercase font-mono">
           {isAr ? 'الطلب غير موجود' : 'Order Not Found'}
         </h3>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-fg-muted">
           {isAr ? 'لم نتمكن من العثور على تفاصيل هذا الطلب في قاعدة البيانات.' : 'The requested order ledger could not be retrieved.'}
         </p>
         <button 
@@ -1072,7 +1072,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     if (t.includes('release')) return <ShieldCheck className="w-4 h-4 text-emerald-600" />;
     if (t.includes('refund')) return <XCircle className="w-4 h-4 text-rose-500" />;
     if (t.includes('dispute') && (t.includes('open') || t.includes('initiate'))) return <ShieldAlert className="w-4 h-4 text-rose-500" />;
-    return <Activity className="w-4 h-4 text-gray-500" />;
+    return <Activity className="w-4 h-4 text-fg-muted" />;
   };
 
   // Generate activities for rendering
@@ -1113,23 +1113,23 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   };
 
   return (
-    <div className="w-full space-y-6 pb-12 animate-fade-in text-gray-900 leading-relaxed">
+    <div className="w-full space-y-6 pb-12 animate-fade-in text-fg leading-relaxed">
       {/* Header Back Bar */}
-      <div className="flex items-center justify-between bg-white px-5 py-4 rounded-3xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.01)] shrink-0">
+      <div className="flex items-center justify-between bg-surface-raised px-5 py-4 rounded-3xl border border-line shadow-[0_2px_8px_rgba(0,0,0,0.01)] shrink-0">
         <button 
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-black text-gray-700 hover:text-gray-950 transition-colors uppercase font-mono cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-black text-fg hover:text-fg transition-colors uppercase font-mono cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{isAr ? 'العودة للقائمة' : 'Back to List'}</span>
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-400 font-mono font-black uppercase">
+          <span className="text-[10px] text-fg-muted font-mono font-black uppercase">
             {isAr ? 'رقم الطلب:' : 'ORDER ID:'}
           </span>
-          <span className="text-xs font-mono font-black bg-gray-50 border border-gray-100 px-3 py-1 rounded-xl select-all flex items-center gap-1">
+          <span className="text-xs font-mono font-black bg-surface-sunken border border-line px-3 py-1 rounded-xl select-all flex items-center gap-1">
             <span>{displayOrderRef(order)}</span>
-            <button onClick={copyToClipboard} className="text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer">
+            <button onClick={copyToClipboard} className="text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer">
               {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
           </span>
@@ -1198,7 +1198,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         <div className="absolute top-0 right-0 w-36 h-36 bg-[#FF6B00]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative space-y-5">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <h3 className="text-xs font-black tracking-widest font-mono text-gray-400 uppercase flex items-center gap-1.5">
+            <h3 className="text-xs font-black tracking-widest font-mono text-fg-muted uppercase flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'تتبع حالة الطلب الفوري' : 'ORDER STATUS TRACKER'}</span>
             </h3>
@@ -1212,7 +1212,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           {/* Timeline Steps layout */}
           <div className="relative">
             {/* Desktop progress line */}
-            <div className="hidden md:block absolute top-[18px] left-[6%] right-[6%] h-0.5 bg-white/10" />
+            <div className="hidden md:block absolute top-[18px] left-[6%] right-[6%] h-0.5 bg-surface-raised/10" />
             <div 
               className="hidden md:block absolute top-[18px] left-[6%] h-0.5 bg-gradient-to-r from-[#FF6B00] to-orange-400 transition-all duration-500"
               style={{ width: `${currentStepIndex >= 0 ? (currentStepIndex / (timelineSteps.length - 1)) * 88 : 0}%` }}
@@ -1232,8 +1232,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       isCompleted 
                         ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/25'
                         : isActive
-                        ? 'bg-white text-slate-950 border-white ring-4 ring-[#FF6B00]/30 animate-pulse'
-                        : 'bg-slate-900 border-white/10 text-gray-500'
+                        ? 'bg-surface-raised text-fg border-white ring-4 ring-[#FF6B00]/30 animate-pulse'
+                        : 'bg-slate-900 border-white/10 text-fg-muted'
                     }`}>
                       {isCompleted ? <Check className="w-4 h-4 text-white" /> : idx + 1}
                     </div>
@@ -1241,11 +1241,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     {/* Texts */}
                     <div className="space-y-0.5">
                       <p className={`text-xs font-black transition-colors ${
-                        isActive ? 'text-white' : isCompleted ? 'text-gray-200 font-extrabold' : 'text-gray-500'
+                        isActive ? 'text-white' : isCompleted ? 'text-gray-200 font-extrabold' : 'text-fg-muted'
                       }`}>
                         {isAr ? step.labelAr : step.labelEn}
                       </p>
-                      <p className="text-[9px] text-gray-500 leading-tight block max-w-[140px] md:mx-auto">
+                      <p className="text-[9px] text-fg-muted leading-tight block max-w-[140px] md:mx-auto">
                         {isAr ? step.descAr : step.descEn}
                       </p>
                     </div>
@@ -1264,8 +1264,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         <div className="lg:col-span-2 space-y-6">
           
           {/* SECTION 2: Auction Information */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <Package className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات وتفاصيل المزاد المغلق' : 'AUCTION DETAILS'}</span>
             </h3>
@@ -1274,32 +1274,32 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <img 
                 src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=400&q=80'} 
                 alt={order.auctionTitle} 
-                className="w-full sm:w-28 h-28 rounded-2xl object-cover border border-gray-200 shrink-0 shadow-xs"
+                className="w-full sm:w-28 h-28 rounded-2xl object-cover border border-line shrink-0 shadow-xs"
                 referrerPolicy="no-referrer"
               />
               <div className="space-y-2.5 flex-1 min-w-0">
-                <h4 className="font-black text-gray-950 text-base sm:text-lg tracking-tight leading-snug">
+                <h4 className="font-black text-fg text-base sm:text-lg tracking-tight leading-snug">
                   {order.auctionTitle}
                 </h4>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-mono">
                   <div className="space-y-0.5">
-                    <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'مبلغ الفوز' : 'WINNING BID'}</span>
+                    <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'مبلغ الفوز' : 'WINNING BID'}</span>
                     <span className="text-base font-black text-[#FF6B00]">
                       {order.winningBidAmount.toLocaleString()} JOD
                     </span>
                   </div>
 
                   <div className="space-y-0.5">
-                    <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'رقم المزاد' : 'AUCTION ID'}</span>
-                    <span className="font-extrabold text-gray-700 truncate block">
+                    <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'رقم المزاد' : 'AUCTION ID'}</span>
+                    <span className="font-extrabold text-fg truncate block">
                       {order.auctionId.toUpperCase()}
                     </span>
                   </div>
 
                   <div className="space-y-0.5">
-                    <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'تاريخ الترسية' : 'WON DATE'}</span>
-                    <span className="font-extrabold text-gray-700 block">
+                    <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'تاريخ الترسية' : 'WON DATE'}</span>
+                    <span className="font-extrabold text-fg block">
                       {formatDate(order.createdAt)}
                     </span>
                   </div>
@@ -1330,13 +1330,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               (Mazad holds the buyer's payment in its own account and releases it
               to the seller only after the buyer confirms receipt; NOT regulated
               escrow, NOT audited). */}
-          <div className="bg-[#FAF9F6] border border-gray-200 rounded-3xl p-6 relative overflow-hidden">
+          <div className="bg-surface border border-line rounded-3xl p-6 relative overflow-hidden">
             {/* Background luxury watermark */}
             <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-orange-500/[0.02] rounded-full pointer-events-none" />
 
             <div className="space-y-5">
-              <div className="flex items-center justify-between border-b border-gray-200/60 pb-3">
-                <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono flex items-center gap-1.5">
+              <div className="flex items-center justify-between border-b border-line/60 pb-3">
+                <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[#FF6B00]" />
                   <span>{isAr ? 'حماية الدفع' : 'PAYMENT PROTECTION'}</span>
                 </h3>
@@ -1354,33 +1354,33 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-white border border-gray-100 p-4 rounded-2xl space-y-1">
-                  <span className="text-[9px] text-gray-400 font-mono block uppercase font-black">{isAr ? 'مبلغ محتجز لدى مزاد' : 'HELD BY MAZAD'}</span>
-                  <p className="text-lg font-mono font-black text-gray-950">
+                <div className="bg-surface-raised border border-line p-4 rounded-2xl space-y-1">
+                  <span className="text-[9px] text-fg-muted font-mono block uppercase font-black">{isAr ? 'مبلغ محتجز لدى مزاد' : 'HELD BY MAZAD'}</span>
+                  <p className="text-lg font-mono font-black text-fg">
                     {order.paymentStatus === 'paid' && order.escrowStatus !== 'released' && order.escrowStatus !== 'refunded' ? `${order.winningBidAmount.toLocaleString()} JOD` : '0 JOD'}
                   </p>
-                  <p className="text-[9.5px] text-gray-400">
+                  <p className="text-[9.5px] text-fg-muted">
                     {order.paymentStatus === 'paid' ? (isAr ? 'محفوظ لدى مزاد حتى تأكيد الاستلام' : 'Held by Mazad until you confirm receipt') : (isAr ? 'بانتظار الدفع' : 'Awaiting payment')}
                   </p>
                 </div>
 
-                <div className="bg-white border border-gray-100 p-4 rounded-2xl space-y-1">
-                  <span className="text-[9px] text-gray-400 font-mono block uppercase font-black">{isAr ? 'مبلغ حُوّل للبائع' : 'RELEASED TO SELLER'}</span>
+                <div className="bg-surface-raised border border-line p-4 rounded-2xl space-y-1">
+                  <span className="text-[9px] text-fg-muted font-mono block uppercase font-black">{isAr ? 'مبلغ حُوّل للبائع' : 'RELEASED TO SELLER'}</span>
                   <p className="text-lg font-mono font-black text-emerald-600">
                     {order.escrowStatus === 'released' ? `${order.winningBidAmount.toLocaleString()} JOD` : '0 JOD'}
                   </p>
-                  <p className="text-[9.5px] text-gray-400">
+                  <p className="text-[9.5px] text-fg-muted">
                     {order.escrowStatus === 'released' ? (isAr ? 'تم تحويله للبائع بعد تأكيد الاستلام' : 'Sent to the seller after you confirmed receipt') : (isAr ? 'لن يُحوّل للبائع قبل تأكيدك للاستلام' : 'Not sent to the seller until you confirm receipt')}
                   </p>
                 </div>
 
-                <div className="bg-white border border-gray-100 p-4 rounded-2xl space-y-1">
-                  <span className="text-[9px] text-gray-400 font-mono block uppercase font-black">{isAr ? 'كيف تحميك' : 'HOW YOU\'RE PROTECTED'}</span>
+                <div className="bg-surface-raised border border-line p-4 rounded-2xl space-y-1">
+                  <span className="text-[9px] text-fg-muted font-mono block uppercase font-black">{isAr ? 'كيف تحميك' : 'HOW YOU\'RE PROTECTED'}</span>
                   <div className="flex items-center gap-1.5 mt-0.5 text-emerald-600">
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
                     <span className="font-extrabold text-xs">{isAr ? 'حماية المشتري' : 'Buyer protection'}</span>
                   </div>
-                  <p className="text-[9.5px] text-gray-400 mt-1">
+                  <p className="text-[9.5px] text-fg-muted mt-1">
                     {isAr ? 'إذا لم تصل القطعة كما وُصفت، افتح نزاعاً ويُعاد لك المبلغ' : 'If the item is not as described, open a dispute and get refunded'}
                   </p>
                 </div>
@@ -1394,14 +1394,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               seller's user doc at all (firestore.rules limits `users` to
               owner/admin), and nothing is revealed before the money is in. */}
           {(isBuyer || isSeller) && order.paymentVerified === true && !['cancelled', 'refunded'].includes(order.status) && (
-            <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-3">
-              <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+            <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-3">
+              <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
                 <User className="w-4 h-4 text-[#FF6B00]" />
                 <span>{isAr ? 'التواصل مع الطرف الآخر' : 'CONTACT THE OTHER SIDE'}</span>
               </h3>
               {!contact ? (
                 <>
-                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                  <p className="text-[11px] text-fg-muted leading-relaxed">
                     {isAr
                       ? 'نسّق التسليم مباشرة عبر واتساب بدل المرور بالدعم.'
                       : 'Coordinate the handover directly on WhatsApp instead of going through support.'}
@@ -1420,12 +1420,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                    <span className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                       {contact.role === 'seller' ? (isAr ? 'البائع' : 'Seller') : (isAr ? 'المشتري' : 'Buyer')}
                     </span>
-                    <span className="text-xs font-bold text-gray-900 truncate">{contact.name}</span>
+                    <span className="text-xs font-bold text-fg truncate">{contact.name}</span>
                   </div>
-                  <p className="text-sm font-mono text-gray-900" dir="ltr">{contact.phone}</p>
+                  <p className="text-sm font-mono text-fg" dir="ltr">{contact.phone}</p>
                   {contact.waMe && (
                     <a
                       href={contact.waMe}
@@ -1442,8 +1442,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           )}
 
           {/* SECTION 6: Shipping status + real delivery address (no fabricated data) */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <Truck className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'الشحن والتوصيل' : 'SHIPPING & DELIVERY'}</span>
             </h3>
@@ -1451,37 +1451,37 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
               <div className="space-y-3">
                 {/* Honest status — no invented tracking/courier/ETA */}
-                <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-gray-100 space-y-0.5">
-                  <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'حالة الشحن' : 'SHIPPING STATUS'}</span>
-                  <span className="font-black text-gray-800 mt-0.5 block font-sans">{shipmentStatusLabel}</span>
+                <div className="bg-surface p-3 rounded-2xl border border-line space-y-0.5">
+                  <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'حالة الشحن' : 'SHIPPING STATUS'}</span>
+                  <span className="font-black text-fg mt-0.5 block font-sans">{shipmentStatusLabel}</span>
                 </div>
 
                 {/* Tracking number — only when the seller actually entered one */}
                 {order.trackingNumber && (
-                  <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-gray-100 space-y-0.5">
-                    <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'رقم التتبع' : 'TRACKING NUMBER'}</span>
-                    <span className="font-black text-gray-800 mt-0.5 block select-all">{order.trackingNumber}</span>
+                  <div className="bg-surface p-3 rounded-2xl border border-line space-y-0.5">
+                    <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'رقم التتبع' : 'TRACKING NUMBER'}</span>
+                    <span className="font-black text-fg mt-0.5 block select-all">{order.trackingNumber}</span>
                   </div>
                 )}
               </div>
 
               {/* Delivery address — the buyer's real per-order address. Buyer always
                   sees it; seller/admin only after payment is confirmed. */}
-              <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-gray-100 space-y-2">
-                <span className="text-[9px] text-gray-400 uppercase font-black block">{isAr ? 'عنوان التوصيل' : 'DELIVERY ADDRESS'}</span>
+              <div className="bg-surface p-4 rounded-2xl border border-line space-y-2">
+                <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'عنوان التوصيل' : 'DELIVERY ADDRESS'}</span>
                 {canSeeDeliveryAddress && order.deliveryAddress ? (
-                  <div className="flex gap-2.5 items-start mt-1 text-gray-700">
+                  <div className="flex gap-2.5 items-start mt-1 text-fg">
                     <MapPin className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5" />
                     <div className="space-y-1 font-sans text-xs">
-                      <p className="font-black text-gray-900">{order.buyerName}</p>
+                      <p className="font-black text-fg">{order.buyerName}</p>
                       <p>{isAr ? (deliveryGov?.ar ?? order.deliveryAddress.governorate) : (deliveryGov?.en ?? order.deliveryAddress.governorate)}{order.deliveryAddress.area ? ` — ${order.deliveryAddress.area}` : ''}</p>
                       {order.deliveryAddress.building && <p>{order.deliveryAddress.building}</p>}
-                      {order.deliveryAddress.notes && <p className="text-gray-500">{order.deliveryAddress.notes}</p>}
-                      {order.deliveryPhone && <p className="font-mono text-[10px] text-gray-500" dir="ltr">{order.deliveryPhone}</p>}
+                      {order.deliveryAddress.notes && <p className="text-fg-muted">{order.deliveryAddress.notes}</p>}
+                      {order.deliveryPhone && <p className="font-mono text-[10px] text-fg-muted" dir="ltr">{order.deliveryPhone}</p>}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-gray-400 font-sans mt-1 leading-relaxed">
+                  <p className="text-[10px] text-fg-muted font-sans mt-1 leading-relaxed">
                     {order.deliveryAddress
                       ? (isAr ? 'يظهر عنوان التوصيل للبائع بعد تأكيد الدفع.' : 'The delivery address becomes visible to the seller after payment is confirmed.')
                       : (isAr ? 'يقدّم المشتري عنوان التوصيل عند خطوة الدفع.' : 'The buyer provides the delivery address at the payment step.')}
@@ -1494,21 +1494,21 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           {/* SECTION 9: Documents — only the buyer's REAL uploaded CliQ receipt.
               Fabricated waybill / POD cards with dead alert() buttons removed;
               new document controls should render only when a real URL exists. */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <FileCheck className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'المستندات' : 'DOCUMENTS'}</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Receipt — real, only shows a control when a proof URL exists */}
-              <div className="bg-[#FAF9F6] border border-gray-100 hover:border-orange-200 p-4 rounded-2xl space-y-3 transition-colors flex flex-col justify-between">
+              <div className="bg-surface border border-line hover:border-orange-200 p-4 rounded-2xl space-y-3 transition-colors flex flex-col justify-between">
                 <div className="space-y-1.5">
-                  <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
+                  <div className="p-2 bg-accent-weak text-[#FF6B00] rounded-xl w-fit">
                     <FileText className="w-4 h-4" />
                   </div>
-                  <h5 className="font-black text-gray-900 text-xs">{isAr ? 'إيصال الدفع عبر كليك' : 'CliQ Payment Receipt'}</h5>
-                  <p className="text-[9px] text-gray-400 leading-tight">
+                  <h5 className="font-black text-fg text-xs">{isAr ? 'إيصال الدفع عبر كليك' : 'CliQ Payment Receipt'}</h5>
+                  <p className="text-[9px] text-fg-muted leading-tight">
                     {order.paymentProofUrl
                       ? (isAr ? 'تم رفع إيصال حوالة كليك' : 'CliQ transfer receipt uploaded')
                       : order.paymentStatus === 'paid'
@@ -1519,30 +1519,30 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                 {order.paymentProofUrl ? (
                   <button
                     onClick={() => window.open(order.paymentProofUrl, '_blank', 'noopener,noreferrer')}
-                    className="w-full bg-white hover:bg-gray-50 text-gray-700 hover:text-[#FF6B00] border border-gray-200 rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
+                    className="w-full bg-surface-raised hover:bg-surface-sunken text-fg hover:text-[#FF6B00] border border-line rounded-xl py-1.5 text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer mt-2"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>{isAr ? 'عرض الإيصال' : 'View Receipt'}</span>
                   </button>
                 ) : (
-                  <span className="text-[9px] text-gray-400 italic block text-center mt-2">{isAr ? 'غير متوفر بعد' : 'Not available yet'}</span>
+                  <span className="text-[9px] text-fg-muted italic block text-center mt-2">{isAr ? 'غير متوفر بعد' : 'Not available yet'}</span>
                 )}
               </div>
 
               {/* E1 — CliQ sender phone, shown to admin so they can match the
                   incoming transfer to this order (the number the money came from). */}
               {isAdmin && order.cliqSenderPhone && (
-                <div className="bg-[#FAF9F6] border border-gray-100 p-4 rounded-2xl space-y-3 flex flex-col justify-between" id="admin-cliq-sender-phone">
+                <div className="bg-surface border border-line p-4 rounded-2xl space-y-3 flex flex-col justify-between" id="admin-cliq-sender-phone">
                   <div className="space-y-1.5">
-                    <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
+                    <div className="p-2 bg-accent-weak text-[#FF6B00] rounded-xl w-fit">
                       <CreditCard className="w-4 h-4" />
                     </div>
-                    <h5 className="font-black text-gray-900 text-xs">{isAr ? 'هاتف مُرسِل حوالة كليك' : 'CliQ Sender Phone'}</h5>
-                    <p className="text-[9px] text-gray-400 leading-tight">
+                    <h5 className="font-black text-fg text-xs">{isAr ? 'هاتف مُرسِل حوالة كليك' : 'CliQ Sender Phone'}</h5>
+                    <p className="text-[9px] text-fg-muted leading-tight">
                       {isAr ? 'الرقم الذي حُوّل منه الدفع — طابقه مع الحوالة الواردة' : 'The number the payment was sent from — match it to the incoming transfer'}
                     </p>
                   </div>
-                  <span className="font-mono font-black text-gray-900 text-sm select-all block mt-2" dir="ltr">
+                  <span className="font-mono font-black text-fg text-sm select-all block mt-2" dir="ltr">
                     {order.cliqSenderPhone}
                   </span>
                 </div>
@@ -1556,8 +1556,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
         <div className="space-y-6">
           
           {/* ACTION BUTTONS (Section 8) */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'مركز إجراءات الضمان والتسليم' : 'FULFILLMENT INTERACTION PANEL'}</span>
             </h3>
@@ -1567,27 +1567,27 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isBuyer && (
                 <>
                   {order.status === 'waiting_payment' && (
-                    <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
+                    <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
                       {/* Amount due */}
                       <div className="text-center space-y-1 border-b border-orange-100 pb-3">
-                        <span className="text-[9px] text-gray-400 uppercase font-black font-mono block">
+                        <span className="text-[9px] text-fg-muted uppercase font-black font-mono block">
                           {isAr ? 'المبلغ المستحق — شامل عمولة ٥٪' : 'AMOUNT DUE — INCL. 5% PREMIUM'}
                         </span>
                         <div className="flex items-center justify-center gap-2">
                           <div className="text-2xl font-black text-[#FF6B00] font-mono">
                             <CountUp value={totalDue} format={(n) => Number(n.toFixed(3)).toLocaleString('en-US')} />
-                            <span className="text-xs font-sans font-bold text-gray-500"> JOD</span>
+                            <span className="text-xs font-sans font-bold text-fg-muted"> JOD</span>
                           </div>
                           <button
                             type="button"
                             onClick={handleCopyAmount}
-                            className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                            className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                             aria-label={isAr ? 'نسخ المبلغ' : 'Copy amount'}
                           >
                             {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
-                        <p className="text-[9.5px] text-gray-500 font-bold">
+                        <p className="text-[9.5px] text-fg-muted font-bold">
                           {isAr ? 'لازم يطابق للفلس' : 'Must match to the fil'}
                         </p>
                         {order.paymentDeadlineAt && (
@@ -1610,45 +1610,45 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                       {/* CliQ recipient details */}
                       <div className="space-y-2 text-xs">
-                        <div className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5">
+                        <div className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5">
                           <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
                           <span>{isAr ? 'حوّل عبر كليك (CliQ) إلى:' : 'Transfer via CliQ to:'}</span>
                         </div>
                         {/* CliQ alias — PRIMARY transfer target (IBAN below stays as fallback) */}
                         <div className="border-b border-orange-100 pb-1.5 space-y-0.5">
                           <div className="flex justify-between items-center gap-2">
-                            <span className="font-bold text-gray-500">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
+                            <span className="font-bold text-fg-muted">{isAr ? 'اسم مستعار كليك (CliQ Alias)' : 'CliQ Alias'}:</span>
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-mono font-black text-gray-900 select-all">{CLIQ_ALIAS}</span>
+                              <span className="font-mono font-black text-fg select-all">{CLIQ_ALIAS}</span>
                               <button
                                 type="button"
                                 onClick={handleCopyAlias}
-                                className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                                className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                               >
                                 {copiedAlias ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                               </button>
                             </div>
                           </div>
-                          <p className="text-[9.5px] text-gray-500 font-bold">
+                          <p className="text-[9.5px] text-fg-muted font-bold">
                             {isAr ? 'حوّل عبر كليك إلى هذا الاسم المستعار' : 'Send via CliQ to this alias'}
                           </p>
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
-                          <span className="font-bold text-gray-500">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
-                          <span className="font-black text-gray-900 font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
+                          <span className="font-bold text-fg-muted">{isAr ? 'اسم الحساب' : 'Account Name'}:</span>
+                          <span className="font-black text-fg font-mono">{CLIQ_RECIPIENT_NAME_EN}</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
-                          <span className="font-bold text-gray-500">{isAr ? 'البنك' : 'Bank'}:</span>
+                          <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
                           <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
                         </div>
                         <div className="flex justify-between items-center gap-2">
-                          <span className="font-bold text-gray-500">IBAN:</span>
+                          <span className="font-bold text-fg-muted">IBAN:</span>
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono font-black text-gray-900 select-all text-[10.5px] truncate">{CLIQ_IBAN}</span>
+                            <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{CLIQ_IBAN}</span>
                             <button
                               type="button"
                               onClick={handleCopyIban}
-                              className="p-1 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                              className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
                             >
                               {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
@@ -1658,11 +1658,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                       {/* W4 — delivery address + phone (required before payment) */}
                       <div className="space-y-2.5 border-t border-orange-100 pt-3" id="delivery-address-fields">
-                        <div className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5">
+                        <div className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-[#FF6B00]" />
                           <span>{isAr ? 'عنوان التوصيل' : 'Delivery address'}</span>
                         </div>
-                        <p className="text-[9.5px] text-gray-500 font-bold -mt-1">
+                        <p className="text-[9.5px] text-fg-muted font-bold -mt-1">
                           {isAr ? 'وين نوصّل القطعة إذا فزت؟ لازم نعرف العنوان ورقم هاتفك قبل الدفع.' : 'Where should we deliver the item? We need your address and phone before payment.'}
                         </p>
 
@@ -1670,7 +1670,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         <select
                           value={deliveryGovernorate}
                           onChange={e => { setDeliveryGovernorate(e.target.value); if (deliveryErrors.governorate) setDeliveryErrors(p => ({ ...p, governorate: false })); }}
-                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-[#FF6B00] transition-colors appearance-none cursor-pointer ${deliveryErrors.governorate ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-xs font-bold text-fg focus:outline-none focus:border-[#FF6B00] transition-colors appearance-none cursor-pointer ${deliveryErrors.governorate ? 'border-red-300' : 'border-line'}`}
                           id="delivery-governorate"
                           aria-label={isAr ? 'المحافظة' : 'Governorate'}
                         >
@@ -1686,7 +1686,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={deliveryArea}
                           onChange={e => { setDeliveryArea(e.target.value); if (deliveryErrors.area) setDeliveryErrors(p => ({ ...p, area: false })); }}
                           placeholder={isAr ? 'المنطقة والشارع' : 'Area & street'}
-                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryErrors.area ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-xs font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryErrors.area ? 'border-red-300' : 'border-line'}`}
                           id="delivery-area"
                           style={{ textAlign: isAr ? 'right' : 'left' }}
                         />
@@ -1697,7 +1697,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={deliveryBuilding}
                           onChange={e => setDeliveryBuilding(e.target.value)}
                           placeholder={isAr ? 'البناية / الطابق / الشقة (اختياري)' : 'Building / floor / apt (optional)'}
-                          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors"
+                          className="w-full bg-surface-raised border border-line rounded-xl px-3 py-2.5 text-xs font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors"
                           id="delivery-building"
                           style={{ textAlign: isAr ? 'right' : 'left' }}
                         />
@@ -1708,7 +1708,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={deliveryNotes}
                           onChange={e => setDeliveryNotes(e.target.value)}
                           placeholder={isAr ? 'ملاحظات أو علامة مميزة (اختياري)' : 'Notes or landmark (optional)'}
-                          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors"
+                          className="w-full bg-surface-raised border border-line rounded-xl px-3 py-2.5 text-xs font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors"
                           id="delivery-notes"
                           style={{ textAlign: isAr ? 'right' : 'left' }}
                         />
@@ -1722,7 +1722,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={deliveryPhone}
                           onChange={e => { setDeliveryPhone(e.target.value); if (deliveryErrors.phone) setDeliveryErrors(p => ({ ...p, phone: false })); }}
                           placeholder="07XXXXXXXX"
-                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryErrors.phone ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryErrors.phone ? 'border-red-300' : 'border-line'}`}
                           id="delivery-phone"
                           aria-label={isAr ? 'رقم الهاتف للتوصيل' : 'Delivery phone'}
                         />
@@ -1735,7 +1735,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       </div>
 
                       {/* Receipt screenshot upload */}
-                      <div className="relative border-2 border-dashed border-orange-200 hover:border-[#FF6B00] transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-white cursor-pointer group min-h-[110px]">
+                      <div className="relative border-2 border-dashed border-orange-200 hover:border-[#FF6B00] transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-surface-raised cursor-pointer group min-h-[110px]">
                         <input
                           type="file"
                           accept="image/png, image/jpeg, image/jpg"
@@ -1748,20 +1748,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             <img
                               src={receiptPreview}
                               alt="CliQ Receipt"
-                              className="max-h-40 w-auto object-contain rounded-xl border border-gray-200 shadow-sm"
+                              className="max-h-40 w-auto object-contain rounded-xl border border-line shadow-sm"
                               referrerPolicy="no-referrer"
                             />
-                            <span className="text-[10px] text-gray-400 font-bold group-hover:text-[#FF6B00] transition-colors">
+                            <span className="text-[10px] text-fg-muted font-bold group-hover:text-[#FF6B00] transition-colors">
                               {isAr ? 'اضغط لتغيير لقطة الشاشة' : 'Click to change screenshot'}
                             </span>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center text-center space-y-1.5">
-                            <UploadCloud className="w-6 h-6 text-gray-400 group-hover:text-[#FF6B00] transition-colors" />
-                            <p className="text-[11px] text-gray-700 font-extrabold">
+                            <UploadCloud className="w-6 h-6 text-fg-muted group-hover:text-[#FF6B00] transition-colors" />
+                            <p className="text-[11px] text-fg font-extrabold">
                               {isAr ? 'ارفع لقطة شاشة لإيصال حوالة كليك' : 'Upload your CliQ transfer receipt screenshot'}
                             </p>
-                            <p className="text-[9px] text-gray-400 font-mono">PNG, JPG</p>
+                            <p className="text-[9px] text-fg-muted font-mono">PNG, JPG</p>
                           </div>
                         )}
                       </div>
@@ -1772,7 +1772,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <div className="space-y-1.5" id="cliq-sender-phone-field">
                         <label
                           htmlFor="cliq-sender-phone-input"
-                          className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5"
+                          className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5"
                         >
                           <CreditCard className="w-3.5 h-3.5 text-[#FF6B00]" />
                           <span>{isAr ? 'رقم الهاتف الذي يُرسل منه الدفع عبر كليك' : 'Phone number the CliQ payment is coming from'}</span>
@@ -1785,11 +1785,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={cliqSenderPhone}
                           onChange={e => { setCliqSenderPhone(e.target.value); if (cliqSenderPhoneError) setCliqSenderPhoneError(false); }}
                           placeholder="07XXXXXXXX"
-                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${cliqSenderPhoneError ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${cliqSenderPhoneError ? 'border-red-300' : 'border-line'}`}
                           id="cliq-sender-phone-input"
                           aria-label={isAr ? 'رقم الهاتف الذي يُرسل منه الدفع عبر كليك' : 'Phone number the CliQ payment is coming from'}
                         />
-                        <p className="text-[9.5px] text-gray-500 font-bold">
+                        <p className="text-[9.5px] text-fg-muted font-bold">
                           {isAr
                             ? 'قد يختلف عن رقم حسابك — إذا حوّل لك أحد أفراد العائلة، اكتب الرقم الذي أرسل منه فعلياً حتى نطابق الحوالة.'
                             : 'This may differ from your account number — if a family member transfers for you, enter the number the money is actually sent from so we can match it.'}
@@ -1807,7 +1807,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       <div className="space-y-1.5" id="cliq-txn-ref-field">
                         <label
                           htmlFor="cliq-txn-ref-input"
-                          className="text-[10px] font-black text-gray-800 uppercase tracking-tight font-mono flex items-center gap-1.5"
+                          className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#FF6B00]" />
                           <span>{isAr ? 'رقم العملية / المرجع' : 'Transaction / reference number'}</span>
@@ -1818,11 +1818,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           value={txnRef}
                           onChange={e => { setTxnRef(e.target.value); if (txnRefError) setTxnRefError(''); }}
                           placeholder={isAr ? 'رقم العملية' : 'Reference number'}
-                          className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${txnRefError ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${txnRefError ? 'border-red-300' : 'border-line'}`}
                           id="cliq-txn-ref-input"
                           aria-label={isAr ? 'رقم العملية / المرجع' : 'Transaction / reference number'}
                         />
-                        <p className="text-[9.5px] text-gray-500 font-bold">
+                        <p className="text-[9.5px] text-fg-muted font-bold">
                           {isAr ? 'من إشعار تحويل كليك' : 'from your CliQ payment confirmation'}
                         </p>
                         {txnRefError && (
@@ -1853,7 +1853,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     <button
                       onClick={handleCancelOrder}
                       disabled={isUpdating}
-                      className="w-full bg-white hover:bg-red-50 text-red-600 border border-red-200 font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
+                      className="w-full bg-surface-raised hover:bg-red-50 text-red-600 border border-red-200 font-black py-3 rounded-2xl text-xs transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer uppercase font-mono active:scale-[0.99] disabled:opacity-50"
                     >
                       <XCircle className="w-4 h-4" />
                       <span>{isAr ? 'إلغاء الطلب بالكامل' : 'Cancel Bidding Order'}</span>
@@ -1863,9 +1863,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   {/* Progressive email capture — only while the account has no email.
                       Optional and dismissible; persists via the write-once rules claim. */}
                   {!currentUser?.email && !receiptEmailDismissed && (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-3.5 space-y-2" id="receipt-email-capture">
+                    <div className="bg-surface-raised border border-line rounded-2xl p-3.5 space-y-2" id="receipt-email-capture">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-[11px] font-black text-gray-800 flex items-center gap-1.5">
+                        <p className="text-[11px] font-black text-fg flex items-center gap-1.5">
                           <Mail className="w-4 h-4 text-[#FF6B00] shrink-0" />
                           <span>{t.receiptEmailPromptTitle}</span>
                         </p>
@@ -1873,13 +1873,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           type="button"
                           onClick={() => setReceiptEmailDismissed(true)}
                           aria-label={t.receiptEmailSkip}
-                          className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer shrink-0"
+                          className="p-0.5 text-gray-300 hover:text-fg-muted transition-colors cursor-pointer shrink-0"
                           id="receipt-email-skip-btn"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <p className="text-[9.5px] text-gray-400 leading-snug">{t.receiptEmailPromptHint}</p>
+                      <p className="text-[9.5px] text-fg-muted leading-snug">{t.receiptEmailPromptHint}</p>
                       <div className="flex items-stretch gap-2">
                         <input
                           type="email"
@@ -1890,7 +1890,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           onChange={e => { setReceiptEmail(e.target.value); if (receiptEmailError) setReceiptEmailError(false); }}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveReceiptEmail(); } }}
                           placeholder={t.receiptEmailPlaceholder}
-                          className={`flex-1 min-w-0 bg-[#FAF9F6] border rounded-xl px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${receiptEmailError ? 'border-red-300' : 'border-gray-200'}`}
+                          className={`flex-1 min-w-0 bg-surface border rounded-xl px-3 py-2 text-xs font-mono text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${receiptEmailError ? 'border-red-300' : 'border-line'}`}
                           id="receipt-email-input"
                         />
                         <button
@@ -1926,11 +1926,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           the completion event; there is no timer and no
                           auto-complete behind it. */}
                       {deliveryStepFor(order, 'buyer') === 'buyer_confirm' && (
-                        <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
-                          <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                        <div className="border border-line rounded-2xl p-4 bg-surface space-y-3">
+                          <h4 className="text-xs font-black uppercase font-mono text-fg">
                             {isAr ? '٣ · أكّد استلامك' : '3 · Confirm you received it'}
                           </h4>
-                          <p className="text-[11px] text-gray-500 leading-relaxed">
+                          <p className="text-[11px] text-fg-muted leading-relaxed">
                             {isAr
                               ? 'صوّر المنتج بعد الاستلام مع ظهور رمز التسليم المكتوب على الطرد، وأدخل الرمز نفسه. التأكيد يحرّر المبلغ للبائع نهائياً.'
                               : 'Photograph the item after receiving it with the delivery code on the parcel visible, then type that same code. Confirming releases the payment to the seller for good.'}
@@ -1945,7 +1945,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           />
 
                           <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                            <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                               {isAr ? 'رمز التسليم المكتوب على الطرد' : 'Delivery code on the parcel'}
                             </p>
                             <input
@@ -1956,7 +1956,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               value={typedDeliveryCode}
                               onChange={(e) => { setTypedDeliveryCode(e.target.value); if (deliveryCodeError) setDeliveryCodeError(''); }}
                               placeholder="DC-7K3QP"
-                              className={`w-full bg-white border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryCodeError ? 'border-red-300' : 'border-gray-200'}`}
+                              className={`w-full bg-surface-raised border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors ${deliveryCodeError ? 'border-red-300' : 'border-line'}`}
                               id="delivery-code-input"
                             />
                             {deliveryCodeError && (
@@ -2019,7 +2019,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           <button
                             onClick={() => setShowReturnForm(true)}
                             disabled={isUpdating || submittingReturn}
-                            className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                            className="w-full bg-surface-raised hover:bg-surface-sunken text-fg-muted border border-line font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                           >
                             <AlertTriangle className="w-4 h-4 text-red-500" />
                             <span>{isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}</span>
@@ -2029,19 +2029,19 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         {/* Return claim form */}
                         {showReturnForm && (
                           <div
-                            className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-4 origin-top"
+                            className="border border-line rounded-2xl p-4 bg-surface space-y-4 origin-top"
                             style={{ animation: 'returnFormIn 240ms cubic-bezier(0.16, 1, 0.3, 1)' }}
                           >
                             <style>{`@keyframes returnFormIn { from { opacity: 0; transform: translateY(-6px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
 
                             <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                              <h4 className="text-xs font-black uppercase font-mono text-fg">
                                 {isAr ? 'الإبلاغ عن مشكلة' : 'Report a problem'}
                               </h4>
                               <button
                                 onClick={() => setShowReturnForm(false)}
                                 disabled={submittingReturn}
-                                className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+                                className="text-fg-muted hover:text-fg transition-colors disabled:opacity-50"
                                 aria-label={isAr ? 'إغلاق' : 'Close'}
                               >
                                 <X className="w-4 h-4" />
@@ -2050,7 +2050,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                             {/* Reason radios */}
                             <div className="space-y-2">
-                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                                 {isAr ? 'سبب الإرجاع' : 'Reason'}
                               </p>
                               {([
@@ -2059,7 +2059,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               ]).map(opt => (
                                 <label
                                   key={opt.value}
-                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-accent-weak' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
                                 >
                                   <input
                                     type="radio"
@@ -2069,14 +2069,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                                     onChange={() => setReturnReason(opt.value)}
                                     className="accent-[#FF6B00]"
                                   />
-                                  <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
+                                  <span className="text-xs font-bold text-fg">{isAr ? opt.ar : opt.en}</span>
                                 </label>
                               ))}
                             </div>
 
                             {/* Description */}
                             <div className="space-y-1.5">
-                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                                 {isAr ? 'وصف المشكلة' : 'Describe the problem'}
                               </p>
                               <textarea
@@ -2084,19 +2084,19 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                                 onChange={e => setReturnDescription(e.target.value)}
                                 rows={3}
                                 placeholder={isAr ? 'اشرح ما الخطأ في المنتج...' : "Explain what's wrong with the item..."}
-                                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors resize-none"
+                                className="w-full bg-surface-raised border border-line rounded-xl px-3 py-2 text-xs text-fg placeholder:text-gray-300 focus:outline-none focus:border-[#FF6B00] transition-colors resize-none"
                               />
                             </div>
 
                             {/* Photos */}
                             <div className="space-y-2">
-                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                                 {isAr ? `الصور (${returnPhotos.length}/6) — مطلوبة` : `Photos (${returnPhotos.length}/6) — required`}
                               </p>
                               {returnPhotos.length > 0 && (
                                 <div className="grid grid-cols-3 gap-2">
                                   {returnPhotos.map((file, i) => (
-                                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
+                                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-line">
                                       <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
                                       <button
                                         onClick={() => handleRemoveReturnPhoto(i)}
@@ -2111,7 +2111,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                                 </div>
                               )}
                               {returnPhotos.length < 6 && (
-                                <label className="w-full border border-dashed border-gray-300 hover:border-[#FF6B00] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-gray-500 hover:text-[#FF6B00]">
+                                <label className="w-full border border-dashed border-line hover:border-[#FF6B00] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-fg-muted hover:text-[#FF6B00]">
                                   <UploadCloud className="w-4 h-4" />
                                   <span className="text-[11px] font-bold uppercase font-mono">
                                     {isAr ? 'إضافة صور' : 'Add photos'}
@@ -2146,7 +2146,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                                 </>
                               )}
                             </button>
-                            <p className="text-[9.5px] text-gray-400 leading-relaxed">
+                            <p className="text-[9.5px] text-fg-muted leading-relaxed">
                               {isAr
                                 ? 'سيتم تجميد الطلب وإيقاف الدفعة للبائع ريثما يراجع الفريق طلب الإرجاع.'
                                 : 'The order will be frozen and the payout paused while the team reviews your return.'}
@@ -2169,8 +2169,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       </div>
 
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
-                        <span className="font-bold text-gray-800">
+                        <span className="text-fg-muted font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
+                        <span className="font-bold text-fg">
                           {order.returnClaim.reason === 'damaged'
                             ? (isAr ? 'وصل تالفاً' : 'Arrived damaged')
                             : (isAr ? 'مخالف للوصف' : 'Not as described')}
@@ -2178,7 +2178,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       </div>
 
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
+                        <span className="text-fg-muted font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
                         <span className="font-black text-amber-700 uppercase font-mono">
                           {order.returnClaim.status === 'open' && (isAr ? 'قيد المراجعة' : 'Open')}
                           {order.returnClaim.status === 'accepted' && (isAr ? 'مقبول' : 'Accepted')}
@@ -2189,8 +2189,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                       {order.returnClaim.description && (
                         <div className="space-y-1">
-                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'الوصف' : 'Description'}</p>
-                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
+                          <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'الوصف' : 'Description'}</p>
+                          <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
                         </div>
                       )}
 
@@ -2212,8 +2212,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                       {order.returnClaim.sellerResponse && (
                         <div className="space-y-1 pt-1 border-t border-amber-200">
-                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'رد البائع' : 'Seller response'}</p>
-                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
+                          <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'رد البائع' : 'Seller response'}</p>
+                          <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
                         </div>
                       )}
                     </div>
@@ -2224,7 +2224,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     <button
                       onClick={handleOpenDispute}
                       disabled={isUpdating}
-                      className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                      className="w-full bg-surface-raised hover:bg-surface-sunken text-fg-muted border border-line font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                     >
                       <ShieldAlert className="w-4 h-4 text-red-500" />
                       <span>{isAr ? 'رفع نزاع رسمي ومراجعة المشرف' : 'File Formal Dispute'}</span>
@@ -2247,8 +2247,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       </div>
 
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
-                        <span className="font-bold text-gray-800">
+                        <span className="text-fg-muted font-bold uppercase font-mono">{isAr ? 'السبب' : 'Reason'}</span>
+                        <span className="font-bold text-fg">
                           {order.returnClaim.reason === 'damaged'
                             ? (isAr ? 'وصل تالفاً' : 'Arrived damaged')
                             : (isAr ? 'مخالف للوصف' : 'Not as described')}
@@ -2257,8 +2257,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                       {order.returnClaim.description && (
                         <div className="space-y-1">
-                          <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'الوصف' : 'Description'}</p>
-                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
+                          <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'الوصف' : 'Description'}</p>
+                          <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{order.returnClaim.description}</p>
                         </div>
                       )}
 
@@ -2278,7 +2278,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </div>
                       )}
 
-                      <div className="flex items-start gap-2 bg-white/70 border border-amber-200 rounded-xl p-2.5">
+                      <div className="flex items-start gap-2 bg-surface-raised/70 border border-amber-200 rounded-xl p-2.5">
                         <Truck className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
                         <p className="text-[11px] text-amber-900 leading-relaxed">
                           {isAr
@@ -2302,7 +2302,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               <button
                                 onClick={() => setShowSellerContest(true)}
                                 disabled={respondingReturn}
-                                className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                                className="bg-surface-raised hover:bg-surface-sunken text-fg border border-line font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                               >
                                 <ShieldAlert className="w-4 h-4 text-red-500" />
                                 <span>{isAr ? 'اعتراض' : 'Contest'}</span>
@@ -2312,20 +2312,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                           {showSellerContest && (
                             <div className="space-y-2.5 pt-1 transition-all duration-200 ease-out">
-                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'سبب الاعتراض' : 'Your note'}</p>
+                              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'سبب الاعتراض' : 'Your note'}</p>
                               <textarea
                                 value={sellerContestNote}
                                 onChange={(e) => setSellerContestNote(e.target.value)}
                                 rows={3}
                                 disabled={respondingReturn}
                                 placeholder={isAr ? 'اشرح سبب اعتراضك على طلب الإرجاع...' : 'Explain why you are contesting this return...'}
-                                className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
+                                className="w-full text-xs border border-line rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none"
                               />
                               <div className="grid grid-cols-2 gap-2">
                                 <button
                                   onClick={() => { setShowSellerContest(false); setSellerContestNote(''); }}
                                   disabled={respondingReturn}
-                                  className="bg-white hover:bg-gray-50 text-gray-500 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out cursor-pointer uppercase font-mono disabled:opacity-50"
+                                  className="bg-surface-raised hover:bg-surface-sunken text-fg-muted border border-line font-bold py-3 rounded-2xl text-[11px] transition-all duration-200 ease-out cursor-pointer uppercase font-mono disabled:opacity-50"
                                 >
                                   {isAr ? 'إلغاء' : 'Cancel'}
                                 </button>
@@ -2343,7 +2343,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       ) : (
                         <div className="space-y-2 pt-1 border-t border-amber-200">
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-gray-500 font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
+                            <span className="text-fg-muted font-bold uppercase font-mono">{isAr ? 'الحالة' : 'Status'}</span>
                             <span className="font-black text-amber-700 uppercase font-mono">
                               {order.returnClaim.status === 'accepted' && (isAr ? 'مقبول' : 'Accepted')}
                               {order.returnClaim.status === 'resolved_refunded' && (isAr ? 'تم الاسترداد' : 'Refunded')}
@@ -2352,8 +2352,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           </div>
                           {order.returnClaim.sellerResponse && (
                             <div className="space-y-1">
-                              <p className="text-[10px] font-bold uppercase font-mono text-gray-500">{isAr ? 'ردك' : 'Your response'}</p>
-                              <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
+                              <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">{isAr ? 'ردك' : 'Your response'}</p>
+                              <p className="text-xs text-fg leading-relaxed whitespace-pre-wrap">{order.returnClaim.sellerResponse}</p>
                             </div>
                           )}
                         </div>
@@ -2365,11 +2365,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       IS the transition: firestore.rules refuses a status write
                       to preparing_shipment without prepPhotoUrl. */}
                   {deliveryStepFor(order, 'seller') === 'seller_prep' && (
-                    <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
-                      <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                    <div className="border border-line rounded-2xl p-4 bg-surface space-y-3">
+                      <h4 className="text-xs font-black uppercase font-mono text-fg">
                         {isAr ? '١ · صوّر المنتج أثناء التجهيز' : '1 · Photograph the item being prepared'}
                       </h4>
-                      <p className="text-[11px] text-gray-500 leading-relaxed">
+                      <p className="text-[11px] text-fg-muted leading-relaxed">
                         {isAr
                           ? 'صورة واحدة تثبت أن المنتج بحوزتك وجاهز للإرسال. بعدها نعطيك رمز التسليم.'
                           : 'One photo showing the item is with you and ready to send. We issue your delivery code next.'}
@@ -2394,19 +2394,19 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                   {/* Wave 3 step 2 — dispatch photo with the delivery code visible */}
                   {deliveryStepFor(order, 'seller') === 'seller_dispatch' && (
-                    <div className="border border-gray-200 rounded-2xl p-4 bg-[#FAF9F6] space-y-3">
-                      <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                    <div className="border border-line rounded-2xl p-4 bg-surface space-y-3">
+                      <h4 className="text-xs font-black uppercase font-mono text-fg">
                         {isAr ? '٢ · أرسل المنتج وصوّره مع رمز التسليم' : '2 · Send it and photograph it with the delivery code'}
                       </h4>
 
-                      <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-1">
-                        <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                      <div className="bg-surface-raised border border-line rounded-xl p-3 space-y-1">
+                        <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                           {isAr ? 'رمز التسليم' : 'Delivery code'}
                         </p>
-                        <p className="text-2xl font-black font-mono tracking-widest text-gray-900" dir="ltr">
+                        <p className="text-2xl font-black font-mono tracking-widest text-fg" dir="ltr">
                           {deliveryCodeLoading ? '…' : (deliveryCode || '—')}
                         </p>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                        <p className="text-[11px] text-fg-muted leading-relaxed">
                           {isAr
                             ? 'اكتب هذا الرمز على الطرد بخط واضح. يجب أن يظهر في صورتك وفي صورة المشتري عند الاستلام — التطابق هو ما يحرّر مبلغك.'
                             : 'Write this code clearly on the parcel. It must be visible in your photo and in the buyer’s receipt photo — that match is what releases your money.'}
@@ -2414,7 +2414,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-[10px] font-bold uppercase font-mono text-gray-500">
+                        <p className="text-[10px] font-bold uppercase font-mono text-fg-muted">
                           {isAr ? 'طريقة التوصيل' : 'Delivery method'}
                         </p>
                         {([
@@ -2423,7 +2423,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         ]).map(opt => (
                           <label
                             key={opt.value}
-                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${deliveryMethod === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${deliveryMethod === opt.value ? 'border-[#FF6B00] bg-accent-weak' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
                           >
                             <input
                               type="radio"
@@ -2432,7 +2432,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               onChange={() => setDeliveryMethod(opt.value)}
                               className="accent-[#FF6B00]"
                             />
-                            <span className="text-xs font-bold text-gray-800">{isAr ? opt.ar : opt.en}</span>
+                            <span className="text-xs font-bold text-fg">{isAr ? opt.ar : opt.en}</span>
                           </label>
                         ))}
                       </div>
@@ -2469,8 +2469,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       by phone never got a code, so the seller sees the old
                       dispatch button rather than a code they cannot produce. */}
                   {order.status === 'shipped' && (
-                    <div className="bg-gray-50 border border-gray-200 p-3.5 rounded-2xl text-center">
-                      <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1.5">
+                    <div className="bg-surface-sunken border border-line p-3.5 rounded-2xl text-center">
+                      <p className="text-xs font-bold text-fg-muted flex items-center justify-center gap-1.5">
                         <Truck className="w-4 h-4" />
                         <span>{isAr ? 'الطرد في الطريق — بانتظار تأكيد المشتري.' : 'Parcel in transit — awaiting buyer confirmation.'}</span>
                       </p>
@@ -2491,7 +2491,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     <button
                       onClick={handleOpenDispute}
                       disabled={isUpdating}
-                      className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                      className="w-full bg-surface-raised hover:bg-surface-sunken text-fg-muted border border-line font-bold py-3 rounded-2xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                     >
                       <ShieldAlert className="w-4 h-4 text-red-500" />
                       <span>{isAr ? 'رفع نزاع رسمي ومشكلة الشحن' : 'File Formal Dispute'}</span>
@@ -2500,10 +2500,10 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                   {/* E7 — seller rates the buyer once the order is completed */}
                   {order.status === 'completed' && (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3 transition-all duration-200 ease-out" id="seller-rate-buyer-block">
+                    <div className="bg-surface-raised border border-line rounded-2xl p-4 space-y-3 transition-all duration-200 ease-out" id="seller-rate-buyer-block">
                       <div className="flex items-center gap-2">
                         <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                        <h4 className="text-xs font-black uppercase font-mono text-gray-900">
+                        <h4 className="text-xs font-black uppercase font-mono text-fg">
                           {isAr ? 'قيّم المشتري' : 'Rate the buyer'}
                         </h4>
                       </div>
@@ -2517,7 +2517,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               strokeWidth={1.75}
                             />
                           ))}
-                          <span className="text-[9.5px] text-gray-400 font-mono font-bold ms-1">
+                          <span className="text-[9.5px] text-fg-muted font-mono font-bold ms-1">
                             {isAr ? `قيّمتَ هذا المشتري ${sellerBuyerStars}/5` : `You rated this buyer ${sellerBuyerStars}/5`}
                           </span>
                         </div>
@@ -2531,7 +2531,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             maxLength={500}
                             rows={2}
                             placeholder={isAr ? 'أضف تعليقاً (اختياري)' : 'Add a comment (optional)'}
-                            className="w-full text-xs border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none transition-all duration-200 ease-out"
+                            className="w-full text-xs border border-line rounded-xl p-3 focus:outline-none focus:border-[#FF6B00] resize-none transition-all duration-200 ease-out"
                           />
                           <button
                             onClick={handleSellerRateBuyer}
@@ -2550,7 +2550,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
               {/* Admin specific operations (Section 8) */}
               {isAdmin && (
-                <div className="space-y-2.5 bg-[#FAF9F6] p-4 rounded-2xl border border-gray-200">
+                <div className="space-y-2.5 bg-surface p-4 rounded-2xl border border-line">
                   <div className="flex items-center gap-1 text-[9px] text-[#FF6B00] font-mono font-black uppercase mb-1">
                     <BadgeCheck className="w-3.5 h-3.5" />
                     <span>{isAr ? 'صلاحيات المشرف الفورية' : 'SUPERADMIN OVERRIDE CONSOLE'}</span>
@@ -2582,7 +2582,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                     <button
                       onClick={handleAdminForceDispute}
                       disabled={isUpdating}
-                      className="w-full bg-white hover:bg-red-50 text-red-600 border border-red-200 py-2.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
+                      className="w-full bg-surface-raised hover:bg-red-50 text-red-600 border border-red-200 py-2.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase font-mono disabled:opacity-50"
                     >
                       <ShieldAlert className="w-4 h-4" />
                       <span>{isAr ? 'فتح نزاع رسمي فوري' : 'Force Open Dispute'}</span>
@@ -2613,8 +2613,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
                   {/* One-tap buyer trust rating at close-out (mazad_rates_buyer) */}
                   {(order.status === 'completed' || order.status === 'delivered') && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
-                      <span className="text-[9px] text-gray-400 font-mono font-black uppercase block">
+                    <div className="bg-surface-raised border border-line rounded-xl p-3 space-y-2" id="admin-rate-buyer-row">
+                      <span className="text-[9px] text-fg-muted font-mono font-black uppercase block">
                         {isAr ? 'تقييم المشتري (نقرة واحدة)' : 'RATE BUYER (ONE TAP)'}
                       </span>
                       <div className="flex items-center gap-1.5" dir="ltr">
@@ -2637,7 +2637,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             </button>
                           );
                         })}
-                        <span className="text-[9.5px] text-gray-400 font-mono font-bold ms-1">
+                        <span className="text-[9.5px] text-fg-muted font-mono font-bold ms-1">
                           {adminBuyerStars !== null
                             ? (isAr ? `تم التقييم ${adminBuyerStars}/5` : `Rated ${adminBuyerStars}/5`)
                             : adminRatingSaving
@@ -2664,8 +2664,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 3: Buyer Information */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <User className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات حساب المشتري' : 'BUYER INFORMATION'}</span>
             </h3>
@@ -2676,10 +2676,10 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               </div>
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{order.buyerName}</h4>
-                  <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
+                  <h4 className="font-black text-fg text-xs truncate leading-snug">{order.buyerName}</h4>
+                  <span className="text-[10px] bg-accent-weak text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
                 </div>
-                <p className="text-[9px] text-gray-400 font-mono">
+                <p className="text-[9px] text-fg-muted font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
                 </p>
                 {/* E7 B2 — buyer reputation, seller/admin only (never during bidding). */}
@@ -2687,13 +2687,13 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   const rep = buyerReputation(buyerRepReviews, order.buyerId);
                   return (
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[9px] text-gray-400 font-mono font-black uppercase">
+                      <span className="text-[9px] text-fg-muted font-mono font-black uppercase">
                         {isAr ? 'تقييم المشتري' : 'Buyer rating'}
                       </span>
                       {rep.average !== null ? (
                         <StarRating value={rep.average} count={rep.count} size={12} />
                       ) : (
-                        <span className="text-[9px] text-gray-400 font-bold">
+                        <span className="text-[9px] text-fg-muted font-bold">
                           {isAr ? 'لا يوجد تقييم بعد' : 'No ratings yet'}
                         </span>
                       )}
@@ -2705,8 +2705,8 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 4: Seller Information */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <Building className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'معلومات حساب البائع' : 'SELLER PROFILE'}</span>
             </h3>
@@ -2722,21 +2722,21 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               return (
                 <div className="flex items-center gap-3">
                   {sellerProf ? (
-                    <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-gray-200 shadow-xs shrink-0" />
+                    <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-line shadow-xs shrink-0" />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-accent-weak text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
                       {order.sellerName.substring(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div className="space-y-0.5 min-w-0 flex-1">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{sellerProf?.storeName || order.sellerName}</h4>
+                      <h4 className="font-black text-fg text-xs truncate leading-snug">{sellerProf?.storeName || order.sellerName}</h4>
                       {isVerified && (
                         <ShieldCheck className={`w-4 h-4 ${isPremium ? 'text-amber-500' : 'text-emerald-500'} shrink-0`} />
                       )}
                     </div>
                     {(!!ratingVal || !!completedSales || !!trustScore) && (
-                      <div className="flex items-center gap-1 font-mono text-[9.5px] text-gray-500 flex-wrap">
+                      <div className="flex items-center gap-1 font-mono text-[9.5px] text-fg-muted flex-wrap">
                         {!!ratingVal && (
                           <>
                             <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -2763,7 +2763,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           ? 'bg-amber-50 border-amber-200 text-amber-600' 
                           : isVerified 
                             ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                            : 'bg-gray-50 border-gray-200 text-gray-500'
+                            : 'bg-surface-sunken border-line text-fg-muted'
                       }`}>
                         {isPremium 
                           ? (isAr ? 'موثق متميز بلس' : 'Premium Verified +') 
@@ -2772,7 +2772,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                             : (isAr ? 'بائع قياسي' : 'Standard Seller')}
                       </span>
                     </div>
-                    <p className="text-[9px] text-gray-400 font-mono mt-0.5">
+                    <p className="text-[9px] text-fg-muted font-mono mt-0.5">
                       ID: <span className="font-bold select-all">{order.sellerId.substring(0, 8).toUpperCase()}</span>
                     </p>
                   </div>
@@ -2782,30 +2782,30 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
           </div>
 
           {/* SECTION 7: Order Activity chronological history */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
-            <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase font-mono border-b border-gray-100 pb-3 flex items-center gap-1.5">
+          <div className="bg-surface-raised border border-line rounded-3xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.01)] space-y-4">
+            <h3 className="text-xs font-black text-fg-muted tracking-wider uppercase font-mono border-b border-line pb-3 flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-[#FF6B00]" />
               <span>{isAr ? 'سجل تتبع الشحنة والنشاط' : 'AUDIT LEDGER & ACTIVITY'}</span>
             </h3>
 
             <div className="relative pl-1.5 text-xs font-mono">
               {/* Vertical line */}
-              <div className="absolute left-[13px] top-3.5 bottom-3.5 w-0.5 bg-gray-100" />
+              <div className="absolute left-[13px] top-3.5 bottom-3.5 w-0.5 bg-surface-sunken" />
 
               <div className="space-y-5">
                 {getDisplayActivities().map((act, idx) => (
                   <div key={idx} className="flex gap-3 items-start relative z-10">
-                    <div className="w-7 h-7 rounded-full bg-white border border-gray-100 shadow-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-surface-raised border border-line shadow-xs flex items-center justify-center shrink-0">
                       {act.icon}
                     </div>
                     <div className="space-y-0.5 min-w-0 flex-1">
-                      <p className="font-black text-gray-900 leading-tight text-xs">
+                      <p className="font-black text-fg leading-tight text-xs">
                         {isAr ? act.titleAr : act.titleEn}
                       </p>
-                      <p className="text-[10px] text-gray-400 leading-relaxed font-sans">
+                      <p className="text-[10px] text-fg-muted leading-relaxed font-sans">
                         {isAr ? act.descAr : act.descEn}
                       </p>
-                      <p className="text-[8.5px] text-gray-400">
+                      <p className="text-[8.5px] text-fg-muted">
                         {new Date(act.time).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US', {
                           hour: '2-digit',
                           minute: '2-digit',

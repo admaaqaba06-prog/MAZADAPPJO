@@ -83,7 +83,7 @@ export default function ReviewPrompt({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl relative"
+          className="bg-surface-raised rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl relative"
           style={{ direction: isAr ? 'rtl' : 'ltr' }}
           onClick={(e) => e.stopPropagation()}
           id="review-prompt-card"
@@ -93,7 +93,7 @@ export default function ReviewPrompt({
               type="button"
               onClick={onClose}
               aria-label={isAr ? 'إغلاق' : 'Close'}
-              className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} text-gray-300 hover:text-gray-500 transition-colors cursor-pointer`}
+              className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} text-gray-300 hover:text-fg-muted transition-colors cursor-pointer`}
             >
               <X className="w-4 h-4" />
             </button>
@@ -104,14 +104,14 @@ export default function ReviewPrompt({
             <img
               src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
               alt={order.auctionTitle}
-              className="w-12 h-12 rounded-2xl object-cover border border-gray-200 shrink-0"
+              className="w-12 h-12 rounded-2xl object-cover border border-line shrink-0"
               referrerPolicy="no-referrer"
             />
             <div className="min-w-0 space-y-0.5">
-              <h3 className="font-black text-gray-950 text-sm leading-snug">
+              <h3 className="font-black text-fg text-sm leading-snug">
                 {isAr ? 'قيّم تجربتك ⭐' : 'Rate your experience ⭐'}
               </h3>
-              <p className="text-[11px] text-gray-400 truncate">{order.auctionTitle}</p>
+              <p className="text-[11px] text-fg-muted truncate">{order.auctionTitle}</p>
             </div>
           </div>
 
@@ -159,7 +159,7 @@ export default function ReviewPrompt({
             maxLength={500}
             rows={3}
             placeholder={isAr ? 'شاركنا تجربتك (اختياري)' : 'Tell us about your experience (optional)'}
-            className="w-full bg-gray-50 border border-gray-200 focus:border-[#FF6B00]/50 rounded-2xl p-3 text-xs font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all resize-none"
+            className="w-full bg-surface-sunken border border-line focus:border-[#FF6B00]/50 rounded-2xl p-3 text-xs font-bold text-fg placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#FF6B00]/30 transition-all resize-none"
             id="review-prompt-text"
           />
 
