@@ -63,6 +63,20 @@
   --color-accent-weak: rgba(240, 81, 35, 0.14);
 }
 
+/* Native control chrome. THE fix for dropdowns: an <option> list, a scrollbar,
+   a date picker, a checkbox and an autofilled input are painted by the browser,
+   not by our CSS, and they follow `color-scheme` — nothing else. Without this a
+   <select> can look perfectly dark while the list it opens is white with white
+   text on it. Set on :root so it covers the whole document including popups. */
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 /* The page itself, so the area outside any component is themed too. Without
    this the body stays white behind a dark app on short pages and on overscroll. */
 html[data-theme] body {

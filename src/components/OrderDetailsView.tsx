@@ -1504,7 +1504,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {/* Receipt — real, only shows a control when a proof URL exists */}
               <div className="bg-surface border border-line hover:border-orange-200 p-4 rounded-2xl space-y-3 transition-colors flex flex-col justify-between">
                 <div className="space-y-1.5">
-                  <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
+                  <div className="p-2 bg-accent-weak text-[#FF6B00] rounded-xl w-fit">
                     <FileText className="w-4 h-4" />
                   </div>
                   <h5 className="font-black text-fg text-xs">{isAr ? 'إيصال الدفع عبر كليك' : 'CliQ Payment Receipt'}</h5>
@@ -1534,7 +1534,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isAdmin && order.cliqSenderPhone && (
                 <div className="bg-surface border border-line p-4 rounded-2xl space-y-3 flex flex-col justify-between" id="admin-cliq-sender-phone">
                   <div className="space-y-1.5">
-                    <div className="p-2 bg-orange-100 text-[#FF6B00] rounded-xl w-fit">
+                    <div className="p-2 bg-accent-weak text-[#FF6B00] rounded-xl w-fit">
                       <CreditCard className="w-4 h-4" />
                     </div>
                     <h5 className="font-black text-fg text-xs">{isAr ? 'هاتف مُرسِل حوالة كليك' : 'CliQ Sender Phone'}</h5>
@@ -2059,7 +2059,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                               ]).map(opt => (
                                 <label
                                   key={opt.value}
-                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
+                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${returnReason === opt.value ? 'border-[#FF6B00] bg-accent-weak' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
                                 >
                                   <input
                                     type="radio"
@@ -2423,7 +2423,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         ]).map(opt => (
                           <label
                             key={opt.value}
-                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${deliveryMethod === opt.value ? 'border-[#FF6B00] bg-orange-50' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${deliveryMethod === opt.value ? 'border-[#FF6B00] bg-accent-weak' : 'border-line bg-surface-raised hover:bg-surface-sunken'}`}
                           >
                             <input
                               type="radio"
@@ -2677,7 +2677,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h4 className="font-black text-fg text-xs truncate leading-snug">{order.buyerName}</h4>
-                  <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
+                  <span className="text-[10px] bg-accent-weak text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
                 </div>
                 <p className="text-[9px] text-fg-muted font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
@@ -2724,7 +2724,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   {sellerProf ? (
                     <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-line shadow-xs shrink-0" />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-accent-weak text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
                       {order.sellerName.substring(0, 2).toUpperCase()}
                     </div>
                   )}

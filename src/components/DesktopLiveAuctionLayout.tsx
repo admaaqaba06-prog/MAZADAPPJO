@@ -326,7 +326,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 onClick={() => onSelectAuction(item.id)}
                 className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all border text-left cursor-pointer group select-none relative overflow-hidden ${
                   isActive 
-                    ? 'bg-orange-50/70 border-[#E85D04] text-fg-on-light font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
+                    ? 'bg-accent-weak/70 border-[#E85D04] text-fg font-black shadow-[0_0_12px_rgba(232,93,4,0.08)]' 
                     : 'bg-surface-sunken/50 border-transparent hover:bg-surface-sunken/80 text-fg-muted hover:text-fg'
                 }`}
                 style={{ direction: isAr ? 'rtl' : 'ltr' }}
@@ -881,7 +881,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       <Pressable
                         key={amount}
                         onClick={() => setPendingBid(amount)}
-                        className="flex-1 py-1.5 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-orange-100"
+                        className="flex-1 py-1.5 rounded-xl bg-accent-weak border border-orange-200 text-xs font-bold text-[#E85D04] transition-colors cursor-pointer flex items-center justify-center gap-1 hover:bg-accent-weak"
                       >
                         {isAr ? 'زايد' : 'Bid'} {compactJod(amount)} <span className="text-[9px] opacity-75 font-medium">{isAr ? 'د.أ' : 'JOD'}</span>
                       </Pressable>
@@ -1159,7 +1159,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     key={bid.id || index}
                     className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
                       isHighest 
-                        ? 'bg-orange-50/50 border-orange-200/60' 
+                        ? 'bg-accent-weak/50 border-orange-200/60' 
                         : 'bg-surface-raised border-line'
                     }`}
                   >

@@ -278,7 +278,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
                     void applyOrder(pin(currentIds, lot.id));
                   }}
                   disabled={saving}
-                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-orange-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 text-[11px] font-black text-[#E85D04] hover:text-[#c94d03] px-2 py-1 rounded-lg hover:bg-accent-weak transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAr ? 'تمييز' : 'Pin'}
                 </button>

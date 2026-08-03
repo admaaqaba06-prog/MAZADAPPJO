@@ -948,7 +948,7 @@ export const WalletView: React.FC = () => {
                     id="activate-seller-btn"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
+                      <div className="w-9 h-9 rounded-xl bg-accent-weak flex items-center justify-center text-[#FF6B00]">
                         <Store className="w-4.5 h-4.5" />
                       </div>
                       <div>

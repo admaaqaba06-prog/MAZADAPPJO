@@ -259,7 +259,7 @@ export const MyOrdersView: React.FC = () => {
         {myOrders.length === 0 ? (
           /* Empty state */
           <div className="text-center py-16 bg-surface-raised rounded-2xl border border-line p-6 space-y-4">
-            <div className="w-14 h-14 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] mx-auto">
+            <div className="w-14 h-14 rounded-full bg-accent-weak border border-orange-100 flex items-center justify-center text-[#FF6B00] mx-auto">
               <ShoppingBag className="w-6 h-6" />
             </div>
             <div className="space-y-1.5">

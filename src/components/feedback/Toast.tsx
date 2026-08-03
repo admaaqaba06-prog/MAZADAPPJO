@@ -39,7 +39,7 @@ const TYPE_STYLES: Record<
   info: {
     icon: <Info size={18} strokeWidth={2.5} />,
     ring: 'border-orange-200',
-    iconWrap: 'bg-orange-100 text-[#F05123]',
+    iconWrap: 'bg-accent-weak text-[#F05123]',
   },
   warn: {
     icon: <AlertTriangle size={18} strokeWidth={2.5} />,

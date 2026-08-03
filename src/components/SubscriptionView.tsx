@@ -357,7 +357,7 @@ export const SubscriptionView: React.FC = () => {
           </button>
         )}
         <div className="text-center space-y-3 mb-8">
-          <div className="mx-auto w-10 h-10 rounded-full bg-orange-100/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
+          <div className="mx-auto w-10 h-10 rounded-full bg-accent-weak/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-5 h-5 fill-current text-white stroke-[#FF6B00]" />
           </div>
           <h1 className="text-xl md:text-2xl font-black text-fg tracking-tight leading-tight uppercase font-mono">

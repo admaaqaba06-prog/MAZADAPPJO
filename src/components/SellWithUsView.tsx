@@ -11,7 +11,7 @@ export const SellWithUsView: React.FC = () => {
   return (
     <div className="min-h-full flex-grow flex items-center justify-center p-6 font-sans bg-surface" dir={isAr ? 'rtl' : 'ltr'}>
       <div className="max-w-md w-full bg-surface-raised border border-line/80 rounded-3xl shadow-sm p-8 text-center space-y-5 animate-in fade-in duration-300">
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+        <div className="mx-auto w-14 h-14 rounded-2xl bg-accent-weak border border-orange-100 flex items-center justify-center">
           <ShieldCheck className="w-7 h-7 text-[#FF6B00]" />
         </div>
 
