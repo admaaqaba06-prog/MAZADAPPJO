@@ -51,7 +51,7 @@ const state = (over: Partial<LandingAuctionsState> = {}): LandingAuctionsState =
 const render = (
   s: LandingAuctionsState,
   lang: 'ar' | 'en' = 'en',
-  variant: 'full' | 'compact' = 'full'
+  variant: 'full' | 'compact' | 'steps' = 'full'
 ) => renderToStaticMarkup(
   React.createElement(SignInMarketingPanel, { state: s, lang, variant })
 );
@@ -116,6 +116,27 @@ describe('SignInMarketingPanel — variants', () => {
   it('renders the three steps in full and omits them in compact', () => {
     expect(render(state(), 'en', 'full')).toContain('Pay by CliQ');
     expect(render(state(), 'en', 'compact')).not.toContain('Pay by CliQ');
+  });
+
+  it('renders ONLY the steps in the steps variant', () => {
+    // The mobile block BELOW the card. The compact block above already carries
+    // the hook and the objection; repeating them would read as a stutter.
+    const html = render(state(), 'en', 'steps');
+    expect(html).toContain('Pay by CliQ');
+    expect(html).toContain('How it works');
+    expect(html).not.toContain('lots live right now');
+    expect(html).not.toContain('Buy safely from anyone');
+    expect(html).not.toContain('Apple Watch Ultra');
+  });
+
+  it('mobile compact + steps together cover everything full covers', () => {
+    // The mobile split must not silently drop a block.
+    const mobile = render(state(), 'en', 'compact') + render(state(), 'en', 'steps');
+    const full = render(state(), 'en', 'full');
+    for (const claim of ['lots live right now', 'Buy safely from anyone', 'How it works', 'Pay by CliQ']) {
+      expect(full, `full/${claim}`).toContain(claim);
+      expect(mobile, `mobile/${claim}`).toContain(claim);
+    }
   });
 
   it('keeps the hook and the objection in compact — mobile still gets both', () => {

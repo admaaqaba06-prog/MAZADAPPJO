@@ -26,12 +26,16 @@ export interface SignInMarketingPanelProps {
   state: LandingAuctionsState;
   lang: 'ar' | 'en';
   /**
-   * `compact` is the MOBILE block that sits above the sign-in card: the hook and
-   * the objection only. The three steps are dropped so the buttons are not
-   * pushed below the fold — message-first on mobile is a deliberate trade, and
-   * this is its mitigation.
+   * `full`    — desktop left column: all three blocks.
+   * `compact` — the MOBILE block ABOVE the card: hook and objection only. The
+   *             steps are dropped so the buttons are not pushed below the fold;
+   *             message-first on mobile is a deliberate trade and this is its
+   *             mitigation.
+   * `steps`   — the MOBILE block BELOW the card: the three steps alone, so the
+   *             mobile reader still gets them without the compact block above
+   *             repeating itself.
    */
-  variant?: 'full' | 'compact';
+  variant?: 'full' | 'compact' | 'steps';
 }
 
 export function SignInMarketingPanel({
@@ -45,10 +49,13 @@ export function SignInMarketingPanel({
   const activity = selectPanelActivity(state);
   const c = panelCopy(lang);
   const currency = lang === 'en' ? 'JOD' : 'د.أ';
+  const showActivity = variant !== 'steps' && activity;
+  const showTrust = variant !== 'steps';
+  const showSteps = variant !== 'compact';
 
   return (
     <div className="w-full max-w-md lg:max-w-lg text-fg">
-      {activity && (
+      {showActivity && (
         <section aria-labelledby="signin-activity-label">
           <p id="signin-activity-label" className="text-sm font-bold text-fg">
             {c.activityLabel(activity.count)}
@@ -81,13 +88,15 @@ export function SignInMarketingPanel({
         </section>
       )}
 
-      <section className={activity ? 'mt-6' : ''}>
-        <h2 className="text-base font-black text-fg">{c.trustTitle}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-fg-muted">{c.trustBody}</p>
-      </section>
+      {showTrust && (
+        <section className={activity ? 'mt-6' : ''}>
+          <h2 className="text-base font-black text-fg">{c.trustTitle}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-fg-muted">{c.trustBody}</p>
+        </section>
+      )}
 
-      {variant === 'full' && (
-        <section className="mt-6">
+      {showSteps && (
+        <section className={showTrust ? 'mt-6' : ''}>
           <h2 className="text-base font-black text-fg">{c.howTitle}</h2>
           <ol className="mt-2 space-y-1.5">
             {c.steps.map((s, i) => (
