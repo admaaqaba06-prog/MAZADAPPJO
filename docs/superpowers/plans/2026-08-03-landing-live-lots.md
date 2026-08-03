@@ -281,7 +281,7 @@ visitors to go sell something while the inventory sat live behind it."
 
 **Files:**
 - Modify: `src/landing/translations.ts` (add one key to BOTH language objects)
-- Modify: `src/landing/LandingView.tsx` (inside `LiveMarketplaceSection`: the `endingSoon` derivation, the badge slot, the price label)
+- Modify: `src/landing/LandingView.tsx` (inside `LiveMarketplaceSection`: the `endingSoon` derivation, the badge slot, the price label, and the countdown slot)
 
 **Interfaces:**
 - Consumes: `LandingAuction.endTime`/`createdAt`/`featuredRank` from Task 1; `priceLabel(totalBids, isAr)` from `src/utils/bidLabels.ts`.
@@ -378,12 +378,48 @@ with:
 
 This leaves `t.marketplace.currentBid` with no readers. Leave the key in `translations.ts`; note it in your report as dead so it can be swept later.
 
-- [ ] **Step 4: Verify no tests were owed and none broke**
+- [ ] **Step 4: Stop the countdown rendering "NaNm"**
+
+This step was MISSING from the original spec and plan — it was found during Task 1
+by executing the logic rather than reading it. It is a merge blocker: without it
+every clockless card renders the literal string `NaNm` (`NaN د` in Arabic).
+
+`formatTimeLeft` (`src/landing/LandingView.tsx:201`) is typed `(endTime: number)`
+and does `Math.max(0, endTime - now)`. With `endTime` undefined that is
+`Math.max(0, NaN)` → `NaN`, every branch guard (`days > 0`, `hours > 0`) is false,
+and it falls through to the final `return` — emitting `NaN` into the string.
+
+In the same `auctions.map`, replace:
+
+```tsx
+                            <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
+```
+
+with:
+
+```tsx
+                            {/* Clockless lots render NOTHING here: their state is
+                                already carried by the "Be the first" badge above,
+                                and formatTimeLeft would emit the literal "NaNm"
+                                for an absent endTime. */}
+                            {hasClock ? (
+                              <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime as number)}</span>
+                            ) : null}
+```
+
+`hasClock` is the binding introduced in Step 2 of this task — it is already in
+scope here, in the same `auctions.map` callback. Do NOT recompute it.
+
+Deliberately rendering nothing rather than repeating "Awaiting first bid": the
+amber badge in the top-right of the same card already states it, and saying it
+twice on one card reads as a bug.
+
+- [ ] **Step 5: Verify no tests were owed and none broke**
 
 Run: `npm test && npm run lint && npx vite build`
 Expected: all clean. No tests are added in this task — every change is JSX or a translation string, and `vitest` here cannot render a component (see Global Constraints). Do NOT invent a test that asserts on a translation constant to have one.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/landing/translations.ts src/landing/LandingView.tsx
@@ -445,6 +481,7 @@ Write up what you verified, what you could not, and anything that looked wrong. 
 | §2 ordering + `createdAt`/`featuredRank` fields | Task 1 steps 3-5 |
 | §3 explicit clock check + Be-the-first badge | Task 2 steps 1-2 |
 | §4 `priceLabel` on the card | Task 2 step 3 |
+| (spec GAP, found in Task 1) countdown renders `NaNm` for clockless lots | Task 2 step 4 |
 | §5 falsified `endTime` docblock rewritten | Task 1 step 3 |
 | §Testing — pure curation cases | Task 1 step 1 |
 | §Testing — manual pass | Task 3 |

@@ -131,6 +131,24 @@ sees the same words: `كن أول مزايد` / `BE THE FIRST`. Style it amber
 orange `#F05123` the ending-soon badge uses — orange means "clock running" on
 every other surface.
 
+## 3b. The countdown text
+
+*Added after Task 1 — this was a gap in the original spec, found by executing the
+render logic rather than reading it.*
+
+`LandingView.tsx:301` renders `formatTimeLeft(a.endTime)`. That helper is typed
+`(endTime: number)` and computes `Math.max(0, endTime - now)`. With `endTime`
+absent that is `Math.max(0, NaN)` → `NaN`; both branch guards (`days > 0`,
+`hours > 0`) are false, so it falls through and emits the literal string `NaNm`
+(`NaN د` in Arabic) on every clockless card.
+
+Render nothing in that slot when the lot has no clock, gated on the same
+`hasClock` binding §3 introduces. Deliberately NOT repeating "Awaiting first
+bid": the amber badge in the same card's top-right already says it, and stating
+it twice on one card reads as a bug.
+
+This is a merge blocker — §1 alone puts 147 lots on screen, each showing `NaNm`.
+
 ## 4. Price label
 
 Import `priceLabel` from `src/utils/bidLabels.ts` and replace the hardcoded
