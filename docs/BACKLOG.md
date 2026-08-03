@@ -107,6 +107,74 @@ top-down from it wasted time on problems that no longer existed.
 12. **Bot ~33% failure rate** _(WhatsApp AI Reply Agent)_ — **cannot be verified from this repo**;
     it is Mohammad's bot and lives outside this codebase. Needs a dedicated dig there.
 
+31. **The sign-in screen sells before it asks** (Sign-in Marketing Panel, 2026-08-03).
+    It was a login box centred in an empty black viewport: two buttons, a title, and a
+    small grey footer tagline. `2026-08-03-landing-live-lots-design.md` (#231) deferred
+    this by name — *"the sign-in screen redesign. Separate spec, deliberately sequenced
+    after this"* — because the funnel had a worse problem first: the landing page was
+    hiding 147 live lots behind an empty state, so visitors were told there was nothing
+    to buy and *then* reached the sign-in screen.
+
+    **It is a marketing surface, not a gate.** The earlier work here
+    (`2026-07-18-engagement-ux-design.md` Wave 2) shipped deep-link carry-through and
+    zero-silence auth — both of which assume the visitor arrived *from a specific lot*.
+    Most do not: an ad, a shared link, a typed URL. The screen now stands on its own.
+
+    **Three blocks, in Fogg order** (`Behavior = Motivation × Ability × Prompt`). Prompt
+    and ability were already fine — the buttons are one tap and unmissable — so
+    **motivation** leads: live activity, then escrow, then how it works. Live activity is
+    first because a visitor who believes the marketplace is empty never gets as far as
+    wondering whether it is safe.
+
+    **Arrangement is per breakpoint, settled over two preview rounds with MJ.** Desktop
+    puts the lots at the head of the left column beside the card — there is room, and the
+    inventory is the hook. Mobile puts the *same* lots BELOW the card, so the form is the
+    first thing on a small screen and nothing can push the buttons off it. Both copies
+    are in the markup; CSS picks one.
+
+    **Real data or nothing.** `selectPanelActivity` returns `null` for loading, empty,
+    errored, *and* nothing-renderable — one signal, deliberately, so the panel cannot
+    distinguish "still coming" from "none" and therefore cannot grow a skeleton for
+    content that may never arrive. Empty or errored removes the block entirely rather
+    than announcing "no auctions right now" on a marketing surface. A stale list behind
+    an error flag is discarded — a failed refetch must not present sold lots as live.
+    The count states the marketplace's size and is never padded.
+
+    **No countdowns, and that is measured.** Production 2026-08-03: **149 lots are
+    `status: 'live'` and only 4 carry a future `endTime`.** A clock would be absent or
+    wrong on ~97% of inventory, so `PanelLot` does not carry one — a component cannot
+    render a countdown from data it never receives.
+
+    **Costs nothing.** `useLandingAuctions` is a module-cached single `getDocs`; a
+    visitor who touched the landing page pays zero, a direct arrival pays one read. No
+    new query, no index, no listener. **The sign-in form never waits on it** and renders
+    interactive on first paint in every fetch state.
+
+    **Every claim already existed.** The escrow line is condensed from
+    `translations.ts:551`/`:309`. The copy tests assert the ABSENCE of claims Mazad JO
+    makes nowhere else — free shipping, guarantees, refunds, delivery windows, "no fees"
+    (there IS a 5% buyer commission). Three attempts to insert such claims were caught by
+    the suite.
+
+    **Tested by what it renders**, via `renderToStaticMarkup` — the technique #222
+    introduced — rather than the source-text assertions used elsewhere here, which pass
+    whenever a string appears, including inside a comment. The load-bearing assertion is
+    that **both sign-in buttons render in all five panel states**: marketing must never
+    be able to break auth.
+
+    **Two defects only the preview caught**, invisible to a renderer with no layout
+    engine: the activity count rendered underneath the absolute header (`lg:pt-24`), and
+    the shorter column floated to the vertical middle while the card started 185px higher
+    (`lg:items-start`).
+
+    **Still unverified:** nobody has opened this on a real phone. The Chrome extension
+    pins the CSS viewport at desktop width, so the mobile arrangement is proven by tests
+    and not by eye.
+
+    **Follow-ons, deliberately out:** per-trigger contextual lines for bid/sell/save/chat
+    (`requestSignIn()` call sites), analytics on `view→signup→first-bid` (without it this
+    change's effect is unmeasurable), and the clockless-lot problem itself.
+
 ## 🧰 Infra / runbook
 
 22. **Adding a domain = also authorize it in Firebase Auth** (authorized domains) — add to `docs/DEPLOY.md`; this broke signup on `mazad-jo.com` today.

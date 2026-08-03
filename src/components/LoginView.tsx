@@ -8,6 +8,8 @@ import { mapAuthError } from '../utils/authErrors';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from '../utils/deepLink';
 import { PhoneInput } from './ui/PhoneInput';
 import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react';
+import { SignInMarketingPanel } from './SignInMarketingPanel';
+import { useLandingAuctions } from '../landing/useLandingAuctions';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -116,6 +118,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const cameFromAuctionLink =
     !!parseAuctionIdFromPath(window.location.pathname) ||
     !!parseAuctionIdFromSearch(window.location.search);
+
+  // Live inventory for the marketing panel. `useLandingAuctions` is a
+  // module-level cached single getDocs (limit 60) — a visitor who touched the
+  // landing page pays nothing and a direct arrival pays one read. No new query,
+  // no index, no listener. The panel renders nothing until it resolves, and the
+  // sign-in form never waits on it.
+  const landingAuctions = useLandingAuctions();
+  const panelLang: 'ar' | 'en' = isAr ? 'ar' : 'en';
 
   const clearRecaptcha = () => {
     // A consumed/errored verifier can't be reused — clear + null AND wipe the
@@ -319,10 +329,36 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         </button>
       </header>
 
+      {/*
+        Two columns on lg: marketing left, the sign-in card right. Below lg it is
+        one column, ordered message → card → steps. That mobile ordering is the
+        deliberate trade recorded in the spec, and the compact block above is
+        kept short so the buttons stay reachable without scrolling.
+      */}
+      {/*
+        lg:pt-20 clears the ABSOLUTE header (top-6, 32px tall — its box ends at
+        56px). Without it the first line of the panel renders underneath the
+        logo: on desktop the activity count sat at y=32 and "8 lots live right
+        now" collided with "MAZAD JO". Padding on the wrapper rather than on
+        either column, so lg:items-center keeps the two aligned to each other.
+        Mobile needs none — the compact block carries its own mt-16.
+      */}
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-12 lg:pt-24 z-10">
+
+        {/* Desktop left column: everything — the lots, then trust, then how it
+            works. There is room beside the card here, so the inventory leads.
+            On MOBILE the same lots move under the card instead (see below), so
+            the form is the first thing on a small screen. */}
+        <div className="hidden lg:block lg:flex-1">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="full" />
+        </div>
+
+        <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center">
+
       {/* Deep-link context: the visitor followed a live-auction link — say so */}
       {cameFromAuctionLink && (
         <div
-          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 mt-16"
+          className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 lg:mt-16"
           id="deep-link-auction-banner"
         >
           {isAr ? '⚡ سجّل دخولك للمشاركة في المزاد المباشر' : '⚡ Sign in to join the live auction'}
@@ -330,7 +366,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       )}
 
       {/* Center White Modal Box */}
-      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-16' : 'my-16'}`}>
+      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-2' : 'mt-16 mb-2 lg:mt-0'}`}>
 
         {/* Title */}
         <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">
@@ -609,6 +645,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
           </button>
         )}
 
+      </div>
+
+        {/* MOBILE ONLY: the live lots sit under the card, so the form leads on
+            a small screen. Desktop shows them in the left column instead — the
+            markup carries both and CSS picks one. */}
+        <div className="lg:hidden w-full max-w-md mt-6">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="activity" />
+        </div>
+
+        {/* Mobile only: the story follows the lots. On desktop it is the left
+            column instead. */}
+        <div className="lg:hidden w-full max-w-md mt-8 mb-8">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="story" />
+        </div>
+
+        </div>
       </div>
 
       {/* Policy Footer */}
