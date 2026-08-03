@@ -65,7 +65,11 @@ In:
 4. A pre-paint script so the first frame is never the wrong theme.
 5. The toggle control.
 6. Theme-aware PWA chrome (`theme-color`, iOS status bar).
-7. The landing page brought under the token layer (in scope per MJ).
+7. The landing page's outer root brought under the token layer (in scope per
+   MJ). Note this is groundwork only: `LandingView.tsx:853` carries
+   `bg-[#FFFFFF] text-[#0A0A0A]` on its own root and masks it until the landing
+   page is migrated in slice 3. Flipping that class here would darken the page
+   while its cards and copy stayed light-tuned.
 
 Out:
 
