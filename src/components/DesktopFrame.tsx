@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import ThemeToggle from './ui/ThemeToggle';
 import { useApp } from '../context/AppContext';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
 import { DESKTOP_MIN_WIDTH, isDesktopWidth } from '../utils/shellBreakpoint';
@@ -412,6 +413,9 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <Globe className="w-4 h-4 shrink-0 stroke-[2]" />
               <span className="hidden xl:inline">{language === 'en' ? 'العربية' : 'English'}</span>
             </button>
+
+            {/* Theme switch — same shared control as the landing page */}
+            <ThemeToggle isAr={language !== 'en'} />
 
             {/* Notifications */}
             <button 
