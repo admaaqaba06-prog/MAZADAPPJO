@@ -1026,7 +1026,7 @@ export const SellerCenterView: React.FC = () => {
   // Redesign — bilingual metadata for each action-item kind.
   const actionMeta: Record<SellerAction['kind'], { icon: React.ElementType; label: string; cta: string; tone: string; iconTone: string }> = {
     dispute: { icon: AlertTriangle, label: st.act_dispute_label, cta: st.act_dispute_cta, tone: 'border-rose-200 bg-rose-50', iconTone: 'bg-rose-100 text-rose-600' },
-    ship: { icon: Truck, label: st.act_ship_label, cta: st.act_ship_cta, tone: 'border-orange-200 bg-accent-weak', iconTone: 'bg-accent-weak text-[#FF6B00]' },
+    ship: { icon: Truck, label: st.act_ship_label, cta: st.act_ship_cta, tone: 'border-orange-200 bg-orange-50', iconTone: 'bg-orange-100 text-[#FF6B00]' },
     relist: { icon: RotateCcw, label: st.act_relist_label, cta: st.act_relist_cta, tone: 'border-amber-200 bg-amber-50', iconTone: 'bg-amber-100 text-amber-600' },
     payout: { icon: Wallet, label: st.act_payout_label, cta: st.act_payout_cta, tone: 'border-emerald-200 bg-emerald-50', iconTone: 'bg-emerald-100 text-emerald-600' },
     verify: { icon: ShieldCheck, label: st.act_verify_label, cta: st.act_verify_cta, tone: 'border-indigo-200 bg-indigo-50', iconTone: 'bg-indigo-100 text-indigo-600' },
@@ -1201,10 +1201,10 @@ export const SellerCenterView: React.FC = () => {
                             <ActionIcon className="w-5 h-5" />
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-fg truncate">{meta.label}</p>
-                            <p className="text-[11px] text-fg-muted font-bold tabular-nums">{countText}</p>
+                            <p className="text-sm font-black text-fg-on-light truncate">{meta.label}</p>
+                            <p className="text-[11px] text-fg-on-light/70 font-bold tabular-nums">{countText}</p>
                           </div>
-                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-surface-raised/80 border border-black/5 text-[11px] font-black text-fg">
+                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-surface-on-light/80 border border-black/5 text-[11px] font-black text-fg-on-light">
                             <span>{meta.cta}</span>
                             <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
                           </span>
