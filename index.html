@@ -8,10 +8,39 @@
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- "default" = light status bar with dark text (the app is light); black-translucent
-         would put white status-bar text over the light header, making it invisible. -->
+    <!-- Overwritten at boot by the theme script below: 'default' (light bar, dark
+         text) under light, 'black-translucent' under dark. The value here is only
+         what ships in the HTML before that script runs. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Mazad Jo" />
+
+    <!-- Pre-paint theme. MUST be inline, synchronous, and before any stylesheet:
+         anything deferred runs after the first paint, so the page flashes light
+         before flipping to dark on every cold load.
+
+         Sits after the two <meta> tags above because it rewrites them.
+
+         This DUPLICATES src/utils/themeBoot.ts on purpose — it runs before the
+         bundle exists, so it cannot import it. Keep the two in step; the logic
+         is tested there.
+
+         The try/catch is load-bearing: localStorage access THROWS in private
+         mode and some embedded webviews, and an uncaught throw here renders a
+         blank page. -->
+    <script>
+      (function () {
+        var t = 'dark';
+        try {
+          var s = window.localStorage.getItem('mazad.theme');
+          if (s === 'light' || s === 'dark') t = s;
+        } catch (e) {}
+        document.documentElement.setAttribute('data-theme', t);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'dark' ? '#0F0F10' : '#FFFFFF');
+        var b = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (b) b.setAttribute('content', t === 'dark' ? 'black-translucent' : 'default');
+      })();
+    </script>
     <link rel="manifest" href="/manifest.json" />
     <!-- iOS Add-to-Home-Screen needs a real raster icon (it ignores SVG manifest icons). -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />

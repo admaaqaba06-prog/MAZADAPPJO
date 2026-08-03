@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import ThemeToggle from '../components/ui/ThemeToggle';
 import {
   Hammer,
   ShieldCheck,
@@ -908,6 +909,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <span className="font-ibmarabic">{t.nav.langBtn}</span>
             </button>
 
+            {/* Theme switch — the same shared control the app shell uses */}
+            <ThemeToggle isAr={lang !== 'en'} />
+
             {/* CTA Button */}
             <a
               href="https://wa.me/962781444899"
@@ -929,6 +933,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <Globe className="w-3 h-3 text-[#F05123]" />
               <span>{t.nav.langBtn}</span>
             </button>
+
+            <ThemeToggle isAr={lang !== 'en'} />
 
             {/* Hamburger button */}
             <button
