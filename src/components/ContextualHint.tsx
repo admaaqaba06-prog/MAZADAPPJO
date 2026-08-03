@@ -66,7 +66,7 @@ export const ContextualHint: React.FC<ContextualHintProps> = ({
         <button
           onClick={handleDismiss}
           className="shrink-0 text-slate-400 hover:text-fg p-1 rounded-lg hover:bg-surface-sunken/50 transition-colors cursor-pointer self-start"
-          aria-label="Dismiss hint"
+          aria-label={isAr ? 'إخفاء التلميح' : 'Dismiss hint'}
           id={`dismiss-${hintKey}-btn`}
         >
           <X className="w-3.5 h-3.5" />

@@ -293,7 +293,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <img 
             src={resolveAvatarUrl(currentItem.sellerLogo, currentItem.sellerId)}
-            alt="Seller"
+            alt={isAr ? 'البائع' : 'Seller'}
             className="w-8 h-8 rounded-full object-cover border-2 border-[#FF6B00]/40 shadow-sm"
             referrerPolicy="no-referrer"
           />
@@ -334,7 +334,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
                 <div key={msg.id} className="flex gap-2 items-start text-[10px] font-sans">
                   <img 
                     src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
-                    alt="Avatar"
+                    alt={isAr ? 'الصورة الشخصية' : 'Avatar'}
                     className="w-5 h-5 rounded-full object-cover border border-white/10"
                     referrerPolicy="no-referrer"
                   />
@@ -413,7 +413,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
                   <div className="flex items-center gap-1.5 min-w-0">
                     <img 
                       src={resolveAvatarUrl(bid.bidderAvatar, bid.bidderId)}
-                      alt="Avatar"
+                      alt={isAr ? 'الصورة الشخصية' : 'Avatar'}
                       className="w-5.5 h-5.5 rounded-full object-cover shrink-0 border border-white/10"
                       referrerPolicy="no-referrer"
                     />

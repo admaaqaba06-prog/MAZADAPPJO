@@ -216,7 +216,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
           {profile.coverImage ? (
             <img 
               src={profile.coverImage} 
-              alt="cover" 
+              alt={isAr ? 'صورة الغلاف' : 'Cover image'} 
               className="w-full h-full object-cover opacity-80"
             />
           ) : (
@@ -411,7 +411,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                     <div className="flex items-center gap-3 mb-2.5">
                       <img 
                         src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)}
-                        alt="avatar"
+                        alt={isAr ? 'الصورة الشخصية' : 'Avatar'}
                         className="w-8 h-8 rounded-full object-cover bg-zinc-800"
                       />
                       <div>
@@ -441,7 +441,7 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
                           <img 
                             key={pIdx} 
                             src={pic} 
-                            alt="review detail" 
+                            alt={isAr ? 'تفاصيل التقييم' : 'Review detail'} 
                             className="w-16 h-16 rounded-xl object-cover border border-white/10"
                           />
                         ))}

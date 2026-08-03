@@ -1747,7 +1747,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           <div className="w-full relative flex flex-col items-center space-y-2">
                             <img
                               src={receiptPreview}
-                              alt="CliQ Receipt"
+                              alt={isAr ? 'إيصال كليك' : 'CliQ Receipt'}
                               className="max-h-40 w-auto object-contain rounded-xl border border-line shadow-sm"
                               referrerPolicy="no-referrer"
                             />
@@ -2677,7 +2677,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h4 className="font-black text-fg text-xs truncate leading-snug">{order.buyerName}</h4>
-                  <span className="text-[10px] bg-accent-weak text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
+                  <span className="text-[10px] bg-accent-weak text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">{isAr ? 'مزايد' : 'Bidder'}</span>
                 </div>
                 <p className="text-[9px] text-fg-muted font-mono">
                   ID: <span className="font-bold select-all">{order.buyerId.substring(0, 8).toUpperCase()}</span>
@@ -2722,7 +2722,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               return (
                 <div className="flex items-center gap-3">
                   {sellerProf ? (
-                    <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt="Logo" className="w-11 h-11 rounded-full object-cover border border-line shadow-xs shrink-0" />
+                    <img src={resolveAvatarUrl(sellerProf.storeLogo, sellerProf.userId || order.sellerId)} alt={isAr ? 'شعار المتجر' : 'Store logo'} className="w-11 h-11 rounded-full object-cover border border-line shadow-xs shrink-0" />
                   ) : (
                     <div className="w-11 h-11 rounded-full bg-accent-weak text-[#FF6B00] flex items-center justify-center font-black text-xs shadow-xs border border-orange-100 font-mono shrink-0">
                       {order.sellerName.substring(0, 2).toUpperCase()}

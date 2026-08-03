@@ -25,6 +25,15 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+/** Read once at module load — the language cannot change without a reload. */
+const dismissLabel = (() => {
+  try {
+    return (localStorage.getItem('mazad_language') || 'ar') === 'en' ? 'Dismiss' : 'إغلاق';
+  } catch {
+    return 'إغلاق';
+  }
+})();
+
 const AUTO_DISMISS_MS = 2600;
 
 const TYPE_STYLES: Record<
@@ -116,7 +125,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={() => dismiss(toast.id)}
-                  aria-label="Dismiss"
+                  // ToastProvider wraps AppProvider (see App.tsx), so useApp()
+                  // is not reachable here. Same persisted key and 'ar' default
+                  // as AppContext, so the label never disagrees with the app.
+                  aria-label={dismissLabel}
                   className="shrink-0 text-gray-300 hover:text-fg-muted transition-colors mt-0.5"
                 >
                   <X size={16} />

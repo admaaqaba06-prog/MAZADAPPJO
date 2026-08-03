@@ -1,193 +1,128 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Scale, X, Sparkles } from 'lucide-react';
+import { Scale, X } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import {
+  LEGAL_HEADER,
+  LEGAL_SECTIONS,
+  LEGAL_FOOTER,
+  type LegalLine,
+} from '../content/legalTerms';
 
+/**
+ * The formal terms, opened from the footer link.
+ *
+ * The copy moved to `content/legalTerms.ts` so it could be translated: this was
+ * the largest English-only surface left in an Arabic-first app, and it was also
+ * hardcoded `dir="ltr"`, so even the Arabic that did reach it would have
+ * rendered left-to-right. Three factual corrections were made in that move and
+ * are documented there.
+ *
+ * This modal RECORDS NOTHING. It is reference material; the real acceptance
+ * gate is the auction rules, which carry a version and store consent. Its
+ * button used to read "I Accept and Agree to the Bidding Policies" while doing
+ * nothing but closing — it now says Close, which is what it does.
+ */
 interface TermsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const TONE_TEXT: Record<NonNullable<LegalLine['tone']>, string> = {
+  default: 'text-fg',
+  warn: 'text-amber-700',
+  danger: 'text-red-600',
+  good: 'text-emerald-700',
+};
+
+const TONE_DOT: Record<NonNullable<LegalLine['tone']>, string> = {
+  default: 'bg-[#FF6B00]',
+  warn: 'bg-amber-500',
+  danger: 'bg-red-500',
+  good: 'bg-emerald-500',
+};
+
 export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
+  const { language } = useApp();
+  const isAr = language === 'ar';
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto" dir="ltr">
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto"
+      dir={isAr ? 'rtl' : 'ltr'}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-surface-raised border border-line rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] text-left"
+        className={`bg-surface-raised border border-line rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] ${isAr ? 'text-right' : 'text-left'}`}
       >
         {/* Header */}
-        <div className="bg-surface-sunken p-5 border-b border-line shrink-0 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="bg-[#FF6B00]/10 p-2 rounded-xl border border-[#FF6B00]/20">
+        <div className="bg-surface-sunken p-5 border-b border-line shrink-0 flex justify-between items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="bg-[#FF6B00]/10 p-2 rounded-xl border border-[#FF6B00]/20 shrink-0">
               <Scale className="w-5 h-5 text-[#FF6B00]" />
             </div>
-            <div>
-              <h2 className="text-sm font-black text-fg font-sans">Terms of Use & Privacy Policies</h2>
-              <p className="text-[10px] text-zinc-500 mt-0.5">Mazad JO | Jordan Bidding Platforms</p>
+            <div className="min-w-0">
+              <h2 className="text-sm font-black text-fg font-sans">
+                {isAr ? LEGAL_HEADER.titleAr : LEGAL_HEADER.titleEn}
+              </h2>
+              <p className="text-[10px] text-fg-muted mt-0.5">
+                {isAr ? LEGAL_HEADER.subtitleAr : LEGAL_HEADER.subtitleEn}
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-surface-sunken border border-line flex items-center justify-center text-zinc-500 hover:text-fg hover:bg-surface-sunken active:scale-95 transition-all cursor-pointer"
+            aria-label={isAr ? LEGAL_FOOTER.closeAr : LEGAL_FOOTER.closeEn}
+            className="w-8 h-8 shrink-0 rounded-full bg-surface-sunken border border-line flex items-center justify-center text-fg-muted hover:text-fg active:scale-95 transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Scrollable Document Content */}
+        {/* Document body */}
         <div className="p-6 overflow-y-auto space-y-7 text-fg text-xs font-sans leading-relaxed scrollbar-thin">
-          
-          {/* Welcome Intro */}
-          <div className="bg-surface-sunken p-4 rounded-2xl border border-line text-center space-y-1">
-            <Sparkles className="w-5 h-5 text-[#FF6B00] mx-auto animate-pulse" />
-            <h3 className="font-extrabold text-[#FF6B00] text-sm font-sans">Welcome to Mazad JO</h3>
-            <p className="text-[10px] text-zinc-500">Jordan's Premier Smart Online Live Bidding Platform</p>
+          {LEGAL_SECTIONS.map((section) => (
+            <section key={section.id} className="space-y-2.5">
+              <h3 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
+                <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full shrink-0" />
+                <span>
+                  {section.icon} {isAr ? section.titleAr : section.titleEn}
+                </span>
+              </h3>
+              <ul className="space-y-2 list-none pl-0">
+                {section.lines.map((line, i) => {
+                  const tone = line.tone ?? 'default';
+                  return (
+                    <li key={i} className={`flex items-start gap-1.5 ${TONE_TEXT[tone]}`}>
+                      <span className={`w-1 h-1 rounded-full mt-1.5 shrink-0 ${TONE_DOT[tone]}`} />
+                      <span className="leading-relaxed">{isAr ? line.ar : line.en}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+
+          <div className="text-center text-fg-muted text-[10px] space-y-1 pt-3 border-t border-line/80">
+            <p className="font-mono">{isAr ? LEGAL_FOOTER.revisionAr : LEGAL_FOOTER.revisionEn}</p>
+            <p className="font-sans font-extrabold text-[#FF6B00]">
+              {isAr ? LEGAL_FOOTER.rightsAr : LEGAL_FOOTER.rightsEn}
+            </p>
           </div>
-
-          {/* 1. SECTOR: PAYMENT POLICY */}
-          <div className="space-y-2.5">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>💸 Payment & Settlements</span>
-            </h4>
-            <ul className="space-y-2 list-none pl-0 text-fg">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>The winning bid must be fully settled and processed to verification within <strong>3 hours</strong> of auction end.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <div>
-                  <span className="block mb-1">Approved payment channels within Jordan:</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Credit Card</span>
-                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">CliQ Instant Transfer</span>
-                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Mobile Wallets</span>
-                    <span className="bg-surface-sunken px-2.5 py-1 rounded-lg border border-line text-[10px] text-fg">Pay on Delivery (VIP Tier Only)</span>
-                  </div>
-                </div>
-              </li>
-              <li className="flex items-start gap-1.5 text-orange-600">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Failure to complete payment within the designated timeframe auto-authorizes the admin team to re-list the device live immediately.</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* 2. SECTOR: SHIPPING POLICY */}
-          <div className="space-y-2.5">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>🚚 Dispatch & Courier Delivery</span>
-            </h4>
-            <ul className="space-y-2 list-none pl-0 text-fg">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Standard verified shipments are processed and dispatched within <strong>1 to 6 business days</strong>.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Shipping rates are transparently detailed during order processing based on Jordan regional shipping service limits.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Receiver is responsible for providing valid local contact details and delivery addresses.</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* 3. SECTOR: RETURNS & REFUNDS */}
-          <div className="space-y-4">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>🔄 Buyer Protection & Returns</span>
-            </h4>
-
-            <div className="bg-surface-sunken rounded-xl p-3 border border-line space-y-1.5">
-              <span className="text-[#FF6B00] font-extrabold text-[11px] block font-sans">🛡️ How your payment is protected:</span>
-              <p className="text-[11px] text-zinc-600 leading-normal">
-                When you win and pay, Mazad JO <strong>holds your payment</strong> and does not release it to the seller until you receive the item, verify it, and approve the release. If there is a problem or the item does not match the listing <strong>before you approve release</strong>, open a dispute and Mazad JO will mediate and return your held funds.
-              </p>
-            </div>
-
-            <div className="bg-red-50/5 rounded-xl p-3 border border-red-100 space-y-1.5">
-              <span className="text-red-600 font-extrabold text-[11px] block font-sans">⚖️ All sales are final after confirmation:</span>
-              <p className="text-[11px] text-zinc-600 leading-normal">
-                Winning bids are binding. Once you confirm receipt and approve release of funds to the seller, the sale is complete and <strong>no post-sale refunds</strong> are offered. Raise any concern through the dispute process <strong>before</strong> approving release.
-              </p>
-            </div>
-          </div>
-
-          {/* 4. SECTOR: SELLER RESPONSIBILITIES */}
-          <div className="space-y-2.5">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>⚖️ Merchant & Seller Conduct</span>
-            </h4>
-            <ul className="space-y-2 list-none pl-0 text-fg">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Merchants are held strictly responsible for accurate battery levels, localized defects, transparent colors, and physical body disclosures.</span>
-              </li>
-              <li className="flex items-start gap-1.5 text-red-600">
-                <span className="text-[#FF6B00] mt-0.5 select-none">•</span>
-                <span>Mazad JO reserves absolute authority to deactivate merchant accounts and hold funds if deceptive claims are resolved.</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* 5. SECTOR: COMMISSIONS & FEES */}
-          <div className="space-y-2.5">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full" />
-              <span>📊 Service Commission Rates</span>
-            </h4>
-            <div className="bg-[#FF6B00]/5 border border-[#FF6B00]/15 rounded-xl p-3.5 text-center space-y-1">
-              <span className="text-[#FF6B00] text-sm font-black font-sans">5% Buyer's Premium · 5% Seller's Commission</span>
-              <p className="text-[10px] text-zinc-500">A 5% buyer's premium is added to the winning bid, and a 5% commission is deducted from the seller's proceeds (seller receives 95%). Membership fees are separate.</p>
-            </div>
-          </div>
-
-          {/* 6. PRIVACY SECURITY */}
-          <div className="space-y-2.5 bg-transparent p-0 border-none">
-            <h4 className="font-black text-fg text-xs flex items-center gap-2 pb-1 border-b border-line font-sans">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-emerald-700">🔒 Privacy, Encrypted Store & Data Protection</span>
-            </h4>
-            <ul className="space-y-2 list-none pl-0 text-fg">
-              <li className="flex items-start gap-1.5">
-                <span className="text-emerald-600 mt-0.5 select-none">•</span>
-                <span>All transaction screenshots, receiver addresses, and phone numbers are stored securely with our payment and infrastructure providers, used only to operate the service, and never sold to third parties.</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Automatic Consent Banner */}
-          <div className="bg-emerald-50/70 text-emerald-700 border border-emerald-200 p-3 rounded-xl text-center text-[10px] space-y-0.5">
-            <p className="font-black font-sans text-emerald-800">💡 Automated Policy Agreement Note:</p>
-            <p>Accessing the bidding queues, registering a membership plan, or sending support chats denotes express legal consensus under the guidelines listed above.</p>
-          </div>
-
-          {/* Revision Footnote */}
-          <div className="text-center text-zinc-400 text-[10px] space-y-1 font-mono pt-3 border-t border-line/80">
-            <p>Last Document Revision Date: June 2026</p>
-            <p className="font-sans font-extrabold text-[#FF6B00]">All Rights Reserved © Mazad JO | Jordan Auctions</p>
-          </div>
-
         </div>
 
-        {/* Action Button Footer */}
-        <div className="bg-surface-sunken p-4 border-t border-line shrink-0 flex gap-2">
+        {/* Footer */}
+        <div className="bg-surface-sunken p-4 border-t border-line shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 bg-[#FF6B00] text-white hover:bg-[#e05e00] font-black py-3 rounded-2xl text-center text-xs transition-all active:scale-95 cursor-pointer shadow-md select-none"
+            className="w-full bg-[#FF6B00] text-white hover:bg-[#e05e00] font-black py-3 rounded-2xl text-center text-xs transition-all active:scale-95 cursor-pointer shadow-md select-none"
           >
-            I Accept and Agree to the Bidding Policies
+            {isAr ? LEGAL_FOOTER.closeAr : LEGAL_FOOTER.closeEn}
           </button>
         </div>
       </motion.div>

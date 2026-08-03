@@ -969,7 +969,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-1.5 rounded-[8px] border border-line hover:bg-surface text-fg focus:outline-none"
-              aria-label="Toggle menu"
+              aria-label={lang === 'ar' ? 'فتح القائمة' : 'Toggle menu'}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -1313,7 +1313,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <div className="relative flex shrink-0">
                           <img 
                             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                            alt="MazadJo Streamer" 
+                            alt={lang === 'ar' ? 'بث مزاد جو' : 'MazadJo Streamer'} 
                             className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
                           />
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
@@ -1434,9 +1434,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <div className="flex items-center justify-between text-[11px] text-gray-300 font-ibmarabic px-1 pt-0.5">
                       <div className="flex items-center gap-1.5">
                         <div className="flex -space-x-1.5 rtl:space-x-reverse">
-                          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
-                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
-                          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Bidder" className="w-4 h-4 rounded-full object-cover border border-black" />
+                          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
+                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
+                          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
                           {/* Occasional avatar pops in as bids land */}
                           {Array.from({ length: extraAvatars }).map((_, i) => (
                             <span
