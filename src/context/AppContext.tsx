@@ -74,6 +74,7 @@ import {
   linkWithCredential
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, deleteField, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { postSignInView, type SignInIntent } from '../utils/signInIntent';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
   EscrowTransaction, ChatMessage, Notification, AdminAction, Order,
@@ -286,7 +287,9 @@ interface AppContextProps {
   // the guest browse shell for the login flow; activeView/activeAuctionId stay
   // latched, so after signup the visitor lands back on that exact listing.
   signInRequested: boolean;
-  requestSignIn: () => void;
+  /** Why the visitor is being asked to sign in — drives the screen's copy. */
+  signInIntent: SignInIntent | null;
+  requestSignIn: (intent?: SignInIntent) => void;
   dismissSignIn: () => void;
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   loginWithGoogle: () => Promise<void>;
@@ -820,13 +823,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // unauthenticated branch in App.tsx, which then shows the login flow while
   // activeView/activeAuctionId stay latched for the post-signup return.
   const [signInRequested, setSignInRequested] = useState<boolean>(false);
-  const requestSignIn = useCallback(() => setSignInRequested(true), []);
+  // The intent is captured at the TAP, not inferred at the screen: by the time
+  // LoginView renders, the only clue left was the URL, which is why a seller
+  // tapping Sell was asked to sign in to bid.
+  const [signInIntent, setSignInIntent] = useState<SignInIntent | null>(null);
+  const requestSignIn = useCallback((intent?: SignInIntent) => {
+    setSignInIntent(intent ?? null);
+    setSignInRequested(true);
+  }, []);
   const dismissSignIn = useCallback(() => setSignInRequested(false), []);
   // Reset the latch once signed in, so a later logout lands back on the guest
   // browse shell instead of a stale login screen.
+  //
+  // A 'sell' intent also names a destination. Every other intent must NOT:
+  // activeView/activeAuctionId stay latched across signup precisely so a bidder
+  // returns to the lot they were watching, and overriding that would undo it.
+  // 'sell' is the exception because 'upload' is not a guest-allowed view, so
+  // there is nothing latched to return to.
   useEffect(() => {
-    if (isAuthenticated) setSignInRequested(false);
-  }, [isAuthenticated]);
+    if (!isAuthenticated) return;
+    setSignInRequested(false);
+    const target = postSignInView(signInIntent);
+    if (target) setActiveView(target as any);
+    setSignInIntent(null);
+  }, [isAuthenticated, signInIntent]);
 
   // Session Heartbeat (PF4 part 2) - updates lastSeen, deviceInfo, and appVersion.
   // Every write fans out to the admin's live `users` listener, so instead of a
@@ -5453,6 +5473,7 @@ const fetchIP = async () => {
       authReady,
       isGuest: authReady && !isAuthenticated,
       signInRequested,
+      signInIntent,
       requestSignIn,
       dismissSignIn,
       login,
@@ -5515,7 +5536,7 @@ const fetchIP = async () => {
     adminActions, adminActionsError, reviews, verificationRequests,
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
-    language, isAuthenticated, authReady, signInRequested, watchlist, autoBids,
+    language, isAuthenticated, authReady, signInRequested, signInIntent, watchlist, autoBids,
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)

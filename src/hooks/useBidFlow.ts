@@ -60,7 +60,7 @@ export function useBidFlow(execute: BidExecute) {
   const startBid = useCallback((amount: number) => {
     const decision = resolveBidGate({ isAuthenticated, isMember, hasPhoto, contactComplete });
     if (decision === 'signin') {
-      requestSignIn();
+      requestSignIn('bid');
       return;
     }
     if (decision === 'membership') {
