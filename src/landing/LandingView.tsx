@@ -274,7 +274,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                       onClick={() => { emitLandingEvent('auction_viewed', { auctionId: a.id }); onEnter(); }}
                       className="group text-start w-full rounded-2xl bg-surface-raised border border-line overflow-hidden hover:-translate-y-1 hover:shadow-xl transition"
                     >
-                      <div className="relative aspect-[4/3] bg-[#F0F0EE] overflow-hidden">
+                      <div className="relative aspect-[4/3] bg-surface-sunken overflow-hidden">
                         {a.imageUrl ? (
                           <img src={a.imageUrl} alt={a.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition" />
                         ) : null}
@@ -1133,7 +1133,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 >
                   {t.hero.proof.map((s, i) => (
                     <React.Fragment key={i}>
-                      {i > 0 && <span className="w-px h-7 bg-[#F0F0EE] shrink-0" aria-hidden="true" />}
+                      {i > 0 && <span className="w-px h-7 bg-surface-sunken shrink-0" aria-hidden="true" />}
                       <div className="text-center lg:text-start">
                         <div dir="ltr" className="text-xl sm:text-2xl font-extrabold text-fg font-alexandria leading-none">{s.value}</div>
                         <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-fg/50 font-ibmarabic mt-1.5">{s.label}</div>
@@ -1501,7 +1501,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         1
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Search className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1523,7 +1523,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         2
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Hammer className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1545,7 +1545,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         3
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Lock className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1567,7 +1567,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         4
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <CheckCircle2 className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1585,7 +1585,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         1
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Camera className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1607,7 +1607,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         2
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Wrench className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1629,7 +1629,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         3
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <TrendingUp className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1651,7 +1651,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
                         4
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-[#FFF1EC] flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
                         <Award className="w-7 h-7" />
                       </div>
                       <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
@@ -1829,7 +1829,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         </section>
 
         {/* Real Customer Testimonials Section */}
-        <section id="testimonials" className="py-20 bg-[#FAF7EE]/30 border-t border-line">
+        <section id="testimonials" className="py-20 bg-surface-sunken/30 border-t border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <Reveal>
               <h2 className="text-4xl font-bold text-center text-fg font-alexandria mb-12">
@@ -1935,7 +1935,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <Reveal>
                 <div className="flex flex-col space-y-6">
                   <div>
-                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#FFF1EC] text-[#D63E10] text-xs font-bold font-ibmarabic border border-[#F05123]/20 mb-3">
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-accent-weak text-[#D63E10] text-xs font-bold font-ibmarabic border border-[#F05123]/20 mb-3">
                       <ShieldCheck className="w-4 h-4" />
                       {lang === "ar" ? "الأمان المالي" : "Financial Security"}
                     </span>

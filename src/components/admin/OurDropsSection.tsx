@@ -73,7 +73,7 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full mt-3 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl p-2.5 text-[10px] font-mono font-bold uppercase text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 transition-colors cursor-pointer"
+        className="w-full mt-3 bg-surface-sunken border border-dashed border-line rounded-xl p-2.5 text-[10px] font-mono font-bold uppercase text-zinc-500 hover:text-fg hover:border-line transition-colors cursor-pointer"
       >
         🛡️ Show escrow diagnostics
       </button>
@@ -81,14 +81,14 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
   }
 
   return (
-    <div className="bg-zinc-50 border border-dashed border-zinc-200 rounded-xl p-4 mt-3 text-xs space-y-3">
-      <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
-        <span className="font-extrabold text-zinc-700 tracking-wide font-mono text-[10px] uppercase">
+    <div className="bg-surface-sunken border border-dashed border-line rounded-xl p-4 mt-3 text-xs space-y-3">
+      <div className="flex items-center justify-between border-b border-line pb-2">
+        <span className="font-extrabold text-fg tracking-wide font-mono text-[10px] uppercase">
           🛡️ Admin Diagnostic Panel
         </span>
         <button
           onClick={() => setOpen(false)}
-          className="bg-zinc-200/60 text-zinc-600 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold hover:bg-zinc-300 transition-colors cursor-pointer"
+          className="bg-surface-sunken/60 text-zinc-600 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold hover:bg-zinc-300 transition-colors cursor-pointer"
         >
           LIVE TELEMETRY — HIDE
         </button>
@@ -97,14 +97,14 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1">
           <p className="text-zinc-500 font-medium font-sans">Locked Escrows Count:</p>
-          <p className="font-mono text-sm font-black text-zinc-900">
+          <p className="font-mono text-sm font-black text-fg">
             {lockedEscrows.length} {lockedEscrows.length > 0 ? '🔒' : '✅'}
           </p>
         </div>
 
         <div className="space-y-1">
           <p className="text-zinc-500 font-medium font-sans">Winner ID (Kept Locked):</p>
-          <p className="font-mono text-[10px] font-semibold text-zinc-800 break-all">
+          <p className="font-mono text-[10px] font-semibold text-fg break-all">
             {winnerId ? `🏆 ${winnerId}` : 'None / No Bids'}
           </p>
         </div>
@@ -119,9 +119,9 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
         ) : (
           <div className="bg-surface-raised border border-line rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
             {losingLockedEscrows.map((e) => (
-              <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 last:border-0 pb-1.5 last:pb-0">
+              <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-line last:border-0 pb-1.5 last:pb-0">
                 <div className="min-w-0">
-                  <span className="font-bold text-zinc-800">{e.bidderName || 'Bidder'}</span>
+                  <span className="font-bold text-fg">{e.bidderName || 'Bidder'}</span>
                   <span className="text-zinc-400 text-[9px] block truncate max-w-[200px]">{e.bidderId}</span>
                 </div>
                 <div className="text-right shrink-0">

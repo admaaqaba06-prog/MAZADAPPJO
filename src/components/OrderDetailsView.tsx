@@ -1232,7 +1232,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       isCompleted 
                         ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-md shadow-[#FF6B00]/25'
                         : isActive
-                        ? 'bg-surface-raised text-slate-950 border-white ring-4 ring-[#FF6B00]/30 animate-pulse'
+                        ? 'bg-surface-raised text-fg border-white ring-4 ring-[#FF6B00]/30 animate-pulse'
                         : 'bg-slate-900 border-white/10 text-fg-muted'
                     }`}>
                       {isCompleted ? <Check className="w-4 h-4 text-white" /> : idx + 1}
@@ -1567,7 +1567,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {isBuyer && (
                 <>
                   {order.status === 'waiting_payment' && (
-                    <div className="bg-[#FFF8F3] border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
+                    <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
                       {/* Amount due */}
                       <div className="text-center space-y-1 border-b border-orange-100 pb-3">
                         <span className="text-[9px] text-fg-muted uppercase font-black font-mono block">

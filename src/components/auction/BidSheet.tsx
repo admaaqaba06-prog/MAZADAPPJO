@@ -146,7 +146,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Grab handle + close */}
-            <div className="w-[38px] h-1 rounded-full bg-[#ddd] mx-auto mb-3.5" />
+            <div className="w-[38px] h-1 rounded-full bg-surface-sunken mx-auto mb-3.5" />
             <button
               type="button"
               onClick={onClose}

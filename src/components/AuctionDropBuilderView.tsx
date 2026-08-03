@@ -848,7 +848,7 @@ export default function AuctionDropBuilderView() {
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">{isAr ? 'معاينة المنشور' : 'Post preview'}</h2>
-        <pre className="whitespace-pre-wrap border rounded p-3 text-sm bg-neutral-50" style={{ direction: 'rtl' }}>{caption}</pre>
+        <pre className="whitespace-pre-wrap border rounded p-3 text-sm bg-surface-sunken" style={{ direction: 'rtl' }}>{caption}</pre>
 
         {/* Everything below is the PRE-create half of this column. Once the
             success panel is up it owns the link, the copy actions and the

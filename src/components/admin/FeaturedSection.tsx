@@ -150,7 +150,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ isAr }) => {
         <h3 className="text-[13px] font-black text-fg">
           {isAr ? 'المزادات المميزة' : 'Featured lots'}
         </h3>
-        <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] font-mono font-black bg-amber-400 text-fg-on-light px-2 py-0.5 rounded-full">
           {currentIds.length}/{FEATURED_CAP}
         </span>
         {saving && <Loader2 className="w-3.5 h-3.5 text-fg-muted animate-spin" />}
