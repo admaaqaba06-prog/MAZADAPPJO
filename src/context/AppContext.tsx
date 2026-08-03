@@ -34,6 +34,11 @@ import { resolveNotificationContent } from '../utils/notificationContent';
 import type { ViewingMode } from '../utils/viewing';
 import { viewingWritePayload } from '../utils/viewing';
 import { persistLanguagePreference, shouldAdoptLocalLanguage } from '../utils/languagePersistence';
+import {
+  DEFAULT_THEME, THEME_STORAGE_KEY, normalizeTheme, shouldAdoptLocalTheme,
+  persistThemePreference, storedDocTheme, type Theme,
+} from '../utils/themePersistence';
+import { applyThemeAttribute, readStoredTheme } from '../utils/themeBoot';
 
 // Cache of resolved video URLs to prevent excessive IndexedDB reads and performance degradation during rapid real-time updates
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
@@ -128,6 +133,8 @@ interface AppContextProps {
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   // True account total from a server aggregation (the `users` listener is capped);
   // null until the count query resolves. Use for total-account stats, not users.length.
+  theme: Theme;
+  setTheme: (t: Theme) => void;
   usersTotalCount: number | null;
   // True auction total from a server aggregation (the `auctions` listener is
   // capped at ADMIN_AUCTIONS_CAP); null until the count query resolves. Use for
@@ -784,6 +791,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [autoBids]);
 
   // AUTH, MULTILINGUAL, & SUBSCRIPTION ADDITIONS
+  // Seeded from the attribute the pre-paint script ALREADY set, not from a
+  // fresh default: re-deriving here would flip the theme on hydration and undo
+  // the entire point of the inline script.
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof document === 'undefined') return DEFAULT_THEME;
+    return normalizeTheme(document.documentElement.getAttribute('data-theme'));
+  });
+  const themeAdoptedRef = useRef(false);
+
   const [language, setLanguageState] = useState<'en' | 'ar'>(() => {
     return (localStorage.getItem('mazad_language') as 'en' | 'ar') || 'ar';
   });
@@ -2394,6 +2410,63 @@ const fetchIP = async () => {
       (err) => console.warn('[setLanguage] language preference not persisted:', err)
     );
   }, [isAuthenticated, currentUser?.id]);
+
+  const setTheme = useCallback((next: Theme) => {
+    const value = normalizeTheme(next);
+    // Local and immediate — the toggle must not wait on the network.
+    setThemeState(value);
+    applyThemeAttribute(value);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, value);
+    } catch (_) {
+      // Private mode / embedded webview. The theme still applies for this
+      // session; only its persistence across reloads is lost.
+    }
+    // setDoc+merge rather than updateDoc: a user document that predates this
+    // field must gain it rather than throwing not-found.
+    persistThemePreference(
+      { isAuthenticated, userId: currentUser?.id },
+      value,
+      (uid, patch) => setDoc(doc(db, 'users', uid), patch, { merge: true }),
+      (err) => console.warn('[setTheme] theme preference not persisted:', err)
+    );
+  }, [isAuthenticated, currentUser?.id]);
+
+  // Two directions, one effect:
+  //  - the account HAS a theme -> follow it. It may have been set on another
+  //    device more recently than this browser's localStorage.
+  //  - the account has NONE and this browser holds an explicit choice -> adopt
+  //    it, so a theme picked before signing up is not silently lost. Exactly the
+  //    gap shouldAdoptLocalLanguage closes for language.
+  useEffect(() => {
+    if (!currentUser?.id) {
+      themeAdoptedRef.current = false;
+      return;
+    }
+    const session = { isAuthenticated: true, userId: currentUser.id };
+    const docThemeRaw = (currentUser as any).theme;
+    const docTheme = storedDocTheme(docThemeRaw);
+    if (docTheme) {
+      if (docTheme !== theme) {
+        setThemeState(docTheme);
+        applyThemeAttribute(docTheme);
+      }
+      return;
+    }
+    if (shouldAdoptLocalTheme({
+      session,
+      storedTheme: readStoredTheme(),
+      docTheme: docThemeRaw,
+      alreadyAdopted: themeAdoptedRef.current,
+    })) {
+      themeAdoptedRef.current = true;
+      persistThemePreference(
+        session, theme,
+        (uid, patch) => setDoc(doc(db, 'users', uid), patch, { merge: true }),
+        (err) => console.warn('[theme] adoption not persisted:', err)
+      );
+    }
+  }, [currentUser?.id, (currentUser as any)?.theme, theme]);
 
   const login = useCallback(async (email: string, pass: string) => {
     const cleanEmail = email.toLowerCase().trim();
@@ -5323,6 +5396,8 @@ const fetchIP = async () => {
       currentUser, setCurrentUser,
       sellerProfile, setSellerProfile,
       users, setUsers,
+      theme,
+      setTheme,
       usersTotalCount,
       auctionsTotalCount,
       sellerProfiles, setSellerProfiles,
@@ -5434,6 +5509,7 @@ const fetchIP = async () => {
   }), [
     // State / memo values (auctions/auctionsLoaded intentionally NOT here —
     // they live in AuctionsContext so bid churn can't touch this identity)
+    theme, setTheme,
     currentUser, sellerProfile, users, usersTotalCount, auctionsTotalCount, sellerProfiles,
     bids, wallet, escrows, visibleOrders, notifications,
     adminActions, adminActionsError, reviews, verificationRequests,
