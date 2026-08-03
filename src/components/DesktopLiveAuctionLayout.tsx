@@ -121,7 +121,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     // Guest browsing: bidding is THE signup moment — a guest never reaches
     // placeBid (whose non-member fallback is the subscription sheet).
     if (!isAuthenticated) {
-      requestSignIn();
+      requestSignIn('bid');
       return;
     }
     // E2: an active/permanent block opens the ban notice; an expired cooldown
@@ -151,7 +151,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   const openConfirm = (amount: number) => {
     // Guest browsing: a bid tap signs the guest up instead of staging a confirm.
     if (!isAuthenticated) {
-      requestSignIn();
+      requestSignIn('bid');
       return;
     }
     // E2: a blocked tap opens the ban notice instead of staging a confirm.

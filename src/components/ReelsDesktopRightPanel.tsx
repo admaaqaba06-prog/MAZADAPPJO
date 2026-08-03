@@ -182,7 +182,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           onSwipeSuccess={async () => {
             // Guest browsing: bidding is the signup moment.
             if (!isAuthenticated) {
-              requestSignIn();
+              requestSignIn('bid');
               return;
             }
             if (isEffectivelyBlocked(currentUser)) {
@@ -194,7 +194,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           onTap={() => {
             // Guest browsing: bidding is the signup moment.
             if (!isAuthenticated) {
-              requestSignIn();
+              requestSignIn('bid');
               return;
             }
             if (isEffectivelyBlocked(currentUser)) {
@@ -357,7 +357,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             e.preventDefault();
             // Guest browsing: chatting is the signup moment.
             if (!isAuthenticated) {
-              requestSignIn();
+              requestSignIn('chat');
               return;
             }
             const form = e.currentTarget;

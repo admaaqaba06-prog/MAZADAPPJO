@@ -10,6 +10,7 @@ import { PhoneInput } from './ui/PhoneInput';
 import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react';
 import { SignInMarketingPanel } from './SignInMarketingPanel';
 import { useLandingAuctions } from '../landing/useLandingAuctions';
+import { signInPrompt } from '../utils/signInIntent';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -47,11 +48,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     verifyWhatsappOtp,
     signInWhatsapp,
     language,
-    setLanguage
+    setLanguage,
+    signInIntent
   } = useApp();
 
   const t = translations[language];
   const isAr = language === 'ar';
+  // What this visitor was trying to do when they were stopped. Captured at the
+  // tap (see AppContext.requestSignIn) — by the time this screen renders the
+  // only clue left is the URL, which is why every entry point used to be asked
+  // to sign in to bid.
+  const prompt = signInPrompt(signInIntent, isAr);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -356,7 +363,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center">
 
       {/* Deep-link context: the visitor followed a live-auction link — say so */}
-      {cameFromAuctionLink && (
+      {cameFromAuctionLink && !signInIntent && (
         <div
           className="w-full max-w-md bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#C2410C] rounded-2xl px-4 py-2.5 text-xs font-bold text-center z-10 lg:mt-16"
           id="deep-link-auction-banner"
@@ -369,9 +376,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-2' : 'mt-16 mb-2 lg:mt-0'}`}>
 
         {/* Title */}
-        <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">
-          {isAr ? 'يا هلا فيك — سجّل دخولك' : 'Welcome — sign in'}
+        <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-1.5">
+          {prompt.headline}
         </h1>
+        <p className="text-xs text-fg-muted font-semibold text-center mb-6">
+          {prompt.subline}
+        </p>
 
         {/* Alert Notifications */}
         {errorMsg && (

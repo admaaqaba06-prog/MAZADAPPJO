@@ -568,7 +568,7 @@ export const LiveStreamView: React.FC = () => {
     e.stopPropagation();
     // Guest browsing: reactions are an account action — the signup moment.
     if (!isAuthenticated) {
-      requestSignIn();
+      requestSignIn('bid');
       return;
     }
     triggerToast(isAr ? '❤️ أرسلت تفاعلاً للبث المباشر!' : '❤️ Sent stream appreciation!');
@@ -592,7 +592,7 @@ export const LiveStreamView: React.FC = () => {
     e.stopPropagation();
     // Guest browsing: saving/following is an account action — the signup moment.
     if (!isAuthenticated) {
-      requestSignIn();
+      requestSignIn('save');
       return;
     }
     toggleWatchlist(activeAuction.id);
@@ -617,7 +617,7 @@ export const LiveStreamView: React.FC = () => {
     // (Guests can't read `chats` per firestore.rules either, so the composer
     // is their entry into the room, not a silent failed write.)
     if (!isAuthenticated) {
-      requestSignIn();
+      requestSignIn('chat');
       return;
     }
     if (!commentText.trim()) return;

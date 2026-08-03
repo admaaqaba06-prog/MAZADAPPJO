@@ -16,6 +16,7 @@ import { isAdminUser } from '../utils/adminAuth';
 import { useSocialProof } from '../hooks/useSocialProof';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { CATEGORIES, matchValues } from '../utils/categories';
+import { auctionTimeStatus, startsInLabel } from '../utils/auctionTimeStatus';
 import { 
   Flame, 
   Search, 
@@ -363,7 +364,9 @@ export const DiscoveryFeedView: React.FC = () => {
     bids,
     orders,
     setGlobalSelectedOrderId,
-    featureFlags
+    featureFlags,
+    isAuthenticated,
+    requestSignIn
   } = useApp();
   // Discover is now ALWAYS the paginated feed (`useDiscoverFeed`) — the broad
   // `useAuctions()` array + its `enablePaginatedDiscover` OFF fallback were
@@ -613,12 +616,16 @@ export const DiscoveryFeedView: React.FC = () => {
   }, [feed.upcomingItems]);
 
   const formatUpcomingWhen = (item: AuctionItem) => {
-    if (!item.scheduledStartAt) return isAr ? 'قريباً' : 'Soon';
-    const weekday = new Date(item.scheduledStartAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-GB', {
-      weekday: 'short',
-      timeZone: 'Asia/Amman',
-    });
-    return `${weekday} ${formatAmmanClock(item.scheduledStartAt)}`;
+    // Relative, not absolute. This rendered "Tue 20:00" — a clock reading the
+    // viewer has to convert into "how long do I have", and one that says
+    // nothing at all if today is Tuesday. The desktop live layout already said
+    // "Starts in"; the two surfaces now answer the same question the same way.
+    const { msUntilStart } = auctionTimeStatus(item, Date.now());
+    const relative = startsInLabel(msUntilStart, isAr);
+    if (!item.scheduledStartAt) return relative;
+    // The exact clock time is kept alongside it — a relative label alone is
+    // hard to plan around for a drop several days out.
+    return `${relative} · ${formatAmmanClock(item.scheduledStartAt)}`;
   };
 
   const isMember = currentUser?.subscriptionStatus === 'active';
@@ -721,7 +728,9 @@ export const DiscoveryFeedView: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveView('upload')}
+              // Discover is a guest-allowed view, so this button is reachable
+              // logged out. Ask for the sign-in the seller actually wanted.
+              onClick={() => (isAuthenticated ? setActiveView('upload') : requestSignIn('sell'))}
               className="px-3 py-1.5 border border-[#E85D04] bg-[#E85D04]/5 hover:bg-[#E85D04]/10 rounded-xl text-[11px] font-bold text-[#E85D04] flex items-center gap-1 transition-all shrink-0"
               id="sell-wizard-btn"
             >

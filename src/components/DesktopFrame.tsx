@@ -204,7 +204,11 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {/* Sell — elevated center FAB (raised orange circle). Same 'upload'
               route/handler; only the presentation changed. */}
           <button
-            onClick={() => setActiveView('upload')}
+            // A guest tapping Sell used to be bounced to a sign-in screen whose
+            // only contextual line read "Sign in to join the live auction" —
+            // the exact bug a partner review reported. 'upload' is not a
+            // guest-allowed view, so the routing is unchanged; only the ASK is.
+            onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
             aria-label={isAr ? 'بيع' : 'Sell'}
             aria-current={activeView === 'upload' ? 'page' : undefined}
             className="flex flex-col items-center flex-1 transition-colors"
@@ -228,7 +232,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           </button>
 
           <button
-            onClick={() => (isGuest ? requestSignIn() : setActiveView('profile'))}
+            onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
             aria-current={activeView === 'profile' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
               activeView === 'profile'
@@ -320,7 +324,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => setActiveView('upload')}
+              onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -432,7 +436,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {/* Guest browsing: explicit sign-in entry instead of the user menu */}
             {isGuest && (
               <button
-                onClick={requestSignIn}
+                onClick={() => requestSignIn('account')}
                 className="px-3.5 py-1.5 rounded-full bg-[#E85D04] hover:bg-orange-600 text-white text-xs font-black transition-colors cursor-pointer shadow-sm"
                 id="header-guest-signin-btn"
               >
