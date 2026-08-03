@@ -62,8 +62,9 @@ describe('curateLandingAuctions', () => {
   //
   // `endTime: 0` counts as CLOCKLESS, matching `isLiveNow`, which decides
   // clocked-ness by falsiness (`!0` is true) and admits such a lot. The
-  // comparator's `typeof === 'number' && > 0` agrees with it by construction,
-  // so a 0 endTime can never be sorted to the front on an epoch-1970 clock.
+  // comparator's `typeof === 'number' && > 0` agrees with it on every value
+  // that survives the filter, so a 0 endTime can never be sorted to the front
+  // on an epoch-1970 clock.
   it('admits a 0 or missing endTime, ordering both as clockless behind clocked lots', () => {
     const out = curateLandingAuctions([
       auction({ id: 'zero', status: 'live', endTime: 0 }),
@@ -194,46 +195,108 @@ describe('curateLandingAuctions — ordering', () => {
 // output. That distinction is the whole point: a comparator that returns NaN
 // sorts identically to one that returns 0 on V8, so no assertion on a sorted
 // array can catch it. This is the only reason compareLandingAuctions is exported.
-describe('compareLandingAuctions — totality contract', () => {
+describe('compareLandingAuctions — order-relation contract', () => {
   const lot = (o: Partial<AuctionItem>) => mapToLandingAuction(auction(o));
 
-  it('never returns NaN for two undated clockless lots (the both-undefined pair)', () => {
+  // Named regression for the exact defect that shipped: the clockless branch was
+  // `(y.createdAt ?? -Infinity) - (x.createdAt ?? -Infinity)`, and two lots that
+  // both lacked createdAt made that `-Infinity - -Infinity` = NaN. The
+  // enumeration below also covers this; it is kept as a standalone case because
+  // it is the one pair that was actually broken in production.
+  it('never returns NaN for two undated clockless lots (the pair that shipped broken)', () => {
     const x = lot({ id: 'n1', endTime: undefined } as any);
     const y = lot({ id: 'n2', endTime: undefined } as any);
     expect(Number.isNaN(compareLandingAuctions(x, y))).toBe(false);
     expect(Number.isNaN(compareLandingAuctions(y, x))).toBe(false);
   });
 
-  it('never returns NaN for two lots with a NaN endTime', () => {
-    const x = lot({ id: 'x', endTime: NaN as any });
-    const y = lot({ id: 'y', endTime: NaN as any });
-    expect(Number.isNaN(compareLandingAuctions(x, y))).toBe(false);
+  // 72 shapes: 4 feature states x 6 endTime values x 3 createdAt values. The
+  // endTime list deliberately includes every value that reaches the comparator
+  // as "clockless" by a different route — 0 (falsy), NaN (the second NaN path),
+  // undefined (absent) and null (a doc that literally stores null).
+  //
+  // Comparisons are precomputed into a matrix so the transitivity cube is array
+  // lookups rather than 373k comparator calls, and violations are collected and
+  // asserted once rather than running expect() inside the loops.
+  const END_TIMES = [NOW + 60_000, NOW + 10_000, 0, NaN, undefined, null];
+  const CREATED_AT = [900, 100, undefined];
+  const FEATURE_STATES = [
+    { isFeatured: false, featuredRank: undefined },
+    { isFeatured: true, featuredRank: 1 },
+    { isFeatured: true, featuredRank: 2 },
+    { isFeatured: true, featuredRank: undefined },
+  ];
+
+  const variants: LandingAuction[] = [];
+  for (const f of FEATURE_STATES) {
+    for (const endTime of END_TIMES) {
+      for (const createdAt of CREATED_AT) {
+        variants.push(lot({
+          id: `v${variants.length}`, ...f, endTime, createdAt,
+        } as any));
+      }
+    }
+  }
+  const N = variants.length;
+  const M: number[][] = variants.map(x => variants.map(y => compareLandingAuctions(x, y)));
+
+  it('covers 72 distinct shapes', () => {
+    expect(N).toBe(72);
   });
 
-  // 16 shapes = featured/unfeatured x ranked/unranked x clocked/clockless x
-  // dated/undated, compared every way round including against themselves.
-  it('returns a real number for every pair across all field combinations', () => {
-    const variants: LandingAuction[] = [];
-    for (const isFeatured of [true, false]) {
-      for (const featuredRank of [1, undefined]) {
-        for (const endTime of [NOW + 60_000, undefined]) {
-          for (const createdAt of [500, undefined]) {
-            variants.push(lot({
-              id: `v${variants.length}`, isFeatured, featuredRank, endTime, createdAt,
-            } as any));
+  it('is TOTAL: every ordered pair returns a real number, never NaN', () => {
+    const bad: string[] = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const r = M[i][j];
+        if (typeof r !== 'number' || Number.isNaN(r)) bad.push(`cmp(v${i},v${j}) = ${r}`);
+      }
+    }
+    expect({ violations: bad.length, sample: bad.slice(0, 5) }).toEqual({ violations: 0, sample: [] });
+  });
+
+  it('is ANTISYMMETRIC: sign(cmp(a,b)) === -sign(cmp(b,a))', () => {
+    const bad: string[] = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (Math.sign(M[i][j]) !== -Math.sign(M[j][i])) {
+          bad.push(`cmp(v${i},v${j})=${M[i][j]} but cmp(v${j},v${i})=${M[j][i]}`);
+        }
+      }
+    }
+    expect({ violations: bad.length, sample: bad.slice(0, 5) }).toEqual({ violations: 0, sample: [] });
+  });
+
+  it('is TRANSITIVE: cmp(a,b) <= 0 and cmp(b,c) <= 0 implies cmp(a,c) <= 0', () => {
+    const bad: string[] = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (M[i][j] > 0) continue;
+        for (let k = 0; k < N; k++) {
+          if (M[j][k] <= 0 && M[i][k] > 0) {
+            bad.push(`v${i}<=v${j}<=v${k} but cmp(v${i},v${k})=${M[i][k]}`);
           }
         }
       }
     }
-    expect(variants).toHaveLength(16);
+    expect({ violations: bad.length, sample: bad.slice(0, 5) }).toEqual({ violations: 0, sample: [] });
+  });
 
-    for (const x of variants) {
-      for (const y of variants) {
-        const r = compareLandingAuctions(x, y);
-        expect(typeof r).toBe('number');
-        expect(Number.isNaN(r)).toBe(false);
+  // The one that actually corrupts a merge sort when violated: if equality is
+  // not transitive the runtime can order a set inconsistently with itself.
+  it('has TRANSITIVE EQUALITY: cmp(a,b) === 0 and cmp(b,c) === 0 implies cmp(a,c) === 0', () => {
+    const bad: string[] = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (M[i][j] !== 0) continue;
+        for (let k = 0; k < N; k++) {
+          if (M[j][k] === 0 && M[i][k] !== 0) {
+            bad.push(`v${i}==v${j}==v${k} but cmp(v${i},v${k})=${M[i][k]}`);
+          }
+        }
       }
     }
+    expect({ violations: bad.length, sample: bad.slice(0, 5) }).toEqual({ violations: 0, sample: [] });
   });
 });
 

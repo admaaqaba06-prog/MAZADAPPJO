@@ -96,8 +96,11 @@ export function mapToLandingAuction(a: AuctionItem): LandingAuction {
  * Assert on this function's return value, not on the sorted array — see the
  * `totality contract` tests.
  *
- * Also relied upon to be antisymmetric and transitive; a comparator that is not
- * yields an implementation-defined permutation.
+ * Must also be ANTISYMMETRIC and TRANSITIVE (including transitive equality — a
+ * violation of that one is what corrupts a merge sort into ordering a set
+ * inconsistently with itself). All four properties are enforced by the
+ * `order-relation contract` tests, which enumerate 72 shapes over every pair
+ * and triple; they are not merely documented here.
  */
 export function compareLandingAuctions(x: LandingAuction, y: LandingAuction): number {
   if (x.isFeatured !== y.isFeatured) return x.isFeatured ? -1 : 1;
