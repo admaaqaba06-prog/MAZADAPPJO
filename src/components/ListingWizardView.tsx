@@ -170,7 +170,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-white pb-4 overscroll-contain select-none font-sans text-gray-800"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface-raised pb-4 overscroll-contain select-none font-sans text-fg"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="listing-wizard-root"
     >
@@ -186,7 +186,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                 <h3 className="text-lg font-black text-emerald-600">
                   {isAr ? 'تم إطلاق المزاد بنجاح! 🚀' : 'Auction Created Successfully! 🚀'}
                 </h3>
-                <p className="text-xs text-gray-400 font-medium">
+                <p className="text-xs text-fg-muted font-medium">
                   {isAr ? 'تم نشر معروضك، سيتم توجيهك إلى صفحة الاستكشاف تلقائياً...' : 'Your listing is live, redirecting to discovery feed now...'}
                 </p>
               </div>
@@ -195,13 +195,13 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
             <div className="w-full max-w-sm bg-zinc-50 border border-zinc-100 rounded-3xl p-8 shadow-sm flex flex-col items-center space-y-6">
               <div className="relative flex items-center justify-center">
                 <Loader2 className="w-16 h-16 text-[#FF6B00] animate-spin stroke-[1.5]" />
-                <div className="absolute text-xs font-bold text-gray-700">
+                <div className="absolute text-xs font-bold text-fg">
                   {uploadProgress}%
                 </div>
               </div>
 
               <div className="space-y-2 w-full text-center">
-                <h3 className="text-base font-black text-gray-900 flex items-center justify-center gap-2">
+                <h3 className="text-base font-black text-fg flex items-center justify-center gap-2">
                   {uploadStage === 'video' && (
                     <>
                       <Video className="w-5 h-5 text-[#FF6B00] animate-pulse" />
@@ -230,7 +230,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                   />
                 </div>
 
-                <p className="text-xs text-gray-400 pt-1 font-medium leading-relaxed">
+                <p className="text-xs text-fg-muted pt-1 font-medium leading-relaxed">
                   {isAr 
                     ? 'يرجى إبقاء هذه الصفحة مفتوحة. قد يستغرق رفع الفيديو عالي الدقة بعض الوقت تبعاً لسرعة الإنترنت لديك.' 
                     : 'Please keep this window open. High-quality video uploads may take a minute depending on your internet connection speed.'}
@@ -246,7 +246,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
             <h2 className="text-sm lg:text-lg font-black tracking-wider text-[#FF6B00] uppercase font-mono">
               {isAr ? 'استديو إنشاء المزاد' : 'LOT CREATION STUDIO'}
             </h2>
-            <p className="text-[10px] lg:text-xs text-gray-400 mt-1">
+            <p className="text-[10px] lg:text-xs text-fg-muted mt-1">
               {isAr ? 'انشر منتجك للجميع بفيديو تفاعلي وبث حي' : 'Broadcast your product directly with live video auctions'}
             </p>
           </div>
@@ -257,12 +257,12 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
             <div className="space-y-6">
               {/* STEP 1 — Video */}
               <div className="space-y-2.5">
-                <label className="text-xs lg:text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
+                <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
                   <span className="text-[#FF6B00]">①</span> 
                   {isAr ? 'فيديو المعروض والمنتج' : 'Product Video'}
                 </label>
                 
-                <div className="bg-white rounded-2xl">
+                <div className="bg-surface-raised rounded-2xl">
                   <VideoUploadForm 
                     onVideoSelect={(file, url) => {
                       setCustomVideoUrl(url);
@@ -280,7 +280,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                   {isAr ? 'صورة غلاف المزاد (اختياري)' : 'Auction Thumbnail Image (Optional)'}
                 </label>
                 
-                <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                <div className="bg-surface-raised rounded-2xl border border-line p-4">
                   {customThumbnailUrl ? (
                     <div className="relative rounded-xl overflow-hidden max-h-[160px] bg-black">
                       <img src={customThumbnailUrl} alt="Thumbnail Preview" className="w-full h-full object-contain" />
@@ -296,9 +296,9 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       </button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-line rounded-xl p-6 cursor-pointer hover:bg-surface-sunken transition-colors">
                       <span className="text-2xl">🖼️</span>
-                      <span className="text-xs font-bold text-gray-600 mt-2">
+                      <span className="text-xs font-bold text-fg-muted mt-2">
                         {isAr ? 'اضغط لرفع صورة غلاف' : 'Click to upload a cover image'}
                       </span>
                       <input
@@ -325,7 +325,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                   {isAr ? 'صور إضافية للمعرض (حتى ٣ — اختياري)' : 'Extra Gallery Photos (up to 3 — Optional)'}
                 </label>
 
-                <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                <div className="bg-surface-raised rounded-2xl border border-line p-4">
                   <div className="grid grid-cols-3 gap-2">
                     {extraPhotos.map((photo, idx) => (
                       <div key={photo.url} className="relative rounded-xl overflow-hidden bg-black aspect-square">
@@ -340,9 +340,9 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       </div>
                     ))}
                     {extraPhotos.length < 3 && (
-                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl aspect-square cursor-pointer hover:bg-gray-50 transition-colors">
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-line rounded-xl aspect-square cursor-pointer hover:bg-surface-sunken transition-colors">
                         <span className="text-xl">📸</span>
-                        <span className="text-[10px] font-bold text-gray-500 mt-1 text-center px-1">
+                        <span className="text-[10px] font-bold text-fg-muted mt-1 text-center px-1">
                           {isAr ? 'إضافة صورة' : 'Add photo'}
                         </span>
                         <input
@@ -358,7 +358,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       </label>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-2 font-medium">
+                  <p className="text-[10px] text-fg-muted mt-2 font-medium">
                     {isAr
                       ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد.'
                       : 'Bidders can swipe through these photos inside the live room.'}
@@ -372,14 +372,14 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
               <div className="space-y-6">
                 {/* STEP 2 — Product Info */}
                 <div className="space-y-4">
-                  <label className="text-xs lg:text-sm font-extrabold text-gray-900 flex items-center gap-1.5 border-b border-gray-100 pb-1">
+                  <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5 border-b border-line pb-1">
                     <span className="text-[#FF6B00]">②</span> 
                     {isAr ? 'بيانات ومواصفات المنتج' : 'Product Information'}
                   </label>
 
                   {/* Input Name */}
                   <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-gray-500 block">
+                    <span className="text-[11px] font-bold text-fg-muted block">
                       {isAr ? 'اسم المنتج' : 'Product Name'}
                     </span>
                     <input 
@@ -387,13 +387,13 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       placeholder={isAr ? 'مثال: iPhone 15 Pro Max' : 'e.g. iPhone 15 Pro Max'}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors leading-none"
+                      className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 text-xs font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors leading-none"
                     />
                   </div>
 
                   {/* Input Description */}
                   <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-gray-500 block">
+                    <span className="text-[11px] font-bold text-fg-muted block">
                       {isAr ? 'وصف المنتج' : 'Product Description'}
                     </span>
                     {/* maxLength is the ONLY cap on this value: firestore.rules has
@@ -408,13 +408,13 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                         : "Condition, what's included, and any flaw. Everything a bidder wants to know before bidding."}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors resize-none leading-relaxed"
+                      className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 text-xs font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors resize-none leading-relaxed"
                     />
                   </div>
 
                   {/* Input Price */}
                   <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-gray-500 block">
+                    <span className="text-[11px] font-bold text-fg-muted block">
                       {isAr ? 'السعر الابتدائي بالدينار' : 'Starting Price (JOD)'}
                     </span>
                     <input 
@@ -422,20 +422,20 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       placeholder="100"
                       value={startingPrice}
                       onChange={(e) => setStartingPrice(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors leading-none"
+                      className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 text-xs font-semibold text-fg placeholder-gray-400 focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors leading-none"
                     />
                   </div>
 
                   {/* Select Category */}
                   <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-gray-500 block">
+                    <span className="text-[11px] font-bold text-fg-muted block">
                       {isAr ? 'الفئة' : 'Category'}
                     </span>
                     <div className="relative">
                       <select 
                         value={category} 
                         onChange={(e) => setCategory(e.target.value as any)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-gray-900 focus:outline-none focus:bg-white focus:border-[#FF6B00] transition-colors appearance-none cursor-pointer"
+                        className="w-full bg-surface-sunken border border-line rounded-xl py-3 px-4 text-xs font-semibold text-fg focus:outline-none focus:bg-surface-raised focus:border-[#FF6B00] transition-colors appearance-none cursor-pointer"
                       >
                         {categoriesOpt.map((opt, idx) => (
                           <option key={idx} value={opt.value}>
@@ -443,7 +443,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                           </option>
                         ))}
                       </select>
-                      <div className={`absolute inset-y-0 ${isAr ? 'left-4' : 'right-4'} flex items-center pointer-events-none text-gray-400`}>
+                      <div className={`absolute inset-y-0 ${isAr ? 'left-4' : 'right-4'} flex items-center pointer-events-none text-fg-muted`}>
                         ▼
                       </div>
                     </div>
@@ -452,7 +452,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
                 {/* STEP 3 — Duration */}
                 <div className="space-y-3">
-                  <label className="text-xs lg:text-sm font-extrabold text-gray-900 flex items-center gap-1.5 border-b border-gray-100 pb-1">
+                  <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5 border-b border-line pb-1">
                     <span className="text-[#FF6B00]">③</span> 
                     {isAr ? 'مدة صلاحية المزاد' : 'Auction Duration'}
                   </label>
@@ -468,7 +468,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                           className={`py-3.5 px-1 md:px-2 rounded-xl text-[10px] md:text-[11px] font-bold transition-all text-center border cursor-pointer ${
                             isSelected 
                               ? 'bg-[#FF6B00] border-transparent text-white shadow-sm' 
-                              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                              : 'bg-surface-raised border-line text-fg-muted hover:border-line'
                           }`}
                         >
                           {opt.label}
@@ -481,7 +481,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
               {/* Wave 4 — required ownership + legality attestation */}
               <label
-                className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-xl p-3.5 cursor-pointer select-none"
+                className="flex items-start gap-2.5 bg-surface-sunken border border-line rounded-xl p-3.5 cursor-pointer select-none"
                 id="wizard-ownership-attestation"
               >
                 <input
@@ -490,7 +490,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                   onChange={(e) => setOwnershipAttested(e.target.checked)}
                   className="mt-0.5 w-4 h-4 shrink-0 accent-[#FF6B00] cursor-pointer"
                 />
-                <span className="text-[11px] font-bold text-gray-700 leading-relaxed">
+                <span className="text-[11px] font-bold text-fg leading-relaxed">
                   {isAr
                     ? 'أُقرّ بأن هذا الغرض ملكي وقانوني للبيع في الأردن'
                     : 'I confirm I own this item and it is legal to sell in Jordan.'}

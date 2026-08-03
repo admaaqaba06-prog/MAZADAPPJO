@@ -199,7 +199,7 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="bg-white border border-[#E5E5E5] rounded-2xl p-5 flex flex-col shadow-md transition-all overflow-hidden font-sans relative" dir="rtl" id="admin-sidebar-curation-panel">
+    <div className="bg-surface-raised border border-line rounded-2xl p-5 flex flex-col shadow-md transition-all overflow-hidden font-sans relative" dir="rtl" id="admin-sidebar-curation-panel">
       
       {/* Toast Alert overlay */}
       {toastMessage && (
@@ -213,7 +213,7 @@ export const AdminPanel: React.FC = () => {
       <div className="flex gap-1.5 p-1 bg-zinc-100 rounded-xl mb-4 text-xs font-bold">
         <button
           onClick={() => setActiveTab('auctions')}
-          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auctions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auctions' ? 'bg-surface-raised text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
         >
           <Film className="w-3.5 h-3.5 text-[#FF6B00]" />
           <span>{isAr ? 'المعروضات المعلقة' : 'Pending Reels'}</span>
@@ -226,7 +226,7 @@ export const AdminPanel: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('subscriptions')}
-          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'subscriptions' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+          className={`flex-1 py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'subscriptions' ? 'bg-surface-raised text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
         >
           <User className="w-3.5 h-3.5 text-[#FF6B00]" />
           <span>{isAr ? 'الاشتراكات' : 'Subscriptions'}</span>
@@ -320,7 +320,7 @@ export const AdminPanel: React.FC = () => {
                         setRejectingId(item.id);
                         setRejectionReason('');
                       }}
-                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-gray-200 flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-[10.5px] py-1.5 rounded-xl transition-all border border-line flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                       {isAr ? 'رفض' : 'REJECT'}
@@ -350,7 +350,7 @@ export const AdminPanel: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="bg-white border border-zinc-200 p-2.5 rounded-xl text-[11px] space-y-1">
+                <div className="bg-surface-raised border border-zinc-200 p-2.5 rounded-xl text-[11px] space-y-1">
                   <div>
                     <span className="font-extrabold text-zinc-500">{isAr ? 'اسم المحول: ' : 'Transfer Name: '}</span>
                     <span className="font-bold text-zinc-900">{u.transferFullName || 'N/A'}</span>
@@ -361,7 +361,7 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="w-full rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                <div className="w-full rounded-xl overflow-hidden border border-zinc-200 bg-surface-raised">
                   <img 
                     src={u.paymentProofImage} 
                     alt={isAr ? 'إيصال الدفع' : 'Payment Proof'} 

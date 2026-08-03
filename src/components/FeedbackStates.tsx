@@ -16,7 +16,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({ className = '' }) => {
 
 export const AuctionCardSkeleton: React.FC = () => {
   return (
-    <div className="flex flex-col space-y-3 p-3 bg-white border border-gray-100 rounded-3xl shadow-xs" id="auction-card-skeleton">
+    <div className="flex flex-col space-y-3 p-3 bg-surface-raised border border-line rounded-3xl shadow-xs" id="auction-card-skeleton">
       <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
       <div className="space-y-2 px-1">
         <Skeleton className="h-4 w-3/4" />
@@ -32,7 +32,7 @@ export const AuctionCardSkeleton: React.FC = () => {
 
 export const WalletRowSkeleton: React.FC = () => {
   return (
-    <div className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-xs" id="wallet-row-skeleton">
+    <div className="flex items-center justify-between p-4 bg-surface-raised border border-line rounded-2xl shadow-xs" id="wallet-row-skeleton">
       <div className="flex items-center gap-3">
         <Skeleton className="w-10 h-10 rounded-xl" />
         <div className="space-y-1.5">
@@ -49,7 +49,7 @@ export const AdminListSkeleton: React.FC = () => {
   return (
     <div className="space-y-3" id="admin-list-skeleton">
       {[1, 2, 3].map((n) => (
-        <div key={n} className="p-4 bg-white border border-gray-200 rounded-2xl flex items-center justify-between gap-4">
+        <div key={n} className="p-4 bg-surface-raised border border-line rounded-2xl flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
             <div className="space-y-1.5 min-w-0 flex-1">
@@ -87,7 +87,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const isAr = language === 'ar';
   return (
     <div 
-      className="text-center py-16 px-4 bg-white border border-dashed border-gray-200 rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+      className="text-center py-16 px-4 bg-surface-raised border border-dashed border-line rounded-3xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="feedback-empty-state"
     >
@@ -95,8 +95,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         {icon || <Inbox className="w-6 h-6 stroke-[1.5]" />}
       </div>
       <div className="space-y-1.5 max-w-sm">
-        <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">{title}</h3>
-        <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+        <h3 className="text-sm font-black text-fg uppercase tracking-tight">{title}</h3>
+        <p className="text-xs text-fg-muted leading-relaxed">{description}</p>
       </div>
       {actionText && onAction && (
         <button

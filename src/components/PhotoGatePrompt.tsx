@@ -35,7 +35,7 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
-        className="relative bg-white text-gray-900 w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
+        className="relative bg-surface-raised text-fg w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="photo-gate-modal"
         role="dialog"
@@ -46,7 +46,7 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
         <button
           onClick={onClose}
           aria-label={isAr ? 'إغلاق' : 'Close'}
-          className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100 text-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer z-10"
+          className="absolute top-4 right-4 p-1 rounded-full hover:bg-surface-sunken text-fg-muted min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer z-10"
         >
           <X className="w-5 h-5" />
         </button>
@@ -56,10 +56,10 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
           <div className="mx-auto w-11 h-11 rounded-full bg-orange-150 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-6 h-6 fill-current text-white stroke-[#FF6B00]" />
           </div>
-          <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+          <h2 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">
             {isAr ? 'أضِف صورتك عشان تزايد 📸' : 'Add your photo to bid 📸'}
           </h2>
-          <p className="text-xs text-gray-500 max-w-xs mx-auto leading-normal">
+          <p className="text-xs text-fg-muted max-w-xs mx-auto leading-normal">
             {isAr
               ? 'الصور الحقيقية تحافظ على ثقة مزادات مزاد — المشترون والبائعون يتعاملون مع أشخاص حقيقيين. أضِف صورتك لتزايد أو تبيع.'
               : "Real photos keep Mazad's auctions trustworthy — buyers and sellers deal with real people. Add yours to bid or sell."}
@@ -104,7 +104,7 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
 
         {/* Upload progress bar */}
         {uploading && (
-          <div className="mt-3 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+          <div className="mt-3 h-1.5 w-full bg-surface-sunken rounded-full overflow-hidden">
             <div
               className="h-full bg-[#FF6B00] transition-all duration-200"
               style={{ width: `${Math.max(4, Math.round(progress))}%` }}
@@ -121,7 +121,7 @@ export const PhotoGatePrompt: React.FC<PhotoGatePromptProps> = ({ onClose }) => 
         <button
           onClick={onClose}
           disabled={uploading}
-          className="w-full mt-3 text-[11px] font-semibold text-gray-400 hover:text-gray-700 underline underline-offset-2 decoration-gray-200 hover:decoration-gray-400 transition-colors cursor-pointer disabled:opacity-50"
+          className="w-full mt-3 text-[11px] font-semibold text-fg-muted hover:text-fg underline underline-offset-2 decoration-gray-200 hover:decoration-gray-400 transition-colors cursor-pointer disabled:opacity-50"
           id="photo-gate-not-now"
         >
           {isAr ? 'لاحقاً' : 'Not now'}

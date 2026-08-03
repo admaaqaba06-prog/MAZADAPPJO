@@ -347,7 +347,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
   return (
     <div
-      className="w-full h-full flex flex-col bg-white text-[#0A0A0A] font-alexandria"
+      className="w-full h-full flex flex-col bg-surface-raised text-fg font-alexandria"
       dir={isAr ? 'rtl' : 'ltr'}
       id="mobile-auction-view"
     >
@@ -369,24 +369,24 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
       {/* ================= STICKY TOP BAR ================= */}
       <div
-        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur-md border-b border-[#ECECEA]"
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-surface-raised/95 backdrop-blur-md border-b border-line"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
       >
         <button
           type="button"
           onClick={onClose}
-          className="w-9 h-9 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#333] active:scale-95 transition-transform cursor-pointer"
+          className="w-9 h-9 rounded-full bg-surface flex items-center justify-center text-fg active:scale-95 transition-transform cursor-pointer"
           aria-label={isAr ? 'إغلاق' : 'Close'}
         >
           <BackIcon className="w-5 h-5" />
         </button>
-        <span className="text-[11.5px] font-extrabold text-[#999] tracking-wide">
+        <span className="text-[11.5px] font-extrabold text-fg-muted tracking-wide">
           {isAr ? 'بث مباشر' : 'Live drop'}
         </span>
         <button
           type="button"
           onClick={onShareClick}
-          className="w-9 h-9 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#333] active:scale-95 transition-transform cursor-pointer"
+          className="w-9 h-9 rounded-full bg-surface flex items-center justify-center text-fg active:scale-95 transition-transform cursor-pointer"
           aria-label={isAr ? 'مشاركة' : 'Share'}
         >
           <Share2 className="w-4 h-4" />
@@ -417,7 +417,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
 
         {/* ----- TITLE + TRUST CHIPS ----- */}
         <div className="px-4 pt-4">
-          <h1 className="text-[19px] font-black tracking-tight text-[#0A0A0A] leading-tight">
+          <h1 className="text-[19px] font-black tracking-tight text-fg leading-tight">
             {activeAuction?.title}
           </h1>
           <div className="flex flex-wrap gap-1.5 mt-2">
@@ -428,12 +428,12 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
               </span>
             )}
             {categoryChip && (
-              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
+              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-surface text-fg-muted">
                 {categoryChip}
               </span>
             )}
             {conditionChip && (
-              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]">
+              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-surface text-fg-muted">
                 {conditionChip}
               </span>
             )}
@@ -445,7 +445,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
             {viewingChip && (
               <span
                 title={viewingChip.label}
-                className="inline-flex items-center gap-1 max-w-full text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#F7F7F7] text-[#444]"
+                className="inline-flex items-center gap-1 max-w-full text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-surface text-fg-muted"
               >
                 <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
                 <span className="truncate">{viewingChip.label}</span>
@@ -454,13 +454,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
           </div>
 
           {/* ----- BID BLOCK (one card) ----- */}
-          <div className="mt-3 border border-[#ECECEA] rounded-2xl p-3.5">
+          <div className="mt-3 border border-line rounded-2xl p-3.5">
             <div className="flex items-end justify-between">
               <div>
-                <span className="block text-[10px] font-bold text-[#999] uppercase tracking-wide">
+                <span className="block text-[10px] font-bold text-fg-muted uppercase tracking-wide">
                   {priceLabel(activeAuction?.totalBids, isAr)}
                 </span>
-                <div className="text-[24px] font-black text-[#0A0A0A] leading-none" dir="ltr">
+                <div className="text-[24px] font-black text-fg leading-none" dir="ltr">
                   {reduce ? (
                     Math.round(activePrice).toLocaleString('en-US')
                   ) : (
@@ -469,7 +469,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                       format={(n) => Math.round(n).toLocaleString('en-US')}
                     />
                   )}{' '}
-                  <small className="text-[12px] font-extrabold text-[#666]">
+                  <small className="text-[12px] font-extrabold text-fg-muted">
                     {isAr ? 'د.أ' : 'JOD'}
                   </small>
                 </div>
@@ -478,7 +478,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 {/* E3 first_bid: a clockless lot renders "Awaiting first bid"
                     in the value slot, so the label must NOT say "Ends in" —
                     same Status/الحالة swap DesktopLiveAuctionLayout uses. */}
-                <span className="block text-[10px] font-bold text-[#999] uppercase tracking-wide">
+                <span className="block text-[10px] font-bold text-fg-muted uppercase tracking-wide">
                   {isAwaitingFirstBid(activeAuction)
                     ? (isAr ? 'الحالة' : 'Status')
                     : (isAr ? 'ينتهي خلال' : 'Ends in')}
@@ -500,7 +500,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-[#ECECEA] text-[11px] font-semibold text-[#666]">
+            <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-line text-[11px] font-semibold text-fg-muted">
               <span dir="ltr">
                 🔥 {activeAuction?.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}
               </span>
@@ -525,13 +525,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
           </div>
 
           {/* Scroll cue toward the details/seller/chat sections below. */}
-          <div className="mt-3 text-[12px] font-bold text-[#999]">
+          <div className="mt-3 text-[12px] font-bold text-fg-muted">
             {isAr ? '▾ التفاصيل · البائع · المحادثة' : '▾ Details · Seller · Chat'}
           </div>
 
           {/* ----- DETAILS / SELLER (real fields only) ----- */}
           <section className="mt-4" id="mobile-auction-details">
-            <h2 className="text-[13px] font-black text-[#0A0A0A] tracking-tight">
+            <h2 className="text-[13px] font-black text-fg tracking-tight">
               {isAr ? 'التفاصيل' : 'Details'}
             </h2>
 
@@ -545,13 +545,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
               const text = String(activeAuction?.description || '').trim();
               if (!text || text === String(activeAuction?.title || '').trim()) return null;
               return (
-                <p className="mt-2 text-[13px] leading-relaxed text-[#444] whitespace-pre-line">
+                <p className="mt-2 text-[13px] leading-relaxed text-fg-muted whitespace-pre-line">
                   {text}
                 </p>
               );
             })()}
 
-            <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-[#ECECEA] text-[12px]">
+            <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-line text-[12px]">
               {conditionChip && (
                 <div className="flex items-center justify-between py-2.5">
                   {/* حالة المنتج, not الحالة: the price row above now labels the
@@ -559,15 +559,15 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                       one screen reading الحالة is ambiguous in Arabic. Matches
                       SellView's condition field (`حالة المنتج`) and the desktop
                       product row. English is unaffected. */}
-                  <dt className="font-bold text-[#999]">
+                  <dt className="font-bold text-fg-muted">
                     {isAr ? 'حالة المنتج' : 'Condition'}
                   </dt>
-                  <dd className="font-bold text-[#333]">{conditionChip}</dd>
+                  <dd className="font-bold text-fg">{conditionChip}</dd>
                 </div>
               )}
               <div className="flex items-center justify-between py-2.5">
-                <dt className="font-bold text-[#999]">{isAr ? 'المرجع' : 'Ref'}</dt>
-                <dd className="font-bold text-[#333] tabular-nums" dir="ltr">
+                <dt className="font-bold text-fg-muted">{isAr ? 'المرجع' : 'Ref'}</dt>
+                <dd className="font-bold text-fg tabular-nums" dir="ltr">
                   {activeAuction?.auctionNumber
                     ? `#${activeAuction.auctionNumber}`
                     : activeAuction?.id}
@@ -580,15 +580,15 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 open the modal only via an existing handler, else omit). Save uses
                 the shared onSaveToggle/isSaved props. */}
             {activeAuction?.sellerName && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#ECECEA] p-3">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-line p-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img
                     src={resolveAvatarUrl(activeAuction.sellerLogo, activeAuction.sellerId)}
                     alt=""
-                    className="w-9 h-9 rounded-full object-cover border border-[#ECECEA] shrink-0"
+                    className="w-9 h-9 rounded-full object-cover border border-line shrink-0"
                   />
                   <div className="min-w-0">
-                    <span className="block text-[12.5px] font-black text-[#0A0A0A] truncate leading-tight">
+                    <span className="block text-[12.5px] font-black text-fg truncate leading-tight">
                       {activeAuction.sellerName}
                     </span>
                     <span className="block text-[10px] font-bold text-[#F05123] leading-none mt-1">
@@ -599,13 +599,13 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 <button
                   type="button"
                   onClick={onSaveToggle}
-                  className="w-9 h-9 rounded-full bg-[#F7F7F7] flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer"
+                  className="w-9 h-9 rounded-full bg-surface flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer"
                   aria-label={isAr ? 'حفظ' : 'Save'}
                   aria-pressed={isSaved}
                 >
                   <Bookmark
                     className={`w-4 h-4 ${
-                      isSaved ? 'text-[#F05123] fill-[#F05123]' : 'text-[#333]'
+                      isSaved ? 'text-[#F05123] fill-[#F05123]' : 'text-fg'
                     }`}
                   />
                 </button>

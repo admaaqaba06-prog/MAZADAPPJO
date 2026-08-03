@@ -159,7 +159,7 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
           <img
             src={auction.thumbnailUrl}
             alt={auction.title}
-            className="w-11 h-11 rounded-xl object-cover border border-amber-200 bg-white shrink-0"
+            className="w-11 h-11 rounded-xl object-cover border border-amber-200 bg-surface-raised shrink-0"
             referrerPolicy="no-referrer"
           />
         ) : (
@@ -233,7 +233,7 @@ export const SecondChanceCard: React.FC<SecondChanceCardProps> = ({
               type="button"
               onClick={(e) => { e.stopPropagation(); run('decline'); }}
               disabled={busy !== null}
-              className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-gray-50 disabled:opacity-60 text-gray-700 border border-gray-200 font-black text-[11px] px-3.5 py-2.5 rounded-xl transition-all cursor-pointer active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1.5 bg-surface-raised hover:bg-surface-sunken disabled:opacity-60 text-fg border border-line font-black text-[11px] px-3.5 py-2.5 rounded-xl transition-all cursor-pointer active:scale-[0.98]"
               id={`second-chance-decline-${auction.id}`}
             >
               {busy === 'decline' ? (isAr ? 'جارٍ...' : 'Working...') : (isAr ? 'ارفض' : 'Decline')}

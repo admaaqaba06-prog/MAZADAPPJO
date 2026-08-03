@@ -66,11 +66,11 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4 animate-fadeIn"
+      className="bg-surface-raised border border-line rounded-2xl p-5 shadow-sm space-y-4 animate-fadeIn"
     >
       {/* Header: title + warning chips */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <h4 className="font-extrabold text-sm text-gray-900 leading-snug min-w-0">{title}</h4>
+        <h4 className="font-extrabold text-sm text-fg leading-snug min-w-0">{title}</h4>
         <div className="flex items-center gap-1.5 shrink-0">
           {amountMismatch && (
             <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-bold px-2.5 py-0.5 whitespace-nowrap">
@@ -95,43 +95,43 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
         <img
           src={receiptUrl}
           alt={isAr ? 'إيصال الدفع' : 'Payment receipt'}
-          className="w-full max-h-72 object-contain rounded-xl border border-gray-200 bg-gray-50 cursor-zoom-in transition-transform hover:scale-[1.01]"
+          className="w-full max-h-72 object-contain rounded-xl border border-line bg-surface-sunken cursor-zoom-in transition-transform hover:scale-[1.01]"
           onClick={() => setZoomOpen(true)}
         />
       ) : (
-        <div className="text-xs text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center">
+        <div className="text-xs text-fg-muted bg-surface-sunken border border-dashed border-line rounded-xl p-6 text-center">
           {isAr ? 'لا يوجد إيصال مرفق' : 'No receipt attached'}
         </div>
       )}
 
       {/* Amount + payer */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+      <div className="bg-surface-sunken border border-line rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase">
+          <p className="text-[10px] text-fg-muted font-bold uppercase">
             {isAr ? 'المبلغ المتوقع' : 'Expected amount'}
           </p>
-          <p className="text-2xl font-mono font-black text-gray-900 leading-tight">
+          <p className="text-2xl font-mono font-black text-fg leading-tight">
             {expectedAmountJod}
-            <span className="text-xs font-bold text-gray-500 mx-1">{isAr ? 'د.أ' : 'JOD'}</span>
+            <span className="text-xs font-bold text-fg-muted mx-1">{isAr ? 'د.أ' : 'JOD'}</span>
           </p>
         </div>
         <div className={isAr ? 'text-left' : 'text-right'}>
-          <p className="text-xs font-bold text-gray-800">{payerName}</p>
-          {payerPhone && <p className="text-[11px] text-gray-500 font-mono mt-0.5" dir="ltr">{payerPhone}</p>}
+          <p className="text-xs font-bold text-fg">{payerName}</p>
+          {payerPhone && <p className="text-[11px] text-fg-muted font-mono mt-0.5" dir="ltr">{payerPhone}</p>}
           {/* E1 — the number the CliQ money is coming FROM (may differ from the
               account/delivery phone; used to match the incoming transfer). */}
           {cliqSenderPhone && (
             <p className="text-[10px] text-[#FF6B00] font-mono font-bold mt-1">
-              <span className="text-gray-400 font-semibold">{isAr ? 'مُرسِل كليك:' : 'CliQ from:'}</span>{' '}
+              <span className="text-fg-muted font-semibold">{isAr ? 'مُرسِل كليك:' : 'CliQ from:'}</span>{' '}
               <span dir="ltr">{cliqSenderPhone}</span>
             </p>
           )}
           {/* Wave 1 — CliQ transaction reference (server-written). Muted dash
               for legacy orders that predate the reference. */}
           <p className="text-[10px] font-mono font-bold mt-1">
-            <span className="text-gray-400 font-semibold">{isAr ? 'المرجع / رقم العملية:' : 'Reference:'}</span>{' '}
+            <span className="text-fg-muted font-semibold">{isAr ? 'المرجع / رقم العملية:' : 'Reference:'}</span>{' '}
             {txnRef ? (
-              <span className="text-gray-800" dir="ltr">{txnRef}</span>
+              <span className="text-fg" dir="ltr">{txnRef}</span>
             ) : (
               <span className="text-gray-300 font-semibold">{isAr ? '—' : 'not provided'}</span>
             )}
@@ -163,7 +163,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           className={`font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs min-w-[120px] transition-all ${
             canApprove
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-gray-300 text-fg-muted cursor-not-allowed'
           }`}
         >
           {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : approveLabel}
@@ -173,7 +173,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           onClick={() => setRejecting(r => !r)}
           className={`font-bold text-xs px-4 py-2 rounded-xl min-w-[100px] border transition-all ${
             busy
-              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+              ? 'bg-surface-sunken text-fg-muted border-line cursor-not-allowed'
               : 'bg-red-50 hover:bg-red-100 text-red-650 border-red-100 cursor-pointer'
           }`}
         >
@@ -198,7 +198,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
                   className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
                     reason === label
                       ? 'bg-red-600 text-white border-red-600'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-red-200'
+                      : 'bg-surface-raised text-fg border-line hover:border-red-200'
                   }`}
                 >
                   {label}
@@ -211,7 +211,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
             value={reason}
             onChange={e => setReason(e.target.value)}
             placeholder={isAr ? 'أو اكتب سبباً آخر…' : 'Or type another reason…'}
-            className="w-full text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-red-300"
+            className="w-full text-xs border border-line rounded-xl px-3 py-2 bg-surface-raised focus:outline-none focus:border-red-300"
           />
           <div className="flex items-center gap-2">
             <button
@@ -220,7 +220,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
               className={`font-extrabold text-xs px-4 py-2 rounded-xl transition-all ${
                 canConfirmReject
                   ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-200 text-fg-muted cursor-not-allowed'
               }`}
             >
               {busy ? (isAr ? BUSY_LABEL.ar : BUSY_LABEL.en) : (isAr ? 'تأكيد الرفض' : 'Confirm reject')}
@@ -228,7 +228,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
             <button
               type="button"
               onClick={() => { setRejecting(false); setReason(''); }}
-              className="text-xs font-bold text-gray-500 hover:text-gray-700 px-2 py-2 cursor-pointer"
+              className="text-xs font-bold text-fg-muted hover:text-fg px-2 py-2 cursor-pointer"
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </button>

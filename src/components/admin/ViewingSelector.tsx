@@ -58,7 +58,7 @@ export const ViewingSelector: React.FC<ViewingSelectorProps> = ({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span id={labelId} className="text-[10px] font-bold text-gray-400 uppercase">
+      <span id={labelId} className="text-[10px] font-bold text-fg-muted uppercase">
         {isAr ? 'المعاينة (اختياري)' : 'Viewing (optional)'}
         {/* Toggle-to-clear is the mis-click escape hatch and the way back to the
             load-bearing "not stated" default; nothing else on screen says so. */}
@@ -78,7 +78,7 @@ export const ViewingSelector: React.FC<ViewingSelectorProps> = ({
             className={`flex-1 text-[10px] font-bold py-1.5 rounded-lg border transition-all ${
               value === opt.id
                 ? accentClass
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                : 'bg-surface-raised text-fg-muted border-line hover:bg-surface-sunken'
             }`}
           >
             {isAr ? opt.ar : opt.en}
@@ -94,7 +94,7 @@ export const ViewingSelector: React.FC<ViewingSelectorProps> = ({
           // The place is rendered inline into the buyer-facing viewing label, so
           // an unbounded paste would blow out that line on the auction page.
           maxLength={PLACE_MAX_LENGTH}
-          className={`w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 outline-none ${focusClass}`}
+          className={`w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-line outline-none ${focusClass}`}
         />
       )}
     </div>

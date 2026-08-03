@@ -100,12 +100,12 @@ export const StarRating: React.FC<StarRatingProps> = ({
         );
       })}
       {showValue && (
-        <span className="ml-1 text-xs font-black text-gray-700 tabular-nums">
+        <span className="ml-1 text-xs font-black text-fg tabular-nums">
           {rounded.toFixed(1)}
         </span>
       )}
       {typeof count === 'number' && (
-        <span className="ml-0.5 text-[10px] font-bold text-gray-400 tabular-nums">
+        <span className="ml-0.5 text-[10px] font-bold text-fg-muted tabular-nums">
           ({count})
         </span>
       )}

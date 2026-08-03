@@ -167,7 +167,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
               badge would not read as a state. */}
           {d.status === 'live' && !awaitingFirstBid && (
             <div className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
-              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+              <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-pulse"></span>
               <span>{isAr ? 'مباشر' : 'LIVE'}</span>
             </div>
           )}
@@ -631,7 +631,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-[#F7F6F3] pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans"
+      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface pb-[calc(6rem+env(safe-area-inset-bottom))] overscroll-contain select-none font-sans"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="discovery-feed-root"
     >
@@ -641,10 +641,10 @@ export const DiscoveryFeedView: React.FC = () => {
           affect the sticky wrapper being first-in-flow there. Scrolls away;
           only the filter row below pins. */}
       <div className="hidden lg:block mt-2 mb-3" id="discover-desktop-header">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+        <h1 className="text-2xl font-black text-fg tracking-tight">
           {isAr ? 'اكتشف المزادات الحية والنشطة' : 'Discover Live Drops'}
         </h1>
-        <p className="text-xs text-gray-500 font-medium mt-1">
+        <p className="text-xs text-fg-muted font-medium mt-1">
           {isAr
             ? 'تصفح وشارك في مزادات فيديو حية. ادفع عبر كليك ومزاد بيحتفظ بمبلغك حتى تأكيد الاستلام.'
             : 'Browse and bid in real-time video drops. Pay via CliQ — Mazad holds your payment until you confirm receipt.'}
@@ -656,7 +656,7 @@ export const DiscoveryFeedView: React.FC = () => {
           two independent `sticky top-0` siblings would overlap instead of stack.
           Translucent page-bg + blur so it reads as part of the page, not a
           detached white slab; hairline only on the bottom edge. */}
-      <div className="sticky top-0 z-40 bg-[#F7F6F3]/90 backdrop-blur-md border-b border-gray-200/60" id="discover-sticky-header">
+      <div className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-line/60" id="discover-sticky-header">
         {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
         <div className="p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-2">
@@ -675,7 +675,7 @@ export const DiscoveryFeedView: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="px-2.5 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-[11px] font-bold text-gray-700 font-sans transition-all shrink-0"
+              className="px-2.5 py-1.5 border border-line hover:bg-surface-sunken rounded-xl text-[11px] font-bold text-fg font-sans transition-all shrink-0"
               id="discover-lang-btn"
             >
               {language === 'en' ? 'العربية' : 'EN'}
@@ -683,7 +683,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
             <button
               onClick={() => setShowNotifications(true)}
-              className="relative p-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+              className="relative p-2 border border-line hover:bg-surface-sunken text-fg-muted rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
               title={isAr ? 'الإشعارات' : 'Notifications'}
               id="mobile-header-bell"
             >
@@ -718,9 +718,9 @@ export const DiscoveryFeedView: React.FC = () => {
               placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full bg-white border border-gray-200/80 shadow-xs rounded-[18px] py-3 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-gray-900 placeholder-gray-450 focus:outline-none focus:border-[#E85D04]/40 transition-all font-sans`}
+              className={`w-full bg-surface-raised border border-line/80 shadow-xs rounded-[18px] py-3 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-fg placeholder-gray-450 focus:outline-none focus:border-[#E85D04]/40 transition-all font-sans`}
             />
-            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-3.5 w-4.5 h-4.5 text-gray-400`} />
+            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-3.5 w-4.5 h-4.5 text-fg-muted`} />
           </div>
 
           {/* Elegant Horizontal Categories Carousel */}
@@ -731,7 +731,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 <button
                   key={cat.name}
                   onClick={() => setSelectedCategory(cat.name)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs' : 'bg-white text-gray-700 border-gray-200/80 hover:bg-gray-50'}`}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs' : 'bg-surface-raised text-fg border-line/80 hover:bg-surface-sunken'}`}
                 >
                   {cat.icon}
                   <span>{isAr ? cat.arName : cat.name}</span>
@@ -764,7 +764,7 @@ export const DiscoveryFeedView: React.FC = () => {
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-orange-100">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-200 opacity-80" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-surface-raised" />
               </span>
               🔥 {isAr ? 'الأكثر تفاعلاً الآن' : 'Hottest right now'}
             </span>
@@ -773,7 +773,7 @@ export const DiscoveryFeedView: React.FC = () => {
               {isAr ? 'العطاء الحالي' : 'Current bid'} {(hottestAuction.currentPrice || 0).toLocaleString()} {isAr ? 'د.أ' : 'JOD'} · {hottestAuction.totalBids} {isAr ? 'مزايدة' : 'bids'}
             </span>
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 transition-colors">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-surface-raised/20 hover:bg-surface-raised/30 rounded-lg px-2.5 py-1 transition-colors">
             <Play className="w-3 h-3 fill-white" />
             <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
           </span>
@@ -790,7 +790,7 @@ export const DiscoveryFeedView: React.FC = () => {
           <span className="flex items-center gap-2 min-w-0">
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-200 opacity-80"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-surface-raised"></span>
             </span>
             <span className="text-xs font-bold tracking-tight truncate">
               {isAr
@@ -798,7 +798,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 : `Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
             </span>
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-0.5 transition-colors">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-surface-raised/20 hover:bg-surface-raised/30 rounded-lg px-2.5 py-0.5 transition-colors">
             <Play className="w-3 h-3 fill-white" />
             <span>{isAr ? 'مشاهدة' : 'Watch'}</span>
           </span>
@@ -821,7 +821,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 {isAr ? 'بع — مباشر.' : 'Sell — Live.'}
               </h2>
             </div>
-            <p className="text-[11px] text-gray-400 mt-2 font-sans font-medium">
+            <p className="text-[11px] text-fg-muted mt-2 font-sans font-medium">
               {isAr ? 'مزادات فورية — مزاد يحتفظ بمبلغك حتى تستلم القطعة وتؤكّد.' : 'Real-time auctions — Mazad holds your payment until you confirm receipt.'}
             </p>
 
@@ -838,7 +838,7 @@ export const DiscoveryFeedView: React.FC = () => {
             ) : (
               <button
                 onClick={() => document.getElementById('discover-feed-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="mt-4 self-start px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                className="mt-4 self-start px-4 py-2.5 bg-surface-raised/10 hover:bg-surface-raised/15 border border-white/15 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                 id="mobile-hero-browse-cta"
               >
                 <ArrowDown className="w-3.5 h-3.5" />
@@ -859,7 +859,7 @@ export const DiscoveryFeedView: React.FC = () => {
             id="join-funnel-banner"
           >
             <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-gray-800 leading-snug">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-fg leading-snug">
                 <span className="flex items-center gap-1">
                   <span className="text-[#FF6B00] font-black">①</span>
                   {isAr ? 'انضم من ١ دينار بالشهر' : 'Join from 1 JD/mo'}
@@ -909,7 +909,7 @@ export const DiscoveryFeedView: React.FC = () => {
         return (
           <div className="mx-4 mb-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-md flex items-center justify-between gap-4 animate-in fade-in duration-300">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0 animate-bounce">🎉</div>
+              <div className="w-10 h-10 rounded-full bg-surface-raised/20 flex items-center justify-center text-xl shrink-0 animate-bounce">🎉</div>
               <div className="text-right rtl:text-right">
                 <h4 className="font-black text-xs text-white uppercase tracking-wide">
                   {isAr ? 'مبروك 🎉 ربحت المزاد!' : 'CONGRATULATIONS! YOU WON THE AUCTION!'}
@@ -926,7 +926,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 }
                 setActiveView('orders');
               }}
-              className="bg-white text-emerald-800 hover:bg-emerald-50 px-4 py-2 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all shrink-0"
+              className="bg-surface-raised text-emerald-800 hover:bg-emerald-50 px-4 py-2 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all shrink-0"
             >
               {isAr ? 'عرض الطلب' : 'View Order'}
             </button>
@@ -962,17 +962,17 @@ export const DiscoveryFeedView: React.FC = () => {
                  brand; bilingual/RTL. */
               <div className="min-h-[58vh] flex items-center justify-center">
                 <div
-                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
                   style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   id="discover-search-error"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                  <div className="w-12 h-12 rounded-2xl bg-surface-sunken border border-line flex items-center justify-center text-fg-muted">
                     <Search className="w-6 h-6 stroke-[1.5]" />
                   </div>
-                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                  <h3 className="text-sm font-black text-fg tracking-tight">
                     {isAr ? 'البحث غير متاح مؤقتاً' : 'Search is temporarily unavailable'}
                   </h3>
-                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                  <p className="text-xs text-fg-muted leading-relaxed max-w-sm">
                     {isAr
                       ? 'صار خلل بسيط بالبحث. جرّب مرة ثانية بعد لحظات.'
                       : 'Something went wrong with search. Please try again in a moment.'}
@@ -982,19 +982,19 @@ export const DiscoveryFeedView: React.FC = () => {
             ) : searchMode.results.length === 0 ? (
               <div className="min-h-[58vh] flex items-center justify-center">
                 <div
-                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
+                  className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-3 max-w-lg mx-auto"
                   style={{ direction: isAr ? 'rtl' : 'ltr' }}
                   id="discover-search-empty"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                  <div className="w-12 h-12 rounded-2xl bg-surface-sunken border border-line flex items-center justify-center text-fg-muted">
                     <Search className="w-6 h-6 stroke-[1.5]" />
                   </div>
-                  <h3 className="text-sm font-black text-gray-900 tracking-tight">
+                  <h3 className="text-sm font-black text-fg tracking-tight">
                     {isAr
                       ? `لا نتائج لـ "${searchTerm.trim()}"`
                       : `No matches for "${searchTerm.trim()}"`}
                   </h3>
-                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
+                  <p className="text-xs text-fg-muted leading-relaxed max-w-sm">
                     {isAr
                       ? 'جرّب كلمة أبسط أو غيّر الفئة.'
                       : 'Try a simpler word or a different category.'}
@@ -1003,7 +1003,7 @@ export const DiscoveryFeedView: React.FC = () => {
               </div>
             ) : (
               <>
-                <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider" id="discover-search-count">
+                <p className="text-[11px] font-extrabold text-fg-muted uppercase tracking-wider" id="discover-search-count">
                   {isAr
                     ? `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'نتيجة' : 'نتيجة'}`
                     : `${searchMode.nbHits} ${searchMode.nbHits === 1 ? 'result' : 'results'}`}
@@ -1054,7 +1054,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <section id="live-now-section">
                 <div className="flex items-center gap-2 mb-3">
                   <Flame className="w-4 h-4 text-[#E85D04] fill-[#E85D04] animate-pulse" />
-                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                  <h2 className="text-sm font-black text-fg uppercase tracking-tight">
                     {isAr ? 'مباشر الآن' : 'Live now'}
                   </h2>
                   <span className="text-[10px] font-mono font-black bg-red-600 text-white px-2 py-0.5 rounded-full">
@@ -1098,7 +1098,7 @@ export const DiscoveryFeedView: React.FC = () => {
               <section id="be-the-first-section">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                  <h2 className="text-sm font-black text-fg uppercase tracking-tight">
                     {isAr ? 'كن أول مزايد' : 'Be the first'}
                   </h2>
                   <span className="text-[10px] font-mono font-black bg-amber-400 text-zinc-900 px-2 py-0.5 rounded-full">
@@ -1161,11 +1161,11 @@ export const DiscoveryFeedView: React.FC = () => {
             {upcomingList.length > 0 && (
               <section id="upcoming-drops-section">
                 <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                  <Calendar className="w-4 h-4 text-fg-muted" />
+                  <h2 className="text-sm font-black text-fg uppercase tracking-tight">
                     {isAr ? 'مواعيد قادمة' : 'Upcoming drops'}
                   </h2>
-                  <span className="text-[10px] font-mono font-black bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-mono font-black bg-gray-200 text-fg-muted px-2 py-0.5 rounded-full">
                     {upcomingList.length}
                   </span>
                 </div>
@@ -1206,7 +1206,7 @@ export const DiscoveryFeedView: React.FC = () => {
              into the middle of the feed area instead of pinning it to the top). */
           <div className="min-h-[58vh] flex items-center justify-center">
           <div
-            className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-gray-200 rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
+            className="w-full text-center py-16 px-6 bg-gradient-to-b from-white to-orange-50/30 border border-line rounded-2xl shadow-xs flex flex-col items-center justify-center space-y-4 max-w-lg mx-auto"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="feedback-empty-state"
           >
@@ -1214,11 +1214,11 @@ export const DiscoveryFeedView: React.FC = () => {
               <Flame className="w-6 h-6 stroke-[1.5]" />
             </div>
             <div className="space-y-1.5 max-w-sm">
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+              <h3 className="text-sm font-black text-fg uppercase tracking-tight">
                 {isAr ? 'المزادات القوية جاية 🔥' : 'Strong auctions are coming 🔥'}
               </h3>
               {upcomingPreview.length === 0 && (
-                <p className="text-xs text-gray-400 leading-relaxed">
+                <p className="text-xs text-fg-muted leading-relaxed">
                   {isAr
                     ? 'المزادات تُعلن يومياً — انضم اليوم وكن جاهزاً لأول مزاد.'
                     : 'Auctions are announced daily — join today and be ready for the next drop.'}
@@ -1229,16 +1229,16 @@ export const DiscoveryFeedView: React.FC = () => {
             {/* Next-drops inline preview: keeps the quiet feed on-platform */}
             {upcomingPreview.length > 0 && (
               <div className="w-full max-w-sm space-y-1.5" id="empty-state-upcoming-preview">
-                <span className="block text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                <span className="block text-[10px] font-extrabold text-fg-muted uppercase tracking-wider">
                   {isAr ? 'المواعيد القادمة' : 'Next drops'}
                 </span>
                 {upcomingPreview.map(item => (
                   <button
                     key={item.id}
                     onClick={() => setSelectedLotId(item.id)}
-                    className="w-full flex items-center justify-between gap-2 bg-gray-50 hover:bg-orange-50/60 border border-gray-100 rounded-xl px-3 py-2 transition-colors cursor-pointer text-start"
+                    className="w-full flex items-center justify-between gap-2 bg-surface-sunken hover:bg-orange-50/60 border border-line rounded-xl px-3 py-2 transition-colors cursor-pointer text-start"
                   >
-                    <span className="text-xs font-bold text-gray-800 truncate">{item.title}</span>
+                    <span className="text-xs font-bold text-fg truncate">{item.title}</span>
                     <span className="text-[10px] font-mono font-bold text-[#FF6B00] shrink-0 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatUpcomingWhen(item)}
@@ -1253,7 +1253,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 Otherwise 3 qualitative trust chips. Never fabricated. */}
             {recentWins.length > 0 ? (
               <div className="w-full max-w-sm space-y-1.5" id="empty-state-recent-wins">
-                <span className="block text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                <span className="block text-[10px] font-extrabold text-fg-muted uppercase tracking-wider">
                   {isAr ? 'أحدث الفائزين' : 'Recent wins'}
                 </span>
                 {recentWins.slice(0, 3).map((w, i) => (
@@ -1264,7 +1264,7 @@ export const DiscoveryFeedView: React.FC = () => {
                     transition={{ duration: 0.25, ease: 'easeOut', delay: i * 0.05 }}
                     className="w-full flex items-center justify-between gap-2 bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2 text-start"
                   >
-                    <span className="text-xs font-bold text-gray-800 truncate flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs font-bold text-fg truncate flex items-center gap-1.5 min-w-0">
                       <Trophy className="w-3 h-3 text-emerald-600 shrink-0" />
                       <span className="truncate">
                         {isAr
@@ -1327,7 +1327,7 @@ export const DiscoveryFeedView: React.FC = () => {
             {/* WhatsApp demoted to a secondary text link */}
             <button
               onClick={() => window.open(WHATSAPP_URL, '_blank', 'noopener,noreferrer')}
-              className="text-[11px] font-semibold text-gray-400 hover:text-emerald-600 underline underline-offset-2 decoration-gray-200 hover:decoration-emerald-400 transition-colors cursor-pointer flex items-center gap-1"
+              className="text-[11px] font-semibold text-fg-muted hover:text-emerald-600 underline underline-offset-2 decoration-gray-200 hover:decoration-emerald-400 transition-colors cursor-pointer flex items-center gap-1"
               id="empty-state-whatsapp-link"
             >
               <MessageCircle className="w-3 h-3" />
@@ -1343,7 +1343,7 @@ export const DiscoveryFeedView: React.FC = () => {
         <button
           type="button"
           onClick={() => setRulesOpen(true)}
-          className="text-[11px] font-bold text-gray-400 hover:text-[#FF6B00] underline underline-offset-2 decoration-gray-200 hover:decoration-[#FF6B00] transition-colors cursor-pointer"
+          className="text-[11px] font-bold text-fg-muted hover:text-[#FF6B00] underline underline-offset-2 decoration-gray-200 hover:decoration-[#FF6B00] transition-colors cursor-pointer"
           id="discover-footer-auction-rules-link"
         >
           {isAr ? 'قواعد المزاد' : 'Auction Rules'}

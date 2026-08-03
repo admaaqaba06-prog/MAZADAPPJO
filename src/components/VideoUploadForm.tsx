@@ -170,7 +170,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
   return (
     <div id="video-upload-container" className="w-full">
       {/* Tabs */}
-      <div className="flex border-b border-gray-100 mb-4 bg-gray-50 p-1 rounded-xl gap-1">
+      <div className="flex border-b border-line mb-4 bg-surface-sunken p-1 rounded-xl gap-1">
         <button
           type="button"
           onClick={() => {
@@ -179,8 +179,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
           disabled={!!videoUrl}
           className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'upload'
-              ? 'bg-white text-[#FF6B00] shadow-sm'
-              : 'text-gray-500 hover:text-gray-900 disabled:opacity-50'
+              ? 'bg-surface-raised text-[#FF6B00] shadow-sm'
+              : 'text-fg-muted hover:text-fg disabled:opacity-50'
           }`}
         >
           <UploadCloud className="w-3.5 h-3.5" />
@@ -194,8 +194,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
           disabled={!!videoUrl}
           className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'url'
-              ? 'bg-white text-[#FF6B00] shadow-sm'
-              : 'text-gray-500 hover:text-gray-900 disabled:opacity-50'
+              ? 'bg-surface-raised text-[#FF6B00] shadow-sm'
+              : 'text-fg-muted hover:text-fg disabled:opacity-50'
           }`}
         >
           <Link2 className="w-3.5 h-3.5" />
@@ -228,8 +228,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
       />
 
       {videoUrl ? (
-        <div className="space-y-3" id="video-preview-wrapper bg-white">
-          <div className="w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-black relative max-h-[220px] flex items-center justify-center">
+        <div className="space-y-3" id="video-preview-wrapper bg-surface-raised">
+          <div className="w-full rounded-2xl overflow-hidden border border-line shadow-sm bg-black relative max-h-[220px] flex items-center justify-center">
             <video
               src={videoUrl}
               controls
@@ -240,12 +240,12 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
           </div>
 
           {fileDetails && (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-surface-sunken p-3.5 rounded-xl border border-line">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-gray-800 truncate font-mono" title={fileDetails.name}>
+                <p className="text-xs font-black text-fg truncate font-mono" title={fileDetails.name}>
                   {fileDetails.name}
                 </p>
-                <p className="text-[10px] text-gray-400 font-mono font-bold mt-0.5">
+                <p className="text-[10px] text-fg-muted font-mono font-bold mt-0.5">
                   {isAr ? 'المصدر' : 'Source'}: {videoFile ? (isAr ? 'ملف محلي' : 'Local File') : (isAr ? 'رابط ويب' : 'Web Link')}
                 </p>
               </div>
@@ -274,16 +274,16 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
                   <p className="text-sm font-black text-[#FF6B00] tracking-tight">
                     {isAr ? 'اضغط لرفع فيديو المنتج' : 'Click to upload product video'}
                   </p>
-                  <p className="text-xs text-gray-400 font-bold">
+                  <p className="text-xs text-fg-muted font-bold">
                     {isAr ? 'يجب أن يكون الملف بصيغة مدعومة (MP4, MOV, WEBM) بحجم أقصى 100 ميجابايت' : 'Supported formats (MP4, MOV, WEBM) up to 100MB'}
                   </p>
                 </div>
               </div>
             </label>
           ) : (
-            <form onSubmit={handleUrlSubmit} className="space-y-3 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm">
+            <form onSubmit={handleUrlSubmit} className="space-y-3 p-4 border border-line rounded-2xl bg-surface-raised shadow-sm">
               <div className="space-y-1">
-                <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                <label className="text-[11px] font-black text-fg uppercase tracking-wide block">
                   {isAr ? 'أدخل رابط الفيديو المباشر من الويب' : 'Enter Direct Web Video URL'}
                 </label>
                 <input
@@ -292,7 +292,7 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
                   value={inputUrl}
                   onChange={(e) => setInputUrl(e.target.value)}
                   placeholder="https://example.com/my-video.mp4"
-                  className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 text-xs font-semibold placeholder-gray-400 focus:border-[#FF6B00] outline-none transition-all"
+                  className="w-full h-10 px-3 bg-surface-sunken border border-line rounded-xl text-fg text-xs font-semibold placeholder-gray-400 focus:border-[#FF6B00] outline-none transition-all"
                 />
               </div>
               <button

@@ -9,8 +9,8 @@ export const SellWithUsView: React.FC = () => {
   const isAr = language === 'ar';
 
   return (
-    <div className="min-h-full flex-grow flex items-center justify-center p-6 font-sans bg-[#F7F6F3]" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className="max-w-md w-full bg-white border border-gray-200/80 rounded-3xl shadow-sm p-8 text-center space-y-5 animate-in fade-in duration-300">
+    <div className="min-h-full flex-grow flex items-center justify-center p-6 font-sans bg-surface" dir={isAr ? 'rtl' : 'ltr'}>
+      <div className="max-w-md w-full bg-surface-raised border border-line/80 rounded-3xl shadow-sm p-8 text-center space-y-5 animate-in fade-in duration-300">
         <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
           <ShieldCheck className="w-7 h-7 text-[#FF6B00]" />
         </div>
@@ -19,7 +19,7 @@ export const SellWithUsView: React.FC = () => {
           {isAr ? 'بيع معنا 🤝' : 'Sell with us 🤝'}
         </h1>
 
-        <p className="text-sm text-gray-500 font-medium leading-relaxed">
+        <p className="text-sm text-fg-muted font-medium leading-relaxed">
           {isAr
             ? 'فريقنا بساعدك تجهّز منتجك وتعرضه — تواصل معنا على واتساب ونرتب لك كل شي.'
             : "Our team helps you prepare and list your product — message us on WhatsApp and we'll handle everything."}

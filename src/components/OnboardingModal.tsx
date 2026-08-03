@@ -100,7 +100,7 @@ export const OnboardingModal: React.FC = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="relative w-full max-w-md overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-2xl flex flex-col"
+          className="relative w-full max-w-md overflow-hidden bg-surface-raised rounded-3xl border border-slate-100 shadow-2xl flex flex-col"
           id="onboarding-card"
         >
           {/* Header Progress and Skip / Language toggle */}

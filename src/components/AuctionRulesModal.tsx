@@ -36,7 +36,7 @@ export default function AuctionRulesModal({ isOpen, onClose, isAr }: AuctionRule
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
-        className="bg-white border border-[#E5E5E5] rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] font-sans"
+        className="bg-surface-raised border border-line rounded-[24px] w-full max-w-lg shadow-[0_24px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col my-auto max-h-[85vh] font-sans"
         style={{ textAlign: isAr ? 'right' : 'left' }}
       >
         {/* Header */}
@@ -90,7 +90,7 @@ export default function AuctionRulesModal({ isOpen, onClose, isAr }: AuctionRule
         </div>
 
         {/* Footer action */}
-        <div className="bg-zinc-50 p-4 border-t border-[#E5E5E5] shrink-0">
+        <div className="bg-zinc-50 p-4 border-t border-line shrink-0">
           <button
             type="button"
             onClick={onClose}

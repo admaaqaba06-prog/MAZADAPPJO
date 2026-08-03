@@ -95,7 +95,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -12, scale: 0.98 }}
                 transition={{ duration: 0.22, ease: 'easeOut' }}
-                className={`pointer-events-auto w-full bg-white rounded-2xl shadow-lg border ${style.ring} px-4 py-3 flex items-start gap-3`}
+                className={`pointer-events-auto w-full bg-surface-raised rounded-2xl shadow-lg border ${style.ring} px-4 py-3 flex items-start gap-3`}
                 dir="auto"
               >
                 <span
@@ -104,11 +104,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   {style.icon}
                 </span>
                 <div className="flex-1 min-w-0 pt-0.5">
-                  <p className="text-sm font-bold text-gray-900 leading-snug">
+                  <p className="text-sm font-bold text-fg leading-snug">
                     {toast.title}
                   </p>
                   {toast.message && (
-                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                    <p className="text-xs text-fg-muted mt-0.5 leading-snug">
                       {toast.message}
                     </p>
                   )}
@@ -117,7 +117,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   type="button"
                   onClick={() => dismiss(toast.id)}
                   aria-label="Dismiss"
-                  className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors mt-0.5"
+                  className="shrink-0 text-gray-300 hover:text-fg-muted transition-colors mt-0.5"
                 >
                   <X size={16} />
                 </button>

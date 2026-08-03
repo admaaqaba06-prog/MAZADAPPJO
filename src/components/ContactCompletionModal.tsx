@@ -231,7 +231,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
-        className="relative bg-white text-gray-900 w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
+        className="relative bg-surface-raised text-fg w-full max-w-sm rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in scale-in duration-200 p-6 md:p-8"
         style={{ direction: isAr ? 'rtl' : 'ltr' }}
         id="contact-completion-modal"
         role="dialog"
@@ -242,10 +242,10 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           <div className="mx-auto w-11 h-11 rounded-full bg-orange-50 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-6 h-6" />
           </div>
-          <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight leading-snug">
+          <h2 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">
             {isAr ? 'أكمل معلومات التواصل' : 'Complete your contact info'}
           </h2>
-          <p className="text-xs text-gray-500 max-w-xs mx-auto leading-normal">
+          <p className="text-xs text-fg-muted max-w-xs mx-auto leading-normal">
             {isAr
               ? 'نحتاج طريقة للتواصل معك حول مزايداتك وطلباتك قبل المتابعة.'
               : 'We need a way to reach you about your bids and orders before you continue.'}
@@ -259,7 +259,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
               {/* The label used to sit OUTSIDE this branch, so after sending it
                   still read "Phone number" above a code box — and the number the
                   code went to was nowhere on screen. */}
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5" />
                 {!codeSent
                   ? (isAr ? 'رقم الهاتف' : 'Phone number')
@@ -267,7 +267,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
               </span>
 
               {codeSent && phone.e164 && (
-                <p className="text-[11px] text-gray-500 font-medium" dir="ltr">
+                <p className="text-[11px] text-fg-muted font-medium" dir="ltr">
                   {channel === 'sms'
                     ? (isAr ? `أُرسل برسالة نصية إلى ${phone.e164}` : `Sent by SMS to ${phone.e164}`)
                     : (isAr ? `أُرسل عبر واتساب إلى ${phone.e164}` : `Sent on WhatsApp to ${phone.e164}`)}
@@ -288,7 +288,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                         className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-black border transition-colors cursor-pointer ${
                           channel === c
                             ? 'bg-[#FF6B00]/10 border-[#FF6B00] text-[#FF6B00]'
-                            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            : 'bg-surface-raised border-line text-fg-muted hover:border-line'
                         }`}
                       >
                         {c === 'whatsapp'
@@ -319,7 +319,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                       <span>{isAr ? 'إرسال الرمز' : 'Send code'}</span>
                     )}
                   </button>
-                  <p className="text-[11px] text-gray-400 font-medium text-center">
+                  <p className="text-[11px] text-fg-muted font-medium text-center">
                     {isAr ? 'قد يستغرق وصول الرمز حتى دقيقة' : 'The code can take up to a minute to arrive.'}
                   </p>
                 </>
@@ -332,7 +332,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                     placeholder={isAr ? 'رمز التحقق' : 'Verification code'}
                     value={smsCode}
                     onChange={e => setSmsCode(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-gray-50 tracking-widest text-center"
+                    className="w-full border border-line rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-surface-sunken tracking-widest text-center"
                     id="contact-code-input"
                   />
                   <button
@@ -358,7 +358,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                     type="button"
                     disabled={cooldown > 0 || phoneBusy}
                     onClick={handleSendCode}
-                    className="w-full text-xs font-bold text-[#FF6B00] hover:text-[#c94d03] transition-colors cursor-pointer disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="w-full text-xs font-bold text-[#FF6B00] hover:text-[#c94d03] transition-colors cursor-pointer disabled:text-fg-muted disabled:cursor-not-allowed"
                     id="contact-resend-btn"
                   >
                     {cooldown > 0
@@ -368,7 +368,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                   <button
                     type="button"
                     onClick={handlePhoneBack}
-                    className="w-full text-xs text-gray-500 hover:text-gray-700 font-semibold transition-colors"
+                    className="w-full text-xs text-fg-muted hover:text-fg font-semibold transition-colors"
                     id="contact-phone-back-btn"
                   >
                     {isAr ? 'تغيير الرقم' : 'Change number'}
@@ -389,7 +389,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           {/* Email — only when missing */}
           {needsEmail && (
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5" />
                 {isAr ? 'البريد الإلكتروني' : 'Email address'}
               </span>
@@ -400,7 +400,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-gray-50 text-left"
+                className="w-full border border-line rounded-xl px-3.5 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] bg-surface-sunken text-left"
                 id="contact-completion-email"
               />
               <button
@@ -432,7 +432,7 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
           <button
             type="button"
             onClick={onClose}
-            className="w-full text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
+            className="w-full text-xs text-fg-muted hover:text-fg font-bold transition-colors cursor-pointer"
             id="contact-completion-dismiss"
           >
             {isAr ? 'لاحقاً' : 'Not now'}

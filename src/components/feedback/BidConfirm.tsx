@@ -40,17 +40,17 @@ const VARIANTS = {
     total: 'text-zinc-300',
     binding: 'text-amber-400',
     confirm: 'bg-[#FF6B00] hover:bg-orange-600 text-white shadow-md',
-    cancel: 'bg-white/10 border border-white/15 text-white',
+    cancel: 'bg-surface-raised/10 border border-white/15 text-white',
   },
   light: {
     wrapper:
-      'absolute inset-0 z-40 rounded-2xl bg-white/95 backdrop-blur-sm border border-orange-200 shadow-xl flex flex-col items-center justify-center gap-2 p-3',
-    title: 'text-gray-900',
+      'absolute inset-0 z-40 rounded-2xl bg-surface-raised/95 backdrop-blur-sm border border-orange-200 shadow-xl flex flex-col items-center justify-center gap-2 p-3',
+    title: 'text-fg',
     titleMoved: 'text-amber-600',
-    total: 'text-gray-500',
+    total: 'text-fg-muted',
     binding: 'text-amber-600',
     confirm: 'bg-[#E85D04] hover:bg-orange-600 text-white shadow-md',
-    cancel: 'bg-gray-100 border border-gray-200 text-gray-700',
+    cancel: 'bg-surface-sunken border border-line text-fg',
   },
 } as const;
 

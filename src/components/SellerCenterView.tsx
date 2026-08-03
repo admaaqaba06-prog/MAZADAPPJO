@@ -1033,17 +1033,17 @@ export const SellerCenterView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-[#F7F6F3] h-full overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] text-gray-900" id="seller-center-root">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full bg-surface h-full overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] text-fg" id="seller-center-root">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-5" id="seller-header">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-5" id="seller-header">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-orange-50 text-[#FF6B00] rounded-2xl">
             <Store className="w-7 h-7" />
           </div>
           <div className="text-left rtl:text-right">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-black text-gray-900 leading-tight">
+              <h1 className="text-2xl font-black text-fg leading-tight">
                 {st.seller_center}
               </h1>
               {(() => {
@@ -1067,7 +1067,7 @@ export const SellerCenterView: React.FC = () => {
                   premium_verified: 'bg-amber-100 text-amber-800 border-amber-300',
                   verified: 'bg-emerald-100 text-[#107A48] border-emerald-300',
                   pending: 'bg-blue-100 text-blue-800 border-blue-300',
-                  not_verified: 'bg-gray-100 text-gray-700 border-gray-300'
+                  not_verified: 'bg-surface-sunken text-fg border-line'
                 };
 
                 return (
@@ -1078,7 +1078,7 @@ export const SellerCenterView: React.FC = () => {
                 );
               })()}
             </div>
-            <p className="text-xs text-gray-500 font-medium mt-1">
+            <p className="text-xs text-fg-muted font-medium mt-1">
               {isAr ? 'إدارة أعمالك، المزادات والطلبات، الأرباح والمبيعات بكل سهولة.' : 'Manage listings, sales orders, payouts, reviews, and analytics.'}
             </p>
           </div>
@@ -1091,7 +1091,7 @@ export const SellerCenterView: React.FC = () => {
       <div className="flex flex-col lg:flex-row gap-6">
         
         {/* SIDEBAR FOR LG+ */}
-        <aside className="hidden lg:flex flex-col gap-1 w-[240px] shrink-0 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm h-fit sticky top-20">
+        <aside className="hidden lg:flex flex-col gap-1 w-[240px] shrink-0 bg-surface-raised p-3 rounded-2xl border border-line shadow-sm h-fit sticky top-20">
           {[
             { id: 'overview', label: st.overview, icon: Activity, badge: actionItems.length },
             { id: 'listings', label: st.listings, icon: Store },
@@ -1111,10 +1111,10 @@ export const SellerCenterView: React.FC = () => {
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black tracking-wide transition-all cursor-pointer w-full text-left rtl:text-right ${
                   isActive 
                     ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
-                    : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+                    : 'text-fg-muted hover:text-gray-950 hover:bg-surface-sunken'
                 }`}
               >
-                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-gray-400'}`} />
+                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-fg-muted'}`} />
                 <span className="flex-1">{tab.label}</span>
                 {!!tab.badge && (
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-red-500 text-white`}>
@@ -1127,7 +1127,7 @@ export const SellerCenterView: React.FC = () => {
         </aside>
 
         {/* TOP SCROLLABLE NAVIGATION TABS FOR MOBILE/TABLET */}
-        <div className="flex lg:hidden overflow-x-auto bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm scrollbar-none gap-1 w-full" id="seller-center-tabs">
+        <div className="flex lg:hidden overflow-x-auto bg-surface-raised p-1.5 rounded-2xl border border-line shadow-sm scrollbar-none gap-1 w-full" id="seller-center-tabs">
           {[
             { id: 'overview', label: st.overview, icon: Activity, badge: actionItems.length },
             { id: 'listings', label: st.listings, icon: Store },
@@ -1147,10 +1147,10 @@ export const SellerCenterView: React.FC = () => {
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-black tracking-wide shrink-0 transition-all cursor-pointer ${
                   isActive 
                     ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
-                    : 'text-gray-500 hover:text-gray-950 hover:bg-gray-50'
+                    : 'text-fg-muted hover:text-gray-950 hover:bg-surface-sunken'
                 }`}
               >
-                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-gray-400'}`} />
+                <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-fg-muted'}`} />
                 <span>{tab.label}</span>
                 {!!tab.badge && (
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-red-500 text-white`}>
@@ -1170,18 +1170,18 @@ export const SellerCenterView: React.FC = () => {
 
               {/* NEEDS YOUR ACTION — the hub */}
               <div className="space-y-3" id="action-hub">
-                <h3 className="text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-2 px-1">
+                <h3 className="text-xs font-black text-fg-muted uppercase tracking-wider flex items-center gap-2 px-1">
                   <Activity className="w-4 h-4 text-[#FF6B00]" />
                   <span>{st.needs_action}</span>
                 </h3>
 
                 {actionItems.length === 0 ? (
-                  <div className="bg-white rounded-3xl border border-emerald-100 p-8 text-center shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-2">
+                  <div className="bg-surface-raised rounded-3xl border border-emerald-100 p-8 text-center shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-2">
                     <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
                       <CheckCircle className="w-7 h-7 text-emerald-500" />
                     </div>
-                    <p className="text-sm font-black text-gray-900">{st.all_caught_up}</p>
-                    <p className="text-xs text-gray-400 font-medium">{st.all_caught_up_sub}</p>
+                    <p className="text-sm font-black text-fg">{st.all_caught_up}</p>
+                    <p className="text-xs text-fg-muted font-medium">{st.all_caught_up_sub}</p>
                   </div>
                 ) : (
                   <div className="space-y-2.5" id="action-items">
@@ -1201,10 +1201,10 @@ export const SellerCenterView: React.FC = () => {
                             <ActionIcon className="w-5 h-5" />
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-gray-900 truncate">{meta.label}</p>
-                            <p className="text-[11px] text-gray-500 font-bold tabular-nums">{countText}</p>
+                            <p className="text-sm font-black text-fg truncate">{meta.label}</p>
+                            <p className="text-[11px] text-fg-muted font-bold tabular-nums">{countText}</p>
                           </div>
-                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-white/80 border border-black/5 text-[11px] font-black text-gray-900">
+                          <span className="shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-surface-raised/80 border border-black/5 text-[11px] font-black text-fg">
                             <span>{meta.cta}</span>
                             <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
                           </span>
@@ -1227,10 +1227,10 @@ export const SellerCenterView: React.FC = () => {
                 ].map((m, idx) => {
                   const MIcon = m.icon;
                   return (
-                    <div key={idx} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between gap-2">
+                    <div key={idx} className="bg-surface-raised rounded-2xl p-4 border border-line shadow-sm flex items-center justify-between gap-2">
                       <div className="space-y-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase leading-none truncate">{m.title}</p>
-                        <p className="text-base md:text-lg font-black text-gray-900 leading-tight tabular-nums">{m.value}</p>
+                        <p className="text-[10px] text-fg-muted font-bold tracking-wider uppercase leading-none truncate">{m.title}</p>
+                        <p className="text-base md:text-lg font-black text-fg leading-tight tabular-nums">{m.value}</p>
                       </div>
                       <div className="p-2 rounded-xl bg-orange-50 text-[#FF6B00] shrink-0">
                         <MIcon className="w-5 h-5 text-[#FF6B00]" />
@@ -1241,8 +1241,8 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* ONE CONSOLIDATED RECENT ACTIVITY FEED */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4" id="recent-activity">
-                <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+              <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)] space-y-4" id="recent-activity">
+                <h3 className="text-sm font-black text-fg flex items-center gap-2">
                   <Bell className="w-4 h-4 text-[#FF6B00]" />
                   <span>{st.recent_activity}</span>
                 </h3>
@@ -1270,10 +1270,10 @@ export const SellerCenterView: React.FC = () => {
                   entries.sort((a, b) => b.ts - a.ts);
                   const top = entries.slice(0, 8);
                   if (top.length === 0) {
-                    return <div className="text-center py-8 text-gray-400 text-xs">{st.no_notifications}</div>;
+                    return <div className="text-center py-8 text-fg-muted text-xs">{st.no_notifications}</div>;
                   }
                   return (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-line">
                       {top.map((e) => (
                         <div key={e.id} className="py-2.5 flex items-start gap-3">
                           <span className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${e.kind === 'order' ? 'bg-orange-50 text-[#FF6B00]' : 'bg-blue-50 text-blue-500'}`}>
@@ -1281,12 +1281,12 @@ export const SellerCenterView: React.FC = () => {
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-black text-gray-900 truncate">{e.title}</p>
-                              <span className="text-[9px] text-gray-400 font-mono shrink-0">
+                              <p className="text-xs font-black text-fg truncate">{e.title}</p>
+                              <span className="text-[9px] text-fg-muted font-mono shrink-0">
                                 {e.ts ? new Date(e.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
                               </span>
                             </div>
-                            <p className="text-[11px] text-gray-500 truncate">{e.sub}</p>
+                            <p className="text-[11px] text-fg-muted truncate">{e.sub}</p>
                           </div>
                         </div>
                       ))}
@@ -1311,19 +1311,19 @@ export const SellerCenterView: React.FC = () => {
                   <span>{st.new_listing}</span>
                 </button>
                 <div className="relative flex-1 min-w-0">
-                  <Search className="w-4 h-4 text-gray-400 absolute top-1/2 -translate-y-1/2 left-3 rtl:left-auto rtl:right-3" />
+                  <Search className="w-4 h-4 text-fg-muted absolute top-1/2 -translate-y-1/2 left-3 rtl:left-auto rtl:right-3" />
                   <input
                     type="text"
                     value={listingsQuery}
                     onChange={(e) => setListingsQuery(e.target.value)}
                     placeholder={st.search_listings}
-                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-3 rounded-2xl border border-gray-200 bg-white outline-none focus:border-[#FF6B00] text-xs font-semibold text-gray-700"
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-3 rounded-2xl border border-line bg-surface-raised outline-none focus:border-[#FF6B00] text-xs font-semibold text-fg"
                   />
                 </div>
                 <select
                   value={listingsCategory}
                   onChange={(e) => setListingsCategory(e.target.value)}
-                  className="px-3 py-3 rounded-2xl border border-gray-200 bg-white outline-none focus:border-[#FF6B00] text-xs font-bold text-gray-700 cursor-pointer shrink-0"
+                  className="px-3 py-3 rounded-2xl border border-line bg-surface-raised outline-none focus:border-[#FF6B00] text-xs font-bold text-fg cursor-pointer shrink-0"
                 >
                   <option value="all">{st.all_categories}</option>
                   {listingCategories.map((c) => (
@@ -1333,7 +1333,7 @@ export const SellerCenterView: React.FC = () => {
                 <button
                   onClick={() => (bulkMode ? exitBulkMode() : setBulkMode(true))}
                   className={`px-4 py-3 rounded-2xl text-xs font-black transition-all active:scale-95 cursor-pointer shrink-0 border ${
-                    bulkMode ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    bulkMode ? 'bg-gray-900 text-white border-gray-900' : 'bg-surface-raised text-fg-muted border-line hover:bg-surface-sunken'
                   }`}
                 >
                   {bulkMode ? st.exit_select : st.select_mode}
@@ -1341,7 +1341,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* BUCKET CHIPS */}
-              <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto scrollbar-none">
+              <div className="flex bg-surface-sunken p-1 rounded-xl border border-line gap-1 overflow-x-auto scrollbar-none">
                 {[
                   { id: 'all', label: st.bucket_all, count: myAuctions.length },
                   { id: 'live', label: st.bucket_live, count: listingBuckets.live.length },
@@ -1355,11 +1355,11 @@ export const SellerCenterView: React.FC = () => {
                     key={chip.id}
                     onClick={() => setActiveBucket(chip.id as any)}
                     className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      activeBucket === chip.id ? 'bg-white text-gray-950 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-900'
+                      activeBucket === chip.id ? 'bg-surface-raised text-gray-950 shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <span>{chip.label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBucket === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBucket === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-surface-sunken text-fg-muted'}`}>
                       {chip.count}
                     </span>
                   </button>
@@ -1368,11 +1368,11 @@ export const SellerCenterView: React.FC = () => {
 
               {/* LIST */}
               {myAuctions.length === 0 ? (
-                <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4" id="seller-empty-state">
+                <div className="bg-surface-raised rounded-3xl p-12 text-center border border-line space-y-4" id="seller-empty-state">
                   <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
                     <PlusCircle className="w-7 h-7 text-[#FF6B00]" />
                   </div>
-                  <p className="text-sm font-black text-gray-900">{st.no_listings_yet}</p>
+                  <p className="text-sm font-black text-fg">{st.no_listings_yet}</p>
                   <button
                     onClick={() => setActiveView('upload')}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-orange-600 text-white font-black text-xs rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -1382,11 +1382,11 @@ export const SellerCenterView: React.FC = () => {
                   </button>
                 </div>
               ) : visibleListings.length === 0 ? (
-                <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-400 text-sm">
+                <div className="bg-surface-raised rounded-3xl p-12 text-center border border-line text-fg-muted text-sm">
                   {st.no_auctions}
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] divide-y divide-gray-100">
+                <div className="bg-surface-raised rounded-3xl border border-line overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] divide-y divide-line">
                   {visibleListings.map((auction) => {
                     const canEdit = auction.status === 'processing' || (auction.status as string) === 'pending' || auction.status === 'rejected';
                     const canRelist = auction.status !== 'live' && auction.status !== 'upcoming';
@@ -1413,7 +1413,7 @@ export const SellerCenterView: React.FC = () => {
                     // SecondChanceCard.wiring.test.ts is what catches it.
                     const showSecondChance = secondChanceViewState(auction, currentUser, Date.now()).visible;
                     return (
-                      <div key={auction.id} className="hover:bg-gray-50/50 transition-colors">
+                      <div key={auction.id} className="hover:bg-surface-sunken/50 transition-colors">
                       <div className="p-3.5 flex items-center gap-3">
                         {bulkMode && (
                           <input
@@ -1423,12 +1423,12 @@ export const SellerCenterView: React.FC = () => {
                             className="w-4 h-4 accent-[#FF6B00] shrink-0 cursor-pointer"
                           />
                         )}
-                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
                           <img src={auction.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} alt={auction.title} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-black text-gray-900 truncate">{auction.title}</h4>
+                            <h4 className="text-sm font-black text-fg truncate">{auction.title}</h4>
                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-wider uppercase shrink-0 ${
                               auction.status === 'live' ? 'bg-red-500 text-white' :
                               auction.status === 'upcoming' ? 'bg-blue-500 text-white' :
@@ -1439,8 +1439,8 @@ export const SellerCenterView: React.FC = () => {
                               {auctionStatusLabel(auction.status, isAr)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500 font-bold tabular-nums flex-wrap">
-                            <span className="text-gray-900 font-black">{auction.currentPrice || auction.startingPrice} JOD</span>
+                          <div className="flex items-center gap-3 mt-1 text-[11px] text-fg-muted font-bold tabular-nums flex-wrap">
+                            <span className="text-fg font-black">{auction.currentPrice || auction.startingPrice} JOD</span>
                             <span>{auction.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}</span>
                             {auction.status === 'live' && (
                               <span className="inline-flex items-center gap-1 text-[#FF6B00]"><Clock className="w-3 h-3" />{timeLeftLabel(auction)}</span>
@@ -1459,7 +1459,7 @@ export const SellerCenterView: React.FC = () => {
                             {canEdit && (
                               <button
                                 onClick={() => handleEditClick(auction)}
-                                className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                                className="p-2 rounded-xl text-fg-muted hover:text-fg bg-surface-raised border border-line hover:bg-surface-sunken cursor-pointer active:scale-95 transition-all"
                                 title={auction.status === 'rejected' ? st.resubmit : st.edit}
                               >
                                 <Edit className="w-4 h-4" />
@@ -1468,7 +1468,7 @@ export const SellerCenterView: React.FC = () => {
                             {canRelist && (
                               <button
                                 onClick={() => handleDuplicate(auction)}
-                                className="p-2 rounded-xl text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer active:scale-95 transition-all"
+                                className="p-2 rounded-xl text-fg-muted hover:text-fg bg-surface-raised border border-line hover:bg-surface-sunken cursor-pointer active:scale-95 transition-all"
                                 title={st.relist}
                               >
                                 <Copy className="w-4 h-4" />
@@ -1538,7 +1538,7 @@ export const SellerCenterView: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleRelistSelected}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-900 rounded-xl text-xs font-black hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-raised text-fg rounded-xl text-xs font-black hover:bg-surface-sunken active:scale-95 transition-all cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>{st.relist_selected}</span>
@@ -1560,10 +1560,10 @@ export const SellerCenterView: React.FC = () => {
           {activeTab === 'orders' && (
             <div className="space-y-4" id="tab-orders">
               {selectedOrderId ? (
-                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
+                <div className="bg-surface-raised rounded-3xl p-5 border border-line shadow-[0_3px_15px_rgba(0,0,0,0.01)] relative">
                   <button
                     onClick={() => setSelectedOrderId(null)}
-                    className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer text-gray-500 transition-all z-10"
+                    className="absolute top-4 left-4 rtl:left-auto rtl:right-4 p-2 bg-surface-sunken hover:bg-surface-sunken rounded-xl cursor-pointer text-fg-muted transition-all z-10"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
@@ -1574,7 +1574,7 @@ export const SellerCenterView: React.FC = () => {
               ) : (
                 <>
                   {/* STATUS FILTER CHIPS */}
-                  <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1 overflow-x-auto scrollbar-none">
+                  <div className="flex bg-surface-sunken p-1 rounded-xl border border-line gap-1 overflow-x-auto scrollbar-none">
                     {[
                       { id: 'all', label: st.ord_all, count: myOrders.length },
                       { id: 'to_ship', label: st.ord_to_ship, count: myOrders.filter(o => o.status === 'paid' || o.status === 'preparing_shipment').length },
@@ -1586,27 +1586,27 @@ export const SellerCenterView: React.FC = () => {
                         key={chip.id}
                         onClick={() => setOrdersFilter(chip.id as any)}
                         className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          ordersFilter === chip.id ? 'bg-white text-gray-950 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-900'
+                          ordersFilter === chip.id ? 'bg-surface-raised text-gray-950 shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
                         }`}
                       >
                         <span>{chip.label}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ordersFilter === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ordersFilter === chip.id ? 'bg-[#FF6B00]/10 text-[#FF6B00]' : 'bg-surface-sunken text-fg-muted'}`}>
                           {chip.count}
                         </span>
                       </button>
                     ))}
                   </div>
 
-                  <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
+                  <div className="bg-surface-raised rounded-3xl border border-line overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)]">
                     {myOrders.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400 text-sm">{st.no_orders}</div>
+                      <div className="text-center py-12 text-fg-muted text-sm">{st.no_orders}</div>
                     ) : visibleOrders.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400 text-sm">{st.no_auctions}</div>
+                      <div className="text-center py-12 text-fg-muted text-sm">{st.no_auctions}</div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left rtl:text-right border-collapse text-xs">
                           <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black tracking-wider uppercase">
+                            <tr className="bg-surface-sunken border-b border-line text-fg-muted font-black tracking-wider uppercase">
                               <th className="p-4">{isAr ? 'المنتج والمزاد' : 'Auction / Item'}</th>
                               <th className="p-4">{st.buyer}</th>
                               <th className="p-4">{st.price}</th>
@@ -1614,25 +1614,25 @@ export const SellerCenterView: React.FC = () => {
                               <th className="p-4 text-center">{isAr ? 'الإجراء' : 'Actions'}</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                          <tbody className="divide-y divide-line font-semibold text-fg">
                             {visibleOrders.map((order) => (
-                              <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                              <tr key={order.id} className="hover:bg-surface-sunken/50 transition-colors">
                                 <td className="p-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50">
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
                                       <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="max-w-[150px] lg:max-w-[200px]">
-                                      <p className="font-extrabold text-gray-900 truncate">{order.auctionTitle}</p>
-                                      <p className="text-[10px] text-gray-400 font-mono">{displayOrderRef(order)}</p>
+                                      <p className="font-extrabold text-fg truncate">{order.auctionTitle}</p>
+                                      <p className="text-[10px] text-fg-muted font-mono">{displayOrderRef(order)}</p>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="p-4">
-                                  <p className="text-gray-900 font-extrabold">{order.buyerName}</p>
-                                  <p className="text-[10px] text-gray-400 font-mono">ID: {order.buyerId.substring(0, 8)}</p>
+                                  <p className="text-fg font-extrabold">{order.buyerName}</p>
+                                  <p className="text-[10px] text-fg-muted font-mono">ID: {order.buyerId.substring(0, 8)}</p>
                                 </td>
-                                <td className="p-4 font-black text-gray-900">{order.winningBidAmount} JOD</td>
+                                <td className="p-4 font-black text-fg">{order.winningBidAmount} JOD</td>
                                 <td className="p-4">
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase ${ORDER_STATUS_TONE_CHIP[getOrderStatusChip(order.status, isAr ? 'ar' : 'en').tone]} ${order.status === 'disputed' ? 'animate-pulse' : ''}`}>
                                     {getOrderStatusChip(order.status, isAr ? 'ar' : 'en').label}
@@ -1662,7 +1662,7 @@ export const SellerCenterView: React.FC = () => {
           {activeTab === 'money' && (
             <div className="space-y-6" id="tab-money">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
+                <div className="bg-surface-raised rounded-3xl p-6 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-8 text-emerald-50/40 transform translate-x-2 -translate-y-2">
                     <Wallet className="w-24 h-24 stroke-[1]" />
                   </div>
@@ -1671,8 +1671,8 @@ export const SellerCenterView: React.FC = () => {
                       <Wallet className="w-6 h-6" />
                     </span>
                     <div className="space-y-1">
-                      <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.available_balance}</p>
-                      <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
+                      <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.available_balance}</p>
+                      <p className="text-2xl font-black text-fg tabular-nums">{kpis.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button
@@ -1693,52 +1693,52 @@ export const SellerCenterView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                <div className="bg-surface-raised rounded-3xl p-6 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                   <span className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl inline-block">
                     <Clock className="w-6 h-6" />
                   </span>
                   <div className="space-y-1">
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.escrow_pending}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.escrowLocked.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.escrow_pending}</p>
+                    <p className="text-2xl font-black text-fg tabular-nums">{kpis.escrowLocked.toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD</p>
+                    <p className="text-[10px] text-fg-muted">
                       {isAr ? 'أموال مبيعاتك المحتجزة بأمان في حساب الضمان لحين تأكيد التسليم — ستستلم صافي بعد عمولة ٥٪.' : 'Funds held securely in Escrow until buyer inspection completed — you receive the net after 5% commission.'}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                <div className="bg-surface-raised rounded-3xl p-6 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
                   <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl inline-block">
                     <CheckCircle className="w-6 h-6" />
                   </span>
                   <div className="space-y-1">
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.funds_released}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">
+                    <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.funds_released}</p>
+                    <p className="text-2xl font-black text-fg tabular-nums">
                       {myOrders.filter(o => o.escrowStatus === 'released').reduce((sum, o) => sum + (o.sellerNet ?? sellerNet(o.winningBidAmount)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} JOD
                     </p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-fg-muted">
                       {isAr ? 'إجمالي الأموال التي تم تحريرها بالكامل من الضمان وإيداعها بنجاح — صافي بعد عمولة ٥٪.' : 'Total historical assets released and deposited successfully — net of 5% commission.'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                  <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+              <div className="bg-surface-raised rounded-3xl border border-line overflow-hidden shadow-[0_3px_12px_rgba(0,0,0,0.01)] space-y-4 p-5">
+                <div className="flex items-center justify-between border-b border-line pb-4">
+                  <h3 className="text-sm font-black text-fg flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-[#FF6B00]" />
                     <span>{st.withdrawal_history}</span>
                   </h3>
                 </div>
 
                 {withdrawals.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-xs">
+                  <div className="text-center py-8 text-fg-muted text-xs">
                     {isAr ? 'لا يوجد عمليات سحب مالي مسجلة بعد.' : 'No withdrawals recorded yet.'}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left rtl:text-right border-collapse text-xs">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-black uppercase tracking-wider">
+                        <tr className="bg-surface-sunken border-b border-line text-fg-muted font-black uppercase tracking-wider">
                           <th className="p-4">{isAr ? 'رقم المعاملة' : 'Reference ID'}</th>
                           <th className="p-4">{isAr ? 'التاريخ والوقت' : 'Date & Time'}</th>
                           <th className="p-4">{isAr ? 'المبلغ' : 'Amount'}</th>
@@ -1747,18 +1747,18 @@ export const SellerCenterView: React.FC = () => {
                           <th className="p-4">{isAr ? 'حالة الطلب' : 'Status'}</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                      <tbody className="divide-y divide-line font-semibold text-fg">
                         {withdrawals.map((w) => (
-                          <tr key={w.id} className="hover:bg-gray-50/30 transition-colors">
-                            <td className="p-4 font-mono font-black text-gray-900">{w.referenceId}</td>
-                            <td className="p-4 text-gray-500">
+                          <tr key={w.id} className="hover:bg-surface-sunken/30 transition-colors">
+                            <td className="p-4 font-mono font-black text-fg">{w.referenceId}</td>
+                            <td className="p-4 text-fg-muted">
                               {new Date(w.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </td>
-                            <td className="p-4 font-black text-gray-900 tabular-nums">{w.amount} JOD</td>
+                            <td className="p-4 font-black text-fg tabular-nums">{w.amount} JOD</td>
                             <td className="p-4">
                               <span className="capitalize font-extrabold">{w.method === 'bank' ? (isAr ? 'تحويل بنكي' : 'Bank Wire') : 'CliQ'}</span>
                             </td>
-                            <td className="p-4 text-gray-500 font-mono text-[11px] max-w-[200px] truncate">
+                            <td className="p-4 text-fg-muted font-mono text-[11px] max-w-[200px] truncate">
                               {w.method === 'bank' ? (
                                 <span>{w.details?.bankName} - {w.details?.iban}</span>
                               ) : (
@@ -1789,49 +1789,49 @@ export const SellerCenterView: React.FC = () => {
             <div className="space-y-6" id="tab-analytics">
               {/* SUMMARY: avg rating card */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                <div className="bg-surface-raised rounded-3xl p-5 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
                   <span className="p-3 bg-yellow-50 text-yellow-500 rounded-2xl inline-block">
                     <Star className="w-6 h-6 fill-current" />
                   </span>
                   <div>
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.avg_rating_card}</p>
+                    <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.avg_rating_card}</p>
                     {avgRatingDisplay === null ? (
                       <>
-                        <p className="text-base font-black text-gray-400 leading-tight mt-0.5">{isAr ? 'لا تقييمات بعد' : 'No reviews yet'}</p>
-                        <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviewCountLabel(0, isAr ? 'ar' : 'en')}</p>
+                        <p className="text-base font-black text-fg-muted leading-tight mt-0.5">{isAr ? 'لا تقييمات بعد' : 'No reviews yet'}</p>
+                        <p className="text-[10px] text-fg-muted font-bold tabular-nums">{reviewCountLabel(0, isAr ? 'ar' : 'en')}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-2xl font-black text-gray-900 tabular-nums">{avgRatingDisplay} <span className="text-sm text-gray-400">/ 5.0</span></p>
-                        <p className="text-[10px] text-gray-400 font-bold tabular-nums">{reviewCountLabel(reviews.length, isAr ? 'ar' : 'en')}</p>
+                        <p className="text-2xl font-black text-fg tabular-nums">{avgRatingDisplay} <span className="text-sm text-fg-muted">/ 5.0</span></p>
+                        <p className="text-[10px] text-fg-muted font-bold tabular-nums">{reviewCountLabel(reviews.length, isAr ? 'ar' : 'en')}</p>
                       </>
                     )}
                   </div>
                 </div>
-                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                <div className="bg-surface-raised rounded-3xl p-5 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
                   <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl inline-block">
                     <CheckCircle className="w-6 h-6" />
                   </span>
                   <div>
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.completed_sales}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.completedSalesCount}</p>
+                    <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.completed_sales}</p>
+                    <p className="text-2xl font-black text-fg tabular-nums">{kpis.completedSalesCount}</p>
                   </div>
                 </div>
-                <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
+                <div className="bg-surface-raised rounded-3xl p-5 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
                   <span className="p-3 bg-orange-50 text-[#FF6B00] rounded-2xl inline-block">
                     <DollarSign className="w-6 h-6" />
                   </span>
                   <div>
-                    <p className="text-[10px] text-gray-400 font-black tracking-wider uppercase leading-none">{st.total_revenue}</p>
-                    <p className="text-2xl font-black text-gray-900 tabular-nums">{kpis.totalRev.toLocaleString(undefined, { maximumFractionDigits: 2 })} JOD</p>
-                    <p className="text-[9.5px] text-gray-400 font-bold">{isAr ? 'صافي بعد عمولة ٥٪' : 'net of 5% commission'}</p>
+                    <p className="text-[10px] text-fg-muted font-black tracking-wider uppercase leading-none">{st.total_revenue}</p>
+                    <p className="text-2xl font-black text-fg tabular-nums">{kpis.totalRev.toLocaleString(undefined, { maximumFractionDigits: 2 })} JOD</p>
+                    <p className="text-[9.5px] text-fg-muted font-bold">{isAr ? 'صافي بعد عمولة ٥٪' : 'net of 5% commission'}</p>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.daily_sales}</h4>
+                <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-fg uppercase tracking-wider border-b border-line pb-2">{st.daily_sales}</h4>
                   {chartData.dailyData.some(d => d.sales > 0) ? (
                     <div className="h-64 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1846,13 +1846,13 @@ export const SellerCenterView: React.FC = () => {
                     </div>
                   ) : (
                     <div className="h-64 w-full flex items-center justify-center">
-                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                      <p className="text-xs text-fg-muted">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.monthly_rev}</h4>
+                <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-fg uppercase tracking-wider border-b border-line pb-2">{st.monthly_rev}</h4>
                   {chartData.monthlyData.some(d => d.revenue > 0) ? (
                     <div className="h-64 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1873,13 +1873,13 @@ export const SellerCenterView: React.FC = () => {
                     </div>
                   ) : (
                     <div className="h-64 w-full flex items-center justify-center">
-                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                      <p className="text-xs text-fg-muted">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.views_vs_bids}</h4>
+                <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-fg uppercase tracking-wider border-b border-line pb-2">{st.views_vs_bids}</h4>
                   {chartData.viewsVsBidsData.some(d => d.views > 0 || d.bids > 0) ? (
                     <div className="h-64 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1896,16 +1896,16 @@ export const SellerCenterView: React.FC = () => {
                     </div>
                   ) : (
                     <div className="h-64 w-full flex items-center justify-center">
-                      <p className="text-xs text-gray-400">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
+                      <p className="text-xs text-fg-muted">{isAr ? 'لا توجد بيانات بعد' : 'No data yet'}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">{st.top_categories}</h4>
+                <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.015)] space-y-4">
+                  <h4 className="text-xs font-black text-fg uppercase tracking-wider border-b border-line pb-2">{st.top_categories}</h4>
                   <div className="h-64 w-full flex items-center justify-center">
                     {chartData.categoryData.length === 0 ? (
-                      <p className="text-xs text-gray-400">{isAr ? 'لا يوجد بيانات كافية للفئات.' : 'No categories data.'}</p>
+                      <p className="text-xs text-fg-muted">{isAr ? 'لا يوجد بيانات كافية للفئات.' : 'No categories data.'}</p>
                     ) : (
                       <div className="flex flex-col md:flex-row items-center justify-around w-full">
                         <div className="h-48 w-48 shrink-0">
@@ -1920,7 +1920,7 @@ export const SellerCenterView: React.FC = () => {
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 font-bold max-w-[200px] py-4">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-fg-muted font-bold max-w-[200px] py-4">
                           {chartData.categoryData.map((entry, index) => (
                             <div key={entry.name} className="flex items-center gap-1.5">
                               <span className="w-3 h-3 rounded" style={{ backgroundColor: chartData.COLORS[index % chartData.COLORS.length] }}></span>
@@ -1935,24 +1935,24 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               {/* BUYER REVIEWS — folded in from the old Reviews tab */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
-                <h3 className="text-sm font-black text-gray-900 border-b border-gray-100 pb-4 mb-4 flex items-center gap-2">
+              <div className="bg-surface-raised rounded-3xl border border-line p-5 shadow-[0_3px_10px_rgba(0,0,0,0.01)]">
+                <h3 className="text-sm font-black text-fg border-b border-line pb-4 mb-4 flex items-center gap-2">
                   <Star className="w-4 h-4 text-[#FF6B00]" />
                   <span>{st.buyer_feedback}</span>
                 </h3>
 
                 {reviews.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">{st.no_reviews}</div>
+                  <div className="text-center py-12 text-fg-muted text-sm">{st.no_reviews}</div>
                 ) : (
                   <div className="space-y-5">
                     {reviews.map((rev) => (
-                      <div key={rev.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/30 flex flex-col gap-3">
+                      <div key={rev.id} className="p-4 rounded-2xl border border-line bg-surface-sunken/30 flex flex-col gap-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                           <div className="flex items-center gap-3">
-                            <img src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-gray-200" />
+                            <img src={resolveAvatarUrl(rev.buyerAvatar, rev.buyerId)} alt={rev.buyerName} className="w-10 h-10 rounded-full border border-line" />
                             <div>
-                              <p className="font-extrabold text-xs text-gray-900">{rev.buyerName}</p>
-                              <p className="text-[10px] text-gray-400 font-mono">
+                              <p className="font-extrabold text-xs text-fg">{rev.buyerName}</p>
+                              <p className="text-[10px] text-fg-muted font-mono">
                                 {new Date(rev.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                               </p>
                             </div>
@@ -1963,13 +1963,13 @@ export const SellerCenterView: React.FC = () => {
                                 <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current' : 'text-gray-200'}`} />
                               ))}
                             </div>
-                            <p className="text-[10px] text-gray-400 font-medium">
-                              {isAr ? 'المعاملة:' : 'Item:'} <span className="font-bold text-gray-600 font-mono">{rev.auctionTitle}</span>
+                            <p className="text-[10px] text-fg-muted font-medium">
+                              {isAr ? 'المعاملة:' : 'Item:'} <span className="font-bold text-fg-muted font-mono">{rev.auctionTitle}</span>
                             </p>
                           </div>
                         </div>
 
-                        <p className="text-xs text-gray-700 leading-relaxed font-semibold italic bg-white p-3 rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.005)]">
+                        <p className="text-xs text-fg leading-relaxed font-semibold italic bg-surface-raised p-3 rounded-xl border border-line shadow-[0_2px_8px_rgba(0,0,0,0.005)]">
                           "{rev.comment}"
                         </p>
 
@@ -1979,7 +1979,7 @@ export const SellerCenterView: React.FC = () => {
                               <Store className="w-3.5 h-3.5" />
                               <span>{isAr ? 'ردك المهني:' : 'Your Response:'}</span>
                             </div>
-                            <p className="text-xs text-gray-700 leading-relaxed font-semibold">{rev.response}</p>
+                            <p className="text-xs text-fg leading-relaxed font-semibold">{rev.response}</p>
                           </div>
                         ) : (
                           <ReviewResponseForm reviewId={rev.id} onReply={(text) => handleReviewReply(rev.id, text)} isAr={isAr} st={st} />
@@ -2009,28 +2009,28 @@ export const SellerCenterView: React.FC = () => {
       {/* WITHDRAWAL FORM MODAL */}
       {isWithdrawModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="withdrawal-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4">
+          <div className="bg-surface-raised rounded-3xl p-6 max-w-md w-full border border-line shadow-2xl relative space-y-4">
             <button 
               onClick={() => setIsWithdrawModalOpen(null)}
-              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-xl cursor-pointer"
+              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-fg-muted hover:text-fg bg-surface-sunken rounded-xl cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2 border-b border-line pb-3">
               <Wallet className="w-5 h-5 text-[#FF6B00]" />
-              <h3 className="text-sm font-black text-gray-900">
+              <h3 className="text-sm font-black text-fg">
                 {isWithdrawModalOpen === 'bank' ? st.withdraw_bank : st.withdraw_cliq}
               </h3>
             </div>
 
-            <p className="text-[11px] text-gray-500 font-bold bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-100 leading-normal">
+            <p className="text-[11px] text-fg-muted font-bold bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-100 leading-normal">
               {st.withdraw_placeholder}
             </p>
 
-            <form onSubmit={handleWithdrawalSubmit} className="space-y-4 text-xs font-bold text-gray-700">
+            <form onSubmit={handleWithdrawalSubmit} className="space-y-4 text-xs font-bold text-fg">
               <div>
-                <label className="block mb-1 text-gray-600">{st.amount_jod}</label>
+                <label className="block mb-1 text-fg-muted">{st.amount_jod}</label>
                 <input
                   type="number"
                   required
@@ -2039,7 +2039,7 @@ export const SellerCenterView: React.FC = () => {
                   max={kpis.availableBalance}
                   value={wAmount}
                   onChange={(e) => setWAmount(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                  className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                   placeholder={`Max: ${kpis.availableBalance} JOD`}
                 />
               </div>
@@ -2047,35 +2047,35 @@ export const SellerCenterView: React.FC = () => {
               {isWithdrawModalOpen === 'bank' ? (
                 <>
                   <div>
-                    <label className="block mb-1 text-gray-600">{st.bank_name}</label>
+                    <label className="block mb-1 text-fg-muted">{st.bank_name}</label>
                     <input
                       type="text"
                       required
                       value={wBankName}
                       onChange={(e) => setWBankName(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                      className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                       placeholder={isAr ? 'مثال: البنك العربي' : 'e.g. Arab Bank'}
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-gray-600">{st.iban}</label>
+                    <label className="block mb-1 text-fg-muted">{st.iban}</label>
                     <input
                       type="text"
                       required
                       value={wIban}
                       onChange={(e) => setWIban(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00] font-mono"
+                      className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00] font-mono"
                       placeholder="JO83 ARAB 1020 ..."
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-gray-600">{st.account_holder}</label>
+                    <label className="block mb-1 text-fg-muted">{st.account_holder}</label>
                     <input
                       type="text"
                       required
                       value={wHolderName}
                       onChange={(e) => setWHolderName(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                      className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                       placeholder={currentUser?.name}
                     />
                   </div>
@@ -2083,13 +2083,13 @@ export const SellerCenterView: React.FC = () => {
               ) : (
                 <>
                   <div>
-                    <label className="block mb-1 text-gray-600">{st.cliq_alias}</label>
+                    <label className="block mb-1 text-fg-muted">{st.cliq_alias}</label>
                     <input
                       type="text"
                       required
                       value={wCliqAlias}
                       onChange={(e) => setWCliqAlias(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00] font-mono"
+                      className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00] font-mono"
                       placeholder={isAr ? 'اسم مستعار كليك أو رقم الموبايل' : 'CliQ Alias or Mobile'}
                     />
                   </div>
@@ -2110,81 +2110,81 @@ export const SellerCenterView: React.FC = () => {
       {/* EDIT LISTING MODAL */}
       {isEditModalOpen && editingAuction && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-listing-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4">
+          <div className="bg-surface-raised rounded-3xl p-6 max-w-md w-full border border-line shadow-2xl relative space-y-4">
             <button 
               onClick={() => {
                 setIsEditModalOpen(false);
                 setEditingAuction(null);
               }}
-              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-xl cursor-pointer"
+              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-fg-muted hover:text-fg bg-surface-sunken rounded-xl cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2 border-b border-line pb-3">
               <Edit className="w-5 h-5 text-[#FF6B00]" />
-              <h3 className="text-sm font-black text-gray-900">
+              <h3 className="text-sm font-black text-fg">
                 {editingAuction.status === 'rejected'
                   ? (isAr ? 'عدّل وأعد الإرسال للمراجعة' : 'Edit & Resubmit for Review')
                   : (isAr ? 'تعديل بيانات المزاد' : 'Edit Auction Details')}
               </h3>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs font-bold text-gray-700">
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs font-bold text-fg">
               <div>
-                <label className="block mb-1 text-gray-600">{isAr ? 'عنوان المزاد' : 'Auction Title'}</label>
+                <label className="block mb-1 text-fg-muted">{isAr ? 'عنوان المزاد' : 'Auction Title'}</label>
                 <input
                   type="text"
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                  className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                 />
               </div>
 
               <div>
-                <label className="block mb-1 text-gray-600">{isAr ? 'الوصف' : 'Description'}</label>
+                <label className="block mb-1 text-fg-muted">{isAr ? 'الوصف' : 'Description'}</label>
                 <textarea
                   maxLength={1000}
                   required
                   rows={3}
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00] resize-none"
+                  className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00] resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block mb-1 text-gray-600">{isAr ? 'السعر الابتدائي' : 'Starting Price'}</label>
+                  <label className="block mb-1 text-fg-muted">{isAr ? 'السعر الابتدائي' : 'Starting Price'}</label>
                   <input
                     type="number"
                     required
                     value={editStartingPrice}
                     onChange={(e) => setEditStartingPrice(parseFloat(e.target.value))}
-                    className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                    className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                   />
                 </div>
                 <div>
-                  <label className="block mb-1 text-gray-600">{isAr ? 'المدة الزمنية (بالثواني)' : 'Duration (seconds)'}</label>
+                  <label className="block mb-1 text-fg-muted">{isAr ? 'المدة الزمنية (بالثواني)' : 'Duration (seconds)'}</label>
                   <input
                     type="number"
                     required
                     value={editDuration}
                     onChange={(e) => setEditDuration(parseInt(e.target.value))}
-                    className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                    className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block mb-1 text-gray-600">{isAr ? 'الفئة' : 'Category'}</label>
+                <label className="block mb-1 text-fg-muted">{isAr ? 'الفئة' : 'Category'}</label>
                 <input
                   type="text"
                   required
                   value={editCategory}
                   onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#FF6B00]"
+                  className="w-full p-3 rounded-xl border border-line outline-none focus:border-[#FF6B00]"
                 />
               </div>
 
@@ -2204,17 +2204,17 @@ export const SellerCenterView: React.FC = () => {
       {/* VERIFICATION APPLY MODAL */}
       {isVerRequestOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="ver-apply-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-200 shadow-2xl relative space-y-4 text-left rtl:text-right">
+          <div className="bg-surface-raised rounded-3xl p-6 max-w-md w-full border border-line shadow-2xl relative space-y-4 text-left rtl:text-right">
             <button 
               onClick={() => setIsVerRequestOpen(false)}
-              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-xl cursor-pointer"
+              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-2 text-fg-muted hover:text-fg bg-surface-sunken rounded-xl cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2 border-b border-line pb-3">
               <ShieldCheck className="w-5 h-5 text-[#FF6B00]" />
-              <h3 className="text-sm font-black text-gray-900">
+              <h3 className="text-sm font-black text-fg">
                 {isAr ? 'توثيق حساب التاجر الرسمي' : 'Apply for Merchant Verification'}
               </h3>
             </div>
@@ -2273,7 +2273,7 @@ export const SellerCenterView: React.FC = () => {
             }} className="space-y-4">
               
               <div>
-                <label className="block text-gray-700 text-xs font-black uppercase tracking-wider mb-2">
+                <label className="block text-fg text-xs font-black uppercase tracking-wider mb-2">
                   {isAr ? 'رتبة التوثيق المطلوبة' : 'Requested Status Rank'}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -2283,7 +2283,7 @@ export const SellerCenterView: React.FC = () => {
                     className={`p-3.5 rounded-2xl border text-center flex flex-col items-center justify-center cursor-pointer transition-all ${
                       requestedStatus === 'verified' 
                         ? 'border-[#FF6B00] bg-orange-500/5 text-[#FF6B00]' 
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        : 'border-line bg-surface-raised text-fg-muted hover:bg-surface-sunken'
                     }`}
                   >
                     <ShieldCheck className="w-6 h-6 mb-1" />
@@ -2297,7 +2297,7 @@ export const SellerCenterView: React.FC = () => {
                     className={`p-3.5 rounded-2xl border text-center flex flex-col items-center justify-center cursor-pointer transition-all ${
                       requestedStatus === 'premium_verified' 
                         ? 'border-[#FF6B00] bg-orange-500/5 text-[#FF6B00]' 
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        : 'border-line bg-surface-raised text-fg-muted hover:bg-surface-sunken'
                     }`}
                   >
                     <Sparkles className="w-6 h-6 mb-1" />
@@ -2308,13 +2308,13 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                <label className="block text-gray-700 text-xs font-black uppercase tracking-wider">
+                <label className="block text-fg text-xs font-black uppercase tracking-wider">
                   {isAr ? 'مستندات التحقق من الهوية الوطنية' : 'Identity Verification Documents'}
                 </label>
                 
                 {/* ID FRONT */}
                 <div className="space-y-1">
-                  <span className="block text-[11px] text-gray-500 font-bold">
+                  <span className="block text-[11px] text-fg-muted font-bold">
                     {isAr ? 'صورة الوجه الأمامي للهوية الوطنية (مطلوب)' : 'National ID - Front Image (Required)'}
                   </span>
                   <input 
@@ -2330,9 +2330,9 @@ export const SellerCenterView: React.FC = () => {
                   />
                   <label 
                     htmlFor="id-front-upload"
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                    className="flex items-center justify-between p-3 border border-line rounded-xl bg-surface-sunken hover:bg-surface-sunken cursor-pointer transition-all text-xs"
                   >
-                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                    <span className="text-fg-muted font-medium truncate max-w-[200px]">
                       {idFrontFile ? idFrontFile.name : (isAr ? 'اختر صورة الوجه الأمامي...' : 'Select front side image...')}
                     </span>
                     {idFrontFile ? (
@@ -2349,7 +2349,7 @@ export const SellerCenterView: React.FC = () => {
 
                 {/* ID BACK */}
                 <div className="space-y-1">
-                  <span className="block text-[11px] text-gray-500 font-bold">
+                  <span className="block text-[11px] text-fg-muted font-bold">
                     {isAr ? 'صورة الوجه الخلفي للهوية الوطنية (مطلوب)' : 'National ID - Back Image (Required)'}
                   </span>
                   <input 
@@ -2365,9 +2365,9 @@ export const SellerCenterView: React.FC = () => {
                   />
                   <label 
                     htmlFor="id-back-upload"
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                    className="flex items-center justify-between p-3 border border-line rounded-xl bg-surface-sunken hover:bg-surface-sunken cursor-pointer transition-all text-xs"
                   >
-                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                    <span className="text-fg-muted font-medium truncate max-w-[200px]">
                       {idBackFile ? idBackFile.name : (isAr ? 'اختر صورة الوجه الخلفي...' : 'Select back side image...')}
                     </span>
                     {idBackFile ? (
@@ -2384,7 +2384,7 @@ export const SellerCenterView: React.FC = () => {
 
                 {/* PASSPORT (OPTIONAL) */}
                 <div className="space-y-1">
-                  <span className="block text-[11px] text-gray-500 font-bold">
+                  <span className="block text-[11px] text-fg-muted font-bold">
                     {isAr ? 'صورة جواز السفر (اختياري كبديل)' : 'Passport Image (Optional)'}
                   </span>
                   <input 
@@ -2400,9 +2400,9 @@ export const SellerCenterView: React.FC = () => {
                   />
                   <label 
                     htmlFor="passport-upload"
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all text-xs"
+                    className="flex items-center justify-between p-3 border border-line rounded-xl bg-surface-sunken hover:bg-surface-sunken cursor-pointer transition-all text-xs"
                   >
-                    <span className="text-gray-500 font-medium truncate max-w-[200px]">
+                    <span className="text-fg-muted font-medium truncate max-w-[200px]">
                       {passportFile ? passportFile.name : (isAr ? 'اختر صورة جواز السفر...' : 'Select passport image...')}
                     </span>
                     {passportFile ? (
@@ -2410,7 +2410,7 @@ export const SellerCenterView: React.FC = () => {
                         ✅ {isAr ? 'جاهز' : 'Ready'}
                       </span>
                     ) : (
-                      <span className="text-gray-400 font-bold">
+                      <span className="text-fg-muted font-bold">
                         {isAr ? 'رفع ملف' : 'Upload File'}
                       </span>
                     )}
@@ -2419,7 +2419,7 @@ export const SellerCenterView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-gray-600 text-xs font-black mb-1.5">
+                <label className="block text-fg-muted text-xs font-black mb-1.5">
                   {isAr ? 'ملاحظات إضافية لإدارة المنصة' : 'Additional Remarks'}
                 </label>
                 <textarea 
@@ -2427,7 +2427,7 @@ export const SellerCenterView: React.FC = () => {
                   value={verNotes}
                   onChange={(e) => setVerNotes(e.target.value)}
                   placeholder={isAr ? 'يرجى تقديم نبذة قصيرة عن طبيعة أعمالك أو أي روابط لتوثيق جودة معروضاتك...' : 'Brief description of your business activity...'}
-                  className="w-full p-3 text-xs border border-gray-200 rounded-xl outline-none focus:border-[#FF6B00] font-sans font-medium text-gray-700"
+                  className="w-full p-3 text-xs border border-line rounded-xl outline-none focus:border-[#FF6B00] font-sans font-medium text-fg"
                 />
               </div>
 
@@ -2477,7 +2477,7 @@ const ReviewResponseForm: React.FC<ReviewResponseProps> = ({ onReply, isAr, st }
     return (
       <button
         onClick={() => setIsReplying(true)}
-        className="self-start px-3.5 py-1.5 rounded-xl border border-gray-200 hover:border-[#FF6B00] text-gray-500 hover:text-[#FF6B00] transition-colors flex items-center gap-1 text-[11px] font-black cursor-pointer"
+        className="self-start px-3.5 py-1.5 rounded-xl border border-line hover:border-[#FF6B00] text-fg-muted hover:text-[#FF6B00] transition-colors flex items-center gap-1 text-[11px] font-black cursor-pointer"
       >
         <MessageSquare className="w-3.5 h-3.5" />
         <span>{st.respond}</span>
@@ -2493,7 +2493,7 @@ const ReviewResponseForm: React.FC<ReviewResponseProps> = ({ onReply, isAr, st }
         value={replyText}
         onChange={(e) => setReplyText(e.target.value)}
         placeholder={st.response_placeholder}
-        className="w-full p-3 text-xs border border-gray-200 rounded-xl outline-none focus:border-[#FF6B00] font-semibold text-gray-700"
+        className="w-full p-3 text-xs border border-line rounded-xl outline-none focus:border-[#FF6B00] font-semibold text-fg"
       />
       <div className="flex gap-2">
         <button
@@ -2507,7 +2507,7 @@ const ReviewResponseForm: React.FC<ReviewResponseProps> = ({ onReply, isAr, st }
         <button
           type="button"
           onClick={() => setIsReplying(false)}
-          className="px-4 py-2 bg-gray-100 text-gray-600 text-[11px] font-black rounded-xl hover:bg-gray-100 transition-colors cursor-pointer active:scale-95"
+          className="px-4 py-2 bg-surface-sunken text-fg-muted text-[11px] font-black rounded-xl hover:bg-surface-sunken transition-colors cursor-pointer active:scale-95"
         >
           {isAr ? 'إلغاء' : 'Cancel'}
         </button>
