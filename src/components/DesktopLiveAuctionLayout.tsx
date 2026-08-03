@@ -34,6 +34,7 @@ import { MediaGallery } from './feedback/MediaGallery';
 import { CountdownPill } from './auction/CountdownPill';
 import { resolveViewing } from '../utils/viewing';
 import { conditionLabel } from '../utils/conditionLabel';
+import { cleanTitle } from '../utils/listingTitle';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -488,7 +489,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
               {/* Auction and seller overlay */}
               <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-white/10 text-white max-w-[240px] text-left">
-                <h3 className="text-xs font-black truncate leading-tight">{activeAuction.title}</h3>
+                <h3 className="text-xs font-black truncate leading-tight">{cleanTitle(activeAuction.title)}</h3>
                 {/* The verified tick renders only when the seller actually is
                     verified — it used to be unconditional. NOTE: the store-name
                     fallback below is intentionally left as-is; MazadJo really is

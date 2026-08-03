@@ -28,6 +28,7 @@ import { priceLabel } from '../utils/bidLabels';
 import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
+import { cleanTitle } from '../utils/listingTitle';
 
 interface AuctionDetailsModalProps {
   auction: AuctionItem;
@@ -227,7 +228,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
 
           <div>
             <h1 className="text-base font-black text-fg leading-tight">
-              {auction.title}
+              {cleanTitle(auction.title)}
             </h1>
             {(() => {
               // This box carries its own background, border and padding, so an

@@ -112,6 +112,21 @@ describe('theme ratchet', () => {
     expect(offenders).toEqual([]);
   });
 
+  // `bg-gray` was a hole in this file: the ratchets above cover text-gray and
+  // border-gray, so a near-white `bg-gray-200/80` on the shared Skeleton
+  // primitive rendered every loading state as a glowing slab in dark mode and
+  // nothing here objected. That one is on a token now; this budget stops the
+  // rest growing while they are migrated.
+  //
+  // Most of the remainder are dark shades (gray-800/900/950) sitting on
+  // deliberately dark surfaces — the live room, the drop builder's phone
+  // mockup — which read correctly in both themes. The light ones (gray-200/300)
+  // are the real backlog.
+  it('does not grow the bg-gray backlog', () => {
+    expect(count(/(?<![\w-])bg-gray-(?:50|100|200|300|400|500|600|700|800|900|950)(?![\w-])/g))
+      .toBeLessThanOrEqual(76);
+  });
+
   // A shade Tailwind does not generate emits NO css, so the element silently
   // has no colour at all. One of these shipped (`text-gray-405`) and rendered
   // an admin label with no styling until it was caught.

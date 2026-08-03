@@ -7,10 +7,79 @@ interface SkeletonProps {
 
 export const Skeleton: React.FC<SkeletonProps> = ({ className = '' }) => {
   return (
-    <div 
-      className={`animate-pulse bg-gray-200/80 rounded-xl ${className}`} 
+    <div
+      // `bg-gray-200/80` before this: a near-white slab, correct in light and a
+      // glowing block in dark. The theme guard did not catch it because its
+      // ratchets cover text-/border-gray, not bg-gray.
+      className={`animate-pulse bg-surface-sunken rounded-xl ${className}`}
       id="skeleton-shimmer"
     />
+  );
+};
+
+/**
+ * The cold-boot splash: Firebase restoring a session, or the app shell itself
+ * still loading.
+ *
+ * Unlike a route change, this really is a whole-app wait with no shape to
+ * preview, so a brand mark is the right answer — but it said "Loading Mazad..."
+ * in English to an Arabic-first audience.
+ *
+ * The language is read from localStorage rather than context on purpose: one of
+ * the two call sites is the Suspense fallback for `MainAppShell` itself, which
+ * renders OUTSIDE the provider, so `useApp()` is not available there. Same key
+ * and same 'ar' default as AppContext, so the splash and the app that follows
+ * it never disagree.
+ */
+export const BootSplash: React.FC = () => {
+  let isAr = true;
+  try {
+    isAr = (localStorage.getItem('mazad_language') || 'ar') !== 'en';
+  } catch {
+    // Private mode / storage disabled. The default is the majority language.
+  }
+  return (
+    <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans" id="boot-splash">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
+          M
+        </div>
+        <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">
+          {isAr ? 'جارٍ فتح مزاد…' : 'Loading Mazad…'}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The route-level Suspense fallback — what fills the shell while a lazily
+ * loaded view arrives.
+ *
+ * It replaces a spinner over the words "Loading view...", which was both the
+ * app's most-seen piece of untranslated English and its least informative
+ * state: a spinner says "wait", a skeleton says "here is the shape of what is
+ * coming". Deliberately generic — this stands in for ANY route, so it lays out
+ * a header and a few rows rather than mimicking one view and being wrong for
+ * the rest.
+ */
+export const ViewSkeleton: React.FC = () => {
+  return (
+    <div className="flex-1 w-full p-4 space-y-4 min-h-[400px]" id="view-skeleton" aria-busy="true">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-2/5" />
+        <Skeleton className="h-3 w-1/4" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2, 3, 4].map((n) => (
+          <div key={n} className="space-y-2">
+            <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
