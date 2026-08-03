@@ -14,6 +14,7 @@ import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { ViewingMode } from '../../utils/viewing';
+import { DIRECTORY_CHUNK, directoryPage, truncation } from '../../utils/adminDirectory';
 import { ViewingSelector } from './ViewingSelector';
 
 /**
@@ -36,8 +37,17 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
 }> = ({ auctionId, winnerId, repairResult }) => {
   const [escrows, setEscrows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Collapsed by default, and the subscription only opens when it is. This
+  // panel used to mount for EVERY completed lot in the directory, each opening
+  // its own onSnapshot on `escrows` — one listener per lot, all of them live,
+  // none of them read unless an admin actually looked. Harmless at today's 1
+  // completed lot in the window; linear in completed lots as volume grows,
+  // which is exactly the "handle hundreds without slowing down" ask (#207).
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (!open) return;
+    setLoading(true);
     const escrowsRef = collection(db, 'escrows');
     const q = query(escrowsRef, where('auctionId', '==', auctionId));
     
@@ -54,10 +64,21 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
     });
     
     return unsub;
-  }, [auctionId]);
+  }, [auctionId, open]);
 
   const lockedEscrows = escrows.filter(e => e.status === 'locked');
   const losingLockedEscrows = lockedEscrows.filter(e => winnerId ? e.bidderId !== winnerId : true);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full mt-3 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl p-2.5 text-[10px] font-mono font-bold uppercase text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 transition-colors cursor-pointer"
+      >
+        🛡️ Show escrow diagnostics
+      </button>
+    );
+  }
 
   return (
     <div className="bg-zinc-50 border border-dashed border-zinc-200 rounded-xl p-4 mt-3 text-xs space-y-3">
@@ -65,9 +86,12 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
         <span className="font-extrabold text-zinc-700 tracking-wide font-mono text-[10px] uppercase">
           🛡️ Admin Diagnostic Panel
         </span>
-        <span className="bg-zinc-200/60 text-zinc-600 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">
-          LIVE TELEMETRY
-        </span>
+        <button
+          onClick={() => setOpen(false)}
+          className="bg-zinc-200/60 text-zinc-600 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold hover:bg-zinc-300 transition-colors cursor-pointer"
+        >
+          LIVE TELEMETRY — HIDE
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -122,7 +146,8 @@ const AuctionEscrowDiagnosticPanel: React.FC<{
 export interface OurDropsSectionProps {
   isAr: boolean;
   isLoading: boolean;
-  auctions: any[];              // full auction directory (completed + master list)
+  auctions: any[];              // the CAPPED admin window (ADMIN_AUCTIONS_CAP), not every auction
+  auctionsTotalCount: number | null; // true collection size, so the cap can be shown rather than hidden
   orders: any[];                // realOrders — for the "order already exists" repair guard
   users: any[];                 // for winner contact lookup
   rejectingId: string | null;
@@ -140,6 +165,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
   isAr,
   isLoading,
   auctions,
+  auctionsTotalCount,
   orders,
   users,
   rejectingId,
@@ -153,6 +179,10 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
   onCreateDrop,
 }) => {
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
+  // The master directory renders one DIRECTORY_CHUNK at a time. It used to
+  // render the whole capped array — fine at 100 rows, but each row carries an
+  // image and the cap is the only thing that was bounding the DOM.
+  const [directoryPages, setDirectoryPages] = useState(1);
   // Per-lot viewing, chosen per pending card before approving. Local because no
   // other surface needs it. Keyed by auction id so several cards can be staged
   // independently. Unset = approve without stating viewing (renders nothing).
@@ -386,13 +416,25 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                 {isAr ? 'قائمة التحكم السريع وحذف المزادات' : 'MASTER PLATFORM LISTINGS DIRECTORY'}
               </h3>
 
+              {(() => {
+                const cut = truncation(auctions.length, auctionsTotalCount);
+                if (!cut.truncated) return null;
+                return (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-2.5 text-[11px] font-semibold">
+                    {isAr
+                      ? `يعرض ${auctions.length} من ${auctionsTotalCount} — ${cut.hidden} غير محمّلة. استخدم البحث للوصول إليها.`
+                      : `Showing ${auctions.length} of ${auctionsTotalCount} — ${cut.hidden} not loaded. Use Auction Lookup to reach them.`}
+                  </div>
+                );
+              })()}
+
               {auctions.length === 0 ? (
                 <div className="text-center py-8 bg-white border border-gray-200 rounded-2xl p-4 text-gray-400 text-xs shadow-xs">
                   {isAr ? 'لا توجد مزادات في قاعدة البيانات.' : 'No registered entries found.'}
                 </div>
               ) : (
                 <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-xs">
-                  {auctions.map((item) => {
+                  {directoryPage<any>(auctions, directoryPages).rows.map((item: any) => {
                     let statusLabel = item.status.toUpperCase();
                     let statusColor = 'bg-gray-100 text-gray-500';
                     if (item.status === 'live') {
@@ -523,6 +565,22 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                   })}
                 </div>
               )}
+
+              {(() => {
+                const page = directoryPage<any>(auctions, directoryPages);
+                if (!page.hasMore) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setDirectoryPages((n) => n + 1)}
+                    className="w-full py-2.5 rounded-xl border border-gray-200 bg-white text-[11px] font-black text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    {isAr
+                      ? `عرض ${Math.min(DIRECTORY_CHUNK, page.remaining)} أخرى (${page.remaining} متبقية)`
+                      : `Show ${Math.min(DIRECTORY_CHUNK, page.remaining)} more (${page.remaining} left)`}
+                  </button>
+                );
+              })()}
             </div>
 
           </div>
