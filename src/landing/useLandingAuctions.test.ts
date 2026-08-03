@@ -57,20 +57,19 @@ describe('curateLandingAuctions', () => {
   });
   // Was 'excludes live auctions with a missing or invalid endTime' — that
   // exclusion WAS the bug: it dropped the entire first_bid catalogue. A missing
-  // endTime is now admitted and sorted last (see the clockless describe below).
+  // endTime is now admitted and sorted after the clocked lots.
   //
-  // `endTime: 0` is an inconsistency this test pins rather than endorses:
-  // `isLiveNow` reads it as clockless (`!0`) and admits it, but the comparator's
-  // `typeof === 'number'` reads it as CLOCKED, so it sorts to the very front on
-  // an epoch-1970 clock. No writer in this app stores 0, so it is documented
-  // here as real current behaviour, not fixed inside this task's scope.
-  it('admits a missing endTime (sorted last) and treats a 0 endTime as clocked', () => {
+  // `endTime: 0` counts as CLOCKLESS, matching `isLiveNow`, which decides
+  // clocked-ness by falsiness (`!0` is true) and admits such a lot. The
+  // comparator's `typeof === 'number' && > 0` agrees with it by construction,
+  // so a 0 endTime can never be sorted to the front on an epoch-1970 clock.
+  it('admits a 0 or missing endTime, ordering both as clockless behind clocked lots', () => {
     const out = curateLandingAuctions([
       auction({ id: 'zero', status: 'live', endTime: 0 }),
       auction({ id: 'undef', status: 'live', endTime: undefined as any }),
       auction({ id: 'ok', status: 'live', endTime: NOW + 60_000 }),
     ], NOW);
-    expect(out.map(a => a.id)).toEqual(['zero', 'ok', 'undef']);
+    expect(out.map(a => a.id)).toEqual(['ok', 'zero', 'undef']);
   });
   it('orders featured first, then soonest endTime', () => {
     const out = curateLandingAuctions([
@@ -80,9 +79,16 @@ describe('curateLandingAuctions', () => {
     ], NOW);
     expect(out.map(a => a.id)).toEqual(['feat', 'soon', 'later']);
   });
-  it('caps the result to the requested limit', () => {
-    const many = Array.from({ length: 12 }, (_, i) => auction({ id: `a${i}`, endTime: NOW + i * 1000 }));
-    expect(curateLandingAuctions(many, NOW, 8)).toHaveLength(8);
+  // Asserts the ORDER, not just the length: the input is built reverse-sorted
+  // (a0 ends last, a11 ends soonest) so the cap keeping the TOP n is
+  // distinguishable from it keeping an arbitrary n. A length-only assertion
+  // would still pass if `.slice` ran before `.sort` — the exact invariant the
+  // filter → map → sort → slice order exists to hold.
+  it('caps to the requested limit keeping the TOP n, not an arbitrary n', () => {
+    const many = Array.from({ length: 12 }, (_, i) => auction({ id: `a${i}`, endTime: NOW + (12 - i) * 1000 }));
+    const out = curateLandingAuctions(many, NOW, 8);
+    expect(out).toHaveLength(8);
+    expect(out.map(a => a.id)).toEqual(['a11', 'a10', 'a9', 'a8', 'a7', 'a6', 'a5', 'a4']);
   });
 });
 
@@ -161,6 +167,14 @@ describe('curateLandingAuctions — ordering', () => {
     ], NOW);
     expect(out.map(a => a.id)).toEqual(['dated', 'nodate']);
   });
+
+  it('keeps two undated clockless lots in a defined order — comparator never returns NaN', () => {
+    const out = curateLandingAuctions([
+      auction({ id: 'n1', endTime: undefined } as any),
+      auction({ id: 'n2', endTime: undefined } as any),
+    ], NOW);
+    expect(out.map(a => a.id)).toEqual(['n1', 'n2']);
+  });
 });
 
 describe('mapToLandingAuction — new fields', () => {
@@ -170,6 +184,17 @@ describe('mapToLandingAuction — new fields', () => {
 
   it('carries a numeric createdAt through unchanged', () => {
     expect(mapToLandingAuction(auction({ createdAt: 1234 } as any)).createdAt).toBe(1234);
+  });
+
+  // The toMillis branch is the one production actually takes: a real Firestore
+  // Timestamp carries BOTH toMillis and seconds, so it short-circuits there and
+  // never reaches the {seconds} path above.
+  it('reads a real Firestore Timestamp via toMillis (the shape live docs actually carry)', () => {
+    expect(mapToLandingAuction(auction({ createdAt: { toMillis: () => 5000 } } as any)).createdAt).toBe(5000);
+  });
+
+  it('parses an ISO string createdAt', () => {
+    expect(mapToLandingAuction(auction({ createdAt: '2026-08-03T00:00:00.000Z' } as any)).createdAt).toBe(Date.parse('2026-08-03T00:00:00.000Z'));
   });
 
   it('leaves createdAt undefined when the doc has none — never fabricates one', () => {

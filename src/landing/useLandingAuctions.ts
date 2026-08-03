@@ -108,12 +108,23 @@ export function curateLandingAuctions(
         const yr = y.featuredRank ?? Number.MAX_SAFE_INTEGER;
         if (xr !== yr) return xr - yr;
       }
-      const xClocked = typeof x.endTime === 'number';
-      const yClocked = typeof y.endTime === 'number';
+      // `> 0` so this agrees with `isLiveNow` BY CONSTRUCTION: that predicate
+      // decides clocked-ness by falsiness (`!endTime`), so a 0 endTime is
+      // clockless to it. Testing only `typeof === 'number'` here would call 0
+      // clocked and sort such a lot to the very front on a 1970 clock.
+      const xClocked = typeof x.endTime === 'number' && x.endTime > 0;
+      const yClocked = typeof y.endTime === 'number' && y.endTime > 0;
       if (xClocked !== yClocked) return xClocked ? -1 : 1;
       if (xClocked && yClocked) return (x.endTime as number) - (y.endTime as number);
-      // Both clockless: newest first; an undated lot sorts last.
-      return (y.createdAt ?? -Infinity) - (x.createdAt ?? -Infinity);
+      // Both clockless: newest first; an undated lot sorts last, and two
+      // undated lots keep their input order (never NaN — `-Infinity - -Infinity`
+      // is NaN, which sorts unpredictably instead of failing loudly).
+      const xc = x.createdAt;
+      const yc = y.createdAt;
+      if (xc === undefined && yc === undefined) return 0;
+      if (xc === undefined) return 1;
+      if (yc === undefined) return -1;
+      return yc - xc;
     })
     .slice(0, cap);
 }
