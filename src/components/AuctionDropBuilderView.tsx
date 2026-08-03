@@ -12,6 +12,7 @@ import { buildAuctionCaption } from '../utils/dropCaption';
 import { buildAuctionUrl } from '../utils/deepLink';
 import { DROP_CHANNELS, channelLabel, type DropChannel } from '../utils/dropChannel';
 import { CATEGORIES } from '../utils/categories';
+import { draftHasMedia } from '../utils/listingMedia';
 import { buildDropPayload } from '../utils/dropPayload';
 import {
   INITIAL_FORM,
@@ -72,6 +73,12 @@ export default function AuctionDropBuilderView() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   // What the submit button says mid-upload. Empty outside a submit.
   const [progressLabel, setProgressLabel] = useState('');
+
+  // The publish gate's media half. Derived from the SHARED rule rather than a
+  // local expression so this path and the seller-side approval card cannot
+  // drift — a lot that reaches the feed with no image gets no image, and the
+  // stock-photo fallback that used to cover for that is gone.
+  const hasMedia = draftHasMedia({ thumbnailFile, videoFile, gallery: extraPhotos });
 
   /**
    * The one write path into the form — and therefore the one place a field's
@@ -300,7 +307,7 @@ export default function AuctionDropBuilderView() {
     // exact silent degrade the old Scheduled-with-no-time field had. Returning
     // here before any upload is the only thing between the two, so both
     // REQUIRED and PAST must keep blocking.
-    const found = validateDropForm(form, Date.now());
+    const found = validateDropForm(form, Date.now(), hasMedia);
     setErrors(found);
     // Scroll the FIRST problem into view — the button stays enabled precisely
     // so that clicking it says what is wrong, and a message rendered below the
@@ -407,7 +414,7 @@ export default function AuctionDropBuilderView() {
    */
   const handleSaveEdit = async () => {
     if (!createdId) return;
-    const found = validateDropForm(form, Date.now());
+    const found = validateDropForm(form, Date.now(), hasMedia);
     setErrors(found);
     // Same treatment Create gets, and for a sharper reason: the save bar is
     // sticky below md, so it sits ON TOP of the lower half of the form. A bare
@@ -683,6 +690,21 @@ export default function AuctionDropBuilderView() {
             videoFile={videoFile}
             onVideoChange={setVideoFile}
           />
+          )}
+
+          {/* `field-media` matches the id focusFirstError looks up, and tabIndex
+              makes the section focusable so the scroll lands on the picker
+              rather than skipping to the next real input. */}
+          {errors.media && (
+            <p
+              id="field-media"
+              tabIndex={-1}
+              className="text-[11px] font-black text-red-500 mt-2 outline-none"
+            >
+              {isAr
+                ? 'أضف صورة أو فيديو للمنتج قبل النشر'
+                : 'Add a photo or video of the product before publishing'}
+            </p>
           )}
         </section>
 

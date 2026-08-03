@@ -143,38 +143,39 @@ describe('afterCreateAnother', () => {
 
 describe('validateDropForm', () => {
   it('passes a minimally complete form', () => {
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10' }, NOW))
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10' }, NOW, true))
       .toEqual({});
   });
 
   it('flags a missing product name', () => {
-    const e = validateDropForm({ ...INITIAL_FORM, startingPrice: '10' }, NOW);
+    const e = validateDropForm({ ...INITIAL_FORM, startingPrice: '10' }, NOW, true);
     expect(e.productName).toBe('REQUIRED');
   });
 
   it('flags a whitespace-only product name', () => {
-    const e = validateDropForm({ ...INITIAL_FORM, productName: '   ', startingPrice: '10' }, NOW);
+    const e = validateDropForm({ ...INITIAL_FORM, productName: '   ', startingPrice: '10' }, NOW, true);
     expect(e.productName).toBe('REQUIRED');
   });
 
   it('flags a missing or zero starting price', () => {
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x' }, NOW).startingPrice).toBe('REQUIRED');
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '0' }, NOW).startingPrice).toBe('REQUIRED');
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x' }, NOW, true).startingPrice).toBe('REQUIRED');
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '0' }, NOW, true).startingPrice).toBe('REQUIRED');
   });
 
   it('flags a negative starting price', () => {
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '-5' }, NOW).startingPrice).toBe('REQUIRED');
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '-5' }, NOW, true).startingPrice).toBe('REQUIRED');
   });
 
   it('flags a non-numeric starting price', () => {
     // '' and '0' both coerce to 0, so only this case exercises the non-finite guard.
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: 'abc' }, NOW).startingPrice).toBe('REQUIRED');
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: 'abc' }, NOW, true).startingPrice).toBe('REQUIRED');
   });
 
   it('flags a scheduled drop with no time chosen', () => {
     const e = validateDropForm(
       { ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'scheduled' },
       NOW,
+      true,
     );
     expect(e.scheduledLocal).toBe('REQUIRED');
   });
@@ -183,13 +184,14 @@ describe('validateDropForm', () => {
     const e = validateDropForm(
       { ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'scheduled', scheduledLocal: '2020-01-01T20:00' },
       NOW,
+      true,
     );
     expect(e.scheduledLocal).toBe('PAST');
   });
 
   it('does not flag timing for the now and first-bid modes', () => {
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'now' }, NOW).scheduledLocal).toBeUndefined();
-    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'first_bid' }, NOW).scheduledLocal).toBeUndefined();
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'now' }, NOW, true).scheduledLocal).toBeUndefined();
+    expect(validateDropForm({ ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'first_bid' }, NOW, true).scheduledLocal).toBeUndefined();
   });
 });
 
@@ -221,6 +223,7 @@ describe('firstErrorField', () => {
     const all = validateDropForm(
       { ...INITIAL_FORM, productName: '', startingPrice: '', opensMode: 'scheduled', scheduledLocal: '' },
       NOW,
+      true,
     );
     expect(Object.keys(all)).toEqual(['productName', 'startingPrice', 'scheduledLocal']);
     expect(firstErrorField(all)).toBe('productName');
@@ -284,11 +287,12 @@ describe('dropErrorText', () => {
     // Pins the pair: a new code added to the validator with no message here
     // would render an empty red span under the field.
     const emitted = new Set([
-      ...Object.values(validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW)),
+      ...Object.values(validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW, true)),
       ...Object.values(
         validateDropForm(
           { ...INITIAL_FORM, productName: 'x', startingPrice: '10', opensMode: 'scheduled', scheduledLocal: '2020-01-01T20:00' },
           NOW,
+      true,
         ),
       ),
     ]);
@@ -362,12 +366,33 @@ describe('clearErrorsForField', () => {
   it('clears every error validateDropForm can raise, from its own field', () => {
     // Pins the pair the way the dropErrorText test above does: an error keyed
     // under a name no field change touches would be unclearable by typing.
-    const raised = validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW);
+    const raised = validateDropForm({ ...INITIAL_FORM, opensMode: 'scheduled' }, NOW, true);
     expect(Object.keys(raised).length).toBeGreaterThan(0);
     for (const key of Object.keys(raised)) {
       // Every code the validator raises is keyed under a field name, so
       // changing the field of that name is what has to retire it.
       expect(clearErrorsForField(raised, key as keyof DropFormValues)[key]).toBeUndefined();
     }
+  });
+});
+
+describe('validateDropForm media gate', () => {
+  const ok = { ...INITIAL_FORM, productName: 'Skyworth 55" TV', startingPrice: '100' };
+
+  it('refuses to publish a lot with no media', () => {
+    // The seller path has always gated this hard (ListingApprovalCard: "No
+    // photo/video — cannot approve"). The admin drop builder did not, which is
+    // how image-less lots reached the feed wearing a stock photo.
+    expect(validateDropForm(ok, NOW, false).media).toBe('REQUIRED');
+  });
+
+  it('publishes a complete lot that has media', () => {
+    expect(validateDropForm(ok, NOW, true)).toEqual({});
+  });
+
+  it('sends the admin to the media picker once the fields above it are clean', () => {
+    // Visual order: name, price, media, then timing.
+    expect(firstErrorField(validateDropForm({ ...ok, productName: '' }, NOW, false))).toBe('productName');
+    expect(firstErrorField(validateDropForm(ok, NOW, false))).toBe('media');
   });
 });

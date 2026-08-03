@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ViewingSelector } from '../ViewingSelector';
 import type { ViewingMode } from '../../../utils/viewing';
+import { docHasMedia } from '../../../utils/listingMedia';
 /** Shown on the button that is waiting. A greyed-out button is indistinguishable
  * from one still gated on its checklist — the label is what says "it registered". */
 const BUSY_LABEL = { ar: 'جارٍ التنفيذ…', en: 'Working…' };
@@ -45,7 +46,9 @@ export const ListingApprovalCard: React.FC<ListingApprovalCardProps> = ({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
 
-  const hasMedia = !!(auction.thumbnailUrl || auction.videoUrl || (auction.mediaUrls && auction.mediaUrls.length));
+  // The SHARED rule, also used by the drop builder's publish gate — the two
+  // gates used to be independent expressions and only one of them existed.
+  const hasMedia = docHasMedia(auction);
   const allChecked = checklist.photo && checklist.category && checklist.name;
   const canApprove = allChecked && hasMedia && !busy;
   const looksLikeTest = /test|tset|اختبار|dummy|sample/i.test(String(auction.title || ''));
