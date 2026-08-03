@@ -1329,3 +1329,62 @@ Run the app (`npm run dev`) and check each, on mobile width and desktop:
 ## Deployment note
 
 Per `reference_mazadjo_worktree_deploy`: if deploying from a worktree, diff `functions/` against `origin/main` first. This epic changes no `functions/` code, so a functions deploy should not be needed — verify rather than assume.
+
+---
+
+## Deviations from this plan, and why
+
+Recorded during execution. All are expansions found by the code or by
+production data, not scope changes.
+
+1. **Six category consumers, not five.** `src/services/search/searchMap.ts`
+   carried a hand-copied duplicate of the Discover chip match lists under a
+   "keep this in sync" comment — and had already drifted: no entry for the
+   catch-all chip, so searching inside it applied no category facet at all. It
+   is now generated from `categories.ts`.
+
+2. **`categoryToChannel` replaces `channelToCategory`.** The plan said delete
+   the latter; the concierge form still needed a WhatsApp routing channel. The
+   mapping now runs the other way — the item's category picks the audience,
+   which is sound, where deriving a category from an audience could only ever
+   produce three categories.
+
+3. **`category` joins `DropFormValues`.** The plan left the drop builder's
+   category "a field on the channel selector". It is serialisable state, so it
+   belongs in the form object with the rest, and it carries over on "create
+   another" like the other batch settings.
+
+4. **Twelve image fabrications, not two.** The reported symptoms were
+   `createListing` and the Discovery card. The same `|| '<unsplash url>'`
+   pattern was in ten more places: the drop builder's three lot pickers, the
+   seller's listing rows, and six order surfaces where it showed a buyer a
+   stock photo of a product they had not won. All are fixed and the wiring test
+   covers every one.
+
+5. **`vitest.config.ts` now globs `scripts/**/*.test.ts`.** Task 6's classifier
+   tests live under `scripts/`, which no glob matched — they would have been
+   collected by nothing and "passed" by never running.
+
+6. **A second backfill: `backfill-stock-covers.cjs`.** Task 6 covered
+   categories only. Production data showed 23 lots already wearing a fabricated
+   cover (12 the Nike sneakers, 12 buyer-visible), and 18 of them already hold
+   real photographs in `mediaUrls`. Removing the fallback does not clean those
+   up, so a second two-phase script promotes the lot's own gallery image to its
+   cover. Five lots have no real media at all and are reported as human work.
+
+7. **The classifier was widened from real data.** The first pass left 129 of
+   the catch-all unclassified. Reading the actual titles showed the gap was
+   vocabulary — two live spellings of ميكروويف, plus خلاط / مقلى / غلاية /
+   مروحة / مكنسة / برادة / كشاف, and PS4 / ايباد. 130 lots now auto-classify
+   and 67 remain for a human. Appliances moved ahead of Home & Furniture so
+   "برادة مياه طاولة" reads as a water cooler rather than a table.
+
+## Production findings (read-only, from phase-1 reports)
+
+- 249 lots total; **zero** have no media at all, because the fallback always
+  wrote *something*. The risk flagged in the spec ("removing the fallback makes
+  lots visibly blank") does not materialise.
+- **23 lots carry a stock cover photo**, 12 of them the Nike sneakers, 12
+  live/upcoming.
+- 221 lots sit in Fashion / Luxury / Electronics; **130 would be recategorised**,
+  14 of those have live bids, and 67 need a human.
