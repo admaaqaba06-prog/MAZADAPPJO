@@ -132,20 +132,43 @@ describe('LoginView layout', () => {
     expect(render()).toMatch(/flex-col lg:flex-row/);
   });
 
-  it('shows the full panel only on desktop and the compact one only on mobile', () => {
+  it('shows the story column only on desktop, and its mobile twin only on mobile', () => {
     const html = render();
-    expect(html).toMatch(/hidden lg:block/);  // full, desktop only
-    expect(html).toMatch(/lg:hidden/);        // compact + steps, mobile only
+    expect(html).toMatch(/hidden lg:block/);  // story column, desktop only
+    expect(html).toMatch(/lg:hidden/);        // the same story, mobile only
   });
 
   it('renders the marketing copy exactly once per breakpoint bucket', () => {
-    // The mobile blocks and the desktop block both exist in the markup (CSS
-    // hides one). What must not happen is the SAME bucket repeating a claim.
+    // The desktop story column and its mobile twin both exist in the markup
+    // (CSS hides one). What must not happen is the SAME bucket repeating a claim
+    // — and note the ACTIVITY block is deliberately not duplicated that way: it
+    // renders once, under the card, on both breakpoints.
     const html = render();
     const trust = html.split('Buy safely from anyone').length - 1;
     const steps = html.split('Pay by CliQ').length - 1;
-    expect(trust).toBe(2);  // desktop full + mobile compact
-    expect(steps).toBe(2);  // desktop full + mobile steps
+    expect(trust).toBe(2);  // desktop story + mobile story
+    expect(steps).toBe(2);  // desktop story + mobile story
+  });
+
+  it('puts the live lots BELOW the sign-in card, not beside it', () => {
+    // MJ's call after seeing it beside the form: the form is the primary action
+    // and leads; the inventory is proof underneath rather than something
+    // competing for first attention. Asserted by document order, so moving the
+    // activity block back above or into the left column fails here.
+    const html = render();
+    const card = html.indexOf('Continue with Google');
+    const lots = html.indexOf('lots live right now');
+    expect(card, 'sign-in card present').toBeGreaterThan(-1);
+    expect(lots, 'activity block present').toBeGreaterThan(-1);
+    expect(lots).toBeGreaterThan(card);
+  });
+
+  it('keeps the lots out of the desktop story column', () => {
+    // The left column is trust + how-it-works only. If the activity block leaked
+    // back into it the count would render twice.
+    const html = render();
+    const occurrences = html.split('lots live right now').length - 1;
+    expect(occurrences).toBe(1);
   });
 
   it('keeps the deep-link banner untouched', () => {

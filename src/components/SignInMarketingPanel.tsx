@@ -26,16 +26,18 @@ export interface SignInMarketingPanelProps {
   state: LandingAuctionsState;
   lang: 'ar' | 'en';
   /**
-   * `full`    — desktop left column: all three blocks.
-   * `compact` — the MOBILE block ABOVE the card: hook and objection only. The
-   *             steps are dropped so the buttons are not pushed below the fold;
-   *             message-first on mobile is a deliberate trade and this is its
-   *             mitigation.
-   * `steps`   — the MOBILE block BELOW the card: the three steps alone, so the
-   *             mobile reader still gets them without the compact block above
-   *             repeating itself.
+   * `activity` — the live lots alone. Sits directly BENEATH the sign-in card:
+   *              MJ's call after seeing it beside the form. The form is the
+   *              primary action and leads; the inventory is proof underneath it
+   *              rather than something competing with it for first attention.
+   * `story`    — trust and how-it-works, without the lots. The desktop left
+   *              column.
+   * `full`     — all three blocks, in Fogg order. Kept for the single-column
+   *              case and for tests that assert the full composition.
+   * `compact`  — hook and objection only, no steps.
+   * `steps`    — the three steps alone.
    */
-  variant?: 'full' | 'compact' | 'steps';
+  variant?: 'full' | 'compact' | 'steps' | 'activity' | 'story';
 }
 
 export function SignInMarketingPanel({
@@ -49,9 +51,9 @@ export function SignInMarketingPanel({
   const activity = selectPanelActivity(state);
   const c = panelCopy(lang);
   const currency = lang === 'en' ? 'JOD' : 'د.أ';
-  const showActivity = variant !== 'steps' && activity;
-  const showTrust = variant !== 'steps';
-  const showSteps = variant !== 'compact';
+  const showActivity = variant !== 'steps' && variant !== 'story' && activity;
+  const showTrust = variant !== 'steps' && variant !== 'activity';
+  const showSteps = variant !== 'compact' && variant !== 'activity';
 
   return (
     <div className="w-full max-w-md lg:max-w-lg text-fg">

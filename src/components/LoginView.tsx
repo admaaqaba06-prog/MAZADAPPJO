@@ -343,19 +343,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         either column, so lg:items-center keeps the two aligned to each other.
         Mobile needs none — the compact block carries its own mt-16.
       */}
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-12 lg:pt-20 z-10">
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-12 lg:pt-24 z-10">
 
-        {/* Desktop: the full panel is the left column. */}
+        {/* Desktop left column: the STORY only — trust and how it works. The
+            live lots are not here; they sit under the card (see below). */}
         <div className="hidden lg:block lg:flex-1">
-          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="full" />
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="story" />
         </div>
 
         <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center">
-
-        {/* Mobile: the compact block sits above the card. */}
-        <div className="lg:hidden w-full max-w-md mt-16 mb-4">
-          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="compact" />
-        </div>
 
       {/* Deep-link context: the visitor followed a live-auction link — say so */}
       {cameFromAuctionLink && (
@@ -368,7 +364,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       )}
 
       {/* Center White Modal Box */}
-      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-8 lg:mb-16' : 'mb-8 lg:my-16'}`}>
+      <div className={`w-full max-w-md bg-surface-raised rounded-3xl p-6 md:p-8 border border-line shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 ${cameFromAuctionLink ? 'mt-4 mb-2' : 'mt-16 mb-2 lg:mt-0'}`}>
 
         {/* Title */}
         <h1 className="text-2xl font-black text-fg tracking-tight text-center mb-6">
@@ -649,10 +645,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
 
       </div>
 
-        {/* Mobile: the three steps sit BELOW the card, so the compact block
-            above stays short and the buttons stay above the fold. */}
-        <div className="lg:hidden w-full max-w-md mt-6 mb-8">
-          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="steps" />
+        {/* The live lots sit DIRECTLY UNDER the sign-in card, on every
+            breakpoint. The form is the primary action and leads; the inventory
+            is proof beneath it rather than something competing with it for
+            first attention. */}
+        <div className="w-full max-w-md mt-6">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="activity" />
+        </div>
+
+        {/* Mobile only: the story follows the lots. On desktop it is the left
+            column instead. */}
+        <div className="lg:hidden w-full max-w-md mt-8 mb-8">
+          <SignInMarketingPanel state={landingAuctions} lang={panelLang} variant="story" />
         </div>
 
         </div>
