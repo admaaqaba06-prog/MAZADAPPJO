@@ -15,7 +15,7 @@ export const SellWithUsView: React.FC = () => {
           <ShieldCheck className="w-7 h-7 text-[#FF6B00]" />
         </div>
 
-        <h1 className="text-xl font-black text-gray-950">
+        <h1 className="text-xl font-black text-fg">
           {isAr ? 'بيع معنا 🤝' : 'Sell with us 🤝'}
         </h1>
 

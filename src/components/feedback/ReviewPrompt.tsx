@@ -108,7 +108,7 @@ export default function ReviewPrompt({
               referrerPolicy="no-referrer"
             />
             <div className="min-w-0 space-y-0.5">
-              <h3 className="font-black text-gray-950 text-sm leading-snug">
+              <h3 className="font-black text-fg text-sm leading-snug">
                 {isAr ? 'قيّم تجربتك ⭐' : 'Rate your experience ⭐'}
               </h3>
               <p className="text-[11px] text-fg-muted truncate">{order.auctionTitle}</p>

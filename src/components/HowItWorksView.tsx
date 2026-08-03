@@ -154,7 +154,7 @@ export const HowItWorksView: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-[#E85D04] flex items-center justify-center text-white mx-auto shadow-md shadow-orange-500/20">
             <HelpCircle className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl lg:text-3xl font-black text-gray-950 tracking-tight">
+          <h1 className="text-2xl lg:text-3xl font-black text-fg tracking-tight">
             {isAr ? 'كيف يعمل مزاد جو؟' : 'How Mazad JO works'}
           </h1>
           <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
@@ -179,7 +179,7 @@ export const HowItWorksView: React.FC = () => {
                 {step.icon}
               </div>
               <div className="min-w-0 space-y-1">
-                <h3 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2">
+                <h3 className="text-sm font-black text-fg tracking-tight flex items-center gap-2">
                   <span className="text-[#E85D04] font-black text-xs">
                     {isAr ? ['١', '٢', '٣', '٤', '٥'][i] : i + 1}
                   </span>
@@ -252,7 +252,7 @@ export const HowItWorksView: React.FC = () => {
           className="space-y-3"
           id="how-it-works-faq"
         >
-          <h2 className="text-sm font-black text-gray-950 uppercase tracking-wide px-1">
+          <h2 className="text-sm font-black text-fg uppercase tracking-wide px-1">
             {isAr ? 'أسئلة شائعة' : 'Common questions'}
           </h2>
           <div className="bg-surface-raised border border-line/70 rounded-2xl divide-y divide-line shadow-xs overflow-hidden">

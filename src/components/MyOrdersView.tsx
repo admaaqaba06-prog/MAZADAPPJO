@@ -204,7 +204,7 @@ export const MyOrdersView: React.FC = () => {
       <div className="max-w-3xl mx-auto w-full p-4 md:p-0 space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))] animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between bg-surface-raised px-5 py-4 rounded-2xl border border-line shadow-xs mt-2 md:mt-0">
-          <h2 className="text-sm font-black text-gray-950 tracking-tight flex items-center gap-2 uppercase font-mono">
+          <h2 className="text-sm font-black text-fg tracking-tight flex items-center gap-2 uppercase font-mono">
             <ShoppingBag className="w-4 h-4 text-[#FF6B00]" />
             <span>{isAr ? 'مشترياتي' : 'My Orders'}</span>
           </h2>
@@ -234,7 +234,7 @@ export const MyOrdersView: React.FC = () => {
           >
             <Clock className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
             <div className="min-w-0 space-y-0.5">
-              <p className="text-xs font-black text-gray-950">{t.ordersFinalizingTitle}</p>
+              <p className="text-xs font-black text-fg">{t.ordersFinalizingTitle}</p>
               <p className="text-[10.5px] text-fg-muted font-semibold leading-relaxed">{t.ordersFinalizingHint}</p>
             </div>
           </div>
@@ -263,7 +263,7 @@ export const MyOrdersView: React.FC = () => {
               <ShoppingBag className="w-6 h-6" />
             </div>
             <div className="space-y-1.5">
-              <p className="font-black text-gray-950 text-sm">
+              <p className="font-black text-fg text-sm">
                 {isAr ? 'لا مشتريات بعد — زايد واربح!' : 'No purchases yet — bid and win!'}
               </p>
               <p className="text-[11px] text-fg-muted leading-relaxed max-w-[280px] mx-auto">
@@ -306,7 +306,7 @@ export const MyOrdersView: React.FC = () => {
 
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-black text-gray-950 text-xs truncate leading-snug max-w-full">
+                      <h4 className="font-black text-fg text-xs truncate leading-snug max-w-full">
                         {order.auctionTitle}
                       </h4>
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase font-mono shrink-0 ${STATUS_TONE_CLASS[chip.tone]}`}>

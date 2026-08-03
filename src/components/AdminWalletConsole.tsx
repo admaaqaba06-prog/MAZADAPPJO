@@ -88,7 +88,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
               A
             </div>
             <div>
-              <h3 className="font-black text-gray-950 text-base flex items-center gap-1.5">
+              <h3 className="font-black text-fg text-base flex items-center gap-1.5">
                 <span>{currentUser?.name}</span>
                 <span className="text-[8px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.5 rounded leading-none">
                   {isAr ? 'المسؤول المالي' : 'TREASURY AUDITOR'}
@@ -200,7 +200,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-1">
             <div>
-              <h3 className="text-sm font-black text-gray-950 uppercase font-mono tracking-tight flex items-center gap-1.5">
+              <h3 className="text-sm font-black text-fg uppercase font-mono tracking-tight flex items-center gap-1.5">
                 <Building2 className="w-4 h-4 text-[#FF6B00]" />
                 <span>{isAr ? 'سجل المراقبة ومضاهاة حوالات كليك' : 'CliQ Deposits Verification Queue'}</span>
               </h3>
@@ -221,7 +221,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                     onClick={() => setAdminFilter(tab)}
                     className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                       isActive 
-                        ? 'bg-surface-raised text-gray-950 font-black shadow-xs' 
+                        ? 'bg-surface-raised text-fg font-black shadow-xs' 
                         : 'text-fg-muted hover:text-fg'
                     }`}
                   >
@@ -257,7 +257,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
 
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-extrabold text-xs text-gray-950 truncate">{escrow.bidderName}</h4>
+                        <h4 className="font-extrabold text-xs text-fg truncate">{escrow.bidderName}</h4>
                         <span className="text-[8px] font-mono font-bold bg-surface-sunken text-fg-muted px-1.5 py-0.5 rounded">
                           {escrow.cliqAlias || 'no_alias'}
                         </span>
@@ -274,7 +274,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                   {/* Amount & action row */}
                   <div className="flex flex-col md:flex-row md:items-center gap-4 shrink-0 justify-between">
                     <div className="text-right">
-                      <div className="text-base font-black font-mono text-gray-950">
+                      <div className="text-base font-black font-mono text-fg">
                         {escrow.amount.toLocaleString()} <span className="text-[9px] font-bold text-[#FF6B00]">JOD</span>
                       </div>
                       <span className={`text-[8px] font-mono font-black uppercase mt-0.5 inline-block ${

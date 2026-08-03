@@ -299,7 +299,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               M
             </div>
             <div className="flex flex-col text-left rtl:text-right">
-              <span className="text-xs font-black font-sans leading-none tracking-tight uppercase text-gray-950">
+              <span className="text-xs font-black font-sans leading-none tracking-tight uppercase text-fg">
                 {t.appName}
               </span>
             </div>
@@ -312,7 +312,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'discovery'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
               }`}
             >
               <Home className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -324,7 +324,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
               }`}
             >
               <PlusCircle className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -336,7 +336,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'orders'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
               }`}
               id="top-nav-my-orders-btn"
             >
@@ -349,7 +349,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'about'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                  : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
               }`}
               id="top-nav-how-it-works-btn"
             >
@@ -363,7 +363,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'seller-center'
                     ? 'bg-[#E85D04]/10 text-[#E85D04]'
-                    : 'text-fg-muted hover:bg-surface-sunken hover:text-gray-950'
+                    : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
                 }`}
               >
                 <Store className="w-4 h-4 shrink-0 stroke-[2]" />
@@ -552,7 +552,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     className="w-10 h-10 rounded-full object-cover border border-line/80 shadow-xs shrink-0"
                   />
                   <div className="flex flex-col text-left rtl:text-right min-w-0">
-                    <span className="text-xs font-bold text-gray-950 truncate leading-tight">
+                    <span className="text-xs font-bold text-fg truncate leading-tight">
                       {currentUser.name}
                     </span>
                   </div>
@@ -587,7 +587,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                       return (
                         <div
                           key={notif.id}
-                          className="flex items-start gap-2.5 border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+                          className="flex items-start gap-2.5 border-b border-line pb-3 last:border-0 last:pb-0"
                         >
                           <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${wrap}`}>
                             <Icon className="w-3.5 h-3.5 stroke-[2]" />

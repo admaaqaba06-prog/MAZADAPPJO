@@ -254,7 +254,7 @@ export const SellView: React.FC = () => {
                 <CheckCircle className="w-8 h-8 text-emerald-500" />
               </motion.div>
 
-              <h1 className="text-lg font-black text-gray-950 leading-snug">
+              <h1 className="text-lg font-black text-fg leading-snug">
                 {isAr
                   ? 'استلمنا مزادك — فريق مزاد جو رح يراجعه ويوافق عليه، وبعدها بينزل مباشر 🌹'
                   : 'Got it — Mazad JO will review & approve your listing, then it goes live 🌹'}
@@ -314,7 +314,7 @@ export const SellView: React.FC = () => {
             <div>{backButton}</div>
 
             <div className="text-center space-y-1">
-              <h2 className="text-base font-black text-gray-950">
+              <h2 className="text-base font-black text-fg">
                 {isAr ? 'خلّي مزاد جو يدرجه لك 🤝' : 'Let Mazad list it for you 🤝'}
               </h2>
               <p className="text-xs text-fg-muted font-medium">
@@ -556,7 +556,7 @@ export const SellView: React.FC = () => {
           >
             {/* Header */}
             <div className="text-center space-y-1.5 pt-2">
-              <h1 className="text-xl font-black text-gray-950">
+              <h1 className="text-xl font-black text-fg">
                 {isAr ? 'بيع على مزاد جو' : 'Sell on Mazad JO'}
               </h1>
               <p className="text-xs text-fg-muted font-medium leading-relaxed max-w-sm mx-auto">
@@ -608,7 +608,7 @@ export const SellView: React.FC = () => {
                       <CardIcon className="w-7 h-7 text-white" />
                     </div>
                     <div className="space-y-1.5 relative">
-                      <h3 className="text-base font-black text-gray-950 leading-tight">{card.title}</h3>
+                      <h3 className="text-base font-black text-fg leading-tight">{card.title}</h3>
                       <p className="text-xs text-fg-muted font-medium leading-relaxed min-h-[48px]">{card.desc}</p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#FF6B00] mt-auto relative">

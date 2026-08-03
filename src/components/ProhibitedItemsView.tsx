@@ -114,7 +114,7 @@ export const ProhibitedItemsView: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-rose-600 flex items-center justify-center text-white mx-auto shadow-md shadow-rose-500/20">
             <Ban className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl lg:text-3xl font-black text-gray-950 tracking-tight">
+          <h1 className="text-2xl lg:text-3xl font-black text-fg tracking-tight">
             {isAr ? 'الأغراض الممنوعة على مزاد جو' : 'Prohibited items on Mazad JO'}
           </h1>
           <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
@@ -138,7 +138,7 @@ export const ProhibitedItemsView: React.FC = () => {
                 {item.icon}
               </div>
               <div className="min-w-0 space-y-1">
-                <h3 className="text-sm font-black text-gray-950 tracking-tight">
+                <h3 className="text-sm font-black text-fg tracking-tight">
                   {isAr ? item.titleAr : item.titleEn}
                 </h3>
                 <p className="text-xs text-fg-muted font-medium leading-relaxed">

@@ -182,7 +182,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
     <div className="space-y-5">
       <div className="bg-surface-raised rounded-3xl border border-line p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-black text-gray-950">{isAr ? 'بحاجة إلى انتباهك' : 'Needs your attention'}</h2>
+          <h2 className="text-sm font-black text-fg">{isAr ? 'بحاجة إلى انتباهك' : 'Needs your attention'}</h2>
           {queue.length > 0 && (
             <span className="min-w-6 h-6 px-2 inline-flex items-center justify-center rounded-full bg-[#FF6B00] text-white text-xs font-black">
               {queue.length}

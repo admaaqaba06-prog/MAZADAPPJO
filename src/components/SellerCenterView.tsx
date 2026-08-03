@@ -1111,7 +1111,7 @@ export const SellerCenterView: React.FC = () => {
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black tracking-wide transition-all cursor-pointer w-full text-left rtl:text-right ${
                   isActive 
                     ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
-                    : 'text-fg-muted hover:text-gray-950 hover:bg-surface-sunken'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
                 <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-fg-muted'}`} />
@@ -1147,7 +1147,7 @@ export const SellerCenterView: React.FC = () => {
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-black tracking-wide shrink-0 transition-all cursor-pointer ${
                   isActive 
                     ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
-                    : 'text-fg-muted hover:text-gray-950 hover:bg-surface-sunken'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
                 <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FF6B00]' : 'text-fg-muted'}`} />
@@ -1355,7 +1355,7 @@ export const SellerCenterView: React.FC = () => {
                     key={chip.id}
                     onClick={() => setActiveBucket(chip.id as any)}
                     className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      activeBucket === chip.id ? 'bg-surface-raised text-gray-950 shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
+                      activeBucket === chip.id ? 'bg-surface-raised text-fg shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <span>{chip.label}</span>
@@ -1586,7 +1586,7 @@ export const SellerCenterView: React.FC = () => {
                         key={chip.id}
                         onClick={() => setOrdersFilter(chip.id as any)}
                         className={`py-2 text-center rounded-xl text-xs font-bold shrink-0 px-3 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          ordersFilter === chip.id ? 'bg-surface-raised text-gray-950 shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
+                          ordersFilter === chip.id ? 'bg-surface-raised text-fg shadow-xs border border-line' : 'text-fg-muted hover:text-fg'
                         }`}
                       >
                         <span>{chip.label}</span>
