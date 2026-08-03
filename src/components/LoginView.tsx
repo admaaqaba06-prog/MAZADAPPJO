@@ -335,7 +335,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         deliberate trade recorded in the spec, and the compact block above is
         kept short so the buttons stay reachable without scrolling.
       */}
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-12 z-10">
+      {/*
+        lg:pt-20 clears the ABSOLUTE header (top-6, 32px tall — its box ends at
+        56px). Without it the first line of the panel renders underneath the
+        logo: on desktop the activity count sat at y=32 and "8 lots live right
+        now" collided with "MAZAD JO". Padding on the wrapper rather than on
+        either column, so lg:items-center keeps the two aligned to each other.
+        Mobile needs none — the compact block carries its own mt-16.
+      */}
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-12 lg:pt-20 z-10">
 
         {/* Desktop: the full panel is the left column. */}
         <div className="hidden lg:block lg:flex-1">
