@@ -41,6 +41,7 @@ import { translations, TranslationType } from "./translations";
 import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
+import { priceLabel } from '../utils/bidLabels';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
@@ -265,7 +266,12 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {auctions.map((a) => {
-                const endingSoon = a.endTime - Date.now() < 3600_000;
+                // A clockless (awaiting-first-bid) lot has no endTime at all, so
+                // it can be neither ending-soon nor expired. The old expression
+                // reached the same result only via `NaN < n` being false — this
+                // states the condition instead of relying on that.
+                const hasClock = typeof a.endTime === 'number' && a.endTime > 0;
+                const endingSoon = hasClock && a.endTime - Date.now() < 3600_000;
                 return (
                   <Reveal key={a.id}>
                     <button
@@ -286,6 +292,13 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                           <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-[#F05123] text-white text-xs font-semibold">
                             {t.marketplace.endingSoon}
                           </span>
+                        ) : !hasClock ? (
+                          /* Amber, not the brand orange above: on every other surface
+                             orange means a clock is running, and this lot's has not
+                             started. Matches the Discover card's amber badge. */
+                          <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-amber-400 text-zinc-900 text-xs font-semibold">
+                            {t.marketplace.beTheFirst}
+                          </span>
                         ) : null}
                       </div>
                       <div className="p-4">
@@ -293,12 +306,18 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                         <h3 className="mt-1 font-semibold text-[#0A0A0A] line-clamp-1">{a.title}</h3>
                         <div className="mt-3 flex items-end justify-between">
                           <div>
-                            <span className="block text-xs text-[#0A0A0A]/50">{t.marketplace.currentBid}</span>
+                            <span className="block text-xs text-[#0A0A0A]/50">{priceLabel(a.totalBids, lang === 'ar')}</span>
                             <span dir="ltr" className="block font-bold text-[#0A0A0A]">{formatPrice(a.currentPrice)}</span>
                           </div>
                           <div className="text-end">
                             <span dir="ltr" className="block text-xs text-[#0A0A0A]/50">{a.totalBids} {t.marketplace.bids}</span>
-                            <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime)}</span>
+                            {/* Clockless lots render NOTHING here: their state is
+                                already carried by the "Be the first" badge above,
+                                and formatTimeLeft would emit the literal "NaNm"
+                                for an absent endTime. */}
+                            {hasClock ? (
+                              <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime as number)}</span>
+                            ) : null}
                           </div>
                         </div>
                         <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>
