@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
 import { resizeImage } from '../utils/resizeImage';
 import { validateDescription } from '../utils/listingDescription';
+import { CATEGORIES } from '../utils/categories';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 interface ListingWizardViewProps {
@@ -21,7 +22,10 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
-  const [category, setCategory] = useState<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture'>('Electronics');
+  // Canonical value from utils/categories.ts. It used to be a local union whose
+  // Watches option stored 'Luxury' — a value no Discover chip matched, so every
+  // watch a seller listed was unfindable under any category filter.
+  const [category, setCategory] = useState<string>('Electronics');
   const [duration, setDuration] = useState('3600'); // Default: 1 Hour (in seconds)
 
   // Video assets references
@@ -55,16 +59,14 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<'video' | 'thumbnail' | 'saving' | 'done' | null>(null);
 
-  // Categories map to Arabic names and backend values
-  const categoriesOpt = [
-    { label: isAr ? 'هواتف' : 'Phones', value: 'Electronics' as const },
-    { label: isAr ? 'ساعات' : 'Watches', value: 'Luxury' as const },
-    { label: isAr ? 'سيارات' : 'Cars', value: 'Vehicles' as const },
-    { label: isAr ? 'أجهزة' : 'Electronics', value: 'Electronics' as const },
-    { label: isAr ? 'أجهزة كهربائية' : 'Appliances', value: 'Appliances' as const },
-    { label: isAr ? 'أثاث ومنزل' : 'Home & Furniture', value: 'Home & Furniture' as const },
-    { label: isAr ? 'أخرى' : 'Other', value: 'Fashion' as const }
-  ];
+  // One taxonomy, shared with the drop builder, the concierge form, the
+  // Discover chips and the Algolia facet map. The old local array offered two
+  // labels ("Phones" and "Electronics") that wrote the SAME value, and had no
+  // Real Estate option despite the value and its chip both existing.
+  const categoriesOpt = CATEGORIES.map(c => ({
+    label: isAr ? c.labelAr : c.labelEn,
+    value: c.value,
+  }));
 
   // Duration Options in seconds
   const durationPresets = [

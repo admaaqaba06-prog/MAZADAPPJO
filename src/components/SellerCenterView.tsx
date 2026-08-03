@@ -81,6 +81,8 @@ import { sumPaidSalesThisMonth } from '../utils/sellerSales';
 import { reviewCountLabel } from '../utils/reviewCount';
 import { displayOrderRef } from '../utils/orderRef';
 import { validateDescription } from '../utils/listingDescription';
+import ListingImage from './ui/ListingImage';
+import { rejectionPresetLabel } from '../utils/rejectionReasons';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -100,7 +102,10 @@ const AUCTION_STATUS_LABEL: Record<string, { ar: string; en: string }> = {
   upcoming: { ar: 'قادم', en: 'Upcoming' },
   live: { ar: 'مباشر', en: 'Live' },
   processing: { ar: 'قيد المعالجة', en: 'Processing' },
-  rejected: { ar: 'مرفوض', en: 'Rejected' },
+  // Not 'Rejected'. This state is editable and resubmittable — the seller
+  // fixes the listing and sends it back — so the label names the action, not a
+  // verdict. The STORED status value is unchanged.
+  rejected: { ar: 'يحتاج تعديل', en: 'Needs editing' },
   completed: { ar: 'منتهٍ', en: 'Ended' },
   ended: { ar: 'منتهٍ', en: 'Ended' },
   reserve_not_met: { ar: 'لم يتحقق السعر', en: 'Reserve not met' },
@@ -147,7 +152,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     live: 'مباشر الآن',
     pending_approval: 'بانتظار الموافقة',
     completed: 'مكتمل',
-    rejected: 'مرفوض',
+    rejected: 'يحتاج تعديل',
     edit: 'تعديل',
     duplicate: 'نسخ مكرر',
     delete: 'حذف',
@@ -224,7 +229,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     bucket_review: 'قيد المراجعة',
     bucket_ended: 'انتهى / بدون بيع',
     bucket_sold: 'مُباع',
-    bucket_rejected: 'مرفوض',
+    bucket_rejected: 'يحتاج تعديل',
     bucket_all: 'الكل',
     time_left: 'الوقت المتبقي',
     ended_label: 'منتهٍ',
@@ -266,7 +271,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     live: 'Live Now',
     pending_approval: 'Pending Approval',
     completed: 'Completed',
-    rejected: 'Rejected',
+    rejected: 'Needs editing',
     edit: 'Edit',
     duplicate: 'Duplicate',
     delete: 'Delete',
@@ -343,7 +348,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     bucket_review: 'In review',
     bucket_ended: 'Ended / Unsold',
     bucket_sold: 'Sold',
-    bucket_rejected: 'Rejected',
+    bucket_rejected: 'Needs editing',
     bucket_all: 'All',
     time_left: 'Time left',
     ended_label: 'Ended',
@@ -1424,7 +1429,13 @@ export const SellerCenterView: React.FC = () => {
                           />
                         )}
                         <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
-                          <img src={auction.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} alt={auction.title} className="w-full h-full object-cover" />
+                          <ListingImage
+                            src={auction.thumbnailUrl}
+                            alt={auction.title}
+                            isAr={isAr}
+                            className="w-full h-full"
+                            imgClassName="object-cover"
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -1477,6 +1488,29 @@ export const SellerCenterView: React.FC = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* What to fix. `rejectionReason` has been stored on every
+                          reject since the review gate shipped and shown nowhere,
+                          so a seller sent back for a wrong category was told
+                          only that they had failed. Mirrors the below-reserve
+                          banner's markup so the card keeps one visual language. */}
+                      {auction.status === 'rejected' && auction.rejectionReason && (
+                        <div className="mx-3.5 mb-3.5 rounded-2xl border border-amber-200 bg-amber-50 p-3.5" id={`needs-editing-${auction.id}`}>
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="text-[11.5px] font-black text-amber-900 leading-snug">
+                                {rejectionPresetLabel(auction.rejectionReason, isAr)}
+                              </p>
+                              <p className="text-[10px] text-amber-700/90 font-semibold leading-relaxed">
+                                {isAr
+                                  ? 'عدّل الإعلان ثم أعد إرساله للمراجعة.'
+                                  : 'Edit the listing and resubmit it for review.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* E3 Slice C — below-reserve near-miss: accept the top bid */}
                       {showAcceptOffer && (
@@ -1620,7 +1654,7 @@ export const SellerCenterView: React.FC = () => {
                                 <td className="p-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
-                                      <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
+                                      <img src={order.auctionImage || ''} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="max-w-[150px] lg:max-w-[200px]">
                                       <p className="font-extrabold text-fg truncate">{order.auctionTitle}</p>

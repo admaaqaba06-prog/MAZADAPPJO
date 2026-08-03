@@ -16,7 +16,14 @@ export interface DropFormValues {
   reservePrice: string;
   viewing: ViewingMode | '';
   viewingPlace: string;
+  /** WhatsApp broadcast audience. No longer decides the category. */
   channel: DropChannel;
+  /**
+   * Canonical stored category (utils/categories.ts), picked explicitly. It used
+   * to be derived from `channel`, which meant three channels produced three
+   * categories and everything else fell into the 'Fashion' catch-all.
+   */
+  category: string;
   opensMode: OpensMode;
   scheduledLocal: string;
   durationSeconds: number;
@@ -37,6 +44,7 @@ export const INITIAL_FORM: DropFormValues = {
   viewing: '',
   viewingPlace: '',
   channel: 'misc',
+  category: 'Electronics',
   opensMode: 'now',
   scheduledLocal: '',
   durationSeconds: 1800,
@@ -62,6 +70,7 @@ export function afterCreateAnother(prev: DropFormValues): DropFormValues {
     condition: prev.condition,
     vendorName: prev.vendorName,
     channel: prev.channel,
+    category: prev.category,
     opensMode: prev.opensMode,
     durationSeconds: prev.durationSeconds,
     paymentWindowHours: prev.paymentWindowHours,
@@ -79,6 +88,7 @@ export function afterCreateAnother(prev: DropFormValues): DropFormValues {
 export function validateDropForm(
   v: DropFormValues,
   now: number,
+  hasMedia: boolean,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -86,6 +96,16 @@ export function validateDropForm(
 
   const price = Number(v.startingPrice);
   if (!Number.isFinite(price) || price <= 0) errors.startingPrice = 'REQUIRED';
+
+  // Media is PASSED IN rather than read off `v`: the files are File objects
+  // living in component state, deliberately not part of serialisable form
+  // state. Taking the answer keeps this validator pure, which is what lets it
+  // run in the node test environment.
+  //
+  // The seller path has always enforced this (ListingApprovalCard's `hasMedia`
+  // gate). The drop builder did not, so Mazad's own drops could publish with no
+  // image and pick up createListing's stock-photo fallback.
+  if (!hasMedia) errors.media = 'REQUIRED';
 
   const opensError = validateOpens(v.opensMode, v.scheduledLocal, now);
   if (opensError) errors.scheduledLocal = opensError;
@@ -100,9 +120,12 @@ export function validateDropForm(
  * two `if`s in a validator would silently start scrolling the admin to the
  * second problem instead of the first.
  */
-const ERROR_FIELD_ORDER: (keyof DropFormValues)[] = [
+const ERROR_FIELD_ORDER: (keyof DropFormValues | 'media')[] = [
   'productName',
   'startingPrice',
+  // Not a DropFormValues key — the media picker's files live in component
+  // state. It is ordered here because that is where the picker sits on screen.
+  'media',
   'scheduledLocal',
 ];
 

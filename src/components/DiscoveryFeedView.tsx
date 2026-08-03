@@ -15,6 +15,7 @@ import { unreadUserFacingCount } from '../utils/notifications';
 import { isAdminUser } from '../utils/adminAuth';
 import { useSocialProof } from '../hooks/useSocialProof';
 import { formatAmmanClock } from '../utils/ammanTime';
+import { CATEGORIES, matchValues } from '../utils/categories';
 import { 
   Flame, 
   Search, 
@@ -46,8 +47,29 @@ import { SellerProfileModal } from './SellerProfileModal';
 import { matchesAuctionSearch } from '../utils/auctionSearch';
 import { formatCountdown } from '../utils/bidFormat';
 import AuctionRulesModal from './AuctionRulesModal';
+import ListingImage from './ui/ListingImage';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
+
+/**
+ * Chip icon per canonical category value. Presentation only — it lives here
+ * rather than in `utils/categories.ts` so that module stays a pure data table
+ * the node test environment and the backfill script can both import without
+ * pulling in React or lucide.
+ *
+ * A category with no entry falls back to the generic package icon, so adding a
+ * category to the taxonomy can never render a chip with a missing icon.
+ */
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  'Vehicles': <Car className="w-3.5 h-3.5" />,
+  'Phones': <Smartphone className="w-3.5 h-3.5" />,
+  'Electronics': <Laptop className="w-3.5 h-3.5" />,
+  'Watches': <Watch className="w-3.5 h-3.5" />,
+  'Appliances': <Refrigerator className="w-3.5 h-3.5" />,
+  'Home & Furniture': <Sofa className="w-3.5 h-3.5" />,
+  'Real Estate': <Building2 className="w-3.5 h-3.5" />,
+  'Fashion': <Package className="w-3.5 h-3.5" />,
+};
 
 interface PremiumAuctionCardProps {
   item: AuctionItem;
@@ -80,7 +102,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   setActiveView,
   liveEnabled,
 }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  // Seeded true for a lot with no image. The shimmer below is gated on this
+  // flag, and ListingImage's placeholder branch renders no <img> — so a lot
+  // with no thumbnail would sit under a shimmer that never resolves, which is
+  // exactly the lots this change is about.
+  const [imageLoaded, setImageLoaded] = useState(() => !item.thumbnailUrl);
   // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
   // per-card setInterval (~80 concurrent timers with a full grid). Only
   // ticks while the card is on/near screen (useIsOnScreen); returns null when
@@ -140,19 +166,15 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-800 animate-pulse z-10" />
         )}
 
-        <img
-          src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80'}
+        <ListingImage
+          src={item.thumbnailUrl}
           alt={item.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+          isAr={isAr}
+          className={`absolute inset-0 w-full h-full transition-all duration-500 ${
             !imageLoaded ? 'opacity-0' : itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
           }`}
-          referrerPolicy="no-referrer"
-          loading="lazy"
+          imgClassName="object-cover group-hover:scale-105"
           onLoad={() => setImageLoaded(true)}
-          onError={(e) => {
-            e.currentTarget.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
-            setImageLoaded(true);
-          }}
         />
 
         {/* Single scrim carries all card text — no boxed panels, no button wall */}
@@ -388,25 +410,23 @@ export const DiscoveryFeedView: React.FC = () => {
     setActiveView('orders');
   };
 
-  // `match` includes legacy AuctionItem.category values so existing lots keep filtering correctly.
+  // Generated from the one taxonomy (utils/categories.ts) rather than a literal
+  // list, because a hand-maintained copy is exactly how the chips came to
+  // disagree with the seller picker: a seller-listed watch stored 'Luxury',
+  // which no chip matched, so it was unfindable under every filter but 'All'.
+  // `matchValues` supplies each chip's legacy aliases, so existing lots keep
+  // filtering correctly whether or not the backfill has run.
   const categoriesList = React.useMemo(() => [
     { name: 'All', icon: <LayoutGrid className="w-3.5 h-3.5" />, arName: 'الكل', match: null as string[] | null },
     // Special filter: live 'first_bid' lots awaiting their first bid (see feedMode).
     // `match: null` — the hook switches to a dedicated query, so no category clause.
     { name: 'Be the First', icon: <Zap className="w-3.5 h-3.5" />, arName: 'كن أول مزايد', match: null },
-    { name: 'Cars', icon: <Car className="w-3.5 h-3.5" />, arName: 'سيارات', match: ['Cars', 'Vehicles'] },
-    { name: 'Real Estate', icon: <Building2 className="w-3.5 h-3.5" />, arName: 'عقارات', match: ['Real Estate'] },
-    { name: 'Phones', icon: <Smartphone className="w-3.5 h-3.5" />, arName: 'هواتف', match: ['Phones', 'Electronics'] },
-    { name: 'Watches', icon: <Watch className="w-3.5 h-3.5" />, arName: 'ساعات', match: ['Watches'] },
-    { name: 'Electronics', icon: <Laptop className="w-3.5 h-3.5" />, arName: 'إلكترونيات', match: ['Electronics'] },
-    { name: 'Appliances', icon: <Refrigerator className="w-3.5 h-3.5" />, arName: 'أجهزة كهربائية', match: ['Appliances'] },
-    { name: 'Home & Furniture', icon: <Sofa className="w-3.5 h-3.5" />, arName: 'أثاث ومنزل', match: ['Home & Furniture'] },
-    // The catch-all bucket. channelToCategory sends the `misc` drop channel to
-    // the stored value 'Fashion', and until this chip existed NO chip matched
-    // it — so every misc lot was reachable only under 'All', invisible to
-    // anyone using a category filter. Labelled 'Other' to match both the
-    // seller's own picker in ListingWizardView and categoryLabel.
-    { name: 'Other', icon: <Package className="w-3.5 h-3.5" />, arName: 'أخرى', match: ['Fashion', 'Misc'] }
+    ...CATEGORIES.map(c => ({
+      name: c.labelEn,
+      icon: CATEGORY_ICONS[c.value] ?? <Package className="w-3.5 h-3.5" />,
+      arName: c.labelAr,
+      match: matchValues(c.value) as string[] | null,
+    })),
   ], []);
 
   // --- Discover-pagination (Slice 1), the sole feed path -------------------

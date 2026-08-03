@@ -3957,18 +3957,18 @@ const fetchIP = async () => {
       }
     }
 
-    if (!finalThumbnailUrl) {
-      const cat = (listingData.category || '').toLowerCase();
-      if (cat.includes('vehicle') || cat.includes('car') || cat.includes('سيارات') || cat.includes('مركبات')) {
-        finalThumbnailUrl = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=500&auto=format&fit=crop&q=60';
-      } else if (cat.includes('luxury') || cat.includes('watch') || cat.includes('ساعات') || cat.includes('فاخر')) {
-        finalThumbnailUrl = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
-      } else if (cat.includes('electronic') || cat.includes('phone') || cat.includes('هواتف') || cat.includes('أجهزة')) {
-        finalThumbnailUrl = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500&auto=format&fit=crop&q=60';
-      } else {
-        finalThumbnailUrl = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60';
-      }
-    }
+    // A stock-photo fallback used to sit here: when no thumbnail was uploaded
+    // it guessed a category from a keyword and assigned a matching Unsplash
+    // photograph, with a red-sneakers image as the else-branch. Since the drop
+    // builder filed every non-phone, non-car lot under the 'Fashion' catch-all,
+    // a television matched nothing and shipped wearing the shoe. That was
+    // reported as broken image links; nothing was linked, the app wrote a photo
+    // it was never given.
+    //
+    // `finalThumbnailUrl` therefore stays '' when nothing was uploaded, and the
+    // surfaces render <ListingImage>'s labelled blank. Both publish paths now
+    // require media (utils/listingMedia.ts), so only historical lots reach that
+    // state.
 
     if (onProgress) onProgress(100, 'saving');
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp, useAuctions } from '../context/AppContext';
 import { isAdminUser } from '../utils/adminAuth';
-import { 
-  Calendar, 
+import ListingImage from './ui/ListingImage';
+import {
+  Calendar,
   Clock, 
   Plus, 
   Trash2, 
@@ -547,10 +548,12 @@ export const DropBuilderView: React.FC = () => {
                                 : 'border-zinc-800 bg-black hover:border-zinc-700'
                             }`}
                           >
-                            <img 
-                              src={a.thumbnailUrl || 'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=300'} 
-                              alt={a.title} 
-                              className="w-12 h-12 rounded-xl object-cover border border-zinc-800 shrink-0"
+                            <ListingImage
+                              src={a.thumbnailUrl}
+                              alt={a.title}
+                              isAr={isAr}
+                              className="w-12 h-12 rounded-xl border border-zinc-800 shrink-0"
+                              imgClassName="object-cover"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold truncate text-white">{a.title}</p>
@@ -743,12 +746,13 @@ export const DropBuilderView: React.FC = () => {
                                 const matchedItem = auctions.find(a => a.id === id);
                                 if (!matchedItem) return null;
                                 return (
-                                  <img
+                                  <ListingImage
                                     key={id}
-                                    src={matchedItem.thumbnailUrl || 'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=200'}
+                                    src={matchedItem.thumbnailUrl}
                                     alt={matchedItem.title}
-                                    title={matchedItem.title}
-                                    className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 ring-1 ring-zinc-700/50"
+                                    isAr={isAr}
+                                    className="w-7 h-7 rounded-full border-2 border-zinc-900 ring-1 ring-zinc-700/50 overflow-hidden"
+                                    imgClassName="object-cover"
                                   />
                                 );
                               })}
@@ -901,10 +905,12 @@ export const DropBuilderView: React.FC = () => {
                         key={id} 
                         className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-4 flex gap-4 hover:border-zinc-700 transition-colors"
                       >
-                        <img 
-                          src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=200'} 
-                          alt={item.title} 
-                          className="w-16 h-16 rounded-xl object-cover shrink-0 border border-zinc-800"
+                        <ListingImage
+                          src={item.thumbnailUrl}
+                          alt={item.title}
+                          isAr={isAr}
+                          className="w-16 h-16 rounded-xl shrink-0 border border-zinc-800 overflow-hidden"
+                          imgClassName="object-cover"
                         />
                         <div className="flex-1 min-w-0 flex flex-col justify-between">
                           <div>

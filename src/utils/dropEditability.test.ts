@@ -243,6 +243,7 @@ const created = (overrides: Partial<DropPayloadInput> = {}) =>
       specs: [],
       startingPrice: '250',
       channel: 'misc',
+      category: 'Phones',
       durationSeconds: 1800,
       paymentWindowHours: 24,
       antiSnipeSec: 30,

@@ -4,25 +4,24 @@
 
 import { AuctionItem } from '../../types';
 import { filsToUnits, resolveEndTime } from '../../utils/liveAuctionFields';
+import { CATEGORIES, matchValues } from '../../utils/categories';
 
 /**
  * Discovery category chip → canonical stored-`category` alias list.
  *
- * EXTRACTED from `DiscoveryFeedView.tsx`'s local `categoriesList` (the `match`
- * arrays) so the search facet filters use the EXACT same chip→canonical mapping
- * the Firestore feed uses (`buildLiveFeedConstraints` consumes the same alias
- * lists). Keep this in sync with that component — the `searchMap.test.ts`
- * snapshot guards it. The 'All' chip is intentionally absent (no filter).
+ * DERIVED from the one taxonomy (`utils/categories.ts`), not hand-maintained.
+ * This used to be a literal copy of `DiscoveryFeedView`'s chip `match` arrays
+ * with a "keep this in sync" comment, and it had already drifted: there was no
+ * entry for the catch-all chip at all, so searching inside it applied no
+ * category facet and returned lots from every category.
+ *
+ * Keyed by chip NAME, which is the category's English label — that is what
+ * `useAlgoliaSearch` receives from the chip row. The 'All' chip is
+ * intentionally absent (no filter).
  */
-export const SEARCH_CATEGORY_MATCHES: Record<string, string[]> = {
-  Cars: ['Cars', 'Vehicles'],
-  'Real Estate': ['Real Estate'],
-  Phones: ['Phones', 'Electronics'],
-  Watches: ['Watches'],
-  Electronics: ['Electronics'],
-  Appliances: ['Appliances'],
-  'Home & Furniture': ['Home & Furniture'],
-};
+export const SEARCH_CATEGORY_MATCHES: Record<string, string[]> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.labelEn, matchValues(c.value)]),
+);
 
 /**
  * Map a raw Algolia hit → an `AuctionItem` the existing `AuctionCard` can

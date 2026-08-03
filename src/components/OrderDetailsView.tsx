@@ -1272,7 +1272,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
             <div className="flex flex-col sm:flex-row gap-5 items-start">
               <img 
-                src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=400&q=80'} 
+                src={order.auctionImage || ''} 
                 alt={order.auctionTitle} 
                 className="w-full sm:w-28 h-28 rounded-2xl object-cover border border-line shrink-0 shadow-xs"
                 referrerPolicy="no-referrer"

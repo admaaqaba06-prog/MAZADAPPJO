@@ -8,6 +8,7 @@ const base: DropPayloadInput = {
   specs: [],
   startingPrice: '250',
   channel: 'phones',
+  category: 'Phones',
   durationSeconds: 1800,
   paymentWindowHours: 24,
   antiSnipeSec: 30,
@@ -30,7 +31,10 @@ describe('buildDropPayload — characterization of the shipped payload', () => {
       // fabrication path in this codebase, and the one still producing new
       // rows. `base` carries no specs, so an honest empty string is correct.
       description: '',
-      category: 'Electronics',
+      // WAS `channelToCategory(input.channel)`, which could only ever emit
+      // Electronics / Vehicles / Fashion. The category is now picked, so an
+      // iPhone is 'Phones' rather than the generic Electronics bucket.
+      category: 'Phones',
       startingPrice: 250,
       minIncrement: 13,
       currentBidderId: null,

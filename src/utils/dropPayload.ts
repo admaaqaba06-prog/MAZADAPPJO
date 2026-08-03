@@ -24,7 +24,7 @@
  * title is not.
  */
 
-import { channelToCategory, type DropChannel } from './dropChannel';
+import { type DropChannel } from './dropChannel';
 import type { ViewingMode } from './viewing';
 
 /** Internal vendor slug: lowercase, dashes, keeps Arabic/Latin letters + digits. */
@@ -42,7 +42,10 @@ export interface DropPayloadInput {
   /** One spec per line, already split and trimmed by the caller. Becomes the description. */
   specs: string[];
   startingPrice: string;
+  /** WhatsApp routing audience. No longer decides the category. */
   channel: DropChannel;
+  /** Canonical stored category, picked explicitly (see utils/categories.ts). */
+  category: string;
   durationSeconds: number;
   paymentWindowHours: number;
   antiSnipeSec: number;
@@ -71,7 +74,7 @@ export function buildDropPayload(
     title: input.productName.trim(),
     // NOT a copy of the title — see the header. Empty when there are no specs.
     description: (input.specs ?? []).map((x) => String(x).trim()).filter(Boolean).join('\n'),
-    category: channelToCategory(input.channel),
+    category: input.category,
     startingPrice: priceNum,
     minIncrement: Math.max(5, Math.round(priceNum * 0.05)),
     currentBidderId: null,

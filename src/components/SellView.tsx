@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ListingWizardView } from './ListingWizardView';
-import { DROP_CHANNELS, channelToCategory, type DropChannel } from '../utils/dropChannel';
+import { categoryToChannel } from '../utils/dropChannel';
+import { CATEGORIES } from '../utils/categories';
 import { resizeImage } from '../utils/resizeImage';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
 import { isContactComplete } from '../utils/guestGate';
@@ -65,7 +66,11 @@ export const SellView: React.FC = () => {
   const [cName, setCName] = useState('');
   const [cDesc, setCDesc] = useState('');
   const [cCondition, setCCondition] = useState<'new' | 'used' | null>(null);
-  const [cChannel, setCChannel] = useState<DropChannel | null>(null);
+  // The seller picks a real CATEGORY; the WhatsApp routing channel is derived
+  // from it. This control used to be labelled "Category" while actually picking
+  // one of three broadcast channels, which is why every concierge submission
+  // arrived as Electronics, Vehicles or the Fashion catch-all.
+  const [cCategory, setCCategory] = useState<string | null>(null);
   const [cPrice, setCPrice] = useState('');
   const [cContact, setCContact] = useState(currentUser?.phone || currentUser?.phoneNumber || '');
   const [cPhotos, setCPhotos] = useState<{ file: File; url: string }[]>([]);
@@ -103,8 +108,8 @@ export const SellView: React.FC = () => {
       setCError(isAr ? 'حدد حالة المنتج: جديد أو مستعمل.' : 'Select the item condition: new or used.');
       return;
     }
-    if (!cChannel) {
-      setCError(isAr ? 'اختر فئة المنتج: هواتف أو سيارات أو منوعات.' : 'Choose a category: phones, cars, or misc.');
+    if (!cCategory) {
+      setCError(isAr ? 'اختر فئة المنتج.' : 'Choose a category for the item.');
       return;
     }
     const priceNum = Number(cPrice);
@@ -172,11 +177,10 @@ export const SellView: React.FC = () => {
           // when the doc is read, so no component ever sees `undefined`. The
           // value is right; the stated reason was not.)
           description: cDesc.trim(),
-          // Seller picks the drop channel; category is derived from it (same
-          // mapping the self-serve drop builder uses) so discovery filters and
-          // media fallbacks line up. The Mazad team can still refine before approving.
-          channel: cChannel,
-          category: channelToCategory(cChannel),
+          // Seller picks the category; the WhatsApp routing channel is derived
+          // from it. The Mazad team can still refine before approving.
+          channel: categoryToChannel(cCategory),
+          category: cCategory,
           startingPrice: priceNum,
           minIncrement: Math.max(5, Math.round(priceNum * 0.05)),
           videoUrl: '',
@@ -373,31 +377,24 @@ export const SellView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Category / channel (required) */}
+              {/* Category (required) */}
               <div className="space-y-1">
                 <label className="block text-fg-muted">{isAr ? 'فئة المنتج' : 'Category'}</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {DROP_CHANNELS.map(opt => {
-                    const label = opt.value === 'phones'
-                      ? (isAr ? 'هواتف' : 'Phones')
-                      : opt.value === 'cars'
-                        ? (isAr ? 'سيارات' : 'Cars')
-                        : (isAr ? 'منوعات' : 'Misc');
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setCChannel(opt.value)}
-                        className={`py-3 rounded-xl font-black text-center border transition-all cursor-pointer ${
-                          cChannel === opt.value
-                            ? 'bg-[#FF6B00] border-transparent text-white shadow-sm'
-                            : 'bg-surface-raised border-line text-fg-muted hover:border-line'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 gap-2">
+                  {CATEGORIES.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCCategory(opt.value)}
+                      className={`py-3 rounded-xl font-black text-center border transition-all cursor-pointer ${
+                        cCategory === opt.value
+                          ? 'bg-[#FF6B00] border-transparent text-white shadow-sm'
+                          : 'bg-surface-raised border-line text-fg-muted hover:border-line'
+                      }`}
+                    >
+                      {isAr ? opt.labelAr : opt.labelEn}
+                    </button>
+                  ))}
                 </div>
               </div>
 
