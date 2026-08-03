@@ -1117,7 +1117,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
-                    className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-[#0A0A0A] text-fg font-semibold text-base bg-surface-raised hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
+                    className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-fg text-fg font-semibold text-base bg-surface-raised hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
                   >
                     {t.hero.ctaSecondary}
                   </motion.button>
@@ -1832,7 +1832,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         <section id="testimonials" className="py-20 bg-[#FAF7EE]/30 border-t border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <Reveal>
-              <h2 className="text-4xl font-bold text-center text-black font-alexandria mb-12">
+              <h2 className="text-4xl font-bold text-center text-fg font-alexandria mb-12">
                 {lang === "ar" ? "قصص حقيقية من ناس زيك" : "Real Stories From People Like You"}
               </h2>
             </Reveal>
@@ -2375,7 +2375,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'pricing' }); onEnter('upload'); }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.98 }}
-                        className="inline-block px-8 py-3.5 bg-surface-raised text-black hover:bg-surface-sunken font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
+                        className="inline-block px-8 py-3.5 bg-surface-raised text-fg hover:bg-surface-sunken font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
                       >
                         {lang === "ar" ? "بيع معنا" : "Sell with Us"}
                       </motion.button>
@@ -2501,9 +2501,9 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   >
                     <button
                       onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                      className="w-full text-start px-6 py-5 min-h-[44px] flex items-center justify-between gap-4 text-black focus:outline-none select-none cursor-pointer rounded-[12px]"
+                      className="w-full text-start px-6 py-5 min-h-[44px] flex items-center justify-between gap-4 text-fg focus:outline-none select-none cursor-pointer rounded-[12px]"
                     >
-                      <span className="text-base sm:text-lg font-bold text-black font-alexandria leading-snug">
+                      <span className="text-base sm:text-lg font-bold text-fg font-alexandria leading-snug">
                         {faq.q}
                       </span>
                       <div className="shrink-0 w-8 h-8 rounded-lg bg-surface border border-line flex items-center justify-center transition-colors">
@@ -2890,7 +2890,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             <button
               type="button"
               onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'sticky' }); onEnter('upload'); }}
-              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-surface-raised border-2 border-[#0A0A0A] text-fg font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
+              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-surface-raised border-2 border-fg text-fg font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
             >
               <span>{lang === "ar" ? "بيع قطعتك" : "Sell Your Item"}</span>
             </button>

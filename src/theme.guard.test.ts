@@ -37,8 +37,21 @@ function count(re: RegExp): number {
   return (SOURCE.match(re) ?? []).length;
 }
 
-/** Accent + deliberate dark blocks. Matching these is correct, not a violation. */
-const EXEMPT = /FF6B00|F05123|E85D04|FF8000|E05E00|c94d03|10B981|D93E15|FF5A4D|FF6B35|D63E10|0A0A0A|121318|111111/i;
+/** The accent. Theme-invariant brand colour — correct anywhere. */
+const ACCENT = /FF6B00|F05123|E85D04|FF8000|E05E00|c94d03|10B981|D93E15|FF5A4D|FF6B35|D63E10/i;
+/**
+ * Near-black values. Exempt as a BACKGROUND only — a dark section on a light
+ * page must stay dark in light mode. As TEXT they are invisible on a dark
+ * surface, so `text-[#0A0A0A]` must never be waved through the way
+ * `bg-[#0A0A0A]` is. Keying the exemption on the colour alone (as the first
+ * version of this file did) allowed exactly that.
+ */
+const DARK_VALUE = /0A0A0A|121318|111111/i;
+
+function exempt(cls: string): boolean {
+  if (ACCENT.test(cls)) return true;
+  return DARK_VALUE.test(cls) && cls.startsWith('bg-');
+}
 
 describe('theme ratchet', () => {
   // Fully migrated. A single new one is a regression, so the budget is zero.
@@ -62,14 +75,26 @@ describe('theme ratchet', () => {
   // Budgeted stragglers. Lower these as they are migrated; never raise them.
   it('does not grow the neutral-hex backlog', () => {
     const all = SOURCE.match(/(?:text|bg|border)-\[#[0-9A-Fa-f]{3,8}\]/g) ?? [];
-    const neutral = all.filter((c) => !EXEMPT.test(c));
-    expect(neutral.length).toBeLessThanOrEqual(65);
+    const neutral = all.filter((c) => !exempt(c));
+    // 66 after narrowing the exemption to `bg-` only, which correctly exposed
+    // three near-black BORDERS the colour-keyed version had waved through. Two
+    // were outline buttons whose border vanished in dark; the third is the
+    // DesktopFrame device bezel, which is deliberate.
+    expect(neutral.length).toBeLessThanOrEqual(66);
   });
 
   // `text-gray-300` is decorative (separators, chevrons) and reads on dark;
   // `text-gray-200` and the dark border shades sit on already-dark surfaces.
   it('does not grow the remaining light-gray usage', () => {
     expect(count(/(?<![\w-])text-gray-(200|300)(?![\w-])/g)).toBeLessThanOrEqual(43);
+  });
+
+  // `text-black` is invisible on every dark surface. The two that remain sit on
+  // `bg-amber-500`, where black-on-amber is correct in BOTH themes — the same
+  // role `text-on-accent` fills for the orange. Four others were headings and
+  // buttons on the landing page, shipped invisible in #225 and fixed here.
+  it('keeps text-black to the on-accent cases only', () => {
+    expect(count(/(?<![\w-])text-black(?![\w-])/g)).toBeLessThanOrEqual(2);
   });
 
   // A shade Tailwind does not generate emits NO css, so the element silently
