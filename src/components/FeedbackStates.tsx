@@ -91,7 +91,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="feedback-empty-state"
     >
-      <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
+      <div className="w-12 h-12 rounded-2xl bg-accent-weak border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
         {icon || <Inbox className="w-6 h-6 stroke-[1.5]" />}
       </div>
       <div className="space-y-1.5 max-w-sm">

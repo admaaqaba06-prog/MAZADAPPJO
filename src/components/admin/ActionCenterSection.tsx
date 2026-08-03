@@ -200,7 +200,7 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
               const open = expandedId === r.id;
               const age = formatWaitingFor(r.waitingSinceMs, now, isAr ? 'ar' : 'en');
               return (
-                <div key={r.id} className={`rounded-2xl border transition ${open ? 'border-[#FF6B00] bg-orange-50/20' : 'border-line hover:border-orange-300'}`}>
+                <div key={r.id} className={`rounded-2xl border transition ${open ? 'border-[#FF6B00] bg-accent-weak/20' : 'border-line hover:border-orange-300'}`}>
                   <button
                     type="button"
                     onClick={() => setExpandedId(open ? null : r.id)}

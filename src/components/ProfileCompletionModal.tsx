@@ -86,7 +86,7 @@ export const ProfileCompletionModal: React.FC = () => {
       >
         {/* Headline */}
         <div className="text-center space-y-3 mb-6">
-          <div className="mx-auto w-11 h-11 rounded-full bg-orange-50 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
+          <div className="mx-auto w-11 h-11 rounded-full bg-accent-weak border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <UserRound className="w-6 h-6" />
           </div>
           <h2 className="text-lg md:text-xl font-black text-fg tracking-tight leading-snug">

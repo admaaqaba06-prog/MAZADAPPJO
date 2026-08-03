@@ -251,7 +251,7 @@ export const AdminPanel: React.FC = () => {
               <div key={item.id} className="p-3 bg-surface-sunken rounded-2xl border border-line space-y-3 shadow-xs">
                 <div className="flex justify-between items-start">
                   <div className="min-w-0 flex-1">
-                    <span className="bg-orange-100 text-[#FF6B00] text-[8px] font-black font-mono px-1.5 py-0.5 rounded uppercase">
+                    <span className="bg-accent-weak text-[#FF6B00] text-[8px] font-black font-mono px-1.5 py-0.5 rounded uppercase">
                       {item.category || (isAr ? 'عام' : 'GENERAL')}
                     </span>
                     <h4 className="font-extrabold text-[12px] text-fg truncate mt-1">{item.title}</h4>

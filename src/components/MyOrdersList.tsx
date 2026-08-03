@@ -43,7 +43,7 @@ export const MyOrdersList: React.FC<MyOrdersListProps> = ({
           titleEn="Congratulations on Your First Win! 🏆"
           descAr="مبروك الفوز بمزادك الأول! أكمل الدفع عبر كليك، ومزاد بيحتفظ بمبلغك وما بيحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة."
           descEn="Congratulations on your first win! Complete your payment via CliQ — Mazad holds it and only releases it to the seller after you receive the item and confirm it matches."
-          className="bg-orange-50/70 border-orange-100 text-fg-on-light"
+          className="bg-accent-weak/70 border-orange-100 text-fg"
         />
       )}
 

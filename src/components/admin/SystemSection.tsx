@@ -760,7 +760,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   let typeBadgeBg = 'bg-rose-50 text-rose-700 border-rose-100';
                   let typeLabel = 'SYSTEM';
                   if (isBid) {
-                    typeBadgeBg = 'bg-orange-50 text-orange-700 border-orange-100';
+                    typeBadgeBg = 'bg-accent-weak text-orange-700 border-orange-100';
                     typeLabel = 'BID_FAIL';
                   } else if (isPay) {
                     typeBadgeBg = 'bg-amber-50 text-amber-700 border-amber-100';
@@ -927,7 +927,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         </div>
 
         {/* 4. Live Auction Force Reactivation */}
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="bg-accent-weak border border-orange-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-orange-100">
             <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" style={{ animationDuration: '6s' }} />
             <h4 className="text-xs font-extrabold text-orange-950 uppercase">

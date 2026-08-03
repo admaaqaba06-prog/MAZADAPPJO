@@ -327,7 +327,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
                           item.read 
                             ? 'bg-surface-raised border-line text-fg hover:bg-surface-sunken/50' 
-                            : 'bg-surface-raised border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-fg shadow-xs hover:bg-orange-50/5'
+                            : 'bg-surface-raised border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-fg shadow-xs hover:bg-accent-weak/5'
                         }`}
                         id={`notification-card-${item.id}`}
                       >
@@ -349,7 +349,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                               {getPriorityBadge(item.priority)}
                               <button
                                 onClick={(e) => handleRemoveOne(item.id, e)}
-                                className="w-5 h-5 rounded-md bg-surface-sunken hover:bg-rose-50 text-fg-on-light hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                className="w-5 h-5 rounded-md bg-surface-sunken hover:bg-rose-50 text-fg-muted hover:text-rose-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shrink-0"
                                 title={isAr ? 'حذف الإشعار' : 'Delete notification'}
                               >
                                 <X className="w-3 h-3" />

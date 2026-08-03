@@ -175,7 +175,7 @@ export const HowItWorksView: React.FC = () => {
               transition={{ ...easeOut, delay: 0.08 + i * 0.06 }}
               className="bg-surface-raised border border-line/70 rounded-2xl p-4 flex items-start gap-3.5 shadow-xs"
             >
-              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#E85D04] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-accent-weak border border-orange-100 text-[#E85D04] flex items-center justify-center shrink-0">
                 {step.icon}
               </div>
               <div className="min-w-0 space-y-1">

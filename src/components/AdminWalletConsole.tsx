@@ -84,7 +84,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
         {/* Welcome Admin Row */}
         <div className="bg-surface-raised rounded-3xl p-5 shadow-xs border border-line flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF6B00] flex items-center justify-center font-black text-lg border border-orange-100">
+            <div className="w-12 h-12 rounded-2xl bg-accent-weak text-[#FF6B00] flex items-center justify-center font-black text-lg border border-orange-100">
               A
             </div>
             <div>
@@ -348,7 +348,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                   {user.avatar ? (
                     <img src={user.avatar} className="w-8 h-8 rounded-full object-cover border border-line" alt="" referrerPolicy="no-referrer" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-orange-100 text-[#FF6B00] flex items-center justify-center font-bold text-xs">{user.name.charAt(0)}</div>
+                    <div className="w-8 h-8 rounded-full bg-accent-weak text-[#FF6B00] flex items-center justify-center font-bold text-xs">{user.name.charAt(0)}</div>
                   )}
                   <div>
                     <h4 className="text-xs font-extrabold text-fg leading-none">{user.name}</h4>
@@ -370,7 +370,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
         </div>
 
         {/* Bidding escrows stats overview */}
-        <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-3xl flex items-center justify-between gap-4 flex-wrap text-xs text-fg leading-normal">
+        <div className="p-4 bg-accent-weak/50 border border-orange-100 rounded-3xl flex items-center justify-between gap-4 flex-wrap text-xs text-fg leading-normal">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-[#FF6B00]" />
             <div>

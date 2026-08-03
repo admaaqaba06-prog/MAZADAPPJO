@@ -442,7 +442,7 @@ export const SellView: React.FC = () => {
                     </div>
                   ))}
                   {cPhotos.length < 3 && (
-                    <label className="w-20 h-20 rounded-xl border-2 border-dashed border-line hover:border-[#FF6B00] hover:bg-orange-50/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-fg-muted hover:text-[#FF6B00]">
+                    <label className="w-20 h-20 rounded-xl border-2 border-dashed border-line hover:border-[#FF6B00] hover:bg-accent-weak/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-fg-muted hover:text-[#FF6B00]">
                       <ImagePlus className="w-5 h-5" />
                       <span className="text-[9px] font-black">{isAr ? 'أضف' : 'Add'}</span>
                       <input

@@ -87,8 +87,8 @@ import { validateDescription } from '../utils/listingDescription';
  *  shared glossary (no more raw codes rendered). */
 const ORDER_STATUS_TONE_CHIP: Record<OrderStatusTone, string> = {
   neutral: 'bg-surface-sunken text-zinc-500',
-  info: 'bg-orange-50 text-orange-700 border border-orange-100',
-  warning: 'bg-orange-50 text-orange-700 border border-orange-100',
+  info: 'bg-accent-weak text-orange-700 border border-orange-100',
+  warning: 'bg-accent-weak text-orange-700 border border-orange-100',
   success: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
   danger: 'bg-rose-50 text-rose-700 border border-rose-100',
 };
@@ -1026,7 +1026,7 @@ export const SellerCenterView: React.FC = () => {
   // Redesign — bilingual metadata for each action-item kind.
   const actionMeta: Record<SellerAction['kind'], { icon: React.ElementType; label: string; cta: string; tone: string; iconTone: string }> = {
     dispute: { icon: AlertTriangle, label: st.act_dispute_label, cta: st.act_dispute_cta, tone: 'border-rose-200 bg-rose-50', iconTone: 'bg-rose-100 text-rose-600' },
-    ship: { icon: Truck, label: st.act_ship_label, cta: st.act_ship_cta, tone: 'border-orange-200 bg-orange-50', iconTone: 'bg-orange-100 text-[#FF6B00]' },
+    ship: { icon: Truck, label: st.act_ship_label, cta: st.act_ship_cta, tone: 'border-orange-200 bg-accent-weak', iconTone: 'bg-accent-weak text-[#FF6B00]' },
     relist: { icon: RotateCcw, label: st.act_relist_label, cta: st.act_relist_cta, tone: 'border-amber-200 bg-amber-50', iconTone: 'bg-amber-100 text-amber-600' },
     payout: { icon: Wallet, label: st.act_payout_label, cta: st.act_payout_cta, tone: 'border-emerald-200 bg-emerald-50', iconTone: 'bg-emerald-100 text-emerald-600' },
     verify: { icon: ShieldCheck, label: st.act_verify_label, cta: st.act_verify_cta, tone: 'border-indigo-200 bg-indigo-50', iconTone: 'bg-indigo-100 text-indigo-600' },
@@ -1038,7 +1038,7 @@ export const SellerCenterView: React.FC = () => {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-5" id="seller-header">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-50 text-[#FF6B00] rounded-2xl">
+          <div className="p-2.5 bg-accent-weak text-[#FF6B00] rounded-2xl">
             <Store className="w-7 h-7" />
           </div>
           <div className="text-left rtl:text-right">
@@ -1110,7 +1110,7 @@ export const SellerCenterView: React.FC = () => {
                 }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black tracking-wide transition-all cursor-pointer w-full text-left rtl:text-right ${
                   isActive 
-                    ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
+                    ? 'bg-accent-weak text-[#FF6B00] border border-orange-100 shadow-xs' 
                     : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
@@ -1146,7 +1146,7 @@ export const SellerCenterView: React.FC = () => {
                 }}
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-black tracking-wide shrink-0 transition-all cursor-pointer ${
                   isActive 
-                    ? 'bg-orange-50 text-[#FF6B00] border border-orange-100 shadow-xs' 
+                    ? 'bg-accent-weak text-[#FF6B00] border border-orange-100 shadow-xs' 
                     : 'text-fg-muted hover:text-fg hover:bg-surface-sunken'
                 }`}
               >
@@ -1232,7 +1232,7 @@ export const SellerCenterView: React.FC = () => {
                         <p className="text-[10px] text-fg-muted font-bold tracking-wider uppercase leading-none truncate">{m.title}</p>
                         <p className="text-base md:text-lg font-black text-fg leading-tight tabular-nums">{m.value}</p>
                       </div>
-                      <div className="p-2 rounded-xl bg-orange-50 text-[#FF6B00] shrink-0">
+                      <div className="p-2 rounded-xl bg-accent-weak text-[#FF6B00] shrink-0">
                         <MIcon className="w-5 h-5 text-[#FF6B00]" />
                       </div>
                     </div>
@@ -1276,7 +1276,7 @@ export const SellerCenterView: React.FC = () => {
                     <div className="divide-y divide-line">
                       {top.map((e) => (
                         <div key={e.id} className="py-2.5 flex items-start gap-3">
-                          <span className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${e.kind === 'order' ? 'bg-orange-50 text-[#FF6B00]' : 'bg-blue-50 text-blue-500'}`}>
+                          <span className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${e.kind === 'order' ? 'bg-accent-weak text-[#FF6B00]' : 'bg-blue-50 text-blue-500'}`}>
                             {e.kind === 'order' ? <Package className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
                           </span>
                           <div className="flex-1 min-w-0">
@@ -1369,7 +1369,7 @@ export const SellerCenterView: React.FC = () => {
               {/* LIST */}
               {myAuctions.length === 0 ? (
                 <div className="bg-surface-raised rounded-3xl p-12 text-center border border-line space-y-4" id="seller-empty-state">
-                  <div className="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                  <div className="mx-auto w-14 h-14 rounded-2xl bg-accent-weak border border-orange-100 flex items-center justify-center">
                     <PlusCircle className="w-7 h-7 text-[#FF6B00]" />
                   </div>
                   <p className="text-sm font-black text-fg">{st.no_listings_yet}</p>
@@ -1818,7 +1818,7 @@ export const SellerCenterView: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-surface-raised rounded-3xl p-5 border border-line shadow-[0_3px_10px_rgba(0,0,0,0.015)] flex items-center gap-4">
-                  <span className="p-3 bg-orange-50 text-[#FF6B00] rounded-2xl inline-block">
+                  <span className="p-3 bg-accent-weak text-[#FF6B00] rounded-2xl inline-block">
                     <DollarSign className="w-6 h-6" />
                   </span>
                   <div>

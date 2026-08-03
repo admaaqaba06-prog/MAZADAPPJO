@@ -854,7 +854,7 @@ export const DiscoveryFeedView: React.FC = () => {
       {currentUser?.subscriptionStatus !== 'active' && (
         <div className="p-4">
           <div
-            className="bg-orange-50/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"
+            className="bg-accent-weak/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="join-funnel-banner"
           >
@@ -1210,7 +1210,7 @@ export const DiscoveryFeedView: React.FC = () => {
             style={{ direction: isAr ? 'rtl' : 'ltr' }}
             id="feedback-empty-state"
           >
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
+            <div className="w-12 h-12 rounded-2xl bg-accent-weak border border-orange-100 flex items-center justify-center text-[#FF6B00] animate-bounce">
               <Flame className="w-6 h-6 stroke-[1.5]" />
             </div>
             <div className="space-y-1.5 max-w-sm">
@@ -1236,7 +1236,7 @@ export const DiscoveryFeedView: React.FC = () => {
                   <button
                     key={item.id}
                     onClick={() => setSelectedLotId(item.id)}
-                    className="w-full flex items-center justify-between gap-2 bg-surface-sunken hover:bg-orange-50/60 border border-line rounded-xl px-3 py-2 transition-colors cursor-pointer text-start"
+                    className="w-full flex items-center justify-between gap-2 bg-surface-sunken hover:bg-accent-weak/60 border border-line rounded-xl px-3 py-2 transition-colors cursor-pointer text-start"
                   >
                     <span className="text-xs font-bold text-fg truncate">{item.title}</span>
                     <span className="text-[10px] font-mono font-bold text-[#FF6B00] shrink-0 flex items-center gap-1">
