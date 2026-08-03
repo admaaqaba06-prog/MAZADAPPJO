@@ -1118,7 +1118,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
       <div className="flex items-center justify-between bg-surface-raised px-5 py-4 rounded-3xl border border-line shadow-[0_2px_8px_rgba(0,0,0,0.01)] shrink-0">
         <button 
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-black text-fg hover:text-gray-950 transition-colors uppercase font-mono cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-black text-fg hover:text-fg transition-colors uppercase font-mono cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{isAr ? 'العودة للقائمة' : 'Back to List'}</span>
@@ -1278,7 +1278,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                 referrerPolicy="no-referrer"
               />
               <div className="space-y-2.5 flex-1 min-w-0">
-                <h4 className="font-black text-gray-950 text-base sm:text-lg tracking-tight leading-snug">
+                <h4 className="font-black text-fg text-base sm:text-lg tracking-tight leading-snug">
                   {order.auctionTitle}
                 </h4>
                 
@@ -1356,7 +1356,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="bg-surface-raised border border-line p-4 rounded-2xl space-y-1">
                   <span className="text-[9px] text-fg-muted font-mono block uppercase font-black">{isAr ? 'مبلغ محتجز لدى مزاد' : 'HELD BY MAZAD'}</span>
-                  <p className="text-lg font-mono font-black text-gray-950">
+                  <p className="text-lg font-mono font-black text-fg">
                     {order.paymentStatus === 'paid' && order.escrowStatus !== 'released' && order.escrowStatus !== 'refunded' ? `${order.winningBidAmount.toLocaleString()} JOD` : '0 JOD'}
                   </p>
                   <p className="text-[9.5px] text-fg-muted">
@@ -2676,7 +2676,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               </div>
               <div className="space-y-0.5 min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{order.buyerName}</h4>
+                  <h4 className="font-black text-fg text-xs truncate leading-snug">{order.buyerName}</h4>
                   <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-1.5 py-0.5 rounded-full font-sans font-black">Bidder</span>
                 </div>
                 <p className="text-[9px] text-fg-muted font-mono">
@@ -2730,7 +2730,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   )}
                   <div className="space-y-0.5 min-w-0 flex-1">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <h4 className="font-black text-gray-950 text-xs truncate leading-snug">{sellerProf?.storeName || order.sellerName}</h4>
+                      <h4 className="font-black text-fg text-xs truncate leading-snug">{sellerProf?.storeName || order.sellerName}</h4>
                       {isVerified && (
                         <ShieldCheck className={`w-4 h-4 ${isPremium ? 'text-amber-500' : 'text-emerald-500'} shrink-0`} />
                       )}

@@ -730,7 +730,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                     className={`text-[9px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider font-mono transition-colors ${
                       isSelected
                         ? 'bg-slate-900 text-white'
-                        : 'bg-gray-105 hover:bg-surface-sunken text-fg-muted bg-surface-sunken'
+                        : 'bg-surface-sunken hover:bg-surface text-fg-muted'
                     }`}
                   >
                     {label}
@@ -842,7 +842,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                         <div className="flex items-center gap-2.5">
                           <img src={u.avatar} className="w-8 h-8 rounded-lg object-cover" />
                           <div className="min-w-0">
-                            <p className="font-extrabold text-gray-950 leading-none truncate">{u.name}</p>
+                            <p className="font-extrabold text-fg leading-none truncate">{u.name}</p>
                             <p className="text-[10px] text-fg-muted mt-1 font-mono truncate">{u.email}</p>
                           </div>
                         </div>

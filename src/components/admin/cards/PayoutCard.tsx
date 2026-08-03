@@ -41,7 +41,7 @@ export const PayoutCard: React.FC<PayoutCardProps> = ({
     <div className="space-y-3">
       <div className="space-y-1">
         <p className="text-sm font-black text-fg">{userName}</p>
-        <p className="text-2xl font-black text-gray-950" dir="ltr">
+        <p className="text-2xl font-black text-fg" dir="ltr">
           {Number(withdrawal.amount || 0).toLocaleString('en-US')} {isAr ? 'د.أ' : 'JOD'}
         </p>
       </div>

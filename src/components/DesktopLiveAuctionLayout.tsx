@@ -1098,7 +1098,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 explicit 1rem line-height. A bare `text-[12px]` sets no
                 line-height at all, and Arabic glyphs clip under the ~1.2
                 normal default. Matches the sibling card headers. */}
-            <h2 className="text-xs font-extrabold text-fg uppercase tracking-wider pb-2 mb-2 border-b border-gray-50">
+            <h2 className="text-xs font-extrabold text-fg uppercase tracking-wider pb-2 mb-2 border-b border-line">
               {isAr ? 'التفاصيل' : 'Details'}
             </h2>
             <p
@@ -1127,7 +1127,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         {/* Card 3: Bid History Card */}
         <div className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col min-h-[180px] max-h-[220px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-line shrink-0">
             <span className="text-xs font-extrabold text-fg uppercase tracking-wider">
               {isAr ? 'سجل المزايدات' : 'Bid History'}
             </span>
@@ -1189,7 +1189,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
         {/* Card 4: Modern Live Chat */}
         <div className="bg-surface-raised border border-line/80 rounded-2xl p-4 shadow-sm flex flex-col h-[280px] shrink-0" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-50 shrink-0">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-line shrink-0">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-extrabold text-fg uppercase tracking-wider">

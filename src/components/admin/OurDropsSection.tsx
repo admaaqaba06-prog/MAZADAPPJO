@@ -340,7 +340,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
 
                           {item.currentBidderId && (
                             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                              <span className="text-[10px] text-gray-405 font-mono uppercase font-bold tracking-wider">Escrow Locked 🔒</span>
+                              <span className="text-[10px] text-fg-muted font-mono uppercase font-bold tracking-wider">Escrow Locked 🔒</span>
                               <div className="flex items-center gap-2">
                                 {!orders.some(o => o.auctionId === item.id) && (
                                   <button 

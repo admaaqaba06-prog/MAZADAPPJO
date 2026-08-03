@@ -665,7 +665,7 @@ export const DiscoveryFeedView: React.FC = () => {
               M
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-gray-950 font-sans">
+              <h1 className="text-lg font-bold tracking-tight text-fg font-sans">
                 {isAr ? 'مزاد جو' : 'Mazad Jo'}
               </h1>
             </div>

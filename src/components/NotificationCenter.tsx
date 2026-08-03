@@ -327,7 +327,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
                           item.read 
                             ? 'bg-surface-raised border-line text-fg hover:bg-surface-sunken/50' 
-                            : 'bg-surface-raised border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-gray-950 shadow-xs hover:bg-orange-50/5'
+                            : 'bg-surface-raised border-l-4 border-l-[#FF6B00] border-y-gray-200 border-r-gray-200 text-fg shadow-xs hover:bg-orange-50/5'
                         }`}
                         id={`notification-card-${item.id}`}
                       >
@@ -342,7 +342,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         {/* Text */}
                         <div className="space-y-1.5 pr-4 min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                            <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-fg' : 'font-extrabold text-gray-950'}`}>
+                            <h4 className={`text-[11.5px] tracking-tight leading-tight uppercase ${item.read ? 'font-bold text-fg' : 'font-extrabold text-fg'}`}>
                               {item.title}
                             </h4>
                             <div className="flex items-center gap-1.5">
