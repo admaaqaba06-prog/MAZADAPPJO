@@ -117,10 +117,15 @@ effective order is newest-first across all 8 display slots.
 already suppressed — but by accident, not by intent, and the expression reads as
 though it works.
 
-Make it explicit:
+Make it explicit. The `> 0` is not decorative: fix round 1 of Task 1 made
+curation classify `endTime: 0` (and `NaN`) as CLOCKLESS so the comparator agrees
+with `isLiveNow`. Without the same guard here, such a lot would be sorted into
+the awaiting group by curation and then rendered as clocked by the card —
+`formatTimeLeft(0)` → the literal `"0m"` / `"0 د"`, with no badge. That is the
+exact filter/renderer divergence the guard exists to prevent.
 
 ```ts
-const hasClock = typeof a.endTime === 'number';
+const hasClock = typeof a.endTime === 'number' && a.endTime > 0;
 const endingSoon = hasClock && a.endTime - Date.now() < 3600_000;
 ```
 

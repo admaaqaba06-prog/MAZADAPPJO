@@ -323,7 +323,7 @@ with:
                 // it can be neither ending-soon nor expired. The old expression
                 // reached the same result only via `NaN < n` being false — this
                 // states the condition instead of relying on that.
-                const hasClock = typeof a.endTime === 'number';
+                const hasClock = typeof a.endTime === 'number' && a.endTime > 0;
                 const endingSoon = hasClock && a.endTime - Date.now() < 3600_000;
 ```
 
