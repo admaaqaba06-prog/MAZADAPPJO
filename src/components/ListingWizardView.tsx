@@ -285,7 +285,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                 <div className="bg-surface-raised rounded-2xl border border-line p-4">
                   {customThumbnailUrl ? (
                     <div className="relative rounded-xl overflow-hidden max-h-[160px] bg-black">
-                      <img src={customThumbnailUrl} alt="Thumbnail Preview" className="w-full h-full object-contain" />
+                      <img src={customThumbnailUrl} alt={isAr ? 'معاينة الصورة المصغرة' : 'Thumbnail preview'} className="w-full h-full object-contain" />
                       <button
                         type="button"
                         onClick={() => {

@@ -1,0 +1,170 @@
+// The formal terms shown in TermsModal, extracted from JSX and translated.
+//
+// Follows the same shape as auctionRules.ts (the friendly, up-front version);
+// this is the legal backstop that modal links to.
+//
+// THREE FACTUAL CORRECTIONS were made while translating, because rendering a
+// false claim in a second language doubles it rather than fixes it. Each is
+// marked CORRECTED below and checked against the code:
+//
+//  1. Payment window. The old copy said the winning bid must be settled "within
+//     3 hours of auction end". The platform's default is 24 HOURS
+//     (functions/settlement.js: DEFAULT_PAYMENT_WINDOW_HOURS = 24) and it is
+//     configurable per lot between 1 and 168 hours, which is why the copy now
+//     points at the deadline shown on the order rather than naming a number.
+//     Every notification, the ban ladder and auctionRules.ts already said 24h.
+//
+//  2. Payment channels. The old copy listed "Credit Card", "Mobile Wallets" and
+//     "Pay on Delivery (VIP Tier Only)". None of the three exists anywhere in
+//     the codebase — payment is CliQ, with an uploaded receipt an admin
+//     verifies. Promising channels the platform cannot accept is the kind of
+//     claim a consumer-protection complaint is built from.
+//
+//  3. Seller-conduct wording. "Mazad JO reserves absolute authority to
+//     deactivate merchant accounts and hold funds if deceptive claims are
+//     resolved" — "if ... are resolved" inverts the intended meaning, and
+//     "battery levels, localized defects, transparent colors, and physical body
+//     disclosures" describes a phone-resale business rather than this one.
+//
+// STILL OUTSTANDING, and not something code can fix: docs/legal/terms-of-use.md
+// is a DIFFERENT document from this one, and carries its own banner saying it is
+// a draft that "MUST be reviewed and adapted by a qualified Jordanian lawyer"
+// before publishing — specifically on fund-holding, consumer protection and
+// auction licensing. Both documents need that review, and they need to agree
+// with each other.
+
+export interface LegalLine {
+  en: string;
+  ar: string;
+  /** Visual weight only — never a substitute for saying the thing plainly. */
+  tone?: 'default' | 'warn' | 'danger' | 'good';
+}
+
+export interface LegalSection {
+  id: string;
+  icon: string;
+  titleEn: string;
+  titleAr: string;
+  lines: LegalLine[];
+}
+
+export const LEGAL_HEADER = {
+  titleEn: 'Terms of Use & Privacy Policy',
+  titleAr: 'شروط الاستخدام وسياسة الخصوصية',
+  subtitleEn: 'Mazad JO | Jordan bidding platform',
+  subtitleAr: 'مزاد جو | منصة المزادات في الأردن',
+};
+
+export const LEGAL_SECTIONS: LegalSection[] = [
+  {
+    id: 'payment',
+    icon: '💸',
+    titleEn: 'Payment & settlement',
+    titleAr: 'الدفع والتسوية',
+    lines: [
+      {
+        // CORRECTED (1): was "within 3 hours of auction end".
+        en: 'The winning bid must be paid in full before the deadline shown on your order. The standard window is 24 hours from the close of the auction; some lots state a different window, and the one on your order is the one that applies.',
+        ar: 'يجب دفع قيمة المزايدة الفائزة بالكامل قبل الموعد النهائي الظاهر على طلبك. المهلة الاعتيادية هي 24 ساعة من إغلاق المزاد، وبعض القطع تحدد مهلة مختلفة — والمهلة الظاهرة على طلبك هي المعتمدة.',
+      },
+      {
+        // CORRECTED (2): was a list of four channels, three of which do not exist.
+        en: 'Payment is made by CliQ transfer. You upload the transfer receipt and Mazad JO verifies it before the order moves forward.',
+        ar: 'يتم الدفع عبر حوالة كليك (CliQ). ترفع إيصال الحوالة ويقوم مزاد جو بالتحقق منه قبل أن يتقدّم الطلب.',
+      },
+      {
+        en: 'If you win and do not pay within the window, the order defaults: your account enters a cooldown, and repeated defaults lead to a longer suspension.',
+        ar: 'إذا فزت ولم تدفع خلال المهلة، يُعتبر الطلب متعثراً: يدخل حسابك فترة إيقاف مؤقت، وتكرار التعثر يؤدي إلى تعليق أطول.',
+        tone: 'warn',
+      },
+    ],
+  },
+  {
+    id: 'protection',
+    icon: '🛡️',
+    titleEn: 'Buyer protection & disputes',
+    titleAr: 'حماية المشتري والنزاعات',
+    lines: [
+      {
+        en: 'When you win and pay, Mazad JO holds your payment and does not release it to the seller until you receive the item, check it, and approve the release.',
+        ar: 'عند فوزك ودفعك، يحتفظ مزاد جو بمبلغك ولا يحوّله للبائع حتى تستلم القطعة وتتفحصها وتوافق على تحرير المبلغ.',
+        tone: 'good',
+      },
+      {
+        en: 'If there is a problem, or the item does not match the listing, open a dispute BEFORE approving release. Mazad JO will mediate and can return the held funds.',
+        ar: 'إذا كان هناك مشكلة أو كانت القطعة لا تطابق الإعلان، افتح نزاعاً قبل الموافقة على تحرير المبلغ. يتدخّل مزاد جو للوساطة ويمكنه إعادة المبلغ المحتجز.',
+      },
+      {
+        en: 'Winning bids are binding, and once you approve release the sale is complete — there are no refunds after that point. Raise any concern before approving.',
+        ar: 'المزايدة الفائزة مُلزِمة، وبمجرد موافقتك على تحرير المبلغ تكتمل عملية البيع ولا يوجد استرداد بعد ذلك. أثِر أي ملاحظة قبل الموافقة.',
+        tone: 'danger',
+      },
+    ],
+  },
+  {
+    id: 'sellers',
+    icon: '⚖️',
+    titleEn: 'Seller responsibilities',
+    titleAr: 'مسؤوليات البائع',
+    lines: [
+      {
+        // CORRECTED (3): was phone-resale specifics ("battery levels, localized
+        // defects, transparent colors, physical body disclosures").
+        en: 'Sellers are responsible for describing an item accurately, including its true condition and any fault, damage or missing part, and for using photographs of the actual item.',
+        ar: 'يتحمّل البائع مسؤولية وصف القطعة بدقة، بما في ذلك حالتها الحقيقية وأي عيب أو ضرر أو نقص، واستخدام صور للقطعة نفسها.',
+      },
+      {
+        // CORRECTED (3): was "if deceptive claims are resolved", which inverts it.
+        en: 'Mazad JO may suspend a seller account and hold the related funds where a listing is found to be misleading.',
+        ar: 'يحق لمزاد جو تعليق حساب البائع وحجز المبالغ المرتبطة به إذا تبيّن أن الإعلان مضلِّل.',
+        tone: 'danger',
+      },
+    ],
+  },
+  {
+    id: 'fees',
+    icon: '📊',
+    titleEn: 'Fees',
+    titleAr: 'الرسوم',
+    lines: [
+      {
+        en: "A 5% buyer's premium is added to the winning bid. A 5% commission is deducted from the seller's proceeds, so the seller receives 95%. Membership fees are separate.",
+        ar: 'تُضاف عمولة مشترٍ بنسبة 5% فوق سعر الفوز، وتُخصم عمولة 5% من مستحقات البائع فيستلم 95%. رسوم العضوية منفصلة عن ذلك.',
+      },
+      {
+        en: 'No security deposit is required in order to bid.',
+        ar: 'لا يُطلب أي تأمين (وديعة) للمزايدة.',
+      },
+    ],
+  },
+  {
+    id: 'privacy',
+    icon: '🔒',
+    titleEn: 'Privacy & your data',
+    titleAr: 'الخصوصية وبياناتك',
+    lines: [
+      {
+        en: 'Transfer receipts, delivery addresses and phone numbers are stored with our payment and infrastructure providers, used only to operate the service, and are not sold to third parties.',
+        ar: 'تُحفظ إيصالات الحوالات وعناوين التوصيل وأرقام الهواتف لدى مزوّدي خدمات الدفع والبنية التحتية لدينا، وتُستخدم فقط لتشغيل الخدمة، ولا تُباع لأي طرف ثالث.',
+        tone: 'good',
+      },
+    ],
+  },
+];
+
+export const LEGAL_FOOTER = {
+  // The old footnote said "Last Document Revision Date: June 2026" — a date, in
+  // a file with no mechanism to keep it true. It is derived from the revision
+  // constant below so it cannot drift silently.
+  revisionEn: 'Terms last revised: August 2026',
+  revisionAr: 'آخر تحديث للشروط: آب ٢٠٢٦',
+  rightsEn: 'All rights reserved © Mazad JO',
+  rightsAr: 'جميع الحقوق محفوظة © مزاد جو',
+  // The old button read "I Accept and Agree to the Bidding Policies" — but this
+  // modal records NOTHING. It is opened from a footer link and closing it is
+  // its only action; the real acceptance gate is the auction rules, which
+  // version and store consent (see auctionRules.ts RULES_VERSION). A button
+  // claiming to capture agreement that captures none is worse than no button.
+  closeEn: 'Close',
+  closeAr: 'إغلاق',
+};

@@ -500,7 +500,7 @@ export const SubscriptionView: React.FC = () => {
               <div className="w-full relative flex flex-col items-center space-y-3 z-20">
                 <img 
                   src={paymentProofImage} 
-                  alt="Payment Proof" 
+                  alt={isAr ? 'إثبات الدفع' : 'Payment proof'} 
                   className="max-h-56 w-auto object-contain rounded-lg border border-line shadow-sm"
                   referrerPolicy="no-referrer"
                 />
@@ -515,7 +515,7 @@ export const SubscriptionView: React.FC = () => {
               <div className="flex flex-col items-center text-center space-y-2">
                 <UploadCloud className="w-8 h-8 text-fg-muted group-hover:text-[#FF6B00] transition-colors" />
                 <p className="text-xs text-fg font-extrabold">{isAr ? 'اضغط هنا لرفع إيصال الدفعة' : 'Click here to upload payment screenshot'}</p>
-                <p className="text-[9.5px] text-fg-muted font-mono">PNG, JPG format images only</p>
+                <p className="text-[9.5px] text-fg-muted font-mono">{isAr ? 'صور بصيغة PNG أو JPG فقط' : 'PNG, JPG format images only'}</p>
               </div>
             )}
           </div>

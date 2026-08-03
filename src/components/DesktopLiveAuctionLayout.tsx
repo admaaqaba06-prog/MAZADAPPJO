@@ -511,7 +511,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
               <button
                 onClick={onShareClick}
                 className="p-2 rounded-lg bg-black/40 backdrop-blur-md text-white border border-white/10 hover:bg-[#E85D04] hover:border-transparent transition-all cursor-pointer shadow-md"
-                title="Share"
+                title={isAr ? 'مشاركة' : 'Share'}
               >
                 <Share2 className="w-4 h-4" />
               </button>
@@ -634,7 +634,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                       navigator.clipboard.writeText(auctionNumberLabel);
                     }}
                     className="text-fg-muted hover:text-fg-muted cursor-pointer"
-                    title="Copy"
+                    title={isAr ? 'نسخ' : 'Copy'}
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -728,19 +728,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                     {activeSellerProfile.rating.toFixed(1)}
                   </span>
-                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Rating</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">{isAr ? 'التقييم' : 'Rating'}</span>
                 </div>
               )}
               {!!activeSellerProfile?.totalSales && (
                 <div className="flex flex-col items-center border-x border-line">
                   <span className="text-[11px] font-black text-fg">{activeSellerProfile.totalSales}</span>
-                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Sales</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">{isAr ? 'المبيعات' : 'Sales'}</span>
                 </div>
               )}
               {!!trustScore && (
                 <div className="flex flex-col items-center">
                   <span className="text-[11px] font-black text-fg">{trustScore}%</span>
-                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">Trust</span>
+                  <span className="text-[8px] text-fg-muted font-semibold uppercase mt-1">{isAr ? 'الثقة' : 'Trust'}</span>
                 </div>
               )}
             </div>
