@@ -201,6 +201,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "auctions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "featuredRank",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

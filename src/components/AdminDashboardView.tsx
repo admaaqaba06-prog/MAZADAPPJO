@@ -28,6 +28,7 @@ import { ShieldCheck } from 'lucide-react';
 const OurDropsSection = React.lazy(() => import('./admin/OurDropsSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
+const FeaturedSection = React.lazy(() => import('./admin/FeaturedSection'));
 const AuctionLookupSection = React.lazy(() => import('./admin/AuctionLookupSection'));
 const AuditLogSection = React.lazy(() => import('./admin/AuditLogSection'));
 const SystemSection = React.lazy(() => import('./admin/SystemSection'));
@@ -956,6 +957,12 @@ export const AdminDashboardView: React.FC = () => {
               </div>
             }
           >
+            {/* Featuring is merchandising of Mazad's own inventory, so it lives
+                at the top of Our drops rather than in a seventh tab — the Wave 4
+                re-cut collapsed tabs deliberately. */}
+            <div className="mb-4">
+              <FeaturedSection isAr={isAr} />
+            </div>
             <OurDropsSection
               isAr={isAr}
               isLoading={isLoading}

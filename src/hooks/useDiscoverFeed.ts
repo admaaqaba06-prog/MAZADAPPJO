@@ -40,7 +40,9 @@ import {
   PAGE,
   hasNewerDrops,
   isDisplayableLive,
+  mergeFeatured,
 } from '../utils/discoverQuery';
+import { FEATURED_CAP } from '../utils/featuredRank';
 import {
   filsToUnits,
   mapLiveAuctionFields,
@@ -169,6 +171,52 @@ function buildFirstBidQuery(
 }
 
 /**
+ * Build the admin-featured query: LIVE lots carrying a `featuredRank`, in rank
+ * order, capped at FEATURED_CAP.
+ *
+ * `featuredRank > 0` + `orderBy('featuredRank')` relies on Firestore excluding
+ * docs missing the ordered field — an unfeatured lot has no `featuredRank`, so
+ * it cannot appear, and no backfill was needed. Backed by the
+ * (status ASC, featuredRank ASC) composite index.
+ *
+ * Mirrors the pure `buildFeaturedFeedConstraints` descriptor, which is where
+ * this shape is unit-tested.
+ */
+function buildFeaturedQuery() {
+  return query(
+    collection(db, 'auctions'),
+    where('status', '==', 'live'),
+    where('featuredRank', '>', 0),
+    orderBy('featuredRank', 'asc'),
+    limit(FEATURED_CAP),
+  );
+}
+
+/**
+ * Split featured docs into the two lists they belong to.
+ *
+ * Decided by the DOC SHAPE, not by which section is on screen: a lot that
+ * `isAwaitingFirstBidDoc` accepts has no clock and belongs at the head of the
+ * first-bid list, everything else at the head of the ending-soon list. That is
+ * the same predicate `keepAwaitingFirstBid` filters on, so a featured lot lands
+ * in exactly one list — never both, never neither.
+ *
+ * `isSimulated` is dropped for parity with `keepAwaitingFirstBid` and
+ * `isDisplayableLive`: the feed's entry points must not disagree about whether
+ * a simulated lot is visible.
+ */
+function splitFeatured(docs: QueryDocumentSnapshot<DocumentData>[]): {
+  awaiting: AuctionItem[];
+  live: AuctionItem[];
+} {
+  const real = docs.filter((d) => (d.data() as any).isSimulated !== true);
+  return {
+    awaiting: real.filter((d) => isAwaitingFirstBidDoc(d.data() as any)).map(mapFeedDoc),
+    live: real.filter((d) => !isAwaitingFirstBidDoc(d.data() as any)).map(mapFeedDoc),
+  };
+}
+
+/**
  * Keep only lots still awaiting their first bid, and drop simulator data.
  *
  * Filters RAW doc data, not mapped items: `resolveEndTime` returns null only
@@ -282,14 +330,22 @@ export function useDiscoverFeed(
       // keeps the "Live now" section header and the orange live-now strip (both
       // rendered off `liveItems`) from claiming these lots have a clock.
       if (feedMode === 'first_bid') {
-        const fbSnap = await getDocs(buildFirstBidQuery(null));
+        const [fbSnap, featSnap] = await Promise.all([
+          getDocs(buildFirstBidQuery(null)),
+          getDocs(buildFeaturedQuery()),
+        ]);
         if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
         cursorRef.current = fbSnap.docs[fbSnap.docs.length - 1] ?? null;
         // Keyed off the RAW page length, not the filtered count: a page whose
         // lots have all since received a first bid filters to empty but must
         // still advance the cursor. Same contract as the ending-soon feed.
         hasMoreLiveRef.current = fbSnap.docs.length === PAGE;
-        setFirstBidItems(keepAwaitingFirstBid(fbSnap.docs));
+        // Featured lots lead this chip too. Only the awaiting half: a featured
+        // lot whose clock has started is not a "Be the First" lot and would
+        // contradict the section it was placed in.
+        setFirstBidItems(
+          mergeFeatured(keepAwaitingFirstBid(fbSnap.docs), splitFeatured(featSnap.docs).awaiting),
+        );
         setLiveItems([]);
         setUpcomingItems([]);
         setHasMoreLive(fbSnap.docs.length === PAGE);
@@ -303,12 +359,15 @@ export function useDiscoverFeed(
       // Any specific category chip skips it: first-bid lots are not
       // category-scoped in this slice (see the spec's Scope section).
       const isAllChip = !categoryMatchesRef.current || categoryMatchesRef.current.length === 0;
-      const [liveSnap, upSnap, fbSnap] = await Promise.all([
+      // Featuring is an All-chip surface: a category chip skips the query
+      // entirely rather than fetching and discarding it.
+      const [liveSnap, upSnap, fbSnap, featSnap] = await Promise.all([
         getDocs(buildLiveQuery(categoryMatchesRef.current, null)),
         getDocs(buildUpcomingQuery()),
         isAllChip
           ? getDocs(buildFirstBidQuery(null, ALL_TAB_FIRST_BID_LIMIT))
           : Promise.resolve(null),
+        isAllChip ? getDocs(buildFeaturedQuery()) : Promise.resolve(null),
       ]);
       if (reqId !== reqIdRef.current || !mountedRef.current) return; // stale
 
@@ -327,8 +386,26 @@ export function useDiscoverFeed(
       hasMoreLiveRef.current = liveSnap.docs.length === PAGE;
       newestCreatedRef.current = newest;
 
-      setLiveItems(live);
-      setFirstBidItems(fbSnap ? keepAwaitingFirstBid(fbSnap.docs) : []);
+      // Page 1 ONLY. `loadMore` must never re-merge: a featured lot already sits
+      // at the head of the list, and merging again would move or duplicate it.
+      const feat = featSnap ? splitFeatured(featSnap.docs) : { awaiting: [], live: [] };
+      // The featured query filters `status == 'live'`, which is NOT the same as
+      // displayable: a lot can still be status-live and past its endTime. Without
+      // this the feed would be led by a card showing 🏁 ENDED. The awaiting half
+      // needs no such guard — it has no clock to be past.
+      setLiveItems(mergeFeatured(live, feat.live.filter((a) => isDisplayableLive(a, now))));
+      // Re-trimmed to ALL_TAB_FIRST_BID_LIMIT after the merge. That cap exists so
+      // the All-tab preview does not bury the Upcoming section below it; without
+      // the trim, 6 featured lots on top of an 8-lot preview would render 14 and
+      // defeat it. The Be-the-First chip (the paged view) is NOT trimmed.
+      setFirstBidItems(
+        fbSnap
+          ? mergeFeatured(keepAwaitingFirstBid(fbSnap.docs), feat.awaiting).slice(
+              0,
+              ALL_TAB_FIRST_BID_LIMIT,
+            )
+          : [],
+      );
       setUpcomingItems(upcoming);
       setHasMoreLive(liveSnap.docs.length === PAGE);
       setNewestLoadedCreatedAt(newest);

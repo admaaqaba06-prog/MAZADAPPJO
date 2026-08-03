@@ -117,6 +117,26 @@ service cloud.firestore {
       // endTime/endsAt from the client on lots its bot has already bid on
       // (SimulatorPanel.tsx). Simulated data is invisible to real users by
       // construction, so no real bidder can be affected.
+      // featuredRank is admin-only (enforced by the create/update branches
+      // below) and must be a whole number inside the cap. The CAP ITSELF IS NOT
+      // ENFORCEABLE HERE — rules cannot count documents, so nothing stops an
+      // admin writing rank 1 on seven lots. The feed query's limit(6) bounds
+      // that: the failure mode is a confusing admin panel, not a broken feed.
+      //
+      // The 6 below duplicates FEATURED_CAP in src/utils/featuredRank.ts —
+      // rules cannot import TypeScript. Changing the cap means changing BOTH.
+      //
+      // Passes when the write does not touch featuredRank at all, and when the
+      // key is being DELETED (unpin) — `in request.resource.data` is false for a
+      // deleted field, so the range check is not reached.
+      function featuredRankValid() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['featuredRank'])
+          || !('featuredRank' in request.resource.data)
+          || (request.resource.data.featuredRank is int
+              && request.resource.data.featuredRank >= 1
+              && request.resource.data.featuredRank <= 6);
+      }
+
       function adminEditBlocked() {
         return auctionBidCount() > 0
           && resource.data.get('isSimulated', false) != true
@@ -166,6 +186,10 @@ service cloud.firestore {
           // sellerLogo, so a forged one would let a seller present their own lot
           // as Mazad's own inventory. Only the admin drop builder sets it.
           (!('soldByMazad' in request.resource.data)) &&
+          // Featuring is a Mazad merchandising decision, not a seller's to make.
+          // Without this a seller could seed featuredRank at creation and the
+          // value would survive admin approval straight to the head of the feed.
+          (!('featuredRank' in request.resource.data)) &&
           (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false) &&
           (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus == 'pending') &&
           (!('currentPrice' in request.resource.data) || request.resource.data.currentPrice == request.resource.data.startingPrice)
@@ -193,7 +217,7 @@ service cloud.firestore {
       // SellerCenter edit of a rejected listing. Recorded so the next reader
       // does not mistake the admin branch for the whole story.
       allow update: if isSignedIn() && (
-        (isAdmin() && !adminEditBlocked()) ||
+        (isAdmin() && !adminEditBlocked() && featuredRankValid()) ||
         (
           resource.data.createdById == request.auth.uid &&
           resource.data.status in ['processing', 'pending', 'rejected'] &&
@@ -204,7 +228,9 @@ service cloud.firestore {
             'totalBids', 'scheduledStartAt', 'approvalStatus', 'isApproved',
             'approvedAt', 'approvedBy', 'createdById', 'paymentWindowHours',
             'antiSnipeWindowSec', 'antiSnipeExtendSec', 'viewing', 'viewingPlace',
-            'soldByMazad'
+            // Same defence as the create branch: a seller editing their own
+            // in-review listing must not be able to feature it.
+            'soldByMazad', 'featuredRank'
           ])
         )
       );

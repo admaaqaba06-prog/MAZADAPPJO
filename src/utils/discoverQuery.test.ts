@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL_TAB_FIRST_BID_LIMIT,
   PAGE,
+  buildFeaturedFeedConstraints,
   buildFirstBidFeedConstraints,
   buildLiveFeedConstraints,
   buildUpcomingFeedConstraints,
   hasNewerDrops,
   isDisplayableLive,
+  mergeFeatured,
   mergeLiveIntoCard,
 } from './discoverQuery';
 import type { AuctionItem } from '../types';
@@ -305,5 +307,47 @@ describe('mergeLiveIntoCard', () => {
   it('overlays a live value with NO id (backward-compat for older callers)', () => {
     const merged = mergeLiveIntoCard(base, { currentPrice: 999 });
     expect(merged.currentPrice).toBe(999);
+  });
+});
+
+describe('buildFeaturedFeedConstraints', () => {
+  it('asks for live featured lots ordered by rank, capped', () => {
+    expect(buildFeaturedFeedConstraints()).toEqual({
+      where: [
+        ['status', '==', 'live'],
+        ['featuredRank', '>', 0],
+      ],
+      orderBy: [['featuredRank', 'asc']],
+      startAfter: null,
+      limit: 6,
+    });
+  });
+});
+
+describe('mergeFeatured', () => {
+  const item = (id: string): AuctionItem => ({ id } as AuctionItem);
+
+  it('puts featured lots at the head, in the order given', () => {
+    expect(mergeFeatured([item('a'), item('b')], [item('z'), item('y')]).map((x) => x.id))
+      .toEqual(['z', 'y', 'a', 'b']);
+  });
+
+  // The featured query and the page query are separate reads; a featured lot is
+  // very likely to also be on page 1. It must appear once, at the top.
+  it('drops the page copy of a lot that is already featured', () => {
+    expect(mergeFeatured([item('a'), item('z')], [item('z')]).map((x) => x.id))
+      .toEqual(['z', 'a']);
+  });
+
+  it('returns the base unchanged when nothing is featured', () => {
+    expect(mergeFeatured([item('a')], []).map((x) => x.id)).toEqual(['a']);
+  });
+
+  it('does not mutate either input', () => {
+    const base = [item('a')];
+    const featured = [item('z')];
+    mergeFeatured(base, featured);
+    expect(base.map((x) => x.id)).toEqual(['a']);
+    expect(featured.map((x) => x.id)).toEqual(['z']);
   });
 });
