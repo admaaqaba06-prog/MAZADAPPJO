@@ -81,6 +81,7 @@ import { sumPaidSalesThisMonth } from '../utils/sellerSales';
 import { reviewCountLabel } from '../utils/reviewCount';
 import { displayOrderRef } from '../utils/orderRef';
 import { validateDescription } from '../utils/listingDescription';
+import ListingImage from './ui/ListingImage';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -1424,7 +1425,13 @@ export const SellerCenterView: React.FC = () => {
                           />
                         )}
                         <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
-                          <img src={auction.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} alt={auction.title} className="w-full h-full object-cover" />
+                          <ListingImage
+                            src={auction.thumbnailUrl}
+                            alt={auction.title}
+                            isAr={isAr}
+                            className="w-full h-full"
+                            imgClassName="object-cover"
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -1620,7 +1627,7 @@ export const SellerCenterView: React.FC = () => {
                                 <td className="p-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-line bg-surface-sunken">
-                                      <img src={order.auctionImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80'} className="w-full h-full object-cover" />
+                                      <img src={order.auctionImage || ''} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="max-w-[150px] lg:max-w-[200px]">
                                       <p className="font-extrabold text-fg truncate">{order.auctionTitle}</p>

@@ -161,7 +161,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
 
                 <div className="flex gap-3 items-start pl-2">
                   <img
-                    src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
+                    src={order.auctionImage || ''}
                     alt={order.auctionTitle}
                     className="w-12 h-12 rounded-2xl object-cover border border-line"
                     referrerPolicy="no-referrer"

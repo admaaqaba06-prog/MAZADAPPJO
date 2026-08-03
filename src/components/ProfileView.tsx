@@ -303,7 +303,7 @@ export const ProfileView: React.FC = () => {
                     id={`profile-win-card-${order.id}`}
                   >
                     <img
-                      src={order.auctionImage || 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=300&q=80'}
+                      src={order.auctionImage || ''}
                       alt={order.auctionTitle}
                       className="w-full h-20 rounded-xl object-cover border border-line"
                       referrerPolicy="no-referrer"

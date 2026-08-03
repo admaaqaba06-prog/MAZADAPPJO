@@ -47,6 +47,7 @@ import { SellerProfileModal } from './SellerProfileModal';
 import { matchesAuctionSearch } from '../utils/auctionSearch';
 import { formatCountdown } from '../utils/bidFormat';
 import AuctionRulesModal from './AuctionRulesModal';
+import ListingImage from './ui/ListingImage';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
 
@@ -101,7 +102,11 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   setActiveView,
   liveEnabled,
 }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  // Seeded true for a lot with no image. The shimmer below is gated on this
+  // flag, and ListingImage's placeholder branch renders no <img> — so a lot
+  // with no thumbnail would sit under a shimmer that never resolves, which is
+  // exactly the lots this change is about.
+  const [imageLoaded, setImageLoaded] = useState(() => !item.thumbnailUrl);
   // Perf Wave 3c (PF8): ONE shared 1s ticker for every card instead of a
   // per-card setInterval (~80 concurrent timers with a full grid). Only
   // ticks while the card is on/near screen (useIsOnScreen); returns null when
@@ -161,19 +166,15 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-800 animate-pulse z-10" />
         )}
 
-        <img
-          src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80'}
+        <ListingImage
+          src={item.thumbnailUrl}
           alt={item.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+          isAr={isAr}
+          className={`absolute inset-0 w-full h-full transition-all duration-500 ${
             !imageLoaded ? 'opacity-0' : itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
           }`}
-          referrerPolicy="no-referrer"
-          loading="lazy"
+          imgClassName="object-cover group-hover:scale-105"
           onLoad={() => setImageLoaded(true)}
-          onError={(e) => {
-            e.currentTarget.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
-            setImageLoaded(true);
-          }}
         />
 
         {/* Single scrim carries all card text — no boxed panels, no button wall */}
