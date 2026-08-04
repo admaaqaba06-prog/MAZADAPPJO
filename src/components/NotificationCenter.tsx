@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { notificationAudience, userFacingNotifications } from '../utils/notifications';
+import { notificationDestination } from '../utils/notificationDestination';
 import { isAdminUser } from '../utils/adminAuth';
 import type { Notification as AppNotification } from '../types';
 import { 
@@ -53,10 +54,39 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
     markAllAsRead,
     language,
     currentUser,
-    orders
+    orders,
+    setActiveView,
+    setActiveAuctionId,
+    setGlobalSelectedOrderId
   } = useApp();
 
   const [selectedFilter, setSelectedFilter] = useState<NotificationFilterType>('all');
+
+  /**
+   * Read + go, in one action.
+   *
+   * Marking read is unconditional — it is what the click always meant. The
+   * navigation is best-effort on top: `notificationDestination` returns null
+   * whenever it cannot say WHERE with certainty (an announcement, an unknown or
+   * legacy type, a blank id), and null means stay put. Staying put is always
+   * safe; landing on the wrong lot or an empty screen reads as a broken auction
+   * rather than a broken bell.
+   */
+  const handleNotificationClick = (item: AppNotification) => {
+    markAsRead(item.id);
+    const destination = notificationDestination(item);
+    if (!destination) return;
+
+    if (destination.view === 'live') {
+      setActiveAuctionId(destination.auctionId);
+    } else if (destination.view === 'orders') {
+      setGlobalSelectedOrderId(destination.orderId);
+    }
+    setActiveView(destination.view);
+    // The panel is an overlay — leaving it open would cover what we just
+    // navigated to.
+    onClose();
+  };
   const isAr = language === 'ar';
   const isStrictAdmin = isAdminUser(currentUser);
   // Display-time allowlist: users see only bidder-relevant notifications.
@@ -339,7 +369,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        onClick={() => markAsRead(item.id)}
+                        onClick={() => handleNotificationClick(item)}
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-3.5 relative group ${
                           item.read 
                             ? 'bg-surface-raised border-line text-fg hover:bg-surface-sunken/50' 
