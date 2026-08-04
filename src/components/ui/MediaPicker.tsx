@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatNumeral } from '../../utils/arabicNumerals';
 import {
   MAX_GALLERY_PHOTOS,
   acceptGalleryFiles,
   addGalleryPhotos,
+  classifyGalleryIntake,
+  moveGalleryPhoto,
+  imageFilesFromTransfer,
   removeGalleryPhoto,
   type PickedPhoto,
 } from '../../utils/mediaPickerState';
@@ -45,19 +48,38 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
   videoFile,
   onVideoChange,
 }) => {
-  const addFiles = (list: FileList | null) => {
-    if (!list) return;
-    // Filter AND cap before minting a single object URL. A multi-select of five
-    // photos into an empty gallery would otherwise create five blobs and keep
-    // three, leaking the two `addGalleryPhotos` truncates. The cap itself stays
-    // owned by mediaPickerState.
-    const accepted = acceptGalleryFiles(gallery, Array.from(list));
-    if (accepted.length === 0) return;
-    const incoming: PickedPhoto[] = accepted.map((file) => ({
+  // Hover treatment while a file drag is over the gallery.
+  const [dragOver, setDragOver] = useState(false);
+  // Index being dragged for reorder, or null.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  /**
+   * What the last intake REFUSED, so the UI can say so.
+   * A cap the user cannot see reads as "this is everything" — the bug class
+   * behind #202, #220 and #221. Three times, so it gets stated on screen.
+   */
+  const [refused, setRefused] = useState<{ overCap: number; notImage: number } | null>(null);
+
+  const intake = (files: File[]) => {
+    const outcome = classifyGalleryIntake(gallery, files);
+    setRefused(
+      outcome.rejectedOverCap > 0 || outcome.rejectedNotImage > 0
+        ? { overCap: outcome.rejectedOverCap, notImage: outcome.rejectedNotImage }
+        : null,
+    );
+    if (outcome.accepted.length === 0) return;
+    // Mint object URLs only for what is KEPT. A multi-select of five photos into
+    // an empty gallery would otherwise create five blobs and keep three, leaking
+    // the two the cap truncates.
+    const incoming: PickedPhoto[] = outcome.accepted.map((file) => ({
       file,
       url: URL.createObjectURL(file),
     }));
     onGalleryChange(addGalleryPhotos(gallery, incoming));
+  };
+
+  const addFiles = (list: FileList | null) => {
+    if (!list) return;
+    intake(Array.from(list));
   };
 
   const removeAt = (idx: number) => {
@@ -107,10 +129,60 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             ? `صور إضافية (حتى ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — اختياري)`
             : `Extra photos (up to ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)} — optional)`}
         </span>
-        <div className="grid grid-cols-3 gap-2">
+        {/*
+          Drop + paste zone. `onDragOver` MUST preventDefault or the browser
+          navigates to the dropped file instead of handing it over — the single
+          most common reason a drop target silently does nothing.
+
+          tabIndex makes it focusable so a paste has somewhere to land; the
+          handler is on the container rather than window so pasting into this
+          builder cannot hijack a paste meant for another field.
+        */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            // A reorder drag is internal and carries no files; let it fall
+            // through to the per-thumbnail handler rather than treating it as
+            // an intake of zero files.
+            const files = imageFilesFromTransfer(e.dataTransfer);
+            if (files.length > 0) intake(files);
+          }}
+          onPaste={(e) => {
+            const files = imageFilesFromTransfer(e.clipboardData);
+            if (files.length > 0) { e.preventDefault(); intake(files); }
+          }}
+          tabIndex={0}
+          /* 3 columns on a phone, 5 from sm up: at the raised cap of 15 a
+             3-wide grid is five rows of thumbnails, which pushes the rest of
+             the builder form off screen. */
+          className={`grid grid-cols-3 sm:grid-cols-5 gap-2 rounded-xl transition-colors outline-none ${
+            dragOver ? 'ring-2 ring-[#FF6B00] bg-accent-weak/40' : ''
+          }`}
+          id="gallery-drop-zone"
+        >
           {gallery.map((photo, idx) => (
-            <div key={photo.url} className="relative rounded-xl overflow-hidden bg-black aspect-square">
-              <img src={photo.url} alt="" className="w-full h-full object-cover" />
+            <div
+              key={photo.url}
+              draggable
+              onDragStart={() => setDragIndex(idx)}
+              onDragEnd={() => setDragIndex(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                // Reorder only — a file drop is handled by the container above.
+                if (dragIndex === null) return;
+                e.stopPropagation();
+                onGalleryChange(moveGalleryPhoto(gallery, dragIndex, idx));
+                setDragIndex(null);
+              }}
+              className={`relative rounded-xl overflow-hidden bg-black aspect-square cursor-grab active:cursor-grabbing ${
+                dragIndex === idx ? 'opacity-40' : ''
+              }`}
+            >
+              <img src={photo.url} alt="" className="w-full h-full object-cover pointer-events-none" />
               <button
                 type="button"
                 onClick={() => removeAt(idx)}
@@ -139,10 +211,31 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             </label>
           )}
         </div>
+        {refused && (
+          <p className="text-[11px] font-bold text-amber-600" id="gallery-refused-notice">
+            {isAr
+              ? [
+                  refused.overCap > 0
+                    ? `لم تُضف ${formatNumeral(refused.overCap, isAr)} صورة — الحد ${formatNumeral(MAX_GALLERY_PHOTOS, isAr)}.`
+                    : '',
+                  refused.notImage > 0
+                    ? `تم تجاهل ${formatNumeral(refused.notImage, isAr)} ملف غير صورة.`
+                    : '',
+                ].filter(Boolean).join(' ')
+              : [
+                  refused.overCap > 0
+                    ? `${refused.overCap} photo${refused.overCap === 1 ? '' : 's'} not added — the limit is ${MAX_GALLERY_PHOTOS}.`
+                    : '',
+                  refused.notImage > 0
+                    ? `${refused.notImage} non-image file${refused.notImage === 1 ? '' : 's'} ignored.`
+                    : '',
+                ].filter(Boolean).join(' ')}
+          </p>
+        )}
         <span className="block text-[11px] text-fg-muted">
           {isAr
-            ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد'
-            : 'Bidders can swipe through these inside the live room'}
+            ? 'اسحب صوراً هنا أو الصقها (Ctrl+V)، ورتّبها بالسحب. يستطيع المزايدون التنقل بينها داخل غرفة المزاد.'
+            : 'Drag photos here or paste them (Ctrl+V), and drag to reorder. Bidders swipe through these inside the live room.'}
         </span>
       </div>
 
