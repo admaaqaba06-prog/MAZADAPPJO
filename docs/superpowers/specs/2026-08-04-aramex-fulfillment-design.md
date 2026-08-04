@@ -46,7 +46,13 @@ Settled with MJ on 2026-08-04. Recorded so they are not relitigated.
 6. **Mazad contributes 1 JD** toward office pickup. This is a deliberate exception to "Mazad pays for nothing", scoped to the neutral-zone concept because that is a platform-level safety promise rather than a shipping cost.
 7. **The seller may opt to cover the buyer's collection fee**, making pickup free to the buyer.
 8. **The destination office is chosen to minimise the leg from the seller**, but is surfaced to the buyer as a priced choice, never auto-selected. "Buyer is willing to collect" is an assumption; seller in Irbid and buyer in Amman is a 90-minute drive.
-9. **The seller's shipping origin is captured before their first listing.** Without an address there is no rate, no AWB and no pickup.
+9. **Shipping is a seller-level setting captured at onboarding**, applied to
+   every auction, with per-auction overrides for exceptions. The origin is
+   required before the first listing: without an address there is no rate, no
+   AWB and no pickup.
+10. **Resolved shipping terms are snapshot onto the auction at publish** and
+   locked once it has bids, on the same reasoning the existing rules lock price
+   and timing. See below.
 
 ### Who pays what
 
@@ -63,6 +69,60 @@ Settled with MJ on 2026-08-04. Recorded so they are not relitigated.
 
 - **Is the flat collection fee national or per-governorate?** A single national number is simpler to explain and keeps the buyer's cost predictable, but it means the seller's remainder absorbs all the distance variance — which is precisely the variance the seller was promised transparency about.
 - **Is the 1 JD contribution per order, or capped?** Per order, it scales linearly with volume and is a permanent line in the cost of every shipped sale. A monthly cap bounds it but makes the buyer's price depend on how much of the budget is left, which is not defensible to a buyer.
+
+## Seller shipping profile, and per-auction exceptions
+
+Shipping is a **seller-level setting captured during onboarding and applied to
+every auction**, with per-auction overrides for the exceptions a seller wants to
+make as lots come in. It is not a per-listing form — a seller who sells fifty
+lots from one address should enter that address once.
+
+Lives on `sellerProfiles/{userId}` beside the existing store fields:
+
+```
+shipping: {
+  origin: { city, area, addressLine, postCode?, phone },  // validated via ValidateAddress
+  freeDeliveryCities: string[],       // Aramex city names the seller ships to free
+  absorbsCollectionFee: boolean,      // seller covers the buyer's flat fee
+  offersPickup: boolean,              // office collection enabled at all
+}
+```
+
+An auction may carry a partial `shippingOverride` of the same shape. Resolution
+is a **pure function** — `resolveShipping(auction, sellerProfile)` — field by
+field, override first, profile second, following the existing
+`resolveViewing` / `resolveMissingContact` pattern so it is unit-testable
+without Firestore.
+
+**Onboarding gate:** a seller cannot publish their first listing until `origin`
+is present and validated. That is the natural gate — without an origin there is
+no rate, no AWB and no pickup — and it belongs in the same place the app already
+blocks on missing contact details.
+
+### The terms are SNAPSHOT onto the auction at publish, not read live
+
+This is the load-bearing decision in this section.
+
+The resolved shipping terms are **copied onto the auction document when it goes
+live**, and the order reads them from there. The seller profile is the source
+for *new* listings only.
+
+Without this, a seller who edits their profile changes the deal under everyone
+who has already bid. Someone bids 40 JOD on a lot advertised as free delivery to
+their city; the seller later removes that city; the buyer wins and is charged
+delivery they were never offered. That is a bait-and-switch, and it would be
+invisible — no field on the order would have changed.
+
+This is not a new principle here. `firestore.rules` already locks
+`startingPrice`, `currentPrice`, `duration`, `endTime` and the anti-snipe
+settings once a lot has bids, on exactly the reasoning that *changing any of
+these after someone has committed a bid changes the deal under them*. Shipping
+terms are commercially identical: they change what the winner pays. **They
+should be treated as money/timing fields and locked by the same rule** — added
+to `moneyTimingKeys()` so the existing `adminEditBlocked()` covers them.
+
+A seller who genuinely needs to change terms mid-auction has the same remedy
+they have for price: they cannot, and that is the point.
 
 ### Shipping origin is not `viewing`
 
@@ -89,7 +149,14 @@ The existing FSM (`waiting_payment → paid → preparing_shipment → out_for_d
 
 Five slices. Each gets its own implementation plan.
 
-1. **Seller shipping origin.** Address capture gated before first listing, validated via `ValidateAddress` + `FetchCities`. **Build first — everything depends on it.** No external cost, no order impact, shippable alone.
+1. **Seller shipping profile.** The onboarding-level settings above — origin,
+   free-delivery cities, fee absorption, pickup on/off — plus the per-auction
+   override shape, the pure `resolveShipping` resolver, the first-listing gate,
+   the publish-time snapshot, and the `moneyTimingKeys()` rule change that locks
+   the terms once a lot has bids. **Build first — everything depends on it.**
+   No external cost and no order impact; the only Aramex call is
+   `ValidateAddress` / `FetchCities`, and the city list can be seeded manually
+   if credentials are still outstanding.
 2. **Aramex client foundation.** SOAP client, credential handling, `CalculateRate`, `FetchOffices`. Read-only against Aramex; creates nothing. Lets us put real numbers in front of MJ.
 3. **Rates and options at checkout.** Free-municipality matching, priced pickup/delivery options, the fee split from config.
 4. **Shipment lifecycle.** `CreateShipments` + `CreatePickup` on verified payment, batched `TrackShipments` polling, Aramex status → FSM mapping.
