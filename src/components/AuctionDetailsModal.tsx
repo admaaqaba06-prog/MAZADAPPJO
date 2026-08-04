@@ -29,6 +29,7 @@ import { serverNow } from '../utils/serverTime';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
 import { BidConfirm } from './feedback';
 import { cleanTitle } from '../utils/listingTitle';
+import { isJunkDescription } from '../utils/listingDescription';
 
 interface AuctionDetailsModalProps {
   auction: AuctionItem;
@@ -242,7 +243,7 @@ export const AuctionDetailsModal: React.FC<AuctionDetailsModalProps> = ({ auctio
               // description, and this box sits directly under the title, so it
               // would print the same string twice.
               const text = String(auction.description || '').trim();
-              if (!text || text === String(auction.title || '').trim()) return null;
+              if (isJunkDescription(text, auction.title)) return null;
               return (
                 <p className="text-xs text-fg-muted mt-1.5 leading-relaxed bg-surface-sunken border border-line p-3 rounded-xl">
                   {text}

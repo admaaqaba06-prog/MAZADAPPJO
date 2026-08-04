@@ -11,6 +11,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { formatAmmanClock } from '../utils/ammanTime';
 import { useAuctionDoc } from '../hooks/useAuctionDoc';
 import { isEffectivelyBlocked } from '../utils/banStatus';
+import { isJunkDescription } from '../utils/listingDescription';
 
 export const ReelsDesktopRightPanel: React.FC = () => {
   const {
@@ -272,7 +273,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
             // title-echo case (102 live lots copy the title into the
             // description, which this panel prints directly under the title).
             const text = String(currentItem.description || '').trim();
-            if (!text || text === String(currentItem.title || '').trim()) return null;
+            if (isJunkDescription(text, currentItem.title)) return null;
             return (
               <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
                 {text}

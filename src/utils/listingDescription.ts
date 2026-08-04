@@ -32,3 +32,44 @@ export function validateDescription(raw: string | null | undefined, isAr: boolea
       : `Write a description of at least ${DESCRIPTION_MIN} characters — condition, what's included, and any flaw.`,
   };
 }
+
+/**
+ * Should the description section render at all?
+ *
+ * Four surfaces print a description directly beneath the title — the mobile
+ * lot view, the details modal, the desktop bidding aside and the reels right
+ * panel — and each carried its own inline copy of this rule. One predicate,
+ * because four copies of a display rule is how they come to disagree.
+ *
+ * Measured against production on 2026-08-04, over 264 real (non-simulated)
+ * auctions:
+ *
+ *   246  description is an exact echo of the title   → suppressed
+ *    14  `معروض مميز: {title}` / `Premium Lot: …`     → suppressed (issue #216)
+ *     3  title plus a trailing word ("… usd")        → KEPT
+ *     2  a genuine spec list                         → KEPT
+ *
+ * Those last two are the only real descriptions in the database, which is why
+ * this stays narrow: it suppresses what is provably machine-written or an exact
+ * duplicate, and nothing else. A thin description is still the seller's.
+ *
+ * The fabricated prefixes are matched at the START only, and with the colon —
+ * a real description opening with "معروض بحالة ممتازة" ("shown in excellent
+ * condition") shares three letters with the fabrication and must survive.
+ */
+const FABRICATED_PREFIX = /^\s*(Premium Lot\s*:|معروض مميز\s*:)/;
+
+export function isJunkDescription(
+  description: string | null | undefined,
+  title: string | null | undefined,
+): boolean {
+  const text = String(description ?? '').trim();
+  if (!text) return true;
+  if (FABRICATED_PREFIX.test(text)) return true;
+
+  const heading = String(title ?? '').trim();
+  // Whitespace-insensitive so a pasted copy carrying a stray newline or double
+  // space still reads as the duplicate it is.
+  const norm = (s: string) => s.replace(/\s+/g, ' ');
+  return heading !== '' && norm(text) === norm(heading);
+}

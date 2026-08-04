@@ -19,6 +19,7 @@ import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { useChat } from '../context/AppContext';
 import { resolveViewing } from '../utils/viewing';
 import { cleanTitle } from '../utils/listingTitle';
+import { isJunkDescription } from '../utils/listingDescription';
 
 /* ======================================================================
    MobileAuctionView — the mobile product-drop PAGE (replaces the TikTok-
@@ -544,7 +545,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
               // Trimmed, so '' (which the concierge form now writes on purpose)
               // and whitespace-only both vanish rather than leaving a blank <p>.
               const text = String(activeAuction?.description || '').trim();
-              if (!text || text === String(activeAuction?.title || '').trim()) return null;
+              if (isJunkDescription(text, activeAuction?.title)) return null;
               return (
                 <p className="mt-2 text-[13px] leading-relaxed text-fg-muted whitespace-pre-line">
                   {text}

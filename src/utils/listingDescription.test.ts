@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateDescription, DESCRIPTION_MIN } from './listingDescription';
+import { validateDescription, DESCRIPTION_MIN, isJunkDescription } from './listingDescription';
 
 describe('DESCRIPTION_MIN', () => {
   it('is 20 — low enough for one honest sentence, high enough to exclude a bare product name', () => {
@@ -114,5 +114,56 @@ describe('validateDescription — real content', () => {
     expect(() => validateDescription('🍽️'.repeat(30), true)).not.toThrow();
     expect(validateDescription('🍽️'.repeat(30), true).ok).toBe(true);
     expect(validateDescription('🍽️'.repeat(7), true).ok).toBe(true);
+  });
+});
+
+describe('isJunkDescription', () => {
+  // Every string below is REAL, read out of the production auctions collection
+  // on 2026-08-04 while closing issue #216.
+  it('suppresses an empty description', () => {
+    expect(isJunkDescription('', 'iPhone 17')).toBe(true);
+    expect(isJunkDescription('   ', 'iPhone 17')).toBe(true);
+    expect(isJunkDescription(null, 'iPhone 17')).toBe(true);
+  });
+
+  it('suppresses an exact echo of the title', () => {
+    // 246 of 264 live lots. Printing it renders the same string twice, once as
+    // a heading and once as "التفاصيل".
+    expect(isJunkDescription('iPhone 17 pro max', 'iPhone 17 pro max')).toBe(true);
+    expect(isJunkDescription('  iPhone 17 pro max  ', 'iPhone 17 pro max')).toBe(true);
+  });
+
+  it('suppresses the Premium Lot fabrication in both languages', () => {
+    // 14 live lots. ListingWizardView invented this when it had no description
+    // field; the capture bug is fixed (#199) but the rows remain. "معروض مميز:
+    // علم" reads as "Premium listing: flag" — it tells a buyer nothing.
+    expect(isJunkDescription('معروض مميز: علم', 'علم')).toBe(true);
+    expect(isJunkDescription('Premium Lot: dallah', 'dallah')).toBe(true);
+    // The fabrication is junk whatever follows it, including a mismatched title.
+    expect(isJunkDescription('معروض مميز: شيء آخر', 'علم')).toBe(true);
+  });
+
+  it('KEEPS a genuine seller description', () => {
+    // Two live lots carry a real spec list. Over-suppressing would delete the
+    // only real descriptions in the database.
+    const real = '* السعة: *2 طن (24000 BTU)*.\n* يدعم *التبريد والتدفئة*.';
+    expect(isJunkDescription(real, 'مكيف *سامسونج صيني AR24BHXQASIN*')).toBe(false);
+  });
+
+  it('KEEPS a description that adds something to the title', () => {
+    // Three live lots read "Iphoni 17 pro max usd" under the title "Iphoni 17
+    // pro max". Thin, but the seller added a word, and dropping it loses it.
+    expect(isJunkDescription('Iphoni 17 pro max usd', 'Iphoni 17 pro max')).toBe(false);
+  });
+
+  it('does not treat a title-shaped prefix as the fabrication', () => {
+    // Only the exact fabricated prefixes count. A real description that merely
+    // begins with similar words must survive.
+    expect(isJunkDescription('معروض بحالة ممتازة مع الكرتونة', 'ساعة')).toBe(false);
+  });
+
+  it('is safe when the title is missing', () => {
+    expect(isJunkDescription('a real description here', null)).toBe(false);
+    expect(isJunkDescription('', null)).toBe(true);
   });
 });

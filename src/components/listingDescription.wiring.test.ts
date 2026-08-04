@@ -71,8 +71,21 @@ describe('nothing fabricates a description any more', () => {
     // tree, not just the two files this task edited. Exempt: the rule's own doc
     // comment, which explains what was removed, and this test.
     const offenders = sourceFiles(SRC)
-      .filter(f => !f.endsWith('utils/listingDescription.ts') && !f.endsWith('listingDescription.wiring.test.ts'))
-      .filter(f => /Premium Lot|معروض مميز/.test(readFileSync(f, 'utf8')));
+      // Comments are stripped before scanning. Several files now EXPLAIN the
+      // fabrication — why it was removed, and why the suppression rule has to
+      // match it — and a comment describing a thing must not read as the thing.
+      // Exempt outright: the rule's own module, which names both prefixes in a
+      // regex to suppress the 14 live rows still carrying them, and its unit
+      // test, which uses those rows as fixtures.
+      .filter(f => !f.endsWith('utils/listingDescription.ts')
+                && !f.endsWith('utils/listingDescription.test.ts')
+                && !f.endsWith('listingDescription.wiring.test.ts'))
+      .filter(f => {
+        const code = readFileSync(f, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^\s*\/\/.*$/gm, '');
+        return /Premium Lot|معروض مميز/.test(code);
+      });
     expect(offenders).toEqual([]);
   });
 });
