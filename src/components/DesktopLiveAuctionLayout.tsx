@@ -25,6 +25,7 @@ import { resolveConfirm } from '../hooks/useBidFlow';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { isAuctionOpen, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { minNextBid, totalWithPremium } from '../utils/bidMath';
+import { chooseBidAmount } from '../utils/desktopBidAmount';
 import { priceLabel } from '../utils/bidLabels';
 import { isEffectivelyBlocked } from '../utils/banStatus';
 import { compactJod } from '../utils/bidFormat';
@@ -108,6 +109,12 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
 
   // --- The bid moment: confirm-then-bid + success rush ---
   const [pendingBid, setPendingBid] = useState<number | null>(null);
+  // Custom bid entry. Desktop had none at all — BidSheet (which owns the
+  // mobile field) is rendered only by MobileAuctionView — so the panel offered
+  // three chips and a fixed minimum-next button and no way to name your own
+  // number. Held as the raw string so the field stays uncontrolled-feeling
+  // while typing; chooseBidAmount decides what the CTA does with it.
+  const [customBid, setCustomBid] = useState('');
   const [showWinPill, setShowWinPill] = useState(false);
   const winPillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -163,6 +170,11 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
     setPriceMoved(false);
     setPendingBid(amount);
   };
+
+  // What the primary CTA will send. Recomputed every render, so a rival's bid
+  // raising nextBidAmount re-blocks a now-too-low typed amount without the user
+  // touching the field.
+  const chosenBid = chooseBidAmount(customBid, nextBidAmount);
 
   // At confirm, recompute against the LATEST minimum (nextBidAmount is derived
   // from live auction state every render): re-prompt if it moved, else send.
@@ -892,6 +904,58 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                 );
               })()}
 
+              {/* Enter your own amount. Desktop had no way to do this at all:
+                  the custom field lives in BidSheet, which only
+                  MobileAuctionView renders. Always visible rather than behind a
+                  disclosure — the reported problem was that it was not visible. */}
+              {isAuctionOpen(activeAuction?.status) && (
+                <div className="w-full" style={{ direction: isAr ? 'rtl' : 'ltr' }}>
+                  <label
+                    htmlFor="desktop-custom-bid"
+                    className="block text-[9px] text-fg-muted font-bold uppercase tracking-wider mb-1"
+                  >
+                    {isAr ? 'أو أدخل مبلغاً' : 'Or enter an amount'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="desktop-custom-bid"
+                      type="number"
+                      inputMode="decimal"
+                      min={nextBidAmount}
+                      step="any"
+                      value={customBid}
+                      onChange={(e) => setCustomBid(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Enter is the natural commit on a desktop field, and it
+                        // routes through the SAME openConfirm the button uses —
+                        // there is no second bid path.
+                        if (e.key === 'Enter' && chosenBid.canBid) openConfirm(chosenBid.amount);
+                      }}
+                      placeholder={String(nextBidAmount)}
+                      aria-invalid={chosenBid.error !== null}
+                      aria-describedby={chosenBid.error ? 'desktop-custom-bid-error' : undefined}
+                      className={`w-full h-9 rounded-xl bg-surface-sunken border px-3 pe-12 text-sm font-bold text-fg placeholder:text-fg-muted placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#E85D04] ${
+                        chosenBid.error ? 'border-rose-400' : 'border-line'
+                      }`}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-[10px] font-bold text-fg-muted">
+                      {isAr ? 'د.أ' : 'JOD'}
+                    </span>
+                  </div>
+                  {chosenBid.error && (
+                    <p id="desktop-custom-bid-error" className="mt-1 text-[10px] font-bold text-rose-500">
+                      {chosenBid.error === 'too_low'
+                        ? isAr
+                          ? `الحد الأدنى ${nextBidAmount.toLocaleString()} د.أ`
+                          : `Minimum bid is ${nextBidAmount.toLocaleString()} JOD`
+                        : isAr
+                          ? 'أدخل مبلغاً صالحاً'
+                          : 'Enter a valid amount'}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-4 border-b border-line pb-2.5">
                 {/* Current Bid */}
                 <div className="flex flex-col text-left rtl:text-right">
@@ -1023,22 +1087,41 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         longer a no-confirm path), matching the quick-bid chips.
                         E2: not hard-disabled on a block — openConfirm opens
                         BanNoticeModal; an expired cooldown bids normally. */}
+                    {/* Sends the CHOSEN amount — the typed one when valid, the
+                        minimum when the field is empty. While the entry is
+                        invalid the CTA is BLOCKED rather than falling back to
+                        the minimum: typing 5 and having this send 145 is a
+                        financial surprise, and the confirm dialog would show the
+                        real number too late to read as a warning.
+
+                        `disabled`, NOT aria-disabled: Pressable forwards an
+                        explicit prop allowlist to the real <button> and silently
+                        drops the rest, so aria-disabled never reached the DOM —
+                        caught in the browser, and tsc could not catch it because
+                        @types/react is absent in this repo. `disabled` is also
+                        the honest semantic here: this is not the E2 ban gate
+                        (which stays clickable so the notice can open), it is an
+                        entry the user must correct. The onClick guard stays as
+                        defence in depth. */}
                     <Pressable
-                      onClick={() => openConfirm(nextBidAmount)}
-                      className="w-full h-12 rounded-full bg-gradient-to-r from-[#E85D04] to-[#F37021] text-white text-[13px] font-black tracking-wide shadow-md hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E85D04]"
+                      onClick={() => { if (chosenBid.canBid) openConfirm(chosenBid.amount); }}
+                      disabled={!chosenBid.canBid}
+                      className={`w-full h-12 rounded-full bg-gradient-to-r from-[#E85D04] to-[#F37021] text-white text-[13px] font-black tracking-wide shadow-md transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E85D04] ${
+                        chosenBid.canBid ? 'hover:brightness-105 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                      }`}
                       id="desktop-bid-cta"
                     >
                       <Gavel className="w-4 h-4 shrink-0" />
                       <span>
                         {isAr
-                          ? `زايد ${nextBidAmount.toLocaleString()} د.أ`
-                          : `Bid ${nextBidAmount.toLocaleString()} JOD`}
+                          ? `زايد ${chosenBid.amount.toLocaleString()} د.أ`
+                          : `Bid ${chosenBid.amount.toLocaleString()} JOD`}
                       </span>
                     </Pressable>
                     <p className="text-[11px] text-fg-muted text-center mt-1">
                       {isAr
-                        ? `المجموع عند الفوز: ${totalWithPremium(nextBidAmount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
-                        : `Total if you win: ${totalWithPremium(nextBidAmount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
+                        ? `المجموع عند الفوز: ${totalWithPremium(chosenBid.amount).toLocaleString()} د.أ (شامل عمولة المشتري ٥٪)`
+                        : `Total if you win: ${totalWithPremium(chosenBid.amount).toLocaleString()} JOD (incl. 5% buyer's premium)`}
                     </p>
                     {/* E4 — subtle Auction Rules affordance near the bid dock */}
                     <button
