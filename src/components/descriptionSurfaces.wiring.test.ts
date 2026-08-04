@@ -46,13 +46,17 @@ const SURFACES: Array<{ file: string; subject: string; note: string }> = [
 describe.each(SURFACES)('$file — $note', ({ file, subject }) => {
   const SRC = read(file);
 
-  it('guards on a trimmed non-empty value', () => {
-    expect(guardOf(SRC, subject)).toMatch(/if\s*\(!text\s*\|\|/);
+  it('delegates the decision to the shared rule', () => {
+    // Each surface used to inline `!text || text === title`. Four copies of one
+    // display rule is how they come to disagree — and they had already fallen
+    // behind the data: none of them caught the 14 live lots carrying the
+    // fabricated `معروض مميز: {title}`, because that is not an exact echo.
+    expect(guardOf(SRC, subject)).toMatch(/isJunkDescription\(/);
   });
 
-  it('suppresses a description that echoes the title', () => {
+  it('passes the title, so the echo case is still decidable', () => {
     expect(guardOf(SRC, subject)).toMatch(
-      new RegExp(`text === String\\(${subject.replace('?', '\\?')}\\.title \\|\\| ''\\)\\.trim\\(\\)`),
+      new RegExp(`isJunkDescription\\(text, ${subject.replace('?', '\\?')}\\.title\\)`),
     );
   });
 

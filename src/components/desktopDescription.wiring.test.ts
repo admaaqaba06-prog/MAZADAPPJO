@@ -72,10 +72,14 @@ describe('a description that merely echoes the title renders NOTHING', () => {
   // for every admin drop — a third fabrication path, still live. Without this
   // the card prints the lot title a few pixels under the lot title on
   // essentially every live lot.
-  it('compares the trimmed description against the trimmed title', () => {
+  it('delegates the decision to the shared rule', () => {
+    // Was an inline `rawDescriptionText === auctionTitleText`. That is one of
+    // four copies this rule had, and none of them caught the 14 live lots whose
+    // description is the fabricated `معروض مميز: {title}` rather than an exact
+    // echo. The rule now lives in utils/listingDescription.
     expect(SRC).toMatch(/const\s+auctionTitleText\s*=\s*String\(\s*activeAuction\??\.title\s*\|\|\s*''\s*\)\.trim\(\)/);
     expect(SRC).toMatch(
-      /const\s+descriptionText\s*=\s*rawDescriptionText\s*===\s*auctionTitleText\s*\?\s*''\s*:\s*rawDescriptionText/,
+      /const\s+descriptionText\s*=\s*isJunkDescription\(rawDescriptionText,\s*auctionTitleText\)\s*\?\s*''\s*:\s*rawDescriptionText/,
     );
   });
 

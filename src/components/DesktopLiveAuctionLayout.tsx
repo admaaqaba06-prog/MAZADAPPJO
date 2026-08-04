@@ -35,6 +35,7 @@ import { CountdownPill } from './auction/CountdownPill';
 import { resolveViewing } from '../utils/viewing';
 import { conditionLabel } from '../utils/conditionLabel';
 import { cleanTitle } from '../utils/listingTitle';
+import { isJunkDescription } from '../utils/listingDescription';
 
 interface DesktopLiveAuctionLayoutProps {
   activeAuction: any;
@@ -248,7 +249,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   // measurement all agree on what counts as a description.
   const rawDescriptionText = String(activeAuction?.description || '').trim();
   const auctionTitleText = String(activeAuction?.title || '').trim();
-  const descriptionText = rawDescriptionText === auctionTitleText ? '' : rawDescriptionText;
+  const descriptionText = isJunkDescription(rawDescriptionText, auctionTitleText) ? '' : rawDescriptionText;
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [descriptionClamped, setDescriptionClamped] = useState(false);
