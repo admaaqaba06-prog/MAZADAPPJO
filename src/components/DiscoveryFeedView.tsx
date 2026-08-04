@@ -8,7 +8,7 @@ import { mergeLiveIntoCard } from '../utils/discoverQuery';
 import { useApp } from '../context/AppContext';
 import { AuctionItem } from '../types';
 import { translations } from '../utils/translations';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { WinCelebration, useWinDetection, useToast } from './feedback';
 import { getFirstLiveAuction, getLiveAuctions, isAwaitingFirstBid } from '../utils/auctionPhase';
 import { unreadUserFacingCount } from '../utils/notifications';
@@ -776,6 +776,39 @@ export const DiscoveryFeedView: React.FC = () => {
         </div>
       </div>
 
+      {/* New-drops pill (paginated path only): a fresh live lot arrived after the
+          loaded page. Tapping refreshes page 1, which clears it.
+
+          IN NORMAL FLOW, directly under the sticky header — deliberately. It was
+          `fixed` with a guessed offset (top-[calc(env(safe-area-inset-top)+7.5rem)]),
+          which lands on top of the category chips at viewport heights the guess
+          did not anticipate. A pill covering the filters is worse than one that
+          pushes the grid down ~40px, and no fixed offset is right for every
+          screen. Reserving no space WAS the bug, so it now reserves space.
+
+          AnimatePresence + height so it collapses out rather than vanishing. */}
+      <AnimatePresence>
+        {feed.newDropsAvailable && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="overflow-hidden flex justify-center"
+          >
+            <button
+              type="button"
+              onClick={() => feed.refresh()}
+              className="my-2 flex items-center gap-1.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-full shadow-lg shadow-orange-900/25 active:scale-95 transition-colors cursor-pointer"
+              id="discover-new-drops-pill"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+              <span>{isAr ? 'دفعات جديدة' : 'New drops'}</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Live-now strip. When a live auction is genuinely HOT (has bids), the
           strip spotlights it (thumbnail · title · current bid) as a promo and
           taps straight into it. Otherwise it falls back to the generic count. */}
@@ -1417,23 +1450,6 @@ export const DiscoveryFeedView: React.FC = () => {
         />
       )}
 
-      {/* New-drops pill (paginated path only): a single fresh-live lot arrived
-          after the loaded page. Tapping refreshes page 1 (which clears it).
-          Fixed + centered below the sticky header; bilingual/RTL. Smooth
-          ease-out entrance (no bouncy spring, per motion preference). */}
-      {feed.newDropsAvailable && (
-        <motion.button
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          onClick={() => feed.refresh()}
-          className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+7.5rem)] lg:top-24 z-50 flex items-center gap-1.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-full shadow-lg shadow-orange-900/25 active:scale-95 transition-colors cursor-pointer"
-          id="discover-new-drops-pill"
-        >
-          <ArrowDown className="w-3.5 h-3.5" />
-          <span>{isAr ? 'دفعات جديدة' : 'New drops'}</span>
-        </motion.button>
-      )}
 
       {/* Win celebration — always mounted; bursts on the win transition */}
       <WinCelebration

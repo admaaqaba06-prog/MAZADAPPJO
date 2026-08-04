@@ -9,7 +9,7 @@
  * deliberately, not an exception that comes to you.
  */
 import React, { useState, useEffect } from 'react';
-import { Tv, CheckCircle, Trash2 } from 'lucide-react';
+import { Tv, CheckCircle, Trash2, Trophy, PackageOpen } from 'lucide-react';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -274,9 +274,16 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                 
                 if (completedAuctions.length === 0) {
                   return (
-                    <div className="text-center py-10 bg-surface-raised border border-line rounded-2xl p-6 text-fg-muted text-xs shadow-xs">
-                      {isAr ? 'لم ينتهِ أي مزاد بعد في النظام لتسجيل فائزين.' : 'No auctions have closed yet.'}
-                    </div>
+                    <EmptyState
+                      language={isAr ? 'ar' : 'en'}
+                      icon={<Trophy className="w-6 h-6 stroke-[1.5]" />}
+                      title={isAr ? 'لا يوجد فائزون بعد' : 'No winners yet'}
+                      description={
+                        isAr
+                          ? 'لم ينتهِ أي مزاد بعد، فلا يوجد فائز لتسجيله.'
+                          : 'No auction has closed yet, so there is no winner to record.'
+                      }
+                    />
                   );
                 }
 
@@ -429,9 +436,16 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
               })()}
 
               {auctions.length === 0 ? (
-                <div className="text-center py-8 bg-surface-raised border border-line rounded-2xl p-4 text-fg-muted text-xs shadow-xs">
-                  {isAr ? 'لا توجد مزادات في قاعدة البيانات.' : 'No registered entries found.'}
-                </div>
+                <EmptyState
+                  language={isAr ? 'ar' : 'en'}
+                  icon={<PackageOpen className="w-6 h-6 stroke-[1.5]" />}
+                  title={isAr ? 'لا توجد مزادات' : 'No auctions yet'}
+                  description={
+                    isAr
+                      ? 'لم يُنشأ أي مزاد بعد. ابدأ بإنشاء دفعة جديدة.'
+                      : 'No auctions have been created yet. Start by building a drop.'
+                  }
+                />
               ) : (
                 <div className="bg-surface-raised border border-line rounded-2xl divide-y divide-line overflow-hidden shadow-xs">
                   {directoryPage<any>(auctions, directoryPages).rows.map((item: any) => {
