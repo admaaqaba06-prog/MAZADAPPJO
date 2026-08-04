@@ -3,6 +3,8 @@ import { Search } from 'lucide-react';
 import { AuctionItem } from '../../types';
 import { useAdminAuctionSearch } from '../../hooks/useAdminAuctionSearch';
 import { buildAuctionUrl } from '../../utils/deepLink';
+import { EmptyState, AdminListSkeleton } from '../FeedbackStates';
+import { SearchX } from 'lucide-react';
 
 /**
  * Admin Auction Lookup (closed-auction admin search).
@@ -206,13 +208,20 @@ export const AuctionLookupSection: React.FC<AuctionLookupSectionProps> = ({ isAr
           {isAr ? 'تعذّر البحث مؤقتًا — أعد المحاولة.' : 'Search is temporarily unavailable — try again.'}
         </div>
       ) : loading ? (
-        <div className="bg-surface-raised border border-line rounded-2xl p-8 text-center text-sm text-fg-muted font-bold">
-          {isAr ? 'جاري البحث…' : 'Searching…'}
-        </div>
+        /* Skeleton rather than a "Searching…" label: rows sized like the real
+           ones, so the list does not jump when results land. */
+        <AdminListSkeleton />
       ) : results.length === 0 ? (
-        <div className="bg-surface-raised border border-dashed border-line rounded-2xl p-8 text-center text-sm text-fg-muted font-bold">
-          {isAr ? 'لا توجد مزادات مطابقة' : 'No auctions found'}
-        </div>
+        <EmptyState
+          language={isAr ? 'ar' : 'en'}
+          icon={<SearchX className="w-6 h-6 stroke-[1.5]" />}
+          title={isAr ? 'لا توجد مزادات مطابقة' : 'No auctions found'}
+          description={
+            isAr
+              ? 'جرّب عنواناً مختلفاً أو جزءاً من رقم المزاد.'
+              : 'Try a different title, or part of the auction id.'
+          }
+        />
       ) : (
         <div className="space-y-2.5">
           {results.map((a) => (

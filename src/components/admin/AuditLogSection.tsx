@@ -1,6 +1,8 @@
 import React from 'react';
 import type { AdminAction } from '../../types';
 import { normalizeAdminAction, adminActionLabel } from '../../utils/adminAudit';
+import { EmptyState } from '../FeedbackStates';
+import { ScrollText } from 'lucide-react';
 
 interface AuditLogSectionProps {
   isAr: boolean;
@@ -45,9 +47,16 @@ const AuditLogSection: React.FC<AuditLogSectionProps> = ({ isAr, actions }) => {
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-xs text-fg-muted font-semibold py-8 text-center">
-          {isAr ? 'لا يوجد سجل بعد.' : 'No audit entries yet.'}
-        </div>
+        <EmptyState
+          language={isAr ? 'ar' : 'en'}
+          icon={<ScrollText className="w-6 h-6 stroke-[1.5]" />}
+          title={isAr ? 'لا يوجد سجل بعد' : 'No audit entries yet'}
+          description={
+            isAr
+              ? 'ستظهر هنا كل إجراءات الإدارة — الموافقات، الحظر، تعديلات المحفظة — فور حدوثها.'
+              : 'Every admin action — approvals, blocks, wallet adjustments — appears here as it happens.'
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => (

@@ -2,6 +2,7 @@ import React from 'react';
 import { Database, FileCheck2 } from 'lucide-react';
 import { getOrderStatusChip, OrderStatusTone } from '../../utils/orderStatusGlossary';
 import { displayOrderRef } from '../../utils/orderRef';
+import { EmptyState } from '../FeedbackStates';
 
 /** Text-colour-only classes per glossary tone — keeps this ledger's brand-orange
  *  default while the visible label now comes from the shared glossary. */
@@ -242,19 +243,16 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
           })}
         </div>
       ) : (
-        <div className="text-center py-12 bg-surface-raised rounded-3xl border border-line p-6">
-          <div className="w-12 h-12 rounded-full bg-surface-sunken flex items-center justify-center text-gray-300 border border-line mx-auto mb-3">
-            <Database className="w-5 h-5 text-fg-muted" />
-          </div>
-          <p className="font-extrabold text-fg text-xs uppercase tracking-wide">
-            {isAr ? 'لا يوجد طلبات بهذا الفلتر' : 'No Orders Match Filter'}
-          </p>
-          <p className="text-[10px] text-fg-muted leading-relaxed mt-1 max-w-[280px] mx-auto">
-            {isAr
-              ? 'لم يتم العثور على أي طلبات تتبع هذا التبويب حالياً.'
-              : 'No orders recorded in this state yet.'}
-          </p>
-        </div>
+        <EmptyState
+          language={isAr ? 'ar' : 'en'}
+          icon={<Database className="w-6 h-6 stroke-[1.5]" />}
+          title={isAr ? 'لا يوجد طلبات بهذا الفلتر' : 'No orders match this filter'}
+          description={
+            isAr
+              ? 'لم يتم العثور على أي طلبات في هذه الحالة حالياً. جرّب تبويباً آخر.'
+              : 'No orders are in this state right now. Try another tab.'
+          }
+        />
       )}
     </div>
   );
