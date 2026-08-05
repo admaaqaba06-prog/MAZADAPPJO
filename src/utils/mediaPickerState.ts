@@ -4,8 +4,21 @@
  * environment this repo runs vitest under, so these take formed records.
  */
 
-/** Matches the gallery cap the seller wizard and the live room already assume. */
-export const MAX_GALLERY_PHOTOS = 3;
+/**
+ * How many EXTRA photos a drop may carry, beyond its cover image.
+ *
+ * Raised 3 -> 15 on 2026-08-04 (MJ). The previous comment here claimed the value
+ * "matches the gallery cap the seller wizard and the live room already assume" —
+ * that was not true when checked: `MediaPicker` is imported only by
+ * `AuctionDropBuilderView`, the seller wizard does not use it, and the live room
+ * caps nothing it renders. Nothing outside this module reads the constant except
+ * that one picker, so the number is free to move.
+ *
+ * What DOES scale with it: the picker grid (grid-cols-3, so 15 is five rows) and
+ * upload time — the builder uploads gallery photos sequentially, resizing each
+ * client-side first, and already renders per-photo progress.
+ */
+export const MAX_GALLERY_PHOTOS = 15;
 
 export interface PickedPhoto {
   file: File;
@@ -58,4 +71,91 @@ export function acceptGalleryFiles<T extends { type: string }>(
 export function removeGalleryPhoto(prev: PickedPhoto[], index: number): PickedPhoto[] {
   if (!Number.isInteger(index) || index < 0 || index >= prev.length) return prev;
   return prev.filter((_, i) => i !== index);
+}
+
+/**
+ * Reorder within the gallery. Used by drag-to-reorder.
+ *
+ * Out-of-range, NaN and fractional indices are a no-op rather than a silent
+ * rewrite — the same rule `removeGalleryPhoto` follows, and for the same reason:
+ * a drop that lands nowhere should leave the list exactly as it was.
+ *
+ * NOTE ON COVER: reordering does NOT change the cover image. This wizard picks
+ * the cover through its own input (`onCoverChange`) and the gallery is extra
+ * photos, so there is no "first one wins" rule to honour here. A spec written
+ * against a Shopify-style single list would expect otherwise.
+ */
+export function moveGalleryPhoto(
+  prev: PickedPhoto[],
+  from: number,
+  to: number,
+): PickedPhoto[] {
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return prev;
+  if (from < 0 || from >= prev.length) return prev;
+  if (to < 0 || to >= prev.length) return prev;
+  if (from === to) return prev;
+  const next = [...prev];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+/** What a drop or paste actually did, so the UI can say so rather than imply it. */
+export interface IntakeOutcome<T> {
+  /** The files that will be kept — already filtered and capped. */
+  accepted: T[];
+  /** Dropped because they were not images. */
+  rejectedNotImage: number;
+  /** Dropped because the gallery is full. NEVER let this be silent. */
+  rejectedOverCap: number;
+}
+
+/**
+ * Split an incoming batch into what the gallery keeps and what it refuses, WITH
+ * REASONS.
+ *
+ * `acceptGalleryFiles` already returns the keepers, but silently: drop five
+ * photos into an empty gallery and three appear with no account of the other
+ * two. A cap the user cannot see reads as "this is everything" — the exact bug
+ * class behind #202 (150 lots looking like 20), #220 (the featured list
+ * exceeding its own cap) and #221 (141 auctions invisible). Three times, so the
+ * count comes back and the caller states it.
+ */
+export function classifyGalleryIntake<T extends { type: string }>(
+  prev: PickedPhoto[],
+  incoming: T[],
+): IntakeOutcome<T> {
+  const images = incoming.filter(isImageFile);
+  const slots = remainingGallerySlots(prev);
+  return {
+    accepted: images.slice(0, slots),
+    rejectedNotImage: incoming.length - images.length,
+    rejectedOverCap: Math.max(0, images.length - slots),
+  };
+}
+
+/**
+ * Image files out of a DataTransfer (a drop) or a ClipboardEvent (a paste).
+ *
+ * Takes the `items`/`files` shape rather than the event so it is testable in
+ * node. Prefers `files` and falls back to `items`, because a paste exposes the
+ * image only through `items` while an OS drag populates `files`.
+ */
+export function imageFilesFromTransfer(transfer: {
+  files?: ArrayLike<File> | null;
+  items?: ArrayLike<{ kind: string; type: string; getAsFile(): File | null }> | null;
+} | null | undefined): File[] {
+  if (!transfer) return [];
+
+  const fromFiles = transfer.files ? Array.from(transfer.files) : [];
+  if (fromFiles.length > 0) return fromFiles.filter(isImageFile);
+
+  if (!transfer.items) return [];
+  const out: File[] = [];
+  for (const item of Array.from(transfer.items)) {
+    if (item.kind !== 'file') continue;
+    const f = item.getAsFile();
+    if (f && isImageFile(f)) out.push(f);
+  }
+  return out;
 }

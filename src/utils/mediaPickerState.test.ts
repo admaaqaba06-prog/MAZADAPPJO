@@ -6,8 +6,15 @@ import {
   remainingGallerySlots,
   removeGalleryPhoto,
   isImageFile,
+  moveGalleryPhoto,
+  classifyGalleryIntake,
+  imageFilesFromTransfer,
   type PickedPhoto,
 } from './mediaPickerState';
+
+/** `n` photos, so cap tests scale with MAX_GALLERY_PHOTOS instead of pinning 3. */
+const photos = (n: number, from = 1): PickedPhoto[] =>
+  Array.from({ length: n }, (_, i) => photo(from + i));
 
 const photo = (n: number): PickedPhoto => ({ file: { name: `${n}.jpg` } as any, url: `blob:${n}` });
 const img = (n: number) => ({ name: `${n}.jpg`, type: 'image/jpeg' });
@@ -33,8 +40,12 @@ describe('isImageFile', () => {
 
 describe('MAX_GALLERY_PHOTOS', () => {
   // The live auction room and the seller wizard both assume this cap.
-  it('is three', () => {
-    expect(MAX_GALLERY_PHOTOS).toBe(3);
+  it('is a positive integer', () => {
+    // Asserted as a real number so a typo (0, NaN, negative) fails, but NOT
+    // pinned to a specific value — the cap is a product decision that moves.
+    // Raised 3 -> 15 on 2026-08-04; every other test derives from it.
+    expect(Number.isInteger(MAX_GALLERY_PHOTOS)).toBe(true);
+    expect(MAX_GALLERY_PHOTOS).toBeGreaterThan(0);
   });
 });
 
@@ -43,15 +54,19 @@ describe('addGalleryPhotos', () => {
     expect(addGalleryPhotos([photo(1)], [photo(2)]).map((p) => p.url)).toEqual(['blob:1', 'blob:2']);
   });
 
-  it('caps the gallery at three', () => {
-    const result = addGalleryPhotos([], [photo(1), photo(2), photo(3), photo(4), photo(5)]);
+  it('caps the gallery at MAX_GALLERY_PHOTOS', () => {
+    const result = addGalleryPhotos([], photos(MAX_GALLERY_PHOTOS + 2));
     expect(result).toHaveLength(MAX_GALLERY_PHOTOS);
-    expect(result.map((p) => p.url)).toEqual(['blob:1', 'blob:2', 'blob:3']);
+    // Kept in pick order, and the overflow dropped from the end.
+    expect(result.map((p) => p.url)).toEqual(photos(MAX_GALLERY_PHOTOS).map((p) => p.url));
   });
 
   it('drops overflow when the gallery is already partly full', () => {
-    const result = addGalleryPhotos([photo(1), photo(2)], [photo(3), photo(4)]);
-    expect(result.map((p) => p.url)).toEqual(['blob:1', 'blob:2', 'blob:3']);
+    const prev = photos(MAX_GALLERY_PHOTOS - 1);
+    const result = addGalleryPhotos(prev, photos(3, MAX_GALLERY_PHOTOS));
+    expect(result).toHaveLength(MAX_GALLERY_PHOTOS);
+    // Exactly one slot was free, so exactly one of the incoming landed.
+    expect(result[MAX_GALLERY_PHOTOS - 1].url).toBe(`blob:${MAX_GALLERY_PHOTOS}`);
   });
 
   it('is a no-op for an empty incoming list', () => {
@@ -67,9 +82,9 @@ describe('addGalleryPhotos', () => {
   });
 
   it('drops everything incoming once the gallery is already full', () => {
-    const full = [photo(1), photo(2), photo(3)];
-    expect(addGalleryPhotos(full, [photo(4)]).map((p) => p.url))
-      .toEqual(['blob:1', 'blob:2', 'blob:3']);
+    const full = photos(MAX_GALLERY_PHOTOS);
+    expect(addGalleryPhotos(full, [photo(999)]).map((p) => p.url))
+      .toEqual(full.map((p) => p.url));
   });
 
   it('keeps the existing photos ahead of the new ones', () => {
@@ -132,13 +147,13 @@ describe('remainingGallerySlots', () => {
   it('counts down from the cap', () => {
     expect(remainingGallerySlots([])).toBe(MAX_GALLERY_PHOTOS);
     expect(remainingGallerySlots([photo(1)])).toBe(MAX_GALLERY_PHOTOS - 1);
-    expect(remainingGallerySlots([photo(1), photo(2), photo(3)])).toBe(0);
+    expect(remainingGallerySlots(photos(MAX_GALLERY_PHOTOS))).toBe(0);
   });
 
   // An over-full gallery should not report NEGATIVE room: `slice(0, -1)` drops
   // the last element instead of taking none, so the sign matters downstream.
   it('never goes negative on an over-full gallery', () => {
-    expect(remainingGallerySlots([photo(1), photo(2), photo(3), photo(4), photo(5)])).toBe(0);
+    expect(remainingGallerySlots(photos(MAX_GALLERY_PHOTOS + 2))).toBe(0);
   });
 
   it('tracks the cap rather than a hardcoded three', () => {
@@ -153,14 +168,16 @@ describe('acceptGalleryFiles', () => {
   });
 
   it('caps a multi-select at the remaining room, in pick order', () => {
-    expect(acceptGalleryFiles([], [img(1), img(2), img(3), img(4), img(5)]).map((f) => f.name))
-      .toEqual(['1.jpg', '2.jpg', '3.jpg']);
-    expect(acceptGalleryFiles([photo(9), photo(8)], [img(1), img(2), img(3)]).map((f) => f.name))
+    const many = Array.from({ length: MAX_GALLERY_PHOTOS + 2 }, (_, i) => img(i + 1));
+    expect(acceptGalleryFiles([], many).map((f) => f.name))
+      .toEqual(many.slice(0, MAX_GALLERY_PHOTOS).map((f) => f.name));
+    // One slot left: exactly the first incoming lands, in pick order.
+    expect(acceptGalleryFiles(photos(MAX_GALLERY_PHOTOS - 1), [img(1), img(2), img(3)]).map((f) => f.name))
       .toEqual(['1.jpg']);
   });
 
   it('accepts nothing once the gallery is full', () => {
-    expect(acceptGalleryFiles([photo(1), photo(2), photo(3)], [img(4), img(5)])).toEqual([]);
+    expect(acceptGalleryFiles(photos(MAX_GALLERY_PHOTOS), [img(98), img(99)])).toEqual([]);
   });
 
   it('counts room AFTER the non-image files are dropped, not before', () => {
@@ -213,7 +230,158 @@ describe('no object URL is minted for a file the cap will drop', () => {
   }
 
   it('still admits photos while there is room — the fix must not just refuse everything', () => {
-    expect(simulateAddFiles([], [img(1), img(2), img(3), img(4)]).minted).toHaveLength(3);
+    expect(simulateAddFiles([], Array.from({ length: MAX_GALLERY_PHOTOS + 1 }, (_, i) => img(i + 1))).minted)
+      .toHaveLength(MAX_GALLERY_PHOTOS);
     expect(simulateAddFiles([photo(9)], [img(1)]).minted).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Drag-to-reorder, drop/paste intake, and the cap that must not be silent.
+// Reuses the photo(n) helper defined at the top of this file; `names` reads the
+// generated file names back out so order assertions are readable.
+const names = (list: PickedPhoto[]) => list.map((p) => (p.file as { name: string }).name);
+// ---------------------------------------------------------------------------
+describe('moveGalleryPhoto', () => {
+  const three = [photo(1), photo(2), photo(3)];
+
+  it('moves an item forward and back', () => {
+    expect(names(moveGalleryPhoto(three, 0, 2))).toEqual(['2.jpg', '3.jpg', '1.jpg']);
+    expect(names(moveGalleryPhoto(three, 2, 0))).toEqual(['3.jpg', '1.jpg', '2.jpg']);
+    expect(names(moveGalleryPhoto(three, 0, 1))).toEqual(['2.jpg', '1.jpg', '3.jpg']);
+  });
+
+  it('never mutates the input', () => {
+    const before = names(three);
+    moveGalleryPhoto(three, 0, 2);
+    expect(names(three)).toEqual(before);
+  });
+
+  it('returns the SAME ARRAY for a no-op, not a copy', () => {
+    // Identity, not just contents. from === to cancels out under the two
+    // splices, so a contents check passes either way — but returning a new
+    // reference makes React re-render for a drag that changed nothing, and the
+    // module's rule (see removeGalleryPhoto) is a true no-op.
+    const list = [photo(1), photo(2), photo(3)];
+    expect(moveGalleryPhoto(list, 1, 1)).toBe(list);
+    expect(moveGalleryPhoto(list, -1, 0)).toBe(list);
+    expect(moveGalleryPhoto(list, 0, 9)).toBe(list);
+    expect(moveGalleryPhoto(list, NaN, 0)).toBe(list);
+  });
+
+  it('is a no-op for a drop that lands nowhere', () => {
+    // Same rule as removeGalleryPhoto: out of range leaves the list alone
+    // rather than silently rewriting it.
+    for (const [from, to] of [[-1, 1], [0, 3], [3, 0], [0, -1], [1, 1]]) {
+      expect(names(moveGalleryPhoto(three, from, to)), `${from}->${to}`).toEqual(['1.jpg', '2.jpg', '3.jpg']);
+    }
+  });
+
+  it('is a no-op for NaN and fractional indices', () => {
+    // Both bounds comparisons are false for NaN, so without the integer check
+    // this would fall through and rewrite the list.
+    for (const [from, to] of [[NaN, 1], [0, NaN], [0.5, 1], [0, 1.5]]) {
+      expect(names(moveGalleryPhoto(three, from, to))).toEqual(['1.jpg', '2.jpg', '3.jpg']);
+    }
+  });
+
+  it('handles an empty and a single-item gallery', () => {
+    expect(moveGalleryPhoto([], 0, 0)).toEqual([]);
+    expect(names(moveGalleryPhoto([photo(1)], 0, 0))).toEqual(['1.jpg']);
+  });
+});
+
+describe('classifyGalleryIntake — the cap is never silent', () => {
+  const f = (type: string) => ({ type });
+
+  it('reports how many were refused for being over the cap', () => {
+    // Five images into an empty 3-slot gallery: three land, and the caller is
+    // TOLD two did not. A cap the user cannot see reads as "this is everything"
+    // — the bug class behind #202, #220 and #221.
+    const over = 2;
+    const r = classifyGalleryIntake([], Array.from({ length: MAX_GALLERY_PHOTOS + over }, () => f('image/jpeg')));
+    expect(r.accepted).toHaveLength(MAX_GALLERY_PHOTOS);
+    expect(r.rejectedOverCap).toBe(over);
+    expect(r.rejectedNotImage).toBe(0);
+  });
+
+  it('reports non-images separately from over-cap', () => {
+    const r = classifyGalleryIntake([], [f('image/jpeg'), f('application/pdf'), f('video/mp4')]);
+    expect(r.accepted).toHaveLength(1);
+    expect(r.rejectedNotImage).toBe(2);
+    expect(r.rejectedOverCap).toBe(0);
+  });
+
+  it('counts both reasons in one batch', () => {
+    const images = Array.from({ length: MAX_GALLERY_PHOTOS + 1 }, () => f('image/jpeg'));
+    const r = classifyGalleryIntake([], [...images, f('text/plain')]);
+    expect(r.accepted).toHaveLength(MAX_GALLERY_PHOTOS);
+    expect(r.rejectedOverCap).toBe(1);
+    expect(r.rejectedNotImage).toBe(1);
+  });
+
+  it('accounts for photos already in the gallery', () => {
+    const r = classifyGalleryIntake(photos(MAX_GALLERY_PHOTOS - 1), [f('image/jpeg'), f('image/png')]);
+    expect(r.accepted).toHaveLength(1);
+    expect(r.rejectedOverCap).toBe(1);
+  });
+
+  it('refuses everything when the gallery is already full', () => {
+    const r = classifyGalleryIntake(photos(MAX_GALLERY_PHOTOS), [f('image/jpeg')]);
+    expect(r.accepted).toHaveLength(0);
+    expect(r.rejectedOverCap).toBe(1);
+  });
+
+  it('agrees with acceptGalleryFiles on what is kept', () => {
+    // Two functions must not disagree about the cap.
+    const incoming = [f('image/jpeg'), f('image/png'), f('application/pdf'), f('image/jpeg'), f('image/png')];
+    const prev = photos(MAX_GALLERY_PHOTOS - 1);
+    expect(classifyGalleryIntake(prev, incoming).accepted).toEqual(acceptGalleryFiles(prev, incoming));
+  });
+});
+
+describe('imageFilesFromTransfer', () => {
+  const file = (type: string, name = 'x') => ({ type, name }) as File;
+
+  it('reads an OS drag, which populates files', () => {
+    const r = imageFilesFromTransfer({ files: [file('image/jpeg'), file('application/pdf')] });
+    expect(r).toHaveLength(1);
+  });
+
+  it('reads a paste, which only populates items', () => {
+    // A clipboard image is exposed through items, not files — the reason both
+    // paths exist.
+    const img = file('image/png');
+    const r = imageFilesFromTransfer({
+      files: [],
+      items: [
+        { kind: 'string', type: 'text/plain', getAsFile: () => null },
+        { kind: 'file', type: 'image/png', getAsFile: () => img },
+      ],
+    });
+    expect(r).toEqual([img]);
+  });
+
+  it('ignores a string item that claims to be a file type', () => {
+    const r = imageFilesFromTransfer({
+      files: [],
+      items: [{ kind: 'string', type: 'image/png', getAsFile: () => file('image/png') }],
+    });
+    expect(r).toEqual([]);
+  });
+
+  it('survives a null transfer, and empty shapes', () => {
+    expect(imageFilesFromTransfer(null)).toEqual([]);
+    expect(imageFilesFromTransfer(undefined)).toEqual([]);
+    expect(imageFilesFromTransfer({})).toEqual([]);
+    expect(imageFilesFromTransfer({ files: null, items: null })).toEqual([]);
+  });
+
+  it('drops an item whose getAsFile returns null', () => {
+    const r = imageFilesFromTransfer({
+      files: [],
+      items: [{ kind: 'file', type: 'image/png', getAsFile: () => null }],
+    });
+    expect(r).toEqual([]);
   });
 });
