@@ -206,6 +206,10 @@ export const ContactCompletionModal: React.FC<ContactCompletionModalProps> = ({ 
     // The cooldown belongs to the previous number too — a fresh number should
     // not inherit its wait.
     clearCooldown();
+    // Without this, tapping Back while a send/resend is still in flight
+    // leaves the "Send code" button for the NEW number stuck disabled
+    // (gated on phoneBusy) until the abandoned request happens to resolve.
+    setPhoneBusy(false);
   };
 
   const handleSaveEmail = async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
@@ -50,6 +50,14 @@ export function useBidFlow(execute: BidExecute) {
   const [pendingBid, setPendingBid] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // The double-submit guard has to be SYNCHRONOUS (same reasoning as
+  // useAdminAction's `inFlight` ref): React 18 gives no guarantee that
+  // `setSubmitting(true)` has committed by the time the next statement
+  // runs, so a fast double-tap can call confirmBid twice while `submitting`
+  // is still stale `false` in both closures, sending the bid to the server
+  // twice. A ref is written and read in the same tick, so it cannot.
+  const inFlight = useRef(false);
+
   // Ordered gate (resolveBidGate — pure, see utils/guestGate.test.ts):
   //   guest        -> SIGNUP (never a members-only sheet)
   //   non-member   -> subscription invite
@@ -86,15 +94,17 @@ export function useBidFlow(execute: BidExecute) {
   const cancelBid = useCallback(() => setPendingBid(null), []);
 
   const confirmBid = useCallback(async (amount: number): Promise<BidResult> => {
-    if (submitting) return; // in-flight guard: no double-submit
+    if (inFlight.current) return; // in-flight guard: no double-submit
+    inFlight.current = true;
     setPendingBid(null);
     setSubmitting(true);
     try {
       return await execute(amount);
     } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
-  }, [submitting, execute]);
+  }, [execute]);
 
   return { isMember, isGuest, requestSignIn, pendingBid, submitting, startBid, confirmBid, cancelBid };
 }

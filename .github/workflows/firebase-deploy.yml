@@ -1,9 +1,9 @@
 name: Deploy Firebase (rules, storage, functions)
 
-# Keeps the Firebase backend in sync with main. Vercel already auto-deploys the
-# FRONTEND on merge to main; this does the same for Firestore rules, Storage
-# rules, and Cloud Functions — so the server never runs stale rules/functions
-# while the frontend is current.
+# Keeps the Firebase backend in sync with main. firebase-hosting-deploy.yml
+# already auto-deploys the FRONTEND on merge to main; this does the same for
+# Firestore rules, Storage rules, and Cloud Functions — so the server never
+# runs stale rules/functions while the frontend is current.
 
 on:
   push:

@@ -90,6 +90,16 @@ vi.mock('firebase/auth', () => ({
 }));
 
 describe('a failed listing write is reported, not swallowed', () => {
+  // Each test mounts the REAL AppProvider, which runs a genuine (unmocked)
+  // multi-attempt wallet-init retry with real setTimeout backoff — a few
+  // real seconds per mount, not a mock artifact. That's comfortably under
+  // vitest's default 5000ms in isolation, but the full suite runs ~180
+  // files concurrently and CPU contention alone can push a mount past it,
+  // failing this test for a reason that has nothing to do with the
+  // assertion. Raised per-test rather than in vitest.config.ts so a
+  // genuine regression elsewhere still fails fast on the default timeout.
+  const SLOW_MOUNT_TIMEOUT = 20000;
+
   beforeEach(() => {
     updateDoc.mockReset();
     getDoc.mockReset();
@@ -114,7 +124,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       const result = await ctx.approveListing('lot-1');
       expect(result).toEqual({ success: false });
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('approveListing resolves { success: true } when the write lands', async () => {
     updateDoc.mockResolvedValue(undefined);
@@ -122,7 +132,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       const result = await ctx.approveListing('lot-1');
       expect(result).toEqual({ success: true });
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('rejectListing resolves { success: false } when the write is rejected', async () => {
     updateDoc.mockRejectedValue(Object.assign(new Error('offline'), { code: 'unavailable' }));
@@ -130,7 +140,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       const result = await ctx.rejectListing('lot-1', 'blurry photo');
       expect(result).toEqual({ success: false });
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('rejectListing resolves { success: true } when the write lands', async () => {
     updateDoc.mockResolvedValue(undefined);
@@ -138,7 +148,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       const result = await ctx.rejectListing('lot-1', 'blurry photo');
       expect(result).toEqual({ success: true });
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('never resolves undefined — the shape that caused the bug', async () => {
     updateDoc.mockRejectedValue(new Error('nope'));
@@ -148,7 +158,7 @@ describe('a failed listing write is reported, not swallowed', () => {
         expect(typeof r.success).toBe('boolean');
       }
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   /**
    * The clock half of the approval write, asserted on the payload updateDoc
@@ -182,7 +192,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       expect(payload.status).toBe('live');
       expect(payload.approvalStatus).toBe('approved');
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('approving a lot with no startMode still writes both clock keys', async () => {
     // Every seller-wizard / concierge submission — no startMode is written on
@@ -200,7 +210,7 @@ describe('a failed listing write is reported, not swallowed', () => {
       expect(payload.endTime).toBeGreaterThan(Date.now());
       expect(payload.endsAt).toBeTruthy();
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 
   it('refuses an already-settled lot AND reports the refusal', async () => {
     // The guard returns before any write. It has to report failure too, or the
@@ -217,5 +227,5 @@ describe('a failed listing write is reported, not swallowed', () => {
       expect(result).toEqual({ success: false });
       expect(updateDoc).not.toHaveBeenCalled();
     });
-  });
+  }, SLOW_MOUNT_TIMEOUT);
 });

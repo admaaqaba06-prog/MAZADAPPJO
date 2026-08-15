@@ -8,7 +8,7 @@
  * needs-a-human item lives; what remains here is planned work you come to
  * deliberately, not an exception that comes to you.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tv, CheckCircle, Trash2, Trophy, PackageOpen } from 'lucide-react';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -179,6 +179,14 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
   onCreateDrop,
 }) => {
   const [repairResults, setRepairResults] = useState<Record<string, string>>({});
+  // Synchronous double-click guard for the repair buttons below (same
+  // reasoning as useAdminAction's `inFlight` ref: a state flag read from the
+  // click closure can still be stale on a fast second click before React
+  // re-renders). Neither repair callable previously guarded against this or
+  // caught a thrown/rejected promise, so a double-click could fire the same
+  // repair twice concurrently, and a network/auth error surfaced as a silent
+  // unhandled rejection with no feedback to the admin.
+  const repairInFlight = useRef<Set<string>>(new Set());
   // The master directory renders one DIRECTORY_CHUNK at a time. It used to
   // render the whole capped array — fine at 100 rows, but each row carries an
   // image and the cap is the only thing that was bounding the DOM.
@@ -305,7 +313,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               <h4 className="font-extrabold text-xs text-fg truncate leading-none mt-1">{item.title}</h4>
                               <p className="text-[11px] text-fg-muted mt-2 font-mono">
                                 {isAr ? 'السعر النهائي المبيع: ' : 'Winning Bid: '}
-                                <strong className="text-emerald-600 font-extrabold">{item.currentPrice.toLocaleString()} JOD</strong>
+                                <strong className="text-emerald-600 font-extrabold">{Number(item.currentPrice || 0).toLocaleString()} JOD</strong>
                                 {item.vendorName && (
                                   <span className="text-fg-muted"> · {isAr ? 'المورّد: ' : 'Vendor: '}{item.vendorName}</span>
                                 )}
@@ -350,13 +358,22 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                               <span className="text-[10px] text-fg-muted font-mono uppercase font-bold tracking-wider">Escrow Locked 🔒</span>
                               <div className="flex items-center gap-2">
                                 {!orders.some(o => o.auctionId === item.id) && (
-                                  <button 
+                                  <button
                                     onClick={async () => {
-                                      const res = await repairEndedAuctionOrder(item.id);
-                                      if (res.success) {
-                                        alert(res.message);
-                                      } else {
-                                        alert("Error: " + res.message);
+                                      const guardKey = `order:${item.id}`;
+                                      if (repairInFlight.current.has(guardKey)) return;
+                                      repairInFlight.current.add(guardKey);
+                                      try {
+                                        const res = await repairEndedAuctionOrder(item.id);
+                                        if (res.success) {
+                                          alert(res.message);
+                                        } else {
+                                          alert("Error: " + res.message);
+                                        }
+                                      } catch (e: any) {
+                                        alert("Error: " + (e?.message || String(e)));
+                                      } finally {
+                                        repairInFlight.current.delete(guardKey);
                                       }
                                     }}
                                     className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[11px] rounded-xl transition-all"
@@ -364,16 +381,26 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                                     {isAr ? 'إصلاح وإنشاء طلب 🔧' : 'REPAIR ORDER 🔧'}
                                   </button>
                                 )}
-                                <button 
+                                <button
                                   onClick={async () => {
+                                    const guardKey = `escrows:${item.id}`;
+                                    if (repairInFlight.current.has(guardKey)) return;
                                     if (confirm(isAr ? 'هل أنت متأكد من تسوية الضمانات العالقة للمزايدين الخاسرين في هذا المزاد؟' : 'Are you sure you want to repair stuck escrows for losing bidders in this auction?')) {
-                                      const res = await repairStuckEscrowsForEndedAuction(item.id);
-                                      if (res.success) {
-                                        setRepairResults(prev => ({ ...prev, [item.id]: res.message || "Successfully repaired!" }));
-                                        alert(res.message);
-                                      } else {
-                                        setRepairResults(prev => ({ ...prev, [item.id]: "Error: " + res.message }));
-                                        alert("Error: " + res.message);
+                                      repairInFlight.current.add(guardKey);
+                                      try {
+                                        const res = await repairStuckEscrowsForEndedAuction(item.id);
+                                        if (res.success) {
+                                          setRepairResults(prev => ({ ...prev, [item.id]: res.message || "Successfully repaired!" }));
+                                          alert(res.message);
+                                        } else {
+                                          setRepairResults(prev => ({ ...prev, [item.id]: "Error: " + res.message }));
+                                          alert("Error: " + res.message);
+                                        }
+                                      } catch (e: any) {
+                                        setRepairResults(prev => ({ ...prev, [item.id]: "Error: " + (e?.message || String(e)) }));
+                                        alert("Error: " + (e?.message || String(e)));
+                                      } finally {
+                                        repairInFlight.current.delete(guardKey);
                                       }
                                     }
                                   }}
@@ -482,7 +509,7 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                                 {statusLabel}
                               </span>
                               <span className="text-[10px] text-fg-muted font-mono">
-                                {item.currentPrice.toLocaleString()} JOD
+                                {Number(item.currentPrice || 0).toLocaleString()} JOD
                               </span>
                             </div>
                           </div>

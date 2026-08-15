@@ -189,9 +189,20 @@ export const BidSheet: React.FC<BidSheetProps> = ({
                     type="button"
                     disabled={submitting}
                     onClick={() => {
+                      // The custom-entry path always runs the amount through
+                      // validateCustomBid first; this quick-step path didn't,
+                      // so a chip built from a not-yet-loaded auction
+                      // (minNext defaults to 0 before activeAuction loads)
+                      // could stage and confirm a 0-JOD bid that the manual
+                      // entry path would have rejected outright.
+                      const result = validateCustomBid(amount, minNext);
+                      if (result.ok === false) {
+                        setCustomError(result.reason);
+                        return;
+                      }
                       setCustomValue('');
                       setCustomError(null);
-                      onStage(amount);
+                      onStage(result.amount);
                     }}
                     className={`flex-1 text-center py-3 px-1.5 rounded-[13px] border-[1.5px] font-extrabold text-[13px] transition-colors active:scale-95 cursor-pointer disabled:opacity-50 ${
                       i === 0

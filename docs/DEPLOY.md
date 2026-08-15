@@ -4,10 +4,12 @@ Two deploy surfaces, and they are **separate**:
 
 | What | How it deploys |
 |------|----------------|
-| **Frontend** (the React web app) | **Auto** — Vercel deploys `main` on every merge. Nothing to run. |
+| **Frontend** (the React web app) | **Auto** — `.github/workflows/firebase-hosting-deploy.yml` builds and deploys `main` to Firebase Hosting on every merge. Nothing to run. |
 | **Firebase backend** (Firestore rules, Storage rules, Cloud Functions) | **Was manual** — this is what silently went stale. Now automated via GitHub Actions (below); can still be run by hand. |
 
 > The lesson that cost an hour: merging to `main` auto-ships the frontend but **not** Firebase — so correct code ran against stale server rules. The GitHub Action below closes that gap.
+
+> The project migrated the frontend off Vercel to Firebase Hosting (same project, `mazadjoapp`) so both surfaces deploy from the same place with one auth secret. `vercel.json` is kept only until the custom domain cutover is verified — see the PR that made this change for the manual DNS/Console steps still required.
 
 ---
 

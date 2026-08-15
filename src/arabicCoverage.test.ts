@@ -21,7 +21,11 @@ function tsxFiles(dir: string): string[] {
   for (const f of readdirSync(dir)) {
     const p = join(dir, f);
     if (statSync(p).isDirectory()) out.push(...tsxFiles(p));
-    else if (/\.tsx$/.test(f) && !/\.test\./.test(f)) out.push(p);
+    // Forward slashes always, regardless of the platform's path separator:
+    // INTERNAL below matches literal `admin/`, and join() returns
+    // backslash-joined paths on Windows, which would never match — silently
+    // admitting every admin/* string as a "leak" on a Windows checkout.
+    else if (/\.tsx$/.test(f) && !/\.test\./.test(f)) out.push(p.split('\\').join('/'));
   }
   return out;
 }

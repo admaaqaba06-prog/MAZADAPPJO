@@ -2193,7 +2193,7 @@ exports.refundEscrow = functions.runWith({ cors: true }).https.onCall(async (dat
         if (oldEscrow < refundAmtFils) {
           throw new functions.https.HttpsError(
             'failed-precondition',
-            `رصيد الضمان غير كافٍ للمزايد ${bidderId} — تعذر الاسترداد الآمن`
+            `رصيد الضمان غير كافٍ للمزايد ${escrowData.bidderId} — تعذر الاسترداد الآمن`
           );
         }
         const newEscrow = Math.max(0, oldEscrow - refundAmtFils);
@@ -2205,6 +2205,17 @@ exports.refundEscrow = functions.runWith({ cors: true }).https.onCall(async (dat
             escrowBalance: newEscrow,
             totalBalance: newAvail + newEscrow
           }, { merge: true });
+        } else {
+          // No wallet doc yet (mirrors releaseEscrow's else branch above):
+          // without this the escrow still flips to 'refunded' below and the
+          // money is gone for good — nothing ever creates the doc, so no
+          // later write would ever restore it.
+          transaction.set(bidderWalletRef, {
+            userId: escrowData.bidderId,
+            availableBalance: refundAmtFils,
+            escrowBalance: 0,
+            totalBalance: refundAmtFils
+          });
         }
       }
 
@@ -4366,25 +4377,37 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
       }
 
       if (!escrowData) {
+        // Filtered by status, like releaseOrderEscrow's equivalent fallback:
+        // an auctionId+bidderId pair can have more than one escrow doc over
+        // time (repair runs, re-bid/top-up flows), and an unfiltered
+        // `.limit(1)` can return one that is neither 'locked' nor 'refunded'
+        // (e.g. 'released' from an unrelated earlier flow) — this then fell
+        // through with hasEscrow=false and quietly completed the order
+        // without ever finding or moving the actually-locked escrow.
         const escrowQuery = await db.collection('escrows')
           .where('auctionId', '==', auctionId)
           .where('bidderId', '==', buyerId)
+          .where('status', '==', 'locked')
           .limit(1)
           .get();
 
         if (!escrowQuery.empty) {
           const docSnap = escrowQuery.docs[0];
-          const status = docSnap.data().status;
-          if (status === 'refunded') {
+          escrowRef = docSnap.ref;
+          escrowData = docSnap.data();
+        } else {
+          const refundedQuery = await db.collection('escrows')
+            .where('auctionId', '==', auctionId)
+            .where('bidderId', '==', buyerId)
+            .where('status', '==', 'refunded')
+            .limit(1)
+            .get();
+          if (!refundedQuery.empty) {
             return {
               success: true,
               alreadyRefunded: true,
               message: "تم استرداد هذا المبلغ سابقاً"
             };
-          }
-          if (status === 'locked') {
-            escrowRef = docSnap.ref;
-            escrowData = docSnap.data();
           }
         }
       }

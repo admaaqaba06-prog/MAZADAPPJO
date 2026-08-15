@@ -291,6 +291,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     clearCooldownTimer(); // going back to edit the number resets the resend window
     setCooldown(0);
     clearRecaptcha();
+    // Without these, tapping Back while a send/resend is still in flight
+    // leaves the NEXT attempt's "Send code" button stuck disabled (both
+    // panels gate on these flags) until the abandoned request happens to
+    // resolve — with no indication to the user why they can't send a code.
+    setPhoneBusy(false);
+    setWaBusy(false);
   };
 
   const handleLanguageToggle = () => {

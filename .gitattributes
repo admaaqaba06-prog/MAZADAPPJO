@@ -1,0 +1,21 @@
+# Force LF for all text files regardless of the checkout platform's git
+# config. Several tests in this repo read source files with `fs.readFileSync`
+# and assert on their exact text (line-anchored regexes, exact-equality
+# string diffs) — a Windows checkout with `core.autocrlf=true` silently
+# rewrites every line ending to CRLF, and those tests then fail for a reason
+# that has nothing to do with the code under test. This makes checkouts
+# byte-identical across platforms so `npm test` behaves the same on every
+# machine as it does in CI (which runs on ubuntu-latest and was never
+# affected).
+* text=auto eol=lf
+
+# Binary assets: never touch, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.mp4 binary
