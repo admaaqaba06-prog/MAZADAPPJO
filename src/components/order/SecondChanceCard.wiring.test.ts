@@ -134,7 +134,13 @@ function allCallSites(fnName: string): { file: string; args: string[] }[] {
     while (at > -1) {
       const preceding = src.slice(Math.max(0, at - 20), at);
       if (!/\bfunction\s+$/.test(preceding)) {
-        found.push({ file: relative(SRC_DIR, file), args: argsAt(src, fnName, at) });
+        // Forward slashes always: every comparison below matches this
+        // against forward-slash literals like 'components/SellerCenterView.tsx',
+        // and relative() returns backslash-joined paths on Windows, which
+        // would never match — silently dropping every site on a Windows
+        // checkout and letting the sweep "prove nothing" for the wrong reason.
+        const relFile = relative(SRC_DIR, file).split('\\').join('/');
+        found.push({ file: relFile, args: argsAt(src, fnName, at) });
       }
       at = src.indexOf(`${fnName}(`, at + 1);
     }

@@ -20,7 +20,12 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
+    // Forward slashes always: the exemption filter below matches
+    // `f.endsWith('utils/listingDescription.ts')`, and join() returns
+    // backslash-joined paths on Windows, which would never match that
+    // suffix — silently un-exempting this rule's own module and letting it
+    // report itself (and its test) as an offender on a Windows checkout.
+    return /\.tsx?$/.test(entry.name) ? [full.split('\\').join('/')] : [];
   });
 }
 
