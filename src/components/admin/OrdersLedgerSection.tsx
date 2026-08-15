@@ -191,7 +191,7 @@ export const OrdersLedgerSection: React.FC<OrdersLedgerSectionProps> = ({
                   </div>
                   <div className="space-y-0.5 mt-2">
                     <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'القيمة والمبلغ' : 'BID AMOUNT'}</span>
-                    <span className="font-black text-[#E85D04] font-mono">{order.winningBidAmount.toLocaleString()} JOD</span>
+                    <span className="font-black text-[#E85D04] font-mono">{Number(order.winningBidAmount || 0).toLocaleString()} JOD</span>
                   </div>
                   <div className="space-y-0.5 mt-2">
                     <span className="text-[9px] text-fg-muted font-mono block uppercase">{isAr ? 'الضمان المالي' : 'ESCROW STATE'}</span>

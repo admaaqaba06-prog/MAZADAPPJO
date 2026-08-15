@@ -69,13 +69,23 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
           </p>
         )}
 
-        {messages.map((msg) => {
+        {messages.map((msg, i) => {
+          // A malformed/deleted chat doc snapshot can hand back a null/undefined
+          // entry; dereferencing msg.isSystem below would crash the whole chat
+          // block instead of just skipping the one bad row.
+          if (!msg) return null;
+
           const isSystemRow = !!msg.isSystem || !!msg.isBid;
+          // Fall back to the index when an entry has no id (e.g. a system row
+          // built without a Firestore doc id) — two rows sharing/missing `id`
+          // would otherwise collide on the same React key, letting React reuse
+          // the wrong DOM node between them on the next re-render.
+          const key = msg.id != null ? `chat-${msg.id}` : `chat-${i}`;
 
           if (isSystemRow) {
             // System / bid announcement — no avatar, orange bubble (mockup .msg.sys).
             return (
-              <div key={`chat-${msg.id}`} className="flex">
+              <div key={key} className="flex">
                 <div className="bg-[#F05123]/[0.07] rounded-[10px] px-2.5 py-1.5">
                   <p className="text-[11.5px] font-bold text-[#F05123] leading-snug">
                     {msg.text}
@@ -87,7 +97,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
 
           // Normal member message — avatar + name + text.
           return (
-            <div key={`chat-${msg.id}`} className="flex gap-2.5 items-start">
+            <div key={key} className="flex gap-2.5 items-start">
               <img
                 src={resolveAvatarUrl(msg.userAvatar, msg.userId)}
                 alt=""
