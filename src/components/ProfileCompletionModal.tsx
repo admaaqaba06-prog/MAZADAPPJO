@@ -70,6 +70,17 @@ export const ProfileCompletionModal: React.FC = () => {
       }
       // On success the mirrored currentUser makes isProfileComplete true and
       // App.tsx unmounts this modal — no local "open" state to close.
+    } catch {
+      // updateOwnProfile's Firestore-error path throws rather than resolving
+      // { success: false } (see src/services/firebase.ts's handleFirestoreError,
+      // which is typed `never`) — without this catch a rejected write here was
+      // an unhandled promise rejection: the spinner would stop with no error
+      // shown, and the user would have no idea the save failed.
+      showToast({
+        title: t.profileSaveFailedTitle,
+        message: t.profileSaveFailedMsg,
+        type: 'warn',
+      });
     } finally {
       setSaving(false);
     }

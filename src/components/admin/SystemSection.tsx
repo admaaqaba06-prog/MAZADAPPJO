@@ -147,6 +147,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
 }) => {
   // Local health & maintenance control states
   const [maintEnabled, setMaintEnabled] = useState<boolean>(maintenanceMode?.enabled || false);
+  const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [maintMsgAr, setMaintMsgAr] = useState<string>(maintenanceMode?.messageAr || '');
   const [maintMsgEn, setMaintMsgEn] = useState<string>(maintenanceMode?.messageEn || '');
   const [maintDuration, setMaintDuration] = useState<string>(maintenanceMode?.expectedDuration || '1 hr');
@@ -166,8 +167,23 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
   }, [maintenanceMode]);
 
   const handleMaintenanceToggle = async (enabled: boolean) => {
+    // Was `updateMaintenanceMode(maintEnabled, ...)` — the STALE state
+    // variable from this render's closure, not the `enabled` argument the
+    // switch just flipped to. Every toggle therefore persisted the value
+    // from BEFORE the click: the switch would flip to "on" while the
+    // server's actual flag stayed off (and vice versa), a mismatch masked
+    // because nothing here ever surfaced the write failing either.
     setMaintEnabled(enabled);
-    await updateMaintenanceMode(enabled, maintMsgAr, maintMsgEn, maintDuration);
+    try {
+      await updateMaintenanceMode(enabled, maintMsgAr, maintMsgEn, maintDuration);
+    } catch (e: any) {
+      // Roll the switch back — the write didn't land, so the UI shouldn't
+      // keep claiming it did.
+      setMaintEnabled(!enabled);
+      alert(isAr
+        ? 'تعذّر تحديث وضع الصيانة: ' + (e?.message || String(e))
+        : 'Failed to update maintenance mode: ' + (e?.message || String(e)));
+    }
   };
 
   const saveMaintenanceSettings = async () => {
@@ -912,13 +928,24 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
             </span>
             <button
               onClick={async () => {
-                await resetOnboarding();
-                alert(isAr
-                  ? '🔄 تم إعادة تعيين دليل المستخدم والتعليمات بنجاح!'
-                  : '🔄 Walkthrough and hints reset successfully!'
-                );
+                if (resettingOnboarding) return;
+                setResettingOnboarding(true);
+                try {
+                  await resetOnboarding();
+                  alert(isAr
+                    ? '🔄 تم إعادة تعيين دليل المستخدم والتعليمات بنجاح!'
+                    : '🔄 Walkthrough and hints reset successfully!'
+                  );
+                } catch (e: any) {
+                  alert(isAr
+                    ? 'تعذّرت إعادة التعيين: ' + (e?.message || String(e))
+                    : 'Reset failed: ' + (e?.message || String(e)));
+                } finally {
+                  setResettingOnboarding(false);
+                }
               }}
-              className="bg-gray-950 hover:bg-black text-white text-[11px] font-black px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              disabled={resettingOnboarding}
+              className="bg-gray-950 hover:bg-black text-white text-[11px] font-black px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {isAr ? 'إعادة تعيين الدليل' : 'RESET ONBOARDING'}
