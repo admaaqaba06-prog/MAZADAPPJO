@@ -4799,9 +4799,19 @@ const fetchIP = async () => {
       const jitteredDelay = 800 + Math.floor(Math.random() * 1200);
       const timer = setTimeout(() => {
         const res = placeBid(triggerable.id, nextBid);
-        isAutoBiddingRef.current = false;
         if (res) {
-          res.then(result => {
+          // The guard MUST stay held until the bid's outcome is known, not
+          // just for the duration of issuing it. This effect depends on
+          // `auctions`, which changes on every snapshot for the whole live
+          // collection — not just this lot — so it can re-run while this
+          // bid's server round trip is still in flight. Clearing the ref
+          // right after the call (previously here, unconditionally) let a
+          // re-run see the guard already open and fire a second, redundant
+          // auto-bid on the same lot before the first one's result had even
+          // been reflected in `auction.currentBidderId`.
+          res.finally(() => {
+            isAutoBiddingRef.current = false;
+          }).then(result => {
             if (result.success) {
               addNotification(
                 language === 'ar' ? '🤖 نظام المزايد التلقائي' : '🤖 Auto-Bid system',
@@ -4812,6 +4822,8 @@ const fetchIP = async () => {
               );
             }
           });
+        } else {
+          isAutoBiddingRef.current = false;
         }
       }, jitteredDelay);
 
