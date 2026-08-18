@@ -1,7 +1,7 @@
 # Aramex fulfillment: model and decisions
 
 **Date:** 2026-08-04
-**Status:** Decisions approved. Blocked on Aramex credentials + one commercial answer before slice plans.
+**Status:** Decisions approved. Rate card received 2026-08-18 — see Rates, which supersedes decision 8. Still blocked on Aramex credentials and on Bank al Etihad's API surface.
 **Scope:** The end-to-end fulfillment model and the decisions behind it. Each slice below gets its own implementation plan.
 
 ## Problem
@@ -45,7 +45,7 @@ Settled with MJ on 2026-08-04. Recorded so they are not relitigated.
 5. **The buyer pays a flat collection fee** for office pickup, explained at checkout as what it buys: a neutral, safe handover point.
 6. **Mazad contributes 1 JD** toward office pickup. This is a deliberate exception to "Mazad pays for nothing", scoped to the neutral-zone concept because that is a platform-level safety promise rather than a shipping cost.
 7. **The seller may opt to cover the buyer's collection fee**, making pickup free to the buyer.
-8. **The destination office is chosen to minimise the leg from the seller**, but is surfaced to the buyer as a priced choice, never auto-selected. "Buyer is willing to collect" is an assumption; seller in Irbid and buyer in Amman is a 90-minute drive.
+8. ~~**The destination office is chosen to minimise the leg from the seller**, surfaced as a priced choice.~~ **SUPERSEDED 2026-08-18.** Aramex quoted a flat national rate, so distance does not affect price and there is nothing to optimise. The office is still surfaced as a choice — but on *convenience and trust*, not cost. See Rates.
 9. **Shipping is a seller-level setting captured at onboarding**, applied to
    every auction, with per-auction overrides for exceptions. The origin is
    required before the first listing: without an address there is no rate, no
@@ -69,6 +69,90 @@ Settled with MJ on 2026-08-04. Recorded so they are not relitigated.
 
 - **Is the flat collection fee national or per-governorate?** A single national number is simpler to explain and keeps the buyer's cost predictable, but it means the seller's remainder absorbs all the distance variance — which is precisely the variance the seller was promised transparency about.
 - **Is the 1 JD contribution per order, or capped?** Per order, it scales linearly with volume and is a permanent line in the cost of every shipped sale. A monthly cap bounds it but makes the buyer's price depend on how much of the budget is left, which is not defensible to a buyer.
+
+## Rates (Aramex, 2026-08-18)
+
+Quoted verbally by Aramex; not yet confirmed against `CalculateRate`.
+
+| Weight | Price | Coverage |
+|---|---|---|
+| up to 5 kg | **3 JD** | anywhere in Jordan |
+| up to 10 kg | **4 JD** | anywhere in Jordan |
+
+**Per leg.** Pickup from the seller, delivered **next day**. Hold-for-pickup at an
+Aramex office is **confirmed available**, which is what the neutral-zone concept
+required.
+
+Three consequences, two of them uncomfortable:
+
+### 1. Flat national pricing removes the cheapest-office optimization
+
+Decision 8 assumed distance drove price, so the design ranked offices by distance
+from the seller and quoted each. **At a flat national rate there is nothing to
+rank.** Every office costs the same 3 JD.
+
+This is a large simplification: no geo ranking, no per-office quoting, no
+lat/long maths, and `CalculateRate` is not needed on the common path — a weight
+band lookup answers it. `FetchOffices` is still needed, but only to let the buyer
+choose *which* branch is convenient.
+
+### 2. Office pickup is no longer cheaper than delivery — so its rationale changes
+
+Seller door → buyer door is one leg. Seller door → office is one leg. **Both are
+3 JD.** The buyer who collects saves nothing and still travels.
+
+That breaks the framing behind decisions 5 and 6. The flat collection fee was
+justified as a discount on delivery; there is no discount to give. Office pickup
+is now a *same-price alternative* whose only value is the neutral handover — real
+for a 300 JD watch, hard to justify for a 7 JD kettle.
+
+**This needs a decision (open):** either price pickup below delivery deliberately
+(Mazad's 1 JD absorbs part of the same 3 JD leg, making pickup 2 JD to the buyer
+and giving them a genuine reason to choose it), or keep both at 3 JD and sell
+pickup purely on trust. The first makes the 1 JD contribution do real work; the
+second makes it decorative. **Ask Aramex whether HFPU is itself cheaper than a
+door delivery** — that was not covered in the meeting and it decides this.
+
+### 3. The cheap-lot problem is now quantified, and it is real
+
+Seller net after the 5% commission, minus one 3 JD leg:
+
+| Lot | Seller net (95%) | After 3 JD shipping | Shipping as % of lot |
+|---|---|---|---|
+| 5 JD | 4.75 | **1.75** | 60% |
+| 7 JD | 6.65 | **3.65** | 43% |
+| 10 JD | 9.50 | 6.50 | 30% |
+| 20 JD | 19.00 | 16.00 | 15% |
+| 40 JD | 38.00 | 35.00 | 8% |
+| 100 JD | 95.00 | 92.00 | 3% |
+
+If instead the **buyer** pays the leg, a 7 JD lot bills 10.35 JD — 29% of the
+bill is shipping. A 5 JD lot bills 8.25, of which 36% is shipping.
+
+Most current live inventory sits in the 5–40 JD band, with several lots at 7–10
+JD. So:
+
+- **Free delivery is only viable above roughly 20 JD.** A seller offering it on a
+  7 JD lot gives up 45% of their net. The listing UI should say so rather than
+  let them discover it at payout.
+- **Buyer-paid shipping on sub-10 JD lots looks disproportionate** and will
+  suppress bidding on exactly the volume tier that currently dominates.
+- **The 10 kg band is the better deal** — 5→10 kg costs 1 JD more, so heavier
+  lots are proportionally cheaper. Nothing in the design should discourage them.
+
+Mitigations to decide, in rough order of preference: a **minimum lot price for
+shipped items**; **buyer-collects-from-seller** reinstated as the cheap path for
+low-value lots (rejected for v1, but the economics may force it back); or
+**batching multiple wins from one seller into a single shipment**, which the flat
+per-leg rate makes unusually attractive — two lots from the same seller in one
+parcel is one 3 JD leg, not two.
+
+### Return legs
+
+"Per leg" implies a refused or uncollected parcel returning to the seller is a
+**second 3 JD leg**. Nobody has agreed who pays it. The FSM has no cancellation
+edge for a booked-but-unshipped order either (see Risks). **Open — ask Aramex
+what an undelivered return costs and how long an office holds before returning.**
 
 ## Seller shipping profile, and per-auction exceptions
 
@@ -167,27 +251,42 @@ Bank al Etihad payment validation is a **separate track**, not a slice of this o
 ## Blockers
 
 1. **Aramex API credentials.** `CalculateRate` needs account number, PIN, username, password, entity and country code. Nothing can be quoted without them. Slices 2–5 are blocked; slice 1 is not.
-2. **Is hold-for-pickup available on Jordan domestic?** The whole neutral-zone concept rests on it. The WSDL cannot answer this: `Services` is an untyped string of service codes and nothing enumerates what is purchasable in Jordan. **MJ is meeting Aramex on 2026-08-05** — questions listed below.
-3. **Bank al Etihad capabilities are unknown.** The developer portal is a JS application behind MJ's session; it would not render for automated reading and a direct fetch returned only the shell. What that API offers — statement retrieval, incoming-payment notification, CliQ lookup, webhooks — has not been established, so the payment track cannot be designed yet.
+2. ~~**Is hold-for-pickup available on Jordan domestic?**~~ **ANSWERED 2026-08-18: yes.** The service code for the `Services` field is still needed before slice 4 can create shipments.
+3. **Bank al Etihad capabilities are still unknown.** The developer portal is a JS
+   application that will not render for automated reading — retried 2026-08-18
+   with MJ logged in, same result; it appears to block script injection, and a
+   direct fetch returns only the shell. What the API offers (statement retrieval,
+   incoming-payment notification, CliQ lookup, webhooks) is therefore
+   unestablished and **the payment track cannot be designed.** Unblocking needs
+   either an exported OpenAPI/Postman collection or the product list pasted in.
 
-## Questions for the Aramex meeting
+4. **Whether HFPU is priced below a door delivery.** Decides whether office
+   pickup has an economic rationale at all — see Rates §2.
 
-**Product**
-1. Is hold-for-pickup at a destination office available for Jordan **domestic** shipments? What is the service code for the `Services` field?
-2. How long does an office hold a parcel before returning it, and what does a return cost?
-3. What identification does the buyer present to collect? Can we pass a collection reference on the shipment?
+## Still to ask Aramex
 
-**Pricing** — the answers set the numbers in the fee table
-4. Domestic rate card: seller door → Aramex office, and seller door → buyer door, across governorates.
-5. Is there a pickup premium over drop-off, and does it change per collection or per day?
-6. Volume or marketplace pricing, given every order becomes a shipment.
-7. Is there a minimum chargeable weight? Most of our lots are small and cheap — the shipping-to-value ratio is the main commercial risk (see Risks).
+Answered on 2026-08-18: HFPU is available; 3 JD to 5 kg and 4 JD to 10 kg, flat
+nationwide, per leg; pickup with next-day delivery.
 
-**Integration**
-8. Sandbox credentials, and whether sandbox rates mirror production.
-9. Any push/webhook option for tracking, or is `TrackShipments` polling the only route?
-10. Rate limits on `TrackShipments` and `CalculateRate`, and the maximum AWBs per tracking call.
-11. Whether a shipment can be created before pickup is booked, or whether they must be atomic.
+Outstanding, in priority order:
+
+1. **Is HFPU cheaper than a door delivery?** Decides whether office pickup has any
+   economic rationale (Rates §2). The single most consequential open question.
+2. **What does an undelivered return cost, and how long does an office hold before
+   returning?** Currently unpriced and unassigned.
+3. **The service code for HFPU** in the `Services` field. Needed to create a
+   shipment at all.
+4. **Sandbox credentials**, and whether sandbox rates mirror production.
+5. **Can several lots from one seller ship as one parcel?** At a flat per-leg rate
+   this is the strongest cheap-lot mitigation available (Rates §3).
+6. **Is there a minimum chargeable weight**, and does the 5 kg band round up?
+7. **Rate limits** on `TrackShipments` / `CalculateRate`, and max AWBs per
+   tracking call — sets the poll interval.
+8. **Must a shipment and its pickup be created atomically**, or can the AWB exist
+   before pickup is booked?
+9. **What ID does the buyer present at collection**, and can we pass a collection
+   reference on the shipment?
+10. **Volume or marketplace pricing**, given every order becomes a shipment.
 
 ## Risks
 
