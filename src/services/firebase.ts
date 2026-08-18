@@ -1,10 +1,16 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { resolveAuthDomain } from "../utils/authDomain";
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA",
-  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || "www.mazad-jo.com",
+  // Follows the host the visitor is actually on. A pinned "www.mazad-jo.com"
+  // broke Google sign-in on the bare apex — see src/utils/authDomain.ts.
+  authDomain: resolveAuthDomain(
+    typeof window !== 'undefined' ? window.location.hostname : undefined,
+    (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN,
+  ),
   projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || "mazadjoapp",
   storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || "mazadjoapp.firebasestorage.app",
   messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || "622832200971",
