@@ -177,6 +177,42 @@ top-down from it wasted time on problems that no longer existed.
 
 ## 🧰 Infra / runbook
 
+29. **The Vercel account is BLOCKED, and nobody knows why** (2026-08-18). The frontend
+    migration off Vercel was not planned work — it was forced. Vercel returned
+    `HTTP 402 DEPLOYMENT_DISABLED` on `mazad-jo.com`, `www`, and the `.vercel.app`
+    domain, so the customer-facing site was **fully down**. Vercel's own PR check
+    states the cause more precisely than the 402 did: **"Account is blocked."**
+
+    That is broader than an unpaid invoice — Vercel blocks for billing failure, terms
+    violations, and abuse/fraud flags. **Nothing depends on that account any more**
+    (see item 30), but the reason has never been established, and a block can extend
+    to anything else hosted under it. Worth finding out rather than rediscovering.
+
+30. **Google AI Studio still holds a claim on `mazad-jo.com`.** Firebase's apex IP
+    `199.36.158.100` is shared across all customers; which site it serves is decided
+    solely by the `hosting-site=` TXT record. An AI Studio app in an **unrelated
+    Firebase project** (site `ambient-basis-rf4nj`) had claimed the domain first, so
+    for ~10 minutes after the DNS cutover the apex served *"My Google AI Studio App"*
+    to real visitors until Firebase re-polled the TXT.
+
+    It resolved itself, but **the claim on the other side was never removed** — it is
+    still configured against a project nobody watches. It lost the race once; leaving
+    it live is a hazard for the next DNS change. Someone should find that app and
+    disconnect the domain, or delete the project.
+
+31. **Three pieces of infrastructure sit outside the team's control**, which is item 23
+    with names attached, learned the hard way today:
+    - **Cloudflare DNS** — zone `mazad-jo.com`, in an `@privaterelay.appleid.com`
+      account. Every DNS change needs that login.
+    - **The GitHub repo** — owned by the personal user `admaaqaba06-prog`. `coinbits-mj`
+      is a **write** collaborator only, so it cannot manage GitHub App installations,
+      branch protection, or repo settings.
+    - **Vercel** — blocked, per item 29.
+
+    The practical cost showed up immediately: removing the Vercel GitHub App had to be
+    handed to whoever holds `admaaqaba06-prog`, because no amount of write access can
+    do it.
+
 22. **Adding a domain = also authorize it in Firebase Auth** (authorized domains) — add to `docs/DEPLOY.md`; this broke signup on `mazad-jo.com` today.
 23. **Consolidate account ownership** under MJ/team — Cloudflare (colleague's account holds the DNS), Vercel (mazadteam), WasenderAPI, Firebase. Partially done (MJ has Firebase console + Vercel + is now app admin).
 24. **Empty-phone guard on n8n Webhook Receiver** — skip the WasenderAPI send when phone is empty (in progress 2026-07-18).
