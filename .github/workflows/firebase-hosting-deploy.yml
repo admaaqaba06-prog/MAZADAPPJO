@@ -36,6 +36,23 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Pinned so the build never silently falls back to the values hardcoded
+          # in src/services/firebase.ts. Those came from a Google AI Studio
+          # scaffold, and one of them broke Google sign-in on the bare apex after
+          # the move off Vercel — the fallbacks were never meant to be load-bearing.
+          #
+          # VITE_FIREBASE_AUTH_DOMAIN is deliberately ABSENT: it resolves per host
+          # at runtime (src/utils/authDomain.ts) so sign-in works on both
+          # mazad-jo.com and www.mazad-jo.com. Setting it here would re-pin one
+          # host and reintroduce the bug.
+          VITE_FIREBASE_API_KEY: AIzaSyDpGyYrneZqX578TcD95LogNPsDwOHX1EA
+          VITE_FIREBASE_PROJECT_ID: mazadjoapp
+          VITE_FIREBASE_STORAGE_BUCKET: mazadjoapp.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '622832200971'
+          # The "Mazad Jo" web app, not the ai-studio-applet-webapp the fallback
+          # points at — analytics were landing on the scaffold registration.
+          VITE_FIREBASE_APP_ID: '1:622832200971:web:95a4095b06d2ee8029460e'
 
       # Official Google auth: writes the service-account key from the secret and
       # exports GOOGLE_APPLICATION_CREDENTIALS for all following steps. firebase-tools
