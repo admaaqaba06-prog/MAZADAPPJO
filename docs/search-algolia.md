@@ -34,7 +34,7 @@ ALGOLIA_ADMIN_KEY=<the-admin-key> node scripts/algolia-backfill.cjs
 ```
 This applies index settings (searchable: title/description/category/sellerName; facets: status, category; ranking: ending-soon first) and indexes all current live/upcoming lots. Safe to re-run.
 
-**4. (Optional) Client env in Vercel** — the public fallbacks already work, but you can set them explicitly:
+**4. (Optional) Client env at build time** — the public fallbacks already work, but you can set them explicitly in the hosting deploy workflow (`.github/workflows/firebase-hosting-deploy.yml`), since Vite inlines `VITE_*` vars during the build:
 ```
 VITE_ALGOLIA_APP_ID=O45I2Z57QS
 VITE_ALGOLIA_SEARCH_KEY=82e302cd6429c71d908ec360333e2706
