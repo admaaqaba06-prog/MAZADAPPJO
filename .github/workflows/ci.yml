@@ -46,6 +46,7 @@ jobs:
         run: npm test
 
       # Catches what tsc alone misses — bad imports, failed chunking, Vite
-      # config drift. Vercel builds main on merge; this catches it at PR time.
+      # config drift. firebase-hosting-deploy.yml builds main on merge; this
+      # catches it at PR time.
       - name: Build
         run: npm run build

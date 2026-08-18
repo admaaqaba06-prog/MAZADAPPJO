@@ -9,7 +9,27 @@ Two deploy surfaces, and they are **separate**:
 
 > The lesson that cost an hour: merging to `main` auto-ships the frontend but **not** Firebase — so correct code ran against stale server rules. The GitHub Action below closes that gap.
 
-> The project migrated the frontend off Vercel to Firebase Hosting (same project, `mazadjoapp`) so both surfaces deploy from the same place with one auth secret. `vercel.json` is kept only until the custom domain cutover is verified — see the PR that made this change for the manual DNS/Console steps still required.
+> **The frontend moved off Vercel to Firebase Hosting** (same project, `mazadjoapp`), so both surfaces now deploy from one place with one auth secret. The DNS cutover completed **2026-08-18** and `vercel.json` is deleted — nothing in the serving path touches Vercel.
+>
+> **What the migration was actually forcing:** Vercel had returned `HTTP 402 DEPLOYMENT_DISABLED` on every hostname, so the customer-facing site was fully down. The cutover was the fix.
+>
+> **DNS lives in Cloudflare** (zone `mazad-jo.com`, an account outside the team — see backlog #218):
+>
+> | record | value |
+> |---|---|
+> | `mazad-jo.com` A | `199.36.158.100` |
+> | `www.mazad-jo.com` CNAME | `mazadjoapp.web.app` |
+> | `mazad-jo.com` TXT | `hosting-site=mazadjoapp` |
+>
+> All **DNS-only (grey cloud)** — Cloudflare's proxy breaks Firebase certificate issuance.
+>
+> **Two traps if you ever touch these records.** The apex carries a *second* TXT record,
+> `v=spf1 a mx include:websitewelcome.com ~all` — editing "the TXT record" instead of the
+> hosting one breaks outbound email. And `199.36.158.100` is a Firebase IP **shared across
+> all customers**: which site it serves is decided solely by the `hosting-site=` TXT. A
+> Google AI Studio app in an unrelated Firebase project had claimed this domain first, so
+> straight after the cutover the apex served *"My Google AI Studio App"* until Firebase
+> re-polled the TXT. If a stranger's app ever appears on the apex, that is why.
 
 ---
 
