@@ -511,6 +511,80 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   const [scrolled, setScrolled] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [showStickyBar, setShowStickyBar] = useState<boolean>(false);
+  const headerRef = useRef<HTMLElement | null>(null);
+
+  /* ====================================================================
+     In-page section navigation — ONE path, used by the desktop nav, the
+     mobile drawer and the footer's section links.
+
+     The `href="#…"` attributes stay exactly as they were, so these remain
+     real links: focusable, announced as links, middle-clickable, and
+     copyable. This only takes over the PLAIN left click.
+     ==================================================================== */
+
+  /** Breathing room between the header and the top of the section content. */
+  const SECTION_TOP_GAP = 16;
+
+  /**
+   * How much of the viewport top the header actually covers at the destination.
+   *
+   * NOT `header.offsetHeight` unconditionally, and this is the measured part.
+   * The header is `position: sticky; top: 0`, but it never sticks: the landing
+   * root wrapper carries `overflow-hidden`, and an ancestor whose overflow is
+   * not `visible` becomes the sticky element's scrollport. Sampled at four
+   * scroll positions, the header's rect tracks `-scrollY` exactly (0 → -500 →
+   * -1500 → -3000), so it scrolls away and covers nothing on arrival.
+   * Subtracting its 77px anyway would drop every section 77px too low.
+   *
+   * So the offset is decided by the same rule that decides whether the header
+   * is on screen at all. If the root's `overflow-hidden` is ever replaced with
+   * something that does not establish a scrollport, this starts returning the
+   * real height and the landing position corrects itself with no edit here.
+   */
+  const headerOverlap = (): number => {
+    const header = headerRef.current;
+    if (!header) return 0;
+    const position = window.getComputedStyle(header).position;
+    if (position === 'fixed') return header.getBoundingClientRect().height;
+    if (position !== 'sticky') return 0;
+    for (let el = header.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY !== 'visible' || style.overflowX !== 'visible') return 0;
+    }
+    return header.getBoundingClientRect().height;
+  };
+
+  /** Scroll to a section by id. Returns false when no such section exists. */
+  const scrollToSection = (id: string): boolean => {
+    const target = document.getElementById(id);
+    if (!target) return false;
+    // Close the drawer FIRST so it cannot cover the destination on arrival.
+    // No timer is needed before measuring: the drawer is `fixed`, so it never
+    // contributed to layout and closing it moves nothing.
+    setMobileMenuOpen(false);
+    const top = target.getBoundingClientRect().top + window.scrollY
+      - headerOverlap() - SECTION_TOP_GAP;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    // pushState rather than assigning `location.hash`: assigning it makes the
+    // browser perform its own INSTANT jump on top of the smooth scroll, which
+    // is the jitter this function exists to remove. pushState still adds the
+    // history entry, so Back returns the user where they came from, and the
+    // current state object is carried over rather than discarded.
+    if (window.location.hash !== `#${id}`) {
+      window.history.pushState(window.history.state, '', `#${id}`);
+    }
+    return true;
+  };
+
+  /** Click handler for the in-page section links. */
+  const onSectionLinkClick = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Leave modified and non-primary clicks to the browser: ctrl/cmd-click
+    // opens a new tab and shift-click a new window, and both must keep working
+    // on a real link.
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (scrollToSection(id)) e.preventDefault();
+  };
 
   // Scroll Progress Bar Setup
   const { scrollYProgress } = useScroll();
@@ -917,6 +991,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
       {/* 1. Header (Sticky) */}
       <header
+        ref={headerRef}
         className={`sticky top-0 z-50 transition-all duration-300 border-b ${
           scrolled
             ? "bg-surface-raised/85 backdrop-blur-md py-2.5 border-line shadow-sm"
@@ -932,15 +1007,15 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
           {/* Desktop Navigation Links with gold sliding underline on hover */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <a href="#why-mazadjo" className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#why-mazadjo" onClick={onSectionLinkClick("why-mazadjo")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.whyUs}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#categories" className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#categories" onClick={onSectionLinkClick("categories")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.categories}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#pricing" className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#pricing" onClick={onSectionLinkClick("pricing")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.pricing}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
@@ -1010,21 +1085,21 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         <div className="px-6 py-8 space-y-5 flex flex-col bg-surface-raised">
           <a
             href="#why-mazadjo"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={onSectionLinkClick("why-mazadjo")}
             className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
           >
             {t.nav.whyUs}
           </a>
           <a
             href="#categories"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={onSectionLinkClick("categories")}
             className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
           >
             {t.nav.categories}
           </a>
           <a
             href="#pricing"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={onSectionLinkClick("pricing")}
             className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
           >
             {t.nav.pricing}
@@ -1732,7 +1807,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         <LiveMarketplaceSection lang={lang} t={t} onEnter={onEnter} formatPrice={formatPrice} />
 
         {/* 3. Section "الثقة أولاً" (Trust First) */}
-        <section id="why-mazadjo" className="py-20 bg-surface-raised border-y border-line relative">
+        <section className="py-20 bg-surface-raised border-y border-line relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             {/* Section Title */}
@@ -1784,7 +1859,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         </section>
 
         {/* 4. Section "لماذا MazadJo" (Comparison VS) */}
-        <section className="py-20 relative">
+        <section id="why-mazadjo" className="py-20 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             {/* Section Title */}
@@ -2838,13 +2913,13 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
             {/* Quick Links Column */}
             <div className="md:col-span-7 flex flex-wrap items-center justify-center md:justify-end gap-6 text-xs font-semibold text-fg-muted">
-              <a href="#why-mazadjo" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#why-mazadjo" onClick={onSectionLinkClick("why-mazadjo")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
                 {t.footer.links.whyUs}
               </a>
-              <a href="#categories" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#categories" onClick={onSectionLinkClick("categories")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
                 {t.footer.links.categories}
               </a>
-              <a href="#pricing" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#pricing" onClick={onSectionLinkClick("pricing")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
                 {t.nav.pricing}
               </a>
               <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic font-semibold">
