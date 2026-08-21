@@ -965,19 +965,17 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   <span className="text-lg font-black text-[#E85D04] font-mono tabular-nums mt-0.5 leading-none">
                     <CountUp value={activePrice} format={(n) => Math.round(n).toLocaleString()} /> <span className="text-[10px] font-normal text-fg-muted">JOD</span>
                   </span>
-                  <span className="text-[9px] text-emerald-600 font-semibold mt-1 block leading-none">
+                  <span className="text-[9px] text-success font-semibold mt-1 block leading-none">
                     +{(activeAuction.minIncrement || 10)} JOD
                   </span>
-                  {activeAuction.reserveMet === false && (
-                    <span className="text-xs font-semibold text-amber-600 mt-1 block leading-none">
-                      {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
-                    </span>
-                  )}
-                  {activeAuction.reserveMet === true && (
-                    <span className="text-xs font-semibold text-emerald-600 mt-1 block leading-none">
-                      {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
-                    </span>
-                  )}
+                  {/* The reserve status used to live HERE, inside this column.
+                      The dock is 294px wide and this grid splits it three ways,
+                      so the column is 87px — and "لم يصل السعر الاحتياطي بعد"
+                      is a 26-character sentence. It wrapped to two or three
+                      lines at `leading-none`, where Arabic ascenders and
+                      descenders on consecutive lines collide. It is a status
+                      for the whole lot, not a property of the current-bid
+                      column, so it now spans the full row below the grid. */}
                 </div>
 
                 {/* Time Remaining */}
@@ -996,7 +994,19 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                     scheduledStartAt={activeAuction?.scheduledStartAt}
                     isAr={isAr}
                     awaitingFirstBid={isAwaitingFirstBid(activeAuction)}
-                    className="text-sm font-bold font-mono tracking-wider"
+                    /* The value slot is 87px, sized for `01:23:45`. The
+                       awaiting-first-bid label is a 3-word sentence, which at
+                       text-sm + tracking-wider broke onto three lines and made
+                       this row twice as tall as the other two columns. Only
+                       that state gets the smaller, untracked treatment — the
+                       same split MobileAuctionView already makes for the same
+                       reason. The clock keeps font-mono so its digits stay
+                       fixed-width; the sentence does not need it. */
+                    className={
+                      isAwaitingFirstBid(activeAuction)
+                        ? 'text-[11px] font-bold leading-snug text-center'
+                        : 'text-sm font-bold font-mono tracking-wider'
+                    }
                   />
                   {!isAwaitingFirstBid(activeAuction) && (
                     <span className="text-[8px] text-fg-muted tracking-widest uppercase mt-0.5">
@@ -1020,6 +1030,24 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                   )}
                 </div>
               </div>
+
+              {/* Reserve status — full row width, so it reads on ONE line
+                  instead of wrapping inside an 87px column. `leading-snug`
+                  rather than `leading-none`: if a longer translation ever does
+                  wrap, Arabic needs the line box to be taller than the glyphs.
+                  Tokens rather than amber-600/emerald-600, which are fixed
+                  values that fail AA on the light dock (3.19:1 and 3.77:1) —
+                  `text-warning`/`text-success` flip per theme and clear it. */}
+              {activeAuction.reserveMet === false && (
+                <p className="text-xs font-semibold text-warning leading-snug">
+                  {isAr ? 'لم يصل السعر الاحتياطي بعد' : 'Reserve not yet met'}
+                </p>
+              )}
+              {activeAuction.reserveMet === true && (
+                <p className="text-xs font-semibold text-success leading-snug">
+                  {isAr ? '✓ تم بلوغ السعر الاحتياطي' : '✓ Reserve met'}
+                </p>
+              )}
 
               {/* Winning/Losing indicator (hidden until the auction is open) */}
               {(() => {

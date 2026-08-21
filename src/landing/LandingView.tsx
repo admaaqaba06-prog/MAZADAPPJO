@@ -43,6 +43,7 @@ import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } f
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { priceLabel } from '../utils/bidLabels';
+import { categoryLabel } from '../utils/categoryLabel';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
@@ -313,7 +314,22 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                         ) : null}
                       </div>
                       <div className="p-4">
-                        <span className="text-xs text-fg/50">{t.marketplace.categoryLabels[a.category] ?? a.category}</span>
+                        {/* categoryLabel(), not a landing-local map. This page
+                            carried its OWN copy of the taxonomy, and it had
+                            drifted from `utils/categories.ts` — the one list
+                            the seller picker, the Discover chips and the admin
+                            builder all share. Three ways it was wrong:
+                            `Fashion` is the historical CATCH-ALL (labelled
+                            "أخرى / Other" everywhere else) and read "أزياء"
+                            here, so every TV, pressure cooker and deep fryer on
+                            the page announced itself as clothing; `Luxury` read
+                            "كماليات" instead of the "ساعات" it was absorbed
+                            into; and `Phones`/`Watches`/`Cars`/`Misc` were
+                            absent entirely, so they fell through to the raw
+                            stored value and rendered Latin text on an Arabic
+                            page. A second copy of a taxonomy has no way to stay
+                            correct — so there is no second copy now. */}
+                        <span className="text-xs text-fg/50">{categoryLabel(a.category, lang === 'ar')}</span>
                         <h3 className="mt-1 font-semibold text-fg line-clamp-1">{a.title}</h3>
                         <div className="mt-3 flex items-end justify-between">
                           <div>

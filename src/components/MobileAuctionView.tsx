@@ -424,7 +424,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
           </h1>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {isInspected && (
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#12B76A]/12 text-[#0a7a48]">
+              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-[#12B76A]/12 text-success">
                 <CheckCircle2 className="w-3 h-3" />
                 {isAr ? 'صور حقيقية ✓' : 'Real photos ✓'}
               </span>
@@ -507,11 +507,11 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
                 🔥 {activeAuction?.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}
               </span>
               {activeAuction?.reserveMet === true ? (
-                <span className="text-[#0a7a48]">
+                <span className="text-success">
                   {isAr ? 'تم بلوغ الاحتياطي ✓' : 'Reserve met ✓'}
                 </span>
               ) : activeAuction?.reserveMet === false ? (
-                <span className="text-[#F0A500]">
+                <span className="text-warning">
                   {isAr ? 'لم يُبلغ الاحتياطي' : 'Reserve not met'}
                 </span>
               ) : (
@@ -553,7 +553,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
               );
             })()}
 
-            <dl className="mt-3 divide-y divide-[#ECECEA] border-y border-line text-[12px]">
+            <dl className="mt-3 divide-y divide-line border-y border-line text-[12px]">
               {conditionChip && (
                 <div className="flex items-center justify-between py-2.5">
                   {/* حالة المنتج, not الحالة: the price row above now labels the

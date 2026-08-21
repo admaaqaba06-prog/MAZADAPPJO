@@ -76,11 +76,15 @@ describe('theme ratchet', () => {
   it('does not grow the neutral-hex backlog', () => {
     const all = SOURCE.match(/(?:text|bg|border)-\[#[0-9A-Fa-f]{3,8}\]/g) ?? [];
     const neutral = all.filter((c) => !exempt(c));
-    // 31. What remains is deliberate: semantic status colours (the greens,
-    // the reds, WhatsApp's #25D366), and dark surfaces other than the three
-    // exempted values. The migratable ones — light panels, accent tints, light
-    // hairlines and near-black text — are done.
-    expect(neutral.length).toBeLessThanOrEqual(31);
+    // 26, down from 31: the live-auction status colours moved onto the new
+    // success/warning/danger tokens. They were counted here as "deliberate
+    // semantic status colours", but deliberate is not the same as legible —
+    // reserve-met (#0a7a48) read 3.3:1 on the dark card and reserve-not-met
+    // (#F0A500) read 2.1:1 on the light one. A fixed hex cannot serve both
+    // themes, which is the same reason the surfaces above are tokenised.
+    // What remains is dark surfaces other than the three exempted values, plus
+    // status colours on screens not yet migrated (WhatsApp's #25D366 et al).
+    expect(neutral.length).toBeLessThanOrEqual(26);
   });
 
   // `text-gray-300` is decorative (separators, chevrons) and reads on dark;
