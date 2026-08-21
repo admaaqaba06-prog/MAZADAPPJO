@@ -48,6 +48,26 @@
      reason `fg-on-light` is: a semantic status tint does not flip, so anything
      layered on it must not either. */
   --color-surface-on-light: #FFFFFF;
+
+  /* Semantic STATUS text — success / warning / danger. These flip per theme,
+     unlike the accent, because unlike the accent no single value carries on
+     both backgrounds. The live-auction screens proved it: reserve-met shipped
+     as a hardcoded `#0a7a48`, which reads 5.4:1 on white but 3.3:1 on the dark
+     card, while reserve-NOT-met shipped as `#F0A500` — 8.5:1 dark and 2.1:1
+     light. Two statuses on ONE row, each unreadable in the opposite theme,
+     because a fixed hex cannot satisfy both. Every pair below clears WCAG AA
+     (4.5:1) against `surface-raised` in the theme it serves:
+       success  #0a7a48 → 5.40:1 light   |  #34D399 → 9.24:1 dark
+       warning  #B45309 → 5.02:1 light   |  #FBBF24 → 10.64:1 dark
+       danger   #DC2626 → 4.83:1 light   |  #F87171 → 6.42:1 dark
+     Light `success` is the value that already shipped, so light mode is a
+     visual no-op; the other five are what dark mode was missing. Success also
+     clears AA on the 12% `#12B76A` trust-chip tint in both themes (4.80 / 7.77).
+     `warning` is amber-700 rather than the old #F0A500 because #F0A500 fails
+     AA on white — the light value had to change for the row to be legible. */
+  --color-success: #0a7a48;
+  --color-warning: #B45309;
+  --color-danger: #DC2626;
 }
 
 /* Dark theme. Selected by the attribute the pre-paint script sets, so the first
@@ -65,6 +85,11 @@
   --color-text-inverted: #FFFFFF;
   --color-accent: #F05123;
   --color-accent-weak: rgba(240, 81, 35, 0.14);
+  /* Status text, lightened for the dark card. See the light block for the
+     measured ratios and why these three flip while the accent does not. */
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-danger: #F87171;
 }
 
 /* Native control chrome. THE fix for dropdowns: an <option> list, a scrollbar,

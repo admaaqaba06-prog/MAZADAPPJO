@@ -119,7 +119,10 @@ export interface TranslationType {
     verified: string; endingSoon: string; beTheFirst: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
     unavailableTitle: string; unavailableDesc: string;
     sellerCtaText: string; sellerCtaBtn: string;
-    categoryLabels: Record<'Electronics' | 'Luxury' | 'Vehicles' | 'Fashion' | 'Real Estate' | 'Appliances' | 'Home & Furniture', string>;
+    /* `categoryLabels` was here — a second copy of the category taxonomy,
+       maintained by hand and drifted from `utils/categories.ts`. Category
+       labels now come from `categoryLabel()` at the call site, so there is one
+       list to keep correct instead of two. Do not add it back. */
   };
 }
 
@@ -351,15 +354,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       unavailableDesc: "يرجى تحديث الصفحة بعد قليل.",
       sellerCtaText: "جاهز لرؤية سلعتك هنا؟",
       sellerCtaBtn: "اعرض سلعتك للبيع",
-      categoryLabels: {
-        Electronics: "إلكترونيات",
-        Luxury: "كماليات",
-        Vehicles: "مركبات",
-        Fashion: "أزياء",
-        "Real Estate": "عقارات",
-        Appliances: "أجهزة كهربائية",
-        "Home & Furniture": "أثاث ومنزل",
-      },
     },
   },
   en: {
@@ -589,15 +583,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       unavailableDesc: "Please refresh in a moment.",
       sellerCtaText: "Ready to see your item here?",
       sellerCtaBtn: "List your item",
-      categoryLabels: {
-        Electronics: "Electronics",
-        Luxury: "Luxury",
-        Vehicles: "Vehicles",
-        Fashion: "Fashion",
-        "Real Estate": "Real Estate",
-        Appliances: "Appliances",
-        "Home & Furniture": "Home & Furniture",
-      },
     },
   },
 };

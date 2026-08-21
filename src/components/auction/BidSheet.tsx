@@ -76,6 +76,23 @@ export const BidSheet: React.FC<BidSheetProps> = ({
     }
   }, [open]);
 
+  // Escape closes the sheet. Tapping the backdrop already did, but a sheet that
+  // covers the screen and traps the eye had no keyboard way out — and the
+  // confirm overlay it hosts is a money decision, so a reader who cannot reach
+  // the backdrop needs a dismiss that is not a pointer target. Bound while open
+  // only, and `capture` so it runs before anything below it swallows the key.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, onClose]);
+
   // Quick-step chips: minNext, minNext+inc, minNext+2·inc.
   const chips = useMemo(
     () => [minNext, minNext + inc, minNext + 2 * inc],
@@ -136,7 +153,13 @@ export const BidSheet: React.FC<BidSheetProps> = ({
           dir={isAr ? 'rtl' : 'ltr'}
           id="mobile-bid-sheet"
         >
+          {/* role/aria-modal/aria-labelledby: this is a modal sheet over the
+              auction page, but it announced as a plain group, so a screen
+              reader neither named it nor knew the page behind it was inert. */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bid-sheet-title"
             className="relative bg-surface-raised text-fg font-alexandria rounded-t-[26px] px-4 pt-[18px] pb-5 shadow-[0_-20px_50px_rgba(0,0,0,0.3)]"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
             initial={from}
@@ -158,7 +181,7 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             </button>
 
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[15px] font-black text-fg">
+              <h3 id="bid-sheet-title" className="text-[15px] font-black text-fg">
                 {isAr ? 'قدّم مزايدتك' : 'Place your bid'}
               </h3>
               {onOpenRules && (
@@ -227,20 +250,30 @@ export const BidSheet: React.FC<BidSheetProps> = ({
             {/* Or enter a custom amount — validated by validateCustomBid. */}
             <div
               className={`flex items-center justify-between mt-3 border-[1.5px] rounded-[13px] px-3.5 py-2.5 ${
-                customError ? 'border-[#F04438]' : 'border-line'
+                customError ? 'border-danger' : 'border-line'
               }`}
             >
-              <span className="text-[12px] text-fg-muted font-bold">
+              {/* A real <label>, not a <span>: this text was the only thing
+                  identifying the field, so the amount input — the one control
+                  on the screen that decides how much money is committed —
+                  announced as an unnamed number box. */}
+              <label
+                htmlFor="bid-sheet-amount"
+                className="text-[12px] text-fg-muted font-bold"
+              >
                 {isAr ? 'أو أدخل مبلغاً' : 'Or enter amount'}
-              </span>
+              </label>
               <div className="flex items-baseline gap-1">
                 <input
+                  id="bid-sheet-amount"
                   type="number"
                   inputMode="numeric"
                   dir="ltr"
                   value={customValue}
                   min={minNext}
                   disabled={submitting}
+                  aria-invalid={customError != null}
+                  aria-describedby={customError ? 'bid-sheet-amount-error' : undefined}
                   onChange={(e) => {
                     setCustomValue(e.target.value);
                     if (customError) setCustomError(null);
@@ -249,15 +282,23 @@ export const BidSheet: React.FC<BidSheetProps> = ({
                     if (e.key === 'Enter') stageCustom();
                   }}
                   placeholder={fmt(minNext)}
-                  className="w-[92px] text-end bg-transparent outline-none text-[20px] font-black text-fg tabular-nums placeholder-[#ccc]"
+                  className="w-[92px] text-end bg-transparent outline-none text-[20px] font-black text-fg tabular-nums placeholder-fg-muted/70"
                 />
                 <span className="text-[12px] text-fg-muted font-bold">
                   {isAr ? 'د.أ' : 'JOD'}
                 </span>
               </div>
             </div>
+            {/* role=alert so a rejected amount is spoken when it appears — the
+                field is `aria-describedby` this node, which names the error but
+                does not announce it on its own. */}
             {errorText && (
-              <p className="text-[11px] font-bold text-[#F04438] mt-1.5" dir={isAr ? 'rtl' : 'ltr'}>
+              <p
+                id="bid-sheet-amount-error"
+                role="alert"
+                className="text-[11px] font-bold text-danger mt-1.5"
+                dir={isAr ? 'rtl' : 'ltr'}
+              >
                 {errorText}
               </p>
             )}
