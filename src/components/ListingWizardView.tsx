@@ -172,7 +172,31 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
 
   return (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col bg-surface-raised pb-4 overscroll-contain select-none font-sans text-fg"
+      /* A PLAIN container that grows with its content. It must not be a scroll
+         container, and this is not a style preference — it was the bug.
+         `#sell-view-root` is the scroll owner for the whole seller flow, and
+         this element sat inside it carrying `overflow-y-auto overscroll-contain`.
+         Measured at 375x812 with the wizard's real content:
+
+           #sell-view-root        client 812   scroll 1656  → it has the overflow
+           #listing-wizard-root   client 1616  scroll 1616  → nothing to scroll
+
+         So this was a scroll container that could NEVER scroll: it lives in a
+         `min-h-full` flex wrapper inside a scrolling parent, so `flex-1` simply
+         let it grow to its content. `overscroll-behavior` still applies to it
+         though — it applies to any scroll container, scrollable or not — and
+         `contain` means "do not chain this gesture to my ancestors". Chrome
+         Android and Samsung Internet honour that literally: a touch drag that
+         begins in here is swallowed instead of being handed to the ancestor
+         that actually scrolls. iOS Safari and desktop chain anyway, which is
+         why the flow scrolled fine on iPhone and on a laptop.
+
+         Either removing `overflow-y-auto` or removing `overscroll-contain`
+         clears it, but both go: leaving a dead scroll container behind is a
+         trap that returns the moment a layout change makes it scrollable. The
+         `flex-1 min-h-0` pair goes with them — they only shaped a scroll box
+         that should not exist. */
+      className="w-full flex flex-col bg-surface-raised pb-4 select-none font-sans text-fg"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="listing-wizard-root"
     >
