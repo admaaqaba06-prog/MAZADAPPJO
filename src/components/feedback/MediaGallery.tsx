@@ -405,6 +405,19 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                   onClick={onVideoClick}
                 />
               ) : (
+                /* `contain`, not `cover`. Lot photos measured 0.82 → 1.65 in
+                   aspect ratio — a 2× spread — so `cover` cropped each one by a
+                   different amount, and a 1.65 landscape lost ~55% of its width
+                   on the 3:4 mobile stage and ~66% on the desktop 9/16 one. On a
+                   site whose promise is «صور حقيقية», the cropped-away part can
+                   be the flaw a bidder needed to see. The stage is a fixed ratio
+                   so every lot occupies the same box; the photo is letterboxed
+                   inside it rather than trimmed to fit.
+
+                   VIDEO deliberately keeps `cover` (below/above): reel clips are
+                   shot vertically for this stage, so they fill it, and letter-
+                   boxing them would put bars around the one item that is already
+                   the right shape. */
                 <img
                   src={item.url}
                   alt=""
@@ -412,7 +425,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                   height={1200}
                   loading={i === 0 ? 'eager' : 'lazy'}
                   draggable={false}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
                 />
               )}
