@@ -16,12 +16,16 @@
  * bidding screen now renders descriptions, which would have surfaced the echo
  * on the highest-traffic surface.
  *
- * The content was already being collected: the builder's
- * «المواصفات (سطر لكل مواصفة)» field, whose own hint reads "تظهر في نص المنشور
- * فقط" — appears in the post caption only. Real per-lot detail, captured and
- * discarded. It is now the description. When a drop carries no specs the
- * description is EMPTY, because an empty description is honest and a duplicated
- * title is not.
+ * The content was already being collected: the builder's specs field. Real
+ * per-lot detail, captured and discarded. It is now the description. When a
+ * drop carries no specs the description is EMPTY, because an empty description
+ * is honest and a duplicated title is not.
+ *
+ * That field's label and hint have since been corrected to say so — they read
+ * «المواصفات (سطر لكل مواصفة)» / "appears in the post caption only", which was
+ * accurate before this change and false after it. They now name it as the
+ * buyer-facing product description. If you are adding another writer to
+ * `description`, label it for what the buyer sees, not for where it started.
  */
 
 import { type DropChannel } from './dropChannel';
