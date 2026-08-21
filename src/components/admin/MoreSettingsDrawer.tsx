@@ -157,15 +157,32 @@ export const MoreSettingsDrawer: React.FC<MoreSettingsDrawerProps> = ({
             />
           </label>
 
+          {/* This field IS the buyer-facing product description. `dropPayload`
+              joins these lines into `description`, and four buyer surfaces
+              render it — the mobile lot view, the details modal, the desktop
+              bidding aside and the reels panel.
+
+              Its hint used to read "تظهر في نص المنشور فقط" / "Appears in the
+              post caption only". That was true when the payload wrote
+              `description: productName` and threw the specs away; it became a
+              LIE the moment the specs became the description, and the lie is
+              the expensive kind — it tells an admin the one thing buyers read
+              is internal, so there is no reason to write it carefully, or at
+              all. Naming it for what buyers see is the whole fix. */}
           <label className={label}>
-            {isAr ? 'المواصفات (سطر لكل مواصفة)' : 'Specs (one per line)'}
+            {isAr ? 'وصف المنتج (سطر لكل نقطة)' : 'Product description (one point per line)'}
             <textarea
               className={`${field} h-28`}
               value={values.specsText}
               onChange={(e) => onChange('specsText', e.target.value)}
+              placeholder={isAr
+                ? 'الحالة، ما يشمله البيع، وأي عيب'
+                : 'Condition, what is included, and any flaw'}
             />
             <span className="mt-1 block text-[11px] text-fg-muted">
-              {isAr ? 'تظهر في نص المنشور فقط' : 'Appears in the post caption only'}
+              {isAr
+                ? 'يظهر للمشتري في صفحة المزاد وفي نص المنشور. اتركه فارغاً ولن يظهر أي وصف.'
+                : 'Shown to buyers on the lot page and in the post caption. Leave empty and no description appears.'}
             </span>
           </label>
 
