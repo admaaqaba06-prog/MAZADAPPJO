@@ -167,9 +167,9 @@ const ACTIVE_ITEMS = [
   {
     id: "watch",
     icon: "⌚",
-    titleAr: "رولكس ديت جست ٤١",
+    titleAr: "رولكس ديت جست 41",
     titleEn: "Rolex Datejust 41",
-    detailsAr: "٤١ ملم · ستيل · بالكرت والعلبة · صور حقيقية",
+    detailsAr: "41 ملم · ستيل · بالكرت والعلبة · صور حقيقية",
     detailsEn: "41mm · Oystersteel · Box & Papers · Real photos",
     image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=800&q=80",
     badgeAr: "صور حقيقية",
@@ -703,7 +703,14 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   };
 
   // Count text in the active language's numerals (Arabic-Indic for ar).
-  const formatCount = (n: number) => n.toLocaleString(lang === "ar" ? "ar-EG" : "en-US");
+  // `en-US` in BOTH languages. `ar-EG` renders Arabic-Indic digits AND the
+  // Arabic thousands separator (١٬٤٢٠), which is the one thing on this page the
+  // string sweep could not reach — it is produced at render time, not written
+  // in the copy. `utils/arabicNumerals.ts` fixes the policy at
+  // ARABIC_UI_DIGITS = 'western' precisely so a number does not change shape
+  // with the language; the CountUp on line 691 already used en-US, so this was
+  // also inconsistent with the counter sitting beside it.
+  const formatCount = (n: number) => n.toLocaleString("en-US");
 
   // formatTimeLeft and LiveMarketplaceSection hoisted to module scope (see above export)
 
@@ -1217,7 +1224,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   />
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
-                      <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "رولكس ديت جست ٤١" : "Rolex Datejust 41"}</span>
+                      <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "رولكس ديت جست 41" : "Rolex Datejust 41"}</span>
                       <span className="block text-[9px] text-white/50 font-ibmarabic mt-0.5">{lang === "ar" ? "ساعات · مباشر" : "Watches · Live"}</span>
                     </div>
                     <span dir="ltr" className="text-[#FF6B35] font-mono font-black text-sm flex items-center gap-1 shrink-0">
@@ -1247,7 +1254,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   />
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
-                      <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "بورش ٩١١" : "Porsche 911"}</span>
+                      <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "بورش 911" : "Porsche 911"}</span>
                       <span className="block text-[9px] text-white/50 font-ibmarabic mt-0.5">{lang === "ar" ? "مركبات · مباشر" : "Vehicles · Live"}</span>
                     </div>
                     <span dir="ltr" className="text-[#FF6B35] font-mono font-black text-sm flex items-center gap-1 shrink-0">
@@ -1441,7 +1448,12 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <Hammer className={`w-4 h-4 text-white ${prefersReducedMotion ? "" : "animate-bounce"}`} />
                       <span className="font-ibmarabic tracking-wide text-sm">
                         {lang === "ar" 
-                          ? `زايد الآن (+${currentItem.stepPrice.toLocaleString("ar-JO")} د.أ)` 
+                          /* en-US in both branches: this is money, and
+                             `formatMoney` renders every other amount in the app
+                             in Western digits regardless of language. `ar-JO`
+                             made this the only price on the page shaped
+                             differently from the rest. */
+                          ? `زايد الآن (+${currentItem.stepPrice.toLocaleString("en-US")} د.أ)`
                           : `Bid Now (+${currentItem.stepPrice.toLocaleString("en-US")} JOD)`}
                       </span>
                     </motion.button>
@@ -1703,7 +1715,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         {lang === "ar" ? "استلم فلوسك" : "Get Paid"}
                       </h3>
                       <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
-                        {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط عند البيع، والباقي إلك فوراً" : "Sellers keep 95% — just 5% commission on sale, and the rest is yours instantly."}
+                        {lang === "ar" ? "البائع يستلم 95٪ — عمولة 5٪ فقط عند البيع، والباقي إلك فوراً" : "Sellers keep 95% — just 5% commission on sale, and the rest is yours instantly."}
                       </p>
                     </div>
                   </>
@@ -1932,19 +1944,19 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                   {[
                     {
-                      arVal: "١,٢٥٠+",
+                      arVal: "1,250+",
                       enVal: "1,250+",
                       arLabel: "عملية بيع ناجحة",
                       enLabel: "Successful Sales"
                     },
                     {
-                      arVal: "٣,٤٠٠+",
+                      arVal: "3,400+",
                       enVal: "3,400+",
                       arLabel: "منتج معروض",
                       enLabel: "Listed Items"
                     },
                     {
-                      arVal: "١٥,٠٠٠+",
+                      arVal: "15,000+",
                       enVal: "15,000+",
                       arLabel: "مستخدم نشط",
                       enLabel: "Active Users"
@@ -2773,7 +2785,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 <Reveal delay={0.15}>
                   <p className="text-white/90 text-sm sm:text-lg font-ibmarabic max-w-xl mx-auto leading-relaxed">
                     {lang === "ar"
-                      ? "انضم اليوم واستفد من فترة بدون رسوم عرض — البائع يستلم ٩٥٪ وعمولتنا ٥٪ فقط عند البيع الفعلي، + عمولة مشترٍ ٥٪ عند الفوز."
+                      ? "انضم اليوم واستفد من فترة بدون رسوم عرض — البائع يستلم 95٪ وعمولتنا 5٪ فقط عند البيع الفعلي، + عمولة مشترٍ 5٪ عند الفوز."
                       : "Join today and take advantage of a listing fee-free period — sellers keep 95% with just 5% commission on actual sales, +5% buyer's premium on wins."}
                   </p>
                 </Reveal>
@@ -2869,7 +2881,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               <MapPin className="w-3.5 h-3.5 text-[#F05123] shrink-0" />
               <span>
                 {lang === "ar"
-                  ? "عمّان — شارع المدينة المنورة — مجمع سعد ٤ — مقابل حبيبة"
+                  ? "عمّان — شارع المدينة المنورة — مجمع سعد 4 — مقابل حبيبة"
                   : "Amman — Al-Madina Al-Munawara St — Saad 4 Complex — Opposite Habiba"}
               </span>
             </span>
@@ -2885,7 +2897,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             </div>
             <span className="text-[11px] text-fg-muted">
               {lang === "ar"
-                ? "ساعات العمل: ١٠ صباحاً – ٧ مساءً · السبت إلى الخميس"
+                ? "ساعات العمل: 10 صباحاً – 7 مساءً · السبت إلى الخميس"
                 : "Working hours: 10 AM – 7 PM · Saturday to Thursday"}
             </span>
           </div>
