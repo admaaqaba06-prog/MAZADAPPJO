@@ -398,7 +398,23 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
       {/* ================= SCROLLABLE BODY ================= */}
       <div className="flex-1 overflow-y-auto overscroll-contain pb-28">
         {/* ----- MEDIA ----- */}
-        <div className="relative w-full h-[300px] bg-black" id="mobile-auction-media">
+        {/* A fixed RATIO, not a fixed pixel height. `h-[300px]` made the stage's
+            shape depend on the device: 375/300 = 1.25 on a small phone, 1.43 on
+            a large one, wider still on a tablet — so the same lot was framed
+            differently on every screen, and with `object-cover` it was also
+            cropped by a different amount on each. 3:4 is the ratio the Discover
+            cards already use, so a lot keeps its shape from the feed into the
+            lot page. Black is kept deliberately: the letterbox bars must not
+            flip with the theme, the same reason the desktop stage is black. */}
+        {/* `max-h-[62vh]` is the floor under the price, not a style choice. At a
+            strict 3:4 the stage is 480px tall on a 360×640 phone — the size this
+            app targets — which pushed the price and the countdown 23px BELOW the
+            fold. On an auction the price is the one thing that must never need a
+            scroll, so on a short viewport the stage clamps and gives that height
+            back. Tall phones are unaffected: 375×812 wants 469px and the cap is
+            503px, so the ratio holds exactly where nearly all traffic sits.
+            A strict single ratio on every screen would need 4:5 instead. */}
+        <div className="relative w-full aspect-[3/4] max-h-[62vh] bg-black" id="mobile-auction-media">
           <MediaGallery
             key={activeAuction?.id}
             items={media}
