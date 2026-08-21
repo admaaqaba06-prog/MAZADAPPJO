@@ -67,8 +67,17 @@ function build(lang, data) {
       order_delivered: { type: 'order', title: 'Delivered', description: `Your order "${t}" has been delivered.` },
       order_completed: { type: 'order', title: 'Order complete', description: `Your order "${t}" is complete.` },
       order_refunded: { type: 'refund', title: 'Refunded', description: `Your order "${t}" has been refunded.` },
-      membership_rejected: { type: 'subscription', title: 'Membership review', description: d.reason || 'Your membership request was not approved.' },
-      order_payment_rejected: { type: 'order', title: 'Payment proof rejected', description: d.reason || 'Please send your payment proof again.' },
+      // `d.reason` is FREE TEXT an admin typed, in Arabic, for a mostly Arabic
+      // audience. Interpolated bare it produced an English title over an Arabic
+      // body with nothing to explain the switch. Labelling it does not
+      // translate it — nothing here can — but it tells the reader that what
+      // follows is a quoted note rather than broken output, and it keeps the
+      // admin's nuance. The proper fix is canned reasons carrying both
+      // translations, which needs a decision about the admin UI; see the issue.
+      // Arabic recipients are untouched: an Arabic note under an Arabic heading
+      // needs no label, so the label lives only in this English map.
+      membership_rejected: { type: 'subscription', title: 'Membership review', description: d.reason ? `Reason (as written): ${d.reason}` : 'Your membership request was not approved.' },
+      order_payment_rejected: { type: 'order', title: 'Payment proof rejected', description: d.reason ? `Reason (as written): ${d.reason}` : 'Please send your payment proof again.' },
       account_banned: { type: 'alert', title: 'Account restricted', description:
         d.reason === 'payment_default_repeat' ? 'Your account is suspended for 3 months for repeated non-payment.'
         : d.reason === 'payment_default' ? 'Bidding is restricted for 48 hours because of non-payment.'

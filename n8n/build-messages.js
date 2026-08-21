@@ -290,6 +290,15 @@ for (const item of $input.all()) {
       waText,
       subject: ec ? ec.subject : local().title,
       html: ec ? buildHtmlFromContent(ec, name) : buildHtml(local(), name),
+      // The sender DISPLAY NAME, resolved here for the same reason `subject`
+      // and `html` are: this node already owns the email render, so the Resend
+      // node stays a dumb transport instead of holding a second language
+      // decision. It used to hardcode `مزاد جو`, so an English email arrived
+      // from an Arabic-named sender — inconsistent, and boxes in some clients.
+      // No `ec` means the Arabic local fallback rendered this mail, so Arabic
+      // is the right name for it too; `ec.lang` is the only signal consulted,
+      // exactly as buildHtmlFromContent already does for direction.
+      fromName: ec && ec.lang === 'en' ? 'MAZAD JO' : 'مزاد جو',
     },
   });
 }

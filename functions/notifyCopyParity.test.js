@@ -706,9 +706,27 @@ describe('the local Arabic render is built only when a surface actually needs it
     expect('title' in out).toBe(false);
     expect('description' in out).toBe(false);
     expect(Object.keys(out).sort()).toEqual([
-      'email', 'event', 'html', 'idempotencyKey', 'name', 'phone',
+      // `fromName` is the sender DISPLAY name. It belongs on this list rather
+      // than being dead copy: `Send: Email (Resend)` interpolates it into the
+      // Resend `from` field, which previously hardcoded `مزاد جو` and so sent
+      // English mail from an Arabic-named sender.
+      'email', 'event', 'fromName', 'html', 'idempotencyKey', 'name', 'phone',
       'sendEmail', 'sendWhatsapp', 'subject', 'waText',
     ]);
+  });
+
+  it('resolves the sender display name from the rendered language', () => {
+    const en = runNode(payload({ email_content: serverContent('en'), wa_text: SENTINEL.wa }));
+    expect(en.fromName).toBe('MAZAD JO');
+    const ar = runNode(payload({ email_content: serverContent('ar'), wa_text: SENTINEL.wa }));
+    expect(ar.fromName).toBe('مزاد جو');
+  });
+
+  it('names the sender in Arabic when the local Arabic fallback rendered the mail', () => {
+    // No usable email_content, so buildHtml (Arabic-only) produced the mail —
+    // an English sender name on an Arabic email is the same mismatch inverted.
+    const out = runNode(payload({ wa_text: SENTINEL.wa }));
+    expect(out.fromName).toBe('مزاد جو');
   });
 });
 
@@ -830,6 +848,22 @@ describe('the workflow export embeds the same node source', () => {
     // If this fails: re-embed the file into the export (they are ONE artefact,
     // committed together). Do not edit the JSON by hand and do not relax this.
     expect(buildNode.parameters.jsCode.trimEnd()).toBe(n8nSrc.trimEnd());
+  });
+
+  it('the Resend node sends FROM the resolved name, not a hardcoded one', () => {
+    // The exact failure this repo exists to end: `email_content` was rendered
+    // on every send for four days while the live node never referenced it. A
+    // `fromName` that nothing interpolates is that bug again, one field down —
+    // so assert the consumer, not just the producer.
+    const send = workflow.nodes.find((n) => n.name === 'Send: Email (Resend)');
+    expect(send, 'Send: Email (Resend) missing from the export').toBeTruthy();
+    const body = send.parameters.jsonBody;
+    expect(body).toContain('$json.fromName');
+    // The Arabic literal must be GONE from the transport: while it is still
+    // there, an English mail can still ship from an Arabic sender.
+    expect(body).not.toContain('مزاد جو');
+    // The address itself is not language-dependent and must survive.
+    expect(body).toContain('no-reply@mazad-jo.com');
   });
 
   it('the embedded copy really forwards — not just matches by string', () => {
