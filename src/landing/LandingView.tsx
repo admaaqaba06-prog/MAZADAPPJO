@@ -2182,7 +2182,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             <Reveal>
               <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria leading-tight">
-                  {lang === "ar" ? "أسعار بسيطة وواضحة" : "Simple and Clear Pricing"}
+                  {lang === "ar" ? "اشتراكات بسيطة وواضحة" : "Simple and Clear Subscriptions"}
                 </h2>
                 <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto leading-relaxed">
                   {lang === "ar" 
@@ -2214,7 +2214,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       
                       <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black text-fg font-alexandria">
-                          {lang === "ar" ? "١ دينار" : "1 JOD"}
+                          {lang === "ar" ? "1 دينار" : "1 JOD"}
                         </span>
                         <span className="text-sm text-fg-muted font-ibmarabic">
                           / {lang === "ar" ? "شهرياً" : "month"}
@@ -2268,20 +2268,20 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-[#F05123] uppercase tracking-wider font-ibmarabic">
-                            {lang === "ar" ? "وفّر ٣٣٪" : "Save 33%"}
+                            {lang === "ar" ? "وفّر 33٪" : "Save 33%"}
                           </span>
                         </div>
                         <h3 className="text-2xl font-bold text-fg font-alexandria flex items-center gap-2">
-                          {lang === "ar" ? "٦ أشهر" : "6 Months"}
+                          {lang === "ar" ? "6 أشهر" : "6 Months"}
                         </h3>
                       </div>
                       
                       <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black text-[#F05123] font-alexandria">
-                          {lang === "ar" ? "٤ دنانير" : "4 JOD"}
+                          {lang === "ar" ? "4 دنانير" : "4 JOD"}
                         </span>
                         <span className="text-sm text-fg-muted font-ibmarabic">
-                          / {lang === "ar" ? "٦ أشهر" : "6 months"}
+                          / {lang === "ar" ? "6 أشهر" : "6 months"}
                         </span>
                       </div>
 
@@ -2330,7 +2330,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                     <div className="space-y-6">
                       <div className="space-y-2">
                         <span className="text-xs font-bold text-fg-muted uppercase tracking-wider font-ibmarabic">
-                          {lang === "ar" ? "أفضل قيمة — وفّر ٤٢٪" : "Best Value — Save 42%"}
+                          {lang === "ar" ? "أفضل قيمة — وفّر 42٪" : "Best Value — Save 42%"}
                         </span>
                         <h3 className="text-xl font-bold text-fg font-alexandria">
                           {lang === "ar" ? "سنة كاملة" : "1 Year"}
@@ -2339,7 +2339,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       
                       <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black text-fg font-alexandria">
-                          {lang === "ar" ? "٧ دنانير" : "7 JOD"}
+                          {lang === "ar" ? "7 دنانير" : "7 JOD"}
                         </span>
                         <span className="text-sm text-fg-muted font-ibmarabic">
                           / {lang === "ar" ? "سنوياً" : "yearly"}
@@ -2383,7 +2383,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
             <Reveal>
               <div className="text-center mt-8 text-xs text-fg-muted font-ibmarabic">
                 {lang === "ar"
-                  ? "مزايدة بلا حدود · الدفع عبر كليك · بدون رسوم خفية · + عمولة مشترٍ ٥٪ عند الفوز"
+                  ? "مزايدة بلا حدود · الدفع عبر كليك · بدون رسوم خفية · + عمولة مشترٍ 5٪ عند الفوز"
                   : "Unlimited bidding · Pay via CliQ · No hidden fees · +5% buyer's premium on wins"}
               </div>
             </Reveal>
@@ -2405,11 +2405,11 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 pt-8">
                     <div className="space-y-4 max-w-2xl">
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
-                        {lang === "ar" ? "البائع يستلم ٩٥٪ — عمولة ٥٪ فقط" : "Sellers keep 95% — just 5% commission"}
+                        {lang === "ar" ? "البائع يستلم 95٪ — عمولة 5٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
                       <p className="text-fg-muted text-xs md:text-sm leading-relaxed font-ibmarabic">
                         {lang === "ar" 
-                          ? "بدون رسوم عرض حالياً. لا رسوم إذا لم يُبَع المنتج. عمولة ٥٪ فقط عندما يجد منتجك مشتريه."
+                          ? "بدون رسوم عرض حالياً. لا رسوم إذا لم يُبَع المنتج. عمولة 5٪ فقط عندما يجد منتجك مشتريه."
                           : "No listing fees right now. No fees if the product is not sold. Just 5% commission when your product finds a buyer."}
                       </p>
                     </div>
