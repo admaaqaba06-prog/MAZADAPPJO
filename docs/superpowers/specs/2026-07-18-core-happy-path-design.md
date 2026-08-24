@@ -65,7 +65,7 @@ The inherited app was modeled on Whatnot (pre-loaded wallet, per-bid escrow lock
 ## App-wide fixes riding along
 
 - **Bilingual, Arabic-default:** a visible language selector (عربي / English) on the landing header AND in the app header on every screen. Arabic is the default; English is a full first-class option (all v1 copy ships in both). The choice persists (localStorage) and carries across landing → app → return visits.
-- Landing: pricing CTAs → app membership (kill `#coming-soon` dead ends), copy de-pre-launched, 5%+5% language, brand name unified (**Mazad JO** — one form, one logo).
+- Landing: pricing CTAs → app membership (kill `#coming-soon` dead ends), copy de-pre-launched, 5%+5% language, brand name unified (**Mazzado** — one form, one logo).
 - Membership status chip in the app header where the wallet balance used to be («عضو حتى ١٥/٨» or «انضم بـ ١ دينار»).
 
 ## Success criteria

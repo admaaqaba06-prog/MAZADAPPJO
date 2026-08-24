@@ -976,7 +976,31 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   };
 
   return (
-    <div className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-hidden">
+    <div
+      /* `overflow-x-clip`, NOT `overflow-hidden`. The ambient glow circles below
+          are absolutely positioned past the left and right edges and need
+          clipping — but `overflow-hidden` clips BOTH axes, and an element with a
+          non-visible overflow is a scroll container. This root therefore held a
+          second, invisible vertical scroller nested inside the document's, with
+          565px of range it never showed a scrollbar for. Measured at 1280x800:
+  
+            fresh load         window.scrollY 0     root.scrollTop 0     hero.top  +77
+            after #categories  window.scrollY 5073  root.scrollTop 565   hero.top -5561
+            scrolled back up   window.scrollY 0     root.scrollTop 565   hero.top -488
+  
+          A fragment jump scrolls the nearest scroll container, so the browser
+          moved THIS element's scrollTop to its 565px maximum. Scrolling back up
+          returns `window.scrollY` to 0 — the scrollbar is visibly at the top —
+          but nothing returns `root.scrollTop`, because no scrollbar was ever
+          rendered for it. The hero stayed pushed 565px up and read as cropped.
+  
+          `overflow-x: clip` clips without establishing a scroll container, and it
+          leaves the y axis `visible`. `overflow-x: hidden` would NOT do: per
+          spec, `hidden` on one axis forces a `visible` other axis to compute to
+          `auto`, so the element stays a scroll container and the bug survives.
+          The document's scrolling element is now the page's only scroll owner. */
+      className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-x-clip"
+    >
       
       {/* Scroll Progress Indicator at top of screen */}
       <motion.div
@@ -1207,7 +1231,11 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       />
                     </svg>
                   </span>
-                  <span className="block">{t.hero.titleLast}</span>
+                  {/* Guarded: the headline is two lines now. This h1 is a flex
+                      column with a gap, so an empty third span would still be a
+                      flex item and leave the gap behind as a blank line under
+                      the headline. */}
+                  {t.hero.titleLast && <span className="block">{t.hero.titleLast}</span>}
                 </motion.h1>
 
                 {/* Paragraph */}
@@ -1411,14 +1439,14 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <div className="relative flex shrink-0">
                           <img 
                             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                            alt={lang === 'ar' ? 'بث مزاد جو' : 'MazadJo Streamer'} 
+                            alt={lang === 'ar' ? 'بث مزادو' : 'Mazzado Streamer'} 
                             className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
                           />
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
                         <div className={`flex flex-col ${lang === "ar" ? "text-right" : "text-left"}`}>
                           <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
-                            {lang === "ar" ? "مزاد جو مباشر" : "Mazad JO Live"}
+                            {lang === "ar" ? "مزادو مباشر" : "Mazzado Live"}
                             <Sparkles className="w-3 h-3 text-amber-400" />
                           </span>
                           <span className="text-[9px] text-gray-300 font-ibmarabic flex items-center gap-1 mt-0.5">
@@ -1571,7 +1599,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
+        {/* 2.5 Section: How it works (كيف بيشتغل مزادو) */}
         <section id="how-it-works" className="py-[96px] bg-surface-raised border-b border-line relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <Reveal>
@@ -1580,7 +1608,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   {lang === "ar" ? "خطواتنا" : "Our Process"}
                 </span>
                 <h2 className="text-4xl md:text-5xl font-bold text-fg font-ibmarabic mb-4 leading-tight">
-                  {lang === "ar" ? "كيف بيشتغل مزاد جو؟" : "How does MazadJo work?"}
+                  {lang === "ar" ? "كيف بيشتغل مزادو؟" : "How does Mazzado work?"}
                 </h2>
                 <p className="text-lg text-fg-muted font-ibmarabic">
                   {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
@@ -1858,7 +1886,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 4. Section "لماذا MazadJo" (Comparison VS) */}
+        {/* 4. Section "لماذا Mazzado" (Comparison VS) */}
         <section id="why-mazadjo" className="py-20 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
@@ -1917,7 +1945,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 </Reveal>
               </div>
 
-              {/* Column 2: MazadJo (Smart Royal Gold hover highlights) */}
+              {/* Column 2: Mazzado (Smart Royal Gold hover highlights) */}
               <div className="lg:col-span-5">
                 <Reveal delay={0.2}>
                   <motion.div
@@ -2140,10 +2168,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد جو بتحتفظ بالمبلغ",
-                        enTitle: "MazadJo holds the payment",
-                        arDesc: "مزاد جو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        enDesc: "MazadJo holds your payment and does not release it to the seller until you receive the item and confirm it matches."
+                        arTitle: "مزادو بتحتفظ بالمبلغ",
+                        enTitle: "Mazzado holds the payment",
+                        arDesc: "مزادو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "Mazzado holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,

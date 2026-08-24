@@ -352,7 +352,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         lg:pt-20 clears the ABSOLUTE header (top-6, 32px tall — its box ends at
         56px). Without it the first line of the panel renders underneath the
         logo: on desktop the activity count sat at y=32 and "8 lots live right
-        now" collided with "MAZAD JO". Padding on the wrapper rather than on
+        now" collided with "MAZZADO". Padding on the wrapper rather than on
         either column, so lg:items-center keeps the two aligned to each other.
         Mobile needs none — the compact block carries its own mt-16.
       */}

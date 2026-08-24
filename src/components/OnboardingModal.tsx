@@ -59,8 +59,8 @@ export const OnboardingModal: React.FC = () => {
 
   const stepsData = [
     {
-      titleAr: 'يا هلا بيك في مزاد جو 👋',
-      titleEn: 'Welcome to MAZAD JO 👋',
+      titleAr: 'يا هلا بيك في مزادو 👋',
+      titleEn: 'Welcome to MAZZADO 👋',
       descAr: 'تصفح المزادات المباشرة وزايد على المنتجات بالوقت الفعلي بكل سهولة.',
       descEn: 'Browse live auctions and bid on products in real time.',
       buttonAr: 'ابدأ',
@@ -185,7 +185,7 @@ export const OnboardingModal: React.FC = () => {
                 className="w-full py-1.5 text-xs font-semibold text-slate-400 hover:text-fg underline underline-offset-2 decoration-slate-200 hover:decoration-slate-400 transition-colors cursor-pointer"
                 id="onboarding-how-it-works-link"
               >
-                {isAr ? 'كيف يعمل مزاد جو؟' : 'How does Mazad JO work?'}
+                {isAr ? 'كيف يعمل مزادو؟' : 'How does Mazzado work?'}
               </button>
             </div>
           </div>

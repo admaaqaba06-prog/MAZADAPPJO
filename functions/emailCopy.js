@@ -44,8 +44,8 @@ function normalizeLang(lang) {
  * rather than identity.
  */
 const BRAND = Object.freeze({
-  nameAr: 'مزاد جو',
-  nameEn: 'MAZAD JO',
+  nameAr: 'مزادو',
+  nameEn: 'MAZZADO',
   legalName: 'Al Hani Commercial Brokerage LLC',
   legalNameAr: 'شركة الهاني للوساطة التجارية ذ.م.م',
   registration: '200213982',
@@ -537,21 +537,21 @@ function secondChanceContent(event, data, lang) {
 
 const FALLBACK = {
   ar: {
-    subject: () => 'تحديث من مزاد جو',
+    subject: () => 'تحديث من مزادو',
     heading: 'تحديث على حسابك',
     intro: 'لديك تحديث جديد. افتح التطبيق للاطلاع على التفاصيل.',
-    cta: 'فتح مزاد جو',
+    cta: 'فتح مزادو',
   },
   en: {
-    subject: () => 'An update from Mazad JO',
+    subject: () => 'An update from Mazzado',
     heading: 'An update on your account',
     intro: 'You have a new update. Open the app to see the details.',
-    cta: 'Open Mazad JO',
+    cta: 'Open Mazzado',
   },
 };
 
 /** The subject's stand-in when the payload carries no lot title. */
-const UNTITLED = { ar: 'مزاد جو', en: 'Mazad JO' };
+const UNTITLED = { ar: 'مزادو', en: 'Mazzado' };
 
 /**
  * Build the email for an event.

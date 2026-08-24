@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Make the Mazad JO product *feel* trustworthy by fixing the small correctness + credibility defects the spec audit surfaced — one shared order-status glossary, "unpaid ≠ sale", a notifications render guard, and the seller-center cosmetic bugs — plus a dry-run-first cleanup of test-data noise.
+**Goal:** Make the Mazzado product *feel* trustworthy by fixing the small correctness + credibility defects the spec audit surfaced — one shared order-status glossary, "unpaid ≠ sale", a notifications render guard, and the seller-center cosmetic bugs — plus a dry-run-first cleanup of test-data noise.
 
 **Architecture:** Additive shared util (`orderStatusGlossary`) becomes the single source of truth for status label+color; per-screen hard-coded tables are refactored to consume it. Other tasks are localized logic/UI fixes. No schema changes, no new deps. Data cleanup is a standalone script that dry-runs by default.
 

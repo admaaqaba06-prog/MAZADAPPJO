@@ -759,7 +759,7 @@ export const SellerCenterView: React.FC = () => {
       if (isResubmit) {
         addNotification(
           isAr ? '🔄 تمت إعادة الإرسال للمراجعة' : '🔄 Resubmitted for Review',
-          isAr ? `تمت إعادة إرسال "${editTitle}" لفريق مزاد جو للمراجعة والموافقة.` : `"${editTitle}" was resubmitted to the Mazad JO team for review & approval.`,
+          isAr ? `تمت إعادة إرسال "${editTitle}" لفريق مزادو للمراجعة والموافقة.` : `"${editTitle}" was resubmitted to the Mazzado team for review & approval.`,
           'info'
         );
       } else {

@@ -262,7 +262,7 @@ export const WalletView: React.FC = () => {
     .filter(e => e.auctionId !== 'cliq-dep' && e.auctionId !== 'cliq-sub' && e.status === 'locked')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const totalMazadJomCapital = approvedDepositsSum + pendingDepositsSum + subscriptionRevenueSum;
+  const totalMazzadomCapital = approvedDepositsSum + pendingDepositsSum + subscriptionRevenueSum;
 
   const currentLockedEscrows = escrows.filter(e => e.status === 'locked');
   const historicEscrows = escrows.filter(e => e.status !== 'locked');
@@ -347,7 +347,7 @@ export const WalletView: React.FC = () => {
         isAr={isAr}
         currentUser={currentUser}
         logout={logout}
-        totalMazadJomCapital={totalMazadJomCapital}
+        totalMazzadomCapital={totalMazzadomCapital}
         approvedDepositsSum={approvedDepositsSum}
         subscriptionRevenueSum={subscriptionRevenueSum}
         activeSubscribers={activeSubscribers}
@@ -828,8 +828,8 @@ export const WalletView: React.FC = () => {
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
                 {isAr
-                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
-                  : "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes."}
+                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزادو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.'
+                  : "Funds are transferred via CliQ to Mazzado's account at Arab Bank and held until your order completes."}
               </p>
             </div>
 

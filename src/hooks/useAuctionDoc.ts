@@ -41,12 +41,23 @@ import { mapAuctionDocFull } from '../utils/auctionDocMap';
 import { resolveVideoUrl } from '../utils/videoDb';
 import { resolveCachedVideo } from '../utils/auctionVideoResolve';
 
-type FullListener = (v: AuctionItem) => void;
+/**
+ * `null` means the doc is CONFIRMED ABSENT, not "not yet known" — the snapshot
+ * arrived and the lot does not exist. Callers need that apart from "still
+ * loading": substituting a different lot while a real one is in flight is what
+ * made a deep link show another auction's details entirely.
+ */
+type FullListener = (v: AuctionItem | null) => void;
+
+/** What `useAuctionDocState` knows about the requested lot right now. */
+export type AuctionDocStatus = 'idle' | 'loading' | 'found' | 'missing';
 
 interface FullEntry {
   unsub: () => void;
   refCount: number;
   last: AuctionItem | null;
+  /** True once a snapshot has said the doc does not exist. */
+  missing: boolean;
   // Raw `data.videoUrl` of the LATEST snapshot. Guards the async video patch: an
   // in-flight resolution is dropped if a newer snapshot has since changed the raw
   // video (so a stale resolved URL never clobbers fresher state).
@@ -66,7 +77,7 @@ const registry = new Map<string, FullEntry>();
 // separate instance on purpose.
 const videoUrlCache = new Map<string, { rawUrl: string; resolvedUrl: string }>();
 
-function notify(e: FullEntry, item: AuctionItem): void {
+function notify(e: FullEntry, item: AuctionItem | null): void {
   e.last = item;
   // Snapshot the listener set: a listener may unsubscribe mid-notify.
   for (const l of Array.from(e.listeners)) {
@@ -87,14 +98,25 @@ function notify(e: FullEntry, item: AuctionItem): void {
 export function subscribeAuctionDoc(id: string, listener: FullListener): () => void {
   let entry = registry.get(id);
   if (!entry) {
-    entry = { unsub: () => {}, refCount: 0, last: null, lastRaw: '', listeners: new Set() };
+    entry = { unsub: () => {}, refCount: 0, last: null, missing: false, lastRaw: '', listeners: new Set() };
     registry.set(id, entry);
     entry.unsub = onSnapshot(
       doc(db, 'auctions', id),
       (snap) => {
-        if (!snap.exists()) return;
         const e = registry.get(id);
         if (!e) return;
+        if (!snap.exists()) {
+          // Was `return` — the absence was swallowed, so a caller could never
+          // tell a missing lot from one still loading and fell back to showing
+          // a DIFFERENT lot. Report it instead.
+          e.missing = true;
+          e.last = null;
+          for (const l of Array.from(e.listeners)) {
+            if (e.listeners.has(l)) { try { l(null); } catch (err) { console.error('[useAuctionDoc] listener threw:', err); } }
+          }
+          return;
+        }
+        e.missing = false;
         const data = snap.data() as any;
         const item = mapAuctionDocFull(snap.id, data);
         const rawVideoUrl = data.videoUrl || '';
@@ -157,13 +179,37 @@ export function subscribeAuctionDoc(id: string, listener: FullListener): () => v
  * so no Firestore subscription outlives its last room surface.
  */
 export function useAuctionDoc(id: string | null): AuctionItem | null {
+  return useAuctionDocState(id).item;
+}
+
+/**
+ * The same subscription, plus WHICH of the three null-ish situations you are in:
+ *
+ *   'idle'     no id requested
+ *   'loading'  an id was requested and no snapshot has answered yet
+ *   'found'    the lot is here
+ *   'missing'  the snapshot said this lot does not exist
+ *
+ * `useAuctionDoc` collapses all three non-`found` states to `null`, which read
+ * as interchangeable and were not: `LiveStreamView` answered that null with
+ * `?? feedLive[0]`, so a lot that was merely still loading — every deep link,
+ * every refresh — rendered a DIFFERENT auction's title, description, condition
+ * and price, and the id-sync effect then rewrote `activeAuctionId` to that other
+ * lot, making the substitution permanent rather than a flicker.
+ */
+export function useAuctionDocState(id: string | null): {
+  item: AuctionItem | null;
+  status: AuctionDocStatus;
+} {
   const [item, setItem] = useState<AuctionItem | null>(null);
+  const [status, setStatus] = useState<AuctionDocStatus>('idle');
   const prevIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!id) {
       prevIdRef.current = null;
       setItem(null);
+      setStatus('idle');
       return;
     }
     let active = true;
@@ -174,12 +220,18 @@ export function useAuctionDoc(id: string | null): AuctionItem | null {
     if (prevIdRef.current !== id) {
       prevIdRef.current = id;
       setItem(existing?.last ?? null); // id changed → clear prior lot (seed from cache if present)
+      // A cached object means this lot is already known; a cached MISSING flag
+      // means it is already known to be absent. Only a cold id is 'loading'.
+      setStatus(existing?.last ? 'found' : existing?.missing ? 'missing' : 'loading');
     } else if (existing?.last) {
       setItem(existing.last);
+      setStatus('found');
     }
 
     const unsubscribe = subscribeAuctionDoc(id, (v) => {
-      if (active) setItem(v);
+      if (!active) return;
+      setItem(v);
+      setStatus(v ? 'found' : 'missing');
     });
 
     return () => {
@@ -188,5 +240,5 @@ export function useAuctionDoc(id: string | null): AuctionItem | null {
     };
   }, [id]);
 
-  return item;
+  return { item, status };
 }

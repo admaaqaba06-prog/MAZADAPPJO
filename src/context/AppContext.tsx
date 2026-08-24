@@ -3067,7 +3067,7 @@ const fetchIP = async () => {
       try {
         new window.Notification(title, {
           body: description,
-          icon: '/icon.svg',
+          icon: '/icon-192.png',
           tag: newNotif.id,
           silent: false
         });
@@ -4032,7 +4032,7 @@ const fetchIP = async () => {
       // checks are all keyed on it. Only the buyer-facing DISPLAY identity below
       // changes. Same for createdById further down.
       sellerId: currentUser.id,
-      // Mazad's own drops (admin drop-builder, soldByMazad) sell as the MazadJo
+      // Mazad's own drops (admin drop-builder, soldByMazad) sell as the Mazzado
       // store, not as the individual admin who happened to build them — that is
       // what a buyer is actually transacting with. Gated on isAdminUser so a
       // forged flag from a seller-facing path cannot claim Mazad's identity.

@@ -4144,7 +4144,7 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
           direction: 'credit',
           titleAr: 'تحصيل دفعة مبيعات',
           titleEn: 'Sale Payment Received',
-          descriptionAr: `تم استلام ${sellerNetJOD} د.أ (بعد خصم عمولة مزاد جو ٥٪) في رصيدك.`,
+          descriptionAr: `تم استلام ${sellerNetJOD} د.أ (بعد خصم عمولة مزادو ٥٪) في رصيدك.`,
           descriptionEn: `Received ${sellerNetJOD} JOD (after 5% Mazad commission) into your available balance.`,
           timestamp: Date.now()
         });
@@ -4165,7 +4165,7 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
             amountFils: commissionFils,
             type: 'seller_commission',
             direction: 'credit',
-            titleAr: 'عمولة مزاد جو (٥٪)',
+            titleAr: 'عمولة مزادو (٥٪)',
             titleEn: 'Mazad Commission (5%)',
             descriptionAr: `عمولة المنصة ٥٪ بقيمة ${commissionJOD} د.أ على سعر البيع.`,
             descriptionEn: `5% platform commission (${commissionJOD} JOD) on the sale price.`,

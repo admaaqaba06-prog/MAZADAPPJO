@@ -20,7 +20,7 @@
 //     verifies. Promising channels the platform cannot accept is the kind of
 //     claim a consumer-protection complaint is built from.
 //
-//  3. Seller-conduct wording. "Mazad JO reserves absolute authority to
+//  3. Seller-conduct wording. "Mazzado reserves absolute authority to
 //     deactivate merchant accounts and hold funds if deceptive claims are
 //     resolved" — "if ... are resolved" inverts the intended meaning, and
 //     "battery levels, localized defects, transparent colors, and physical body
@@ -51,8 +51,8 @@ export interface LegalSection {
 export const LEGAL_HEADER = {
   titleEn: 'Terms of Use & Privacy Policy',
   titleAr: 'شروط الاستخدام وسياسة الخصوصية',
-  subtitleEn: 'Mazad JO | Jordan bidding platform',
-  subtitleAr: 'مزاد جو | منصة المزادات في الأردن',
+  subtitleEn: 'Mazzado | Jordan bidding platform',
+  subtitleAr: 'مزادو | منصة المزادات في الأردن',
 };
 
 export const LEGAL_SECTIONS: LegalSection[] = [
@@ -69,8 +69,8 @@ export const LEGAL_SECTIONS: LegalSection[] = [
       },
       {
         // CORRECTED (2): was a list of four channels, three of which do not exist.
-        en: 'Payment is made by CliQ transfer. You upload the transfer receipt and Mazad JO verifies it before the order moves forward.',
-        ar: 'يتم الدفع عبر حوالة كليك (CliQ). ترفع إيصال الحوالة ويقوم مزاد جو بالتحقق منه قبل أن يتقدّم الطلب.',
+        en: 'Payment is made by CliQ transfer. You upload the transfer receipt and Mazzado verifies it before the order moves forward.',
+        ar: 'يتم الدفع عبر حوالة كليك (CliQ). ترفع إيصال الحوالة ويقوم مزادو بالتحقق منه قبل أن يتقدّم الطلب.',
       },
       {
         en: 'If you win and do not pay within the window, the order defaults: your account enters a cooldown, and repeated defaults lead to a longer suspension.',
@@ -86,18 +86,58 @@ export const LEGAL_SECTIONS: LegalSection[] = [
     titleAr: 'حماية المشتري والنزاعات',
     lines: [
       {
-        en: 'When you win and pay, Mazad JO holds your payment and does not release it to the seller until you receive the item, check it, and approve the release.',
-        ar: 'عند فوزك ودفعك، يحتفظ مزاد جو بمبلغك ولا يحوّله للبائع حتى تستلم القطعة وتتفحصها وتوافق على تحرير المبلغ.',
+        en: 'When you win and pay, Mazzado holds your payment and does not release it to the seller until you receive the item, check it, and approve the release.',
+        ar: 'عند فوزك ودفعك، يحتفظ مزادو بمبلغك ولا يحوّله للبائع حتى تستلم القطعة وتتفحصها وتوافق على تحرير المبلغ.',
         tone: 'good',
       },
       {
-        en: 'If there is a problem, or the item does not match the listing, open a dispute BEFORE approving release. Mazad JO will mediate and can return the held funds.',
-        ar: 'إذا كان هناك مشكلة أو كانت القطعة لا تطابق الإعلان، افتح نزاعاً قبل الموافقة على تحرير المبلغ. يتدخّل مزاد جو للوساطة ويمكنه إعادة المبلغ المحتجز.',
+        en: 'If there is a problem, or the item does not match the listing, open a dispute BEFORE approving release. Mazzado will mediate and can return the held funds.',
+        ar: 'إذا كان هناك مشكلة أو كانت القطعة لا تطابق الإعلان، افتح نزاعاً قبل الموافقة على تحرير المبلغ. يتدخّل مزادو للوساطة ويمكنه إعادة المبلغ المحتجز.',
+      },
+      {
+        // The 72-hour commitment, stated as what it actually is: a PROCESSING
+        // time for a refund that is already due, not a new window in which one
+        // can be claimed. That distinction is the whole reason this line sits
+        // here — between "you can dispute before approving" and "you cannot
+        // after". Written as «سياسة استرجاع مرنة» with a 72-hour promise and no
+        // qualifier, as the source copy had it, it would advertise a right the
+        // very next line withdraws.
+        en: 'Where a refund is due — after a dispute, or an approved return — the money is processed back to you within 72 working hours of the request.',
+        ar: 'إذا استُحق الاسترداد، بعد نزاع أو قبول طلب إرجاع، تُعالج إعادة المبلغ إليك خلال (72) ساعة عمل من تاريخ تقديم الطلب.',
+        tone: 'good',
       },
       {
         en: 'Winning bids are binding, and once you approve release the sale is complete — there are no refunds after that point. Raise any concern before approving.',
         ar: 'المزايدة الفائزة مُلزِمة، وبمجرد موافقتك على تحرير المبلغ تكتمل عملية البيع ولا يوجد استرداد بعد ذلك. أثِر أي ملاحظة قبل الموافقة.',
         tone: 'danger',
+      },
+    ],
+  },
+  {
+    // Shipping had no section at all: the only mention of delivery anywhere in
+    // this document was the privacy line about storing delivery addresses. So a
+    // buyer could read the whole thing and never learn who ships, on what
+    // schedule, or what happens when a shipment is late — which is the question
+    // support gets asked most.
+    //
+    // Wording supplied by the business, kept close to what they wrote. The
+    // English is a faithful translation, not a separate promise: two languages
+    // making different commitments about delivery is worse than one.
+    id: 'delivery',
+    icon: '📦',
+    titleEn: 'Shipping & delivery',
+    titleAr: 'آلية الشحن والتسليم',
+    lines: [
+      {
+        en: 'Al Hani Commercial Brokerage works with specialised shipping companies to get your purchase to you. Orders are shipped and delivered on the schedule announced during the auction you won.',
+        ar: 'تعتمد شركة الهاني للوساطة التجارية على نخبة من شركات الشحن المتخصصة لضمان إيصال مشترياتكم بكفاءة. يتم شحن وتسليم الطلبات وفق الجدول الزمني المحدد الذي تم الإعلان عنه خلال المزاد الذي رسا عليكم.',
+      },
+      {
+        // `warn`, not `default`: this is the line a buyer needs to have read
+        // BEFORE a shipment runs late, which is the whole point of stating it.
+        en: 'We work to meet those dates, but logistical delays outside our control can happen — through international shipping or current regional conditions. We will keep you updated on any change to your shipment.',
+        ar: 'نسعى دائماً للالتزام بالمواعيد، إلا أنه قد تطرأ بعض التأخيرات اللوجستية الخارجة عن إرادتنا نتيجة لعمليات الشحن الدولي أو الظروف الإقليمية الراهنة. نقدّر تفهمكم، ونلتزم بإبقائكم على اطلاع دائم بأي تحديثات تطرأ على حالة شحنتكم.',
+        tone: 'warn',
       },
     ],
   },
@@ -115,8 +155,8 @@ export const LEGAL_SECTIONS: LegalSection[] = [
       },
       {
         // CORRECTED (3): was "if deceptive claims are resolved", which inverts it.
-        en: 'Mazad JO may suspend a seller account and hold the related funds where a listing is found to be misleading.',
-        ar: 'يحق لمزاد جو تعليق حساب البائع وحجز المبالغ المرتبطة به إذا تبيّن أن الإعلان مضلِّل.',
+        en: 'Mazzado may suspend a seller account and hold the related funds where a listing is found to be misleading.',
+        ar: 'يحق لمزادو تعليق حساب البائع وحجز المبالغ المرتبطة به إذا تبيّن أن الإعلان مضلِّل.',
         tone: 'danger',
       },
     ],
@@ -158,8 +198,8 @@ export const LEGAL_FOOTER = {
   // constant below so it cannot drift silently.
   revisionEn: 'Terms last revised: August 2026',
   revisionAr: 'آخر تحديث للشروط: آب ٢٠٢٦',
-  rightsEn: 'All rights reserved © Mazad JO',
-  rightsAr: 'جميع الحقوق محفوظة © مزاد جو',
+  rightsEn: 'All rights reserved © Mazzado',
+  rightsAr: 'جميع الحقوق محفوظة © مزادو',
   // The old button read "I Accept and Agree to the Bidding Policies" — but this
   // modal records NOTHING. It is opened from a footer link and closing it is
   // its only action; the real acceptance gate is the auction rules, which

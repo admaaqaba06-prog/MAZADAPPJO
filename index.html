@@ -12,7 +12,7 @@
          text) under light, 'black-translucent' under dark. The value here is only
          what ships in the HTML before that script runs. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Mazad Jo" />
+    <meta name="apple-mobile-web-app-title" content="Mazzado" />
 
     <!-- Pre-paint theme. MUST be inline, synchronous, and before any stylesheet:
          anything deferred runs after the first paint, so the page flashes light
@@ -44,35 +44,44 @@
     <link rel="manifest" href="/manifest.json" />
     <!-- iOS Add-to-Home-Screen needs a real raster icon (it ignores SVG manifest icons). -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
 
     <!-- Standard SEO Meta Tags -->
-    <title>MAZAD JO | Ultra-Premium Live Commerce & Social Auctions</title>
+    <title>MAZZADO | Ultra-Premium Live Commerce & Social Auctions</title>
     <meta name="description" content="Jordan's live-video auction marketplace. Bid on cars, watches, electronics, and real estate in live auctions. Pay via CliQ — Mazad holds your payment until you confirm receipt." />
     <meta name="keywords" content="mazad jo, jordan auctions, luxury auction amman, live video commerce, cliq payments, watches jordan, cars jordan, real estate amman" />
-    <meta name="author" content="MAZAD JO Ltd." />
+    <meta name="author" content="MAZZADO Ltd." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="https://www.mazad-jo.com" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.mazad-jo.com" />
-    <meta property="og:title" content="MAZAD JO | Ultra-Premium Live Commerce & Social Auctions" />
+    <meta property="og:title" content="MAZZADO | Ultra-Premium Live Commerce & Social Auctions" />
     <meta property="og:description" content="Live video auctions in Jordan. Bid in real time, pay via CliQ, and Mazad holds your payment until you receive and confirm your item." />
-    <!-- TODO(MJ): provide a 1200x630 PNG/JPG social preview image at /og-image.png, then add:
-         <meta property="og:image" content="https://www.mazad-jo.com/og-image.png" />
-         <meta name="twitter:image" content="https://www.mazad-jo.com/og-image.png" />
-         The previous /icon.svg reference was removed: SVG + relative URLs do not render on WhatsApp/Twitter,
-         and the raster icons currently in public/ (icon-192.png, icon-512.png) are corrupted files. -->
-    <meta property="og:site_name" content="MAZAD JO" />
+    <!-- The 1200x630 preview this TODO asked for now exists: /og-image.png, the
+         MAZZADO lockup centred on the dark plate the artwork ships on, generated
+         from public/logo-mazzado.png. A raster PNG at an ABSOLUTE url, because
+         the note that removed the old reference was right — SVG and relative
+         urls do not render on WhatsApp or Twitter. The icons that note called
+         corrupted were re-encoded from the new artwork in the same pass. -->
+    <meta property="og:image" content="https://www.mazad-jo.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MAZZADO" />
+    <meta property="og:site_name" content="MAZZADO" />
     <meta property="og:locale" content="ar_JO" />
     <meta property="og:locale:alternate" content="en_US" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
+    <!-- summary_large_image now that a real 1200x630 exists: `summary` renders a
+         small square thumbnail and would crop the wide lockup to its middle. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://www.mazad-jo.com/og-image.png" />
+    <meta name="twitter:image:alt" content="MAZZADO" />
     <meta name="twitter:url" content="https://www.mazad-jo.com" />
-    <meta name="twitter:title" content="MAZAD JO | Live Commerce & Luxury Auctions" />
+    <meta name="twitter:title" content="MAZZADO | Live Commerce & Luxury Auctions" />
     <meta name="twitter:description" content="Live video shopping and luxury auctions in Jordan. Pay via CliQ — your payment is held by Mazad until you confirm receipt." />
 
     <!-- Preconnect to Google Fonts & non-blocking font load (media=print → all swap) for swift text LCP -->
@@ -90,9 +99,9 @@
         "@context": "https://schema.org",
         "@type": "OnlineStore",
         "@id": "https://www.mazad-jo.com#organization",
-        "name": "MAZAD JO",
+        "name": "MAZZADO",
         "url": "https://www.mazad-jo.com",
-        "logo": "https://www.mazad-jo.com/icon.svg",
+        "logo": "https://www.mazad-jo.com/icon-512.png",
         "description": "Jordan's live commerce platform for luxury auctions. Buyers pay via CliQ and Mazad holds the payment until the buyer receives and confirms the item.",
         "currenciesAccepted": "JOD",
         "paymentAccepted": "Bank Transfer, CliQ, Credit Card",
@@ -192,7 +201,7 @@
       <div class="critical-root">
         <div class="critical-splash">
           <div class="critical-logo-m">M</div>
-          <span class="critical-logo-text">MAZAD JO</span>
+          <span class="critical-logo-text">MAZZADO</span>
           <span class="critical-loading">جاري التحميل…</span>
         </div>
 

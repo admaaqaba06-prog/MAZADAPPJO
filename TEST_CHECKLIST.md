@@ -1,4 +1,4 @@
-# Mazad JO Subscription Flow & Permission Rules Test Checklist
+# Mazzado Subscription Flow & Permission Rules Test Checklist
 
 This checklist guarantees zero-regression, zero-privilege-escalation, and secure subscription flows from end-to-end.
 

@@ -1,4 +1,4 @@
-# Mazad JO — Terms of Use
+# Mazzado — Terms of Use
 
 > **⚠️ DRAFT — NOT YET LEGALLY REVIEWED. This is a starting-point draft prepared
 > from the platform's actual operating model. It is NOT legal advice. Before
@@ -23,7 +23,7 @@
 
 ## 1. Who we are
 
-Mazad JO ("**Mazad**", "**we**", "**us**") is an online auction marketplace
+Mazzado ("**Mazad**", "**we**", "**us**") is an online auction marketplace
 operated by **Al Hani Commercial Brokerage** (Arabic: **الهاني للوساطة التجارية**),
 a limited liability company (LLC / ذات مسؤولية محدودة) registered in the Hashemite
 Kingdom of Jordan under commercial registration number **200213982**,

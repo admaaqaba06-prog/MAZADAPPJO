@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for MazadJo",
+  "description": "Cloud Functions for Mazzado",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",

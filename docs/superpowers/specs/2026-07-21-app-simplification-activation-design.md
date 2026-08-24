@@ -39,7 +39,7 @@
 **Onboarding accuracy (must match reality):**
 - Membership: **"from 1 JD/month"** (tiers: 1 JD/mo, 4 JD/6mo, 7 JD/yr). "1 JD to start" is fine as the lead, but don't imply one-time-forever.
 - Fees: **5% buyer's premium on win + 5% seller commission** — state both honestly (transparency builds trust).
-- Payment: CliQ to Mazad JO (Capital Bank). Pay within 24h of winning.
+- Payment: CliQ to Mazzado (Capital Bank). Pay within 24h of winning.
 - Delivery: pickup or paid delivery (~2–4 JD); Mazad arranges.
 
 **New `HowItWorksView`** (persistent nav link + linked from onboarding + empty state): a clean, bilingual explainer of the whole loop:

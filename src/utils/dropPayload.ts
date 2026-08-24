@@ -101,7 +101,7 @@ export function buildDropPayload(
     // E3 Slice B — seller opt-in auto-relist (up to MAX_AUTO_RELISTS server-side).
     autoRelist: input.autoRelist,
     scheduledStartAt: startAt,
-    // Mazad's own inventory: every drop built here sells as the MazadJo store,
+    // Mazad's own inventory: every drop built here sells as the Mazzado store,
     // not as the individual admin who happened to build it. createListing turns
     // this into the buyer-facing sellerName/sellerLogo (gated on isAdminUser);
     // sellerId/createdById stay the real uid so orders, payouts and the ownership

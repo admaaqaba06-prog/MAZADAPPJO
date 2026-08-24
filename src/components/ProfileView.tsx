@@ -569,7 +569,7 @@ export const ProfileView: React.FC = () => {
             </div>
             <div className="min-w-0">
               <h3 className="font-sans font-black text-xs text-fg uppercase tracking-wider truncate">
-                {isAr ? 'كيف يعمل مزاد جو' : 'How Mazad JO Works'}
+                {isAr ? 'كيف يعمل مزادو' : 'How Mazzado Works'}
               </h3>
               <p className="text-[9px] text-fg-muted truncate">
                 {isAr ? 'دليل المزايدة والدفع والتوصيل' : 'Bidding, payment & delivery guide'}

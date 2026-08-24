@@ -1,6 +1,6 @@
 /**
  * common.js — shared config, PROD GUARD, Admin SDK init, and helpers for the
- * Mazad JO load-test harness.
+ * Mazzado load-test harness.
  *
  * EVERY entry-point script (seed / bid-storm / report / teardown) MUST go
  * through loadConfig() + initAdmin() from here. loadConfig() hard-fails

@@ -1,6 +1,6 @@
 {
-  "name": "Mazad JO — Live Auctions in Jordan",
-  "short_name": "Mazad Jo",
+  "name": "Mazzado — Live Auctions in Jordan",
+  "short_name": "Mazzado",
   "description": "Real-time auctions in Jordan. Browse and bid free — pay via CliQ only when you win. Mazad holds your payment until you confirm receipt.",
   "start_url": "/",
   "scope": "/",
@@ -10,11 +10,28 @@
   "orientation": "portrait-primary",
   "lang": "ar",
   "dir": "auto",
-  "categories": ["shopping", "business"],
+  "categories": [
+    "shopping",
+    "business"
+  ],
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

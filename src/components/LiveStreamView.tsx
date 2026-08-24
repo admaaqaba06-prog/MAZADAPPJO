@@ -19,7 +19,7 @@ import { buildAuctionUrl } from '../utils/deepLink';
 import { isDesktopWidth } from '../utils/shellBreakpoint';
 import { WinCelebration, useWinDetection } from './feedback';
 import { resumeAudio, playTick, playFinish } from '../utils/auctioneerAudio';
-import { useAuctionDoc } from '../hooks/useAuctionDoc';
+import { useAuctionDocState } from '../hooks/useAuctionDoc';
 import { useDiscoverFeed } from '../hooks/useDiscoverFeed';
 import { useMyAuctionLots } from '../hooks/useMyAuctionLots';
 
@@ -381,8 +381,28 @@ export const LiveStreamView: React.FC = () => {
   // isn't a real doc → `useAuctionDoc` returns null → we fall back to the first
   // live feed lot; the id-sync effect below then sets `activeAuctionId` to that
   // real lot and `useAuctionDoc` picks it up on the next render.
-  const docLot = useAuctionDoc(activeAuctionId);
-  const activeAuction = docLot ?? feedLive.find(a => a.id === activeAuctionId) ?? feedLive[0];
+  const { item: docLot, status: docStatus } = useAuctionDocState(activeAuctionId);
+  const feedMatch = feedLive.find(a => a.id === activeAuctionId);
+  /**
+   * The feed fallback (`feedLive[0]`) is a DIFFERENT lot, so it may only stand in
+   * when no specific lot is being resolved.
+   *
+   * It used to apply to every null: `docLot ?? feedMatch ?? feedLive[0]`. But
+   * `useAuctionDoc` returned null while a lot was still loading too, so opening
+   * /auction/<id> directly — a deep link, a refresh, a shared link — rendered
+   * whichever lot happened to be first in the ending-soon feed, complete with
+   * its title, description, condition and price. Worse, the id-sync effect below
+   * then wrote THAT lot's id into `activeAuctionId`, so the wrong auction stuck
+   * instead of flickering.
+   *
+   * `loading` now holds: the room waits for the lot it was asked for. The
+   * fallback survives for the two cases it was actually written for — the
+   * placeholder id AppContext seeds when the room is opened with no lot, and a
+   * `missing` id that no longer resolves to a doc.
+   */
+  const activeAuction = docLot
+    ?? feedMatch
+    ?? (docStatus === 'loading' ? undefined : feedLive[0]);
 
   // Align activeAuctionId to the REAL resolved lot so every chat surface keys on
   // one id. AppContext seeds activeAuctionId with the placeholder 'auction-rolex'
@@ -643,6 +663,26 @@ export const LiveStreamView: React.FC = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  /**
+   * A requested lot that has not answered yet is LOADING, not absent. Without
+   * this branch the room fell through to "no live auctions currently" — telling
+   * someone who opened a perfectly good shared link that the auction does not
+   * exist. Same shell and spinner language as the branch below it, so the two
+   * read as one component in two states.
+   */
+  if (!activeAuction && docStatus === 'loading') {
+    return (
+      <div className="flex-grow flex flex-col items-center justify-center text-center bg-[#0A0A0A] p-6 text-fg-muted h-full min-h-[500px]" id="live-stream-loading">
+        <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center mb-4">
+          <div className="w-7 h-7 rounded-full border-2 border-[#FF6B00] border-t-transparent animate-spin" />
+        </div>
+        <h3 className="font-extrabold text-sm uppercase text-white mb-2">
+          {isAr ? 'جاري تحميل المزاد…' : 'Loading auction…'}
+        </h3>
+      </div>
+    );
+  }
 
   if (!hasLiveAuctions || !activeAuction) {
     return (

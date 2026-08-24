@@ -258,11 +258,11 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
             <div className="bg-surface-raised border border-line p-5 rounded-2xl shadow-xs">
               <h3 className="text-xs font-extrabold text-fg flex items-center gap-2">
                 <Tv className="w-4 h-4 text-[#FF6B00]" />
-                {isAr ? 'مزادات مزاد جو' : 'OUR DROPS'}
+                {isAr ? 'مزادات مزادو' : 'OUR DROPS'}
               </h3>
               <p className="text-[11px] text-fg-muted mt-1">
                 {isAr
-                  ? 'ابنِ مزادات مزاد جو وجدولها وأطلقها. مراجعة مزادات البائعين انتقلت إلى مركز الإجراءات.'
+                  ? 'ابنِ مزادات مزادو وجدولها وأطلقها. مراجعة مزادات البائعين انتقلت إلى مركز الإجراءات.'
                   : "Build, schedule and launch Mazad's own auctions. Reviewing sellers' lots moved to the Action Center."}
               </p>
             </div>

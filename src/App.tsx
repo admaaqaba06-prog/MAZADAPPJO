@@ -97,7 +97,7 @@ function MaintenanceView() {
         {/* Title */}
         <div className="space-y-3">
           <h1 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
-            {isAr ? 'منصة مزاد جو | صيانة طارئة' : 'MAZAD JO | System Maintenance'}
+            {isAr ? 'منصة مزادو | صيانة طارئة' : 'MAZZADO | System Maintenance'}
           </h1>
           <p className="text-fg-muted text-sm font-medium">
             {isAr 
@@ -126,7 +126,7 @@ function MaintenanceView() {
             {isAr ? 'Switch to English' : 'التحويل إلى العربية'}
           </button>
           <p className="text-[10px] text-fg-muted font-mono uppercase tracking-widest">
-            MAZAD JO CO. AMMAN, JORDAN
+            MAZZADO CO. AMMAN, JORDAN
           </p>
         </div>
       </div>

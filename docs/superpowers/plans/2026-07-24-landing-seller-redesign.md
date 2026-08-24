@@ -387,7 +387,7 @@ In BOTH `ar` and `en` objects, set these `hero` values verbatim (replace existin
 
 Add a new top-level key to `interface TranslationType` (near `dir`/`langCode`) `sellerIntentMsg: string;` and in both language objects:
 - `ar`: `sellerIntentMsg: "مرحباً، أرغب بعرض سلعة للبيع في مزاد الأردن."`
-- `en`: `sellerIntentMsg: "Hi, I'd like to list an item to sell on Mazad JO."`
+- `en`: `sellerIntentMsg: "Hi, I'd like to list an item to sell on Mazzado."`
 
 - [ ] **Step 2: Add analytics import + a seller WhatsApp URL helper in `LandingView.tsx`**
 
@@ -488,7 +488,7 @@ marketplace: {
 ```ts
 marketplace: {
   badge: "Live now",
-  title: "Live on Mazad JO right now",
+  title: "Live on Mazzado right now",
   subtitle: "Inspected items selling now — this is where your item shows up for buyers.",
   currentBid: "Current bid",
   bids: "bids",
@@ -694,7 +694,7 @@ proof: {
 `en`:
 ```ts
 proof: {
-  headline: "Thousands of Jordanians already buy on Mazad JO",
+  headline: "Thousands of Jordanians already buy on Mazzado",
   subline: "Your item meets real demand.",
   stats: [
     { value: "15,000+", label: "buyers" },

@@ -6,7 +6,7 @@
 
 ## Objective
 
-MJ: the bidding/auction screen is "cluttered, doesn't work, not easy to use" — **worst on mobile.** Ground truth established: Mazad JO auctions are **not** live video streams — they're time-boxed **drops** with an **uploaded video + photos** of the item ("live" = the drop is currently open). The current mobile screen borrows the entire Whatnot/TikTok-*Live* interaction model (full-bleed reel, chat-over-video, action rail, "tap for sound", snap-scroll between lots, a dense stacked bid dock) for something that isn't live. That mismatch is the clutter.
+MJ: the bidding/auction screen is "cluttered, doesn't work, not easy to use" — **worst on mobile.** Ground truth established: Mazzado auctions are **not** live video streams — they're time-boxed **drops** with an **uploaded video + photos** of the item ("live" = the drop is currently open). The current mobile screen borrows the entire Whatnot/TikTok-*Live* interaction model (full-bleed reel, chat-over-video, action rail, "tap for sound", snap-scroll between lots, a dense stacked bid dock) for something that isn't live. That mismatch is the clutter.
 
 MJ reviewed two simplified directions and chose **Direction A (a clean product page)**, then asked to fold back in the good "alive" cues from the current page. This spec implements that enriched Direction A.
 

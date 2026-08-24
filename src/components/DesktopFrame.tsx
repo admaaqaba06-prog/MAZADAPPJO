@@ -613,7 +613,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <div className="flex flex-col gap-4" id="rail-how-it-works">
                   <div className="flex items-center justify-between pb-1">
                     <h4 className="text-[10px] font-bold text-fg-muted uppercase tracking-wider">
-                      {isAr ? 'كيف يعمل مزاد جو' : 'HOW MAZAD WORKS'}
+                      {isAr ? 'كيف يعمل مزادو' : 'HOW MAZAD WORKS'}
                     </h4>
                     <button
                       onClick={() => setShowNotifications(true)}
@@ -697,8 +697,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="text-[9.5px] text-fg-muted font-medium leading-relaxed">
                   {isAr
-                    ? 'مدفوعاتك عبر كليك إلى حساب مزاد جو في البنك العربي.'
-                    : "Payments via CliQ to Mazad JO's Arab Bank account."}
+                    ? 'مدفوعاتك عبر كليك إلى حساب مزادو في البنك العربي.'
+                    : "Payments via CliQ to Mazzado's Arab Bank account."}
                 </p>
               </div>
 

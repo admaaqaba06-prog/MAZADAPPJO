@@ -45,7 +45,7 @@ describe('panelCopy', () => {
   });
 
   it('promises nothing the product does not do', () => {
-    // Each of these is a claim Mazad JO makes nowhere else. A marketing panel is
+    // Each of these is a claim Mazzado makes nowhere else. A marketing panel is
     // where they would first appear, and they would be lies.
     for (const lang of ['ar', 'en'] as const) {
       const c = panelCopy(lang);

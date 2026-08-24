@@ -32,7 +32,7 @@ export const BanNoticeModal: React.FC<BanNoticeModalProps> = ({ onClose }) => {
       case 'payment_default_repeat':
         return isAr ? 'تكرار تفويت الدفعات.' : 'Repeated missed payments.';
       case 'admin_ban':
-        return isAr ? 'تم التقييد من قِبل مزاد جو.' : 'Restricted by Mazad JO.';
+        return isAr ? 'تم التقييد من قِبل مزادو.' : 'Restricted by Mazzado.';
       default:
         return isAr ? 'حسابك مقيّد حالياً.' : 'Your account is currently restricted.';
     }

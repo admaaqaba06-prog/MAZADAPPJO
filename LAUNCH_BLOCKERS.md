@@ -1,4 +1,4 @@
-# Mazad JO Production Audit - Launch Blockers
+# Mazzado Production Audit - Launch Blockers
 
 NO CRITICAL BLOCKERS FOUND
 

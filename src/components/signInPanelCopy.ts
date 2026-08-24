@@ -9,7 +9,7 @@
  * STATEMENT. Nothing here is new marketing. A sign-in screen is the first thing
  * a cold visitor reads and therefore the easiest place to promise something the
  * product does not do — `signInPanelCopy.test.ts` asserts the absence of the
- * specific claims Mazad JO makes nowhere else (free shipping, guarantees,
+ * specific claims Mazzado makes nowhere else (free shipping, guarantees,
  * refunds, delivery windows, "no fees" — there IS a 5% buyer commission).
  */
 export interface PanelCopy {
@@ -42,7 +42,7 @@ const AR: PanelCopy = {
   trustTitle: 'اشترِ بأمان من أي بائع',
   // Condensed from translations.ts:309.
   trustBody:
-    'مزاد جو يحتفظ بمبلغك حتى تستلم القطعة وتتأكد أنها مطابقة، وعندها فقط يُحوَّل للبائع.',
+    'مزادو يحتفظ بمبلغك حتى تستلم القطعة وتتأكد أنها مطابقة، وعندها فقط يُحوَّل للبائع.',
   howTitle: 'كيف تعمل المنصة',
   steps: [
     'تابع مزاداً مباشراً',

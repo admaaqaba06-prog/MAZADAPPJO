@@ -35,19 +35,19 @@ export const AUCTION_RULES: AuctionRule[] = [
   },
   {
     en: 'Fees: the buyer pays a 5% premium added on top of the winning bid. The seller pays a 5% Mazad commission, deducted from their proceeds.',
-    ar: 'الرسوم: يدفع المشتري عمولة 5% تُضاف فوق سعر الفوز. ويدفع البائع عمولة 5% لمزاد جو تُخصم من مستحقاته.',
+    ar: 'الرسوم: يدفع المشتري عمولة 5% تُضاف فوق سعر الفوز. ويدفع البائع عمولة 5% لمزادو تُخصم من مستحقاته.',
   },
   {
     en: 'No security deposit is required to bid.',
     ar: 'لا يُطلب أي تأمين (وديعة) للمزايدة.',
   },
   {
-    en: 'Buyer protection: Mazad JO holds your payment and only releases it to the seller after you receive the item and confirm it. All payments are reviewed and approved by Mazad JO.',
-    ar: 'حماية المشتري: يحتجز مزاد جو مبلغ الدفع ولا يحوّله للبائع إلا بعد استلامك السلعة وتأكيدك لها. وتتم مراجعة جميع المدفوعات واعتمادها من مزاد جو.',
+    en: 'Buyer protection: Mazzado holds your payment and only releases it to the seller after you receive the item and confirm it. All payments are reviewed and approved by Mazzado.',
+    ar: 'حماية المشتري: يحتجز مزادو مبلغ الدفع ولا يحوّله للبائع إلا بعد استلامك السلعة وتأكيدك لها. وتتم مراجعة جميع المدفوعات واعتمادها من مزادو.',
   },
   {
-    en: 'On delivery, inspect the item. You may reject an item that is damaged or materially different from the listing; returns are handled through Mazad JO.',
-    ar: 'عند الاستلام، افحص السلعة. يحق لك رفض أي سلعة تالفة أو مختلفة جوهرياً عن الوصف؛ وتُدار عمليات الإرجاع عبر مزاد جو.',
+    en: 'On delivery, inspect the item. You may reject an item that is damaged or materially different from the listing; returns are handled through Mazzado.',
+    ar: 'عند الاستلام، افحص السلعة. يحق لك رفض أي سلعة تالفة أو مختلفة جوهرياً عن الوصف؛ وتُدار عمليات الإرجاع عبر مزادو.',
   },
   {
     en: 'Both sides rate each other after a completed sale. Ratings are visible across the platform to keep the community trustworthy.',
@@ -58,7 +58,7 @@ export const AUCTION_RULES: AuctionRule[] = [
     ar: 'تفاصيل المنتج كما يقدّمها البائع، الذي يجب أن يكون دقيقاً وله الحق القانوني في البيع. وتُعلن مواعيد التسليم لكل مزاد وقد تختلف.',
   },
   {
-    en: 'Manipulation, collusion, fake bidding, or multiple accounts lead to a permanent ban. Mazad JO may cancel or suspend any auction to protect fairness and transparency.',
-    ar: 'التلاعب أو التواطؤ أو المزايدات الوهمية أو تعدّد الحسابات يؤدي إلى حظر دائم. ويحق لمزاد جو إلغاء أو تعليق أي مزاد لحماية العدالة والشفافية.',
+    en: 'Manipulation, collusion, fake bidding, or multiple accounts lead to a permanent ban. Mazzado may cancel or suspend any auction to protect fairness and transparency.',
+    ar: 'التلاعب أو التواطؤ أو المزايدات الوهمية أو تعدّد الحسابات يؤدي إلى حظر دائم. ويحق لمزادو إلغاء أو تعليق أي مزاد لحماية العدالة والشفافية.',
   },
 ];

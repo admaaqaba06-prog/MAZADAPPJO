@@ -134,7 +134,7 @@ export const SubscriptionView: React.FC = () => {
       setCelebrate(true);
       showToast({
         type: 'success',
-        title: isAr ? '🎉 أهلاً بك عضواً في مزاد جو!' : '🎉 Welcome — you are a MAZAD JO member!',
+        title: isAr ? '🎉 أهلاً بك عضواً في مزادو!' : '🎉 Welcome — you are a MAZZADO member!',
       });
     }
     prevStatusRef.current = curr;

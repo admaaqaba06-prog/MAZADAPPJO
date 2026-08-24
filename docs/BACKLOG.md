@@ -1,4 +1,4 @@
-# Mazad JO — Backlog & Launch Punch-List
+# Mazzado — Backlog & Launch Punch-List
 
 _Compiled 2026-07-18 after the end-to-end production dress rehearsal; **re-audited 2026-07-26 item-by-item against the code**. Verify before working an item — this list went ~85% stale in eight days, and two entries turned out to describe deliberate design, not defects._
 
@@ -25,8 +25,8 @@ top-down from it wasted time on problems that no longer existed.
 11. ~~Raw Firebase errors~~ — `LoginView` maps them ("Never show raw Firebase strings").
 13. ~~Landing says 7.5% seller fee / `#coming-soon`~~ — neither exists.
 14. ~~Identical Sign up / Log in tabs~~ — removed with the phone-only auth pass.
-16. ~~"by MAZAD JO Store"~~ — fixed at SAVE time: the drop-builder stamps `soldByMazad` and
-    `createListing` stores the MazadJo store identity. See 2026-07-26 commits.
+16. ~~"by MAZZADO Store"~~ — fixed at SAVE time: the drop-builder stamps `soldByMazad` and
+    `createListing` stores the Mazzado store identity. See 2026-07-26 commits.
 17. ~~Generic "User" name~~ — NOT a bug. `'User'` is a deliberate placeholder (never leak the phone
     number as a public bidder name) and `ProfileCompletionModal` gates on `isProfileComplete`.
 18. ~~Timer counts past zero~~ — `useCountdownSeconds` unsubscribes at `<= 0`.
@@ -151,7 +151,7 @@ top-down from it wasted time on problems that no longer existed.
     interactive on first paint in every fetch state.
 
     **Every claim already existed.** The escrow line is condensed from
-    `translations.ts:551`/`:309`. The copy tests assert the ABSENCE of claims Mazad JO
+    `translations.ts:551`/`:309`. The copy tests assert the ABSENCE of claims Mazzado
     makes nowhere else — free shipping, guarantees, refunds, delivery windows, "no fees"
     (there IS a 5% buyer commission). Three attempts to insert such claims were caught by
     the suite.

@@ -131,8 +131,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     dir: "rtl",
     langCode: "ar",
     nav: {
-      logo: "🔨 MazadJo",
-      whyUs: "لماذا مزاد جو؟",
+      logo: "🔨 Mazzado",
+      whyUs: "لماذا مزادو؟",
       liveExp: "تجربة مباشرة",
       categories: "الفئات",
       comingSoon: "ابدأ الآن",
@@ -142,10 +142,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "اعرِضها.",
-      titleGradient: "بِعْها مباشرةً.",
-      titleLast: "واقبِض بأمان.",
-      desc: "منصة المزادات الموثوقة في الأردن. نعرض سلعتك على مشترين جادّين ونضمن وصول أموالك بأمان — كل عملية بيع محمية للمشتري.",
+      titleFirst: "بيع أسرع.",
+      titleGradient: "واشترِ بأرخص سعر.",
+      // Two lines now, not three. The third span is guarded in LandingView so an
+      // empty string does not leave a flex gap where a line used to be.
+      titleLast: "",
+      desc: "اعرض منتجك وبِعه خلال 15 دقيقة، واكتشف أفضل الصفقات بأقل الأسعار.",
       ctaPrimary: "اعرض سلعتك للبيع",
       ctaSecondary: "تصفّح المزادات المباشرة",
       proof: [
@@ -166,7 +168,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     trust: {
       badge: "الأمان والنزاهة",
       title: "مزاد ليس للتصفية. مزاد للقيمة الحقيقية.",
-      subtitle: "صممنا MazadJo ليكون بيئة آمنة تضمن لكل بائع حقه ولكل مشترٍ فرصته العادلة.",
+      subtitle: "صممنا Mazzado ليكون بيئة آمنة تضمن لكل بائع حقه ولكل مشترٍ فرصته العادلة.",
       cards: [
         {
           icon: "🛡️",
@@ -191,7 +193,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
     },
     why: {
-      title: "لماذا MazadJo؟",
+      title: "لماذا Mazzado؟",
       subtitle: "بدل ما تفاوض عشرات الناس… خليهم ينافسوا عليك.",
       traditionalTitle: "الطريقة التقليدية",
       traditionalPoints: [
@@ -200,7 +202,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         "السعر يعكس توقع البائع الشخصي لا الطلب الفعلي",
         "وقت بيع غير واضح قد يمتد لأسابيع أو أشهر",
       ],
-      smartTitle: "MazadJo - ذكي",
+      smartTitle: "Mazzado - ذكي",
       smartPoints: [
         "منافسة منظمة وعادلة ترفع السعر تلقائياً لصالحك",
         "مزايدون موثوقون وعضوية مدفوعة تضمن جدية الجميع",
@@ -301,7 +303,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     faq: {
       title: "الأسئلة الشائعة",
-      subtitle: "كل ما تود معرفته عن الاشتراك، المشاركة، العمولات، والضمانات في MazadJo",
+      subtitle: "كل ما تود معرفته عن الاشتراك، المشاركة، العمولات، والضمانات في Mazzado",
       items: [
         {
           q: "لماذا يوجد اشتراك للمزايدة؟",
@@ -309,10 +311,10 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "كيف أدفع؟",
-          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فيحتفظ بها مزاد جو ولا تُحوَّل للبائع إلا بعد استلامك للقطعة وتأكيدك. تُضاف عمولة مشترٍ 5٪ عند الفوز."
+          a: "الاشتراكات تُدفع عبر كليك. أما مدفوعات المزادات فيحتفظ بها مزادو ولا تُحوَّل للبائع إلا بعد استلامك للقطعة وتأكيدك. تُضاف عمولة مشترٍ 5٪ عند الفوز."
         },
         {
-          q: "ماذا تعني \"حماية المشتري من مزاد جو\"؟",
+          q: "ماذا تعني \"حماية المشتري من مزادو\"؟",
           a: "نحتجز مبلغ الدفع حتى تستلم المنتج وتؤكد مطابقته للوصف، ثم نحوّله للبائع. ويمكنك عرض منتجك بنفسك أو يساعدك فريقنا في تجهيزه وعرضه."
         },
         {
@@ -321,7 +323,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           q: "ماذا لو كانت القطعة مختلفة عن الوصف؟",
-          a: "دفعتك تبقى محجوزة لدى مزاد جو ولا تُحوَّل للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة. إذا صار أي إشكال، تواصل معنا وبنتوسّط لحلّه."
+          a: "دفعتك تبقى محجوزة لدى مزادو ولا تُحوَّل للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة. إذا صار أي إشكال، تواصل معنا وبنتوسّط لحلّه."
         },
         {
           q: "كم تكلفة البيع؟",
@@ -336,11 +338,11 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         categories: "الفئات",
         contact: "تواصل معنا",
       },
-      rights: "© 2026 MazadJo. صمم للسوق الأردني بكل فخر 🇯🇴",
+      rights: "© 2026 Mazzado. صمم للسوق الأردني بكل فخر 🇯🇴",
     },
     marketplace: {
       badge: "مباشر الآن",
-      title: "مزادات مباشرة على مزاد جو الآن",
+      title: "مزادات مباشرة على مزادو الآن",
       subtitle: "سلع معروضة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
       currentBid: "أعلى مزايدة",
       bids: "مزايدة",
@@ -360,8 +362,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     dir: "ltr",
     langCode: "en",
     nav: {
-      logo: "🔨 MazadJo",
-      whyUs: "Why MazadJo?",
+      logo: "🔨 Mazzado",
+      whyUs: "Why Mazzado?",
       liveExp: "Live Experience",
       categories: "Categories",
       comingSoon: "Start Now",
@@ -371,10 +373,10 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "List it.",
-      titleGradient: "Sell it live.",
-      titleLast: "Get paid safely.",
-      desc: "Jordan's trusted auction platform. We put your item in front of serious buyers and make sure you get paid safely — every sale is buyer-protected.",
+      titleFirst: "Sell faster.",
+      titleGradient: "Buy for less.",
+      titleLast: "",
+      desc: "List your item and sell it within 15 minutes — and find the best deals at the lowest prices.",
       ctaPrimary: "List your item",
       ctaSecondary: "Browse live auctions",
       proof: [
@@ -395,7 +397,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     trust: {
       badge: "Trust & Integrity",
       title: "Auctions are not for liquidation. Auctions are for true value.",
-      subtitle: "We designed MazadJo to be a safe ecosystem that secures the seller's right and gives every buyer an equal, fair opportunity.",
+      subtitle: "We designed Mazzado to be a safe ecosystem that secures the seller's right and gives every buyer an equal, fair opportunity.",
       cards: [
         {
           icon: "🛡️",
@@ -420,7 +422,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
     },
     why: {
-      title: "Why MazadJo?",
+      title: "Why Mazzado?",
       subtitle: "Instead of negotiating with dozens... let them compete for you.",
       traditionalTitle: "The Traditional Way",
       traditionalPoints: [
@@ -429,7 +431,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         "Price is based on seller expectations, not real demand",
         "Unclear sales timeframe stretching to weeks or months",
       ],
-      smartTitle: "MazadJo - Smart",
+      smartTitle: "Mazzado - Smart",
       smartPoints: [
         "Organized, fair competition driving prices up automatically",
         "Verified, members-only bidders to ensure serious participation",
@@ -530,7 +532,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     faq: {
       title: "Frequently Asked Questions (FAQ)",
-      subtitle: "Everything you need to know about subscriptions, bidding, commissions, and guarantees on MazadJo",
+      subtitle: "Everything you need to know about subscriptions, bidding, commissions, and guarantees on Mazzado",
       items: [
         {
           q: "Why is there a subscription for bidding?",
@@ -565,11 +567,11 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         categories: "Categories",
         contact: "Contact Us",
       },
-      rights: "© 2026 MazadJo. Proudly designed for the Jordanian market 🇯🇴",
+      rights: "© 2026 Mazzado. Proudly designed for the Jordanian market 🇯🇴",
     },
     marketplace: {
       badge: "Live now",
-      title: "Live on Mazad JO right now",
+      title: "Live on Mazzado right now",
       subtitle: "Items selling now — this is where your item shows up for buyers.",
       currentBid: "Current bid",
       bids: "bids",

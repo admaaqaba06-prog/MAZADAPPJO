@@ -260,8 +260,8 @@ export const SellView: React.FC = () => {
 
               <h1 className="text-lg font-black text-fg leading-snug">
                 {isAr
-                  ? 'استلمنا مزادك — فريق مزاد جو رح يراجعه ويوافق عليه، وبعدها بينزل مباشر 🌹'
-                  : 'Got it — Mazad JO will review & approve your listing, then it goes live 🌹'}
+                  ? 'استلمنا مزادك — فريق مزادو رح يراجعه ويوافق عليه، وبعدها بينزل مباشر 🌹'
+                  : 'Got it — Mazzado will review & approve your listing, then it goes live 🌹'}
               </h1>
 
               <p className="text-xs text-fg-muted font-medium leading-relaxed">
@@ -319,7 +319,7 @@ export const SellView: React.FC = () => {
 
             <div className="text-center space-y-1">
               <h2 className="text-base font-black text-fg">
-                {isAr ? 'خلّي مزاد جو يدرجه لك 🤝' : 'Let Mazad list it for you 🤝'}
+                {isAr ? 'خلّي مزادو يدرجه لك 🤝' : 'Let Mazad list it for you 🤝'}
               </h2>
               <p className="text-xs text-fg-muted font-medium">
                 {isAr
@@ -526,7 +526,7 @@ export const SellView: React.FC = () => {
                 ) : (
                   <>
                     <Handshake className="w-4.5 h-4.5" />
-                    <span>{isAr ? 'أرسل الطلب لفريق مزاد جو' : 'Send it to the Mazad JO team'}</span>
+                    <span>{isAr ? 'أرسل الطلب لفريق مزادو' : 'Send it to the Mazzado team'}</span>
                   </>
                 )}
               </button>
@@ -554,7 +554,7 @@ export const SellView: React.FC = () => {
             {/* Header */}
             <div className="text-center space-y-1.5 pt-2">
               <h1 className="text-xl font-black text-fg">
-                {isAr ? 'بيع على مزاد جو' : 'Sell on Mazad JO'}
+                {isAr ? 'بيع على مزادو' : 'Sell on Mazzado'}
               </h1>
               <p className="text-xs text-fg-muted font-medium leading-relaxed max-w-sm mx-auto">
                 {isAr
@@ -578,7 +578,7 @@ export const SellView: React.FC = () => {
                 {
                   id: 'concierge' as const,
                   icon: Handshake,
-                  title: isAr ? 'خلّي مزاد جو يدرجه لك' : 'Let Mazad list it for you',
+                  title: isAr ? 'خلّي مزادو يدرجه لك' : 'Let Mazad list it for you',
                   desc: isAr
                     ? 'ابعثلنا الاسم والصور والسعر المتوقع، وفريقنا بجهّز المزاد عنك.'
                     : 'Send us the name, photos, and expected price — our team builds the listing for you.',

@@ -402,8 +402,8 @@ describe('emailFor — both languages', () => {
   it('names the sender rather than a lot when the payload carries no title', () => {
     const e = emailFor('account_banned', {}, 'en');
     expect(ARABIC.test(e.subject)).toBe(false);
-    expect(emailFor('auction_won', {}, 'en').subject).toContain('Mazad JO');
-    expect(emailFor('auction_won', {}, 'ar').subject).toContain('مزاد جو');
+    expect(emailFor('auction_won', {}, 'en').subject).toContain('Mazzado');
+    expect(emailFor('auction_won', {}, 'ar').subject).toContain('مزادو');
   });
 
   it('falls back safely for an unknown event in English', () => {
@@ -669,7 +669,7 @@ describe('brandFor — the identity stays, the labels translate', () => {
 
   it('keeps the Arabic footer Arabic', () => {
     const b = brandFor('ar');
-    expect(b.name).toBe('مزاد جو');
+    expect(b.name).toBe('مزادو');
     expect(b.legal).toBe('شركة الهاني للوساطة التجارية ذ.م.م');
     expect(b.address).toContain('شارع المدينة المنورة');
     expect(b.labels.registration).toMatch(ARABIC);

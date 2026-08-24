@@ -1,4 +1,4 @@
-# Mazad JO — Deploy & Test
+# Mazzado — Deploy & Test
 
 Two deploy surfaces, and they are **separate**:
 

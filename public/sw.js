@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
       return cache.addAll([
         '/',
         '/index.html',
-        '/icon.svg',
+        '/icon-192.png',
         '/manifest.json'
       ]).catch((err) => {
         console.warn('Pre-caching warm-up completed with warnings: ', err);

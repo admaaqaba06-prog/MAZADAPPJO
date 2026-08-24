@@ -1,4 +1,4 @@
-# Mazad JO — placeBid Load-Test Harness
+# Mazzado — placeBid Load-Test Harness
 
 Measures the real `placeBid` ceiling per the Load-Testing Plan in
 `docs/superpowers/specs/2026-07-23-perf-for-load-design.md`: accepted bids/sec/lot,
