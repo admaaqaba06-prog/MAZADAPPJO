@@ -95,6 +95,18 @@ export const LEGAL_SECTIONS: LegalSection[] = [
         ar: 'إذا كان هناك مشكلة أو كانت القطعة لا تطابق الإعلان، افتح نزاعاً قبل الموافقة على تحرير المبلغ. يتدخّل مزادو للوساطة ويمكنه إعادة المبلغ المحتجز.',
       },
       {
+        // The 72-hour commitment, stated as what it actually is: a PROCESSING
+        // time for a refund that is already due, not a new window in which one
+        // can be claimed. That distinction is the whole reason this line sits
+        // here — between "you can dispute before approving" and "you cannot
+        // after". Written as «سياسة استرجاع مرنة» with a 72-hour promise and no
+        // qualifier, as the source copy had it, it would advertise a right the
+        // very next line withdraws.
+        en: 'Where a refund is due — after a dispute, or an approved return — the money is processed back to you within 72 working hours of the request.',
+        ar: 'إذا استُحق الاسترداد، بعد نزاع أو قبول طلب إرجاع، تُعالج إعادة المبلغ إليك خلال (72) ساعة عمل من تاريخ تقديم الطلب.',
+        tone: 'good',
+      },
+      {
         en: 'Winning bids are binding, and once you approve release the sale is complete — there are no refunds after that point. Raise any concern before approving.',
         ar: 'المزايدة الفائزة مُلزِمة، وبمجرد موافقتك على تحرير المبلغ تكتمل عملية البيع ولا يوجد استرداد بعد ذلك. أثِر أي ملاحظة قبل الموافقة.',
         tone: 'danger',
