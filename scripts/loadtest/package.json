@@ -1,5 +1,5 @@
 {
-  "name": "mazadjo-loadtest",
+  "name": "mazzado-loadtest",
   "private": true,
   "description": "Load-test harness for the Mazzado placeBid path. THROWAWAY Firebase projects ONLY — hard-fails against prod.",
   "type": "commonjs",

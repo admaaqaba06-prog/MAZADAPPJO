@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Spec:** `docs/superpowers/specs/2026-07-27-drop-builder-ux-design.md`. Read it before Task 1.
-- **Worktree:** work only in this worktree, branch `feat/drop-builder-ux`. Never run git commands in `/Users/mj/code/mazadjo` — concurrent sessions use that directory.
+- **Worktree:** work only in this worktree, branch `feat/drop-builder-ux`. Never run git commands in `/Users/mj/code/mazzado` — concurrent sessions use that directory.
 - **Test environment is `node`, not jsdom.** There is no `@testing-library/react` and no `jsdom` in this repo. **Do not write component-rendering tests.** Follow the established pattern (`src/components/SwipeToBid.test.ts`): keep logic in pure modules and test those. React components are verified by `npm run build` plus manual browser checks.
 - **There is no Firestore rules test harness** (`@firebase/rules-unit-testing` is not a dependency; `firebase.json` has no emulators block). Task 12's rule change is verified manually in the Firebase console Rules Playground. Do not add an emulator harness.
 - Run `npm test` (`vitest run`) and `npm run build` before every commit. Both must pass.

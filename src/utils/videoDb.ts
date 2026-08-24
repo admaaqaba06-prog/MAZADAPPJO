@@ -14,7 +14,7 @@ export async function uploadVideoToStorage(auctionId: string, blob: Blob): Promi
   return downloadUrl;
 }
 
-const DB_NAME = 'MazadJoVideoStore';
+const DB_NAME = 'MazzadoVideoStore';
 const STORE_NAME = 'customVideos';
 const DB_VERSION = 1;
 

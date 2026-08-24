@@ -86,7 +86,7 @@ describe('emitLandingEvent', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/mj/code/mazadjo/.claude/worktrees/feat+landing-seller-redesign && npx vitest run src/landing/landingAnalytics.test.ts`
+Run: `cd /Users/mj/code/mazzado/.claude/worktrees/feat+landing-seller-redesign && npx vitest run src/landing/landingAnalytics.test.ts`
 Expected: FAIL — cannot resolve `./landingAnalytics`.
 
 - [ ] **Step 3: Write minimal implementation**

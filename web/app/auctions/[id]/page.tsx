@@ -63,7 +63,7 @@ export default function LiveAuctionViewerPage({ params }: AuctionViewerProps) {
 
   // Connect sockets to Fastify backend realtimes
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_WS_URL || 'wss://api.mazadjo.com', {
+    const socket = io(process.env.NEXT_PUBLIC_WS_URL || 'wss://api.mazzado.com', {
       transports: ['websocket'],
       upgrade: false
     });

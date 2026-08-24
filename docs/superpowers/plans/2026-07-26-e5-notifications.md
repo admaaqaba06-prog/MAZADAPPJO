@@ -16,7 +16,7 @@
 - User-doc contact fields are `phoneNumber` (canonical) + `phone` (mirror) + `normalizedPhone` (digits only) + `email`. No `whatsapp` field — WhatsApp reuses `phoneNumber`.
 - Arabic-first copy (the app + existing FCM/n8n strings are Arabic-primary); bilingual where a UI label pairs AR/EN.
 - No bouncy springs on the modal — smooth ease-out (house motion rule).
-- Isolated worktree `/tmp/mazadjo-e5`, branch `feat/e5-notifications` (already created off origin/main; spec already committed).
+- Isolated worktree `/tmp/mazzado-e5`, branch `feat/e5-notifications` (already created off origin/main; spec already committed).
 
 ---
 
@@ -66,7 +66,7 @@ describe('resolveMissingContact', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails** — Run: `cd /tmp/mazadjo-e5 && npx vitest run src/utils/guestGate.test.ts`. Expected: FAIL ("resolveMissingContact is not a function").
+- [ ] **Step 2: Run test to verify it fails** — Run: `cd /tmp/mazzado-e5 && npx vitest run src/utils/guestGate.test.ts`. Expected: FAIL ("resolveMissingContact is not a function").
 
 - [ ] **Step 3: Write minimal implementation** — append to `src/utils/guestGate.ts`:
 
@@ -100,7 +100,7 @@ export function isContactComplete(user: ContactUser | null | undefined): boolean
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes** — Run: `cd /tmp/mazadjo-e5 && npx vitest run src/utils/guestGate.test.ts`. Expected: PASS.
+- [ ] **Step 4: Run test to verify it passes** — Run: `cd /tmp/mazzado-e5 && npx vitest run src/utils/guestGate.test.ts`. Expected: PASS.
 
 - [ ] **Step 5: Commit** — `git add src/utils/guestGate.ts src/utils/guestGate.test.ts && git commit -m "feat(contact): resolveMissingContact/isContactComplete helpers"`
 
@@ -272,7 +272,7 @@ describe('channelsFor', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails** — Run: `cd /tmp/mazadjo-e5 && npx vitest run functions/notify.test.js`. Expected: FAIL (module not found).
+- [ ] **Step 2: Run test to verify it fails** — Run: `cd /tmp/mazzado-e5 && npx vitest run functions/notify.test.js`. Expected: FAIL (module not found).
 
 - [ ] **Step 3: Write minimal implementation** — `functions/notify.js`:
 
@@ -624,7 +624,7 @@ exports.paymentReminderSweep = functions.pubsub
 
 ### Task B9: full green + PR
 
-- [ ] **Step 1:** Run the full gate — `cd /tmp/mazadjo-e5 && node -c functions/index.js && npx tsc --noEmit && npm run lint && npm run build && npx vitest run`. All green.
+- [ ] **Step 1:** Run the full gate — `cd /tmp/mazzado-e5 && node -c functions/index.js && npx tsc --noEmit && npm run lint && npm run build && npx vitest run`. All green.
 - [ ] **Step 2:** Push + open a DRAFT PR (base main). Body summarizes both slices, the channel matrix, the three new events, and the deferrals. Fetch the Vercel preview URL.
 - [ ] **Step 3:** Cross-model money-path review of the `functions/index.js` diff (notify refactor + reminder cron touch order state) before marking ready.
 - [ ] **Step 4:** Report to MJ with the preview URL for the ContactCompletionModal + gate; hold for merge approval (customer-facing rule).

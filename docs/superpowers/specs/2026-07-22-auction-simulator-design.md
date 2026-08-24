@@ -126,7 +126,7 @@ Extract a shared `assertAdmin(context)` helper mirroring the existing admin chec
 - Manual (admin, post-deploy): toggle on → spawn a 30s auction → it appears for admin,
   NOT in an incognito/non-admin view → start bot → watch price climb + outbid + anti-snipe
   extension in the final seconds → settle now → order appears → win→pay CliQ panel (with
-  the `mazadjom` alias) → clear all → everything gone, real feed clean.
+  the `mazzadom` alias) → clear all → everything gone, real feed clean.
 
 ## Risks
 

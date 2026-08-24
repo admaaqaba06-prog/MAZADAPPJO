@@ -6,7 +6,7 @@
 
 The audit called this "Action Center consolidation" and implied the problem was tab-hopping. It isn't. MJ's actual complaint, 2026-07-28:
 
-> "each tab is confusing, there's a lot of information on each tab. and some tabs irrelevant now like fulfillment… verify and approve are confusing bc its both for memberships and orders… launch is also confusing bc its mazadjo launches but also approving customer mazads."
+> "each tab is confusing, there's a lot of information on each tab. and some tabs irrelevant now like fulfillment… verify and approve are confusing bc its both for memberships and orders… launch is also confusing bc its mazzado launches but also approving customer mazads."
 
 The panel's shape no longer matches what the system does, and three tabs each quietly do two unrelated jobs:
 
@@ -130,7 +130,7 @@ export interface ActionQueueInput {
 export function buildActionQueue(input: ActionQueueInput, nowMs: number): ActionRow[];
 ```
 
-All ranking, SLA evaluation and reason derivation live here. This is the house pattern and it matters more than usual: vitest is node-only with no jsdom, so logic left in JSX ships untested (see `reference_mazadjo_testing`). Anything the queue *decides* belongs in this file; the component only renders.
+All ranking, SLA evaluation and reason derivation live here. This is the house pattern and it matters more than usual: vitest is node-only with no jsdom, so logic left in JSX ships untested (see `reference_mazzado_testing`). Anything the queue *decides* belongs in this file; the component only renders.
 
 **Components**
 

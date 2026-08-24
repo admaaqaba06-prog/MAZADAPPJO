@@ -68,7 +68,7 @@ export function isAuctionOpen(status: string | null | undefined): boolean {
 - [ ] **Step 5: Typecheck** (`npm run lint`) — clean.
 - [ ] **Step 6: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/utils/auctionPhase.ts src/utils/auctionPhase.test.ts
 git commit -m "feat(auto-open): add isAuctionOpen helper"
 ```
@@ -141,7 +141,7 @@ export function formatAmmanClock(ms: number): string {
 - [ ] **Step 5: Typecheck** — clean.
 - [ ] **Step 6: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/utils/ammanTime.ts src/utils/ammanTime.test.ts
 git commit -m "feat(auto-open): add Amman time parse/format helpers"
 ```
@@ -222,7 +222,7 @@ exports.scheduledAuctionOpener = functions.pubsub
 
 - [ ] **Step 3: Sanity-check the file parses**
 
-Run: `cd /Users/mj/code/mazadjo/functions && node --check index.js`
+Run: `cd /Users/mj/code/mazzado/functions && node --check index.js`
 Expected: no output (syntax OK).
 
 - [ ] **Step 4: Document the manual verification (no CF test runner exists)**
@@ -231,7 +231,7 @@ In the report, record the manual test for a human to run after deploy: create an
 
 - [ ] **Step 5: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add functions/index.js
 git commit -m "feat(auto-open): add scheduledAuctionOpener cloud function"
 ```
@@ -319,7 +319,7 @@ A `datetime-local` accepts past values; a past `scheduledStartAt` would make the
 
 - [ ] **Step 6: Typecheck + tests**
 
-Run: `cd /Users/mj/code/mazadjo && npm run lint && npx vitest run`
+Run: `cd /Users/mj/code/mazzado && npm run lint && npx vitest run`
 Expected: clean; all pure tests pass.
 
 - [ ] **Step 7: Verify in the running app**
@@ -328,7 +328,7 @@ Run: `npm run dev`, open the drop-builder as admin. Pick a start time → confir
 
 - [ ] **Step 8: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/components/DropBuilderView.tsx
 git commit -m "feat(auto-open): drop-builder datetime picker sets scheduledStartAt"
 ```
@@ -425,7 +425,7 @@ The auction variable here is **`currentItem`** (not `auction`). Import `isAuctio
 
 - [ ] **Step 5: Typecheck + tests**
 
-Run: `cd /Users/mj/code/mazadjo && npm run lint && npx vitest run`
+Run: `cd /Users/mj/code/mazzado && npm run lint && npx vitest run`
 Expected: clean; pure tests pass.
 
 - [ ] **Step 6: Verify in the running app**
@@ -434,7 +434,7 @@ Run: `npm run dev`. With an `upcoming` auction whose `scheduledStartAt` is in th
 
 - [ ] **Step 7: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/components/LiveStreamView.tsx src/components/MobileLiveAuctionLayout.tsx src/components/DesktopLiveAuctionLayout.tsx src/components/ReelsDesktopRightPanel.tsx
 git commit -m "feat(auto-open): gate bid controls + countdown on open state"
 ```

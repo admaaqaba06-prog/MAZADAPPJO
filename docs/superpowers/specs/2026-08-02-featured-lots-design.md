@@ -193,7 +193,7 @@ Consequences to expect, not bugs:
 
 `vitest` here is node-only — no jsdom, no testing-library — so components cannot
 be render-tested. Coverage sits at the pure-helper layer plus rules plus manual
-verification. (`reference_mazadjo_testing`; note also that a clean `tsc` proves
+verification. (`reference_mazzado_testing`; note also that a clean `tsc` proves
 nothing about `.tsx` call sites in this repo.)
 
 Unit:

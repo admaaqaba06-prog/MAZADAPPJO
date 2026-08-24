@@ -16,9 +16,9 @@
 - **Bilingual copy is mandatory.** Every user-visible string needs an Arabic and an English form, selected via the existing `isAr` boolean. Never ship an English-only string.
 - **RTL:** every directional Tailwind class needs its `rtl:` counterpart, matching the surrounding code (e.g. `right-2.5 rtl:right-auto rtl:left-2.5`).
 - **Branch / workspace:** all work happens in the isolated worktree at
-  `/Users/mj/code/mazadjo/.claude/worktrees/awaiting-first-bid`, on branch
+  `/Users/mj/code/mazzado/.claude/worktrees/awaiting-first-bid`, on branch
   `worktree-awaiting-first-bid` (branched from `origin/main`). Never `cd` to
-  `/Users/mj/code/mazadjo` itself and never switch branches there — a second
+  `/Users/mj/code/mazzado` itself and never switch branches there — a second
   Claude session is actively committing to `feat/global-language` in that
   checkout, and a branch switch under it would send its next edit to the wrong
   branch.

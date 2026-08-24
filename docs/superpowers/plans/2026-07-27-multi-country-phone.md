@@ -13,7 +13,7 @@
 - Server callables validate E.164 robustly (invalid → `invalid-argument`); no Jordan assumption left in the OTP flow; no other change to the OTP security (rate-limit, single-use, custom-token all unchanged + still country-agnostic).
 - `functions/whatsappOtp.js` may now import `libphonenumber-js` (a plain npm lib, NOT firebase) — root Vitest still loads it fine.
 - Test globs: `src/**/*.test.ts(x)`, `functions/**/*.test.js`.
-- Worktree `/tmp/mazadjo-intl`, branch `feat/multi-country-phone` (spec committed).
+- Worktree `/tmp/mazzado-intl`, branch `feat/multi-country-phone` (spec committed).
 
 ---
 
@@ -23,7 +23,7 @@
 **Files:** `package.json` (add dep), `src/utils/phoneNumber.ts` (append), `src/utils/phoneNumber.test.ts` (new/append), `src/utils/countryData.ts` (new) + its test.
 **Interfaces:** `parsePhoneToE164(input, country) -> string|null`, `DEFAULT_COUNTRY='JO'`, `getCountryList() -> {iso2, dialCode, name, flag}[]`.
 
-- [ ] **Step 1: add dep** — `cd /tmp/mazadjo-intl && npm install libphonenumber-js` (adds to root package.json; the symlinked node_modules is shared with the main repo — run install so it's actually present). Confirm it resolves: `node -e "require('libphonenumber-js')"`.
+- [ ] **Step 1: add dep** — `cd /tmp/mazzado-intl && npm install libphonenumber-js` (adds to root package.json; the symlinked node_modules is shared with the main repo — run install so it's actually present). Confirm it resolves: `node -e "require('libphonenumber-js')"`.
 - [ ] **Step 2: failing test** — `src/utils/phoneNumber.test.ts` (append or create):
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -119,7 +119,7 @@ describe('countryData', () => {
 **Files:** `functions/package.json` (add dep), `functions/whatsappOtp.js` (add `normalizePhone` + export), `functions/whatsappOtp.test.js` (append).
 **Interfaces:** `normalizePhone(input) -> e164 | null` (any-country).
 
-- [ ] **Step 1: add dep** — `cd /tmp/mazadjo-intl/functions && npm install libphonenumber-js` (functions has its own package.json/node_modules). Confirm `node -e "require('libphonenumber-js')"` in functions/.
+- [ ] **Step 1: add dep** — `cd /tmp/mazzado-intl/functions && npm install libphonenumber-js` (functions has its own package.json/node_modules). Confirm `node -e "require('libphonenumber-js')"` in functions/.
 - [ ] **Step 2: failing test** — append to `functions/whatsappOtp.test.js`:
 ```js
 const { normalizePhone } = require('./whatsappOtp');

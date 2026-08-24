@@ -75,7 +75,7 @@ Below the hub:
 - Keep the app theme (orange `#FF6B00`/`#E85D04`, cream bg, rounded cards, the existing left-nav pattern) — this is consistent with the app, not a new aesthetic.
 - Left nav updates to the 5 sections; mobile keeps the existing responsive treatment
   and MUST follow the in-frame scroll rule (root `h-full overflow-y-auto` +
-  `pb-[calc(6rem+env(safe-area-inset-bottom))]` — see [[reference_mazadjo_mobile_scroll]]).
+  `pb-[calc(6rem+env(safe-area-inset-bottom))]` — see [[reference_mazzado_mobile_scroll]]).
 - Verification prompt (`Apply for Official Verification`) stays, surfaced as an Overview action item when unverified.
 
 ## Testing
