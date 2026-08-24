@@ -976,7 +976,31 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   };
 
   return (
-    <div className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-hidden">
+    <div
+      /* `overflow-x-clip`, NOT `overflow-hidden`. The ambient glow circles below
+          are absolutely positioned past the left and right edges and need
+          clipping — but `overflow-hidden` clips BOTH axes, and an element with a
+          non-visible overflow is a scroll container. This root therefore held a
+          second, invisible vertical scroller nested inside the document's, with
+          565px of range it never showed a scrollbar for. Measured at 1280x800:
+  
+            fresh load         window.scrollY 0     root.scrollTop 0     hero.top  +77
+            after #categories  window.scrollY 5073  root.scrollTop 565   hero.top -5561
+            scrolled back up   window.scrollY 0     root.scrollTop 565   hero.top -488
+  
+          A fragment jump scrolls the nearest scroll container, so the browser
+          moved THIS element's scrollTop to its 565px maximum. Scrolling back up
+          returns `window.scrollY` to 0 — the scrollbar is visibly at the top —
+          but nothing returns `root.scrollTop`, because no scrollbar was ever
+          rendered for it. The hero stayed pushed 565px up and read as cropped.
+  
+          `overflow-x: clip` clips without establishing a scroll container, and it
+          leaves the y axis `visible`. `overflow-x: hidden` would NOT do: per
+          spec, `hidden` on one axis forces a `visible` other axis to compute to
+          `auto`, so the element stays a scroll container and the bug survives.
+          The document's scrolling element is now the page's only scroll owner. */
+      className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-x-clip"
+    >
       
       {/* Scroll Progress Indicator at top of screen */}
       <motion.div
