@@ -8,6 +8,14 @@ import {
   moveGalleryPhoto,
   imageFilesFromTransfer,
   removeGalleryPhoto,
+  filesFromTransfer,
+  isImageFile,
+  isVideoFile,
+  checkCoverFile,
+  checkVideoFile,
+  MAX_COVER_BYTES,
+  MAX_VIDEO_BYTES,
+  type MediaRefusal,
   type PickedPhoto,
 } from '../../utils/mediaPickerState';
 
@@ -50,6 +58,37 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
 }) => {
   // Hover treatment while a file drag is over the gallery.
   const [dragOver, setDragOver] = useState(false);
+  // Same, for the two single-file zones, kept separate so dragging over one
+  // does not light up the other.
+  const [coverDragOver, setCoverDragOver] = useState(false);
+  const [videoDragOver, setVideoDragOver] = useState(false);
+  // Why the last cover/video pick was refused, or null. The gallery states its
+  // refusals already; these two said nothing at all, so an oversized cover just
+  // appeared not to work.
+  const [coverError, setCoverError] = useState<MediaRefusal | null>(null);
+  const [videoError, setVideoError] = useState<MediaRefusal | null>(null);
+
+  /**
+   * Accept a cover, or refuse it with a reason. Validated against the SERVER's
+   * ceiling (`storage.rules`, 20MB on auction-thumbnails) so a file that would
+   * be rejected on upload is refused here instead, where it can be explained.
+   * `null` clears — that is the Remove button, not a refusal.
+   */
+  const takeCover = (f: File | null) => {
+    if (!f) { setCoverError(null); onCoverChange(null); return; }
+    const check = checkCoverFile(f);
+    if (!check.ok) { setCoverError(check.reason ?? 'wrong_type'); return; }
+    setCoverError(null);
+    onCoverChange(f);
+  };
+
+  const takeVideo = (f: File | null) => {
+    if (!f) { setVideoError(null); onVideoChange(null); return; }
+    const check = checkVideoFile(f);
+    if (!check.ok) { setVideoError(check.reason ?? 'wrong_type'); return; }
+    setVideoError(null);
+    onVideoChange(f);
+  };
   // Index being dragged for reorder, or null.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   /**
@@ -100,25 +139,55 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             <img src={coverUrl} alt="" className="w-full h-full object-contain" />
             <button
               type="button"
-              onClick={() => onCoverChange(null)}
+              onClick={() => takeCover(null)}
               className="absolute top-2 end-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer"
             >
               {isAr ? 'حذف' : 'Remove'}
             </button>
           </div>
         ) : (
-          <label className={`${zone} p-6`}>
+          /* Drop + click. `onDragOver` MUST preventDefault or the browser
+             navigates away to the dropped file and the form is lost — the same
+             reason the gallery zone below does it. `<label>` keeps the click
+             path and the native picker, so mobile is unaffected. */
+          <label
+            className={`${zone} p-6 ${coverDragOver ? 'border-[#F05123] bg-accent-weak' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setCoverDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setCoverDragOver(true); }}
+            onDragLeave={() => setCoverDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setCoverDragOver(false);
+              takeCover(filesFromTransfer(e.dataTransfer, isImageFile)[0] ?? null);
+            }}
+          >
             <span className="text-2xl">🖼️</span>
             <span className="text-xs font-bold text-fg-muted mt-2">
-              {isAr ? 'اضغط لرفع صورة الغلاف' : 'Tap to add a cover image'}
+              {coverDragOver
+                ? (isAr ? 'أفلت الصورة هنا' : 'Drop the image here')
+                : (isAr ? 'اسحب صورة الغلاف أو اضغط لاختيارها' : 'Drag a cover image here, or tap to choose')}
             </span>
             <input
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => onCoverChange(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                takeCover(e.target.files?.[0] ?? null);
+                // Clear the input so re-picking the SAME file fires onChange
+                // again — otherwise a refused file cannot be retried.
+                e.target.value = '';
+              }}
             />
           </label>
+        )}
+        {coverError && (
+          <p className="text-[11px] font-bold text-danger" role="alert">
+            {coverError === 'wrong_type'
+              ? (isAr ? 'الملف ليس صورة. الصور فقط.' : 'That file is not an image. Images only.')
+              : (isAr
+                  ? `الصورة أكبر من ${formatNumeral(MAX_COVER_BYTES / (1024 * 1024), isAr)} ميجابايت.`
+                  : `The image is larger than ${MAX_COVER_BYTES / (1024 * 1024)}MB.`)}
+          </p>
         )}
       </div>
 
@@ -254,25 +323,49 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => onVideoChange(null)}
+              onClick={() => takeVideo(null)}
               className="shrink-0 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer"
             >
               {isAr ? 'حذف' : 'Remove'}
             </button>
           </div>
         ) : (
-          <label className={`${zone} p-5`}>
+          <label
+            className={`${zone} p-5 ${videoDragOver ? 'border-[#F05123] bg-accent-weak' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setVideoDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setVideoDragOver(true); }}
+            onDragLeave={() => setVideoDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setVideoDragOver(false);
+              takeVideo(filesFromTransfer(e.dataTransfer, isVideoFile)[0] ?? null);
+            }}
+          >
             <span className="text-2xl">🎥</span>
             <span className="text-xs font-bold text-fg-muted mt-2">
-              {isAr ? 'اضغط لرفع فيديو' : 'Tap to add a video'}
+              {videoDragOver
+                ? (isAr ? 'أفلت الفيديو هنا' : 'Drop the video here')
+                : (isAr ? 'اسحب الفيديو أو اضغط لاختياره' : 'Drag a video here, or tap to choose')}
             </span>
             <input
               type="file"
               accept="video/*"
               className="hidden"
-              onChange={(e) => onVideoChange(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                takeVideo(e.target.files?.[0] ?? null);
+                e.target.value = '';
+              }}
             />
           </label>
+        )}
+        {videoError && (
+          <p className="text-[11px] font-bold text-danger" role="alert">
+            {videoError === 'wrong_type'
+              ? (isAr ? 'الملف ليس فيديو. MP4 أو MOV أو M4V أو WEBM.' : 'That file is not a video. MP4, MOV, M4V or WEBM.')
+              : (isAr
+                  ? `الفيديو أكبر من ${formatNumeral(MAX_VIDEO_BYTES / (1024 * 1024), isAr)} ميجابايت.`
+                  : `The video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)}MB.`)}
+          </p>
         )}
       </div>
     </div>

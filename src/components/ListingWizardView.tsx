@@ -4,6 +4,13 @@ import { VideoUploadForm } from './VideoUploadForm';
 import { resizeImage } from '../utils/resizeImage';
 import { validateDescription } from '../utils/listingDescription';
 import { CATEGORIES } from '../utils/categories';
+import {
+  filesFromTransfer,
+  isImageFile,
+  checkCoverFile,
+  MAX_COVER_BYTES,
+  type MediaRefusal,
+} from '../utils/mediaPickerState';
 import { Sparkles, CheckCircle, Loader2, Video, Image as ImageIcon, Save } from 'lucide-react';
 
 interface ListingWizardViewProps {
@@ -35,6 +42,32 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   // Thumbnail assets references
   const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
   const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
+  // Drag highlight + refusal reason for the cover zone.
+  const [coverDragOver, setCoverDragOver] = useState(false);
+  const [coverError, setCoverError] = useState<MediaRefusal | null>(null);
+
+  /**
+   * One intake for the cover, used by the picker AND the drop, so the validation
+   * cannot diverge between them. Checked against the server ceiling in
+   * `storage.rules` (20MB on auction-thumbnails) — the upload would be rejected
+   * there anyway, and a refusal that arrives before the upload can be explained.
+   * Revokes the previous object URL so replacing a cover does not leak a blob.
+   */
+  const takeCover = (file: File | null) => {
+    if (!file) {
+      if (customThumbnailUrl) URL.revokeObjectURL(customThumbnailUrl);
+      setCoverError(null);
+      setRawThumbnailFile(null);
+      setCustomThumbnailUrl(null);
+      return;
+    }
+    const check = checkCoverFile(file);
+    if (!check.ok) { setCoverError(check.reason ?? 'wrong_type'); return; }
+    if (customThumbnailUrl) URL.revokeObjectURL(customThumbnailUrl);
+    setCoverError(null);
+    setRawThumbnailFile(file);
+    setCustomThumbnailUrl(URL.createObjectURL(file));
+  };
 
   // Wave 2 (media gallery): up to 3 EXTRA photos beyond the cover → mediaUrls
   const [extraPhotos, setExtraPhotos] = useState<{ file: File; url: string }[]>([]);
@@ -312,34 +345,53 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
                       <img src={customThumbnailUrl} alt={isAr ? 'معاينة الصورة المصغرة' : 'Thumbnail preview'} className="w-full h-full object-contain" />
                       <button
                         type="button"
-                        onClick={() => {
-                          setRawThumbnailFile(null);
-                          setCustomThumbnailUrl(null);
-                        }}
+                        onClick={() => takeCover(null)}
                         className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer"
                       >
                         {isAr ? 'حذف صورة الغلاف' : 'Remove Cover'}
                       </button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-line rounded-xl p-6 cursor-pointer hover:bg-surface-sunken transition-colors">
+                    /* Drop + click. `onDragOver` MUST preventDefault or the
+                       browser navigates to the dropped image and the form is
+                       lost. The label click path is untouched, so the mobile
+                       picker behaves exactly as before. */
+                    <label
+                      className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${coverDragOver ? 'border-[#F05123] bg-accent-weak' : 'border-line hover:bg-surface-sunken'}`}
+                      onDragOver={(e) => { e.preventDefault(); setCoverDragOver(true); }}
+                      onDragEnter={(e) => { e.preventDefault(); setCoverDragOver(true); }}
+                      onDragLeave={() => setCoverDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setCoverDragOver(false);
+                        takeCover(filesFromTransfer(e.dataTransfer, isImageFile)[0] ?? null);
+                      }}
+                    >
                       <span className="text-2xl">🖼️</span>
                       <span className="text-xs font-bold text-fg-muted mt-2">
-                        {isAr ? 'اضغط لرفع صورة غلاف' : 'Click to upload a cover image'}
+                        {coverDragOver
+                          ? (isAr ? 'أفلت الصورة هنا' : 'Drop the image here')
+                          : (isAr ? 'اسحب صورة الغلاف أو اضغط لاختيارها' : 'Drag a cover image here, or click to choose')}
                       </span>
                       <input
                         type="file"
                         accept="image/*"
                         className="hidden"
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setRawThumbnailFile(file);
-                            setCustomThumbnailUrl(URL.createObjectURL(file));
-                          }
+                          takeCover(e.target.files?.[0] ?? null);
+                          e.target.value = '';
                         }}
                       />
                     </label>
+                  )}
+                  {coverError && (
+                    <p className="mt-2 text-[11px] font-bold text-danger" role="alert">
+                      {coverError === 'wrong_type'
+                        ? (isAr ? 'الملف ليس صورة. الصور فقط.' : 'That file is not an image. Images only.')
+                        : (isAr
+                            ? `الصورة أكبر من ${MAX_COVER_BYTES / (1024 * 1024)} ميجابايت.`
+                            : `The image is larger than ${MAX_COVER_BYTES / (1024 * 1024)}MB.`)}
+                    </p>
                   )}
                 </div>
               </div>

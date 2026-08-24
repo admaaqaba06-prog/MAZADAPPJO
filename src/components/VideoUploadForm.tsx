@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Video, RefreshCw, UploadCloud, Film, Link2 } from 'lucide-react';
+import { filesFromTransfer, isVideoFile } from '../utils/mediaPickerState';
 
 interface VideoUploadFormProps {
   onVideoSelect?: (file: File | null, videoUrl: string | null) => void;
@@ -12,6 +13,8 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState<string>('');
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string } | null>(null);
+  // Highlight while a file drag is over the zone, so it is visibly a drop target.
+  const [dragOver, setDragOver] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,10 +31,21 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    
-    // Reset file input value immediately so that selecting the same file triggers onChange again
+    // Reset the input value immediately so re-picking the SAME file fires
+    // onChange again (a refused file must be retryable).
     e.target.value = '';
-    
+    acceptVideoFile(file);
+  };
+
+  /**
+   * The one place a video file is validated and accepted, whether it arrived
+   * from the picker or from a drop. Extracted from `handleFileSelect` rather
+   * than duplicated: the type rules (video/* plus the extension fallback for the
+   * Android pickers that report '' or application/octet-stream), the 100MB hard
+   * reject and the 25MB warning are product decisions that must not diverge
+   * between the two ways in.
+   */
+  const acceptVideoFile = (file: File | null | undefined) => {
     setErrorMessage(null);
     setWarningMessage(null);
 
@@ -263,10 +277,23 @@ export const VideoUploadForm: React.FC<VideoUploadFormProps> = ({ onVideoSelect,
       ) : (
         <>
           {activeTab === 'upload' ? (
+            /* Drop + click. `onDragOver` MUST preventDefault, or the browser
+               leaves the page to open the dropped video and the half-filled
+               listing form is lost. The label/htmlFor click path is untouched,
+               so the mobile picker still works exactly as before. */
             <label 
               htmlFor="video-upload-input"
-              className="flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed border-[#FF6B00] bg-accent-weak hover:bg-accent-weak transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none"
+              className={`flex flex-col items-center justify-center w-full min-h-[140px] px-4 py-8 border-2 border-dashed transition-colors rounded-2xl cursor-pointer dynamic-touch-target select-none ${dragOver ? 'border-[#F05123] bg-accent-weak scale-[0.99]' : 'border-[#FF6B00] bg-accent-weak hover:bg-accent-weak'}`}
               id="video-tap-area"
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                // Same intake as the picker — one validation, two ways in.
+                acceptVideoFile(filesFromTransfer(e.dataTransfer, isVideoFile)[0] ?? null);
+              }}
             >
               <div className="flex flex-col items-center text-center space-y-2.5">
                 <span className="text-4xl">📹</span>

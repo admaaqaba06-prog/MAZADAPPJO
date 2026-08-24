@@ -145,17 +145,102 @@ export function imageFilesFromTransfer(transfer: {
   files?: ArrayLike<File> | null;
   items?: ArrayLike<{ kind: string; type: string; getAsFile(): File | null }> | null;
 } | null | undefined): File[] {
+  return filesFromTransfer(transfer, isImageFile);
+}
+
+/** The shape a drop (`DataTransfer`) and a paste (`ClipboardEvent`) share. */
+export interface MediaTransfer {
+  files?: ArrayLike<File> | null;
+  items?: ArrayLike<{ kind: string; type: string; getAsFile(): File | null }> | null;
+}
+
+/**
+ * Files out of a drop or a paste, filtered by `accept`.
+ *
+ * Generalised from `imageFilesFromTransfer` (kept above as a wrapper so its
+ * call sites and tests are untouched) because the cover and video zones need
+ * the same `files`-then-`items` walk with a different predicate. Takes the
+ * shape rather than the event so it stays testable in node.
+ */
+export function filesFromTransfer(
+  transfer: MediaTransfer | null | undefined,
+  accept: (f: { type: string; name?: string }) => boolean,
+): File[] {
   if (!transfer) return [];
 
   const fromFiles = transfer.files ? Array.from(transfer.files) : [];
-  if (fromFiles.length > 0) return fromFiles.filter(isImageFile);
+  if (fromFiles.length > 0) return fromFiles.filter(accept);
 
   if (!transfer.items) return [];
   const out: File[] = [];
   for (const item of Array.from(transfer.items)) {
     if (item.kind !== 'file') continue;
     const f = item.getAsFile();
-    if (f && isImageFile(f)) out.push(f);
+    if (f && accept(f)) out.push(f);
   }
   return out;
+}
+
+/**
+ * A video, judged the way `VideoUploadForm` already judges one: a `video/*` MIME
+ * type, OR a known extension when the browser reports nothing useful. Android
+ * file pickers and some OS drags hand over `''` or `application/octet-stream`
+ * for a perfectly good .mov, so extension is the fallback rather than a reject.
+ */
+export const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm'] as const;
+
+export function isVideoFile(f: { type: string; name?: string }): boolean {
+  const type = f.type || '';
+  if (type.startsWith('video/')) return true;
+  if (type !== '' && type !== 'application/octet-stream') return false;
+  const name = (f.name || '').toLowerCase();
+  const dot = name.lastIndexOf('.');
+  return dot !== -1 && (VIDEO_EXTENSIONS as readonly string[]).includes(name.slice(dot));
+}
+
+/**
+ * Size ceilings, taken from `storage.rules` rather than picked — the server
+ * rejects past these, so validating anywhere else would either surprise the
+ * user with a server error or refuse a file that would have uploaded fine.
+ *
+ *   auction-thumbnails/  20MB  image/*   (cover + gallery)
+ *   auction-videos/      250MB video/*
+ *
+ * The seller's video form applies its OWN stricter 100MB cap with a warning band
+ * above 25MB; that is a deliberate product choice about upload reliability on
+ * mobile connections and is left where it is.
+ */
+export const MAX_COVER_BYTES = 20 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
+
+/** Why a single-file pick was refused, so the UI can say which it was. */
+export type MediaRefusal = 'wrong_type' | 'too_large';
+
+export interface MediaCheck {
+  ok: boolean;
+  reason?: MediaRefusal;
+}
+
+/**
+ * Validate one picked/dropped file for a single-file zone.
+ *
+ * Separate from the gallery's `classifyGalleryIntake` because that one reports
+ * counts across a batch against a cap; here exactly one file is either accepted
+ * or refused for exactly one reason, and the caller shows that reason.
+ */
+export function checkCoverFile(f: { type: string; size: number } | null | undefined): MediaCheck {
+  if (!f) return { ok: false, reason: 'wrong_type' };
+  if (!isImageFile(f)) return { ok: false, reason: 'wrong_type' };
+  if (f.size > MAX_COVER_BYTES) return { ok: false, reason: 'too_large' };
+  return { ok: true };
+}
+
+export function checkVideoFile(
+  f: { type: string; size: number; name?: string } | null | undefined,
+  maxBytes: number = MAX_VIDEO_BYTES,
+): MediaCheck {
+  if (!f) return { ok: false, reason: 'wrong_type' };
+  if (!isVideoFile(f)) return { ok: false, reason: 'wrong_type' };
+  if (f.size > maxBytes) return { ok: false, reason: 'too_large' };
+  return { ok: true };
 }
