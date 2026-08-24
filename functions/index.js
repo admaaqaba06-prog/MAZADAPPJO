@@ -12,6 +12,7 @@ const {
   SEND_COOLDOWN_MS,
   MAX_SENDS_PER_HOUR,
   MAX_ATTEMPTS,
+  isRelayDelivered,
 } = require('./whatsappOtp');
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
@@ -95,21 +96,43 @@ async function postToN8n(event, payload) {
 // if ever needed. Same fallback pattern as the Firebase config in services/firebase.
 const OTP_RELAY_URL = 'https://mazadjo.app.n8n.cloud/webhook/send-otp';
 
+/**
+ * Hand the code to the WhatsApp relay. Returns whether it was ACCEPTED for
+ * delivery. Still never throws — the code is already committed and the caller
+ * must not fail because of this.
+ *
+ * It used to return nothing, so the callable answered `{ ok: true }` whatever
+ * happened and the sign-in screen said "we sent a code to WhatsApp" even when
+ * nothing had been sent. With the relay's own failure rate at ~60%, that is
+ * most of the people who try: they wait for a message that is not coming, and
+ * the SMS fallback sits unnoticed under the button.
+ *
+ * Two failures were invisible, not one. `fetch` only rejects on a transport
+ * error, so an HTTP 404 or 500 — a deactivated workflow, a renamed path —
+ * resolved as success and was never even logged. `isRelayDelivered` checks the
+ * status.
+ */
 async function postOtpToRelay(phone, code) {
   const url = process.env.N8N_OTP_WEBHOOK_URL || OTP_RELAY_URL;
   if (!url) {
     console.warn('[otp] OTP relay URL unset — skipping OTP relay send');
-    return;
+    return false;
   }
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, code }),
       signal: AbortSignal.timeout(5000),
     });
+    const delivered = isRelayDelivered(res);
+    if (!delivered) {
+      console.warn('[otp] relay rejected the send:', res && res.status);
+    }
+    return delivered;
   } catch (e) {
     console.warn('[otp] relay send failed:', e && e.message);
+    return false;
   }
 }
 
@@ -5753,9 +5776,22 @@ exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(asyn
     return { ok: false, retryAfterSec };
   }
 
-  await postOtpToRelay(e164, sendCode); // never throws — do it AFTER commit
+  // Never throws — and AFTER the commit, so a relay outage cannot cost the user
+  // a code that was already issued.
+  const delivered = await postOtpToRelay(e164, sendCode);
 
-  return { ok: true, retryAfterSec: Math.ceil(SEND_COOLDOWN_MS / 1000) };
+  /**
+   * `ok` still means "a code was issued", which is what the verify step needs.
+   * `delivered` is separate and new: whether the WhatsApp relay accepted it.
+   *
+   * The rate-limit bookkeeping in the transaction above is deliberately NOT
+   * rolled back on a failed delivery. It is the abuse guard, and letting a
+   * caller reset the 60s cooldown and the 5/hour window by forcing the relay to
+   * fail is a worse problem than the one being fixed. The user is not stuck
+   * either way: SMS is a different provider with its own limit, and the client
+   * now routes there instead of waiting.
+   */
+  return { ok: true, delivered, retryAfterSec: Math.ceil(SEND_COOLDOWN_MS / 1000) };
 });
 
 // Step 3: verify an OTP and mint a custom token. UNauthenticated by design.

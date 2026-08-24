@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 const {
   normalizeJordanPhone, generateOtpCode, hashOtp, canSendOtp, checkOtp,
-  OTP_TTL_MS, SEND_COOLDOWN_MS, MAX_SENDS_PER_HOUR, MAX_ATTEMPTS, CODE_LENGTH,
+  OTP_TTL_MS, SEND_COOLDOWN_MS, MAX_SENDS_PER_HOUR, MAX_ATTEMPTS, CODE_LENGTH, isRelayDelivered,
 } = require('./whatsappOtp');
 
 describe('normalizeJordanPhone', () => {
@@ -87,5 +87,50 @@ describe('normalizePhone (any country)', () => {
     expect(normalizePhone('123')).toBeNull();
     expect(normalizePhone('')).toBeNull();
     expect(normalizePhone(null)).toBeNull();
+  });
+});
+
+/* ======================================================================
+   isRelayDelivered — the OTP relay's own answer, not an assumption.
+
+   The relay call was `await fetch(url, ...)` inside a bare try/catch, and the
+   callable returned `{ ok: true }` whatever came back. Two failures were
+   invisible: `fetch` only rejects on a TRANSPORT error, so an HTTP 404 or 500 —
+   a deactivated workflow, a renamed webhook path — resolved as a successful
+   send. With the relay's measured failure rate at ~60%, most people who signed
+   in were told a WhatsApp code was on its way when nothing had been sent, and
+   the SMS fallback sat unnoticed under the button.
+   ====================================================================== */
+describe('isRelayDelivered', () => {
+  it('trusts an explicit ok', () => {
+    expect(isRelayDelivered({ ok: true, status: 200 })).toBe(true);
+    expect(isRelayDelivered({ ok: false, status: 404 })).toBe(false);
+    expect(isRelayDelivered({ ok: false, status: 500 })).toBe(false);
+  });
+
+  it('treats a missing response as not delivered', () => {
+    // This is the `fetch` threw / timed out path.
+    expect(isRelayDelivered(null)).toBe(false);
+    expect(isRelayDelivered(undefined)).toBe(false);
+  });
+
+  it('falls back to the status code when ok is absent', () => {
+    expect(isRelayDelivered({ status: 200 })).toBe(true);
+    expect(isRelayDelivered({ status: 204 })).toBe(true);
+    expect(isRelayDelivered({ status: 404 })).toBe(false);
+    expect(isRelayDelivered({ status: 302 })).toBe(false);
+  });
+
+  it('does not invent a failure from an unrecognised shape', () => {
+    // Deciding "not delivered" here would tell a user the code failed when it
+    // may well have arrived. Only a shape that positively reports failure counts
+    // as failure.
+    expect(isRelayDelivered({})).toBe(true);
+  });
+
+  it('rejects the exact 404 n8n returns for an inactive workflow', () => {
+    // Measured against the live endpoint: an unregistered/deactivated webhook
+    // answers 404 with a JSON body. `fetch` resolves, so only the status shows it.
+    expect(isRelayDelivered({ ok: false, status: 404, json: () => ({ code: 404 }) })).toBe(false);
   });
 });

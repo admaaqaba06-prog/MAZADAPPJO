@@ -301,7 +301,7 @@ interface AppContextProps {
   // WhatsApp OTP — PRIMARY phone sign-in (loginWithPhone/confirmPhoneCode SMS is the
   // fallback). requestWhatsappOtp sends a 6-digit code over WhatsApp; verifyWhatsappOtp
   // returns a Firebase custom token; signInWhatsapp exchanges it for a session.
-  requestWhatsappOtp: (phone: string) => Promise<{ ok: boolean; retryAfterSec?: number }>;
+  requestWhatsappOtp: (phone: string) => Promise<{ ok: boolean; delivered?: boolean; retryAfterSec?: number }>;
   verifyWhatsappOtp: (phone: string, code: string) => Promise<{ ok: boolean; token?: string }>;
   signInWhatsapp: (token: string) => Promise<void>;
 
@@ -2628,7 +2628,7 @@ const fetchIP = async () => {
   // WhatsApp OTP — primary phone sign-in. The backend callables send/verify a 6-digit
   // code over WhatsApp; verify returns a Firebase custom token on success.
   const requestWhatsappOtp = useCallback(async (phone: string) => {
-    const callable = await getCallableFunction<{ phone: string }, { ok: boolean; retryAfterSec?: number }>('requestWhatsappOtp');
+    const callable = await getCallableFunction<{ phone: string }, { ok: boolean; delivered?: boolean; retryAfterSec?: number }>('requestWhatsappOtp');
     const result = await callable({ phone });
     return result.data;
   }, []);
