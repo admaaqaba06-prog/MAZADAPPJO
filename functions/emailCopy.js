@@ -21,7 +21,7 @@
  * policy (see src/utils/arabicNumerals.ts, ARABIC_UI_DIGITS = 'western').
  */
 
-const SITE = 'https://www.mazad-jo.com';
+const SITE = 'https://www.mazzado.com';
 
 /**
  * Arabic unless the caller explicitly asks for English. Undefined, junk, a
