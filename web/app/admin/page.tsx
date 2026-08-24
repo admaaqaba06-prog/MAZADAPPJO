@@ -79,7 +79,7 @@ export default function AdminDashboardPage() {
       <header className="border-b border-white/10 px-8 py-5 flex justify-between items-center bg-[#0d0d0d]">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-white font-mono uppercase">MAZAD JO CONTROL CENTER</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white font-mono uppercase">MAZZADO CONTROL CENTER</h1>
             <span className="bg-[#FF6B00]/10 border border-[#FF6B00]/30 text-[#FF6B00] text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest leading-none">ADMIN ONLY</span>
           </div>
           <p className="text-[10px] text-gray-500 font-mono tracking-wider">SECURED LEDGER PROTOCOLS ACTIVE</p>

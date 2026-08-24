@@ -281,8 +281,8 @@ describe('the node forwards the email the server rendered', () => {
     for (const name of ['', '   ', null, undefined]) {
       const { html } = runNode(payload({ email_content: serverContent('ar', { brand: { ...base, name } }) }));
       expect(html).toContain(SENTINEL.heading);   // it still rendered the email
-      expect(html).not.toContain('مزاد جو');
-      expect(html).not.toContain('MAZAD JO');
+      expect(html).not.toContain('مزادو');
+      expect(html).not.toContain('MAZZADO');
     }
   });
 
@@ -598,9 +598,9 @@ describe('a PRE-BILINGUAL email_content is rejected rather than half-rendered', 
     expect(out.html).not.toContain(SENTINEL.heading);
     // And what shipped is the whole fallback email, not a stump: its own header,
     // its own body, its own footer.
-    expect(out.html).toContain('مزاد جو');
+    expect(out.html).toContain('مزادو');
     expect(out.html).toContain(LOCAL.title);
-    expect(out.html).toContain('هذه رسالة آلية من مزاد جو، لا حاجة للرد عليها.');
+    expect(out.html).toContain('هذه رسالة آلية من مزادو، لا حاجة للرد عليها.');
   });
 
   it('never prints the bare unlabelled footer that the old shape produced', () => {
@@ -708,7 +708,7 @@ describe('the local Arabic render is built only when a surface actually needs it
     expect(Object.keys(out).sort()).toEqual([
       // `fromName` is the sender DISPLAY name. It belongs on this list rather
       // than being dead copy: `Send: Email (Resend)` interpolates it into the
-      // Resend `from` field, which previously hardcoded `مزاد جو` and so sent
+      // Resend `from` field, which previously hardcoded `مزادو` and so sent
       // English mail from an Arabic-named sender.
       'email', 'event', 'fromName', 'html', 'idempotencyKey', 'name', 'phone',
       'sendEmail', 'sendWhatsapp', 'subject', 'waText',
@@ -717,16 +717,16 @@ describe('the local Arabic render is built only when a surface actually needs it
 
   it('resolves the sender display name from the rendered language', () => {
     const en = runNode(payload({ email_content: serverContent('en'), wa_text: SENTINEL.wa }));
-    expect(en.fromName).toBe('MAZAD JO');
+    expect(en.fromName).toBe('MAZZADO');
     const ar = runNode(payload({ email_content: serverContent('ar'), wa_text: SENTINEL.wa }));
-    expect(ar.fromName).toBe('مزاد جو');
+    expect(ar.fromName).toBe('مزادو');
   });
 
   it('names the sender in Arabic when the local Arabic fallback rendered the mail', () => {
     // No usable email_content, so buildHtml (Arabic-only) produced the mail —
     // an English sender name on an Arabic email is the same mismatch inverted.
     const out = runNode(payload({ wa_text: SENTINEL.wa }));
-    expect(out.fromName).toBe('مزاد جو');
+    expect(out.fromName).toBe('مزادو');
   });
 });
 
@@ -861,7 +861,7 @@ describe('the workflow export embeds the same node source', () => {
     expect(body).toContain('$json.fromName');
     // The Arabic literal must be GONE from the transport: while it is still
     // there, an English mail can still ship from an Arabic sender.
-    expect(body).not.toContain('مزاد جو');
+    expect(body).not.toContain('مزادو');
     // The address itself is not language-dependent and must survive.
     expect(body).toContain('no-reply@mazad-jo.com');
   });

@@ -238,7 +238,7 @@ function buildHtml(c, name) {
     + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f6f8;padding:24px 12px;">'
     + '<tr><td align="center">'
     + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">'
-    + '<tr><td style="padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;">مزاد جو</td></tr>'
+    + '<tr><td style="padding:20px 24px;border-bottom:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:18px;font-weight:bold;color:#111111;">مزادو</td></tr>'
     + '<tr><td style="padding:24px;font-family:Tahoma,Arial,sans-serif;">'
     + `<p style="margin:0 0 12px;font-size:14px;color:#555555;">${greet}</p>`
     + `<h1 style="margin:0 0 12px;font-size:20px;line-height:1.4;color:#111111;">${esc(c.title)}</h1>`
@@ -246,7 +246,7 @@ function buildHtml(c, name) {
     + '<a href="https://mazad-jo.com" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">افتح التطبيق</a>'
     + '</td></tr>'
     + '<tr><td style="padding:16px 24px;background:#fafbfc;border-top:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:12px;color:#8a9099;">'
-    + 'هذه رسالة آلية من مزاد جو، لا حاجة للرد عليها.</td></tr>'
+    + 'هذه رسالة آلية من مزادو، لا حاجة للرد عليها.</td></tr>'
     + '</table></td></tr></table></body></html>';
 }
 
@@ -293,12 +293,12 @@ for (const item of $input.all()) {
       // The sender DISPLAY NAME, resolved here for the same reason `subject`
       // and `html` are: this node already owns the email render, so the Resend
       // node stays a dumb transport instead of holding a second language
-      // decision. It used to hardcode `مزاد جو`, so an English email arrived
+      // decision. It used to hardcode `مزادو`, so an English email arrived
       // from an Arabic-named sender — inconsistent, and boxes in some clients.
       // No `ec` means the Arabic local fallback rendered this mail, so Arabic
       // is the right name for it too; `ec.lang` is the only signal consulted,
       // exactly as buildHtmlFromContent already does for direction.
-      fromName: ec && ec.lang === 'en' ? 'MAZAD JO' : 'مزاد جو',
+      fromName: ec && ec.lang === 'en' ? 'MAZZADO' : 'مزادو',
     },
   });
 }

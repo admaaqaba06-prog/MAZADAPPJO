@@ -1,11 +1,11 @@
 /**
- * MazadJo's own store identity, used when Mazad is itself the seller.
+ * Mazzado's own store identity, used when Mazad is itself the seller.
  *
  * Mazad drops its own auctions through the admin drop-builder. Those lots used
  * to be saved under the *individual admin's* personal account name (createListing
  * stores `currentUser.name`), so a lot MJ built showed to buyers as "by <MJ's
- * name>" rather than as MazadJo. The desktop auction page papered over it with a
- * hardcoded 'MAZAD JO Store' fallback, which was right for Mazad's own drops and
+ * name>" rather than as Mazzado. The desktop auction page papered over it with a
+ * hardcoded 'MAZZADO Store' fallback, which was right for Mazad's own drops and
  * wrong for every third-party seller with no store name — a guess at render time
  * that could not be correct for both.
  *
@@ -18,7 +18,7 @@
  */
 
 /** Stored on the lot as `sellerName`. One fixed string — it cannot vary by language. */
-export const MAZAD_STORE_NAME = 'MAZAD JO Store';
+export const MAZAD_STORE_NAME = 'MAZZADO Store';
 
 /**
  * Stored on the lot as `sellerLogo`. The real app icon, not the Unsplash stock

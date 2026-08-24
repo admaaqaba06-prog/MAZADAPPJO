@@ -1,4 +1,4 @@
-# Mazad JO — Load Test Results & Cost Model
+# Mazzado — Load Test Results & Cost Model
 
 **Date:** 2026-07-24
 **Method:** `scripts/loadtest/` harness against a throwaway Firebase project
@@ -79,7 +79,7 @@ At 5,000 bidders even with `maxInstances:2000`, a new, different bottleneck
 appeared: **this single local test machine's own connection capacity**
 (client-side `network_error` count rose from 441 to 731 as platform errors
 fell from 2,813 to 295). That is a limit of the load-test client, not of
-Mazad JO's backend — pushing single-lot bidder simulation past ~2,000–5,000
+Mazzado's backend — pushing single-lot bidder simulation past ~2,000–5,000
 from one machine stops producing clean signal about the app and starts
 measuring the laptop running the test.
 
@@ -212,4 +212,4 @@ is the number to budget against as audience size grows, not the bidder count.
   any run seeding/minting beyond a few hundred — Node's default thread pool
   (4) causes spurious DNS `ENOTFOUND` errors under heavy concurrent lookup
   pressure otherwise; this is a Node/local-machine limitation, unrelated to
-  Firebase or Mazad JO's backend.
+  Firebase or Mazzado's backend.

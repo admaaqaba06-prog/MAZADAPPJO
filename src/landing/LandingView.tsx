@@ -1435,14 +1435,14 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                         <div className="relative flex shrink-0">
                           <img 
                             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                            alt={lang === 'ar' ? 'بث مزاد جو' : 'MazadJo Streamer'} 
+                            alt={lang === 'ar' ? 'بث مزادو' : 'Mazzado Streamer'} 
                             className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
                           />
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
                         <div className={`flex flex-col ${lang === "ar" ? "text-right" : "text-left"}`}>
                           <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
-                            {lang === "ar" ? "مزاد جو مباشر" : "Mazad JO Live"}
+                            {lang === "ar" ? "مزادو مباشر" : "Mazzado Live"}
                             <Sparkles className="w-3 h-3 text-amber-400" />
                           </span>
                           <span className="text-[9px] text-gray-300 font-ibmarabic flex items-center gap-1 mt-0.5">
@@ -1595,7 +1595,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 2.5 Section: How it works (كيف بيشتغل مزاد جو) */}
+        {/* 2.5 Section: How it works (كيف بيشتغل مزادو) */}
         <section id="how-it-works" className="py-[96px] bg-surface-raised border-b border-line relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <Reveal>
@@ -1604,7 +1604,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   {lang === "ar" ? "خطواتنا" : "Our Process"}
                 </span>
                 <h2 className="text-4xl md:text-5xl font-bold text-fg font-ibmarabic mb-4 leading-tight">
-                  {lang === "ar" ? "كيف بيشتغل مزاد جو؟" : "How does MazadJo work?"}
+                  {lang === "ar" ? "كيف بيشتغل مزادو؟" : "How does Mazzado work?"}
                 </h2>
                 <p className="text-lg text-fg-muted font-ibmarabic">
                   {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
@@ -1882,7 +1882,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </div>
         </section>
 
-        {/* 4. Section "لماذا MazadJo" (Comparison VS) */}
+        {/* 4. Section "لماذا Mazzado" (Comparison VS) */}
         <section id="why-mazadjo" className="py-20 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
@@ -1941,7 +1941,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                 </Reveal>
               </div>
 
-              {/* Column 2: MazadJo (Smart Royal Gold hover highlights) */}
+              {/* Column 2: Mazzado (Smart Royal Gold hover highlights) */}
               <div className="lg:col-span-5">
                 <Reveal delay={0.2}>
                   <motion.div
@@ -2164,10 +2164,10 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       },
                       {
                         step: 2,
-                        arTitle: "مزاد جو بتحتفظ بالمبلغ",
-                        enTitle: "MazadJo holds the payment",
-                        arDesc: "مزاد جو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
-                        enDesc: "MazadJo holds your payment and does not release it to the seller until you receive the item and confirm it matches."
+                        arTitle: "مزادو بتحتفظ بالمبلغ",
+                        enTitle: "Mazzado holds the payment",
+                        arDesc: "مزادو بتحتفظ بمبلغك وما بتحوّله للبائع إلا بعد ما تستلم القطعة وتتأكد إنها مطابقة.",
+                        enDesc: "Mazzado holds your payment and does not release it to the seller until you receive the item and confirm it matches."
                       },
                       {
                         step: 3,

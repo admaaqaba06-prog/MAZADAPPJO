@@ -182,7 +182,7 @@ Delete the now-unused `WalletView` lazy import line (`src/App.tsx:11`).
 
 - [ ] **Step 1:** For each anchor, apply the replacement (AR analog wherever the file's translation pair exists):
   - `WHATNOT WALLET` / `Whatnot` (WalletView, MobileLiveAuctionLayout) → `MAZAD WALLET` (file is unrouted but must not carry the brand).
-  - Central-Bank claim (translations.ts + WalletView; `grep -n "Central Bank"`) → EN: `Funds are transferred via CliQ to Mazad JO's account at Capital Bank and held until your order completes.` AR: «تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.»
+  - Central-Bank claim (translations.ts + WalletView; `grep -n "Central Bank"`) → EN: `Funds are transferred via CliQ to Mazzado's account at Capital Bank and held until your order completes.` AR: «تُحوَّل الأموال عبر كليك إلى حساب مزادو في كابيتال بنك وتبقى محفوظة حتى اكتمال طلبك.»
   - `24/7 … Finance Desk` → EN: `Our Amman support team is available daily 9:00–23:00.` AR: «فريق الدعم في عمّان متاح يومياً من ٩ صباحاً حتى ١١ مساءً.»
   - `VERIFIED MERCHANT` (DesktopFrame, ReelsDesktopRightPanel) → render nothing for regular users: replace the badge element with `null` (delete the JSX element).
   - `V3 PILOT` (DesktopFrame) → delete the element.

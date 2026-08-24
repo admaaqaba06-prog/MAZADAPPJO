@@ -1,6 +1,6 @@
 import type { OrderStatusCode } from './utils/orderStatusGlossary';
 /**
- * Core Data Models for MAZAD JO
+ * Core Data Models for MAZZADO
  * Production-ready TypeScript Interfaces
  */
 

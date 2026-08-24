@@ -26,10 +26,10 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')
         .then((reg) => {
-          console.log('MAZAD JO Service Worker registered successfully:', reg.scope);
+          console.log('MAZZADO Service Worker registered successfully:', reg.scope);
         })
         .catch((err) => {
-          console.warn('MAZAD JO Service Worker registration failed:', err);
+          console.warn('MAZZADO Service Worker registration failed:', err);
         });
     });
   }

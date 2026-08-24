@@ -132,4 +132,4 @@ keeps working unchanged — only the "how the code reaches the phone" changes.
 1. **Provider choice** (Unifonic recommended / Twilio Verify).
 2. **Account + API key** — created by MJ, set as a Functions secret by MJ. Claude builds
    against `process.env.<SECRET>`, never sees the value.
-3. Optionally an approved **sender ID / brand name** for the SMS ("MazadJO").
+3. Optionally an approved **sender ID / brand name** for the SMS ("Mazzado").

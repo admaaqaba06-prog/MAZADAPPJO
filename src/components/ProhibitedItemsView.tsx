@@ -17,7 +17,7 @@ import {
 /**
  * Wave 4 (seller-KYC groundwork) — prohibited-items policy page.
  * Content-only bilingual list of goods that are forbidden or regulated in
- * Jordan and therefore not allowed on Mazad JO. Routed as activeView
+ * Jordan and therefore not allowed on Mazzado. Routed as activeView
  * 'prohibited-items'; linked from the Sell chooser and How-It-Works.
  * Styling mirrors HowItWorksView (same warm card language).
  */
@@ -37,8 +37,8 @@ const PROHIBITED: ProhibitedDef[] = [
     icon: <ShieldAlert className="w-5 h-5" />,
     titleAr: 'الأسلحة والذخيرة',
     titleEn: 'Weapons & ammunition',
-    bodyAr: 'الأسلحة النارية والذخيرة والمتفجرات والأسلحة البيضاء الهجومية — ممنوعة كلياً على مزاد جو.',
-    bodyEn: 'Firearms, ammunition, explosives, and offensive bladed weapons — completely banned on Mazad JO.',
+    bodyAr: 'الأسلحة النارية والذخيرة والمتفجرات والأسلحة البيضاء الهجومية — ممنوعة كلياً على مزادو.',
+    bodyEn: 'Firearms, ammunition, explosives, and offensive bladed weapons — completely banned on Mazzado.',
   },
   {
     icon: <Landmark className="w-5 h-5" />,
@@ -86,8 +86,8 @@ const PROHIBITED: ProhibitedDef[] = [
     icon: <EyeOff className="w-5 h-5" />,
     titleAr: 'المحتوى المخصص للبالغين',
     titleEn: 'Adult content',
-    bodyAr: 'أي مواد أو منتجات مخصصة للبالغين — ما إلها مكان على مزاد جو.',
-    bodyEn: 'Any adult materials or products — they have no place on Mazad JO.',
+    bodyAr: 'أي مواد أو منتجات مخصصة للبالغين — ما إلها مكان على مزادو.',
+    bodyEn: 'Any adult materials or products — they have no place on Mazzado.',
   },
 ];
 
@@ -115,7 +115,7 @@ export const ProhibitedItemsView: React.FC = () => {
             <Ban className="w-6 h-6" />
           </div>
           <h1 className="text-2xl lg:text-3xl font-black text-fg tracking-tight">
-            {isAr ? 'الأغراض الممنوعة على مزاد جو' : 'Prohibited items on Mazad JO'}
+            {isAr ? 'الأغراض الممنوعة على مزادو' : 'Prohibited items on Mazzado'}
           </h1>
           <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
             {isAr

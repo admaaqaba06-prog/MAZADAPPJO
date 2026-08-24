@@ -1,4 +1,4 @@
-# Mazad JO — Privacy Policy
+# Mazzado — Privacy Policy
 
 > **⚠️ DRAFT — NOT YET LEGALLY REVIEWED. This is a starting-point draft prepared
 > from the platform's actual data practices. It is NOT legal advice. Before

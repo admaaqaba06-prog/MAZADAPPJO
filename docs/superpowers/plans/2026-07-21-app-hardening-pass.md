@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the pre-launch Mazad JO app performant and dummy-proof — stop the settlement revenue leak, stop re-login-on-reopen, make the browser Back button work, and fix the bidding-room UX/perf bugs.
+**Goal:** Make the pre-launch Mazzado app performant and dummy-proof — stop the settlement revenue leak, stop re-login-on-reopen, make the browser Back button work, and fix the bidding-room UX/perf bugs.
 
 **Architecture:** Six sequential waves, each its own PR (SDD: Fable implementer → review-package → Fable reviewer → fix → merge → CI deploy). Server `functions/index.js` stays the money source of truth; the client stops writing settlement state. A thin History-API layer + an `authReady` boot gate + pure helper utils (bid math, nav URL, server time, money format) carry the load. Waves 1/2/4/5 all edit the `AppContext.tsx` god-object → strict sequencing, each wave rebased on the prior merge.
 

@@ -1,4 +1,4 @@
-# Mazad JO — Auction Rules & Product Roadmap
+# Mazzado — Auction Rules & Product Roadmap
 
 Date: 2026-07-26
 Status: Decisions locked (this doc). Each epic gets its own design spec + plan before build.
@@ -15,7 +15,7 @@ Source: team meeting notes + Auction Rules / Terms docs, reviewed with MJ.
   (24–48h, TBD) → 2nd = 3-month suspension → fraud/collusion = permanent. Replaces
   today's indefinite block. **Must be communicated in-app** (see E4) — that's the
   condition for it being fair/enforceable.
-- **All money is manually approved by MazadJo.** No auto-release of escrow; admin
+- **All money is manually approved by Mazzado.** No auto-release of escrow; admin
   verifies payment and approves release.
 - **Auction start: support both** — scheduled drops (built) AND first-bid-starts-the-clock (new).
 - **Two-way ratings** (buyer↔seller), visible throughout the app.
@@ -75,7 +75,7 @@ A cooldown/ban is only fair if the user could have known. Surface rules where th
   below-reserve near-miss offer.
 
 ### E6 · Fulfillment, escrow & returns
-- Buyer confirms receipt (built) → MazadJo manually approves release.
+- Buyer confirms receipt (built) → Mazzado manually approves release.
 - **Returns/damage flow:** buyer rejects on delivery → dispute → refund-from-escrow → + policy text.
 
 ### E7 · Two-way reputation

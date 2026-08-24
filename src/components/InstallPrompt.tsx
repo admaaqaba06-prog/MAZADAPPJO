@@ -121,7 +121,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
     }
   };
 
-  const title = isAr ? 'أضِف مزاد جو إلى شاشتك الرئيسية' : 'Add Mazad Jo to your Home Screen';
+  const title = isAr ? 'أضِف مزادو إلى شاشتك الرئيسية' : 'Add Mazzado to your Home Screen';
 
   return (
     <div

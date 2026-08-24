@@ -306,7 +306,7 @@ Anchor — find this exact block (the existing mobile top bar):
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight text-gray-950 font-sans">
-              {isAr ? 'مزاد جو' : 'Mazad Jo'}
+              {isAr ? 'مزادو' : 'Mazzado'}
             </h1>
           </div>
         </div>
@@ -362,7 +362,7 @@ Replace with (the bar's own content is unchanged; it's now nested inside a new s
             </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight text-gray-950 font-sans">
-                {isAr ? 'مزاد جو' : 'Mazad Jo'}
+                {isAr ? 'مزادو' : 'Mazzado'}
               </h1>
             </div>
           </div>

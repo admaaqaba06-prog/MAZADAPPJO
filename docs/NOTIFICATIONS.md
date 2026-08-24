@@ -1,4 +1,4 @@
-# Mazad JO — WhatsApp Notification Pipe (Phase 5)
+# Mazzado — WhatsApp Notification Pipe (Phase 5)
 
 The app's Cloud Functions POST structured JSON events to a configurable **n8n
 webhook** on key state changes. n8n turns each event into a WhatsApp message.

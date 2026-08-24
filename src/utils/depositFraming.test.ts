@@ -5,7 +5,7 @@ import { translations as landingTranslations } from '../landing/translations';
 /**
  * Wave 2b — de-deposit the wallet.
  *
- * Bidding on Mazad JO is FREE (pay-after-win). No user-facing copy may imply
+ * Bidding on Mazzado is FREE (pay-after-win). No user-facing copy may imply
  * that a wallet balance, deposit, or fee is required to bid. This guard walks
  * every string in both translation trees (app + landing) and fails if any
  * inherited deposit-to-bid phrase sneaks back in.

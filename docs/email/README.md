@@ -60,4 +60,4 @@ the two must not share one footer — that is the usual mistake.
 - **A support email address and a privacy email address.** The footer currently
   offers WhatsApp numbers only. `docs/legal/` has the same gap.
 - **A hosted logo URL** — the brand bar is a text wordmark; swap in
-  `<img src="…" width="120" alt="مزاد جو">` when one exists.
+  `<img src="…" width="120" alt="مزادو">` when one exists.

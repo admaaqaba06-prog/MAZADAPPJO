@@ -50,7 +50,7 @@ export default function AuctionRulesModal({ isOpen, onClose, isAr }: AuctionRule
                 {isAr ? 'قواعد المزاد' : 'Auction Rules'}
               </h2>
               <p className="text-[10px] text-zinc-500 mt-0.5">
-                {isAr ? 'مزاد جو — القواعد المبسّطة' : 'Mazad JO — the plain-language rules'}
+                {isAr ? 'مزادو — القواعد المبسّطة' : 'Mazzado — the plain-language rules'}
               </p>
             </div>
           </div>
@@ -84,8 +84,8 @@ export default function AuctionRulesModal({ isOpen, onClose, isAr }: AuctionRule
 
           <p className="text-center text-[10px] text-zinc-400 font-mono mt-4">
             {isAr
-              ? `إصدار القواعد ${RULES_VERSION} · مزاد جو`
-              : `Rules version ${RULES_VERSION} · Mazad JO`}
+              ? `إصدار القواعد ${RULES_VERSION} · مزادو`
+              : `Rules version ${RULES_VERSION} · Mazzado`}
           </p>
         </div>
 

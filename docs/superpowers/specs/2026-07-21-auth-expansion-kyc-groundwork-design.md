@@ -14,7 +14,7 @@ for future seller KYC/compliance.
 ## Why
 
 - **The login screen is actively broken.** `LoginView.tsx` still renders a "Sign up /
-  Log in" tab switcher (`:257-277`) and the title "Join MAZAD JO!" (`:253`), but the
+  Log in" tab switcher (`:257-277`) and the title "Join MAZZADO!" (`:253`), but the
   email/password + Google + Facebook block was commented out (`:385-387`). Both tabs
   are dead — switching `mode` shows the same lone phone button. First impression on a
   pay-to-enter product reads as broken.
@@ -166,7 +166,7 @@ new `src/constants/cliq.ts`; `src/components/OrderDetailsView.tsx`,
   gating — schema only, so future KYC populates existing fields. (Do NOT add capture UI
   in this pass beyond what already exists.)
 - **Canonical CliQ recipient** — `src/constants/cliq.ts` exports
-  `CLIQ_RECIPIENT_NAME_AR` / `_EN` (single source for "مؤسسة مزاد الأردن م" / "MAZAD JO
+  `CLIQ_RECIPIENT_NAME_AR` / `_EN` (single source for "مؤسسة مزاد الأردن م" / "MAZZADO
   M"). Replace the scattered literals in `OrderDetailsView.tsx` + `WalletView.tsx` with
   the constant. Unit-test the constant is a non-empty string (guards against future
   accidental blanking on the money surface).

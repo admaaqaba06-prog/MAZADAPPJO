@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    appName: "MAZAD JO",
+    appName: "MAZZADO",
     appSubtitle: "Live auctions with buyer protection across Jordan & the MENA region",
     tagline: "Live auctions • Pay via CliQ • Mazad holds your payment until you confirm receipt",
     
@@ -13,7 +13,7 @@ export const translations = {
     loginBtn: "LOG IN SECURELY",
     orText: "OR INSTANT ACCOUNT PRESETS",
     googleLogin: "SIGN IN WITH GOOGLE",
-    signupPrompt: "New to Mazad Jo?",
+    signupPrompt: "New to Mazzado?",
     signupLink: "Create an Account",
     existingPrompt: "Have an account?",
     existingLink: "Log In",
@@ -25,7 +25,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "PREMIUM BIDDING ACCESS",
-    paywallSub: "MAZAD JO runs real-time live-auction video rooms with CliQ payments and buyer protection. Activate an account plan to unlock full live bidding.",
+    paywallSub: "MAZZADO runs real-time live-auction video rooms with CliQ payments and buyer protection. Activate an account plan to unlock full live bidding.",
     choosePlan: "SELECT AN ACCESS PLAN",
     planMonthly: "1 JOD",
     planMonthlyUnit: " / Month",
@@ -34,7 +34,7 @@ export const translations = {
     planAnnualUnit: " / Year",
     mostPopular: "MOST POPULAR",
     bestValue: "BEST VALUE",
-    subLockText: "Funds are transferred via CliQ to Mazad JO's account at Arab Bank and held until your order completes.",
+    subLockText: "Funds are transferred via CliQ to Mazzado's account at Arab Bank and held until your order completes.",
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live auctions",
@@ -140,7 +140,7 @@ export const translations = {
     ordersFinalizingHint: "Your winning order will appear here within a minute.",
   },
   ar: {
-    appName: "مزاد جو",
+    appName: "مزادو",
     appSubtitle: "مزادات حية مع حماية المشتري في الأردن والمنطقة",
     tagline: "مزادات حية • ادفع عبر كليك • مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام",
     
@@ -165,7 +165,7 @@ export const translations = {
 
     // Paywall
     paywallTitle: "تفعيل منصة المزايدة الممتازة",
-    paywallSub: "مزاد جو يقدّم غرف مزادات حية بالبث المباشر مع الدفع عبر كليك وحماية للمشتري. فعّل حسابك للمزايدة في كل المزادات النشطة.",
+    paywallSub: "مزادو يقدّم غرف مزادات حية بالبث المباشر مع الدفع عبر كليك وحماية للمشتري. فعّل حسابك للمزايدة في كل المزادات النشطة.",
     choosePlan: "اختر اشتراك البوابة المناسب",
     planMonthly: "1 دينار",
     planMonthlyUnit: " / شهرياً",
@@ -174,7 +174,7 @@ export const translations = {
     planAnnualUnit: " / سنوياً",
     mostPopular: "الأكثر اختياراً",
     bestValue: "أفضل قيمة",
-    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزاد جو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.",
+    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزادو في البنك العربي وتبقى محفوظة حتى اكتمال طلبك.",
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
       "الوصول لكل المزادات المباشرة الفاخرة للسيارات، الساعات والموضة",

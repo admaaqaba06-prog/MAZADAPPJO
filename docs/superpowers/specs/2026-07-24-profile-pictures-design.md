@@ -3,7 +3,7 @@
 Date: 2026-07-24
 Branch: `feat/profile-pictures`
 
-Adds real profile photos to Mazad JO. Four parts, plus the key product decisions.
+Adds real profile photos to Mazzado. Four parts, plus the key product decisions.
 
 ## Key decisions (owner-approved)
 

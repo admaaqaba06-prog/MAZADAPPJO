@@ -6,7 +6,7 @@
 
 ## Context & Problem
 
-The Mazad JO internal team runs the business through `AdminDashboardView.tsx` — a 2,955-line component with 10 tabs organized **by database entity** (`metrics · orders · payments · withdrawals · listings · users · subscriptions · sessions · health · simulator`). The team, however, works in **jobs**, not entities. Their four primary jobs each span multiple tabs, so no screen matches a single task, and the admin reads as busy and unintuitive.
+The Mazzado internal team runs the business through `AdminDashboardView.tsx` — a 2,955-line component with 10 tabs organized **by database entity** (`metrics · orders · payments · withdrawals · listings · users · subscriptions · sessions · health · simulator`). The team, however, works in **jobs**, not entities. Their four primary jobs each span multiple tabs, so no screen matches a single task, and the admin reads as busy and unintuitive.
 
 The four team jobs:
 1. Verify payment & approve members (spans `payments` + `subscriptions` + `users`)

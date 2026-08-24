@@ -122,7 +122,7 @@ the whatsapp channel is on, `email_content` only when the email channel is on.
 
 ### Email sending
 Resend, domain `mazad-jo.com`, region Ireland (`eu-west-1`), verified 2026-07-27.
-From: `مزاد جو <no-reply@mazad-jo.com>`. DNS lives in Cloudflare:
+From: `مزادو <no-reply@mazad-jo.com>`. DNS lives in Cloudflare:
 `TXT resend._domainkey`, `MX send` → `feedback-smtp.eu-west-1.amazonses.com`,
 `TXT send` → `v=spf1 include:amazonses.com ~all`.
 The apex MX (Bluehost) is deliberately untouched — Resend's optional "enable

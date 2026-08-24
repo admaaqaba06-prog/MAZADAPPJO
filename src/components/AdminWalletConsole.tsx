@@ -20,7 +20,7 @@ interface AdminWalletConsoleProps {
   isAr: boolean;
   currentUser: any;
   logout: () => void;
-  totalMazadJomCapital: number;
+  totalMazzadomCapital: number;
   approvedDepositsSum: number;
   subscriptionRevenueSum: number;
   activeSubscribers: any[];
@@ -44,7 +44,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
   isAr,
   currentUser,
   logout,
-  totalMazadJomCapital,
+  totalMazzadomCapital,
   approvedDepositsSum,
   subscriptionRevenueSum,
   activeSubscribers,
@@ -122,7 +122,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
               </span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-3xl font-black font-mono tracking-tight text-white">
-                  {totalMazadJomCapital.toLocaleString()}
+                  {totalMazzadomCapital.toLocaleString()}
                 </span>
                 <span className="text-[9px] font-black text-[#FF6B00] font-mono">JOD</span>
               </div>

@@ -26,8 +26,8 @@ function makeError(code, message) {
 
 const STORE_NAME_FALLBACK = { ar: 'متجري الخاص', en: 'My Store' };
 const STORE_ABOUT = {
-  ar: 'أهلاً بكم في متجري الخاص على مزاد جو.',
-  en: 'Welcome to my store on MAZAD JO.',
+  ar: 'أهلاً بكم في متجري الخاص على مزادو.',
+  en: 'Welcome to my store on MAZZADO.',
 };
 const STORE_LOCATION = { ar: 'عمان، الأردن', en: 'Amman, Jordan' };
 

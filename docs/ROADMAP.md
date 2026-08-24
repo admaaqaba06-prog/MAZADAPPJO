@@ -1,4 +1,4 @@
-# Mazad JO — Roadmap (post-takeover)
+# Mazzado — Roadmap (post-takeover)
 
 _Last updated: 2026-07-17. Owner: MJ + team. This is the single source of truth for what we own, what's broken, and what we build next._
 

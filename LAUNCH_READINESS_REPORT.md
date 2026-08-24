@@ -1,7 +1,7 @@
 # LAUNCH READINESS REPORT | تقرير جاهزية الإطلاق التجاري
-## MAZAD JO | منصة مزاد الأردن للبيع المباشر والمزايدات الراقية
+## MAZZADO | منصة مزاد الأردن للبيع المباشر والمزايدات الراقية
 
-This document assesses the systems, security controls, performance thresholds, and commercial configurations of **MAZAD JO** prior to production deployment. All integrations and features have been fully programmed and compile cleanly in production.
+This document assesses the systems, security controls, performance thresholds, and commercial configurations of **MAZZADO** prior to production deployment. All integrations and features have been fully programmed and compile cleanly in production.
 
 ---
 
@@ -48,7 +48,7 @@ This document assesses the systems, security controls, performance thresholds, a
         *   `subscription_conversion` (Track paying VIP passes and revenues).
 *   **Full Search Engine Metadata & JSON-LD**:
     *   Configured localized, search-engine-ready tags for Open Graph and Twitter Card schemas in `index.html`.
-    *   Injected highly optimized structured JSON-LD data describing **MAZAD JO** as an Organization and Online Store to capture organic search rankings in Jordan.
+    *   Injected highly optimized structured JSON-LD data describing **MAZZADO** as an Organization and Online Store to capture organic search rankings in Jordan.
 
 ---
 

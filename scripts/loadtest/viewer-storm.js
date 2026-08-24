@@ -1,5 +1,5 @@
 /**
- * Mazad JO — viewer/read-fan-out load test.
+ * Mazzado — viewer/read-fan-out load test.
  *
  * The bid-storm harness answers "how many people can WRITE (bid) at once" —
  * that's capped hard by Firestore's single-document transaction ceiling
@@ -19,7 +19,7 @@
  * results here as "does our app's listener pattern behave correctly and
  * affordably at N concurrent viewers," not "this is Firestore's hard limit."
  * If network_error/timeout counts start dominating, that's a signal about
- * THIS test client, not Mazad JO's backend.
+ * THIS test client, not Mazzado's backend.
  *
  * What it does:
  *   1. Opens N concurrent onSnapshot listeners on ONE seeded auction doc

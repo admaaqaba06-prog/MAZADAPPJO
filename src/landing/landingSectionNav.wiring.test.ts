@@ -4,8 +4,8 @@
 //
 // 1. `id="why-mazadjo"` sat on the TRUST section — the one whose heading is
 //    `t.trust.title` («مزاد ليس للتصفية…») and whose badge is `t.trust.badge`
-//    («الأمان والنزاهة»). The real «لماذا MazadJo؟» section, which renders
-//    `t.why.title`, carried NO id at all. So «لماذا مزاد جو؟» in the menu took
+//    («الأمان والنزاهة»). The real «لماذا Mazzado؟» section, which renders
+//    `t.why.title`, carried NO id at all. So «لماذا مزادو؟» in the menu took
 //    you to a different section, which is what read as "cropped / far from
 //    where it should be".
 //

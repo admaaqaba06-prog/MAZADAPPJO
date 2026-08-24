@@ -1,4 +1,4 @@
-# Mazad JO — Admin / Seller Center / Order-flow Spec: Codebase Audit
+# Mazzado — Admin / Seller Center / Order-flow Spec: Codebase Audit
 
 **Date:** 2026-07-27 · **Audited against:** `origin/main` (live product) · **Source:** colleague's "Consolidated Development Spec" (Parts A–E).
 

@@ -16,14 +16,14 @@ import {
 } from 'lucide-react';
 
 /**
- * The single "understand everything" page (spec §3): the full Mazad JO loop —
+ * The single "understand everything" page (spec §3): the full Mazzado loop —
  * join → browse & bid free → win & pay → get it → sell with us — plus an
  * honest FAQ. Routed as activeView 'about' (nav links already point here).
  *
  * Accuracy contract (must stay true to reality):
  * - Membership tiers: 1 JD/mo, 4 JD/6mo, 7 JD/yr — lead "from 1 JD/month".
  * - Fees: 5% buyer's premium on win + 5% seller commission.
- * - Payment: CliQ to Mazad JO (Arab Bank) within 24h of winning.
+ * - Payment: CliQ to Mazzado (Arab Bank) within 24h of winning.
  * - Delivery: pickup or paid delivery (~2–4 JD), Mazad arranges.
  * - Sell: submit (self-serve or concierge) → Mazad reviews & approves → live → 5%.
  */
@@ -57,8 +57,8 @@ const STEPS: StepDef[] = [
     icon: <Trophy className="w-5 h-5" />,
     titleAr: 'اربح وادفع',
     titleEn: 'Win & pay',
-    bodyAr: 'سعر الفوز + عمولة مشتري ٥٪ — عبر كليك إلى حساب مزاد جو (البنك العربي) خلال ٢٤ ساعة.',
-    bodyEn: "Winning price + 5% buyer's premium — via CliQ to Mazad JO (Arab Bank) within 24 hours.",
+    bodyAr: 'سعر الفوز + عمولة مشتري ٥٪ — عبر كليك إلى حساب مزادو (البنك العربي) خلال ٢٤ ساعة.',
+    bodyEn: "Winning price + 5% buyer's premium — via CliQ to Mazzado (Arab Bank) within 24 hours.",
   },
   {
     icon: <Package className="w-5 h-5" />,
@@ -99,8 +99,8 @@ const FAQS: FaqDef[] = [
   {
     qAr: 'كيف بتأكدوا إني رح أستلم غرضي؟',
     qEn: 'How do I know I will actually get my item?',
-    aAr: 'دفعتك بتروح عبر كليك إلى حساب مزاد جو في البنك العربي — مش للبائع مباشرة. كل إعلان بيمر بمراجعة فريقنا قبل ما ينزل، وإحنا اللي منرتّب الاستلام أو التوصيل. حمايتك جزء من الصفقة.',
-    aEn: "Your payment goes via CliQ to Mazad JO's Arab Bank account — not directly to the seller. Every listing is reviewed by our team before going live, and we arrange the pickup or delivery ourselves. Buyer protection is built into the deal.",
+    aAr: 'دفعتك بتروح عبر كليك إلى حساب مزادو في البنك العربي — مش للبائع مباشرة. كل إعلان بيمر بمراجعة فريقنا قبل ما ينزل، وإحنا اللي منرتّب الاستلام أو التوصيل. حمايتك جزء من الصفقة.',
+    aEn: "Your payment goes via CliQ to Mazzado's Arab Bank account — not directly to the seller. Every listing is reviewed by our team before going live, and we arrange the pickup or delivery ourselves. Buyer protection is built into the deal.",
   },
   {
     qAr: 'كيف أبيع معكم؟',
@@ -111,8 +111,8 @@ const FAQS: FaqDef[] = [
   {
     qAr: 'شو طرق الدفع؟',
     qEn: 'What are the payment methods?',
-    aAr: 'كليك (CliQ) إلى حساب مزاد جو في البنك العربي — للعضوية وللدفع بعد الفوز (خلال ٢٤ ساعة من الفوز).',
-    aEn: "CliQ to Mazad JO's Arab Bank account — for membership and for paying after a win (within 24 hours of winning).",
+    aAr: 'كليك (CliQ) إلى حساب مزادو في البنك العربي — للعضوية وللدفع بعد الفوز (خلال ٢٤ ساعة من الفوز).',
+    aEn: "CliQ to Mazzado's Arab Bank account — for membership and for paying after a win (within 24 hours of winning).",
   },
 ];
 
@@ -155,7 +155,7 @@ export const HowItWorksView: React.FC = () => {
             <HelpCircle className="w-6 h-6" />
           </div>
           <h1 className="text-2xl lg:text-3xl font-black text-fg tracking-tight">
-            {isAr ? 'كيف يعمل مزاد جو؟' : 'How Mazad JO works'}
+            {isAr ? 'كيف يعمل مزادو؟' : 'How Mazzado works'}
           </h1>
           <p className="text-xs lg:text-sm text-fg-muted font-medium max-w-md mx-auto leading-relaxed">
             {isAr
@@ -203,8 +203,8 @@ export const HowItWorksView: React.FC = () => {
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <p className="text-[11px] text-emerald-800 font-semibold leading-relaxed">
             {isAr
-              ? 'كل المدفوعات عبر كليك إلى حساب مزاد جو في البنك العربي — مش للبائع مباشرة.'
-              : "All payments go via CliQ to Mazad JO's Arab Bank account — never directly to the seller."}
+              ? 'كل المدفوعات عبر كليك إلى حساب مزادو في البنك العربي — مش للبائع مباشرة.'
+              : "All payments go via CliQ to Mazzado's Arab Bank account — never directly to the seller."}
           </p>
         </motion.div>
 
@@ -222,7 +222,7 @@ export const HowItWorksView: React.FC = () => {
             id="how-it-works-prohibited-items-link"
           >
             <Ban className="w-3.5 h-3.5" />
-            {isAr ? 'شو الأغراض الممنوع بيعها على مزاد جو؟' : 'What items are prohibited on Mazad JO?'}
+            {isAr ? 'شو الأغراض الممنوع بيعها على مزادو؟' : 'What items are prohibited on Mazzado?'}
           </button>
         </motion.div>
 
