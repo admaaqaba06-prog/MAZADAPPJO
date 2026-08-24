@@ -25,11 +25,10 @@ const KNOWN_AUTH_HOSTS = [
   // project's authorized-domains list, so both serve `/__/auth/*`.
   'mazzado.com',
   'www.mazzado.com',
-  // The previous brand. Kept until mazad-jo.com is detached from Hosting —
-  // dropping it early would break sign-in for anyone still arriving on an old
-  // link while that domain is still served.
-  'mazad-jo.com',
-  'www.mazad-jo.com',
+  // mazad-jo.com and www.mazad-jo.com were here until 2026-08-24. Both are now
+  // DETACHED from Firebase Hosting and removed from the project's authorized
+  // domains, so neither serves `/__/auth/*` any more — listing them would point
+  // the OAuth handshake at a host that returns "Site not found".
   'mazadjoapp.web.app',
   'mazadjoapp.firebaseapp.com',
   'localhost',
