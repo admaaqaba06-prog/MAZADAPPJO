@@ -102,6 +102,34 @@ export const LEGAL_SECTIONS: LegalSection[] = [
     ],
   },
   {
+    // Shipping had no section at all: the only mention of delivery anywhere in
+    // this document was the privacy line about storing delivery addresses. So a
+    // buyer could read the whole thing and never learn who ships, on what
+    // schedule, or what happens when a shipment is late — which is the question
+    // support gets asked most.
+    //
+    // Wording supplied by the business, kept close to what they wrote. The
+    // English is a faithful translation, not a separate promise: two languages
+    // making different commitments about delivery is worse than one.
+    id: 'delivery',
+    icon: '📦',
+    titleEn: 'Shipping & delivery',
+    titleAr: 'آلية الشحن والتسليم',
+    lines: [
+      {
+        en: 'Al Hani Commercial Brokerage works with specialised shipping companies to get your purchase to you. Orders are shipped and delivered on the schedule announced during the auction you won.',
+        ar: 'تعتمد شركة الهاني للوساطة التجارية على نخبة من شركات الشحن المتخصصة لضمان إيصال مشترياتكم بكفاءة. يتم شحن وتسليم الطلبات وفق الجدول الزمني المحدد الذي تم الإعلان عنه خلال المزاد الذي رسا عليكم.',
+      },
+      {
+        // `warn`, not `default`: this is the line a buyer needs to have read
+        // BEFORE a shipment runs late, which is the whole point of stating it.
+        en: 'We work to meet those dates, but logistical delays outside our control can happen — through international shipping or current regional conditions. We will keep you updated on any change to your shipment.',
+        ar: 'نسعى دائماً للالتزام بالمواعيد، إلا أنه قد تطرأ بعض التأخيرات اللوجستية الخارجة عن إرادتنا نتيجة لعمليات الشحن الدولي أو الظروف الإقليمية الراهنة. نقدّر تفهمكم، ونلتزم بإبقائكم على اطلاع دائم بأي تحديثات تطرأ على حالة شحنتكم.',
+        tone: 'warn',
+      },
+    ],
+  },
+  {
     id: 'sellers',
     icon: '⚖️',
     titleEn: 'Seller responsibilities',
