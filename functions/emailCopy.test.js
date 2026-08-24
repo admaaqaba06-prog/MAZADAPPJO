@@ -61,7 +61,7 @@ describe('orderDeepLink', () => {
   it('links straight to the order, not the app root', () => {
     // modal=order + order=<id> is a real route — AppContext.tsx feeds it to
     // setGlobalSelectedOrderId. A bare /orders would make the buyer hunt.
-    expect(orderDeepLink('o1')).toBe('https://www.mazad-jo.com/orders?modal=order&order=o1');
+    expect(orderDeepLink('o1')).toBe('https://www.mazzado.com/orders?modal=order&order=o1');
   });
 
   it('url-encodes the id', () => {
@@ -69,7 +69,7 @@ describe('orderDeepLink', () => {
   });
 
   it('falls back to the orders list when there is no id', () => {
-    expect(orderDeepLink('')).toBe('https://www.mazad-jo.com/orders');
+    expect(orderDeepLink('')).toBe('https://www.mazzado.com/orders');
   });
 });
 
@@ -96,7 +96,7 @@ describe('emailFor — payment_due carries what the old email omitted', () => {
 
   it('deep-links to the order rather than "open the app"', () => {
     const e = emailFor('payment_due', data);
-    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=ord-1');
+    expect(e.cta.url).toBe('https://www.mazzado.com/orders?modal=order&order=ord-1');
     expect(e.cta.label).not.toMatch(/افتح التطبيق/);
   });
 
@@ -192,7 +192,7 @@ describe('emailFor — below_reserve_offer branches for a second chance', () => 
   it('stays transactional with a working CTA', () => {
     const e = emailFor('below_reserve_offer', { ...base, secondChance: true, offerStatus: 'pending_buyer' });
     expect(e.kind).toBe('transactional');
-    expect(e.cta.url).toContain('mazad-jo.com');
+    expect(e.cta.url).toContain('mazzado.com');
   });
 });
 
@@ -203,24 +203,24 @@ describe('emailFor — a second-chance CTA never points at the defaulted order',
   it('links a second-chance offer to the lot page', () => {
     for (const event of ['below_reserve_offer', 'below_reserve_seller_accepted']) {
       const e = emailFor(event, { auctionTitle: 'ساعة', auctionId: 'a1', secondChance: true });
-      expect(e.cta.url, event).toBe('https://www.mazad-jo.com/auction/a1');
+      expect(e.cta.url, event).toBe('https://www.mazzado.com/auction/a1');
       expect(e.cta.url, event).not.toContain('modal=order');
     }
   });
 
   it('still links to the order once one exists', () => {
     const e = emailFor('payment_due', { auctionTitle: 'ساعة', auctionId: 'a1', orderId: 'a1__sc', secondChance: true });
-    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1__sc');
+    expect(e.cta.url).toBe('https://www.mazzado.com/orders?modal=order&order=a1__sc');
   });
 
   it('leaves the non-second-chance fallback alone (a normal order IS the auction id)', () => {
     const e = emailFor('auction_won', { auctionTitle: 'ساعة', auctionId: 'a1' });
-    expect(e.cta.url).toBe('https://www.mazad-jo.com/orders?modal=order&order=a1');
+    expect(e.cta.url).toBe('https://www.mazzado.com/orders?modal=order&order=a1');
   });
 
   it('url-encodes an awkward auction id', () => {
     const e = emailFor('below_reserve_offer', { auctionId: 'a b', secondChance: true });
-    expect(e.cta.url).toBe('https://www.mazad-jo.com/auction/a%20b');
+    expect(e.cta.url).toBe('https://www.mazzado.com/auction/a%20b');
   });
 });
 
@@ -239,8 +239,8 @@ describe('BRAND — the footer identity that was missing entirely', () => {
   });
 
   it('links terms and privacy', () => {
-    expect(BRAND.termsUrl).toContain('mazad-jo.com');
-    expect(BRAND.privacyUrl).toContain('mazad-jo.com');
+    expect(BRAND.termsUrl).toContain('mazzado.com');
+    expect(BRAND.privacyUrl).toContain('mazzado.com');
   });
 });
 
@@ -305,7 +305,7 @@ describe('emailFor — both languages', () => {
       expect(e.preheader, `${ev} preheader`).toBe(e.intro.slice(0, 120));
       if (e.cta) {
         expect(e.cta.label.trim().length, `${ev} cta label`).toBeGreaterThan(0);
-        expect(e.cta.url, `${ev} cta url`).toContain('mazad-jo.com');
+        expect(e.cta.url, `${ev} cta url`).toContain('mazzado.com');
       }
     }
   });
@@ -391,7 +391,7 @@ describe('emailFor — both languages', () => {
   it('branches second chance in English too', () => {
     const e = emailFor('below_reserve_offer', { auctionTitle: 'Rolex', auctionId: 'a1', secondChance: true, offerStatus: 'pending_buyer' }, 'en');
     expect(e.intro.toLowerCase()).not.toMatch(/did not (reach|meet)/);
-    expect(e.cta.url).toBe('https://www.mazad-jo.com/auction/a1');
+    expect(e.cta.url).toBe('https://www.mazzado.com/auction/a1');
   });
 
   it('keeps the legal identity untranslated — a registered name is not translated', () => {

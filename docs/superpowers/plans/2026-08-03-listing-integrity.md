@@ -1328,7 +1328,7 @@ Run the app (`npm run dev`) and check each, on mobile width and desktop:
 
 ## Deployment note
 
-Per `reference_mazadjo_worktree_deploy`: if deploying from a worktree, diff `functions/` against `origin/main` first. This epic changes no `functions/` code, so a functions deploy should not be needed — verify rather than assume.
+Per `reference_mazzado_worktree_deploy`: if deploying from a worktree, diff `functions/` against `origin/main` first. This epic changes no `functions/` code, so a functions deploy should not be needed — verify rather than assume.
 
 ---
 

@@ -16,7 +16,7 @@
 - OTP send must never throw into the callable (mirror `postToN8n`).
 - Delivery relay already exists + proven: n8n workflow `hTVBPL7BqJVIV37e`, webhook `https://mazadjo.app.n8n.cloud/webhook/send-otp`, payload `{phone, code}`.
 - Test globs: `src/**/*.test.ts(x)`, `functions/**/*.test.js`; functions tests need `import { describe, it, expect } from 'vitest'`.
-- Arabic-primary; bilingual UI; worktree `/tmp/mazadjo-otp`, branch `feat/whatsapp-otp`.
+- Arabic-primary; bilingual UI; worktree `/tmp/mazzado-otp`, branch `feat/whatsapp-otp`.
 
 ---
 
@@ -107,7 +107,7 @@ describe('checkOtp', () => {
 });
 ```
 
-- [ ] **Step 2: red** — `cd /tmp/mazadjo-otp && npx vitest run functions/whatsappOtp.test.js` → FAIL.
+- [ ] **Step 2: red** — `cd /tmp/mazzado-otp && npx vitest run functions/whatsappOtp.test.js` → FAIL.
 - [ ] **Step 3: implement** — `functions/whatsappOtp.js`:
 ```js
 'use strict';

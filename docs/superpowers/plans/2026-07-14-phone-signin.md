@@ -92,7 +92,7 @@ export function toE164Jordan(input: string): string | null {
 - [ ] **Step 5: Typecheck** (`npm run lint`) — clean.
 - [ ] **Step 6: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/utils/phoneNumber.ts src/utils/phoneNumber.test.ts
 git commit -m "feat(phone-auth): add Jordanian phone -> E.164 normalizer"
 ```
@@ -140,14 +140,14 @@ Key security points to preserve/verify:
 The rules take effect ONLY when deployed — editing the file does nothing at runtime. Deploy is a human/deploy step: `firebase deploy --only firestore:rules` (needs Firebase auth — call it out in the final summary alongside enabling the Phone provider).
 For local validation, check the file parses if the emulator/CLI is available:
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 if npx --no-install firebase --version >/dev/null 2>&1; then npx firebase emulators:exec --only firestore "true" 2>&1 | tail -8; else echo "firebase CLI not available — rules validated by review; must be deployed separately"; fi
 ```
 (Do NOT invent flags like `--dry-run`; if unavailable, rely on review + deploy-time validation and say so in the report.)
 
 - [ ] **Step 4: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add firestore.rules
 git commit -m "feat(phone-auth): allow phone-verified users to create their user doc"
 ```
@@ -233,12 +233,12 @@ Confirm `role: 'user'` is set (required by the rule).
 
 - [ ] **Step 4: Typecheck + tests**
 
-Run: `cd /Users/mj/code/mazadjo && npm run lint && npx vitest run`
+Run: `cd /Users/mj/code/mazzado && npm run lint && npx vitest run`
 Expected: clean; all pure tests pass.
 
 - [ ] **Step 5: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/context/AppContext.tsx
 git commit -m "feat(phone-auth): add loginWithPhone/confirmPhoneCode + phone-aware user doc"
 ```
@@ -362,7 +362,7 @@ Keep the existing Google/Facebook buttons + email form below, unchanged. Also ad
 
 - [ ] **Step 4: Typecheck + build**
 
-Run: `cd /Users/mj/code/mazadjo && npm run lint && npm run build`
+Run: `cd /Users/mj/code/mazzado && npm run lint && npm run build`
 Expected: both clean/succeed.
 
 - [ ] **Step 5: Verify in the running app (as far as possible)**
@@ -371,7 +371,7 @@ Run `npm run dev`; confirm the login screen shows "Continue with phone number", 
 
 - [ ] **Step 6: Commit**
 ```bash
-cd /Users/mj/code/mazadjo
+cd /Users/mj/code/mazzado
 git add src/components/LoginView.tsx
 git commit -m "feat(phone-auth): phone sign-in UI (send + verify SMS code)"
 ```

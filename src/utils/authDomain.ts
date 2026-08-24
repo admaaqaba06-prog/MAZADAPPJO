@@ -21,6 +21,13 @@
 
 /** Hosts that can serve the Firebase auth handler for this project. */
 const KNOWN_AUTH_HOSTS = [
+  // The Mazzado rebrand. Both are attached to the Hosting site and are in the
+  // project's authorized-domains list, so both serve `/__/auth/*`.
+  'mazzado.com',
+  'www.mazzado.com',
+  // The previous brand. Kept until mazad-jo.com is detached from Hosting —
+  // dropping it early would break sign-in for anyone still arriving on an old
+  // link while that domain is still served.
   'mazad-jo.com',
   'www.mazad-jo.com',
   'mazadjoapp.web.app',

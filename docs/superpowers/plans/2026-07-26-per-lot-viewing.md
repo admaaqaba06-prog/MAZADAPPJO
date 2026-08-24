@@ -15,7 +15,7 @@
 - **`private` renders nothing** — identical to unset. This is deliberate, not an oversight.
 - Firestore `setDoc`/`updateDoc` reject explicit `undefined` (the project does not enable `ignoreUndefinedProperties`). Writers MUST omit keys via conditional spread, e.g. `...(x ? { key: x } : {})`.
 - All user-facing strings are bilingual, gated on `isAr` (Arabic) / else English. Arabic strings are copied verbatim from this plan — do not retype or "improve" them.
-- Run commands from the repo root `/Users/mj/code/mazadjo`.
+- Run commands from the repo root `/Users/mj/code/mazzado`.
 - Branch is already created: `feat/per-lot-viewing`. Do not create another.
 - Test command is `npx vitest run <path>`. Typecheck is `npm run lint` (it runs `tsc --noEmit`, it is not eslint). Build is `npm run build`.
 

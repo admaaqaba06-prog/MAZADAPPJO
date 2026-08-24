@@ -9,7 +9,7 @@ const sample = {
   productName: 'Green Home غسالة',
   specs: ['السعة: 7 كغم', 'تحميل أمامي', 'شاشة رقمية'],
   condition: 'جديدة كلياً',
-  deepLink: 'https://mazadjo.app/?auction=auction-123',
+  deepLink: 'https://mazzado.app/?auction=auction-123',
 };
 
 describe('buildAuctionCaption', () => {
@@ -43,6 +43,6 @@ describe('buildAuctionCaption', () => {
     // it can't promise a return) is gone.
     expect(out).toContain('حماية المشتري: مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام');
     expect(out).not.toContain('كفالة المزاد');
-    expect(out).toContain('https://mazadjo.app/?auction=auction-123');
+    expect(out).toContain('https://mazzado.app/?auction=auction-123');
   });
 });

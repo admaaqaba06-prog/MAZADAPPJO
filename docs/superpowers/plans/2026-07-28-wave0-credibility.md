@@ -81,7 +81,7 @@ Line numbers below are from the 2026-07-27 audit (`docs/admin-seller-audit-2026-
 ### Task 6: Test-data audit script (dry-run first)
 **Files:** Create `scripts/admin/audit-test-data.cjs`.
 
-- [ ] **Step 1:** Using the existing Admin-SDK pattern (see `scripts/admin/*.cjs`, service-account key path from memory `reference_mazadjo_prod_admin`), write a script that FINDS and PRINTS (does not delete) candidate test-data: reviews that violate the `reviews` rules gate (seeded/fake), notifications with empty resolved content, users that look like test/gibberish sellers, and the known typo/mismatched-image dispute records. Group + count them; print doc IDs.
+- [ ] **Step 1:** Using the existing Admin-SDK pattern (see `scripts/admin/*.cjs`, service-account key path from memory `reference_mazzado_prod_admin`), write a script that FINDS and PRINTS (does not delete) candidate test-data: reviews that violate the `reviews` rules gate (seeded/fake), notifications with empty resolved content, users that look like test/gibberish sellers, and the known typo/mismatched-image dispute records. Group + count them; print doc IDs.
 - [ ] **Step 2:** Guard deletion behind `--commit`; default run is read-only and prints "DRY RUN — pass --commit to delete". Deletion uses batched writes and logs each deleted ID.
 - [ ] **Step 3:** Do NOT run `--commit`. Commit the script only: `chore(admin): test-data audit script (dry-run default)`. MJ runs the dry-run and reviews before any deletion.
 

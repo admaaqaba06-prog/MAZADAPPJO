@@ -485,7 +485,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
   // Registered waitlist members from localStorage
   const [waitlist, setWaitlist] = useState<Array<{ name: string; contact: string; date: string }>>(() => {
     try {
-      const stored = localStorage.getItem("mazadjo_waitlist");
+      const stored = localStorage.getItem("mazzado_waitlist");
       return stored ? JSON.parse(stored) : [
         { name: lang === "ar" ? "رائد بني هاني" : "Raed Bani Hani", contact: "079***4512", date: "2026-07-13" },
         { name: lang === "ar" ? "أمجد المعاني" : "Amjad Al-Maani", contact: "amj***@outlook.com", date: "2026-07-13" },
@@ -876,7 +876,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
     const updatedWaitlist = [newRegistration, ...waitlist];
     setWaitlist(updatedWaitlist);
     try {
-      localStorage.setItem("mazadjo_waitlist", JSON.stringify(updatedWaitlist));
+      localStorage.setItem("mazzado_waitlist", JSON.stringify(updatedWaitlist));
     } catch (e) {
       console.error("Local storage error", e);
     }
@@ -1031,7 +1031,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
           {/* Desktop Navigation Links with gold sliding underline on hover */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <a href="#why-mazadjo" onClick={onSectionLinkClick("why-mazadjo")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.whyUs}
               <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
             </a>
@@ -1108,8 +1108,8 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
       >
         <div className="px-6 py-8 space-y-5 flex flex-col bg-surface-raised">
           <a
-            href="#why-mazadjo"
-            onClick={onSectionLinkClick("why-mazadjo")}
+            href="#why-mazzado"
+            onClick={onSectionLinkClick("why-mazzado")}
             className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
           >
             {t.nav.whyUs}
@@ -1887,7 +1887,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
         </section>
 
         {/* 4. Section "لماذا Mazzado" (Comparison VS) */}
-        <section id="why-mazadjo" className="py-20 relative">
+        <section id="why-mazzado" className="py-20 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             {/* Section Title */}
@@ -2941,7 +2941,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
             {/* Quick Links Column */}
             <div className="md:col-span-7 flex flex-wrap items-center justify-center md:justify-end gap-6 text-xs font-semibold text-fg-muted">
-              <a href="#why-mazadjo" onClick={onSectionLinkClick("why-mazadjo")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
                 {t.footer.links.whyUs}
               </a>
               <a href="#categories" onClick={onSectionLinkClick("categories")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">

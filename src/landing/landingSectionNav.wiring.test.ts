@@ -2,7 +2,7 @@
 //
 // TWO defects, both measured on the rendered page before the fix:
 //
-// 1. `id="why-mazadjo"` sat on the TRUST section — the one whose heading is
+// 1. `id="why-mazzado"` sat on the TRUST section — the one whose heading is
 //    `t.trust.title` («مزاد ليس للتصفية…») and whose badge is `t.trust.badge`
 //    («الأمان والنزاهة»). The real «لماذا Mazzado؟» section, which renders
 //    `t.why.title`, carried NO id at all. So «لماذا مزادو؟» in the menu took
@@ -53,16 +53,16 @@ describe('landing menu links reach the section they name', () => {
     const ids = linkedSectionIds();
     // The three section links, in the desktop nav, the mobile drawer and the
     // footer. If a fourth is added, add it here on purpose.
-    expect(ids).toEqual(['categories', 'pricing', 'why-mazadjo']);
+    expect(ids).toEqual(['categories', 'pricing', 'why-mazzado']);
     for (const id of ids) {
       const declared = (SRC.match(new RegExp(`id="${id}"`, 'g')) ?? []).length;
       expect(declared, `id="${id}" must be declared exactly once`).toBe(1);
     }
   });
 
-  it('puts why-mazadjo on the section headed by t.why.title, not t.trust.title', () => {
-    const anchor = SRC.indexOf('id="why-mazadjo"');
-    expect(anchor, 'id="why-mazadjo" is missing entirely').toBeGreaterThan(-1);
+  it('puts why-mazzado on the section headed by t.why.title, not t.trust.title', () => {
+    const anchor = SRC.indexOf('id="why-mazzado"');
+    expect(anchor, 'id="why-mazzado" is missing entirely').toBeGreaterThan(-1);
 
     const why = SRC.indexOf('{t.why.title}', anchor);
     const trustAfter = SRC.indexOf('{t.trust.title}', anchor);
@@ -92,7 +92,7 @@ describe('landing menu links reach the section they name', () => {
     // href is what makes them focusable, announced as links, and
     // middle/ctrl-clickable. The handler must not have replaced them with
     // buttons or onClick-only divs.
-    expect(SRC).toMatch(/<a\s+href="#why-mazadjo"\s+onClick=\{onSectionLinkClick\("why-mazadjo"\)\}/);
+    expect(SRC).toMatch(/<a\s+href="#why-mazzado"\s+onClick=\{onSectionLinkClick\("why-mazzado"\)\}/);
   });
 
   it('offsets the scroll by the measured header and a 12-24px gap', () => {

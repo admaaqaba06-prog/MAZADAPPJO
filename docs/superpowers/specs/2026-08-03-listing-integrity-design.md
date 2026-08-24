@@ -235,7 +235,7 @@ A title matching no keyword **stays where it is** rather than being guessed.
 `Luxury` → `Watches` is a rename, not a guess, and is applied unconditionally.
 
 Runs against prod via the `mazadjoapp` service account (see
-`reference_mazadjo_prod_admin`).
+`reference_mazzado_prod_admin`).
 
 ### 5. Tell the seller what to fix
 
@@ -277,7 +277,7 @@ seller wizard ──────┴→ 'processing' → ListingApprovalCard ─�
 
 ### Testing
 
-Follow `reference_mazadjo_testing` — vitest is node-only, no jsdom.
+Follow `reference_mazzado_testing` — vitest is node-only, no jsdom.
 
 Pure-function unit tests:
 

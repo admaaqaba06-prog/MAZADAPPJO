@@ -18,7 +18,7 @@
 - Firestore rejects explicit `undefined` (`ignoreUndefinedProperties` is not enabled). Omit keys via conditional spread rather than passing `undefined`.
 - `tsconfig` does NOT set `strict`, so a green `tsc` is weak evidence. Reason about correctness directly.
 - Test: `npx vitest run <path>`. Typecheck: `npm run lint` (runs `tsc --noEmit`, NOT eslint). Build: `npm run build`. **Use `set -o pipefail` if you pipe their output** — otherwise a failure is masked by the pipe and you will report a false green.
-- Run all commands from `/Users/mj/code/mazadjo`. Branch `feat/admin-order-pipeline` already exists — do not create another.
+- Run all commands from `/Users/mj/code/mazzado`. Branch `feat/admin-order-pipeline` already exists — do not create another.
 
 ---
 

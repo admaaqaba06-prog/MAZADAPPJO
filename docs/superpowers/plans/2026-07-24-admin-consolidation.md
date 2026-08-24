@@ -88,7 +88,7 @@ describe('tab groups', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `cd /Users/mj/code/mazadjo/.claude/worktrees/feat+admin-consolidation && npx vitest run src/utils/adminNav.test.ts` → FAIL (module missing).
+- [ ] **Step 2: Run to verify it fails** — `cd /Users/mj/code/mazzado/.claude/worktrees/feat+admin-consolidation && npx vitest run src/utils/adminNav.test.ts` → FAIL (module missing).
 
 - [ ] **Step 3: Implement** — `src/utils/adminNav.ts`:
 

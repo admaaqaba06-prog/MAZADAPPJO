@@ -15,7 +15,7 @@
 - Stars: integer 1–5. Comment optional, ≤500 chars. Seller rates only after `status==='completed'`, one per order.
 - Buyer reputation is NOT shown in the live-auction/bidding UI.
 - Arabic-primary; bilingual UI; smooth ease-out motion.
-- Worktree `/tmp/mazadjo-e7`, branch `feat/e7-ratings` (off E6-inclusive main; spec committed).
+- Worktree `/tmp/mazzado-e7`, branch `feat/e7-ratings` (off E6-inclusive main; spec committed).
 
 ---
 
@@ -63,7 +63,7 @@ describe('canSellerRateOrder', () => {
   it('false on null order', () => { expect(canSellerRateOrder(null, 's1', null)).toBe(false); });
 });
 ```
-- [ ] **Step 2: red** — `cd /tmp/mazadjo-e7 && npx vitest run functions/ratings.test.js` → FAIL.
+- [ ] **Step 2: red** — `cd /tmp/mazzado-e7 && npx vitest run functions/ratings.test.js` → FAIL.
 - [ ] **Step 3: implement** — `functions/ratings.js`:
 ```js
 'use strict';

@@ -32,7 +32,7 @@ weaken the blocklist in `common.js`.
    require it):
 
    ```bash
-   firebase projects:create mazadjo-loadtest-1   # any NON-prod id
+   firebase projects:create mazzado-loadtest-1   # any NON-prod id
    # In the Firebase console for that project: enable Firestore (production
    # mode) and Authentication (no providers needed — the harness uses custom
    # tokens minted by the Admin SDK).
@@ -41,7 +41,7 @@ weaken the blocklist in `common.js`.
 2. **Deploy the app's functions + rules + indexes to it** (from the repo root):
 
    ```bash
-   firebase deploy --project mazadjo-loadtest-1 \
+   firebase deploy --project mazzado-loadtest-1 \
      --only functions,firestore:rules,firestore:indexes
    ```
 
@@ -52,19 +52,19 @@ weaken the blocklist in `common.js`.
 3. **Service account key** (never committed — `.gitignore` here blocks common
    names, but keep it outside the repo anyway):
    Firebase console → Project settings → Service accounts → *Generate new
-   private key*. Save it somewhere like `~/keys/mazadjo-loadtest-1.json`.
+   private key*. Save it somewhere like `~/keys/mazzado-loadtest-1.json`.
 
 4. **Web API key** of the throwaway project (needed to exchange custom tokens
    for ID tokens via the Auth REST API):
    Project settings → General → *Web API Key*, or
-   `firebase apps:sdkconfig web --project mazadjo-loadtest-1`
+   `firebase apps:sdkconfig web --project mazzado-loadtest-1`
    (create a web app first with `firebase apps:create web loadtest` if none).
 
 5. **Env** (shell session, or a `.env` you source — never commit):
 
    ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS=~/keys/mazadjo-loadtest-1.json
-   export LOADTEST_PROJECT_ID=mazadjo-loadtest-1
+   export GOOGLE_APPLICATION_CREDENTIALS=~/keys/mazzado-loadtest-1.json
+   export LOADTEST_PROJECT_ID=mazzado-loadtest-1
    export LOADTEST_WEB_API_KEY=AIza...        # THROWAWAY project's key
    # optional:
    # export LOADTEST_REGION=us-central1      # gen-1 default; only if you changed it

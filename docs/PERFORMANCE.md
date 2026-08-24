@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24
 **Method:** `scripts/loadtest/` harness against a throwaway Firebase project
-(`mazadjo-loadtest`, fully isolated from production `mazadjoapp`), driving the
+(`mazzado-loadtest`, fully isolated from production `mazadjoapp`), driving the
 **real** `placeBid` callable and real Firestore `onSnapshot` listeners — not
 simulated/mocked paths. See `scripts/loadtest/README.md` for how to reproduce.
 

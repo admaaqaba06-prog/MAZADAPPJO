@@ -243,7 +243,7 @@ function buildHtml(c, name) {
     + `<p style="margin:0 0 12px;font-size:14px;color:#555555;">${greet}</p>`
     + `<h1 style="margin:0 0 12px;font-size:20px;line-height:1.4;color:#111111;">${esc(c.title)}</h1>`
     + (body ? `<p style="margin:0 0 22px;font-size:15px;line-height:1.8;color:#333333;">${body}</p>` : '')
-    + '<a href="https://mazad-jo.com" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">افتح التطبيق</a>'
+    + '<a href="https://www.mazzado.com" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:bold;">افتح التطبيق</a>'
     + '</td></tr>'
     + '<tr><td style="padding:16px 24px;background:#fafbfc;border-top:1px solid #eef0f2;font-family:Tahoma,Arial,sans-serif;font-size:12px;color:#8a9099;">'
     + 'هذه رسالة آلية من مزادو، لا حاجة للرد عليها.</td></tr>'
