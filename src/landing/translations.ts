@@ -142,10 +142,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "اعرِضها.",
-      titleGradient: "بِعْها مباشرةً.",
-      titleLast: "واقبِض بأمان.",
-      desc: "منصة المزادات الموثوقة في الأردن. نعرض سلعتك على مشترين جادّين ونضمن وصول أموالك بأمان — كل عملية بيع محمية للمشتري.",
+      titleFirst: "بيع أسرع.",
+      titleGradient: "واشترِ بأرخص سعر.",
+      // Two lines now, not three. The third span is guarded in LandingView so an
+      // empty string does not leave a flex gap where a line used to be.
+      titleLast: "",
+      desc: "اعرض منتجك وبِعه خلال 15 دقيقة، واكتشف أفضل الصفقات بأقل الأسعار.",
       ctaPrimary: "اعرض سلعتك للبيع",
       ctaSecondary: "تصفّح المزادات المباشرة",
       proof: [
@@ -371,10 +373,10 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "List it.",
-      titleGradient: "Sell it live.",
-      titleLast: "Get paid safely.",
-      desc: "Jordan's trusted auction platform. We put your item in front of serious buyers and make sure you get paid safely — every sale is buyer-protected.",
+      titleFirst: "Sell faster.",
+      titleGradient: "Buy for less.",
+      titleLast: "",
+      desc: "List your item and sell it within 15 minutes — and find the best deals at the lowest prices.",
       ctaPrimary: "List your item",
       ctaSecondary: "Browse live auctions",
       proof: [

@@ -348,7 +348,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                           if (permission === 'granted') {
                             new Notification(isAr ? 'تم تفعيل التنبيهات بنجاح!' : 'Notifications Enabled!', {
                               body: isAr ? 'ستصلك تنبيهات المزايدات الفورية هنا.' : 'You will receive real-time auction outbids and escrow alerts here.',
-                              icon: '/icon.svg'
+                              icon: '/icon-192.png'
                             });
                           }
                           onClose();

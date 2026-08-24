@@ -1231,7 +1231,11 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                       />
                     </svg>
                   </span>
-                  <span className="block">{t.hero.titleLast}</span>
+                  {/* Guarded: the headline is two lines now. This h1 is a flex
+                      column with a gap, so an empty third span would still be a
+                      flex item and leave the gap behind as a blank line under
+                      the headline. */}
+                  {t.hero.titleLast && <span className="block">{t.hero.titleLast}</span>}
                 </motion.h1>
 
                 {/* Paragraph */}

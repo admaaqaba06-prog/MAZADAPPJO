@@ -3067,7 +3067,7 @@ const fetchIP = async () => {
       try {
         new window.Notification(title, {
           body: description,
-          icon: '/icon.svg',
+          icon: '/icon-192.png',
           tag: newNotif.id,
           silent: false
         });
