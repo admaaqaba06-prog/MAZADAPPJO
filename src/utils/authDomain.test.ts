@@ -10,19 +10,28 @@ describe('resolveAuthDomain — follows the visitor', () => {
   it('uses the current host for every domain that serves the handler', () => {
     // Verified against production: /__/auth/handler returns 200 on all of these,
     // and all are in the project's authorized-domains list.
-    for (const h of ['mazad-jo.com', 'www.mazad-jo.com', 'mazadjoapp.web.app', 'localhost']) {
+    for (const h of ['mazzado.com', 'www.mazzado.com', 'mazadjoapp.web.app', 'localhost']) {
       expect(resolveAuthDomain(h), h).toBe(h);
     }
   });
 
   it('keeps the apex on the apex — the exact case that was broken', () => {
-    expect(resolveAuthDomain('mazad-jo.com')).toBe('mazad-jo.com');
-    expect(resolveAuthDomain('mazad-jo.com')).not.toBe('www.mazad-jo.com');
+    expect(resolveAuthDomain('mazzado.com')).toBe('mazzado.com');
+    expect(resolveAuthDomain('mazzado.com')).not.toBe('www.mazzado.com');
+  });
+
+  it('sends a RETIRED host to the fallback, not to itself', () => {
+    // mazad-jo.com was detached from Firebase Hosting on 2026-08-24, so it no
+    // longer serves /__/auth/*. Returning it would point the OAuth handshake at
+    // a host that answers "Site not found".
+    for (const dead of ['mazad-jo.com', 'www.mazad-jo.com']) {
+      expect(resolveAuthDomain(dead), dead).toBe(FALLBACK_AUTH_DOMAIN);
+    }
   });
 
   it('is case- and whitespace-insensitive about the host', () => {
-    expect(resolveAuthDomain('WWW.Mazad-Jo.com')).toBe('www.mazad-jo.com');
-    expect(resolveAuthDomain('  mazad-jo.com  ')).toBe('mazad-jo.com');
+    expect(resolveAuthDomain('WWW.Mazzado.com')).toBe('www.mazzado.com');
+    expect(resolveAuthDomain('  mazzado.com  ')).toBe('mazzado.com');
   });
 });
 
@@ -40,10 +49,10 @@ describe('resolveAuthDomain — falls back rather than guessing', () => {
     // so echoing it back would break sign-in in the very way this prevents.
     for (const h of [
       'mazadjoapp--pr123-abc.web.app',
-      'staging.mazad-jo.com',
+      'staging.mazzado.com',
       '192.168.1.34',
       'evil.example.com',
-      'mazad-jo.com.attacker.net',
+      'mazzado.com.attacker.net',
     ]) {
       expect(resolveAuthDomain(h), h).toBe(FALLBACK_AUTH_DOMAIN);
     }
@@ -58,14 +67,14 @@ describe('resolveAuthDomain — falls back rather than guessing', () => {
 
 describe('resolveAuthDomain — an explicit env var always wins', () => {
   it('prefers the configured value over the host', () => {
-    expect(resolveAuthDomain('mazad-jo.com', 'custom.example.com')).toBe('custom.example.com');
+    expect(resolveAuthDomain('mazzado.com', 'custom.example.com')).toBe('custom.example.com');
   });
 
   it('ignores a blank env var rather than returning it', () => {
     // Vite gives '' for an unset var in some setups; that must not become the
     // authDomain, which would break auth entirely.
-    expect(resolveAuthDomain('mazad-jo.com', '')).toBe('mazad-jo.com');
-    expect(resolveAuthDomain('mazad-jo.com', '   ')).toBe('mazad-jo.com');
+    expect(resolveAuthDomain('mazzado.com', '')).toBe('mazzado.com');
+    expect(resolveAuthDomain('mazzado.com', '   ')).toBe('mazzado.com');
     expect(resolveAuthDomain(undefined, '')).toBe(FALLBACK_AUTH_DOMAIN);
   });
 });
