@@ -10,6 +10,12 @@ import {
   classifyGalleryIntake,
   imageFilesFromTransfer,
   type PickedPhoto,
+  isVideoFile,
+  filesFromTransfer,
+  checkCoverFile,
+  checkVideoFile,
+  MAX_COVER_BYTES,
+  MAX_VIDEO_BYTES,
 } from './mediaPickerState';
 
 /** `n` photos, so cap tests scale with MAX_GALLERY_PHOTOS instead of pinning 3. */
@@ -383,5 +389,121 @@ describe('imageFilesFromTransfer', () => {
       items: [{ kind: 'file', type: 'image/png', getAsFile: () => null }],
     });
     expect(r).toEqual([]);
+  });
+});
+
+/* ======================================================================
+   Cover + video single-file intake (drag-and-drop parity).
+
+   Drag-and-drop used to exist only for the gallery. The cover and the video
+   were click-only and, worse, validated nothing: an oversized cover simply
+   appeared not to work, and the failure surfaced later as a Storage rules
+   rejection. These helpers back the drop zones on both the admin drop builder
+   and the seller wizard, so one validation serves both ways in.
+
+   The ceilings are read off `storage.rules`, not chosen — see the module.
+   ====================================================================== */
+describe('isVideoFile', () => {
+  it('accepts a video MIME type', () => {
+    expect(isVideoFile({ type: 'video/mp4' })).toBe(true);
+    expect(isVideoFile({ type: 'video/quicktime' })).toBe(true);
+  });
+
+  it('accepts a known extension when the browser reports no useful type', () => {
+    // Android pickers and some OS drags hand over '' or octet-stream for a
+    // perfectly good .mov. Refusing those would refuse real videos.
+    expect(isVideoFile({ type: '', name: 'clip.mov' })).toBe(true);
+    expect(isVideoFile({ type: 'application/octet-stream', name: 'clip.MP4' })).toBe(true);
+    expect(isVideoFile({ type: '', name: 'clip.webm' })).toBe(true);
+  });
+
+  it('rejects a non-video, and a bare name with no usable extension', () => {
+    expect(isVideoFile({ type: 'image/png', name: 'a.png' })).toBe(false);
+    expect(isVideoFile({ type: 'application/pdf', name: 'a.pdf' })).toBe(false);
+    expect(isVideoFile({ type: '', name: 'clip' })).toBe(false);
+    expect(isVideoFile({ type: '', name: 'clip.txt' })).toBe(false);
+  });
+
+  it('does not let an extension override a contradicting real type', () => {
+    // A file the browser positively identifies as an image is an image, whatever
+    // it is called.
+    expect(isVideoFile({ type: 'image/jpeg', name: 'sneaky.mp4' })).toBe(false);
+  });
+});
+
+describe('filesFromTransfer', () => {
+  const f = (type: string, name = 'x') => ({ type, name }) as unknown as File;
+
+  it('prefers files and filters by the predicate', () => {
+    const out = filesFromTransfer({ files: [f('image/png'), f('video/mp4')] }, isImageFile);
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe('image/png');
+  });
+
+  it('falls back to items when files is empty — the paste path', () => {
+    const vid = f('video/mp4');
+    const out = filesFromTransfer({
+      files: [],
+      items: [{ kind: 'file', type: 'video/mp4', getAsFile: () => vid }],
+    }, isVideoFile);
+    expect(out).toEqual([vid]);
+  });
+
+  it('ignores non-file items and a null transfer', () => {
+    expect(filesFromTransfer({
+      items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+    }, isImageFile)).toEqual([]);
+    expect(filesFromTransfer(null, isImageFile)).toEqual([]);
+    expect(filesFromTransfer(undefined, isImageFile)).toEqual([]);
+  });
+
+  it('still backs imageFilesFromTransfer unchanged', () => {
+    // The wrapper is what the gallery zone already calls; generalising the
+    // implementation must not have altered it.
+    const out = imageFilesFromTransfer({ files: [f('image/webp'), f('text/plain')] });
+    expect(out).toHaveLength(1);
+  });
+});
+
+describe('checkCoverFile', () => {
+  it('accepts an image inside the ceiling', () => {
+    expect(checkCoverFile({ type: 'image/jpeg', size: 5 * 1024 * 1024 })).toEqual({ ok: true });
+  });
+
+  it('refuses a non-image as wrong_type', () => {
+    expect(checkCoverFile({ type: 'video/mp4', size: 10 })).toEqual({ ok: false, reason: 'wrong_type' });
+  });
+
+  it('refuses an oversized image as too_large, at the server ceiling', () => {
+    expect(checkCoverFile({ type: 'image/png', size: MAX_COVER_BYTES + 1 }))
+      .toEqual({ ok: false, reason: 'too_large' });
+    // Exactly at the limit is allowed — the rule is `<=`.
+    expect(checkCoverFile({ type: 'image/png', size: MAX_COVER_BYTES })).toEqual({ ok: true });
+  });
+
+  it('treats a missing file as a refusal rather than throwing', () => {
+    expect(checkCoverFile(null).ok).toBe(false);
+    expect(checkCoverFile(undefined).ok).toBe(false);
+  });
+});
+
+describe('checkVideoFile', () => {
+  it('accepts a video inside the ceiling', () => {
+    expect(checkVideoFile({ type: 'video/mp4', size: 20 * 1024 * 1024 })).toEqual({ ok: true });
+  });
+
+  it('refuses a non-video and an oversized video', () => {
+    expect(checkVideoFile({ type: 'image/png', size: 10 })).toEqual({ ok: false, reason: 'wrong_type' });
+    expect(checkVideoFile({ type: 'video/mp4', size: MAX_VIDEO_BYTES + 1 }))
+      .toEqual({ ok: false, reason: 'too_large' });
+  });
+
+  it('honours a caller-supplied stricter ceiling', () => {
+    // The seller's video form caps at 100MB for upload reliability on mobile
+    // connections, below the 250MB the Storage rules allow.
+    const hundred = 100 * 1024 * 1024;
+    expect(checkVideoFile({ type: 'video/mp4', size: hundred + 1 }, hundred))
+      .toEqual({ ok: false, reason: 'too_large' });
+    expect(checkVideoFile({ type: 'video/mp4', size: hundred }, hundred)).toEqual({ ok: true });
   });
 });
