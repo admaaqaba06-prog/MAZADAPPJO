@@ -3,14 +3,14 @@ import { buildAuctionUrl, parseAuctionIdFromSearch, parseAuctionIdFromPath } fro
 
 describe('buildAuctionUrl', () => {
   it('builds an origin-rooted /auction/:id url', () => {
-    expect(buildAuctionUrl('auction-123', 'https://mazad-jo.com')).toBe(
-      'https://mazad-jo.com/auction/auction-123',
+    expect(buildAuctionUrl('auction-123', 'https://www.mazzado.com')).toBe(
+      'https://www.mazzado.com/auction/auction-123',
     );
   });
 
   it('strips a trailing slash on the origin', () => {
-    expect(buildAuctionUrl('a1', 'https://mazad-jo.com/')).toBe(
-      'https://mazad-jo.com/auction/a1',
+    expect(buildAuctionUrl('a1', 'https://www.mazzado.com/')).toBe(
+      'https://www.mazzado.com/auction/a1',
     );
   });
 
