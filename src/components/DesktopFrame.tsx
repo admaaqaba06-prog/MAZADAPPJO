@@ -211,7 +211,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <button
                 onClick={() => setActiveView('discovery')}
                 aria-current={activeView === 'discovery' ? 'page' : undefined}
-                className={`relative flex w-[76px] flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'discovery'
                     ? 'text-[#FF6B00]'
                     : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
@@ -230,7 +230,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               <button
                 onClick={() => setActiveView('orders')}
                 aria-current={activeView === 'orders' ? 'page' : undefined}
-                className={`relative flex w-[76px] flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'orders'
                     ? 'text-[#FF6B00]'
                     : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
@@ -264,10 +264,41 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
             {/* TRAILING GROUP — the left-hand half under RTL. */}
             <div className="flex flex-1 items-stretch justify-around">
+              {/* Membership. The fourth tab the reference has and this bar
+                  lacked, and it earns the slot on its own merits rather than to
+                  fill a gap: membership is what GATES bidding here, so it is the
+                  conversion step the whole feed pushes towards, and it had no
+                  mobile entry point at all — the only way in was a desktop pill
+                  hidden behind `sm:` and `currentUser`.
+
+                  Route is `wallet`, which renders SubscriptionView; the internal
+                  name is historical. `Coins` is the icon the desktop pill already
+                  uses for this destination, kept so the two agree. Guests get the
+                  same tab, because joining is exactly what a guest is here to do
+                  and SubscriptionView is the screen that asks. */}
+              <button
+                onClick={() => setActiveView('wallet')}
+                aria-current={activeView === 'wallet' ? 'page' : undefined}
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  activeView === 'wallet'
+                    ? 'text-[#FF6B00]'
+                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                }`}
+                id="mobile-subscription-tab-btn"
+              >
+                <Coins className="w-6 h-6" strokeWidth={1.9} />
+                <span className={`text-[11px] tracking-normal ${activeView === 'wallet' ? 'font-semibold' : 'font-medium'}`}>
+                  {isAr ? 'اشتراكي' : 'Membership'}
+                </span>
+                {activeView === 'wallet' && (
+                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                )}
+              </button>
+
               <button
                 onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
                 aria-current={activeView === 'profile' ? 'page' : undefined}
-                className={`relative flex w-[76px] flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'profile'
                     ? 'text-[#FF6B00]'
                     : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
@@ -286,7 +317,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <button
                   onClick={() => setActiveView('seller-center')}
                   aria-current={activeView === 'seller-center' ? 'page' : undefined}
-                  className={`relative flex w-[76px] flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                     activeView === 'seller-center'
                       ? 'text-[#FF6B00]'
                       : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
@@ -306,7 +337,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <button
                   onClick={() => setActiveView('admin')}
                   aria-current={activeView === 'admin' ? 'page' : undefined}
-                  className="relative flex w-[76px] flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer text-amber-600"
+                  className="relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer text-amber-600"
                   id="mobile-admin-tab-btn"
                 >
                   <ShieldAlert className="w-6 h-6 animate-pulse" strokeWidth={1.9} />
