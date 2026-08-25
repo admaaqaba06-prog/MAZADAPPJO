@@ -15,6 +15,7 @@ import { InstallPrompt } from './InstallPrompt';
 
 const AdminPanel = lazy(() => import('./AdminPanel'));
 import { ReelsDesktopRightPanel } from './ReelsDesktopRightPanel';
+import { BrandMark } from './BrandMark';
 import { 
   User,
   TrendingUp, 
@@ -299,9 +300,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             onClick={() => setActiveView('landing')}
             className="flex items-center gap-3 cursor-pointer select-none group"
           >
-            <div className="w-8 h-8 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base tracking-wider shadow-md shadow-orange-500/10 group-hover:scale-105 transition-all">
-              M
-            </div>
+            <BrandMark className="w-8 h-8 group-hover:scale-105 transition-all" />
             <div className="flex flex-col text-left rtl:text-right">
               <span className="text-xs font-black font-sans leading-none tracking-tight uppercase text-fg">
                 {t.appName}

@@ -11,6 +11,7 @@ import { Globe, CheckCircle2, Phone, Loader2, MessageCircle } from 'lucide-react
 import { SignInMarketingPanel } from './SignInMarketingPanel';
 import { useLandingAuctions } from '../landing/useLandingAuctions';
 import { signInPrompt } from '../utils/signInIntent';
+import { BrandMark } from './BrandMark';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -324,9 +325,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
       {/* Top Absolute Header with Logo & Language Toggle */}
       <header className="absolute top-6 left-6 right-6 flex justify-between items-center max-w-7xl w-full mx-auto px-4 pointer-events-none z-10">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="w-8 h-8 rounded-lg bg-[#FF6B00] flex items-center justify-center text-white font-mono font-black text-sm shadow-[0_3px_8px_rgba(255,107,0,0.3)]">
-            M
-          </div>
+          <BrandMark className="w-8 h-8" />
           <div>
             <span className="font-mono font-black text-base text-fg tracking-tight">{t.appName}</span>
           </div>

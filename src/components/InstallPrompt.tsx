@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Share, Download, X, Plus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { BrandMark } from './BrandMark';
 import {
   isStandalone,
   isIOSSafari,
@@ -138,10 +139,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
           entered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
         }`}
       >
-        {/* Orange-M app mark */}
-        <div className="w-10 h-10 rounded-xl bg-[#FF6B00] flex items-center justify-center font-black text-white text-lg font-mono shadow-sm shadow-orange-500/30 shrink-0">
-          M
-        </div>
+        <BrandMark className="w-10 h-10" />
 
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-black text-fg leading-tight">{title}</p>
