@@ -41,10 +41,33 @@ describe('sign-in intent', () => {
   });
 
   it('asks a would-be seller to sign in to sell', () => {
-    // The reported bug, at its three guest-reachable entry points: the bottom
-    // nav FAB, the desktop top nav, and the Discover header button.
-    expect(read('components/DesktopFrame.tsx')).toMatch(/requestSignIn\('sell'\)/);
-    expect(read('components/DiscoveryFeedView.tsx')).toMatch(/requestSignIn\('sell'\)/);
+    // The reported bug, at every guest-reachable Sell entry point. There were
+    // three; the Discover header button was removed on 2026-08-25 because the
+    // bottom nav's centre FAB is the primary Sell action and two entry points
+    // to one route in a single mobile viewport is duplicated weight. The two
+    // survivors both live in DesktopFrame — the FAB and the desktop top nav.
+    //
+    // Counted rather than merely matched: a single toMatch would still pass if
+    // one of the two regressed to a bare requestSignIn(), which is exactly the
+    // bug. If a Sell entry point is ever added elsewhere, this count fails and
+    // the new file has to be added here deliberately.
+    // Comments stripped before counting. Without this the scan reads PROSE as
+    // code: DiscoveryFeedView carries a comment explaining that the FAB keeps
+    // this intent, and that sentence contains the literal call, so the file
+    // showed up as a third call site that does not exist.
+    const code = (src: string) =>
+      src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+    const frame = code(read('components/DesktopFrame.tsx'));
+    expect((frame.match(/requestSignIn\('sell'\)/g) ?? []).length).toBe(2);
+
+    // And no OTHER component may offer Sell without the intent.
+    const sellCallers = sourceFiles('src')
+      .filter((f) => !f.includes('.test.'))
+      .filter((f) => /requestSignIn\('sell'\)/.test(code(readFileSync(f, 'utf8'))))
+      // sourceFiles returns repo-relative paths with the platform separator.
+      .map((f) => f.replace(/\\/g, '/').replace(/^.*?src\//, ''));
+    expect(sellCallers).toEqual(['components/DesktopFrame.tsx']);
   });
 
   it('asks a would-be bidder to sign in to bid', () => {
