@@ -1,23 +1,52 @@
 // Which host Firebase runs the OAuth handshake against.
 //
-// The bug this prevents: authDomain was pinned to "www.mazad-jo.com", so Google
-// sign-in worked on www and silently did nothing on the bare apex — the button
-// appeared dead, with no error shown to the user.
+// Two outages are pinned down here.
+//
+// (1) authDomain was pinned to "www.mazad-jo.com", so Google sign-in worked on
+//     www and silently did nothing on the bare apex — the button appeared dead,
+//     with no error shown to the user.
+//
+// (2) The Mazzado cutover listed mazzado.com / www.mazzado.com as auth hosts
+//     because they serve /__/auth/* AND sit in the Firebase authorized-domains
+//     list. Both true, and both insufficient: the handler url must ALSO be a
+//     registered redirect URI on the Google Cloud OAuth client, which it was
+//     not. Google answered redirect_uri_mismatch and sign-in was dead on
+//     production. See the requirement list in authDomain.ts.
+//
+// The assertions below are therefore gated on OAuth-client registration, which
+// is the binding constraint — not on DNS or Hosting, which are not.
 import { describe, it, expect } from 'vitest';
+import fsSync from 'node:fs';
 import { resolveAuthDomain, FALLBACK_AUTH_DOMAIN } from './authDomain';
 
-describe('resolveAuthDomain — follows the visitor', () => {
-  it('uses the current host for every domain that serves the handler', () => {
-    // Verified against production: /__/auth/handler returns 200 on all of these,
-    // and all are in the project's authorized-domains list.
-    for (const h of ['mazzado.com', 'www.mazzado.com', 'mazadjoapp.web.app', 'localhost']) {
+describe('resolveAuthDomain — only hosts registered on the OAuth client', () => {
+  it('uses the current host when its handler url is a registered redirect URI', () => {
+    // Verified 2026-08-25 by running the real flow: Google served the account
+    // picker on this host, not "Access blocked".
+    for (const h of ['mazadjoapp.firebaseapp.com', 'localhost']) {
       expect(resolveAuthDomain(h), h).toBe(h);
     }
   });
 
-  it('keeps the apex on the apex — the exact case that was broken', () => {
-    expect(resolveAuthDomain('mazzado.com')).toBe('mazzado.com');
-    expect(resolveAuthDomain('mazzado.com')).not.toBe('www.mazzado.com');
+  it('sends an UNREGISTERED host to the fallback, however valid it looks', () => {
+    // The outage. Each of these serves /__/auth/* and is in the Firebase
+    // authorized-domains list, and each was still rejected by Google with
+    // redirect_uri_mismatch because its handler url is not on the OAuth client.
+    // Echoing them back is precisely what broke sign-in.
+    for (const unregistered of ['mazzado.com', 'www.mazzado.com', 'mazadjoapp.web.app']) {
+      expect(resolveAuthDomain(unregistered), unregistered).toBe(FALLBACK_AUTH_DOMAIN);
+    }
+  });
+
+  it('states the re-enable procedure where the list is, not in a ticket', () => {
+    // A future reader WILL want the brand's own domain on the consent screen.
+    // The order of operations is the whole lesson, so it has to live next to
+    // the array they are about to edit.
+    const src = fsSync.readFileSync(new URL('./authDomain.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/Authorized redirect URIs/);
+    expect(src).toContain('https://www.mazzado.com/__/auth/handler');
+    expect(src).toContain('https://mazzado.com/__/auth/handler');
+    expect(src).toMatch(/redirect_uri_mismatch/);
   });
 
   it('sends a RETIRED host to the fallback, not to itself', () => {
@@ -30,8 +59,10 @@ describe('resolveAuthDomain — follows the visitor', () => {
   });
 
   it('is case- and whitespace-insensitive about the host', () => {
-    expect(resolveAuthDomain('WWW.Mazzado.com')).toBe('www.mazzado.com');
-    expect(resolveAuthDomain('  mazzado.com  ')).toBe('mazzado.com');
+    expect(resolveAuthDomain('MazadJoApp.FirebaseApp.com')).toBe('mazadjoapp.firebaseapp.com');
+    expect(resolveAuthDomain('  mazadjoapp.firebaseapp.com  ')).toBe('mazadjoapp.firebaseapp.com');
+    // Normalisation must not smuggle an unregistered host through either.
+    expect(resolveAuthDomain('  WWW.Mazzado.COM  ')).toBe(FALLBACK_AUTH_DOMAIN);
   });
 });
 
@@ -73,8 +104,8 @@ describe('resolveAuthDomain — an explicit env var always wins', () => {
   it('ignores a blank env var rather than returning it', () => {
     // Vite gives '' for an unset var in some setups; that must not become the
     // authDomain, which would break auth entirely.
-    expect(resolveAuthDomain('mazzado.com', '')).toBe('mazzado.com');
-    expect(resolveAuthDomain('mazzado.com', '   ')).toBe('mazzado.com');
+    expect(resolveAuthDomain('mazadjoapp.firebaseapp.com', '')).toBe('mazadjoapp.firebaseapp.com');
+    expect(resolveAuthDomain('mazadjoapp.firebaseapp.com', '   ')).toBe('mazadjoapp.firebaseapp.com');
     expect(resolveAuthDomain(undefined, '')).toBe(FALLBACK_AUTH_DOMAIN);
   });
 });
