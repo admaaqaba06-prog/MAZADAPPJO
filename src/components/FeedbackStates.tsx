@@ -38,16 +38,28 @@ export const BootSplash: React.FC = () => {
   } catch {
     // Private mode / storage disabled. The default is the majority language.
   }
+  // Deliberately the SAME markup and classes as the #boot-overlay in index.html.
+  // This is the second half of one continuous screen: the overlay covers the
+  // shell loading, this covers Firebase restoring the session. Any visual
+  // difference between them would read as two loaders in a row.
+  //
+  // The mark is the icon-only artwork, not the wordmark and not a letter in a
+  // box — the previous version drew an "M" in monospace on an orange square and
+  // span it, which looked like a spinner wearing the brand's colour. Styling
+  // lives in .boot-splash (src/index.css); see the note there on why the palette
+  // is CSS rather than Tailwind classes.
+  //
+  // alt="" because the adjacent label already names the state, and the class
+  // carries role=status — a second announcement of "MAZZADO" would just be
+  // noise to a screen reader.
   return (
-    <div className="min-h-screen bg-surface-raised flex items-center justify-center font-sans" id="boot-splash">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[#FF6B00] animate-spin flex items-center justify-center font-bold text-white text-lg font-mono shadow-[0_4px_12px_rgba(255,107,0,0.3)]">
-          M
-        </div>
-        <span className="text-xs text-fg-muted font-mono tracking-widest uppercase">
-          {isAr ? 'جارٍ فتح مزاد…' : 'Loading Mazad…'}
-        </span>
+    <div className="boot-splash" id="boot-splash" role="status" aria-live="polite" aria-busy="true">
+      <div className="boot-splash__mark">
+        <img src="/icon-512.png" alt="" width={72} height={72} decoding="async" />
       </div>
+      <p className="boot-splash__label">
+        {isAr ? 'جارٍ فتح مزاد…' : 'Loading Mazad…'}
+      </p>
     </div>
   );
 };
