@@ -801,7 +801,7 @@ describe('everything interpolated from the payload is escaped', () => {
       'vbscript:msgbox(1)',
       'file:///etc/passwd',
       '//evil.test/x',
-      'mazad-jo.com/x',
+      'mazzado.com/x',
     ];
     for (const url of HOSTILE) {
       const { html } = runNode(payload({
@@ -814,7 +814,7 @@ describe('everything interpolated from the payload is escaped', () => {
   });
 
   it('still renders an http(s) cta.url', () => {
-    for (const url of ['https://mazad-jo.com/x', 'http://mazad-jo.com/x', 'HTTPS://mazad-jo.com/x']) {
+    for (const url of ['https://www.mazzado.com/x', 'http://www.mazzado.com/x', 'HTTPS://www.mazzado.com/x']) {
       const { html } = runNode(payload({
         email_content: serverContent('ar', { cta: { label: SENTINEL.ctaLabel, url } }),
       }));

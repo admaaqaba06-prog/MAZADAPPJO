@@ -118,13 +118,22 @@ the whatsapp channel is on, `email_content` only when the email channel is on.
 
 ### Credentials (in n8n, not here)
 - `Bearer Auth account` (`3UwG5ADn5LzQ2oLx`) — WasenderAPI bearer token
-- `Resend (mazad-jo.com)` (`C4KesNWdTiMHi3Ts`) — HTTP header auth, `Authorization: Bearer re_…`
+- `Resend (mazzado.com)` (`C4KesNWdTiMHi3Ts`) — HTTP header auth, `Authorization: Bearer re_…`
 
 ### Email sending
-Resend, domain `mazad-jo.com`, region Ireland (`eu-west-1`), verified 2026-07-27.
-From: `مزادو <no-reply@mazad-jo.com>`. DNS lives in Cloudflare:
-`TXT resend._domainkey`, `MX send` → `feedback-smtp.eu-west-1.amazonses.com`,
-`TXT send` → `v=spf1 include:amazonses.com ~all`.
+Resend, domain `mazzado.com`. The sender moved off `mazad-jo.com` when that
+domain was retired (2026-08-24). The old domain had been verified 2026-07-27
+against Resend’s SES-era records and is no longer used for sending.
+
+From: `<fromName> <no-reply@mazzado.com>`, where `fromName` is `MAZZADO` for an
+English render and `مزادو` for Arabic — the Build Messages node resolves it, so
+the Resend node stays a dumb transport.
+
+DNS lives in Cloudflare, on Resend’s current `forge.rmta.net` infrastructure
+rather than the SES records the old domain used. Verified live 2026-08-25:
+`TXT resend._domainkey` (DKIM key present), `CNAME send` → `send.forge.rmta.net`,
+`MX send` → `feedback.forge.rmta.net`,
+`TXT send` → `v=spf1 include:_spf.forge.rmta.net ~all`.
 The apex MX (Bluehost) is deliberately untouched — Resend's optional "enable
 receiving" record was **not** added, as it would break existing inbound mail.
 

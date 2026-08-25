@@ -162,7 +162,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "C4KesNWdTiMHi3Ts",
-          "name": "Resend (mazad-jo.com)"
+          "name": "Resend (mazzado.com)"
         }
       },
       "onError": "continueRegularOutput"
