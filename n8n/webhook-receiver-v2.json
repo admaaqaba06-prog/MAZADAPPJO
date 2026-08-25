@@ -148,7 +148,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ from: $json.fromName + ' <no-reply@mazad-jo.com>', to: [$json.email], subject: $json.subject, html: $json.html }) }}",
+        "jsonBody": "={{ JSON.stringify({ from: $json.fromName + ' <no-reply@mazzado.com>', to: [$json.email], subject: $json.subject, html: $json.html }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
