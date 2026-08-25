@@ -50,6 +50,7 @@ import { formatCountdown } from '../utils/bidFormat';
 import AuctionRulesModal from './AuctionRulesModal';
 import ListingImage from './ui/ListingImage';
 import { cleanTitle } from '../utils/listingTitle';
+import { BrandMark } from './BrandMark';
 
 const WHATSAPP_URL = 'https://wa.me/962781444899';
 
@@ -692,10 +693,7 @@ export const DiscoveryFeedView: React.FC = () => {
         {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
         <div className="p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-2">
-            {/* Orange Brand Square M logo */}
-            <div className="w-9 h-9 rounded-xl bg-[#E85D04] flex items-center justify-center font-black text-white text-base shadow-sm">
-              M
-            </div>
+            <BrandMark className="w-9 h-9" />
             <div>
               <h1 className="text-lg font-bold tracking-tight text-fg font-sans">
                 {isAr ? 'مزادو' : 'Mazzado'}
