@@ -18,6 +18,7 @@ import {
   CLIQ_RECIPIENT_NAME_AR,
   CLIQ_ALIAS,
 } from './cliq';
+import { BRAND_HOST } from './brand';
 
 describe('payment identifiers do not follow the brand', () => {
   it('keeps the CliQ alias the bank actually has registered', () => {
@@ -44,5 +45,37 @@ describe('the brand constant is the only place the name lives', () => {
     const src = readFileSync(new URL('./brand.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/mazadjoapp/);
     expect(src).toMatch(/immutable/i);
+  });
+});
+
+// index.html cannot import BRAND_HOST — it is static, served before any module
+// runs — so its absolute urls are hand-written and drifted: the rename updated
+// every visible "MAZZADO" but left all nine urls on mazad-jo.com, and that
+// domain now 404s. Nothing caught it, because nothing reads index.html.
+//
+// What that shipped: `rel=canonical` told search engines the canonical copy of
+// every page lives on a dead host, and og:image/twitter:image pointed link
+// previews at an image that no longer resolves — so every share of the site in
+// WhatsApp, the channel this business actually runs on, rendered without its
+// preview card.
+describe('index.html absolute urls point at the live host', () => {
+  // Comments stripped first: the paragraph above names the retired domain, and
+  // a scan that reads its own rationale as a violation is the bug this repo has
+  // now written three times.
+  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')
+    .replace(/<!--[\s\S]*?-->/g, '');
+
+  it('carries no reference to the retired domain', () => {
+    expect(html, 'index.html still points at mazad-jo.com, which 404s').not.toMatch(/mazad-jo/i);
+  });
+
+  it('uses the brand host for every absolute url it owns', () => {
+    const ours = html.match(/https:\/\/[^"'\s>]+/g)!.filter(
+      (u) => !/(googleapis|gstatic|schema\.org|w3\.org)/.test(u),
+    );
+    expect(ours.length, 'expected index.html to carry absolute self-referencing urls').toBeGreaterThan(0);
+    for (const url of ours) {
+      expect(url, `${url} does not use ${BRAND_HOST}`).toContain(BRAND_HOST);
+    }
   });
 });
