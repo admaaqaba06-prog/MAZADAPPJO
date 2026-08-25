@@ -863,7 +863,9 @@ describe('the workflow export embeds the same node source', () => {
     // there, an English mail can still ship from an Arabic sender.
     expect(body).not.toContain('مزادو');
     // The address itself is not language-dependent and must survive.
-    expect(body).toContain('no-reply@mazad-jo.com');
+    // Flipped 2026-08-24, once Resend verified mazzado.com. Doing this before
+    // verification would not degrade — it would stop ALL transactional email.
+    expect(body).toContain('no-reply@mazzado.com');
   });
 
   it('the embedded copy really forwards — not just matches by string', () => {
