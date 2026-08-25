@@ -40,7 +40,10 @@ import {
   Coins,
   Refrigerator,
   Sofa,
-  Zap
+  Zap,
+  Heart,
+  Gavel,
+  ArrowRight
 } from 'lucide-react';
 import { AuctionDetailsModal } from './AuctionDetailsModal';
 import { AuctionCardSkeleton } from './FeedbackStates';
@@ -64,14 +67,14 @@ const WHATSAPP_URL = 'https://wa.me/962781444899';
  * category to the taxonomy can never render a chip with a missing icon.
  */
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  'Vehicles': <Car className="w-3.5 h-3.5" />,
-  'Phones': <Smartphone className="w-3.5 h-3.5" />,
-  'Electronics': <Laptop className="w-3.5 h-3.5" />,
-  'Watches': <Watch className="w-3.5 h-3.5" />,
-  'Appliances': <Refrigerator className="w-3.5 h-3.5" />,
-  'Home & Furniture': <Sofa className="w-3.5 h-3.5" />,
-  'Real Estate': <Building2 className="w-3.5 h-3.5" />,
-  'Fashion': <Package className="w-3.5 h-3.5" />,
+  'Vehicles': <Car className="w-4 h-4" />,
+  'Phones': <Smartphone className="w-4 h-4" />,
+  'Electronics': <Laptop className="w-4 h-4" />,
+  'Watches': <Watch className="w-4 h-4" />,
+  'Appliances': <Refrigerator className="w-4 h-4" />,
+  'Home & Furniture': <Sofa className="w-4 h-4" />,
+  'Real Estate': <Building2 className="w-4 h-4" />,
+  'Fashion': <Package className="w-4 h-4" />,
 };
 
 interface PremiumAuctionCardProps {
@@ -90,6 +93,17 @@ interface PremiumAuctionCardProps {
   // path leaves it undefined so the card behaves EXACTLY as before (the hook
   // below is still called unconditionally, but stays inert when disabled).
   liveEnabled?: boolean;
+  /**
+   * Watchlist state, passed IN rather than read from context.
+   *
+   * The card is memoised precisely because a context read re-renders every
+   * one of the ~80 cards on any AppContext change. useApp() in here would
+   * undo that for the whole grid, so the parent — which already re-renders
+   * when the watchlist changes — resolves the boolean per card and
+   * areCardPropsEqual compares it.
+   */
+  isWatched: boolean;
+  onToggleWatch: (id: string) => void;
 }
 
 const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
@@ -104,6 +118,8 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
   setGlobalSelectedOrderId,
   setActiveView,
   liveEnabled,
+  isWatched,
+  onToggleWatch,
 }) => {
   // Seeded true for a lot with no image. The shimmer below is gated on this
   // flag, and ListingImage's placeholder branch renders no <img> — so a lot
@@ -160,112 +176,131 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
       onClick={handleCardClick}
       role="button"
       aria-label={item.title}
-      className="group relative rounded-2xl overflow-hidden bg-zinc-900 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-line/70 bg-surface-raised shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow duration-200 hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] cursor-pointer"
     >
-      {/* Media-first: the image IS the card. Everything else is overlaid. */}
-      <div className="aspect-[3/4] w-full relative">
-        {/* Image shimmer skeleton */}
+      {/* MEDIA. Was "the image IS the card, everything else is overlaid": title
+          and price sat on a black gradient over the photo, which made every card
+          read dark and busy and put text on top of the merchandise. The image
+          now owns only the top of the card and the words live below it on a plain
+          surface, so the photo is never obscured and the text never depends on
+          what colour the photo happens to be underneath.
+
+          object-contain on a neutral panel, not cover: sellers upload whatever
+          aspect they have, and cropping a watch to fill a square hides the
+          strap. Letterboxing on surface-sunken shows the whole product. Square,
+          so a two-column grid keeps one rhythm. */}
+      <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-surface-sunken">
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-800 animate-pulse z-10" />
+          <div className="absolute inset-0 z-10 animate-pulse bg-surface-sunken" />
         )}
 
         <ListingImage
           src={item.thumbnailUrl}
           alt={item.title}
           isAr={isAr}
-          className={`absolute inset-0 w-full h-full transition-all duration-500 ${
+          className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${
             !imageLoaded ? 'opacity-0' : itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
           }`}
-          imgClassName="object-cover group-hover:scale-105"
+          imgClassName="object-contain p-2"
           onLoad={() => setImageLoaded(true)}
         />
 
-        {/* Single scrim carries all card text — no boxed panels, no button wall */}
-        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-
-        {/* Top-left: LIVE badge + (when relevant) your winning/outbid state */}
-        <div className="absolute top-2.5 left-2.5 rtl:left-auto rtl:right-2.5 z-10 flex flex-col items-start gap-1.5">
-          {/* Three distinct states share this corner. Red + pulse = a clock is
-              running. Amber, no pulse = open for bids but the clock has not
-              started (the first bid starts it). Brand orange #E85D04 is
-              deliberately NOT used here — it is the CTA colour, so an orange
-              badge would not read as a state. */}
-          {d.status === 'live' && !awaitingFirstBid && (
-            <div className="bg-red-600 text-white font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
-              <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-pulse"></span>
-              <span>{isAr ? 'مباشر' : 'LIVE'}</span>
-            </div>
-          )}
-          {d.status === 'live' && awaitingFirstBid && (
-            <div className="bg-amber-400 text-fg-on-light font-extrabold px-2.5 py-1 rounded-full text-[9px] tracking-wide flex items-center gap-1 shadow-md">
-              <Zap className="w-2.5 h-2.5 fill-zinc-900" />
-              <span>{isAr ? 'كن أول مزايد' : 'BE THE FIRST'}</span>
-            </div>
-          )}
-          {!itemIsEnded && hasUserBid && (
-            <div className={`px-2.5 py-1 rounded-full text-[9px] font-black shadow-md border backdrop-blur-xs ${
-              isUserWinner
-                ? 'bg-emerald-600/90 text-white border-emerald-500'
-                : 'bg-rose-600/90 text-white border-rose-500'
-            }`}>
-              <span>{isUserWinner ? (isAr ? '💚 أنت الأعلى' : '💚 Winning') : (isAr ? '❤️ زايدوا عليك' : '❤️ Outbid')}</span>
-            </div>
-          )}
+        {/* Leading corner: the lot's ONE state. Mutually exclusive by
+            construction — ended, or live-awaiting-first-bid, or live-with-a-clock
+            — so this corner never stacks. */}
+        <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 z-20">
+          {itemIsEnded ? (
+            <span className="flex items-center gap-1 rounded-full bg-surface-raised/95 px-2 py-1 text-[9px] font-extrabold text-fg-muted shadow-xs backdrop-blur-xs">
+              {isAr ? 'انتهى' : 'ENDED'}
+            </span>
+          ) : awaitingFirstBid ? (
+            <span className="flex items-center gap-1 rounded-full bg-[#FF6B00] px-2 py-1 text-[9px] font-extrabold text-white shadow-xs">
+              <Zap className="h-2.5 w-2.5 fill-white" />
+              {isAr ? 'كن أول مزايد' : 'BE FIRST'}
+            </span>
+          ) : d.status === 'live' ? (
+            <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[9px] font-extrabold text-white shadow-xs">
+              {/* on-accent, not surface-raised: this dot sits on a FILLED red
+                  badge, so it must be light in BOTH themes. The previous
+                  bg-surface-raised rendered it near-black on red in dark. */}
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-on-accent" />
+              {isAr ? 'مباشر' : 'LIVE'}
+            </span>
+          ) : null}
         </div>
 
-        {/* Top-right: countdown (or ended flag) */}
-        {itemIsEnded ? (
-          <div className="absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 bg-zinc-800/85 text-zinc-300 px-2.5 py-1 rounded-full text-[9px] font-black shadow-md backdrop-blur-xs">
-            🏁 {isAr ? 'انتهى' : 'ENDED'}
-          </div>
-        ) : awaitingFirstBid ? (
-          // Nothing. This corner is the CLOCK, and an awaiting-first-bid lot has
-          // no clock — the first bid starts it. It used to carry an "Awaiting
-          // first bid" chip, which said the same thing as the amber "BE THE
-          // FIRST" badge in the opposite corner: one lot, two badges, one
-          // message. The amber badge survives because it asks for the bid
-          // rather than describing the wait.
-          null
-        ) : (
-          <div className={`absolute top-2.5 right-2.5 rtl:right-auto rtl:left-2.5 z-10 px-2.5 py-1 rounded-full text-[10px] font-mono font-black flex items-center gap-1 shadow-md border ${
-            isCritical
-              ? 'bg-red-600 text-white border-red-500 animate-pulse'
-              : 'bg-black/75 text-white border-white/10 backdrop-blur-xs'
-          }`}>
-            <span>⏱️ {secondsLeft === null ? '—' : formatCountdown(secondsLeft, isAr)}</span>
-          </div>
-        )}
+        {/* Watchlist. Wired to the REAL watchlist in AppContext (persisted to
+            localStorage), passed in as a prop rather than read from context so
+            the card stays memoised — a context read here would re-render all
+            ~80 cards on every unrelated context change, which is the whole
+            reason areCardPropsEqual exists. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleWatch(item.id);
+          }}
+          aria-pressed={isWatched}
+          aria-label={
+            isWatched
+              ? (isAr ? 'إزالة من المفضلة' : 'Remove from watchlist')
+              : (isAr ? 'إضافة إلى المفضلة' : 'Add to watchlist')
+          }
+          className="absolute top-2 left-2 rtl:left-auto rtl:right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-surface-raised/90 shadow-xs backdrop-blur-xs transition-transform active:scale-90 cursor-pointer"
+        >
+          <Heart
+            className={`h-4 w-4 ${isWatched ? 'fill-[#FF6B00] text-[#FF6B00]' : 'text-fg-muted'}`}
+          />
+        </button>
 
-        {/* Bottom: title + price on the scrim — the merchandise stays the hero */}
-        <div className="absolute inset-x-0 bottom-0 p-3 z-10 text-left rtl:text-right">
-          <h3 className="font-extrabold text-sm text-white leading-snug line-clamp-2 drop-shadow-sm">
-            {cleanTitle(item.title)}
-          </h3>
-          <div className="flex items-end justify-between gap-2 mt-1">
-            <span className="text-lg font-black text-white leading-none flex items-baseline gap-1 drop-shadow-sm">
-              {d.currentPrice.toLocaleString()}
-              <span className="text-[11px] text-[#FF8A3D] font-black">{isAr ? 'د.أ' : 'JOD'}</span>
+        {/* Your standing in this lot. On the image rather than in the body
+            because it is state, not product data, and it must not push the
+            price row around when it appears mid-auction. */}
+        {!itemIsEnded && hasUserBid && (
+          <span
+            className={`absolute bottom-2 left-2 rtl:left-auto rtl:right-2 z-20 rounded-full px-2 py-0.5 text-[9px] font-extrabold text-white shadow-xs ${
+              isUserWinner ? 'bg-emerald-600' : 'bg-rose-600'
+            }`}
+          >
+            {isUserWinner ? (isAr ? 'أنت الأعلى' : 'Winning') : (isAr ? 'زايدوا عليك' : 'Outbid')}
+          </span>
+        )}
+      </div>
+
+      {/* BODY. Fixed spacing rhythm; mt-auto on the price pins it to the bottom
+          so cards in a row end on the same line even when one title wraps to two
+          lines and another does not. */}
+      <div className="flex flex-1 flex-col gap-2 p-3 text-left rtl:text-right">
+        <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-fg">
+          {cleanTitle(item.title)}
+        </h3>
+
+        {/* Metadata: the countdown moved off the image and down here, next to
+            the bid count, so the two facts a bidder compares sit together. */}
+        <div className="flex items-center gap-3 text-[11px] font-medium text-fg-muted">
+          {!itemIsEnded && !awaitingFirstBid && (
+            <span className={`flex items-center gap-1 ${isCritical ? 'font-bold text-danger' : ''}`}>
+              <Clock className="h-3 w-3 shrink-0" />
+              {secondsLeft === null ? '—' : formatCountdown(secondsLeft, isAr)}
             </span>
-            <span className="text-[10px] text-white/70 font-bold shrink-0">
-              🔨 {d.totalBids || 0}
-            </span>
-          </div>
+          )}
+          <span className="flex items-center gap-1">
+            <Gavel className="h-3 w-3 shrink-0" />
+            {d.totalBids || 0} {isAr ? 'مزايدة' : 'bids'}
+          </span>
         </div>
 
-        {/* Desktop hover affordance — the card is the button; this just says so */}
-        {!itemIsEnded && (
-          <div className="absolute inset-0 z-10 hidden lg:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-            <span className="bg-[#E85D04]/95 backdrop-blur-xs text-white text-xs font-black px-4 py-2 rounded-full shadow-lg">
-              {awaitingFirstBid
-                ? (isAr ? '⚡ كن أول مزايد' : '⚡ Be the first to bid')
-                : d.status === 'live'
-                  ? (isAr ? '🔴 دخول البث' : '🔴 Join live')
-                  : (isAr ? '⏱️ زايد الآن' : '⏱️ Bid now')}
-            </span>
-          </div>
-        )}
+        <div className="mt-auto flex items-baseline gap-1">
+          <span className="text-lg font-bold leading-none text-fg">
+            {d.currentPrice.toLocaleString()}
+          </span>
+          <span className="text-[11px] font-bold text-[#FF6B00]">
+            {isAr ? 'د.أ' : 'JOD'}
+          </span>
+        </div>
 
-        {/* Ended-winner: compact functional chip (routes to the order, not the lot) */}
+        {/* Ended-winner: routes to the ORDER, a different destination from the
+            card's own click, so it stays a real button. */}
         {isEndedWinner && (
           <button
             onClick={(e) => {
@@ -276,7 +311,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
               }
               setActiveView('orders');
             }}
-            className="absolute bottom-14 right-3 rtl:right-auto rtl:left-3 z-20 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg transition-all active:scale-95 cursor-pointer"
+            className="w-full rounded-xl bg-emerald-600 py-1.5 text-[10px] font-extrabold text-white transition-transform active:scale-95 hover:bg-emerald-700 cursor-pointer"
           >
             🎉 {isAr ? 'عرض الطلب' : 'View order'}
           </button>
@@ -297,7 +332,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
    This comparator re-renders a card ONLY when a value it actually renders
    from changes. It deliberately IGNORES the unstable inline callback props
    (onJoinLive/onSelectLot/setGlobalSelectedOrderId/setActiveView): each one
-   only closes over `item.id` (already a value-compared field below) and
+   only closes over item.id (already a value-compared field below) and
    stable context setters, so the card never runs a stale handler.
    Return TRUE to SKIP re-render (props considered equal).
    ---------------------------------------------------------------------- */
@@ -340,6 +375,11 @@ const areCardPropsEqual = (
 
   if (prev.isAr !== next.isAr) return false;
 
+  // The heart. Without this the card skips the re-render and the icon does
+  // not fill until something unrelated invalidates the card — the tap looks
+  // dead.
+  if (prev.isWatched !== next.isWatched) return false;
+
   // Only currentUser.id is read by the card (see hasUserBid/isUserWinner
   // above); compare that instead of object identity, which can churn on
   // unrelated profile-sync writes.
@@ -356,6 +396,8 @@ export const DiscoveryFeedView: React.FC = () => {
   const {
     setActiveAuctionId,
     setActiveView,
+    watchlist,
+    toggleWatchlist,
     language,
     setLanguage,
     currentUser,
@@ -426,13 +468,13 @@ export const DiscoveryFeedView: React.FC = () => {
   // `matchValues` supplies each chip's legacy aliases, so existing lots keep
   // filtering correctly whether or not the backfill has run.
   const categoriesList = React.useMemo(() => [
-    { name: 'All', icon: <LayoutGrid className="w-3.5 h-3.5" />, arName: 'الكل', match: null as string[] | null },
+    { name: 'All', icon: <LayoutGrid className="w-4 h-4" />, arName: 'الكل', match: null as string[] | null },
     // Special filter: live 'first_bid' lots awaiting their first bid (see feedMode).
     // `match: null` — the hook switches to a dedicated query, so no category clause.
-    { name: 'Be the First', icon: <Zap className="w-3.5 h-3.5" />, arName: 'كن أول مزايد', match: null },
+    { name: 'Be the First', icon: <Zap className="w-4 h-4" />, arName: 'كن أول مزايد', match: null },
     ...CATEGORIES.map(c => ({
       name: c.labelEn,
-      icon: CATEGORY_ICONS[c.value] ?? <Package className="w-3.5 h-3.5" />,
+      icon: CATEGORY_ICONS[c.value] ?? <Package className="w-4 h-4" />,
       arName: c.labelAr,
       match: matchValues(c.value) as string[] | null,
     })),
@@ -690,50 +732,49 @@ export const DiscoveryFeedView: React.FC = () => {
           Translucent page-bg + blur so it reads as part of the page, not a
           detached white slab; hairline only on the bottom edge. */}
       <div className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-line/60" id="discover-sticky-header">
-        {/* Top Mobile Bar Header - hidden on desktop (global header used instead) */}
-        <div className="p-4 flex items-center justify-between lg:hidden">
-          <div className="flex items-center gap-2">
+        {/* Top Mobile Bar Header - hidden on desktop (global header used instead)
+            The controls share ONE visual system: identical 44px square touch
+            target — the WCAG 2.5.5 / iOS HIG minimum, which the old 28px-tall
+            buttons missed — same radius, same hairline, same hover. They used to
+            be three different sizes and two different border colours.
+
+            The `بيع +` button is GONE from here. The bottom nav's centre FAB is
+            the primary Sell action, and two entry points to one route in a single
+            mobile viewport is duplicated weight, not extra affordance. The FAB
+            keeps the guest `requestSignIn('sell')` intent, so nothing regresses
+            for a logged-out seller — signInIntent.wiring.test.ts asserts it. */}
+        <div className="px-4 py-3 flex items-center justify-between lg:hidden">
+          <div className="flex items-center gap-2.5">
             <BrandMark className="w-9 h-9" />
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-fg font-sans">
-                {isAr ? 'مزادو' : 'Mazzado'}
-              </h1>
-            </div>
+            <h1 className="text-[17px] font-bold tracking-tight text-fg font-sans">
+              {isAr ? 'مزادو' : 'Mazzado'}
+            </h1>
           </div>
 
           {/* Action Header controls */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="px-2.5 py-1.5 border border-line hover:bg-surface-sunken rounded-xl text-[11px] font-bold text-fg font-sans transition-all shrink-0"
-              id="discover-lang-btn"
-            >
-              {language === 'en' ? 'العربية' : 'EN'}
-            </button>
-
-            <button
               onClick={() => setShowNotifications(true)}
-              className="relative p-2 border border-line hover:bg-surface-sunken text-fg-muted rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-xs transition-colors hover:bg-surface-sunken cursor-pointer"
               title={isAr ? 'الإشعارات' : 'Notifications'}
+              aria-label={isAr ? 'الإشعارات' : 'Notifications'}
               id="mobile-header-bell"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-[18px] h-[18px]" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#E85D04] text-white text-[7.5px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[8px] font-black text-white">
                   {unreadCount}
                 </span>
               )}
             </button>
 
             <button
-              // Discover is a guest-allowed view, so this button is reachable
-              // logged out. Ask for the sign-in the seller actually wanted.
-              onClick={() => (isAuthenticated ? setActiveView('upload') : requestSignIn('sell'))}
-              className="px-3 py-1.5 border border-[#E85D04] bg-[#E85D04]/5 hover:bg-[#E85D04]/10 rounded-xl text-[11px] font-bold text-[#E85D04] flex items-center gap-1 transition-all shrink-0"
-              id="sell-wizard-btn"
+              onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+              className="flex h-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised px-3 text-xs font-bold text-fg shadow-xs transition-colors hover:bg-surface-sunken font-sans cursor-pointer"
+              aria-label={isAr ? 'تغيير اللغة' : 'Change language'}
+              id="discover-lang-btn"
             >
-              <Plus className="w-3 h-3 stroke-[3]" />
-              <span>{isAr ? 'بيع' : 'Sell'}</span>
+              {language === 'en' ? 'ع' : 'EN'}
             </button>
           </div>
         </div>
@@ -744,29 +785,54 @@ export const DiscoveryFeedView: React.FC = () => {
             bulk — pins alone below the always-visible global header
             (DesktopFrame.tsx), which lives outside this scrollable component. */}
         <div className="px-4 lg:px-0 pt-3 pb-3 lg:py-2.5 space-y-3 lg:space-y-0 lg:flex lg:items-center lg:gap-3">
+          {/* Search. 56px tall with a 20px radius on mobile — the old 42px box
+              read as a form field on a settings page rather than the primary way
+              into the catalogue. `lg:h-11` keeps the desktop row compact, since
+              search and the categories share one line there.
+
+              The magnifier follows DIRECTION, not a fixed side: it belongs on
+              the side the caret starts from, which is the right in Arabic. */}
           <div className="relative lg:w-80 lg:shrink-0">
             <input
               type="text"
-              placeholder={isAr ? 'ابحث: سيارات، ساعات، عقارات…' : 'Search: cars, watches, real estate…'}
+              placeholder={
+                isAr
+                  ? 'ابحث عن سيارات، ساعات، عقارات والمزيد…'
+                  : 'Search cars, watches, real estate and more…'
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full bg-surface-raised border border-line/80 shadow-xs rounded-[18px] py-3 ${isAr ? 'pr-11 pl-4' : 'pl-11 pr-4'} text-xs font-medium text-fg placeholder-gray-450 focus:outline-none focus:border-[#E85D04]/40 transition-all font-sans`}
+              className={`h-14 lg:h-11 w-full rounded-[20px] lg:rounded-2xl border border-line/70 bg-surface-raised ${
+                isAr ? 'pr-12 pl-4' : 'pl-12 pr-4'
+              } text-sm font-medium text-fg shadow-xs transition-colors placeholder:text-fg-muted/60 focus:border-[#FF6B00]/50 focus:outline-none font-sans`}
             />
-            <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-3.5 w-4.5 h-4.5 text-fg-muted`} />
+            <Search
+              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-fg-muted/70 ${
+                isAr ? 'right-4' : 'left-4'
+              }`}
+            />
           </div>
 
-          {/* Elegant Horizontal Categories Carousel */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 lg:pb-0 lg:min-w-0 font-sans">
+          {/* Categories. Compact CARDS rather than auto-width pills: one fixed
+              height and a min-width, so the row keeps a single rhythm instead of
+              every chip being as wide as its label happens to be. Horizontal
+              scroll is already how this copes with more categories than fit. */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5 lg:pb-0 lg:min-w-0 font-sans">
             {categoriesList.map(cat => {
               const isSelected = selectedCategory === cat.name;
               return (
                 <button
                   key={cat.name}
                   onClick={() => setSelectedCategory(cat.name)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs' : 'bg-surface-raised text-fg border-line/80 hover:bg-surface-sunken'}`}
+                  aria-pressed={isSelected}
+                  className={`flex h-11 min-w-[84px] shrink-0 items-center justify-center gap-1.5 rounded-2xl border px-3.5 text-xs font-semibold transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'border-[#FF6B00] bg-[#FF6B00] text-white'
+                      : 'border-line/70 bg-surface-raised text-fg shadow-xs hover:bg-surface-sunken'
+                  }`}
                 >
                   {cat.icon}
-                  <span>{isAr ? cat.arName : cat.name}</span>
+                  <span className="whitespace-nowrap">{isAr ? cat.arName : cat.name}</span>
                 </button>
               );
             })}
@@ -800,7 +866,7 @@ export const DiscoveryFeedView: React.FC = () => {
               className="my-2 flex items-center gap-1.5 bg-[#E85D04] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-full shadow-lg shadow-orange-900/25 active:scale-95 transition-colors cursor-pointer"
               id="discover-new-drops-pill"
             >
-              <ArrowDown className="w-3.5 h-3.5" />
+              <ArrowDown className="w-4 h-4" />
               <span>{isAr ? 'دفعات جديدة' : 'New drops'}</span>
             </button>
           </motion.div>
@@ -906,7 +972,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 className="mt-4 self-start px-4 py-2.5 bg-surface-raised/10 hover:bg-surface-raised/15 border border-white/15 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                 id="mobile-hero-browse-cta"
               >
-                <ArrowDown className="w-3.5 h-3.5" />
+                <ArrowDown className="w-4 h-4" />
                 {isAr ? 'تصفّح' : 'Browse'}
               </button>
             )}
@@ -1088,6 +1154,8 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                         liveEnabled={true}
+                        isWatched={watchlist.includes(item.id)}
+                        onToggleWatch={toggleWatchlist}
                       />
                     </div>
                   ))}
@@ -1147,6 +1215,8 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                         liveEnabled={true}
+                        isWatched={watchlist.includes(item.id)}
+                        onToggleWatch={toggleWatchlist}
                       />
                     </div>
                   ))}
@@ -1161,20 +1231,26 @@ export const DiscoveryFeedView: React.FC = () => {
                 the full paged view; on the Be the First chip it IS the feed. */}
             {firstBidList.length > 0 && (
               <section id="be-the-first-section">
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  <h2 className="text-sm font-black text-fg uppercase tracking-tight">
+                {/* Section header. The count badge moved off amber onto the
+                    brand's light-orange tint, and the "see all" arrow is now an
+                    ICON with rtl:rotate-180 rather than a literal "←" — a bare
+                    arrow glyph inside an RTL run is re-ordered by the bidi
+                    algorithm and can end up pointing the wrong way. */}
+                <div className="flex items-center gap-2 mb-4 mt-1">
+                  <Zap className="w-4 h-4 shrink-0 text-[#FF6B00] fill-[#FF6B00]" />
+                  <h2 className="text-[15px] font-bold tracking-tight text-fg">
                     {isAr ? 'كن أول مزايد' : 'Be the first'}
                   </h2>
-                  <span className="text-[10px] font-mono font-black bg-amber-400 text-fg-on-light px-2 py-0.5 rounded-full">
+                  <span className="rounded-full bg-[#FF6B00]/10 px-2 py-0.5 text-[11px] font-bold text-[#FF6B00]">
                     {firstBidList.length}
                   </span>
                   {selectedCategory === 'All' && (
                     <button
                       onClick={() => setSelectedCategory('Be the First')}
-                      className="ms-auto text-[11px] font-bold text-[#E85D04] hover:text-[#c94d03] transition-colors cursor-pointer"
+                      className="ms-auto flex items-center gap-1 text-xs font-semibold text-[#FF6B00] transition-opacity hover:opacity-70 cursor-pointer"
                     >
-                      {isAr ? 'عرض الكل ←' : 'See all →'}
+                      {isAr ? 'عرض الكل' : 'See all'}
+                      <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
                     </button>
                   )}
                 </div>
@@ -1203,6 +1279,8 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                         liveEnabled={true}
+                        isWatched={watchlist.includes(item.id)}
+                        onToggleWatch={toggleWatchlist}
                       />
                     </div>
                   ))}
@@ -1259,6 +1337,8 @@ export const DiscoveryFeedView: React.FC = () => {
                         setGlobalSelectedOrderId={setGlobalSelectedOrderId}
                         setActiveView={setActiveView}
                         liveEnabled={true}
+                        isWatched={watchlist.includes(item.id)}
+                        onToggleWatch={toggleWatchlist}
                       />
                     </div>
                   ))}
@@ -1384,7 +1464,7 @@ export const DiscoveryFeedView: React.FC = () => {
                 className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
                 id="empty-state-notify-cta"
               >
-                <Bell className="w-3.5 h-3.5" />
+                <Bell className="w-4 h-4" />
                 {isAr ? 'ذكّرني بأول مزاد' : 'Notify me of the next drop'}
               </button>
             )}
