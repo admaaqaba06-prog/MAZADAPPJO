@@ -172,3 +172,134 @@ body {
   }
 }
 
+
+/* ============================================================================
+   Boot splash — the first thing anyone sees.
+ 
+   THE PALETTE LIVES HERE, NOT IN TAILWIND CLASSES, for two reasons. The glow is
+   a blurred pseudo-element and the pulse is a keyframe pair, neither of which an
+   arbitrary-value utility can express. And theme.guard.test.ts counts
+   `bg-[#hex]` in .tsx files: these are deliberate theme-INVARIANT constants
+   (the splash is dark in both themes, because it paints before the app knows
+   which theme it is), so expressing them as CSS keeps them out of a ratchet
+   whose job is to catch accidental per-component colours.
+
+   THIS IS DUPLICATED IN index.html on purpose — the critical inline copy has to
+   paint before this stylesheet exists, exactly like the pre-paint theme script
+   duplicates themeBoot.ts. Keep the two in sync; boot-splash.wiring.test.ts
+   fails if they drift.
+   ========================================================================== */
+.boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Was 0.75rem between a spinning square and its label. The mark now has a
+     glow that needs room to fall off before the text starts. */
+  gap: 1.5rem;
+  background-color: #0D0D0F;
+  opacity: 1;
+  /* The fade-out. 200ms — long enough to read as a dissolve, short enough that
+     it never feels like part of the wait. Opacity only: transitioning anything
+     that triggers layout here would jank against the app painting underneath. */
+  transition: opacity 200ms ease-out;
+}
+
+/* Applied by main.tsx once React has painted. Nothing here delays the app; the
+   fade starts the frame the app is ready, not on a timer. */
+.boot-splash--out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-splash__mark {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 768px) {
+  .boot-splash__mark {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+/* The ambient glow. A SEPARATE layer behind the artwork — never baked into the
+   PNG, so the same icon file stays usable anywhere else without a halo welded
+   on. Inset is negative so the falloff extends well past the mark; the blur on
+   top of an already-soft radial is what keeps it ambient rather than a ring. */
+.boot-splash__mark::before {
+  content: '';
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(252, 105, 3, 0.50) 0%,
+    rgba(252, 105, 3, 0.16) 45%,
+    rgba(252, 105, 3, 0) 72%
+  );
+  filter: blur(18px);
+  animation: boot-glow 1.4s ease-in-out infinite;
+  z-index: 0;
+}
+
+.boot-splash__mark img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  /* contain, never crop — the mark is fitted, exactly like the header lockup. */
+  object-fit: contain;
+  animation: boot-breathe 1.4s ease-in-out infinite;
+}
+
+/* Breathing only. No rotation, no bounce — the previous splash used
+   `animate-spin` on the mark, which read as a loading spinner rather than a
+   brand. A symmetric ease-in-out scale has no direction and no impact frame. */
+@keyframes boot-breathe {
+  0%, 100% { transform: scale(0.96); }
+  50%      { transform: scale(1.04); }
+}
+
+/* In sync with the mark: same 1.4s, same easing, same peak at 50%, so the glow
+   swells with the icon instead of chasing it. The opacity floor is deliberately
+   high and the range deliberately narrow — a 0→1 pulse strobes. */
+@keyframes boot-glow {
+  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  50%      { opacity: 0.85; transform: scale(1.05); }
+}
+
+.boot-splash__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  /* Subtle off-white: reads ~10:1 on #0D0D0F, so it is comfortably legible
+     without the glare of pure #FFF against a near-black field. */
+  color: rgba(237, 237, 240, 0.78);
+  margin: 0;
+}
+
+/* Reduced motion: the pulse is decorative, so it goes. The mark itself is
+   information — it stays visible, at rest, at full size. The glow stays too, at
+   a fixed mid brightness, because a mark with no glow is a different design
+   rather than the same one calmed down. */
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash__mark img,
+  .boot-splash__mark::before {
+    animation: none;
+  }
+  .boot-splash__mark img {
+    transform: none;
+  }
+  .boot-splash__mark::before {
+    opacity: 0.6;
+    transform: none;
+  }
+}

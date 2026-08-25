@@ -84,6 +84,11 @@
     <meta name="twitter:title" content="MAZZADO | Live Commerce & Luxury Auctions" />
     <meta name="twitter:description" content="Live video shopping and luxury auctions in Jordan. Pay via CliQ — your payment is held by Mazad until you confirm receipt." />
 
+    <!-- The boot-splash mark, preloaded so the very first painted frame already
+         has it. fetchpriority=high because it IS the LCP element: everything
+         else on that screen is a background and one line of text. -->
+    <link rel="preload" as="image" href="/icon-512.png" fetchpriority="high" />
+
     <!-- Preconnect to Google Fonts & non-blocking font load (media=print → all swap) for swift text LCP -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -122,94 +127,110 @@
       html, body {
         margin: 0;
         padding: 0;
-        background-color: #fafafa;
-        color: #111111;
+        /* #fafafa until 2026-08-25. A light body behind a #0D0D0F splash is a
+           white flash on every cold load — the exact thing the splash exists to
+           prevent. index.css takes over per theme once it loads. */
+        background-color: #0D0D0F;
+        color: #EDEDF0;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Tajawal", ui-sans-serif, system-ui, sans-serif;
         box-sizing: border-box;
       }
       *, *::before, *::after {
         box-sizing: inherit;
       }
-      .critical-root {
-        min-height: 100vh; /* fallback for browsers without dvh */
-        min-height: 100dvh;
-        width: 100%;
-        background-color: #fafafa;
-        color: #171717;
+      /* Boot splash, critical copy.
+         DUPLICATES the .boot-splash block in src/index.css on purpose: this has
+         to paint before that stylesheet exists. Keep the two in sync —
+         boot-splash.wiring.test.ts fails if they drift. */
+      .boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
-        padding: 1rem;
+        justify-content: center;
+        gap: 1.5rem;
+        background-color: #0D0D0F;
+        opacity: 1;
+        transition: opacity 200ms ease-out;
+      }
+      .boot-splash--out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-splash__mark {
         position: relative;
-        overflow-x: hidden;
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
       }
-      .critical-splash {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-        margin: auto 0;
+      @media (min-width: 768px) {
+        .boot-splash__mark { width: 72px; height: 72px; }
       }
-      .critical-logo-m {
-        width: 3.5rem;
-        height: 3.5rem;
-        border-radius: 0.875rem;
-        background-color: #FF6B00;
-        color: #ffffff;
-        font-family: monospace;
-        font-weight: 900;
-        font-size: 1.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 3px 8px rgba(255,107,0,0.3);
+      .boot-splash__mark::before {
+        content: '';
+        position: absolute;
+        inset: -55%;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(252, 105, 3, 0.50) 0%,
+          rgba(252, 105, 3, 0.16) 45%,
+          rgba(252, 105, 3, 0) 72%
+        );
+        filter: blur(18px);
+        animation: boot-glow 1.4s ease-in-out infinite;
+        z-index: 0;
       }
-      .critical-logo-text {
-        font-family: monospace;
-        font-weight: 900;
-        font-size: 1.25rem;
-        color: #111111;
-        letter-spacing: -0.025em;
-      }
-      .critical-loading {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: #a3a3a3;
-        animation: critical-pulse 1.4s ease-in-out infinite;
-      }
-      @keyframes critical-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
-      }
-      .critical-footer {
-        text-align: center;
-        font-size: 11px;
-        color: #a3a3a3;
-        font-weight: 500;
-        max-width: 20rem;
-        margin: auto auto 0 auto;
-        padding-top: 1rem;
-        border-top: 1px solid #f5f5f5;
+      .boot-splash__mark img {
+        position: relative;
+        z-index: 1;
         width: 100%;
+        height: 100%;
+        object-fit: contain;
+        animation: boot-breathe 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-breathe {
+        0%, 100% { transform: scale(0.96); }
+        50%      { transform: scale(1.04); }
+      }
+      @keyframes boot-glow {
+        0%, 100% { opacity: 0.45; transform: scale(0.97); }
+        50%      { opacity: 0.85; transform: scale(1.05); }
+      }
+      .boot-splash__label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: rgba(237, 237, 240, 0.78);
+        margin: 0;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-splash__mark img,
+        .boot-splash__mark::before { animation: none; }
+        .boot-splash__mark img { transform: none; }
+        .boot-splash__mark::before { opacity: 0.6; transform: none; }
       }
     </style>
   </head>
   <body>
-    <div id="root">
-      <!-- Critical Render Skeleton: neutral brand loading splash to minimize LCP/CLS during bootstrapping -->
-      <div class="critical-root">
-        <div class="critical-splash">
-          <div class="critical-logo-m">M</div>
-          <span class="critical-logo-text">MAZZADO</span>
-          <span class="critical-loading">جاري التحميل…</span>
-        </div>
+    <div id="root"></div>
 
-        <footer class="critical-footer">
-          الدفع عبر كليك — مزاد يحتفظ بمبلغك حتى تأكيد الاستلام
-        </footer>
+    <!-- Boot splash. A SIBLING of #root, not a child: createRoot() replaces
+         #root's children the instant React mounts, so a splash inside it can
+         only ever cut, never fade. Out here it survives the mount and
+         src/main.tsx fades it once the app has actually painted — no timer, no
+         artificial delay. aria-busy + role=status so a screen reader announces
+         the wait instead of reading a decorative image. -->
+    <div id="boot-overlay" class="boot-splash" role="status" aria-live="polite" aria-busy="true">
+      <div class="boot-splash__mark">
+        <img src="/icon-512.png" alt="" width="72" height="72" decoding="async" fetchpriority="high" />
       </div>
+      <p class="boot-splash__label">جارٍ فتح مزاد…</p>
     </div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
