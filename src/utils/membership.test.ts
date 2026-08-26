@@ -202,14 +202,67 @@ describe('states that are not about a date', () => {
     expect(isActiveMember(revoked, NOW)).toBe(false);
   });
 
-  it('treats a missing expiry as not-expired, exactly as the server does', () => {
-    // The server cannot expire what it cannot parse; absence of a date is not
-    // evidence of a lapse, and failing closed here would lock out every account
-    // whose expiry field was never written.
+  it('does not claim active on a missing expiry — FAILS CLOSED', () => {
+    // Policy decision (2026-08-25): an account we cannot verify is not entitled
+    // to bid. Earlier this returned 'active' to mirror the server, which cannot
+    // expire what it cannot parse — but that is the original bug in a different
+    // costume, a promise made from missing data. `needs_support` and not
+    // 'expired': we have no evidence it lapsed, only that we cannot tell.
     const noDate = { subscriptionStatus: 'active' };
+    expect(resolveMembershipStatus(noDate, NOW)).toBe('needs_support');
+    expect(isActiveMember(noDate, NOW)).toBe(false);
+    // Still not "expired" in the date sense — there is no date to have passed.
     expect(isMembershipExpired(noDate, NOW)).toBe(false);
-    expect(isActiveMember(noDate, NOW)).toBe(true);
-    expect(resolveMembershipStatus(noDate, NOW)).toBe('active');
+  });
+
+  it('fails closed on an UNREADABLE expiry too, not just an absent one', () => {
+    for (const junk of ['', '   ', 'soon', 0, -1, {}, NaN]) {
+      const u = { subscriptionStatus: 'active', subscriptionExpiry: junk };
+      expect(resolveMembershipStatus(u, NOW), String(junk)).toBe('needs_support');
+      expect(isActiveMember(u, NOW), String(junk)).toBe(false);
+    }
+  });
+});
+
+describe('the explicit permanent grant is the ONE exemption', () => {
+  // Nothing issues this: every tier in subscriptionTiers.js has a finite
+  // durationDays, so it can only arrive by a deliberate admin write. That is
+  // exactly what makes it safe to honour without a date.
+  it('is active with no expiry at all', () => {
+    for (const label of ['lifetime', 'permanent', 'LIFETIME', ' Lifetime ']) {
+      const u = { subscriptionStatus: 'active', subscriptionTier: label };
+      expect(resolveMembershipStatus(u, NOW), label).toBe('active');
+      expect(isActiveMember(u, NOW), label).toBe(true);
+    }
+  });
+
+  it('is recognised on the plan field as well as the tier field', () => {
+    const u = { subscriptionStatus: 'active', subscriptionPlan: 'lifetime' };
+    expect(isActiveMember(u, NOW)).toBe(true);
+  });
+
+  it('is NOT granted by a mere absence of a date', () => {
+    // The whole point of matching a LABEL: absence of an expiry must never be
+    // read as permission.
+    const u = { subscriptionStatus: 'active', subscriptionTier: 'annual' };
+    expect(resolveMembershipStatus(u, NOW)).toBe('needs_support');
+    expect(isActiveMember(u, NOW)).toBe(false);
+  });
+
+  it('is still refused when the grant was revoked', () => {
+    const revoked = { subscriptionStatus: 'rejected', subscriptionTier: 'lifetime' };
+    expect(resolveMembershipStatus(revoked, NOW)).toBe('rejected');
+    expect(isActiveMember(revoked, NOW)).toBe(false);
+  });
+
+  it('ignores a past date on a permanent grant rather than expiring it', () => {
+    const u = {
+      subscriptionStatus: 'active',
+      subscriptionTier: 'lifetime',
+      subscriptionExpiry: NOW - 400 * DAY,
+    };
+    expect(resolveMembershipStatus(u, NOW)).toBe('active');
+    expect(isActiveMember(u, NOW)).toBe(true);
   });
 });
 

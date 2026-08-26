@@ -1929,7 +1929,23 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
       const expiryCandidates = [toMs(userData.subscriptionExpiry), toMs(userData.subscriptionExpiresAt)]
         .filter((v) => v !== null);
       const subExpiryMs = expiryCandidates.length ? Math.max(...expiryCandidates) : null;
-      if (userData.subscriptionStatus !== 'active' || (subExpiryMs !== null && subExpiryMs <= Date.now())) {
+      // An explicit permanent grant needs no date. NOTHING ISSUES THIS — every
+      // tier in subscriptionTiers.js has a finite durationDays — so it can only
+      // arrive by a deliberate admin write, which is what makes it a safe
+      // exemption. Mirrors src/utils/membership.ts isLifetimeMembership.
+      const lifetime = [userData.subscriptionTier, userData.subscriptionPlan].some(
+        (l) => typeof l === 'string' && ['lifetime', 'permanent'].includes(l.trim().toLowerCase())
+      );
+      // FAIL CLOSED on a missing or unreadable expiry. This used to pass: a null
+      // expiry short-circuited the `&&`, so an 'active' record with no date could
+      // bid forever without anything ever being able to expire it. An account we
+      // cannot verify is not entitled to bid — it is a data problem for support,
+      // not a licence.
+      if (
+        userData.subscriptionStatus !== 'active' ||
+        (!lifetime && subExpiryMs === null) ||
+        (subExpiryMs !== null && subExpiryMs <= Date.now())
+      ) {
         return { success: false, message: 'MEMBERSHIP_REQUIRED' };
       }
 

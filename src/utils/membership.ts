@@ -19,8 +19,16 @@
 // renewal land even if one field is stale — a half-applied write, a legacy admin
 // edit, an older client that only knew about one of them.
 
-/** What the UI shows. Derived; never stored under this name. */
-export type MembershipStatus = 'active' | 'expired' | 'pending' | 'rejected' | 'none';
+/**
+ * What the UI shows. Derived; never stored under this name.
+ *
+ * `needs_support` is the FAIL-CLOSED state: the account claims to be active but
+ * carries no readable expiry, so we cannot tell whether it is paid up. It is not
+ * 'active' (we will not grant what we cannot verify) and not 'expired' (we have
+ * no evidence it lapsed) — it is a data problem the member cannot fix alone, so
+ * the UI names it and points at support.
+ */
+export type MembershipStatus = 'active' | 'expired' | 'pending' | 'rejected' | 'none' | 'needs_support';
 
 /** The stored fields this module reads. Loose on purpose — Firestore hands back
  *  Timestamps, epoch numbers or (from legacy writes) ISO strings. */
@@ -28,6 +36,29 @@ export interface MembershipUserLike {
   subscriptionStatus?: string | null;
   subscriptionExpiry?: unknown;
   subscriptionExpiresAt?: unknown;
+  subscriptionTier?: string | null;
+  subscriptionPlan?: string | null;
+}
+
+/**
+ * The ONE explicit exemption from needing a date.
+ *
+ * NOTHING CURRENTLY ISSUES THIS. Every tier in functions/subscriptionTiers.js
+ * has a finite durationDays — monthly 30, semiannual 180, annual 365, legacy
+ * quarterly 90 — so a lifetime grant can only arrive by a deliberate admin
+ * write. That is precisely what makes it a safe exemption: it cannot be reached
+ * by an ordinary purchase going wrong, only by someone choosing it on purpose.
+ *
+ * Matched on the tier/plan LABEL rather than on "no expiry", because the whole
+ * point is to distinguish a deliberate permanent grant from a missing field.
+ * Treating absence as permission is the bug this policy exists to close.
+ */
+export function isLifetimeMembership(user: MembershipUserLike | null | undefined): boolean {
+  if (!user) return false;
+  const labels = [user.subscriptionTier, user.subscriptionPlan];
+  return labels.some(
+    (l) => typeof l === 'string' && ['lifetime', 'permanent'].includes(l.trim().toLowerCase()),
+  );
 }
 
 /**
@@ -128,6 +159,14 @@ export function isActiveMember(
 ): boolean {
   if (!user) return false;
   if (user.subscriptionStatus !== 'active') return false;
+  // An explicit permanent grant needs no date.
+  if (isLifetimeMembership(user)) return true;
+  // FAIL CLOSED on a missing or unreadable expiry. This is stricter than the
+  // server's own placeBid check, which cannot expire what it cannot parse —
+  // deliberately, and in the SAFE direction: the client now declines to promise
+  // a bid rather than offering one the account may not be entitled to. The same
+  // rule is mirrored into placeBid so the two agree.
+  if (effectiveExpiryMs(user) === null) return false;
   return !isMembershipExpired(user, nowMs);
 }
 
@@ -152,6 +191,10 @@ export function resolveMembershipStatus(
   const stored = user.subscriptionStatus;
   const expiry = effectiveExpiryMs(user);
 
+  // An explicit permanent grant outranks the date logic entirely — it has no
+  // date by design, so asking whether its date has passed is meaningless.
+  if (isLifetimeMembership(user) && stored !== 'rejected') return 'active';
+
   if (expiry !== null) {
     if (expiry <= nowMs) {
       // Past its date. 'pending' survives — a lapsed member with a renewal under
@@ -166,9 +209,13 @@ export function resolveMembershipStatus(
 
   switch (stored) {
     case 'active':
-      // Active with no date at all. Mirrors the server, which cannot expire what
-      // it cannot parse. Reported rather than silently downgraded.
-      return 'active';
+      // Active with no readable date, and no explicit permanent grant. We cannot
+      // verify this account is paid up, so we do not claim it is: FAIL CLOSED to
+      // a state the UI can explain and support can act on. Showing "active" here
+      // is the original bug in a different costume — a promise made from missing
+      // data — and showing "expired" would accuse a possibly-paid member of
+      // lapsing on no evidence.
+      return 'needs_support';
     case 'pending':
       return 'pending';
     case 'rejected':
