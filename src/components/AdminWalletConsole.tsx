@@ -15,6 +15,7 @@ import {
   XCircle 
 } from 'lucide-react';
 import { EscrowTransaction } from '../types';
+import { CLIQ_ALIAS, CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 
 interface AdminWalletConsoleProps {
   isAr: boolean;
@@ -74,7 +75,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-[#FF6B00]"></div>
           <h2 className="text-[12px] font-black tracking-widest text-[#FF6B00] leading-none font-mono uppercase">
-            {isAr ? 'لوحة التدقيق المالي ومراقبة كليك 🏦' : 'MAZADJOM CLIQ gateway financial board 🏦'}
+            {isAr ? 'لوحة التدقيق المالي ومراقبة كليك 🏦' : `${CLIQ_ALIAS} CliQ gateway financial board 🏦`}
           </h2>
         </div>
       </div>
@@ -334,7 +335,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
           <div>
             <h3 className="text-xs font-black text-fg tracking-wider uppercase font-mono flex items-center gap-1.5">
               <UserCheck className="w-4 h-4 text-[#FF6B00]" />
-              <span>{isAr ? 'سجل اشتراكات مزادكوم الفضية النشطة' : 'MAZADJOM Registered Member Subs'}</span>
+              <span>{isAr ? 'سجل اشتراكات مزادكوم الفضية النشطة' : `${CLIQ_ALIAS} Registered Member Subs`}</span>
             </h3>
             <p className="text-[10px] text-fg-muted mt-0.5">
               {isAr ? 'قائمة المستخدمين الذين حوّلوا قيمة الاشتراك لتنشيط وتعبئة حسابات المزايدات' : 'Users who cleared registration requirements via corporate CliQ'}
@@ -446,7 +447,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-fg-muted">{isAr ? 'البنك المستلم' : 'Deposit Bank'}:</span>
-                    <span className="font-mono uppercase font-black text-fg-muted">Arab Bank - MAZADJOM</span>
+                    <span className="font-mono uppercase font-black text-fg-muted">{(isAr ? CLIQ_BANK_NAME_AR : CLIQ_BANK_NAME_EN) + ' - ' + CLIQ_ALIAS}</span>
                   </div>
                 </div>
 

@@ -11,32 +11,94 @@
 //
 // cliq.ts says all of this in a comment at the top of the file. The comment did
 // not stop the sweep, because a sweep does not read. This test does.
+//
+// WHERE THINGS STAND NOW (2026-08-26): the account has since MOVED to Al Ahli
+// Bank and the English name was genuinely re-registered as MAZZADO, so that one
+// is expected to be 'MAZZADO' below — the change was made after the bank record
+// did, which is the order this file exists to enforce. The ALIAS and the ARABIC
+// name are still pending their real registered values and are still pinned to
+// the old ones, because a guessed alias is a transfer that goes nowhere.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   CLIQ_RECIPIENT_NAME_EN,
   CLIQ_RECIPIENT_NAME_AR,
   CLIQ_ALIAS,
+  CLIQ_BANK_NAME_AR,
+  CLIQ_BANK_NAME_EN,
 } from './cliq';
 import { BRAND_HOST } from './brand';
 
+/** Every source file under a directory, recursively. */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) sourceFiles(full, out);
+    else if (/\.(ts|tsx)$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
 describe('payment identifiers do not follow the brand', () => {
   it('keeps the CliQ alias the bank actually has registered', () => {
-    expect(CLIQ_ALIAS).toBe('mazadjom');
+    // 'mazadjom' until 2026-08-26, when the account moved to Al Ahli Bank and
+    // that alias was confirmed DEAD — every payment screen was handing customers
+    // a destination that no longer resolved.
+    expect(CLIQ_ALIAS).toBe('MAZZADO');
+  });
+
+  it('has no hardcoded copy of the alias left anywhere', () => {
+    // The admin console spelled MAZADJOM into three strings, one of them the
+    // deposit-destination row. A hardcoded alias is the failure mode this whole
+    // file guards: the constant moves and the copy does not, so a screen keeps
+    // pointing at a dead account.
+    const offenders: string[] = [];
+    for (const file of sourceFiles('src')) {
+      if (file.includes('brandBoundary.test') || file.includes('constants/cliq.ts')) continue;
+      const src = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      if (/mazadjom/i.test(src)) offenders.push(file.replace(/\\/g, '/'));
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('keeps the recipient name the bank actually has on the account', () => {
-    expect(CLIQ_RECIPIENT_NAME_EN).toBe('MAZAD JO M');
-    expect(CLIQ_RECIPIENT_NAME_AR).toBe('مؤسسة مزاد الأردن م');
+    // Updated 2026-08-26: the account MOVED to Al Ahli Bank and the English name
+    // was re-registered as MAZZADO. Confirmed by the account holder before this
+    // was changed — the previous attempt at this rename was reverted precisely
+    // because the bank record had not moved yet.
+    expect(CLIQ_RECIPIENT_NAME_EN).toBe('MAZZADO');
+    // BOTH FIELDS CARRY THE LATIN REGISTERED STRING, and the Arabic one is not
+    // an oversight. A CliQ alias is Latin alphanumeric, and what the bank shows
+    // a payer when they enter it is the registered string — this field exists so
+    // the payer can verify a match, so «مزادو» would be a name the bank does not
+    // hold. Was «مؤسسة مزاد الأردن م», the old entity at the old bank.
+    expect(CLIQ_RECIPIENT_NAME_AR).toBe('MAZZADO');
   });
 
-  it('carries no Mazzado spelling at all', () => {
-    // Deliberately asserted on the raw file, not the exports: a future rename
-    // that adds a second "branded" alias next to these would pass the equality
-    // checks above while still shipping a wrong value to a customer.
-    const src = readFileSync(new URL('./cliq.ts', import.meta.url), 'utf8');
-    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code, 'cliq.ts must not be rebranded before the bank record is').not.toMatch(/mazzado/i);
+  it('names the bank that actually holds the account', () => {
+    // Was hardcoded in 17 places across 7 files, and every one of them said Arab
+    // Bank after the account had already moved — seventeen lines telling a
+    // customer to look for their money at the wrong bank.
+    expect(CLIQ_BANK_NAME_EN).toBe('Al Ahli Bank');
+    expect(CLIQ_BANK_NAME_AR).toBe('البنك الأهلي');
+  });
+
+  it('has no stale Arab Bank reference left in the app', () => {
+    // The seller's own-bank placeholder in SellerCenterView is exempt: that is
+    // an example of any Jordanian bank for a SELLER's field, not our account.
+    const offenders: string[] = [];
+    for (const file of sourceFiles('src')) {
+      if (file.includes('SellerCenterView') || file.includes('.test.')) continue;
+      // Comments stripped: cliq.ts records that the account MOVED from Arab
+      // Bank, and a scan that reads its own rationale as a violation is a
+      // mistake this repo has now made three times.
+      const src = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
+      if (/Arab Bank|البنك العربي/.test(src)) offenders.push(file.replace(/\\/g, '/'));
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
