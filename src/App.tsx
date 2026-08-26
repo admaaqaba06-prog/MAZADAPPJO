@@ -24,6 +24,7 @@ const LoginView = lazy(() => import('./components/LoginView').then(m => ({ defau
 const SubscriptionView = lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
 const SellerCenterView = lazy(() => import('./components/SellerCenterView').then(m => ({ default: m.SellerCenterView })));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
+const WatchlistView = lazy(() => import('./components/WatchlistView').then(m => ({ default: m.WatchlistView })));
 const DropBuilderView = lazy(() => import('./components/DropBuilderView').then(m => ({ default: m.DropBuilderView })));
 const AuctionDropBuilderView = lazy(() => import('./components/AuctionDropBuilderView'));
 const LandingView = lazy(() => import('./landing/LandingView'));
@@ -48,6 +49,8 @@ function ActiveViewRenderer() {
       return <HowItWorksView />;
     case 'prohibited-items':
       return <ProhibitedItemsView />;
+    case 'watchlist':
+      return <WatchlistView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':

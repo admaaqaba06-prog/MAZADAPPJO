@@ -23,7 +23,8 @@ export type NavView =
   | 'profile'
   | 'drop-builder'
   | 'auction-drop-builder'
-  | 'prohibited-items';
+  | 'prohibited-items'
+  | 'watchlist';
 
 // Single source of truth: view <-> path. `live` is special-cased to
 // `/auction/:id` (needs the id) and is intentionally absent here.
@@ -40,6 +41,7 @@ const VIEW_PATH: Record<Exclude<NavView, 'live'>, string> = {
   'drop-builder': '/drop-builder',
   'auction-drop-builder': '/auction-drop-builder',
   'prohibited-items': '/prohibited',
+  watchlist: '/saved',
 };
 
 // Reverse map (path -> view) for exact matches, built once.
@@ -51,7 +53,7 @@ const PATH_VIEW: Record<string, Exclude<NavView, 'live'>> = Object.fromEntries(
 const KNOWN_VIEWS: readonly NavView[] = [
   'landing', 'discovery', 'live', 'wallet', 'orders', 'admin', 'upload',
   'about', 'seller-center', 'profile', 'drop-builder', 'auction-drop-builder',
-  'prohibited-items',
+  'prohibited-items', 'watchlist',
 ];
 
 export interface NavModalParam {

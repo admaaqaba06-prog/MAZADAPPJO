@@ -234,8 +234,8 @@ describe('BRAND — the footer identity that was missing entirely', () => {
     // 'عمّان' carries a shadda — assert on the street, which is stable either way.
     expect(BRAND.addressAr).toContain('شارع المدينة المنورة');
     expect(BRAND.hoursAr.length).toBeGreaterThan(0);
-    expect(BRAND.supportPhone).toBe('+962781444899');
-    expect(BRAND.paymentsPhone).toBe('+962785446498');
+    expect(BRAND.supportPhone).toBe('+962785168550');
+    expect(BRAND.paymentsPhone).toBe('+962785168550');
   });
 
   it('links terms and privacy', () => {
@@ -653,8 +653,8 @@ describe('brandFor — the identity stays, the labels translate', () => {
     const b = brandFor('en');
     expect(b.legal).toBe('Al Hani Commercial Brokerage LLC');
     expect(b.registration).toBe('200213982');
-    expect(b.supportPhone).toBe('+962781444899');
-    expect(b.paymentsPhone).toBe('+962785446498');
+    expect(b.supportPhone).toBe('+962785168550');
+    expect(b.paymentsPhone).toBe('+962785168550');
   });
 
   it('translates only the words around it', () => {

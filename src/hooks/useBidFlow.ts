@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 
 type BidResult = { success: boolean; message: string } | void;
 type BidExecute = (amount: number) => Promise<BidResult> | BidResult;
@@ -42,7 +44,7 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  */
 export function useBidFlow(execute: BidExecute) {
   const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, requestSignIn } = useApp();
-  const isMember = currentUser?.subscriptionStatus === 'active';
+  const isMember = isActiveMember(currentUser, serverNow());
   const isGuest = !isAuthenticated;
   const hasPhoto = hasRealPhoto(currentUser);
   const contactComplete = isContactComplete(currentUser);

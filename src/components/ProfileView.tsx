@@ -20,10 +20,13 @@ import {
   ExternalLink,
   Trophy,
   HelpCircle,
+  Heart,
   Camera,
   ScrollText
 } from 'lucide-react';
 import AuctionRulesModal from './AuctionRulesModal';
+import { useMembership } from '../hooks/useMembership';
+import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL } from '../constants/support';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
 const WON_ORDER_STATUSES: Order['status'][] = ['paid', 'preparing_shipment', 'out_for_delivery', 'shipped', 'delivered', 'completed'];
@@ -36,10 +39,14 @@ export const ProfileView: React.FC = () => {
     setShowSubscriptionPrompt,
     setActiveView,
     orders,
-    setGlobalSelectedOrderId
+    setGlobalSelectedOrderId,
+    watchlist,
   } = useApp();
 
   const isAr = language === 'ar';
+  // Derived from the expiry against the server-corrected clock, and re-armed at
+  // the boundary — see the note at the Plan Status row for what this replaced.
+  const membership = useMembership();
 
   const [name, setName] = useState(currentUser?.name || '');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phoneNumber || currentUser?.phone || '');
@@ -125,6 +132,10 @@ export const ProfileView: React.FC = () => {
         return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
       case 'expired':
         return 'bg-zinc-500/10 text-fg-muted border-zinc-500/20';
+      case 'needs_support':
+        // Amber, not red: this is an unverifiable RECORD, not a rejection. The
+        // member may well be paid up; we simply cannot prove it from the data.
+        return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
       default:
         return 'bg-zinc-500/5 text-fg-muted border-zinc-500/10';
     }
@@ -482,25 +493,80 @@ export const ProfileView: React.FC = () => {
               </div>
 
               <div className="space-y-3 pt-1">
+                {/* THE REPORTED BUG WAS HERE. This badge read
+                    `currentUser.subscriptionStatus` — a stored latch that
+                    subscriptionApproval.js sets to 'active' at grant time and
+                    that no job ever rewrites — while the row directly beneath it
+                    printed the expiry. So the card said ACTIVE above a date that
+                    had already passed, and it would have said so forever.
+
+                    `membership.status` is derived from the expiry against the
+                    SERVER-corrected clock, so the two rows can no longer
+                    contradict each other, and useMembership re-arms a timer at
+                    the boundary so it flips the moment it lapses rather than on
+                    the next unrelated re-render. */}
                 <div className="flex items-center justify-between text-xs font-bold border-b border-line pb-2.5">
                   <span className="text-fg-muted">{isAr ? 'حالة الاشتراك:' : 'Plan Status:'}</span>
-                  <span className={`px-2.5 py-1 text-[10px] font-black tracking-widest uppercase border rounded-full ${getSubStatusColor(currentUser.subscriptionStatus || 'none')}`}>
-                    {currentUser.subscriptionStatus === 'active' 
-                      ? (isAr ? 'نشط' : 'Active') 
-                      : currentUser.subscriptionStatus === 'pending' 
-                        ? (isAr ? 'بانتظار المراجعة' : 'Pending review') 
-                        : currentUser.subscriptionStatus === 'rejected' 
-                          ? (isAr ? 'مرفوض' : 'Rejected') 
-                          : currentUser.subscriptionStatus === 'expired' 
-                            ? (isAr ? 'منتهي' : 'Expired') 
-                            : (isAr ? 'لا يوجد اشتراك' : 'No subscription')}
+                  <span className={`px-2.5 py-1 text-[10px] font-black tracking-widest uppercase border rounded-full ${getSubStatusColor(membership.status)}`}>
+                    {membership.status === 'active'
+                      ? (isAr ? 'نشط' : 'Active')
+                      : membership.status === 'pending'
+                        ? (isAr ? 'بانتظار المراجعة' : 'Pending review')
+                        : membership.status === 'rejected'
+                          ? (isAr ? 'مرفوض' : 'Rejected')
+                          : membership.status === 'expired'
+                            ? (isAr ? 'منتهي' : 'Expired')
+                            : membership.status === 'needs_support'
+                              ? (isAr ? 'يحتاج مراجعة' : 'Needs review')
+                              : (isAr ? 'لا يوجد اشتراك' : 'No subscription')}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-bold border-b border-line pb-2.5">
                   <span className="text-fg-muted">{isAr ? 'تاريخ الانتهاء:' : 'Expires On:'}</span>
-                  <span className="text-fg font-mono">{formatExpiry(currentUser.subscriptionExpiry || currentUser.subscriptionExpiresAt)}</span>
+                  {/* The same value the badge was derived from — effectiveExpiryMs
+                      takes the LATER of the two stored fields, so a renewal that
+                      only landed on one of them still shows the right date. The
+                      old `a || b` took whichever was merely truthy first. */}
+                  <span className="text-fg font-mono">
+                    {membership.expiresAtMs === null
+                      ? (isAr ? 'لا يوجد اشتراك نشط' : 'No active subscription')
+                      : formatExpiry(membership.expiresAtMs)}
+                  </span>
                 </div>
+
+                {/* The fail-closed case, explained. The record says active but
+                    carries no readable expiry, so we cannot verify it and will
+                    not claim it — and the member cannot fix a missing field
+                    themselves, so the only useful thing this row can do is name
+                    the problem and hand them the support line. The number comes
+                    from the shared constant, so it cannot drift from the footer. */}
+                {membership.status === 'needs_support' && (
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3.5 space-y-2">
+                    <p className="text-[11px] font-bold leading-relaxed text-amber-700">
+                      {isAr
+                        ? 'اشتراكك مسجّل لكن تاريخ الانتهاء غير مكتمل عندنا، فما نقدر نأكّد صلاحيته. المزايدة موقوفة مؤقتاً — تواصل معنا ونحلّها فوراً.'
+                        : 'Your membership is on record but its expiry date is incomplete on our side, so we cannot confirm it. Bidding is paused — contact us and we will sort it out right away.'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={SUPPORT_WHATSAPP_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-xl bg-[#FF6B00] px-3 py-2 text-[11px] font-black text-white transition-transform active:scale-95"
+                      >
+                        {isAr ? 'واتساب الدعم' : 'WhatsApp support'}
+                      </a>
+                      <a
+                        href={SUPPORT_PHONE_TEL}
+                        className="rounded-xl border border-line bg-surface-raised px-3 py-2 text-[11px] font-black text-fg transition-colors hover:bg-surface-sunken"
+                        dir="ltr"
+                      >
+                        {SUPPORT_PHONE_NATIONAL}
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
@@ -554,6 +620,37 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Saved lots. The ONLY route to the watchlist: the Discover cards have
+            had a heart since #267 and `toggleWatchlist` has always persisted,
+            but nothing listed what you saved — the state was real with no drawer
+            that opened. Lives here rather than in the bottom nav because the bar
+            is settled at four tabs plus the FAB and a fifth would break the
+            symmetry the whole redesign was about. The count comes from the same
+            array the hearts write to, so it cannot disagree with them. */}
+        <button
+          type="button"
+          onClick={() => setActiveView('watchlist')}
+          className="w-full bg-surface-raised hover:bg-surface-sunken border border-line rounded-3xl p-5 flex items-center justify-between gap-4 transition-colors cursor-pointer text-start"
+          id="profile-watchlist-link"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00] shrink-0">
+              <Heart className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-sans font-black text-xs text-fg uppercase tracking-wider truncate">
+                {isAr ? 'المفضلة' : 'Saved'}
+              </h3>
+              <p className="text-[9px] text-fg-muted truncate">
+                {watchlist.length > 0
+                  ? (isAr ? `${watchlist.length} مزاد محفوظ` : `${watchlist.length} saved ${watchlist.length === 1 ? 'auction' : 'auctions'}`)
+                  : (isAr ? 'المزادات التي حفظتها' : 'Auctions you saved')}
+              </p>
+            </div>
+          </div>
+          {isAr ? <ChevronLeft className="w-4 h-4 text-fg-muted shrink-0" /> : <ChevronRight className="w-4 h-4 text-fg-muted shrink-0" />}
+        </button>
 
         {/* How-it-works entry point — this is the mobile route to the 'about'
             view now that the bottom-nav "How it works" tab was removed. */}

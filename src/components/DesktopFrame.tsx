@@ -160,124 +160,219 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {!isDesktop && children}
         </div>
 
-        {/* Global Bottom Navigation bar strictly at foot of phone screens.
-            Native 4-slot IA: Discover · Orders · [elevated Sell "+" FAB] · Profile.
-            Sell is a raised center FAB (Instagram/TikTok create pattern); the
-            former Home/Sell/How-it-works flat tabs are gone. Seller/Admin remain
-            as role-gated slots so those destinations aren't orphaned on mobile.
-            Order is source-order so RTL mirrors it correctly. */}
-        <nav
-          className={`relative z-20 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2 px-4 flex items-center justify-between text-[10px] font-bold tracking-wider select-none h-16 shrink-0 transition-all duration-300 ${
-            activeView === 'live'
-              ? 'bg-[#111111]/95 text-zinc-400 border-t border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]'
-              : 'bg-surface-raised border-t border-line/80 text-fg-muted shadow-[0_-5px_20px_rgba(0,0,0,0.03)]'
-          }`}
-          id="mobile-nav-bar"
+        {/* Global Bottom Navigation — floating white pill.
+            IA unchanged: Discover · Orders · [elevated Sell "+" FAB] · Profile,
+            plus the role-gated Seller and Admin slots so those destinations are
+            not orphaned on mobile.
+
+            IN FLOW, NOT position:fixed. The pill LOOKS floating — the wrapper is
+            transparent and carries the side and bottom insets — but it still
+            reserves its height in the shell's flex column. Fixed would lift it
+            out of flow and every view beneath would need bottom padding added by
+            hand; there are 10+ of them and missing one hides content behind the
+            bar. Same visual, none of that risk, and the safe-area inset sits on
+            the wrapper so the pill clears the home indicator.
+
+            THE FAB IS ABSOLUTELY CENTRED, and that is not a detail. The tab count
+            VARIES by role — three for a guest, four for a seller, five for an
+            admin — so a FAB laid out as one flex sibling among them lands at a
+            different x for every role and every width. Anchoring it to the pill's
+            centre is the only way it cannot move. The tabs are then split into
+            two groups either side of a reserved centre gap.
+
+            The `live` variant is NOT a theme dark mode — it is a per-screen
+            treatment so the bar does not glare over the immersive live room. */}
+        <div
+          className="relative z-20 shrink-0 px-3.5 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] pointer-events-none"
+          id="mobile-nav-wrap"
         >
-          {/* Discover — same 'discovery' route, relabeled from "Home" */}
-          <button
-            onClick={() => setActiveView('discovery')}
-            aria-current={activeView === 'discovery' ? 'page' : undefined}
-            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
-              activeView === 'discovery'
-                ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
+          <nav
+            className={`pointer-events-auto relative flex h-[84px] items-stretch rounded-[42px] px-1 select-none transition-colors duration-300 ${
+              activeView === 'live'
+                ? 'bg-[#111111]/95 shadow-[0_8px_28px_rgba(0,0,0,0.55)]'
+                : 'bg-surface-raised shadow-[0_6px_24px_rgba(0,0,0,0.10)]'
             }`}
+            id="mobile-nav-bar"
           >
-            <Home className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'اكتشف' : 'Discover'}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('orders')}
-            aria-current={activeView === 'orders' ? 'page' : undefined}
-            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
-              activeView === 'orders'
-                ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
-            }`}
-            id="mobile-my-orders-tab-btn"
-          >
-            <ShoppingBag className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'مشترياتي' : 'Orders'}</span>
-          </button>
-
-          {/* Sell — elevated center FAB (raised orange circle). Same 'upload'
-              route/handler; only the presentation changed. */}
-          <button
-            // A guest tapping Sell used to be bounced to a sign-in screen whose
-            // only contextual line read "Sign in to join the live auction" —
-            // the exact bug a partner review reported. 'upload' is not a
-            // guest-allowed view, so the routing is unchanged; only the ASK is.
-            onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
-            aria-label={isAr ? 'بيع' : 'Sell'}
-            aria-current={activeView === 'upload' ? 'page' : undefined}
-            className="flex flex-col items-center flex-1 transition-colors"
-          >
+            {/* The notch: a circle in the bar's own colour centred on the top
+                edge behind the FAB, so the bar reads as curving UP to meet the
+                button rather than the button being pasted onto a flat pill.
+                Decorative, and must never eat the taps around it. */}
             <span
-              className={`flex items-center justify-center w-14 h-14 -mt-8 rounded-full bg-[#FF6B00] text-white shadow-lg shadow-[#FF6B00]/40 border-4 transition-transform active:scale-95 ${
-                activeView === 'live' ? 'border-[#111111]' : 'border-white'
-              } ${activeView === 'upload' ? 'ring-2 ring-[#FF6B00]/40 ring-offset-0' : ''}`}
-            >
-              <Plus className="w-7 h-7" strokeWidth={2.75} />
-            </span>
-            <span
-              className={`text-[9px] font-extrabold tracking-normal mt-0.5 ${
-                activeView === 'upload'
-                  ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500' : 'text-fg-muted'
+              aria-hidden="true"
+              className={`pointer-events-none absolute left-1/2 top-0 h-[58px] w-[58px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-300 ${
+                activeView === 'live' ? 'bg-[#111111]' : 'bg-surface-raised'
               }`}
-            >
-              {isAr ? 'بيع' : 'Sell'}
-            </span>
-          </button>
+            />
 
-          <button
-            onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
-            aria-current={activeView === 'profile' ? 'page' : undefined}
-            className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
-              activeView === 'profile'
-                ? 'text-[#FF6B00]'
-                : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
-            }`}
-          >
-            <User className="w-5 h-5" />
-            <span className="text-[9px] font-extrabold tracking-normal">
-              {isGuest ? (isAr ? 'دخول' : 'Sign in') : (isAr ? 'حسابي' : 'Profile')}
-            </span>
-          </button>
+            {/* LEADING GROUP — the right-hand half under RTL. */}
+            <div className="flex flex-1 items-stretch justify-around">
+              {/* Discover — same 'discovery' route, relabeled from "Home" */}
+              <button
+                onClick={() => setActiveView('discovery')}
+                aria-current={activeView === 'discovery' ? 'page' : undefined}
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  activeView === 'discovery'
+                    ? 'text-[#FF6B00]'
+                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                }`}
+              >
+                <Home className="w-6 h-6" strokeWidth={1.9} />
+                <span className={`text-[11px] tracking-normal ${activeView === 'discovery' ? 'font-semibold' : 'font-medium'}`}>
+                  {isAr ? 'اكتشف' : 'Discover'}
+                </span>
+                {/* Active underline — 20px, orange, no filled background. */}
+                {activeView === 'discovery' && (
+                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                )}
+              </button>
 
-          {isSeller && (
+              <button
+                onClick={() => setActiveView('orders')}
+                aria-current={activeView === 'orders' ? 'page' : undefined}
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  activeView === 'orders'
+                    ? 'text-[#FF6B00]'
+                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                }`}
+                id="mobile-my-orders-tab-btn"
+              >
+                <span className="relative">
+                  <ShoppingBag className="w-6 h-6" strokeWidth={1.9} />
+                  {/* Real unread only, never hardcoded. Same `unreadCount` the
+                      header bell reads, so the two cannot disagree. */}
+                  {unreadCount > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-[#FF6B00]"
+                    />
+                  )}
+                </span>
+                <span className={`text-[11px] tracking-normal ${activeView === 'orders' ? 'font-semibold' : 'font-medium'}`}>
+                  {isAr ? 'مشترياتي' : 'Orders'}
+                </span>
+                {activeView === 'orders' && (
+                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                )}
+              </button>
+            </div>
+
+            {/* Reserved centre. Holds the gap the FAB sits in; the FAB itself is
+                absolutely positioned so its x never depends on how many tabs
+                flank it. */}
+            <div className="w-[78px] shrink-0" aria-hidden="true" />
+
+            {/* TRAILING GROUP — the left-hand half under RTL. */}
+            <div className="flex flex-1 items-stretch justify-around">
+              {/* Membership. The fourth tab the reference has and this bar
+                  lacked, and it earns the slot on its own merits rather than to
+                  fill a gap: membership is what GATES bidding here, so it is the
+                  conversion step the whole feed pushes towards, and it had no
+                  mobile entry point at all — the only way in was a desktop pill
+                  hidden behind `sm:` and `currentUser`.
+
+                  Route is `wallet`, which renders SubscriptionView; the internal
+                  name is historical. `Coins` is the icon the desktop pill already
+                  uses for this destination, kept so the two agree. Guests get the
+                  same tab, because joining is exactly what a guest is here to do
+                  and SubscriptionView is the screen that asks. */}
+              <button
+                onClick={() => setActiveView('wallet')}
+                aria-current={activeView === 'wallet' ? 'page' : undefined}
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  activeView === 'wallet'
+                    ? 'text-[#FF6B00]'
+                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                }`}
+                id="mobile-subscription-tab-btn"
+              >
+                <Coins className="w-6 h-6" strokeWidth={1.9} />
+                <span className={`text-[11px] tracking-normal ${activeView === 'wallet' ? 'font-semibold' : 'font-medium'}`}>
+                  {isAr ? 'اشتراكي' : 'Membership'}
+                </span>
+                {activeView === 'wallet' && (
+                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                )}
+              </button>
+
+              <button
+                onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
+                aria-current={activeView === 'profile' ? 'page' : undefined}
+                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  activeView === 'profile'
+                    ? 'text-[#FF6B00]'
+                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                }`}
+              >
+                <User className="w-6 h-6" strokeWidth={1.9} />
+                <span className={`text-[11px] tracking-normal ${activeView === 'profile' ? 'font-semibold' : 'font-medium'}`}>
+                  {isGuest ? (isAr ? 'دخول' : 'Sign in') : (isAr ? 'حسابي' : 'Profile')}
+                </span>
+                {activeView === 'profile' && (
+                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                )}
+              </button>
+
+              {isSeller && (
+                <button
+                  onClick={() => setActiveView('seller-center')}
+                  aria-current={activeView === 'seller-center' ? 'page' : undefined}
+                  className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    activeView === 'seller-center'
+                      ? 'text-[#FF6B00]'
+                      : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
+                  }`}
+                >
+                  <Store className="w-6 h-6" strokeWidth={1.9} />
+                  <span className={`text-[11px] tracking-normal ${activeView === 'seller-center' ? 'font-semibold' : 'font-medium'}`}>
+                    {isAr ? 'المتجر' : 'Seller'}
+                  </span>
+                  {activeView === 'seller-center' && (
+                    <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                  )}
+                </button>
+              )}
+
+              {isStrictAdmin && (
+                <button
+                  onClick={() => setActiveView('admin')}
+                  aria-current={activeView === 'admin' ? 'page' : undefined}
+                  className="relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer text-amber-600"
+                  id="mobile-admin-tab-btn"
+                >
+                  <ShieldAlert className="w-6 h-6 animate-pulse" strokeWidth={1.9} />
+                  <span className="text-[11px] font-medium tracking-normal">{isAr ? 'المشرف' : 'Admin'}</span>
+                  {activeView === 'admin' && (
+                    <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Sell — elevated centre FAB. Same 'upload' route/handler; only the
+                presentation changed. NO label underneath: the circle is the
+                affordance, and a word under it competes with the tabs either
+                side. Absolutely centred — see the note at the top of the nav. */}
             <button
-              onClick={() => setActiveView('seller-center')}
-              aria-current={activeView === 'seller-center' ? 'page' : undefined}
-              className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
-                activeView === 'seller-center'
-                  ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
-              }`}
+              // A guest tapping Sell used to be bounced to a sign-in screen whose
+              // only contextual line read "Sign in to join the live auction" —
+              // the exact bug a partner review reported. 'upload' is not a
+              // guest-allowed view, so the routing is unchanged; only the ASK is.
+              onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
+              aria-label={isAr ? 'بيع' : 'Sell'}
+              aria-current={activeView === 'upload' ? 'page' : undefined}
+              className="absolute left-1/2 -top-[26px] -translate-x-1/2 transition-transform active:scale-95 cursor-pointer"
             >
-              <Store className="w-5 h-5" />
-              <span className="text-[9px] font-extrabold tracking-normal">{isAr ? 'المتجر' : 'Seller'}</span>
+              <span
+                className={`flex h-[70px] w-[70px] items-center justify-center rounded-full bg-[#FF6B00] text-white shadow-[0_6px_18px_rgba(255,107,0,0.35)] border-[6px] transition-colors ${
+                  activeView === 'live' ? 'border-[#111111]' : 'border-surface-raised'
+                } ${activeView === 'upload' ? 'ring-2 ring-[#FF6B00]/40' : ''}`}
+              >
+                <Plus className="w-8 h-8" strokeWidth={2} />
+              </span>
             </button>
-          )}
-
-          {isStrictAdmin && (
-            <button
-              onClick={() => setActiveView('admin')}
-              aria-current={activeView === 'admin' ? 'page' : undefined}
-              className={`flex flex-col items-center gap-1 transition-colors flex-1 ${
-                activeView === 'admin'
-                  ? 'text-[#FF6B00]'
-                  : activeView === 'live' ? 'text-zinc-500 hover:text-zinc-300' : 'text-fg-muted hover:text-fg'
-              }`}
-              id="mobile-admin-tab-btn"
-            >
-              <ShieldAlert className="w-5 h-5 text-amber-500 animate-pulse" />
-              <span className="text-[9px] font-extrabold tracking-normal text-amber-600">{isAr ? 'المشرف' : 'Admin'}</span>
-            </button>
-          )}
-        </nav>
+          </nav>
+        </div>
 
         {/* Dismissible "Add to Home Screen" install hint (mobile only). Lives
             inside the lg:hidden shell so it never appears on desktop, and is

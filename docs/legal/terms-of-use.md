@@ -36,8 +36,7 @@ with its registered address at **Amman — Al-Madina Al-Munawara Street — Saad
      label is the correct one to publish as the "commercial registration number". -->
 
 
-- Customer service: **+962 78 144 4899**
-- Auctions follow-up & payments: **+962 78 544 6498**
+- Customer service, auctions follow-up & payments: **0785168550**
 - Working hours: **10 AM – 7 PM, Saturday to Thursday** (closed Friday)
 - Email: **[SUPPORT EMAIL]**
 - Website: **https://www.mazad-jo.com**
@@ -185,7 +184,7 @@ Platform. Continued use after changes take effect constitutes acceptance.
 
 ## 15. Contact
 
-Questions about these Terms: **[SUPPORT EMAIL]** · Customer service **0781444899**.
+Questions about these Terms: **[SUPPORT EMAIL]** · Customer service **0785168550**.
 
 ---
 

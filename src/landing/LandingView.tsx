@@ -44,6 +44,7 @@ import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { priceLabel } from '../utils/bidLabels';
 import { categoryLabel } from '../utils/categoryLabel';
+import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL } from '../constants/support';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
@@ -373,7 +374,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
   );
 }
 
-export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/962781444899" }: { onEnter: (target?: string) => void; whatsappUrl?: string }) {
+export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_URL }: { onEnter: (target?: string) => void; whatsappUrl?: string }) {
   // App.tsx renders this view for SIGNED-IN users too (the logo routes here), so
   // this toggle is not a visitor-only control: it is the most prominent language
   // switch in the product and a logged-in customer reaches it. It used to write
@@ -1065,7 +1066,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
 
             {/* CTA Button */}
             <a
-              href="https://wa.me/962781444899"
+              href={SUPPORT_WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="px-5 py-2.5 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white text-xs font-bold shadow-sm transition-all duration-300 hover:scale-[1.02] text-center font-ibmarabic"
@@ -1137,7 +1138,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
           </button>
           
           <a
-            href="https://wa.me/962781444899"
+            href={SUPPORT_WHATSAPP_URL}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setMobileMenuOpen(false)}
@@ -2585,7 +2586,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   <Reveal delay={0.2}>
                     <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-start md:items-center gap-4">
                       <a
-                        href="https://wa.me/962781444899"
+                        href={SUPPORT_WHATSAPP_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-raised text-fg hover:bg-surface-sunken font-bold font-ibmarabic transition-all duration-300 hover:scale-105 shadow-md text-center"
@@ -2708,7 +2709,7 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
               </div>
               
               <a
-                href="https://wa.me/962781444899"
+                href={SUPPORT_WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-6 py-3 rounded-[12px] bg-[#25D366] hover:bg-[#20ba56] text-white font-bold text-sm shadow-lg shadow-[#25D366]/10 hover:shadow-[#25D366]/20 transition-all duration-300 hover:scale-[1.03] text-center font-cairo flex items-center justify-center gap-2"
@@ -2988,14 +2989,17 @@ export default function LandingView({ onEnter, whatsappUrl = "https://wa.me/9627
                   : "Amman — Al-Madina Al-Munawara St — Saad 4 Complex — Opposite Habiba"}
               </span>
             </span>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-5">
-              <a href="tel:+962781444899" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
-                <span>{lang === "ar" ? "خدمة العملاء:" : "Customer Service:"}</span>
-                <span className="font-mono" dir="ltr">+962 78 144 4899</span>
-              </a>
-              <a href="tel:+962785446498" className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
-                <span>{lang === "ar" ? "المزادات والدفع:" : "Auctions & Payment:"}</span>
-                <span className="font-mono" dir="ltr">+962 78 544 6498</span>
+            {/* ONE line, not two. This was a customer-service number and a
+                separate auctions-and-payment number; both now resolve to the
+                single official line, and printing the same digits twice under
+                two different labels reads as a mistake. The displayed form comes
+                from the constant so it can never disagree with the tel: target
+                sitting on the same element — which is exactly how the old pair
+                drifted. */}
+            <div className="flex items-center justify-center">
+              <a href={SUPPORT_PHONE_TEL} className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
+                <span>{lang === "ar" ? "خدمة العملاء والمزادات:" : "Customer Service & Auctions:"}</span>
+                <span className="font-mono" dir="ltr">{SUPPORT_PHONE_NATIONAL}</span>
               </a>
             </div>
             <span className="text-[11px] text-fg-muted">

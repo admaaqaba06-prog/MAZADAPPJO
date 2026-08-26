@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { Sparkles, BadgeCheck, Gavel, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 
 export const OnboardingModal: React.FC = () => {
   const { currentUser, completeOnboarding, setActiveView, language } = useApp();
@@ -28,7 +30,7 @@ export const OnboardingModal: React.FC = () => {
 
   // Non-members get a converting final CTA (→ join flow); active members just
   // close onto Discover and start bidding.
-  const isMember = currentUser?.subscriptionStatus === 'active';
+  const isMember = isActiveMember(currentUser, serverNow());
 
   const finishOnboarding = () => {
     dismissForSession();
