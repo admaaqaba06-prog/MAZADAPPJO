@@ -226,13 +226,13 @@ describe('emailFor — a second-chance CTA never points at the defaulted order',
 
 describe('BRAND — the footer identity that was missing entirely', () => {
   it('carries the registered entity and licence number', () => {
-    expect(BRAND.legalName).toContain('Al Hani');
-    expect(BRAND.registration).toBe('200213982');
+    expect(BRAND.legalName).toBe('');
+    expect(BRAND.registration).toBe('');
   });
 
   it('carries the address, hours and both published numbers', () => {
     // 'عمّان' carries a shadda — assert on the street, which is stable either way.
-    expect(BRAND.addressAr).toContain('شارع المدينة المنورة');
+    expect(BRAND.addressAr).toBe('');
     expect(BRAND.hoursAr.length).toBeGreaterThan(0);
     expect(BRAND.supportPhone).toBe('+962785168550');
     expect(BRAND.paymentsPhone).toBe('+962785168550');
@@ -395,8 +395,8 @@ describe('emailFor — both languages', () => {
   });
 
   it('keeps the legal identity untranslated — a registered name is not translated', () => {
-    expect(BRAND.legalName).toContain('Al Hani');
-    expect(BRAND.registration).toBe('200213982');
+    expect(BRAND.legalName).toBe('');
+    expect(BRAND.registration).toBe('');
   });
 
   it('names the sender rather than a lot when the payload carries no title', () => {
@@ -651,8 +651,8 @@ describe('detailRows — labelled in the reader´s language', () => {
 describe('brandFor — the identity stays, the labels translate', () => {
   it('states the registered entity and licence number unchanged in English', () => {
     const b = brandFor('en');
-    expect(b.legal).toBe('Al Hani Commercial Brokerage LLC');
-    expect(b.registration).toBe('200213982');
+    expect(b.legal).toBe('');
+    expect(b.registration).toBe('');
     expect(b.supportPhone).toBe('+962785168550');
     expect(b.paymentsPhone).toBe('+962785168550');
   });
@@ -670,8 +670,8 @@ describe('brandFor — the identity stays, the labels translate', () => {
   it('keeps the Arabic footer Arabic', () => {
     const b = brandFor('ar');
     expect(b.name).toBe('مزادو');
-    expect(b.legal).toBe('شركة الهاني للوساطة التجارية ذ.م.م');
-    expect(b.address).toContain('شارع المدينة المنورة');
+    expect(b.legal).toBe('');
+    expect(b.address).toBe('');
     expect(b.labels.registration).toMatch(ARABIC);
     expect(brandFor(undefined)).toEqual(b);
   });
@@ -700,7 +700,7 @@ describe('brandFor — the identity stays, the labels translate', () => {
     try { BRAND.registration = 'PWNED'; } catch { /* ditto */ }
     expect(e.brand.labels.registration).toBe('Commercial registration');
     expect(emailFor('payment_due', {}, 'en').brand.labels.registration).toBe('Commercial registration');
-    expect(BRAND.registration).toBe('200213982');
+    expect(BRAND.registration).toBe('');
   });
 
   it('is what the email carries, in the email´s language', () => {

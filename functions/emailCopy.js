@@ -37,28 +37,28 @@ function normalizeLang(lang) {
  * already back the Terms and Privacy documents (docs/legal/) — the emails were
  * simply the one surface that never used them.
  *
- * THE IDENTITY ITSELF DOES NOT TRANSLATE. `Al Hani Commercial Brokerage LLC` is
- * the name on the registration, and `200213982` is that registration; an English
- * email states them exactly as an Arabic one does. Only the LABELS around them
- * (below) change language, plus the address and opening hours, which are prose
- * rather than identity.
+ * OPERATOR IDENTITY AND ADDRESS REMOVED on request, 2026-08-26. The footer
+ * previously carried a registered entity name, its registration number and a
+ * street address. All three are now empty strings rather than deleted keys,
+ * because the n8n email template and its local fallback both read
+ * `brand.legal` / `brand.registration` / `brand.address` BY NAME and pair each
+ * with a printed label — removing the keys would render a labelled row with
+ * nothing after it. Their `has()` guard drops a row whose value is blank, so
+ * emptying them omits the rows cleanly.
+ *
+ * If an operator entity is published again, put it back here: this is the one
+ * place the emails read it from.
  */
 const BRAND = Object.freeze({
   nameAr: 'مزادو',
   nameEn: 'MAZZADO',
-  legalName: 'Al Hani Commercial Brokerage LLC',
-  legalNameAr: 'شركة الهاني للوساطة التجارية ذ.م.م',
-  registration: '200213982',
-  // Western digits, per ARABIC_UI_DIGITS — «مجمع سعد ٤» and «من ١٠ … ٧» carried
-  // Arabic-Indic ones, which contradicted the app-wide policy and had simply
-  // never been rendered anywhere to be noticed.
-  addressAr: 'عمّان — شارع المدينة المنورة — مجمع سعد 4 — مقابل حبيبة',
-  // The address and the opening hours are the ONE deliberate exception to
-  // "identity does not translate": they are wayfinding prose, not identity, and
-  // an English-only reader cannot navigate by Arabic script. "Opposite Habibah"
-  // is how Amman addressing genuinely works. Approved 2026-08-02; recorded in
-  // docs/superpowers/specs/2026-08-02-global-language-design.md.
-  addressEn: 'Amman — Al Madina Al Munawara Street — Saad 4 Complex — opposite Habibah',
+  legalName: '',
+  legalNameAr: '',
+  registration: '',
+  // Address removed with the operator identity. Kept as empty strings for the
+  // same reason: the template pairs them with a label and drops blank rows.
+  addressAr: '',
+  addressEn: '',
   hoursAr: 'من 10 صباحاً حتى 7 مساءً، السبت إلى الخميس',
   // 24-hour, matching every deadline this module renders.
   hoursEn: '10:00 to 19:00, Saturday to Thursday',

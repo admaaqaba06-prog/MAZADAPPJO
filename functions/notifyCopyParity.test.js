@@ -305,15 +305,35 @@ describe('the node forwards the email the server rendered', () => {
     expect(html).not.toContain('افتح التطبيق');
   });
 
-  it('renders the brand footer — legal name, registration, address, hours — each with its label', () => {
+  it('renders every footer row that still HAS a value, each with its label', () => {
+    // Operator identity removed 2026-08-26: legal name, registration number and
+    // address are now blank in BRAND. The template's has()/line() guards drop a
+    // row whose value is empty, so the assertion is no longer "every field
+    // renders" — it is "every field that still has a value renders WITH its
+    // label, and the emptied ones render NOTHING AT ALL, not a naked label".
     const ec = serverContent('ar');
     const { html } = runNode(payload({ email_content: ec }));
     const b = ec.brand;
-    for (const v of [b.legal, b.registration, b.address, b.hours,
-      b.labels.registration, b.labels.address, b.labels.hours]) {
-      expect(typeof v).toBe('string');
-      expect(v.length).toBeGreaterThan(0);
-      expect(html).toContain(v);
+
+    // Still populated, still labelled.
+    for (const [value, label] of [
+      [b.hours, b.labels.hours],
+      [b.supportPhone, b.labels.support],
+      [b.paymentsPhone, b.labels.payments],
+    ]) {
+      expect(typeof value).toBe('string');
+      expect(value.length).toBeGreaterThan(0);
+      expect(html).toContain(value);
+      expect(html).toContain(label);
+    }
+
+    // Emptied — and crucially their LABELS must go too. A label with nothing
+    // after it is the exact "bare footer" regression this file already guards.
+    for (const value of [b.legal, b.registration, b.address]) {
+      expect(value).toBe('');
+    }
+    for (const label of [b.labels.registration, b.labels.address]) {
+      expect(html, `${label} rendered with no value after it`).not.toContain(label);
     }
   });
 
@@ -327,10 +347,18 @@ describe('the node forwards the email the server rendered', () => {
   it('renders the ENGLISH brand values for an English email', () => {
     const ec = serverContent('en');
     const { html } = runNode(payload({ email_content: ec }));
-    expect(html).toContain('Al Hani Commercial Brokerage LLC');
-    expect(html).toContain('Commercial registration');
+    // Operator identity was removed from BRAND on 2026-08-26; the template's
+    // has() guard drops the row when the value is blank, so the footer must NOT
+    // carry a legal-name line at all.
+    expect(html).not.toContain('Al Hani');
+    // The registration LABEL is dropped along with its now-blank value — an
+    // English "Commercial registration:" followed by nothing is worse than the
+    // row being absent.
+    expect(html).not.toContain('Commercial registration');
+    // Hours still has a value, so its English label must still be the one used.
     expect(html).toContain('Working hours');
     expect(html).not.toContain('السجل التجاري');
+    expect(html).not.toContain('ساعات العمل');
   });
 });
 
@@ -607,8 +635,14 @@ describe('a PRE-BILINGUAL email_content is rejected rather than half-rendered', 
     const { html } = runNode(payload({ email_content: preBilingualContent() }));
     // The exact regression: registration number and both phone numbers rendered
     // as three anonymous lines because there were no labels to pair them with.
-    for (const v of [BRAND.registration, BRAND.supportPhone, BRAND.paymentsPhone]) {
-      expect(typeof v).toBe('string');
+    // BRAND.registration is now the EMPTY STRING, and every string contains ''
+    // — so leaving it in this list made the assertion impossible to satisfy
+    // rather than strict. Only values that are actually present can be asserted
+    // absent; the phone numbers still carry the regression's whole point.
+    const identifying = [BRAND.registration, BRAND.supportPhone, BRAND.paymentsPhone]
+      .filter((v) => typeof v === 'string' && v !== '');
+    expect(identifying.length, 'nothing left to assert against').toBeGreaterThan(0);
+    for (const v of identifying) {
       expect(html).not.toContain(v);
     }
   });
