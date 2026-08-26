@@ -18,15 +18,19 @@
 
 ## 1. Who is responsible for your data
 
-**Al Hani Commercial Brokerage** (Arabic: **الهاني للوساطة التجارية**), a limited
-liability company (LLC / ذات مسؤولية محدودة) registered in Jordan under commercial
-registration number **200213982**, address **Amman — Al-Madina Al-Munawara Street — Saad 4 Complex — Opposite Habiba, Amman, Jordan** ("**Mazad**", "**we**"), is the controller of the personal data described
-in this policy.
+**MAZZADO** ("**we**") is the controller of the personal data described in this
+policy. We operate from Amman, Jordan.
 
-<!-- REGISTRATION LABEL NOTE (for counsel): 200213982 is the الرقم الوطني للمنشأة
-     (national establishment number), designated by the owner as the public
-     registration number. The certificate ALSO carries registration number 82841
-     (رقم التسجيل). Counsel to confirm which label to publish. -->
+<!-- OPERATOR IDENTITY REMOVED on request, 2026-08-26: the registered entity
+     name, its registration number and the street address were all taken out of
+     this document and out of the site footer.
+
+     FOR COUNSEL: a marketplace that holds buyer funds is normally required to
+     name its operating entity and a contact address in its published terms and
+     privacy policy, and a data-protection controller is normally an identified
+     legal person rather than a trading name. This document currently identifies
+     the controller only as MAZZADO. Reinstate the entity here and in
+     docs/legal/terms-of-use.md when there is one to publish. -->
 
 
 - Data / privacy contact: **[PRIVACY CONTACT EMAIL]**
@@ -135,8 +139,7 @@ Platform. The "last updated" date reflects the latest version.
 ## 11. Contact
 
 Privacy questions or requests: **[PRIVACY CONTACT EMAIL]** · Customer service
-**0785168550** · **Al Hani Commercial Brokerage** (الهاني للوساطة التجارية),
-Amman, Jordan.
+**0785168550** · **MAZZADO**, Amman, Jordan.
 
 ---
 

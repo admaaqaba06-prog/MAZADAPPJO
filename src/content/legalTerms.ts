@@ -129,8 +129,8 @@ export const LEGAL_SECTIONS: LegalSection[] = [
     titleAr: 'آلية الشحن والتسليم',
     lines: [
       {
-        en: 'Al Hani Commercial Brokerage works with specialised shipping companies to get your purchase to you. Orders are shipped and delivered on the schedule announced during the auction you won.',
-        ar: 'تعتمد شركة الهاني للوساطة التجارية على نخبة من شركات الشحن المتخصصة لضمان إيصال مشترياتكم بكفاءة. يتم شحن وتسليم الطلبات وفق الجدول الزمني المحدد الذي تم الإعلان عنه خلال المزاد الذي رسا عليكم.',
+        en: 'MAZZADO works with specialised shipping companies to get your purchase to you. Orders are shipped and delivered on the schedule announced during the auction you won.',
+        ar: 'تعتمد مزادو على نخبة من شركات الشحن المتخصصة لضمان إيصال مشترياتكم بكفاءة. يتم شحن وتسليم الطلبات وفق الجدول الزمني المحدد الذي تم الإعلان عنه خلال المزاد الذي رسا عليكم.',
       },
       {
         // `warn`, not `default`: this is the line a buyer needs to have read

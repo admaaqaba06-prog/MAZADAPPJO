@@ -23,23 +23,20 @@
 
 ## 1. Who we are
 
-Mazzado ("**Mazad**", "**we**", "**us**") is an online auction marketplace
-operated by **Al Hani Commercial Brokerage** (Arabic: **الهاني للوساطة التجارية**),
-a limited liability company (LLC / ذات مسؤولية محدودة) registered in the Hashemite
-Kingdom of Jordan under commercial registration number **200213982**,
-with its registered address at **Amman — Al-Madina Al-Munawara Street — Saad 4 Complex — Opposite Habiba, Amman, Jordan**.
+**MAZZADO** ("**we**", "**us**") is an online auction marketplace operating in
+Amman, Jordan.
 
-<!-- REGISTRATION LABEL NOTE (for counsel): The number 200213982 is the الرقم
-     الوطني للمنشأة (national establishment number), which the owner designated as
-     the public registration number. The commercial registration certificate ALSO
-     carries registration number 82841 (رقم التسجيل). Counsel to confirm which
-     label is the correct one to publish as the "commercial registration number". -->
+<!-- OPERATOR IDENTITY AND ADDRESS REMOVED on request, 2026-08-26. See the
+     matching note in docs/legal/privacy-policy.md: naming the operating entity
+     and an address is the normal expectation for a marketplace that holds buyer
+     funds, and this document no longer does either. Reinstate both here when
+     there is an entity to publish. -->
 
 
 - Customer service, auctions follow-up & payments: **0785168550**
 - Working hours: **10 AM – 7 PM, Saturday to Thursday** (closed Friday)
 - Email: **[SUPPORT EMAIL]**
-- Website: **https://www.mazad-jo.com**
+- Website: **https://www.mazzado.com**
 
 By creating an account, placing a bid, listing an item, or otherwise using the
 Mazad platform (the "**Platform**"), you agree to these Terms of Use (the

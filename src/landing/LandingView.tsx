@@ -2981,14 +2981,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
           {/* Company / Contact Info */}
           <div className="pt-6 flex flex-col items-center justify-center gap-2.5 text-center text-xs text-fg-muted font-ibmarabic">
-            <span className="flex items-center gap-1.5 max-w-md">
-              <MapPin className="w-3.5 h-3.5 text-[#F05123] shrink-0" />
-              <span>
-                {lang === "ar"
-                  ? "عمّان — شارع المدينة المنورة — مجمع سعد 4 — مقابل حبيبة"
-                  : "Amman — Al-Madina Al-Munawara St — Saad 4 Complex — Opposite Habiba"}
-              </span>
-            </span>
+            
             {/* ONE line, not two. This was a customer-service number and a
                 separate auctions-and-payment number; both now resolve to the
                 single official line, and printing the same digits twice under
@@ -3009,14 +3002,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             </span>
           </div>
 
-          {/* Registered company identity (compliance / ads trust signal) */}
-          <div className="pt-4 text-center text-[11px] leading-relaxed text-fg-muted font-ibmarabic">
-            <span>
-              {lang === "ar"
-                ? "الهاني للوساطة التجارية (Al Hani Commercial Brokerage) · سجل تجاري 200213982 · عمّان، الأردن"
-                : "Al Hani Commercial Brokerage (الهاني للوساطة التجارية) · Commercial Reg. 200213982 · Amman, Jordan"}
-            </span>
-          </div>
+          {/* The registered-entity line and the street address were REMOVED from
+              the footer on request, 2026-08-26. The wrapper went with them — an
+              empty div with padding leaves a silent gap in the footer rhythm. */}
 
           {/* Copyrights and Jordan Badge */}
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
