@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import AuctionRulesModal from './AuctionRulesModal';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 import {
   UserPlus,
   Gavel,
@@ -119,7 +121,7 @@ const FAQS: FaqDef[] = [
 export const HowItWorksView: React.FC = () => {
   const { language, currentUser, setActiveView } = useApp();
   const isAr = language === 'ar';
-  const isMember = currentUser?.subscriptionStatus === 'active';
+  const isMember = isActiveMember(currentUser, serverNow());
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false); // E4 — Auction Rules modal
 

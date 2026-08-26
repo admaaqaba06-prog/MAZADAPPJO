@@ -1906,9 +1906,30 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
       if (isEffectivelyBlocked(userData, Date.now())) {
         return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
-      const subExpiry = userData.subscriptionExpiry;
-      const subExpiryMs = subExpiry && subExpiry.toMillis ? subExpiry.toMillis() : (typeof subExpiry === 'number' ? subExpiry : null);
-      if (userData.subscriptionStatus !== 'active' || (subExpiryMs && subExpiryMs <= Date.now())) {
+      // Expiry can arrive as a Timestamp, an epoch number, or — from legacy and
+      // admin writes — a DATE STRING. The string case used to fall through to
+      // null, and `null && …` short-circuits, so a string-stored expiry never
+      // expired anyone here: an lapsed member kept bidding. Also reads
+      // subscriptionExpiresAt, since buildGrantFields writes both fields from one
+      // value and a renewal that only landed on one must still count.
+      // Mirrors src/utils/membership.ts effectiveExpiryMs.
+      const toMs = (raw) => {
+        if (raw === null || raw === undefined || raw === '') return null;
+        if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? raw : null;
+        if (typeof raw.toMillis === 'function') {
+          const ms = raw.toMillis();
+          return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? ms : null;
+        }
+        if (typeof raw === 'string') {
+          const t = /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Date.parse(raw.trim());
+          return Number.isFinite(t) && t > 0 ? t : null;
+        }
+        return null;
+      };
+      const expiryCandidates = [toMs(userData.subscriptionExpiry), toMs(userData.subscriptionExpiresAt)]
+        .filter((v) => v !== null);
+      const subExpiryMs = expiryCandidates.length ? Math.max(...expiryCandidates) : null;
+      if (userData.subscriptionStatus !== 'active' || (subExpiryMs !== null && subExpiryMs <= Date.now())) {
         return { success: false, message: 'MEMBERSHIP_REQUIRED' };
       }
 

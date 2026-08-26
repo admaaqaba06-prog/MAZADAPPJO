@@ -8,6 +8,7 @@ import { resizeImage } from '../utils/resizeImage';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
 import { isContactComplete } from '../utils/guestGate';
 import { sellerNet } from '../utils/bidMath';
+import { SUPPORT_WHATSAPP_URL } from '../constants/support';
 import {
   Store,
   Handshake,
@@ -22,7 +23,7 @@ import {
   Ban
 } from 'lucide-react';
 
-const WHATSAPP_URL = 'https://wa.me/962781444899';
+const WHATSAPP_URL = SUPPORT_WHATSAPP_URL;
 // House motion: smooth ease-out, no bouncy springs.
 const easeOut = { duration: 0.3, ease: 'easeOut' as const };
 

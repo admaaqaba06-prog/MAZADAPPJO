@@ -1,8 +1,9 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { MessageCircle, ShieldCheck } from 'lucide-react';
+import { SUPPORT_WHATSAPP_URL } from '../constants/support';
 
-const WHATSAPP_URL = 'https://wa.me/962781444899';
+const WHATSAPP_URL = SUPPORT_WHATSAPP_URL;
 
 export const SellWithUsView: React.FC = () => {
   const { language } = useApp();

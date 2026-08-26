@@ -54,8 +54,11 @@ import AuctionRulesModal from './AuctionRulesModal';
 import ListingImage from './ui/ListingImage';
 import { cleanTitle } from '../utils/listingTitle';
 import { BrandMark } from './BrandMark';
+import { SUPPORT_WHATSAPP_URL } from '../constants/support';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 
-const WHATSAPP_URL = 'https://wa.me/962781444899';
+const WHATSAPP_URL = SUPPORT_WHATSAPP_URL;
 
 /**
  * Chip icon per canonical category value. Presentation only — it lives here
@@ -246,10 +249,10 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
               ? (isAr ? 'إزالة من المفضلة' : 'Remove from watchlist')
               : (isAr ? 'إضافة إلى المفضلة' : 'Add to watchlist')
           }
-          className="absolute top-2 left-2 rtl:left-auto rtl:right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-surface-raised/90 shadow-xs backdrop-blur-xs transition-transform active:scale-90 cursor-pointer"
+          className="absolute top-2 left-2 rtl:left-auto rtl:right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-surface-raised/90 shadow-xs backdrop-blur-xs transition-transform active:scale-90 cursor-pointer"
         >
           <Heart
-            className={`h-4 w-4 ${isWatched ? 'fill-[#FF6B00] text-[#FF6B00]' : 'text-fg-muted'}`}
+            className={`h-[15px] w-[15px] ${isWatched ? 'fill-[#FF6B00] text-[#FF6B00]' : 'text-fg-muted'}`}
           />
         </button>
 
@@ -409,6 +412,7 @@ export const DiscoveryFeedView: React.FC = () => {
     setGlobalSelectedOrderId,
     featureFlags,
     isAuthenticated,
+    isGuest,
     requestSignIn
   } = useApp();
   // Discover is now ALWAYS the paginated feed (`useDiscoverFeed`) — the broad
@@ -618,6 +622,25 @@ export const DiscoveryFeedView: React.FC = () => {
     }
   };
 
+  /**
+   * Saving is a MEMBER action, not a guest one.
+   *
+   * guestGate.ts states the rule outright — for a logged-out visitor "every
+   * ACTION (bid, chat, save, sell, account surfaces) is the signup moment" —
+   * and signInIntent already ships copy for it: «سجّل دخولك لحفظ القطعة /
+   * بتلاقيها بالمحفوظات بعد الدخول». Letting a guest toggle the heart wrote to
+   * localStorage under a promise the app could not keep: 'watchlist' is not a
+   * guest-allowed view, so they could never open the list they had just added
+   * to. Gate it here, once, rather than teaching the card about auth.
+   */
+  const handleToggleWatch = (id: string) => {
+    if (isGuest) {
+      requestSignIn('save');
+      return;
+    }
+    toggleWatchlist(id);
+  };
+
   const handleJoinLive = (id: string) => {
     setActiveAuctionId(id);
     setActiveView('live');
@@ -671,7 +694,7 @@ export const DiscoveryFeedView: React.FC = () => {
     return `${relative} · ${formatAmmanClock(item.scheduledStartAt)}`;
   };
 
-  const isMember = currentUser?.subscriptionStatus === 'active';
+  const isMember = isActiveMember(currentUser, serverNow());
 
   // Stagger only the first grid paint. Later mounts (filter/search changes)
   // get a plain quick fade — no cascade replay on every keystroke.
@@ -753,6 +776,32 @@ export const DiscoveryFeedView: React.FC = () => {
 
           {/* Action Header controls */}
           <div className="flex items-center gap-2">
+            {/* Saved. THE guest-reachable route to the watchlist, and the reason
+                it has to live here: the hearts on these cards work logged OUT
+                (the list is localStorage), but the only other entry point is in
+                ProfileView, which a guest cannot open — tapping Profile asks
+                them to sign in. So a guest could save lots and never see them,
+                which is the same closed-drawer problem the watchlist screen was
+                built to fix, just narrower.
+
+                It also fills the third header control the brief asked for. That
+                slot was meant to be a Menu button; there is still no menu in this
+                app, and this is a real destination rather than a stub. */}
+            <button
+              onClick={() => (isGuest ? requestSignIn('save') : setActiveView('watchlist'))}
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-xs transition-colors hover:bg-surface-sunken cursor-pointer"
+              title={isAr ? 'المفضلة' : 'Saved'}
+              aria-label={isAr ? 'المفضلة' : 'Saved'}
+              id="discover-saved-btn"
+            >
+              <Heart className={`w-[18px] h-[18px] ${watchlist.length > 0 ? 'fill-[#FF6B00] text-[#FF6B00]' : ''}`} />
+              {watchlist.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[8px] font-black text-white">
+                  {watchlist.length}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setShowNotifications(true)}
               className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-xs transition-colors hover:bg-surface-sunken cursor-pointer"
@@ -1155,7 +1204,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setActiveView={setActiveView}
                         liveEnabled={true}
                         isWatched={watchlist.includes(item.id)}
-                        onToggleWatch={toggleWatchlist}
+                        onToggleWatch={handleToggleWatch}
                       />
                     </div>
                   ))}
@@ -1216,7 +1265,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setActiveView={setActiveView}
                         liveEnabled={true}
                         isWatched={watchlist.includes(item.id)}
-                        onToggleWatch={toggleWatchlist}
+                        onToggleWatch={handleToggleWatch}
                       />
                     </div>
                   ))}
@@ -1280,7 +1329,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setActiveView={setActiveView}
                         liveEnabled={true}
                         isWatched={watchlist.includes(item.id)}
-                        onToggleWatch={toggleWatchlist}
+                        onToggleWatch={handleToggleWatch}
                       />
                     </div>
                   ))}
@@ -1338,7 +1387,7 @@ export const DiscoveryFeedView: React.FC = () => {
                         setActiveView={setActiveView}
                         liveEnabled={true}
                         isWatched={watchlist.includes(item.id)}
-                        onToggleWatch={toggleWatchlist}
+                        onToggleWatch={handleToggleWatch}
                       />
                     </div>
                   ))}

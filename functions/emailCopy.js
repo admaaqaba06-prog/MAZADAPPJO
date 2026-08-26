@@ -62,8 +62,20 @@ const BRAND = Object.freeze({
   hoursAr: 'من 10 صباحاً حتى 7 مساءً، السبت إلى الخميس',
   // 24-hour, matching every deadline this module renders.
   hoursEn: '10:00 to 19:00, Saturday to Thursday',
-  supportPhone: '+962781444899',
-  paymentsPhone: '+962785446498',
+  // ONE official line. There were two — a support number and a separate
+  // payments number — and they were hardcoded here AND in five client files AND
+  // in the HTML template, with nothing tying any of them together.
+  //
+  // MIRRORS src/constants/support.ts. Functions cannot import from src/, so the
+  // value is repeated here on purpose and supportPhone.parity.test.ts fails if
+  // the two ever disagree — the same guard the repo already uses for
+  // n8n/build-messages.js.
+  //
+  // paymentsPhone is KEPT as a field, deliberately: the email template and the
+  // n8n fallback both read it by name, and dropping it would render a labelled
+  // footer row with an empty value. It now points at the same line.
+  supportPhone: '+962785168550',
+  paymentsPhone: '+962785168550',
   termsUrl: `${SITE}/terms`,
   privacyUrl: `${SITE}/privacy`,
   site: SITE,

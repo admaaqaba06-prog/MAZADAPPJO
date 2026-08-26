@@ -30,7 +30,7 @@ in this policy.
 
 
 - Data / privacy contact: **[PRIVACY CONTACT EMAIL]**
-- Customer service: **0781444899**
+- Customer service: **0785168550**
 
 ## 2. What data we collect
 
@@ -135,7 +135,7 @@ Platform. The "last updated" date reflects the latest version.
 ## 11. Contact
 
 Privacy questions or requests: **[PRIVACY CONTACT EMAIL]** · Customer service
-**0781444899** · **Al Hani Commercial Brokerage** (الهاني للوساطة التجارية),
+**0785168550** · **Al Hani Commercial Brokerage** (الهاني للوساطة التجارية),
 Amman, Jordan.
 
 ---
