@@ -21,7 +21,7 @@
  * "fixes" them ahead of the bank is a payments incident, not a copy update.
  */
 export const CLIQ_RECIPIENT_NAME_AR = 'مؤسسة مزاد الأردن م';
-export const CLIQ_RECIPIENT_NAME_EN = 'MAZAD JO M';
+export const CLIQ_RECIPIENT_NAME_EN = 'MAZZADO';
 
 /**
  * CliQ alias — the PRIMARY transfer target. CliQ transfers in Jordan are
@@ -33,3 +33,18 @@ export const CLIQ_RECIPIENT_NAME_EN = 'MAZAD JO M';
  * resolves.
  */
 export const CLIQ_ALIAS = 'mazadjom';
+
+/**
+ * The bank holding the receiving account.
+ *
+ * Lives here, with the rest of the payment identity, because it was written
+ * out by hand in SEVENTEEN places across seven files — the how-it-works copy,
+ * the wallet lock note, the desktop payment line, translations.ts, the admin
+ * console — with nothing tying them together. When the account MOVED from Arab
+ * Bank to Al Ahli Bank (confirmed 2026-08-26) every one of those places became
+ * a line telling a customer to look for their money at the wrong bank.
+ *
+ * Same rule as the names above: this follows the BANK RECORD, not the brand.
+ */
+export const CLIQ_BANK_NAME_AR = 'البنك الأهلي';
+export const CLIQ_BANK_NAME_EN = 'Al Ahli Bank';

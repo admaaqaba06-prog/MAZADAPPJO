@@ -25,7 +25,7 @@ import {
  * Accuracy contract (must stay true to reality):
  * - Membership tiers: 1 JD/mo, 4 JD/6mo, 7 JD/yr — lead "from 1 JD/month".
  * - Fees: 5% buyer's premium on win + 5% seller commission.
- * - Payment: CliQ to Mazzado (Arab Bank) within 24h of winning.
+ * - Payment: CliQ to Mazzado (Al Ahli Bank) within 24h of winning.
  * - Delivery: pickup or paid delivery (~2–4 JD), Mazad arranges.
  * - Sell: submit (self-serve or concierge) → Mazad reviews & approves → live → 5%.
  */
@@ -59,8 +59,8 @@ const STEPS: StepDef[] = [
     icon: <Trophy className="w-5 h-5" />,
     titleAr: 'اربح وادفع',
     titleEn: 'Win & pay',
-    bodyAr: 'سعر الفوز + عمولة مشتري ٥٪ — عبر كليك إلى حساب مزادو (البنك العربي) خلال ٢٤ ساعة.',
-    bodyEn: "Winning price + 5% buyer's premium — via CliQ to Mazzado (Arab Bank) within 24 hours.",
+    bodyAr: 'سعر الفوز + عمولة مشتري ٥٪ — عبر كليك إلى حساب مزادو (البنك الأهلي) خلال ٢٤ ساعة.',
+    bodyEn: "Winning price + 5% buyer's premium — via CliQ to Mazzado (Al Ahli Bank) within 24 hours.",
   },
   {
     icon: <Package className="w-5 h-5" />,
@@ -101,8 +101,8 @@ const FAQS: FaqDef[] = [
   {
     qAr: 'كيف بتأكدوا إني رح أستلم غرضي؟',
     qEn: 'How do I know I will actually get my item?',
-    aAr: 'دفعتك بتروح عبر كليك إلى حساب مزادو في البنك العربي — مش للبائع مباشرة. كل إعلان بيمر بمراجعة فريقنا قبل ما ينزل، وإحنا اللي منرتّب الاستلام أو التوصيل. حمايتك جزء من الصفقة.',
-    aEn: "Your payment goes via CliQ to Mazzado's Arab Bank account — not directly to the seller. Every listing is reviewed by our team before going live, and we arrange the pickup or delivery ourselves. Buyer protection is built into the deal.",
+    aAr: 'دفعتك بتروح عبر كليك إلى حساب مزادو في البنك الأهلي — مش للبائع مباشرة. كل إعلان بيمر بمراجعة فريقنا قبل ما ينزل، وإحنا اللي منرتّب الاستلام أو التوصيل. حمايتك جزء من الصفقة.',
+    aEn: "Your payment goes via CliQ to Mazzado's Al Ahli Bank account — not directly to the seller. Every listing is reviewed by our team before going live, and we arrange the pickup or delivery ourselves. Buyer protection is built into the deal.",
   },
   {
     qAr: 'كيف أبيع معكم؟',
@@ -113,8 +113,8 @@ const FAQS: FaqDef[] = [
   {
     qAr: 'شو طرق الدفع؟',
     qEn: 'What are the payment methods?',
-    aAr: 'كليك (CliQ) إلى حساب مزادو في البنك العربي — للعضوية وللدفع بعد الفوز (خلال ٢٤ ساعة من الفوز).',
-    aEn: "CliQ to Mazzado's Arab Bank account — for membership and for paying after a win (within 24 hours of winning).",
+    aAr: 'كليك (CliQ) إلى حساب مزادو في البنك الأهلي — للعضوية وللدفع بعد الفوز (خلال ٢٤ ساعة من الفوز).',
+    aEn: "CliQ to Mazzado's Al Ahli Bank account — for membership and for paying after a win (within 24 hours of winning).",
   },
 ];
 
@@ -205,8 +205,8 @@ export const HowItWorksView: React.FC = () => {
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <p className="text-[11px] text-emerald-800 font-semibold leading-relaxed">
             {isAr
-              ? 'كل المدفوعات عبر كليك إلى حساب مزادو في البنك العربي — مش للبائع مباشرة.'
-              : "All payments go via CliQ to Mazzado's Arab Bank account — never directly to the seller."}
+              ? 'كل المدفوعات عبر كليك إلى حساب مزادو في البنك الأهلي — مش للبائع مباشرة.'
+              : "All payments go via CliQ to Mazzado's Al Ahli Bank account — never directly to the seller."}
           </p>
         </motion.div>
 

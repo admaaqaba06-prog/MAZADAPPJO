@@ -446,7 +446,7 @@ export const AdminWalletConsole: React.FC<AdminWalletConsoleProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-fg-muted">{isAr ? 'البنك المستلم' : 'Deposit Bank'}:</span>
-                    <span className="font-mono uppercase font-black text-fg-muted">Arab Bank - MAZADJOM</span>
+                    <span className="font-mono uppercase font-black text-fg-muted">Al Ahli Bank - MAZADJOM</span>
                   </div>
                 </div>
 
