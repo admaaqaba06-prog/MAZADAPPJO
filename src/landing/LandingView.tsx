@@ -35,7 +35,8 @@ import {
   Star,
   Heart,
   Share2,
-  Flame
+  Flame,
+  Instagram
 } from "lucide-react";
 import { motion, useScroll, useInView, useSpring, AnimatePresence, useReducedMotion } from "motion/react";
 import { translations, TranslationType } from "./translations";
@@ -44,7 +45,7 @@ import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { priceLabel } from '../utils/bidLabels';
 import { categoryLabel } from '../utils/categoryLabel';
-import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL } from '../constants/support';
+import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL, SOCIAL_INSTAGRAM_URL } from '../constants/support';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
 import TermsModal from "../components/TermsModal";
@@ -3000,6 +3001,29 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 ? "ساعات العمل: 10 صباحاً – 7 مساءً · السبت إلى الخميس"
                 : "Working hours: 10 AM – 7 PM · Saturday to Thursday"}
             </span>
+
+            {/* Social. The URL is the CANONICAL profile — the link supplied
+                carried an `igsi=` parameter, which is a share-session token
+                Instagram appends when you tap Share in the app. It is not part
+                of the address, it identifies the share that produced the link,
+                and publishing it on every page would republish that token to
+                every visitor. The profile resolves identically without it.
+
+                44px target, matching the header controls; `noreferrer` so the
+                profile is not handed this site's referrer, and `aria-label`
+                because the icon carries no text. */}
+            <div className="pt-1 flex items-center justify-center">
+              <a
+                href={SOCIAL_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={lang === "ar" ? "مزادو على إنستغرام" : "MAZZADO on Instagram"}
+                title={lang === "ar" ? "مزادو على إنستغرام" : "MAZZADO on Instagram"}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-[#F05123]/40 hover:text-[#F05123]"
+              >
+                <Instagram className="h-[18px] w-[18px]" />
+              </a>
+            </div>
           </div>
 
           {/* The registered-entity line and the street address were REMOVED from

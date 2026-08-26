@@ -38,3 +38,19 @@ export const SUPPORT_PHONE_TEL = `tel:${SUPPORT_PHONE_E164}`;
  * silently fails to resolve a number that carries them.
  */
 export const SUPPORT_WHATSAPP_URL = `https://wa.me/${SUPPORT_PHONE_E164.replace(/\D/g, '')}`;
+
+/**
+ * The official Instagram profile.
+ *
+ * CANONICAL URL, deliberately. The link supplied carried an `igsi=` query
+ * parameter, which Instagram appends when a profile is shared from the app: it
+ * identifies the share that produced the link, not the profile. Publishing it
+ * on every page view would republish that token to every visitor, and the
+ * profile resolves identically without it.
+ *
+ * Here rather than in the footer component for the same reason the phone number
+ * is: the moment a second surface links to it — a share sheet, an email, a
+ * seller page — a hardcoded copy starts drifting.
+ */
+export const SOCIAL_INSTAGRAM_HANDLE = 'mazzadoofficial';
+export const SOCIAL_INSTAGRAM_URL = `https://www.instagram.com/${SOCIAL_INSTAGRAM_HANDLE}`;
