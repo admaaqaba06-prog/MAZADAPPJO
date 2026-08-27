@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ImageOff, Check, Gavel } from 'lucide-react';
-import type { LandingAuction } from '../useLandingAuctions';
+import { isAwaitingFirstLandingBid, type LandingAuction } from '../useLandingAuctions';
 import type { LandingHeroContent, LandingLanguage } from '../landingContent';
 import { categoryLabel } from '../../utils/categories';
 import { priceLabel } from '../../utils/bidLabels';
@@ -28,6 +28,12 @@ import { priceLabel } from '../../utils/bidLabels';
  * hero — not "when available" — and the first-bid badge plus its one-sentence
  * explanation take that space instead. A badge without the sentence is what
  * reads as broken.
+ *
+ * The first-bid rule itself is NOT decided here. This file briefly carried its
+ * own copy of it, which is how the hero and the auction cards would have come to
+ * describe the same lot differently; both now read
+ * `isAwaitingFirstLandingBid` from `useLandingAuctions`, and
+ * `landingAuctionShowcase.render.test.tsx` asserts they agree.
  */
 export interface LandingHeroProps {
   lang: LandingLanguage;
@@ -52,28 +58,6 @@ export interface LandingHeroProps {
   onSell: () => void;
   /** Must receive the rendered lot's OWN id. Never a default, never a fallback. */
   onAuctionView: (auctionId: string) => void;
-}
-
-/**
- * Whether this lot is still waiting for its first bid.
- *
- * `endTime` is checked for a FINITE POSITIVE number, not merely for
- * `typeof === 'number'`: a `first_bid` doc can carry `endTime: 0`, which
- * `isLiveNow` treats as clockless and curation therefore keeps. Read as a
- * timestamp, 0 is 1970 — the shape that ships a countdown reading "-56 years".
- *
- * DUPLICATED ON PURPOSE, briefly: Task 3 introduces
- * `isAwaitingFirstLandingBid` in `useLandingAuctions.ts` as the canonical
- * predicate for the auction cards. This must be replaced by that import as soon
- * as it exists — two copies of a rule about when to show a clock is exactly how
- * the hero and the cards end up disagreeing.
- */
-function awaitingFirstBid(auction: LandingAuction): boolean {
-  const hasClock =
-    typeof auction.endTime === 'number' &&
-    Number.isFinite(auction.endTime) &&
-    auction.endTime > 0;
-  return (auction.totalBids || 0) === 0 && !hasClock;
 }
 
 /**
@@ -159,7 +143,7 @@ function HeroAuctionPanel({
   isAr: boolean;
   onAuctionView: (auctionId: string) => void;
 }) {
-  const awaiting = awaitingFirstBid(auction);
+  const awaiting = isAwaitingFirstLandingBid(auction);
   const category = categoryLabel(auction.category, isAr);
 
   return (
