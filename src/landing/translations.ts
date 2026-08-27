@@ -1,10 +1,32 @@
+/**
+ * LEGACY landing copy, shrinking.
+ *
+ * The redesigned landing sections read `landingContent.ts` instead — typed per
+ * section, with every factual claim sourced against `content/auctionRules.ts`,
+ * `content/legalTerms.ts` and `constants/subscriptionTiers.ts`. What remains
+ * here is only what the not-yet-rewritten `LandingView.tsx` still renders; as
+ * each section moves across, its fields leave this file.
+ *
+ * ALREADY REMOVED, and not to be re-added: `nav.logo`, `nav.liveExp`, the hero
+ * simulator's labels (`liveBadge`, `verifiedSeller`, `carTitle`, `carDetails`,
+ * `currentPrice`, `bidBtn`, `features`, `seconds`, `minutes`), the whole
+ * `howItWorks` block, every `interactive` field except `bidLogYou`, the
+ * `comingSoon` countdown labels and `emptyRegistered`, and
+ * `marketplace.currentBid`. Each had already lost its last reader — several
+ * when the section that rendered it was deleted — and an unread translation
+ * field is worse than none: it still gets dutifully re-translated, reviewed as
+ * a live claim, and copied into the next redesign.
+ *
+ * Fields still here that the redesign will NOT carry over, because they are
+ * not measurements: `hero.proof` (`15,000+` buyers and friends) and the
+ * `comingSoon` local-storage-only adopter form. They go when their consumer
+ * does; `landingContent.test.ts` already forbids them on the new side.
+ */
 export interface TranslationType {
   dir: "rtl" | "ltr";
   langCode: "ar" | "en";
   nav: {
-    logo: string;
     whyUs: string;
-    liveExp: string;
     categories: string;
     comingSoon: string;
     pricing: string;
@@ -20,15 +42,6 @@ export interface TranslationType {
     ctaPrimary: string;
     ctaSecondary: string;
     proof: Array<{ value: string; label: string }>;
-    liveBadge: string;
-    verifiedSeller: string;
-    carTitle: string;
-    carDetails: string;
-    currentPrice: string;
-    bidBtn: string;
-    features: string[];
-    seconds: string;
-    minutes: string;
   };
   trust: {
     badge: string;
@@ -49,18 +62,7 @@ export interface TranslationType {
     smartPoints: string[];
   };
   interactive: {
-    title: string;
-    subtitle: string;
-    stats: Array<{ value: string; label: string }>;
-    simulationTitle: string;
-    competitionLevel: string;
-    participantsLabel: string;
-    bidButton: string;
-    secureBadge: string;
-    competitorsBadge: string;
-    autoExtendBadge: string;
     bidLogYou: string;
-    bidsTitle: string;
   };
   categories: {
     title: string;
@@ -71,21 +73,9 @@ export interface TranslationType {
       desc: string;
     }>;
   };
-  howItWorks: {
-    title: string;
-    subtitle: string;
-    steps: Array<{
-      title: string;
-      desc: string;
-    }>;
-  };
   comingSoon: {
     title: string;
     subtitle: string;
-    days: string;
-    hours: string;
-    minutes: string;
-    seconds: string;
     formTitle: string;
     formName: string;
     formContact: string;
@@ -95,7 +85,6 @@ export interface TranslationType {
     formErrorEmpty: string;
     experimentalNote: string;
     registeredTitle: string;
-    emptyRegistered: string;
   };
   faq: {
     title: string;
@@ -115,7 +104,7 @@ export interface TranslationType {
     rights: string;
   };
   marketplace: {
-    badge: string; title: string; subtitle: string; currentBid: string; bids: string;
+    badge: string; title: string; subtitle: string; bids: string;
     verified: string; endingSoon: string; beTheFirst: string; viewBtn: string; emptyTitle: string; emptyDesc: string;
     unavailableTitle: string; unavailableDesc: string;
     sellerCtaText: string; sellerCtaBtn: string;
@@ -131,9 +120,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     dir: "rtl",
     langCode: "ar",
     nav: {
-      logo: "🔨 Mazzado",
       whyUs: "لماذا مزادو؟",
-      liveExp: "تجربة مباشرة",
       categories: "الفئات",
       comingSoon: "ابدأ الآن",
       pricing: "اشتراكات",
@@ -155,15 +142,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         { value: "1,250+", label: "سلعة مُباعة" },
         { value: "3,400+", label: "سلعة معروضة" },
       ],
-      liveBadge: "مباشر الآن",
-      verifiedSeller: "✓ بائع موثق",
-      carTitle: "تويوتا كامري 2022",
-      carDetails: "صور حقيقية · عمّان · مزاد مميز",
-      currentPrice: "السعر الحالي",
-      bidBtn: "زايد الآن (+250 د.أ)",
-      features: ["🔒 دفع آمن", "🔥 منافسة حقيقية", "⏱ تمديد تلقائي للوقت"],
-      seconds: "ثانية",
-      minutes: "دقيقة",
     },
     trust: {
       badge: "الأمان والنزاهة",
@@ -211,23 +189,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
     },
     interactive: {
-      title: "تجربة تفاعلية",
-      subtitle: "جرّب المزاد الحي الآن.",
-      stats: [
-        { value: "%98", label: "تركيز على الثقة" },
-        { value: "3≤", label: "خطوات للمزايدة" },
-        { value: "7 أيام", label: "مزاد مقترح للسلعة" },
-        { value: "24/7", label: "تنبيهات ومتابعة" },
-      ],
-      simulationTitle: "محاكاة تفاعلية مباشرة لغرفة المزاد",
-      competitionLevel: "مستوى المنافسة الآن",
-      participantsLabel: "المزايدون المؤهلون",
-      bidButton: "زايد الآن (+250 د.أ)",
-      secureBadge: "🔒 مزايدة آمنة ومحمية",
-      competitorsBadge: "🔥 منافسة نشطة",
-      autoExtendBadge: "⏱ تمديد تلقائي للوقت",
       bidLogYou: "أنت (مزايد جديد)",
-      bidsTitle: "سجل المزايدة اللحظي",
     },
     categories: {
       title: "الفئات",
@@ -265,31 +227,9 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
       ],
     },
-    howItWorks: {
-      title: "كيف يعمل؟",
-      subtitle: "بساطة كاملة من الإعلان إلى الفوز.",
-      steps: [
-        {
-          title: "أنشئ مزادك",
-          desc: "ارفع الصور الحقيقية، حدد السعر الأدنى الذي تقبله، وأدرج سلعتك في دقائق معدودة.",
-        },
-        {
-          title: "نافس مباشرة",
-          desc: "تابع المزايدين يتنافسون بجدية وشفافية في الوقت الفعلي مع نظام إشعارات ذكي وتمديد تلقائي للوقت.",
-        },
-        {
-          title: "أغلق الصفقة",
-          desc: "بمجرد انتهاء الوقت لصالح المزايد الأعلى، نضمن لك الدفع الآمن ونرتب عملية نقل الملكية بكل سلاسة.",
-        },
-      ],
-    },
     comingSoon: {
       title: "الآن في الأردن",
       subtitle: "المزادات الحية انطلقت — جرّب المزاد الحي الآن.",
-      days: "يوم",
-      hours: "ساعة",
-      minutes: "دقيقة",
-      seconds: "ثانية",
       formTitle: "خلّيك على اطلاع — سجّل ليصلك جديد المزادات والقطع المميزة",
       formName: "الاسم الكامل (اختياري)",
       formContact: "البريد الإلكتروني أو رقم الهاتف الأردني (مثال: 079xxxxxxx)",
@@ -299,7 +239,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       formErrorEmpty: "يرجى ملء حقل الاتصال (البريد أو الهاتف)",
       experimentalNote: "ملاحظة: هذا النموذج تجريبي لأغراض العرض والبيانات تخزن محلياً في متصفحك.",
       registeredTitle: "قائمة المنضمين الأوائل محلياً",
-      emptyRegistered: "كن أول المنضمين في الأردن!",
     },
     faq: {
       title: "الأسئلة الشائعة",
@@ -344,7 +283,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       badge: "مباشر الآن",
       title: "مزادات مباشرة على مزادو الآن",
       subtitle: "سلع معروضة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
-      currentBid: "أعلى مزايدة",
       bids: "مزايدة",
       verified: "موثّقة",
       endingSoon: "ينتهي قريباً",
@@ -362,9 +300,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     dir: "ltr",
     langCode: "en",
     nav: {
-      logo: "🔨 Mazzado",
       whyUs: "Why Mazzado?",
-      liveExp: "Live Experience",
       categories: "Categories",
       comingSoon: "Start Now",
       pricing: "Subscriptions",
@@ -384,15 +320,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         { value: "1,250+", label: "items sold" },
         { value: "3,400+", label: "items listed" },
       ],
-      liveBadge: "Live Now",
-      verifiedSeller: "✓ Verified Seller",
-      carTitle: "Toyota Camry 2022",
-      carDetails: "Real Photos · Amman · Premium Auction",
-      currentPrice: "Current Price",
-      bidBtn: "Bid Now (+250 JOD)",
-      features: ["🔒 Secure Payment", "🔥 Real Competition", "⏱ Auto-Extension"],
-      seconds: "sec",
-      minutes: "min",
     },
     trust: {
       badge: "Trust & Integrity",
@@ -440,23 +367,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
     },
     interactive: {
-      title: "Interactive Experience",
-      subtitle: "The feel of a live auction — try it right now.",
-      stats: [
-        { value: "98%", label: "Focus on Trust" },
-        { value: "≤3", label: "Steps to Bid" },
-        { value: "7 Days", label: "Suggested Listing" },
-        { value: "24/7", label: "Alerts & Support" },
-      ],
-      simulationTitle: "Live Interactive Auction Room Simulator",
-      competitionLevel: "Competition Level Now",
-      participantsLabel: "Eligible Bidders",
-      bidButton: "Bid Now (+250 JOD)",
-      secureBadge: "🔒 Secure & Protected Bidding",
-      competitorsBadge: "🔥 Active Battle",
-      autoExtendBadge: "⏱ Auto-Time Extension",
       bidLogYou: "You (New Bidder)",
-      bidsTitle: "Instant Bid History",
     },
     categories: {
       title: "Categories",
@@ -494,31 +405,9 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
       ],
     },
-    howItWorks: {
-      title: "How It Works",
-      subtitle: "Complete simplicity from listing to winning.",
-      steps: [
-        {
-          title: "Create Your Auction",
-          desc: "Upload real pictures, set your reserve price, and list in minutes.",
-        },
-        {
-          title: "Compete Live",
-          desc: "Watch buyers bid in real-time with full transparency, smart mobile notifications, and automated anti-sniping extensions.",
-        },
-        {
-          title: "Close the Deal",
-          desc: "Once the timer ends on the highest bid, we secure payment and guide both parties through seamless ownership transfer.",
-        },
-      ],
-    },
     comingSoon: {
       title: "Now in Jordan",
       subtitle: "Live auctions are on — try the live auction now.",
-      days: "Days",
-      hours: "Hours",
-      minutes: "Min",
-      seconds: "Sec",
       formTitle: "Stay in the loop — get notified about new auctions and featured items",
       formName: "Full Name (Optional)",
       formContact: "Email or Jordanian Phone Number (e.g., 079xxxxxxx)",
@@ -528,7 +417,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       formErrorEmpty: "Please fill in the contact field (Email or Phone)",
       experimentalNote: "Note: This is a prototype form; data is saved locally in your browser's local storage.",
       registeredTitle: "Jordan's Early Adopters List",
-      emptyRegistered: "Be the first to join from Jordan!",
     },
     faq: {
       title: "Frequently Asked Questions (FAQ)",
@@ -573,7 +461,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       badge: "Live now",
       title: "Live on Mazzado right now",
       subtitle: "Items selling now — this is where your item shows up for buyers.",
-      currentBid: "Current bid",
       bids: "bids",
       verified: "Verified",
       endingSoon: "Ending soon",
