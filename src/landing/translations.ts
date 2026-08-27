@@ -1,11 +1,11 @@
 /**
- * LEGACY landing copy, shrinking.
+ * LEGACY landing copy. Nothing reads it.
  *
- * The redesigned landing sections read `landingContent.ts` instead — typed per
- * section, with every factual claim sourced against `content/auctionRules.ts`,
- * `content/legalTerms.ts` and `constants/subscriptionTiers.ts`. What remains
- * here is only what the not-yet-rewritten `LandingView.tsx` still renders; as
- * each section moves across, its fields leave this file.
+ * The landing page reads `landingContent.ts` — typed per section, with every
+ * factual claim sourced against `content/auctionRules.ts`,
+ * `content/legalTerms.ts` and `constants/subscriptionTiers.ts`. This file was
+ * emptied field by field as each section moved across; the fields below are the
+ * remainder, kept only for the reason in the last paragraph.
  *
  * ALREADY REMOVED, and not to be re-added: `nav.logo`, `nav.liveExp`, the hero
  * simulator's labels (`liveBadge`, `verifiedSeller`, `carTitle`, `carDetails`,
@@ -17,10 +17,18 @@
  * field is worse than none: it still gets dutifully re-translated, reviewed as
  * a live claim, and copied into the next redesign.
  *
- * Fields still here that the redesign will NOT carry over, because they are
- * not measurements: `hero.proof` (`15,000+` buyers and friends) and the
- * `comingSoon` local-storage-only adopter form. They go when their consumer
- * does; `landingContent.test.ts` already forbids them on the new side.
+ * NOW ALSO GONE, with the page that rendered them: `hero.proof` — the
+ * `15,000+ buyers` / `1,250+ items sold` / `3,400+ items listed` figures, none
+ * of which was ever measured — and the whole `comingSoon` block, which was a
+ * local-storage-only "early adopter" form seeded with invented signups. It
+ * recorded nothing and reached nobody. `nav.comingSoon` went with its anchor.
+ *
+ * WHAT IS LEFT IS UNRENDERED. The redesign reads `landingContent.ts`, so nothing
+ * in this file reaches a screen any more; it survives only because
+ * `utils/depositFraming.test.ts` scans it for deposit-to-bid phrasing. That scan
+ * should be retargeted at `landingContent.ts` — the copy that actually ships —
+ * and this file deleted. Flagged rather than done here: retargeting a test that
+ * guards a different concern is a separate change.
  */
 export interface TranslationType {
   dir: "rtl" | "ltr";
@@ -28,7 +36,6 @@ export interface TranslationType {
   nav: {
     whyUs: string;
     categories: string;
-    comingSoon: string;
     pricing: string;
     reserveBtn: string;
     langBtn: string;
@@ -41,7 +48,6 @@ export interface TranslationType {
     desc: string;
     ctaPrimary: string;
     ctaSecondary: string;
-    proof: Array<{ value: string; label: string }>;
   };
   trust: {
     badge: string;
@@ -72,19 +78,6 @@ export interface TranslationType {
       title: string;
       desc: string;
     }>;
-  };
-  comingSoon: {
-    title: string;
-    subtitle: string;
-    formTitle: string;
-    formName: string;
-    formContact: string;
-    formSubmit: string;
-    formSuccess: string;
-    formErrorEmailPhone: string;
-    formErrorEmpty: string;
-    experimentalNote: string;
-    registeredTitle: string;
   };
   faq: {
     title: string;
@@ -122,7 +115,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     nav: {
       whyUs: "لماذا مزادو؟",
       categories: "الفئات",
-      comingSoon: "ابدأ الآن",
       pricing: "اشتراكات",
       reserveBtn: "تواصل معنا",
       langBtn: "English",
@@ -137,11 +129,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       desc: "اعرض منتجك وبِعه خلال 15 دقيقة، واكتشف أفضل الصفقات بأقل الأسعار.",
       ctaPrimary: "اعرض سلعتك للبيع",
       ctaSecondary: "تصفّح المزادات المباشرة",
-      proof: [
-        { value: "15,000+", label: "مشترٍ" },
-        { value: "1,250+", label: "سلعة مُباعة" },
-        { value: "3,400+", label: "سلعة معروضة" },
-      ],
     },
     trust: {
       badge: "الأمان والنزاهة",
@@ -227,19 +214,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
       ],
     },
-    comingSoon: {
-      title: "الآن في الأردن",
-      subtitle: "المزادات الحية انطلقت — جرّب المزاد الحي الآن.",
-      formTitle: "خلّيك على اطلاع — سجّل ليصلك جديد المزادات والقطع المميزة",
-      formName: "الاسم الكامل (اختياري)",
-      formContact: "البريد الإلكتروني أو رقم الهاتف الأردني (مثال: 079xxxxxxx)",
-      formSubmit: "أبقني على اطلاع",
-      formSuccess: "تم التسجيل بنجاح! سنرسل لك جديد المزادات والقطع المميزة 🎉",
-      formErrorEmailPhone: "يرجى إدخال بريد إلكتروني صحيح أو رقم هاتف أردني صالح (مثل 079، 078، 077)",
-      formErrorEmpty: "يرجى ملء حقل الاتصال (البريد أو الهاتف)",
-      experimentalNote: "ملاحظة: هذا النموذج تجريبي لأغراض العرض والبيانات تخزن محلياً في متصفحك.",
-      registeredTitle: "قائمة المنضمين الأوائل محلياً",
-    },
     faq: {
       title: "الأسئلة الشائعة",
       subtitle: "كل ما تود معرفته عن الاشتراك، المشاركة، العمولات، والضمانات في Mazzado",
@@ -302,7 +276,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     nav: {
       whyUs: "Why Mazzado?",
       categories: "Categories",
-      comingSoon: "Start Now",
       pricing: "Subscriptions",
       reserveBtn: "Contact Us",
       langBtn: "العربية",
@@ -315,11 +288,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       desc: "List your item and sell it within 15 minutes — and find the best deals at the lowest prices.",
       ctaPrimary: "List your item",
       ctaSecondary: "Browse live auctions",
-      proof: [
-        { value: "15,000+", label: "buyers" },
-        { value: "1,250+", label: "items sold" },
-        { value: "3,400+", label: "items listed" },
-      ],
     },
     trust: {
       badge: "Trust & Integrity",
@@ -404,19 +372,6 @@ export const translations: Record<"ar" | "en", TranslationType> = {
           desc: "Legally registered elite license plates and VIP telephone numbers.",
         },
       ],
-    },
-    comingSoon: {
-      title: "Now in Jordan",
-      subtitle: "Live auctions are on — try the live auction now.",
-      formTitle: "Stay in the loop — get notified about new auctions and featured items",
-      formName: "Full Name (Optional)",
-      formContact: "Email or Jordanian Phone Number (e.g., 079xxxxxxx)",
-      formSubmit: "Keep Me Posted",
-      formSuccess: "Registered successfully! We'll keep you posted on new auctions 🎉",
-      formErrorEmailPhone: "Please enter a valid email or active Jordanian phone number (079, 078, 077)",
-      formErrorEmpty: "Please fill in the contact field (Email or Phone)",
-      experimentalNote: "Note: This is a prototype form; data is saved locally in your browser's local storage.",
-      registeredTitle: "Jordan's Early Adopters List",
     },
     faq: {
       title: "Frequently Asked Questions (FAQ)",

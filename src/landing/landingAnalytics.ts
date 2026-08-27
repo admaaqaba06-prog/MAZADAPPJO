@@ -15,6 +15,23 @@ export type LandingEventName =
   | 'seller_form_started'
   | 'seller_form_submitted';
 
+/**
+ * The approved placement values for a landing funnel event.
+ *
+ * A UNION rather than a free string, because placement is the dimension every
+ * rate on this page is sliced by and a typo produces a silently separate
+ * bucket. The page this replaces emitted eleven: `nav`, `mobile_menu`, `hero`,
+ * `marketplace`, `marketplace_error`, `marketplace_empty`, `pricing`,
+ * `coming_soon`, `final`, `final_secondary` and `sticky` — several naming a
+ * section that no longer exists, and `final` / `final_secondary` splitting one
+ * button pair across two buckets for no analytical reason.
+ *
+ * Adding a value here is a measurement decision: it changes what every
+ * conversion rate is computed over, so it belongs in a review rather than in a
+ * component.
+ */
+export type LandingPlacement = 'nav' | 'hero' | 'marketplace' | 'seller' | 'final';
+
 export interface LandingEventPayload {
   event: LandingEventName;
   params: Record<string, string | number | boolean>;

@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { persistLanguagePreference } from '../utils/languagePersistence';
+import { getInitialLandingLanguage } from '../landing/landingContent';
 
 const SRC = readFileSync(new URL('./AppContext.tsx', import.meta.url), 'utf8');
 const LANDING = readFileSync(new URL('../landing/LandingView.tsx', import.meta.url), 'utf8');
@@ -227,10 +228,18 @@ describe('setLanguage still switches the UI locally', () => {
   });
 
   it('still writes the same localStorage key the landing page reads', () => {
-    // LandingView reads this key directly; renaming it silently strands the
-    // pre-login language choice.
+    // Renaming this key silently strands the pre-login language choice.
     expect(BODY).toMatch(/localStorage\.setItem\('mazad_language',\s*lang\)/);
-    expect(LANDING).toMatch(/localStorage\.getItem\('mazad_language'\)/);
+    // The landing page's READ moved out of an inline `useState` initialiser and
+    // into `getInitialLandingLanguage`, which is unit-tested directly in
+    // landing/landingContent.test.ts (Arabic default, saved 'en' honoured, junk
+    // treated as Arabic, and a throwing storage caught). Pinning the same key
+    // at its new home rather than dropping the assertion — and behaviourally,
+    // not by source text: this CALLS the helper the landing shell uses.
+    expect(LANDING).toMatch(/getInitialLandingLanguage\(/);
+    expect(getInitialLandingLanguage({ getItem: (k: string) => (k === 'mazad_language' ? 'en' : null) }))
+      .toBe('en');
+    expect(getInitialLandingLanguage({ getItem: () => null })).toBe('ar');
   });
 
   it('does both BEFORE touching the network', () => {
@@ -329,7 +338,9 @@ describe("the landing page's own toggle persists too", () => {
     // email in the language they had before — the exact defect this branch exists
     // to remove.
     expect(TOGGLE).toMatch(/setLanguage\(next\)/);
-    expect(stripComments(LANDING)).toMatch(/import \{ useApp \} from "\.\.\/context\/AppContext";/);
+    expect(stripComments(LANDING)).toMatch(
+      /import \{ useApp \} from ['"]\.\.\/context\/AppContext['"]/
+    );
     expect(stripComments(LANDING)).toMatch(/const \{ setLanguage \} = useApp\(\);/);
   });
 
