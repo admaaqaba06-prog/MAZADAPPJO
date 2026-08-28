@@ -7,12 +7,26 @@ import { describe, it, expect } from 'vitest';
 import { resolveAuthDomain, FALLBACK_AUTH_DOMAIN } from './authDomain';
 
 describe('resolveAuthDomain — follows the visitor', () => {
-  it('uses the current host for every domain that serves the handler', () => {
-    // Verified against production: /__/auth/handler returns 200 on all of these,
-    // and all are in the project's authorized-domains list.
-    for (const h of ['mazzado.com', 'www.mazzado.com', 'mazadjoapp.web.app', 'localhost']) {
+  it('uses the current host for every host that can complete the handshake', () => {
+    // "Serves the handler" is NOT the test — that was the mistake that took
+    // Google sign-in down. A host must also be an authorized domain AND have
+    // https://{host}/__/auth/handler registered as a redirect URI on the OAuth
+    // client. These are verified on all three counts; see docs/DEPLOY.md.
+    for (const h of ['mazzado.com', 'www.mazzado.com', 'localhost']) {
       expect(resolveAuthDomain(h), h).toBe(h);
     }
+  });
+
+  it('sends mazadjoapp.web.app to the fallback — it serves the handler but is not registered', () => {
+    // The trap in one case. Hosting answers 200 on this host and it IS an
+    // authorized domain, so by the old two-part reasoning it belonged in the
+    // list. Google rejects the handshake anyway, because Firebase registers the
+    // .firebaseapp.com redirect URI and not the .web.app one. Echoing it back
+    // gave "Access blocked" to every visitor who arrived there.
+    expect(resolveAuthDomain('mazadjoapp.web.app')).toBe(FALLBACK_AUTH_DOMAIN);
+    // The fallback is the same Firebase project and IS registered, so sign-in
+    // completes — just with Firebase's hostname on the consent screen.
+    expect(FALLBACK_AUTH_DOMAIN).toBe('mazadjoapp.firebaseapp.com');
   });
 
   it('keeps the apex on the apex — the exact case that was broken', () => {
