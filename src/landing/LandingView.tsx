@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import TermsModal from "../components/TermsModal";
 import AuctionRulesModal from "../components/AuctionRulesModal";
@@ -39,7 +39,17 @@ import { LandingFooter } from "./components/LandingFooter";
  *   3. CALLBACKS. Every CTA emits its event and THEN navigates, from one place,
  *      so a placement cannot be mislabelled section by section.
  *   4. LEGAL MODALS. Terms and rules are page-level surfaces.
- *   5. IN-PAGE SCROLLING, by delegation — see `onRootClick`.
+ *
+ * IN-PAGE SCROLLING IS NOT ONE OF THEM, deliberately. This file used to
+ * intercept anchor clicks, measure the header and drive
+ * `window.scrollTo({behavior:'smooth'})` after `preventDefault()`. A browser
+ * review measured that turning section links into DEAD LINKS: where smooth
+ * scrolling is unavailable the scroll silently did nothing, while
+ * `preventDefault` had already suppressed the browser's own jump — the hash
+ * changed and the page never moved. It is now the browser's job, with
+ * `scroll-margin-top` on `.landing-root section[id]` (see index.css) supplying
+ * the offset. Native Back/Forward, no measurement, no reduced-motion special
+ * case, and nothing that can fail open.
  *
  * Nothing here renders a price, a claim or a countdown.
  */
@@ -50,12 +60,6 @@ export interface LandingViewProps {
   onOpenAuction: (auctionId: string) => void;
   whatsappUrl?: string;
 }
-
-/**
- * Breathing room between the sticky header and the heading it scrolls to.
- * A reviewable constant rather than a magic number inside the scroll maths.
- */
-const SECTION_TOP_GAP = 16;
 
 /**
  * `localStorage`, or `null` where it cannot be reached.
@@ -96,8 +100,6 @@ export default function LandingView({
 
   const [isTermsOpen, setIsTermsOpen] = useState<boolean>(false);
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
-
-  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     emitLandingEvent('landing_viewed', { lang });
@@ -160,88 +162,8 @@ export default function LandingView({
 
   const openRules = () => setIsRulesOpen(true);
 
-  /**
-   * How much of the viewport the header actually covers on arrival.
-   *
-   * MEASURED, never assumed. The header is `position: sticky; top: 0`, and
-   * whether it sticks at all depends on its ancestors: an ancestor that
-   * establishes a scrollport becomes the sticky element's container, and the
-   * header then scrolls away and covers nothing — subtracting its height anyway
-   * would drop every section that far too low.
-   *
-   * `clip` is NOT such an ancestor, and that distinction is load-bearing here.
-   * The root carries `overflow-x-clip`, which per spec clips WITHOUT creating a
-   * scroll container, so the header does stick and its height must be
-   * subtracted. The previous version of this check treated any non-`visible`
-   * overflow as a scrollport, which was correct when the root carried
-   * `overflow-hidden` and became wrong the moment that was fixed.
-   */
-  const headerOverlap = (): number => {
-    // The REAL <header>, found in the tree rather than held in a ref. A ref on a
-    // wrapper around <LandingHeader/> measured the wrapper: it needed
-    // `display: contents` to stay out of the layout, which makes its own
-    // `position` `static`, so this returned 0 unconditionally and every section
-    // landed one header-height too high — under the header, which is the exact
-    // defect the offset exists to prevent.
-    const header = rootRef.current?.querySelector('header');
-    if (!header || typeof window === "undefined") return 0;
-    const position = window.getComputedStyle(header).position;
-    if (position === "fixed") return header.getBoundingClientRect().height;
-    if (position !== "sticky") return 0;
-    const scrolls = (v: string) => v !== "visible" && v !== "clip";
-    for (let el = header.parentElement; el && el !== document.documentElement; el = el.parentElement) {
-      const style = window.getComputedStyle(el);
-      if (scrolls(style.overflowY) || scrolls(style.overflowX)) return 0;
-    }
-    return header.getBoundingClientRect().height;
-  };
-
-  /** Scroll to a section by id. Returns false when no such section exists. */
-  const scrollToSection = (id: string): boolean => {
-    if (typeof document === "undefined") return false;
-    const target = document.getElementById(id);
-    if (!target) return false;
-    const top =
-      target.getBoundingClientRect().top + window.scrollY - headerOverlap() - SECTION_TOP_GAP;
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    // pushState rather than assigning `location.hash`: assigning it makes the
-    // browser perform its own INSTANT jump on top of the smooth scroll, which is
-    // the jitter this function exists to remove. pushState still records the
-    // history entry, so Back returns the visitor where they came from.
-    if (window.location.hash !== `#${id}`) {
-      window.history.pushState(window.history.state, '', `#${id}`);
-    }
-    return true;
-  };
-
-  /**
-   * In-page anchors, handled by DELEGATION on the root.
-   *
-   * The links themselves live in `LandingHeader` (desktop row and mobile panel)
-   * and stay plain `<a href="#id">` — focusable, announced as links,
-   * middle-clickable, and working with JavaScript off. Handling them here rather
-   * than wiring a callback into each one means a link added to any section is
-   * covered automatically; the arrangement this replaces asserted that all nine
-   * anchors individually called the handler, which is a contract that only holds
-   * until someone adds a tenth.
-   *
-   * Modified and non-primary clicks are left entirely to the browser, so
-   * cmd/ctrl-click still opens a new tab.
-   */
-  const onRootClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.defaultPrevented || e.button !== 0) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const anchor = (e.target as HTMLElement | null)?.closest?.('a[href^="#"]');
-    if (!anchor) return;
-    const id = anchor.getAttribute('href')?.slice(1);
-    if (!id) return;
-    if (scrollToSection(id)) e.preventDefault();
-  };
-
   return (
     <div
-      ref={rootRef}
-      onClick={onRootClick}
       dir={content.dir}
       className="min-h-screen font-sans bg-surface text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-x-clip"
     >

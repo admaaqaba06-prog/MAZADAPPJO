@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { LandingAuction } from '../useLandingAuctions';
 import { landingContent } from '../landingContent';
@@ -259,5 +260,206 @@ describe('LandingHeader', () => {
 
   it('keeps a browse action in the header for the primary funnel', () => {
     expect(header()).toContain(AR.nav.browseCta);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The 320px header contract.
+//
+// Found at 320x700 in Arabic RTL during the rendered review: the language
+// control was clipped at the inline edge and the menu button was entirely
+// off-screen and unreachable, while `documentElement.scrollWidth` still read
+// 320 — the row was OVERFLOWING and the landing root's `overflow-x-clip` was
+// clipping it rather than letting it scroll.
+//
+// The arithmetic behind it: the MAZZADO lockup is 600x127, so at `h-8` it is
+// 151px wide, and 320px minus `px-4` leaves 288px for that lockup plus the
+// theme, language and menu controls.
+//
+// Layout cannot be measured here — vitest runs `environment: 'node'`, there is
+// no jsdom and no browser. So these assert the STRUCTURAL invariants that make
+// the overflow impossible, each one a thing whose removal would bring the defect
+// back. The visual confirmation is a browser row in
+// docs/verification/landing-conversion-redesign.md.
+// ---------------------------------------------------------------------------
+const HEADER_SRC = readFileSync(new URL('./LandingHeader.tsx', import.meta.url), 'utf8');
+const LOGO_SRC = readFileSync(new URL('./Logo.tsx', import.meta.url), 'utf8');
+const CSS_SRC = readFileSync(new URL('../../index.css', import.meta.url), 'utf8');
+
+describe('the header fits a 320px screen', () => {
+  it('defines every responsive variant it uses', () => {
+    // THE ASSERTION THAT MATTERS MOST. Tailwind's smallest default breakpoint is
+    // `sm` at 640px; `xs` is a project addition. An undefined variant emits NO
+    // CSS AT ALL, so every `xs:` class in the header would silently do nothing
+    // and the 320px fix would be inert while still looking correct in review.
+    const variants = new Set(
+      [...HEADER_SRC.matchAll(/(?<![\w-])([a-z]{2,4}):[a-z[]/g)].map(m => m[1])
+    );
+    // Only the width variants are breakpoints; the rest are state variants.
+    const BREAKPOINTS = ['xs', 'sm', 'md', 'lg', 'xl'];
+    const TAILWIND_DEFAULTS = ['sm', 'md', 'lg', 'xl'];
+    for (const v of variants) {
+      if (!BREAKPOINTS.includes(v) || TAILWIND_DEFAULTS.includes(v)) continue;
+      expect(CSS_SRC, `the header uses \`${v}:\` but no --breakpoint-${v} is defined`)
+        .toMatch(new RegExp(`--breakpoint-${v}:\\s*\\d`));
+    }
+    // And the one it relies on is really there.
+    expect(CSS_SRC).toMatch(/--breakpoint-xs:\s*360px/);
+  });
+
+  it('lets the brand give up width, and nothing else', () => {
+    // The width-independent half of the fix: the control cluster is `shrink-0`,
+    // so the flex algorithm can only take space from the lockup. Reversing this
+    // is what allows a control to be pushed out of the row.
+    expect(HEADER_SRC).toMatch(/className="flex shrink-0 items-center/);
+    // The brand button opts IN to shrinking, so it must not be `shrink-0`.
+    // Asserted on the className TOKENS, not on the surrounding source: the
+    // comment beside it explains why `shrink-0` is absent, and a substring
+    // search finds the word in that explanation.
+    const brandStart = HEADER_SRC.indexOf('aria-label={copy.brandLabel}');
+    expect(brandStart, 'the brand button was not found').toBeGreaterThan(-1);
+    const brandClass = /className="([^"]*)"/.exec(HEADER_SRC.slice(brandStart))?.[1];
+    expect(brandClass, 'the brand button has no className').toBeTruthy();
+    const tokens = brandClass!.split(/\s+/);
+    expect(tokens).toContain('min-w-0');
+    expect(tokens).not.toContain('shrink-0');
+  });
+
+  it('caps the lockup below xs and lets it scale rather than overflow', () => {
+    expect(HEADER_SRC).toMatch(/<Logo className="h-8 max-w-\[\d+px\] xs:max-w-none" \/>/);
+    // Without `max-w-full` on the img, `w-auto` keeps the natural 151px and
+    // overflows the capped span instead of scaling inside it — so the cap above
+    // would have no effect.
+    expect(LOGO_SRC).toMatch(/className="h-full w-auto max-w-full object-contain"/);
+  });
+
+  it('keeps the menu button present at every width', () => {
+    // It is the ONLY route to the section links and the browse CTA below `lg`,
+    // so a `hidden` variant on it strands the whole mobile navigation — which is
+    // what being pushed off-screen amounted to.
+    const menuStart = HEADER_SRC.indexOf('aria-expanded={open}');
+    expect(menuStart, 'the menu button was not found').toBeGreaterThan(-1);
+    const menuClass = /className=\{`\$\{iconButtonClass\} ([^`]*)`\}/
+      .exec(HEADER_SRC.slice(menuStart))?.[1];
+    expect(menuClass, 'the menu button has no className').toBeTruthy();
+    const menuTokens = menuClass!.split(/\s+/);
+    // `lg:hidden` is correct — above `lg` the desktop nav replaces it. A bare
+    // `hidden`, or any smaller breakpoint variant, would strand the mobile menu.
+    expect(menuTokens).toContain('lg:hidden');
+    expect(menuTokens).not.toContain('hidden');
+    for (const bp of ['xs', 'sm', 'md']) {
+      expect(menuTokens, `menu must not be hidden at ${bp}`).not.toContain(`${bp}:hidden`);
+    }
+  });
+
+  it('keeps the language control labelled when it collapses to an icon', () => {
+    // Below `xs` the visible text is hidden, so without `aria-label` the control
+    // becomes an unnamed button.
+    const html = header();
+    expect(html).toContain(`aria-label="${AR.nav.languageToggle}"`);
+    expect(HEADER_SRC).toMatch(/<span className="hidden xs:inline">\{copy\.languageToggle\}<\/span>/);
+    expect(HEADER_SRC).toMatch(/className="w-4 h-4 xs:hidden"/);
+  });
+
+  it('tightens padding and gaps below xs, and restores them above', () => {
+    // The measured ~30px that turns "just fits" into "fits comfortably".
+    expect(HEADER_SRC).toContain('px-3 xs:px-4 sm:px-6');
+    expect(HEADER_SRC).toContain('gap-2 xs:gap-3');
+    expect(HEADER_SRC).toContain('gap-1.5 xs:gap-2');
+  });
+
+  it('still renders every narrow-width control in the markup', () => {
+    // Belt and braces: whatever the CSS does, the brand, the language control
+    // and the menu button must all exist to be tappable at 320px.
+    const html = header();
+    expect(html).toContain(`aria-label="${AR.nav.brandLabel}"`);
+    expect(html).toContain(`aria-label="${AR.nav.languageToggle}"`);
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain(AR.nav.menuOpenLabel);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Why the 320px result generalises across theme and direction.
+//
+// The 320px defect (D1) was fixed and confirmed at a true 320x700 viewport in
+// Arabic RTL light. The other three 320px cells — Arabic dark, English light,
+// English dark — were not separately observed. Rather than assume they follow,
+// this proves it: the header's SIZING and LAYOUT carry no theme-conditional and
+// no direction-conditional variant, so no theme or direction can change what
+// fits in the row. Colour variants are irrelevant to overflow and are ignored.
+// ---------------------------------------------------------------------------
+describe('the header layout is independent of theme and direction', () => {
+  /** Class tokens that affect how much horizontal room something takes. */
+  const LAYOUT = /^(w-|max-w-|min-w-|px-|pe-|ps-|pl-|pr-|p-|gap-|mx-|ms-|me-|ml-|mr-|basis-|flex-|shrink|grow|hidden$|inline|block|text-\[|text-(xs|sm|base|lg|xl))/;
+
+  const classAttrs = [...HEADER_SRC.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)]
+    .map(m => m[1] ?? m[2]);
+
+  it('finds the header class lists to inspect', () => {
+    expect(classAttrs.length).toBeGreaterThan(4);
+  });
+
+  it('gates no layout class on the theme', () => {
+    // A `dark:` variant on a width, a gap or a padding would make the dark
+    // header a different size from the light one, and the 320px budget would
+    // hold for only one of them.
+    const offenders = classAttrs
+      .flatMap(a => a.split(/\s+/))
+      .filter(t => t.startsWith('dark:'))
+      .filter(t => LAYOUT.test(t.slice(5)));
+    expect(offenders, 'theme-conditional layout in the header').toEqual([]);
+  });
+
+  it('gates no layout class on the reading direction', () => {
+    // `rtl:`/`ltr:` variants on sizing would do the same across languages.
+    // Logical properties (`ms-`, `pe-`, `start-`) are the correct tool and are
+    // direction-aware WITHOUT a variant, so they are not offenders.
+    const offenders = classAttrs
+      .flatMap(a => a.split(/\s+/))
+      .filter(t => t.startsWith('rtl:') || t.startsWith('ltr:'));
+    expect(offenders, 'direction-conditional classes in the header').toEqual([]);
+  });
+
+  it('sizes the language control identically in both languages', () => {
+    // The control renders `copy.languageToggle`, whose two values differ in
+    // length ("English" vs "العربية"). Below `xs` it collapses to a fixed-size
+    // icon button, so the narrow-width budget cannot depend on which language
+    // is active — which is the specific reason 320 EN and 320 AR behave alike.
+    expect(HEADER_SRC).toMatch(/h-9 w-9 xs:h-auto xs:w-auto/);
+    expect(HEADER_SRC).toMatch(/className="w-4 h-4 xs:hidden"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reduced motion, verified against the stylesheet rather than an OS setting.
+// ---------------------------------------------------------------------------
+describe('every landing animation stops under reduced motion', () => {
+  /** Animation-bearing rules the landing page owns. */
+  const landingAnimations = [...CSS_SRC.matchAll(/\.landing-[\w-]*\s*\{[^}]*animation:[^;}]*/g)]
+    .map(m => m[0]);
+
+  it('has landing animations to check', () => {
+    expect(landingAnimations.length).toBeGreaterThan(0);
+  });
+
+  it('disables each of them inside a prefers-reduced-motion block', () => {
+    const reduced = CSS_SRC.slice(CSS_SRC.indexOf('@media (prefers-reduced-motion: reduce)'));
+    for (const rule of landingAnimations) {
+      const cls = /\.(landing-[\w-]*)/.exec(rule)?.[1];
+      expect(cls, `could not read the class from: ${rule}`).toBeTruthy();
+      expect(
+        reduced,
+        `.${cls} animates but is never disabled under prefers-reduced-motion`
+      ).toMatch(new RegExp(`\\.${cls}[^}]*\\{[^}]*animation:\\s*none`));
+    }
+  });
+
+  it('keeps the hero entrance gated on the motion preference', () => {
+    // The hero is the only component-level animation; it must render its final
+    // state directly rather than animate to it quickly.
+    const hero = readFileSync(new URL('./LandingHero.tsx', import.meta.url), 'utf8');
+    expect(hero).toContain('useReducedMotion');
+    expect(hero).toMatch(/reduce\s*\?\s*\{\}/);
   });
 });

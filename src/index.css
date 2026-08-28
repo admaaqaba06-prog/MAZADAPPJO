@@ -8,6 +8,20 @@
   --font-alexandria: "Alexandria", sans-serif;
   --font-ibmarabic: "IBM Plex Sans Arabic", sans-serif;
   --font-inter: "Inter", sans-serif;
+
+  /* The narrow-phone breakpoint, 320-359px.
+     Tailwind's smallest default is `sm` at 640px, which left no way to treat a
+     320px screen differently from a 480px one — and 320 is a real device width
+     the spec requires. The landing header needs it: the MAZZADO lockup is
+     600x127, so at `h-8` it is 151px wide, and at 320px with `px-4` there are
+     only 288px for the lockup, the theme control, the language control and the
+     menu button together. The row overflowed and the root's `overflow-x-clip`
+     CLIPPED it rather than scrolling, so the language control was cut off at
+     the inline end and the menu button was pushed off-screen entirely —
+     unreachable, with `documentElement.scrollWidth` still reading 320.
+     Found at 320x700 in Arabic RTL during the rendered review.
+     360 rather than 384 so that 375 and 390 keep the layout they already had. */
+  --breakpoint-xs: 360px;
   --color-ink: #0A0A0A;
   --color-ink-soft: #4B4B4B;
   --color-orange: #F05123;
@@ -162,6 +176,36 @@ html:not([data-theme='dark']) .landing-root {
   --color-surface-sunken: #F4EAE1;
   /* Warmed hairline. Neutral #E5E5E5 reads cold and slightly blue on cream. */
   --color-border: #ECDDD1;
+}
+
+/* ============================================================================
+   Fragment navigation lands the section BELOW the sticky header.
+
+   THE HEADER COVERS THE TOP OF THE VIEWPORT. Without this, `#pricing` scrolls
+   the section flush to the viewport top and the sticky header sits over its
+   heading — the original defect the section links were built to solve.
+
+   WHY CSS AND NOT JAVASCRIPT. This replaces a `preventDefault()` +
+   `window.scrollTo({behavior:'smooth'})` handler, which was measured turning
+   section links into DEAD LINKS: on a browser where smooth scrolling is
+   unavailable the scroll silently did nothing while `preventDefault` had already
+   suppressed the browser's own jump, so the hash changed and the page never
+   moved. `scroll-margin-top` cannot fail that way — there is nothing to
+   suppress. It also restores native Back/Forward, honours the reader's own
+   `scroll-behavior` and reduced-motion preference, and works before the
+   JavaScript has loaded at all.
+
+   `section[id]`, so it applies to every anchored section automatically. The
+   arrangement it replaces required each link to be wired by hand, which is a
+   contract that holds only until someone adds one and forgets.
+
+   The value tracks the header: `h-16` (4rem) plus a 1rem gap.
+   `landingSectionNav.wiring.test.ts` asserts the header is still `h-16`, so
+   changing that height fails a test that points here rather than silently
+   drifting.
+   ========================================================================== */
+.landing-root section[id] {
+  scroll-margin-top: calc(4rem + 1rem);
 }
 
 /* Loading placeholder. A slow opacity pulse — NOT a travelling shimmer, which

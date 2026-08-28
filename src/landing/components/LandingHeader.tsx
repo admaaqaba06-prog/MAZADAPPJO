@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, X, MessageCircle } from 'lucide-react';
+import { Menu, X, MessageCircle, Languages } from 'lucide-react';
 import { Logo } from './Logo';
 import ThemeToggle from '../../components/ui/ThemeToggle';
 import type { LandingLanguage, LandingNavContent } from '../landingContent';
@@ -26,6 +26,32 @@ import type { LandingLanguage, LandingNavContent } from '../landingContent';
  * Menu state is local. Nothing above this component needs to know whether a
  * mobile menu is open, and the panel stays mounted (toggled with `hidden`) so
  * `aria-controls` always points at an element that exists.
+ *
+ * THE 320px CONTRACT. The MAZZADO lockup is 600x127, so at `h-8` it is 151px
+ * wide — over half of the 288px a 320px screen leaves after `px-4`. With the
+ * theme control, the language control and the menu button beside it the row
+ * overflowed, and because the landing root carries `overflow-x-clip` the
+ * overflow was CLIPPED rather than scrolled: the language control was cut off at
+ * the inline end and the menu button was off-screen and unreachable, while
+ * `documentElement.scrollWidth` still read 320. Found at 320x700 in Arabic RTL.
+ *
+ * Two independent mechanisms now hold, so the row cannot overflow again:
+ *
+ *   1. THE BRAND YIELDS FIRST. It is the only shrinkable item; the control
+ *      cluster is `shrink-0`. The lockup gives up width (scaling down under
+ *      `object-contain`, never distorting) so every control keeps its size. This
+ *      is width-independent — it holds at any viewport, not just the ones tested.
+ *   2. THE CLUSTER IS NARROWER BELOW `xs`. The language control drops to an
+ *      icon, keeping its accessible name; padding and gaps tighten. That buys
+ *      roughly 30px, which is what turns "just fits" into "fits comfortably".
+ *
+ * `xs` is 360px, so 375 and 390 keep exactly the layout they already had.
+ *
+ * SUPPORT stays `hidden sm:inline-flex`, and that is a decision rather than an
+ * oversight. Making it visible below `sm` fitted at 320 but pushed 360-639 into
+ * overflow — the widths this fix exists to preserve. Below `sm` the support
+ * route is the mobile panel, which renders it as a full-width link and is now
+ * reachable, because the button that opens it is no longer off-screen.
  */
 export interface LandingHeaderProps {
   lang: LandingLanguage;
@@ -65,8 +91,8 @@ export function LandingHeader({
 
   return (
     <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-sm border-b border-line">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div className="flex h-16 items-center gap-3">
+      <div className="mx-auto w-full max-w-6xl px-3 xs:px-4 sm:px-6">
+        <div className="flex h-16 items-center gap-2 xs:gap-3">
           {/* Back to top rather than a link: an `href` here would add a target
               that is not a section, and the page has no separate home. */}
           <button
@@ -76,9 +102,16 @@ export function LandingHeader({
               close();
               if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
             }}
-            className="shrink-0 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            // `min-w-0`, and NOT `shrink-0`: this is deliberately the only item
+            // in the bar that can give up width, so a control can never be
+            // pushed out at a width nobody tested.
+            className="min-w-0 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            <Logo className="h-8" />
+            {/* An explicit cap below `xs`, not `w-full` — the button's width
+                comes from this span, so asking the span for 100% of the button
+                is circular. `Logo`'s img carries `max-w-full`, which is what
+                makes the cap scale the artwork instead of overflowing it. */}
+            <Logo className="h-8 max-w-[132px] xs:max-w-none" />
           </button>
 
           {/* ONE nav landmark for the page's in-section links. The mobile panel
@@ -92,7 +125,7 @@ export function LandingHeader({
             ))}
           </nav>
 
-          <div className="flex items-center gap-2 ms-auto lg:ms-0">
+          <div className="flex shrink-0 items-center gap-1.5 xs:gap-2 ms-auto lg:ms-0">
             <a
               href={whatsappUrl}
               target="_blank"
@@ -109,9 +142,15 @@ export function LandingHeader({
             <button
               type="button"
               onClick={onLanguageToggle}
-              className="px-2.5 py-1.5 rounded-full border border-line text-[11px] font-bold text-fg-muted hover:text-fg transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              // `aria-label` at every width, so the icon-only form below `xs` is
+              // never an unlabelled button. It repeats the visible label above
+              // `xs`, which is the same string.
+              aria-label={copy.languageToggle}
+              title={copy.languageToggle}
+              className="inline-flex h-9 w-9 xs:h-auto xs:w-auto items-center justify-center rounded-full border border-line xs:px-2.5 xs:py-1.5 text-[11px] font-bold text-fg-muted hover:text-fg transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              {copy.languageToggle}
+              <Languages className="w-4 h-4 xs:hidden" aria-hidden="true" />
+              <span className="hidden xs:inline">{copy.languageToggle}</span>
             </button>
 
             <button
