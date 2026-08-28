@@ -37,12 +37,12 @@ const KNOWN_AUTH_HOSTS = [
   // DETACHED from Firebase Hosting and removed from the project's authorized
   // domains, so neither serves `/__/auth/*` any more — listing them would point
   // the OAuth handshake at a host that returns "Site not found".
-  // KNOWN GAP: `.web.app` has no registered redirect URI — Firebase registers
-  // the `.firebaseapp.com` handler, not this one — so Google sign-in fails for
-  // anyone who reaches the app here. Production traffic arrives on
-  // `www.mazzado.com`, which is why it has not surfaced. Fix by registering the
-  // URI or by removing this line so it falls through to the fallback below.
-  'mazadjoapp.web.app',
+  // `mazadjoapp.web.app` was here and was REMOVED on 2026-08-28. It serves
+  // `/__/auth/*` and is an authorized domain, but it has no registered redirect
+  // URI — Firebase registers the `.firebaseapp.com` handler, not the `.web.app`
+  // one — so echoing it back gave Google's "Access blocked" to anyone reaching
+  // the app there. It now falls through to the fallback, which is the same
+  // Firebase project and is registered. Requirement 3, again.
   'mazadjoapp.firebaseapp.com',
   'localhost',
 ] as const;

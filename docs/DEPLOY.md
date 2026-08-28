@@ -111,7 +111,7 @@ Measured per host on 2026-08-25, same OAuth client each time, by running the rea
 | `mazadjoapp.web.app` | `redirect_uri_mismatch` | unchanged — see below |
 | `mazadjoapp.firebaseapp.com` | account picker | account picker |
 
-`.web.app` still fails, for the same reason: Firebase registers the `.firebaseapp.com` handler automatically, not the `.web.app` one. It is nonetheless listed in `KNOWN_AUTH_HOSTS`, so **Google sign-in is broken for anyone reaching the app on `mazadjoapp.web.app`** — a known, unclosed gap rather than a decision. Close it either by adding `https://mazadjoapp.web.app/__/auth/handler` to the OAuth client, or by dropping the host from the array so it falls back to `mazadjoapp.firebaseapp.com`. Production traffic arrives on `www.mazzado.com`, which is why this has not hurt anyone.
+`.web.app` still fails, for the same reason: Firebase registers the `.firebaseapp.com` handler automatically, not the `.web.app` one. It had stayed in `KNOWN_AUTH_HOSTS` on the old two-part reasoning — it serves the handler and is an authorized domain — which meant *Access blocked* for anyone reaching the app there. **Removed on 2026-08-28**, so it now falls through to `mazadjoapp.firebaseapp.com`: same project, registered, sign-in completes. Production traffic arrives on `www.mazzado.com`, which is why nobody hit it.
 
 **Two verification rules, both learned the expensive way:**
 
