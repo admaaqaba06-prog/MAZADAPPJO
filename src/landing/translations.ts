@@ -19,6 +19,7 @@ export interface TranslationType {
     desc: string;
     ctaPrimary: string;
     ctaSecondary: string;
+    sellerNote: string;
     proof: Array<{ value: string; label: string }>;
     liveBadge: string;
     verifiedSeller: string;
@@ -150,6 +151,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       desc: "سلع حقيقية بأسعار افتتاح واضحة. وأول مزايدة صحيحة هي اللي تشغّل عدّاد المزاد.",
       ctaPrimary: "تصفّح المزادات المباشرة",
       ctaSecondary: "اعرض سلعتك للبيع",
+      sellerNote: "نزّل سلعتك وابدأ مزادك خلال دقائق",
       proof: [
         { value: "توصيل خلال 48 ساعة", label: "داخل عمّان ومحيطها" },
         { value: "فلوسك محفوظة", label: "ما توصل البائع إلا بعد ما تستلم" },
@@ -379,6 +381,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       desc: "Real items with clear opening prices. The first valid bid is what starts the auction clock.",
       ctaPrimary: "Browse live auctions",
       ctaSecondary: "List your item",
+      sellerNote: "List your item and start your auction in minutes",
       proof: [
         { value: "Delivered in 48 hours", label: "Amman and nearby areas" },
         { value: "Your money is held", label: "Released only after you receive" },
