@@ -128,14 +128,20 @@ describe('no retired support number survives anywhere', () => {
   });
 
   it('leaves CUSTOMER numbers alone', () => {
-    // The sweep must not have eaten test fixtures or the form placeholder: those
+    // The sweep must not have eaten test fixtures or a form placeholder: those
     // are a user's own contact details, not ours, and rewriting them would
     // corrupt unrelated test data.
     const fixtures = digits(fs.readFileSync(path.join(ROOT, 'src/utils/phoneNumber.test.ts'), 'utf8'));
     expect(fixtures).toContain('962791234567');
 
-    const landing = fs.readFileSync(path.join(ROOT, 'src/landing/LandingView.tsx'), 'utf8');
-    // The contact-form placeholder shows the shape a VISITOR should type.
-    expect(landing).toContain('0790000000');
+    // Was LandingView's contact-form placeholder (`0790000000`). That form was a
+    // local-storage-only "early adopter" signup seeded with invented names — it
+    // wrote to nobody and was deleted with the landing redesign, so there is no
+    // placeholder left there to protect. Retargeted to a placeholder that still
+    // exists rather than dropped: the guarantee is that a CUSTOMER-shaped number
+    // in live UI survives the sweep, and it needs a live example to mean
+    // anything.
+    const profile = fs.readFileSync(path.join(ROOT, 'src/components/ProfileView.tsx'), 'utf8');
+    expect(profile).toContain('079XXXXXXXX');
   });
 });

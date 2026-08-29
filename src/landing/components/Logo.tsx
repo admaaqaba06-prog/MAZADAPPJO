@@ -92,7 +92,12 @@ export function Logo({
           key={src}
           src={src}
           alt="MAZZADO"
-          className="h-full w-auto object-contain"
+          // `max-w-full` is what makes a shrinkable container actually shrink
+          // the lockup: without it `w-auto` keeps the natural width (the asset is
+          // 600x127, so 151px at h-8) and overflows the box instead. With it,
+          // `object-contain` scales the artwork down to fit — never distorted,
+          // never cropped. The landing header relies on this at 320px.
+          className="h-full w-auto max-w-full object-contain"
           draggable={false}
           onError={() => setFailedSrc(src)}
         />
