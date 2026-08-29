@@ -2048,23 +2048,29 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               <div className="mt-16 bg-[#0A0A0A] text-white rounded-2xl p-8 border border-gray-800 shadow-xl">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                   {[
+                    // Terms, not counts. The three that stood here — 1,250+ sales,
+                    // 3,400+ listings, 15,000+ active users — were never measured, and
+                    // this bar sits directly under a heading that promises real
+                    // stories. Each of these is quoted from the locked rules —
+                    // `fees`, `paymentWindow` and `noDeposit` in
+                    // src/content/auctionRules.ts.
                     {
-                      arVal: "1,250+",
-                      enVal: "1,250+",
-                      arLabel: "عملية بيع ناجحة",
-                      enLabel: "Successful Sales"
+                      arVal: "5% + 5%",
+                      enVal: "5% + 5%",
+                      arLabel: "عمولة المشتري والبائع",
+                      enLabel: "Buyer + seller commission"
                     },
                     {
-                      arVal: "3,400+",
-                      enVal: "3,400+",
-                      arLabel: "منتج معروض",
-                      enLabel: "Listed Items"
+                      arVal: "24 ساعة",
+                      enVal: "24 hours",
+                      arLabel: "مهلة الدفع بعد الفوز",
+                      enLabel: "To pay after you win"
                     },
                     {
-                      arVal: "15,000+",
-                      enVal: "15,000+",
-                      arLabel: "مستخدم نشط",
-                      enLabel: "Active Users"
+                      arVal: "بدون تأمين",
+                      enVal: "No deposit",
+                      arLabel: "ما في وديعة للمزايدة",
+                      enLabel: "Nothing to pay to bid"
                     },
                     {
                       arVal: <Lock className="w-8 h-8 sm:w-9 sm:h-9 inline-block" aria-hidden="true" />,
