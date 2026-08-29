@@ -6,6 +6,17 @@
   --font-mono: "Readex Pro", ui-monospace, SFMono-Regular, monospace;
   /* Landing page fonts + brand palette — additive tokens for the landing view */
   --font-alexandria: "Alexandria", sans-serif;
+  /* The Arabic text face for the landing page.
+     index.html ALREADY preloads Tajawal at 400/500/700/800/900 behind a
+     preconnect, so this costs no extra request — it only gives the weights the
+     app shell fetches a name the landing can target, instead of leaving them
+     reachable solely as an unnamed fallback inside `--font-sans`.
+     Those five weights are exactly the ones this page uses; `font-semibold`
+     resolves to 700 because Tajawal ships no 600.
+     IBM Plex Sans Arabic stays as the fallback: if the swap is slow the text
+     lands on a face with comparable Arabic metrics rather than on a Latin
+     default, which is what keeps the swap from shifting the layout. */
+  --font-tajawal: "Tajawal", "IBM Plex Sans Arabic", sans-serif;
   --font-ibmarabic: "IBM Plex Sans Arabic", sans-serif;
   --font-inter: "Inter", sans-serif;
   --color-ink: #0A0A0A;
@@ -29,6 +40,25 @@
   --color-text-inverted: #FFFFFF;
   --color-accent: #F05123;
   --color-accent-weak: #FFF1EC;
+  /* Derived from the accent, so the orange family moves together instead of
+     each component inventing its own. The landing alone carried #D93E15,
+     #D63E10, #FF6B35 and #E85D04 as one-off hover and gradient stops.
+       strong  the hover/pressed step — #F05123 darkened ~7%
+       border  a hairline that reads as accent without shouting
+       glow    the ONLY orange allowed into a box-shadow
+     `accent-weak`, the subtle fill, already existed and keeps its per-theme
+     values: an opaque tint on white, a translucent one on the dark surface. */
+  --color-accent-strong: #D9431A;
+  --color-accent-border: rgba(240, 81, 35, 0.32);
+  --color-accent-glow: rgba(240, 81, 35, 0.35);
+  /* The accent when it has to be READ at small sizes, not just seen.
+     #F05123 on the light surface measures 3.32:1 — fine for a 36px price, under
+     AA for a 12px badge. This is the same hue carried far enough to clear 4.5:1
+     (#A8330C on #F7F7F7 measures 6.1:1) and it exists ONLY for small text: a
+     fill, a border or a large number should keep using `accent`, which is the
+     brand value. In dark mode it collapses back to the accent, which already
+     reads 5.0:1 at its worst there. */
+  --color-accent-ink: #A8330C;
 
   /* Utility-friendly aliases. Tailwind v4 generates a utility per @theme colour,
      so these give `text-fg`, `text-fg-muted`, `border-line`, `text-on-accent` —
@@ -85,6 +115,14 @@
   --color-text-inverted: #FFFFFF;
   --color-accent: #F05123;
   --color-accent-weak: rgba(240, 81, 35, 0.14);
+  /* The dark-side members of the accent family. `strong` and `border` are the
+     same derivations as light; `glow` is carried a little further because a
+     shadow has to survive a near-black surface to be seen at all. */
+  --color-accent-strong: #D9431A;
+  --color-accent-border: rgba(240, 81, 35, 0.38);
+  --color-accent-glow: rgba(240, 81, 35, 0.5);
+  /* Small accent text needs no help here — see the light block. */
+  --color-accent-ink: #F05123;
   /* Status text, lightened for the dark card. See the light block for the
      measured ratios and why these three flip while the accent does not. */
   --color-success: #34D399;

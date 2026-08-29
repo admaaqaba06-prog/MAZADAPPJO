@@ -52,6 +52,7 @@ import { categoryLabel } from '../utils/categoryLabel';
 import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL, SOCIAL_INSTAGRAM_URL } from '../constants/support';
 import { useApp } from "../context/AppContext";
 import { Logo } from "./components/Logo";
+import { LandingButton } from "./components/LandingButton";
 import TermsModal from "../components/TermsModal";
 import AuctionRulesModal from "../components/AuctionRulesModal";
 
@@ -120,7 +121,7 @@ const renderMixedText = (text: string, isAr: boolean) => {
       return (
         <span 
           key={idx} 
-          className={isAr ? "font-ibmarabic" : ""} 
+          className={isAr ? "font-tajawal" : ""} 
           style={isAr ? { letterSpacing: "0px" } : undefined}
         >
           {seg}
@@ -135,6 +136,15 @@ const renderMixedText = (text: string, isAr: boolean) => {
  * Icons for the hero proof row, positional like TRUST_ICONS. Kept beside the
  * component rather than in translations: the copy is bilingual, the icon is not.
  */
+/**
+ * The brand orange as a literal, for the handful of places a Tailwind class
+ * cannot reach: framer-motion animates style VALUES, so it needs a colour it
+ * can interpolate — a `var(--color-accent)` string is applied but never
+ * animated, and an SVG `stroke` attribute takes no class either. Everything
+ * else on this page uses the `accent` token and follows the theme.
+ */
+const ACCENT = "#F05123";
+
 const HERO_PROOF_ICONS = [Truck, Lock, Clock] as const;
 
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
@@ -240,8 +250,11 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
       <div className="max-w-7xl mx-auto px-5">
         <Reveal>
           <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 text-[#F05123] font-semibold text-sm">
-              <span className="w-2 h-2 rounded-full bg-[#F05123] animate-pulse" />
+            {/* `accent-ink` on the WORDS, `accent` on the dot: the label is
+                14px text that has to clear AA on the light surface, the dot is
+                a 8px fill that has nothing to read. */}
+            <span className="inline-flex items-center gap-2 text-accent-ink font-semibold text-sm">
+              <span className="w-2 h-2 rounded-full bg-accent animate-pulse motion-reduce:animate-none" />
               {t.marketplace.badge}
             </span>
             <h2 className="mt-3 text-3xl md:text-4xl font-bold text-fg">{t.marketplace.title}</h2>
@@ -263,7 +276,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
               <button
                 type="button"
                 onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace_error' }); onEnter('upload'); }}
-                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-strong transition"
               >
                 {t.marketplace.sellerCtaBtn}
               </button>
@@ -277,7 +290,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
               <button
                 type="button"
                 onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace_empty' }); onEnter('upload'); }}
-                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#F05123] text-white font-semibold hover:bg-[#D93E15] transition"
+                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-strong transition"
               >
                 {t.marketplace.sellerCtaBtn}
               </button>
@@ -315,7 +328,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                           </span>
                         ) : null}
                         {endingSoon ? (
-                          <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-[#F05123] text-white text-xs font-semibold">
+                          <span className="absolute top-3 end-3 px-2 py-1 rounded-full bg-accent text-white text-xs font-semibold">
                             {t.marketplace.endingSoon}
                           </span>
                         ) : !hasClock ? (
@@ -362,11 +375,15 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                                 and formatTimeLeft would emit the literal "NaNm"
                                 for an absent endTime. */}
                             {hasClock ? (
-                              <span dir="ltr" className="block text-sm font-semibold text-[#F05123]">{formatTimeLeft(a.endTime as number)}</span>
+                              <span dir="ltr" className="block text-sm font-semibold text-accent">{formatTimeLeft(a.endTime as number)}</span>
                             ) : null}
                           </div>
                         </div>
-                        <span className="mt-4 block text-center text-sm font-semibold text-[#F05123]">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>
+                        {/* `accent-ink`, not `accent`: this link is 14px on a
+                            themed card, and the brand orange only clears AA
+                            there in dark. Measured on clean loads — the reads
+                            taken straight after a theme toggle are stale. */}
+                        <span className="mt-4 block text-center text-sm font-semibold text-accent-ink">{t.marketplace.viewBtn} {lang === 'ar' ? '←' : '→'}</span>
                       </div>
                     </button>
                   </Reveal>
@@ -379,7 +396,7 @@ function LiveMarketplaceSection({ lang, t, onEnter, formatPrice }: {
                 <button
                   type="button"
                   onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'marketplace' }); onEnter('upload'); }}
-                  className="mt-4 inline-flex items-center justify-center px-8 py-4 rounded-full bg-[#F05123] text-white font-bold text-lg hover:bg-[#D93E15] transition"
+                  className="mt-4 inline-flex items-center justify-center px-8 py-4 rounded-full bg-accent text-white font-bold text-lg hover:bg-accent-strong transition"
                 >
                   {t.marketplace.sellerCtaBtn}
                 </button>
@@ -788,7 +805,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
         <span className="font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
           {numStr}
         </span>
-        <span className={lang === "ar" ? "font-ibmarabic text-xs" : "font-sans text-xs"} style={lang === "ar" ? { letterSpacing: "0px" } : undefined}>
+        <span className={lang === "ar" ? "font-tajawal text-xs" : "font-sans text-xs"} style={lang === "ar" ? { letterSpacing: "0px" } : undefined}>
           {currency}
         </span>
       </span>
@@ -905,7 +922,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
     setFormContact("");
   };
 
-  const getLineIcon = (type: string, className = "w-6 h-6 text-[#F05123]") => {
+  const getLineIcon = (type: string, className = "w-6 h-6 text-accent") => {
     switch (type) {
       case "cat-0":
         return (
@@ -993,12 +1010,12 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
           spec, `hidden` on one axis forces a `visible` other axis to compute to
           `auto`, so the element stays a scroll container and the bug survives.
           The document's scrolling element is now the page's only scroll owner. */
-      className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-[#F05123]/20 selection:text-[#F05123] relative overflow-x-clip"
+      className="min-h-screen font-sans bg-surface-raised text-fg flex flex-col selection:bg-accent/20 selection:text-accent relative overflow-x-clip"
     >
       
       {/* Scroll Progress Indicator at top of screen */}
       <motion.div
-        className="fixed top-0 left-0 right-0 h-[2.5px] bg-[#F05123] z-[60]"
+        className="fixed top-0 left-0 right-0 h-[2.5px] bg-accent z-[60]"
         style={{ scaleX, transformOrigin: lang === "ar" ? "right" : "left" }}
       />
 
@@ -1025,21 +1042,21 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
           {/* Desktop Navigation Links with gold sliding underline on hover */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className={`text-fg/80 hover:text-accent transition-colors duration-200 font-tajawal relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.whyUs}
-              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
+              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-accent transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#categories" onClick={onSectionLinkClick("categories")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#categories" onClick={onSectionLinkClick("categories")} className={`text-fg/80 hover:text-accent transition-colors duration-200 font-tajawal relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.categories}
-              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
+              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-accent transition-all duration-300 group-hover:w-full" />
             </a>
-            <a href="#pricing" onClick={onSectionLinkClick("pricing")} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
+            <a href="#pricing" onClick={onSectionLinkClick("pricing")} className={`text-fg/80 hover:text-accent transition-colors duration-200 font-tajawal relative group py-1 ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.pricing}
-              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
+              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-accent transition-all duration-300 group-hover:w-full" />
             </a>
-            <button type="button" onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'nav' }); onEnter(); }} className={`text-fg/80 hover:text-[#F05123] transition-colors duration-200 font-ibmarabic relative group py-1 cursor-pointer ${lang === "en" ? "tracking-wide" : ""}`}>
+            <button type="button" onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'nav' }); onEnter(); }} className={`text-fg/80 hover:text-accent transition-colors duration-200 font-tajawal relative group py-1 cursor-pointer ${lang === "en" ? "tracking-wide" : ""}`}>
               {t.nav.comingSoon}
-              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#F05123] transition-all duration-300 group-hover:w-full" />
+              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-accent transition-all duration-300 group-hover:w-full" />
             </button>
           </nav>
 
@@ -1048,10 +1065,10 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             {/* Language Switch */}
             <button
               onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] border border-line hover:border-[#F05123] text-fg hover:text-[#F05123] transition-all duration-200 bg-surface-raised/60 text-xs font-semibold cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] border border-line hover:border-accent text-fg hover:text-accent transition-all duration-200 bg-surface-raised/60 text-xs font-semibold cursor-pointer"
             >
-              <Globe className="w-3.5 h-3.5 text-[#F05123]" />
-              <span className="font-ibmarabic">{t.nav.langBtn}</span>
+              <Globe className="w-3.5 h-3.5 text-accent" />
+              <span className="font-tajawal">{t.nav.langBtn}</span>
             </button>
 
             {/* Theme switch — the same shared control the app shell uses */}
@@ -1062,7 +1079,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               href={SUPPORT_WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-5 py-2.5 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white text-xs font-bold shadow-sm transition-all duration-300 hover:scale-[1.02] text-center font-ibmarabic"
+              className="px-5 py-2.5 rounded-[8px] bg-accent hover:bg-accent-strong text-white text-xs font-bold shadow-sm transition-all duration-300 hover:scale-[1.02] text-center font-tajawal"
             >
               {t.nav.reserveBtn}
             </a>
@@ -1075,7 +1092,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               onClick={toggleLang}
               className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] border border-line text-fg bg-surface-raised text-xs"
             >
-              <Globe className="w-3 h-3 text-[#F05123]" />
+              <Globe className="w-3 h-3 text-accent" />
               <span>{t.nav.langBtn}</span>
             </button>
 
@@ -1104,28 +1121,28 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
           <a
             href="#why-mazzado"
             onClick={onSectionLinkClick("why-mazzado")}
-            className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
+            className="text-base font-semibold text-fg hover:text-accent py-2 border-b border-line/40 transition-colors duration-200 font-tajawal"
           >
             {t.nav.whyUs}
           </a>
           <a
             href="#categories"
             onClick={onSectionLinkClick("categories")}
-            className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
+            className="text-base font-semibold text-fg hover:text-accent py-2 border-b border-line/40 transition-colors duration-200 font-tajawal"
           >
             {t.nav.categories}
           </a>
           <a
             href="#pricing"
             onClick={onSectionLinkClick("pricing")}
-            className="text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic"
+            className="text-base font-semibold text-fg hover:text-accent py-2 border-b border-line/40 transition-colors duration-200 font-tajawal"
           >
             {t.nav.pricing}
           </a>
           <button
             type="button"
             onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'mobile_menu' }); setMobileMenuOpen(false); onEnter(); }}
-            className="text-start text-base font-semibold text-fg hover:text-[#F05123] py-2 border-b border-line/40 transition-colors duration-200 font-ibmarabic cursor-pointer"
+            className="text-start text-base font-semibold text-fg hover:text-accent py-2 border-b border-line/40 transition-colors duration-200 font-tajawal cursor-pointer"
           >
             {t.nav.comingSoon}
           </button>
@@ -1135,7 +1152,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setMobileMenuOpen(false)}
-            className="w-full text-center py-3 rounded-[8px] bg-[#F05123] text-white font-bold text-sm shadow-sm font-ibmarabic block"
+            className="w-full text-center py-3 rounded-[8px] bg-accent text-white font-bold text-sm shadow-sm font-tajawal block"
           >
             {t.nav.reserveBtn}
           </a>
@@ -1195,9 +1212,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F05123]/10 border border-[#F05123]/20 text-xs text-[#F05123] font-semibold font-ibmarabic mx-auto lg:mx-0"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-xs text-accent font-semibold font-tajawal mx-auto lg:mx-0"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-[#F05123]" />
+                  <Sparkles className="w-3.5 h-3.5 text-accent" />
                   <span>{t.hero.badge}</span>
                 </motion.div>
 
@@ -1210,13 +1227,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   className={`text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
                 >
                   <span className="block">{t.hero.titleFirst}</span>
-                  <span className="text-[#F05123] block relative pb-1">
+                  <span className="text-accent block relative pb-1">
                     {t.hero.titleGradient}
                     <svg className={`absolute left-0 bottom-[-2px] w-full h-2 overflow-visible ${prefersReducedMotion ? "" : "animate-pulse-slow"}`} viewBox="0 0 100 10" preserveAspectRatio="none">
                       <motion.path
                         d="M0,5 Q50,0 100,5"
                         fill="none"
-                        stroke="#F05123"
+                        stroke={ACCENT}
                         strokeWidth="3"
                         strokeLinecap="round"
                         initial={{ pathLength: 0 }}
@@ -1238,7 +1255,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="text-fg text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-ibmarabic font-medium pt-3"
+                  className="text-fg text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-tajawal font-medium pt-3"
                 >
                   {t.hero.desc}
                 </motion.p>
@@ -1251,25 +1268,25 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   }}
                   className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2"
                 >
-                  <motion.button
-                    type="button"
+                  {/* The page's one primary action. Same component, same glow,
+                      same size as every other primary further down — see
+                      LandingButton for why that mattered. */}
+                  <LandingButton
                     onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
-                    whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full sm:w-auto px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
+                    className="w-full sm:w-auto group"
+                    trailing={
+                      <span aria-hidden="true" className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 motion-reduce:transition-none">→</span>
+                    }
                   >
-                    <span>{t.hero.ctaPrimary}</span>
-                    <span className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5">→</span>
-                  </motion.button>
-                  <motion.button
-                    type="button"
+                    {t.hero.ctaPrimary}
+                  </LandingButton>
+                  <LandingButton
+                    variant="secondary"
                     onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
-                    whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-fg text-fg font-semibold text-base bg-surface-raised hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
+                    className="w-full sm:w-auto"
                   >
                     {t.hero.ctaSecondary}
-                  </motion.button>
+                  </LandingButton>
                 </motion.div>
 
                 {/* Real proof row */}
@@ -1288,12 +1305,12 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       // room for «توصيل خلال 48 ساعة» — it broke across two lines while
                       // its neighbours sat on one, which read as a mistake.
                       <div key={i} className="flex flex-col items-center lg:items-start gap-2 text-center lg:text-start">
-                        <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F05123]/25 bg-[#F05123]/10">
-                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-5 w-5 text-[#F05123]" />
+                        <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl border border-accent/25 bg-accent/10">
+                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-5 w-5 text-accent" />
                         </span>
                         <div className="min-w-0">
                           <div dir={/^[0-9]/.test(s.value) ? "ltr" : undefined} className="text-sm sm:text-base font-extrabold text-fg font-alexandria leading-tight">{s.value}</div>
-                          <div className="text-[11px] sm:text-xs font-medium text-fg-muted font-ibmarabic leading-snug mt-0.5">{s.label}</div>
+                          <div className="text-[11px] sm:text-xs font-medium text-fg-muted font-tajawal leading-snug mt-0.5">{s.label}</div>
                         </div>
                       </div>
                     );
@@ -1306,7 +1323,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               <div className="lg:col-span-5 flex justify-center lg:justify-end relative my-auto py-4 w-full">
                 
                 {/* Soft blurred orange gradient blob behind the card */}
-                <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-[#F05123]/25 via-[#FF6B00]/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
+                <div className="absolute inset-0 m-auto w-[420px] h-[420px] max-w-full rounded-full bg-gradient-to-tr from-accent/25 via-accent/15 to-amber-200/20 filter blur-3xl pointer-events-none -z-10 opacity-80" />
 
                 {/* Second/third-lot peeks — a small deck of live lots flanking the phone, balances the composition */}
                 {/* Watch — upper left, pulled out so it reads clearly next to the phone */}
@@ -1331,10 +1348,10 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
                       <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "رولكس ديت جست 41" : "Rolex Datejust 41"}</span>
-                      <span className="block text-[9px] text-white/50 font-ibmarabic mt-0.5">{lang === "ar" ? "ساعات · مباشر" : "Watches · Live"}</span>
+                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "ساعات · مباشر" : "Watches · Live"}</span>
                     </div>
-                    <span dir="ltr" className="text-[#FF6B35] font-mono font-black text-sm flex items-center gap-1 shrink-0">
-                      <span className={`w-1.5 h-1.5 rounded-full bg-[#FF6B35] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                    <span dir="ltr" className="text-accent font-mono font-black text-sm flex items-center gap-1 shrink-0">
+                      <span className={`w-1.5 h-1.5 rounded-full bg-accent ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                       2,150
                     </span>
                   </div>
@@ -1361,10 +1378,10 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
                       <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "بورش 911" : "Porsche 911"}</span>
-                      <span className="block text-[9px] text-white/50 font-ibmarabic mt-0.5">{lang === "ar" ? "مركبات · مباشر" : "Vehicles · Live"}</span>
+                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "مركبات · مباشر" : "Vehicles · Live"}</span>
                     </div>
-                    <span dir="ltr" className="text-[#FF6B35] font-mono font-black text-sm flex items-center gap-1 shrink-0">
-                      <span className={`w-1.5 h-1.5 rounded-full bg-[#FF6B35] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                    <span dir="ltr" className="text-accent font-mono font-black text-sm flex items-center gap-1 shrink-0">
+                      <span className={`w-1.5 h-1.5 rounded-full bg-accent ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                       42,500
                     </span>
                   </div>
@@ -1376,12 +1393,12 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
-                  className="w-full h-[clamp(500px,62vh,640px)] sm:h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-[#F05123] select-none group"
+                  className="w-full h-[clamp(500px,62vh,640px)] sm:h-[640px] rounded-[38px] border-[5px] border-gray-900 bg-gray-950 text-white relative shadow-[0_25px_60px_-10px_rgba(240,81,35,0.35)] overflow-hidden flex flex-col justify-between p-4 selection:bg-accent select-none group"
                   id="hero-live-card"
                   onMouseEnter={() => setIsAutoCycling(false)}
                 >
                   {/* Glowing warm orange aura behind card */}
-                  <div className={`absolute -inset-2 bg-gradient-to-r from-[#FF6B00]/25 via-[#E85D04]/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 ${prefersReducedMotion ? "" : "animate-pulse"} -z-10 pointer-events-none`} />
+                  <div className={`absolute -inset-2 bg-gradient-to-r from-accent/25 via-accent-strong/20 to-[#FF8C00]/25 rounded-[44px] blur-2xl opacity-75 ${prefersReducedMotion ? "" : "animate-pulse"} -z-10 pointer-events-none`} />
 
                   {/* Phone Bezel Top Notch */}
                   <div className="w-20 h-4 bg-gray-900 rounded-b-xl mx-auto absolute top-0 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center gap-1.5 shadow-inner">
@@ -1427,7 +1444,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   {justBidToast && !prefersReducedMotion && (
                     <div
                       key={justBidToast.key}
-                      className={`hero-toast absolute top-[120px] ${lang === "ar" ? "right-3" : "left-3"} z-20 bg-black/80 backdrop-blur-md border border-white/15 text-white text-[10.5px] font-bold font-ibmarabic px-2.5 py-1.5 rounded-full pointer-events-none shadow-lg`}
+                      className={`hero-toast absolute top-[120px] ${lang === "ar" ? "right-3" : "left-3"} z-20 bg-black/80 backdrop-blur-md border border-white/15 text-white text-[10.5px] font-bold font-tajawal px-2.5 py-1.5 rounded-full pointer-events-none shadow-lg`}
                       onAnimationEnd={() => setJustBidToast(null)}
                     >
                       🔥 {justBidToast.name} {lang === "ar" ? "زايد الآن" : "just bid"}
@@ -1443,7 +1460,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                           <img 
                             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
                             alt={lang === 'ar' ? 'بث مزادو' : 'Mazzado Streamer'} 
-                            className="w-7 h-7 rounded-full object-cover border-2 border-[#F05123]" 
+                            className="w-7 h-7 rounded-full object-cover border-2 border-accent" 
                           />
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
@@ -1452,7 +1469,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                             {lang === "ar" ? "مزادو مباشر" : "Mazzado Live"}
                             <Sparkles className="w-3 h-3 text-amber-400" />
                           </span>
-                          <span className="text-[9px] text-gray-300 font-ibmarabic flex items-center gap-1 mt-0.5">
+                          <span className="text-[9px] text-gray-300 font-tajawal flex items-center gap-1 mt-0.5">
                             <Eye className="w-2.5 h-2.5 text-emerald-400" />
                             <span dir="ltr" className="font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>{formatCount(watchers)}</span>
                             {lang === "ar" ? "يشاهدون" : "watching"}
@@ -1461,7 +1478,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       </div>
 
                       {/* Live Badge Pill */}
-                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F05123] text-white text-[11px] font-bold font-ibmarabic shadow-lg shadow-[#F05123]/40 border border-white/20 ${prefersReducedMotion ? "" : "animate-pulse"}`}>
+                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent text-white text-[11px] font-bold font-tajawal shadow-lg shadow-accent/40 border border-white/20 ${prefersReducedMotion ? "" : "animate-pulse"}`}>
                         <span className={`w-2 h-2 rounded-full bg-surface-raised ${prefersReducedMotion ? "" : "animate-ping"}`} />
                         <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
                       </div>
@@ -1475,7 +1492,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-amber-500/90 text-black backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold font-ibmarabic shadow-lg flex items-center gap-1.5 border border-amber-300"
+                        className="bg-amber-500/90 text-black backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold font-tajawal shadow-lg flex items-center gap-1.5 border border-amber-300"
                       >
                         <Bell className="w-3.5 h-3.5 text-black animate-ring shrink-0" />
                         <span>{lang === "ar" ? "⏱ تم تمديد الوقت دقيقة إضافية للمنافسة!" : "⏱ Extended +1 min for live bids!"}</span>
@@ -1483,12 +1500,12 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     )}
 
                     {/* "Latest bid" chip — flashes an orange ring + price bump on each landing bid */}
-                    <div className={`max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2.5 border border-white/15 shadow-xl flex items-center justify-between gap-3 transition-all duration-300 ${flashHit ? "ring-2 ring-[#F05123] ring-offset-0 -translate-y-0.5" : ""}`}>
-                      <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-ibmarabic uppercase tracking-wide">
-                        <Flame className={`w-3 h-3 text-[#F05123] ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                    <div className={`max-w-[85%] bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2.5 border border-white/15 shadow-xl flex items-center justify-between gap-3 transition-all duration-300 ${flashHit ? "ring-2 ring-accent ring-offset-0 -translate-y-0.5" : ""}`}>
+                      <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold font-tajawal uppercase tracking-wide">
+                        <Flame className={`w-3 h-3 text-accent ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         <span>{lang === "ar" ? "آخر مزايدة 🔥" : "Latest bid 🔥"}</span>
                       </div>
-                      <span dir="ltr" className={`text-sm text-[#F05123] font-black font-mono inline-block transition-transform duration-200 ${priceBump ? "scale-[1.14]" : "scale-100"}`}>
+                      <span dir="ltr" className={`text-sm text-accent font-black font-mono inline-block transition-transform duration-200 ${priceBump ? "scale-[1.14]" : "scale-100"}`}>
                         {formatPrice(currentPrice)}
                       </span>
                     </div>
@@ -1496,17 +1513,17 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     {/* Product Title & Badge */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="bg-[#F05123]/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md font-ibmarabic">
+                        <span className="bg-accent/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md font-tajawal">
                           {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
                         </span>
-                        <span className="text-[10px] text-gray-300 font-ibmarabic">
+                        <span className="text-[10px] text-gray-300 font-tajawal">
                           {lang === "ar" ? "الرقم المرجعي: #JO-22419" : "Ref: #JO-22419"}
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-white font-alexandria leading-snug drop-shadow-md">
                         {lang === "ar" ? currentItem.titleAr : currentItem.titleEn}
                       </h3>
-                      <p className="text-xs text-gray-300 font-ibmarabic line-clamp-1 drop-shadow-sm">
+                      <p className="text-xs text-gray-300 font-tajawal line-clamp-1 drop-shadow-sm">
                         {lang === "ar" ? currentItem.detailsAr : currentItem.detailsEn}
                       </p>
                     </div>
@@ -1514,7 +1531,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     {/* Price & Countdown Timer Bar */}
                     <div className="bg-black/60 backdrop-blur-md rounded-2xl p-3 border border-white/15 flex items-center justify-between shadow-xl">
                       <div>
-                        <span className="text-[10px] text-gray-300 font-bold uppercase font-ibmarabic block">
+                        <span className="text-[10px] text-gray-300 font-bold uppercase font-tajawal block">
                           {lang === "ar" ? "السعر الحالي" : "Current Bid"}
                         </span>
                         <div className="overflow-hidden relative h-6">
@@ -1534,11 +1551,11 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       </div>
 
                       <div className="text-end">
-                        <span className="text-[10px] text-gray-300 font-bold uppercase font-ibmarabic block">
+                        <span className="text-[10px] text-gray-300 font-bold uppercase font-tajawal block">
                           {lang === "ar" ? "الوقت المتبقي" : "Ends In"}
                         </span>
-                        <span dir="ltr" className={`text-xs font-mono font-extrabold flex items-center gap-1 justify-end bg-black/80 border px-2.5 py-1 rounded-lg mt-0.5 shadow-inner transition-colors duration-300 ${carTimer < 12 ? "text-[#FF5A4D] border-[#FF5A4D]/50" : "text-[#F05123] border-[#F05123]/40"} ${carTimer < 12 && !prefersReducedMotion ? "hero-timer-tick" : ""}`} style={{ fontVariantNumeric: "tabular-nums" }}>
-                          <Clock className={`w-3.5 h-3.5 ${carTimer < 12 ? "text-[#FF5A4D]" : "text-[#F05123]"} ${prefersReducedMotion ? "" : "animate-pulse"}`} />
+                        <span dir="ltr" className={`text-xs font-mono font-extrabold flex items-center gap-1 justify-end bg-black/80 border px-2.5 py-1 rounded-lg mt-0.5 shadow-inner transition-colors duration-300 ${carTimer < 12 ? "text-[#FF5A4D] border-[#FF5A4D]/50" : "text-accent border-accent/40"} ${carTimer < 12 && !prefersReducedMotion ? "hero-timer-tick" : ""}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                          <Clock className={`w-3.5 h-3.5 ${carTimer < 12 ? "text-[#FF5A4D]" : "text-accent"} ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                           {formatCountdown(carTimer)}
                         </span>
                       </div>
@@ -1548,11 +1565,11 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     <motion.button
                       whileTap={{ scale: 0.96 }}
                       onClick={handleUserBid}
-                      className="hero-sheen w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#F05123] via-[#FF6B35] to-[#F05123] hover:brightness-110 text-white font-extrabold text-sm shadow-[0_10px_25px_-5px_rgba(240,81,35,0.6)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 border border-white/20 relative overflow-hidden group/bid"
+                      className="hero-sheen w-full py-3.5 rounded-2xl bg-gradient-to-r from-accent via-accent to-accent hover:brightness-110 text-white font-extrabold text-sm shadow-[0_10px_25px_-5px_rgba(240,81,35,0.6)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 border border-white/20 relative overflow-hidden group/bid"
                     >
                       <span className="absolute inset-0 bg-surface-raised/20 translate-x-[-100%] group-hover/bid:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
                       <Hammer className={`w-4 h-4 text-white ${prefersReducedMotion ? "" : "animate-bounce"}`} />
-                      <span className="font-ibmarabic tracking-wide text-sm">
+                      <span className="font-tajawal tracking-wide text-sm">
                         {lang === "ar" 
                           /* en-US in both branches: this is money, and
                              `formatMoney` renders every other amount in the app
@@ -1565,7 +1582,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     </motion.button>
 
                     {/* Active Bidders Footer Row */}
-                    <div className="flex items-center justify-between text-[11px] text-gray-300 font-ibmarabic px-1 pt-0.5">
+                    <div className="flex items-center justify-between text-[11px] text-gray-300 font-tajawal px-1 pt-0.5">
                       <div className="flex items-center gap-1.5">
                         <div className="flex -space-x-1.5 rtl:space-x-reverse">
                           <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
@@ -1607,13 +1624,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <Reveal>
               <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-12">
-                <span className={`inline-block px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 mb-3 ${lang === "en" ? "tracking-wide" : ""}`}>
+                <span className={`inline-block px-3.5 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold font-tajawal border border-accent/20 mb-3 ${lang === "en" ? "tracking-wide" : ""}`}>
                   {lang === "ar" ? "خطواتنا" : "Our Process"}
                 </span>
-                <h2 className="text-4xl md:text-5xl font-bold text-fg font-ibmarabic mb-4 leading-tight">
+                <h2 className="text-4xl md:text-5xl font-bold text-fg font-tajawal mb-4 leading-tight">
                   {lang === "ar" ? "كيف بيشتغل مزادو؟" : "How does Mazzado work?"}
                 </h2>
-                <p className="text-lg text-fg-muted font-ibmarabic">
+                <p className="text-lg text-fg-muted font-tajawal">
                   {lang === "ar" ? "أربع خطوات بسيطة وواضحة." : "Four simple, transparent steps."}
                 </p>
               </div>
@@ -1625,9 +1642,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <div className="inline-flex bg-[#0A0A0A]/5 p-1 rounded-full border border-line">
                   <button
                     onClick={() => setHowItWorksTab("buyer")}
-                    className={`px-6 py-3 min-h-[44px] flex items-center justify-center rounded-full text-sm font-bold font-ibmarabic transition-all duration-300 ${
+                    className={`px-6 py-3 min-h-[44px] flex items-center justify-center rounded-full text-sm font-bold font-tajawal transition-all duration-300 ${
                       howItWorksTab === "buyer"
-                        ? "bg-[#F05123] text-white shadow-sm"
+                        ? "bg-accent text-white shadow-sm"
                         : "text-fg-muted hover:text-fg"
                     }`}
                   >
@@ -1635,9 +1652,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   </button>
                   <button
                     onClick={() => setHowItWorksTab("seller")}
-                    className={`px-6 py-3 min-h-[44px] flex items-center justify-center rounded-full text-sm font-bold font-ibmarabic transition-all duration-300 ${
+                    className={`px-6 py-3 min-h-[44px] flex items-center justify-center rounded-full text-sm font-bold font-tajawal transition-all duration-300 ${
                       howItWorksTab === "seller"
-                        ? "bg-[#F05123] text-white shadow-sm"
+                        ? "bg-accent text-white shadow-sm"
                         : "text-fg-muted hover:text-fg"
                     }`}
                   >
@@ -1661,20 +1678,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <>
                     {/* Buyer Step 1 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         1
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Search className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "تصفح وافحص" : "Browse & Inspect"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "شوف الصور والتفاصيل الكاملة لكل منتج قبل ما تزايد" : "See the full photos and details for each product before you bid."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1683,20 +1700,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Buyer Step 2 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         2
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Hammer className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "زايد براحتك" : "Bid with Ease"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "السعر بيرتفع أوتوماتيك، بدون تفاوض ولا مساومة" : "The price rises automatically, with no negotiations or haggling."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1705,20 +1722,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Buyer Step 3 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         3
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Lock className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "فلوسك محجوزة" : "Held Until You Confirm"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "لما تربح، فلوسك تنحجز بالضمان، ما بتوصل للبائع لسا" : "When you win, your funds are securely held in escrow and not yet sent."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1727,16 +1744,16 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Buyer Step 4 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         4
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <CheckCircle2 className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "استلم ووافق" : "Receive & Approve"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "افحص المنتج، ولما توافق، وقتها بس تنطلق الفلوس" : "Inspect the product, and only when you approve, the funds are released."}
                       </p>
                     </div>
@@ -1745,20 +1762,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <>
                     {/* Seller Step 1 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         1
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Camera className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "ارفع منتجك" : "List Your Product"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "صوّره وارفعه، بدون أي رسم عرض حالياً" : "Take photos and list your product, completely free of any listing fees right now."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1767,20 +1784,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Seller Step 2 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         2
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Wrench className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "نجهّزه ونعرضه" : "Prepare & List"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "فريقنا يتأكد من دقة ووصف المنتج" : "Our expert team verifies the accuracy and description of the product."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1789,20 +1806,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Seller Step 3 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         3
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <TrendingUp className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "المزاد يفتح" : "Auction Goes Live"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "السعر يرتفع حسب الطلب الحقيقي للمشترين" : "The price climbs based on actual demand from real buyers."}
                       </p>
                       
-                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-[#F05123]/40 animate-pulse">
+                      <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
                         <svg className="w-5 h-5 transform rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                         </svg>
@@ -1811,16 +1828,16 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                     {/* Seller Step 4 */}
                     <div className="brand-card rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-surface-raised border border-line p-6 relative flex flex-col items-center text-center">
-                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-[#F05123]/10 text-[#F05123] font-bold font-mono flex items-center justify-center text-sm">
+                      <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-accent/10 text-accent font-bold font-mono flex items-center justify-center text-sm">
                         4
                       </div>
-                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-[#F05123]">
+                      <div className="w-14 h-14 rounded-xl bg-accent-weak flex items-center justify-center mb-5 text-accent">
                         <Award className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-fg font-ibmarabic mb-2">
+                      <h3 className="text-lg font-bold text-fg font-tajawal mb-2">
                         {lang === "ar" ? "استلم فلوسك" : "Get Paid"}
                       </h3>
-                      <p className="text-sm text-fg-muted font-ibmarabic leading-relaxed">
+                      <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
                         {lang === "ar" ? "البائع يستلم 95٪ — عمولة 5٪ فقط عند البيع، والباقي إلك فوراً" : "Sellers keep 95% — just 5% commission on sale, and the rest is yours instantly."}
                       </p>
                     </div>
@@ -1861,13 +1878,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             {/* Section Title */}
             <Reveal>
               <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-12 sm:mb-16 gap-4">
-                <span className={`inline-block px-4 py-1.5 rounded-full bg-[#F05123]/5 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/40 ${lang === "en" ? "tracking-wide" : ""}`}>
+                <span className={`inline-block px-4 py-1.5 rounded-full bg-accent/5 text-accent text-xs font-bold font-tajawal border border-accent/40 ${lang === "en" ? "tracking-wide" : ""}`}>
                   {t.trust.badge}
                 </span>
                 <h2 id="trust-heading" className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-fg font-alexandria leading-[1.3]">
                   {t.trust.title}
                 </h2>
-                <p className="text-fg-muted text-sm sm:text-base font-ibmarabic max-w-2xl mx-auto leading-relaxed">
+                <p className="text-fg-muted text-sm sm:text-base font-tajawal max-w-2xl mx-auto leading-relaxed">
                   {t.trust.subtitle}
                 </p>
               </div>
@@ -1884,20 +1901,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 const Icon = TRUST_ICONS[idx] ?? ShieldCheck;
                 return (
                   <Reveal key={card.title} delay={idx * 0.08}>
-                    <article className="group relative h-full overflow-hidden rounded-2xl border border-line bg-surface-raised p-6 sm:p-7 text-center transition duration-300 hover:-translate-y-1 hover:border-[#F05123]/50 hover:shadow-[0_10px_30px_-12px_rgba(240,81,35,0.35)] motion-reduce:transform-none motion-reduce:transition-none">
+                    <article className="group relative h-full overflow-hidden rounded-2xl border border-line bg-surface-raised p-6 sm:p-7 text-center transition duration-300 hover:-translate-y-1 hover:border-accent/50 hover:shadow-[0_10px_30px_-12px_rgba(240,81,35,0.35)] motion-reduce:transform-none motion-reduce:transition-none">
                       {/* The card's own restrained glow, same idea as the section's. */}
                       <span
                         aria-hidden="true"
                         className="pointer-events-none absolute inset-x-0 top-0 h-20 [background:radial-gradient(50%_100%_at_50%_0%,rgba(240,81,35,0.20),transparent_75%)]"
                       />
                       <div className="relative flex flex-col items-center">
-                        <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#F05123]/25 bg-[#F05123]/10 transition-colors duration-300 group-hover:bg-[#F05123]/15">
-                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-6 w-6 text-[#F05123]" />
+                        <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-accent/25 bg-accent/10 transition-colors duration-300 group-hover:bg-accent/15">
+                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-6 w-6 text-accent" />
                         </span>
                         <h3 className="text-base sm:text-lg font-bold text-fg font-alexandria mb-2">
                           {card.title}
                         </h3>
-                        <p className="text-xs sm:text-sm text-fg-muted leading-relaxed font-ibmarabic">
+                        <p className="text-xs sm:text-sm text-fg-muted leading-relaxed font-tajawal">
                           {card.desc}
                         </p>
                       </div>
@@ -1920,7 +1937,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria">
                   {t.why.title}
                 </h2>
-                <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto">
+                <p className="text-fg text-sm sm:text-base font-tajawal max-w-xl mx-auto">
                   {t.why.subtitle}
                 </p>
               </div>
@@ -1949,7 +1966,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       {t.why.traditionalPoints.map((pt, idx) => (
                         <li key={idx} className="flex items-start gap-3">
                           <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                          <span className="text-sm text-fg-muted font-ibmarabic leading-relaxed">{pt}</span>
+                          <span className="text-sm text-fg-muted font-tajawal leading-relaxed">{pt}</span>
                         </li>
                       ))}
                     </ul>
@@ -1962,7 +1979,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <Reveal delay={0.25}>
                   <motion.div
                     whileHover={{ scale: 1.15, rotate: 12 }}
-                    className="w-12 h-12 rounded-full bg-[#F05123] flex items-center justify-center font-bold text-white text-lg shadow-sm select-none cursor-pointer"
+                    className="w-12 h-12 rounded-full bg-accent flex items-center justify-center font-bold text-white text-lg shadow-sm select-none cursor-pointer"
                   >
                     VS
                   </motion.div>
@@ -1975,19 +1992,19 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <motion.div
                     whileHover={{ 
                       y: -8, 
-                      borderColor: "#F05123",
+                      borderColor: ACCENT,
                       boxShadow: "0 12px 32px rgba(0,0,0,0.08)"
                     }}
-                    className="bg-surface-raised border-2 border-[#F05123] rounded-[10px] p-8 space-y-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden group transition-all duration-300 h-full"
+                    className="bg-surface-raised border-2 border-accent rounded-[10px] p-8 space-y-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden group transition-all duration-300 h-full"
                   >
                     
                     {/* Visual highlights */}
-                    <div className={`absolute top-0 right-0 bg-[#F05123] text-white text-[10px] uppercase font-black px-4 py-1 rounded-bl-lg font-ibmarabic shadow-sm ${lang === "en" ? "tracking-wide" : ""}`}>
+                    <div className={`absolute top-0 right-0 bg-accent text-white text-[10px] uppercase font-black px-4 py-1 rounded-bl-lg font-tajawal shadow-sm ${lang === "en" ? "tracking-wide" : ""}`}>
                       {lang === "ar" ? "موصى به" : "RECOMMENDED"}
                     </div>
 
                     <div className="flex items-center gap-3 pb-4 border-b border-line">
-                      <div className="w-10 h-10 rounded-lg bg-[#F05123]/10 flex items-center justify-center text-[#F05123] shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0">
                         <Hammer className="w-5 h-5" />
                       </div>
                       <h3 className="text-xl font-bold text-fg font-alexandria">
@@ -1998,8 +2015,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     <ul className="space-y-4">
                       {t.why.smartPoints.map((pt, idx) => (
                         <li key={idx} className="flex items-start gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-[#F05123] shrink-0 mt-0.5" />
-                          <span className="text-sm text-fg font-ibmarabic font-medium leading-relaxed">{pt}</span>
+                          <CheckCircle2 className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                          <span className="text-sm text-fg font-tajawal font-medium leading-relaxed">{pt}</span>
                         </li>
                       ))}
                     </ul>
@@ -2045,18 +2062,18 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <Reveal key={idx} delay={idx * 0.15}>
                   <div className="bg-surface-raised border border-line rounded-2xl p-8 flex flex-col justify-between h-full shadow-sm hover:shadow-md transition-all duration-300 relative group">
                     <div>
-                      <Quote className="w-8 h-8 text-[#F05123] mb-5 shrink-0 transform -scale-x-100" />
-                      <p className="text-fg font-ibmarabic text-base leading-relaxed mb-6 font-medium">
+                      <Quote className="w-8 h-8 text-accent mb-5 shrink-0 transform -scale-x-100" />
+                      <p className="text-fg font-tajawal text-base leading-relaxed mb-6 font-medium">
                         {lang === "ar" ? testi.ar : testi.en}
                       </p>
                     </div>
                     <div>
-                      <span className="block text-xs text-fg-muted font-ibmarabic font-semibold">
+                      <span className="block text-xs text-fg-muted font-tajawal font-semibold">
                         {lang === "ar" ? testi.nameAr : testi.nameEn}
                       </span>
                       <div className="flex gap-1 mt-2">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 text-[#F05123] fill-[#F05123]" />
+                          <Star key={i} className="w-4 h-4 text-accent fill-accent" />
                         ))}
                       </div>
                     </div>
@@ -2102,10 +2119,10 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     }
                   ].map((stat, idx) => (
                     <div key={idx} className="space-y-2 flex flex-col items-center justify-center">
-                      <span className="text-3xl sm:text-4xl font-extrabold text-[#F05123] font-mono tracking-tight block">
+                      <span className="text-3xl sm:text-4xl font-extrabold text-accent font-mono tracking-tight block">
                         {lang === "ar" ? stat.arVal : stat.enVal}
                       </span>
-                      <span className="text-xs sm:text-sm text-gray-300 font-ibmarabic font-medium">
+                      <span className="text-xs sm:text-sm text-gray-300 font-tajawal font-medium">
                         {lang === "ar" ? stat.arLabel : stat.enLabel}
                       </span>
                     </div>
@@ -2125,16 +2142,16 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               <Reveal>
                 <div className="flex flex-col space-y-6">
                   <div>
-                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-accent-weak text-[#D63E10] text-xs font-bold font-ibmarabic border border-[#F05123]/20 mb-3">
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-accent-weak text-accent-strong text-xs font-bold font-tajawal border border-accent/20 mb-3">
                       <ShieldCheck className="w-4 h-4" />
                       {lang === "ar" ? "الأمان المالي" : "Financial Security"}
                     </span>
-                    <h2 className="text-4xl md:text-5xl font-bold text-fg font-ibmarabic leading-tight">
+                    <h2 className="text-4xl md:text-5xl font-bold text-fg font-tajawal leading-tight">
                       {lang === "ar" ? "فلوسك بأمان لحد ما توافق إنت — مش قبل." : "Your money is safe until you approve — never before."}
                     </h2>
                   </div>
                   
-                  <p className="text-lg text-fg-muted font-ibmarabic leading-relaxed">
+                  <p className="text-lg text-fg-muted font-tajawal leading-relaxed">
                     {lang === "ar"
                       ? "ما في مفاجآت. فلوسك تضل محجوزة عندنا لحد ما تستلم المنتج وتتأكد إنه مطابق تماماً لما اتفقنا عليه. بس هيك بتنطلق للبائع."
                       : "No surprises. Your funds remain securely held by us until you receive the product and verify that it perfectly matches what was agreed upon. Only then is it released to the seller."}
@@ -2157,10 +2174,10 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       }
                     ].map((point, idx) => (
                       <div key={idx} className="flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-[#F05123]/10 flex items-center justify-center shrink-0 mt-1">
-                          <Check className="w-3.5 h-3.5 text-[#F05123]" />
+                        <div className="w-5 h-5 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-1">
+                          <Check className="w-3.5 h-3.5 text-accent" />
                         </div>
-                        <span className="text-fg font-ibmarabic text-sm sm:text-base leading-relaxed font-medium">
+                        <span className="text-fg font-tajawal text-sm sm:text-base leading-relaxed font-medium">
                           {lang === "ar" ? point.ar : point.en}
                         </span>
                       </div>
@@ -2172,13 +2189,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               {/* Left Column: Interactive Escrow Path Diagram */}
               <Reveal delay={0.2}>
                 <div className="bg-surface-raised rounded-2xl p-6 sm:p-8 border border-line shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#F05123]/5 rounded-bl-full pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-bl-full pointer-events-none" />
                   
                   <div className="flex items-center justify-between mb-8 border-b border-line pb-4">
-                    <h3 className="font-bold text-fg font-ibmarabic text-lg">
+                    <h3 className="font-bold text-fg font-tajawal text-lg">
                       {lang === "ar" ? "مسار الضمان المالي الحي" : "How Your Payment Is Held"}
                     </h3>
-                    <span className="text-xs font-bold text-fg-muted font-ibmarabic">
+                    <span className="text-xs font-bold text-fg-muted font-tajawal">
                       {lang === "ar" ? "اضغط على الخطوة للتجربة" : "Click step to interact"}
                     </span>
                   </div>
@@ -2225,7 +2242,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                           onClick={() => setActiveEscrowStep(stepObj.step)}
                           className={`w-full text-right rtl:text-right ltr:text-left flex items-start gap-4 p-3.5 rounded-xl transition-all duration-300 relative z-10 ${
                             isActive 
-                              ? "bg-[#F05123]/5 border border-[#F05123]/20 shadow-sm" 
+                              ? "bg-accent/5 border border-accent/20 shadow-sm" 
                               : "hover:bg-surface-sunken border border-transparent"
                           }`}
                         >
@@ -2233,7 +2250,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                           <div className="relative shrink-0">
                             <div className={`w-10 h-10 rounded-full font-bold font-mono text-sm flex items-center justify-center transition-all duration-300 ${
                               isActive
-                                ? "bg-[#F05123] text-white"
+                                ? "bg-accent text-white"
                                 : "bg-surface-sunken text-fg-muted"
                             }`}>
                               <span className="font-mono" dir="ltr">{stepObj.step}</span>
@@ -2241,17 +2258,17 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                             
                             {/* Pulse animation for active step */}
                             {isActive && (
-                              <span className="absolute -inset-1 rounded-full border border-[#F05123] animate-pulse pointer-events-none opacity-60" />
+                              <span className="absolute -inset-1 rounded-full border border-accent animate-pulse pointer-events-none opacity-60" />
                             )}
                           </div>
 
                           <div className="flex-1">
-                            <h4 className={`text-base font-bold font-ibmarabic transition-colors duration-300 ${
-                              isActive ? "text-[#F05123]" : "text-fg"
+                            <h4 className={`text-base font-bold font-tajawal transition-colors duration-300 ${
+                              isActive ? "text-accent" : "text-fg"
                             }`}>
                               {lang === "ar" ? stepObj.arTitle : stepObj.enTitle}
                             </h4>
-                            <p className="text-xs text-fg-muted font-ibmarabic mt-0.5 leading-relaxed">
+                            <p className="text-xs text-fg-muted font-tajawal mt-0.5 leading-relaxed">
                               {lang === "ar" ? stepObj.arDesc : stepObj.enDesc}
                             </p>
                           </div>
@@ -2276,7 +2293,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria">
                   {t.categories.title}
                 </h2>
-                <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto">
+                <p className="text-fg text-sm sm:text-base font-tajawal max-w-xl mx-auto">
                   {t.categories.subtitle}
                 </p>
               </div>
@@ -2291,21 +2308,21 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       whileHover={{
                         scale: 1.03,
                         rotate: 1,
-                        borderColor: "#F05123",
+                        borderColor: ACCENT,
                         boxShadow: "0 12px 32px rgba(0,0,0,0.08)"
                       }}
                       transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                      className="bg-surface-raised border border-line hover:border-[#F05123] rounded-[10px] p-6 transition-all duration-300 group cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.04)] h-full"
+                      className="bg-surface-raised border border-line hover:border-accent rounded-[10px] p-6 transition-all duration-300 group cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.04)] h-full"
                     >
                       <div className="flex items-center gap-4 mb-4">
-                        <div className="w-12 h-12 rounded-[10px] bg-[#F05123]/10 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-[#F05123]/15 transition-all duration-300">
-                          {getLineIcon(`cat-${idx}`, "w-6 h-6 text-[#F05123]")}
+                        <div className="w-12 h-12 rounded-[10px] bg-accent/10 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-accent/15 transition-all duration-300">
+                          {getLineIcon(`cat-${idx}`, "w-6 h-6 text-accent")}
                         </div>
-                        <h3 className="text-lg font-bold text-fg font-alexandria group-hover:text-[#F05123] transition-colors">
+                        <h3 className="text-lg font-bold text-fg font-alexandria group-hover:text-accent transition-colors">
                           {cat.title}
                         </h3>
                       </div>
-                      <p className="text-xs text-fg-muted leading-relaxed font-ibmarabic">
+                      <p className="text-xs text-fg-muted leading-relaxed font-tajawal">
                         {cat.desc}
                       </p>
                     </motion.div>
@@ -2329,7 +2346,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria leading-tight">
                   {lang === "ar" ? "اشتراكات بسيطة وواضحة" : "Simple and Clear Subscriptions"}
                 </h2>
-                <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto leading-relaxed">
+                <p className="text-fg text-sm sm:text-base font-tajawal max-w-xl mx-auto leading-relaxed">
                   {lang === "ar" 
                     ? "ادفع بسهولة عبر كليك. ألغِ اشتراكك في أي وقت." 
                     : "Pay easily via CliQ. Cancel your subscription at any time."}
@@ -2349,7 +2366,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   >
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <span className="text-xs font-bold text-fg-muted uppercase tracking-wider font-ibmarabic">
+                        <span className="text-xs font-bold text-fg-muted uppercase tracking-wider font-tajawal">
                           {lang === "ar" ? "جرّبها" : "Try it out"}
                         </span>
                         <h3 className="text-xl font-bold text-fg font-alexandria">
@@ -2361,13 +2378,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         <span className="text-4xl font-black text-fg font-alexandria">
                           {lang === "ar" ? "1 دينار" : "1 JOD"}
                         </span>
-                        <span className="text-sm text-fg-muted font-ibmarabic">
+                        <span className="text-sm text-fg-muted font-tajawal">
                           / {lang === "ar" ? "شهرياً" : "month"}
                         </span>
                       </div>
 
                       <div className="border-t border-line pt-6">
-                        <ul className="space-y-3.5 text-xs text-fg-muted font-ibmarabic">
+                        <ul className="space-y-3.5 text-xs text-fg-muted font-tajawal">
                           <li className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-green-500 shrink-0" />
                             <span>{lang === "ar" ? "مزايدة غير محدودة" : "Unlimited bidding"}</span>
@@ -2388,7 +2405,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       <button
                         type="button"
                         onClick={onEnter}
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-surface-sunken hover:bg-gray-200 text-fg font-bold text-sm font-ibmarabic transition-colors duration-200 cursor-pointer"
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-surface-sunken hover:bg-gray-200 text-fg font-bold text-sm font-tajawal transition-colors duration-200 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
                       </button>
@@ -2402,17 +2419,17 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <Reveal delay={0.15}>
                   <motion.div
                     whileHover={{ y: -10, boxShadow: "0 20px 40px rgba(240,81,35,0.12)" }}
-                    className="bg-surface-raised border-2 border-[#F05123] rounded-[20px] p-8 flex flex-col justify-between h-full relative shadow-[0_12px_40px_rgba(240,81,35,0.08)] overflow-hidden"
+                    className="bg-surface-raised border-2 border-accent rounded-[20px] p-8 flex flex-col justify-between h-full relative shadow-[0_12px_40px_rgba(240,81,35,0.08)] overflow-hidden"
                   >
                     {/* Orange Badge */}
-                    <div className="absolute top-0 right-0 bg-[#F05123] text-white text-[10px] font-black px-4 py-1.5 rounded-bl-lg font-ibmarabic uppercase tracking-wide">
+                    <div className="absolute top-0 right-0 bg-accent text-white text-[10px] font-black px-4 py-1.5 rounded-bl-lg font-tajawal uppercase tracking-wide">
                       {lang === "ar" ? "الأكثر شيوعاً" : "Most Popular"}
                     </div>
 
                     <div className="space-y-6">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-[#F05123] uppercase tracking-wider font-ibmarabic">
+                          <span className="text-xs font-bold text-accent-ink uppercase tracking-wider font-tajawal">
                             {lang === "ar" ? "وفّر 33٪" : "Save 33%"}
                           </span>
                         </div>
@@ -2422,30 +2439,30 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       </div>
                       
                       <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black text-[#F05123] font-alexandria">
+                        <span className="text-4xl font-black text-accent font-alexandria">
                           {lang === "ar" ? "4 دنانير" : "4 JOD"}
                         </span>
-                        <span className="text-sm text-fg-muted font-ibmarabic">
+                        <span className="text-sm text-fg-muted font-tajawal">
                           / {lang === "ar" ? "6 أشهر" : "6 months"}
                         </span>
                       </div>
 
                       <div className="border-t border-line pt-6">
-                        <ul className="space-y-3.5 text-xs text-fg font-ibmarabic font-medium">
+                        <ul className="space-y-3.5 text-xs text-fg font-tajawal font-medium">
                           <li className="flex items-center gap-2.5">
-                            <Check className="w-4 h-4 text-[#F05123] shrink-0" />
+                            <Check className="w-4 h-4 text-accent shrink-0" />
                             <span>{lang === "ar" ? "مزايدة غير محدودة" : "Unlimited bidding"}</span>
                           </li>
                           <li className="flex items-center gap-2.5">
-                            <Check className="w-4 h-4 text-[#F05123] shrink-0" />
+                            <Check className="w-4 h-4 text-accent shrink-0" />
                             <span>{lang === "ar" ? "دخول فوري للمزادات المباشرة" : "Instant entry to live auctions"}</span>
                           </li>
                           <li className="flex items-center gap-2.5">
-                            <Check className="w-4 h-4 text-[#F05123] shrink-0" />
+                            <Check className="w-4 h-4 text-accent shrink-0" />
                             <span>{lang === "ar" ? "دعم فني ذو أولوية" : "Priority WhatsApp support"}</span>
                           </li>
                           <li className="flex items-center gap-2.5">
-                            <Check className="w-4 h-4 text-[#F05123] shrink-0" />
+                            <Check className="w-4 h-4 text-accent shrink-0" />
                             <span>{lang === "ar" ? "توفير مستمر" : "Ongoing savings"}</span>
                           </li>
                         </ul>
@@ -2456,7 +2473,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       <button
                         type="button"
                         onClick={onEnter}
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-[#F05123] hover:bg-[#d44319] text-white font-bold text-sm font-ibmarabic transition-all duration-200 shadow-md shadow-[#F05123]/25 cursor-pointer"
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-accent hover:bg-[#d44319] text-white font-bold text-sm font-tajawal transition-all duration-200 shadow-md shadow-accent/25 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
                       </button>
@@ -2474,7 +2491,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   >
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <span className="text-xs font-bold text-fg-muted uppercase tracking-wider font-ibmarabic">
+                        <span className="text-xs font-bold text-fg-muted uppercase tracking-wider font-tajawal">
                           {lang === "ar" ? "أفضل قيمة — وفّر 42٪" : "Best Value — Save 42%"}
                         </span>
                         <h3 className="text-xl font-bold text-fg font-alexandria">
@@ -2486,13 +2503,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         <span className="text-4xl font-black text-fg font-alexandria">
                           {lang === "ar" ? "7 دنانير" : "7 JOD"}
                         </span>
-                        <span className="text-sm text-fg-muted font-ibmarabic">
+                        <span className="text-sm text-fg-muted font-tajawal">
                           / {lang === "ar" ? "سنوياً" : "yearly"}
                         </span>
                       </div>
 
                       <div className="border-t border-line pt-6">
-                        <ul className="space-y-3.5 text-xs text-fg-muted font-ibmarabic">
+                        <ul className="space-y-3.5 text-xs text-fg-muted font-tajawal">
                           <li className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-green-500 shrink-0" />
                             <span>{lang === "ar" ? "مزايدة غير محدودة" : "Unlimited bidding"}</span>
@@ -2513,7 +2530,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       <button
                         type="button"
                         onClick={onEnter}
-                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-surface-sunken hover:bg-gray-200 text-fg font-bold text-sm font-ibmarabic transition-colors duration-200 cursor-pointer"
+                        className="block w-full text-center py-3.5 px-6 rounded-xl bg-surface-sunken hover:bg-gray-200 text-fg font-bold text-sm font-tajawal transition-colors duration-200 cursor-pointer"
                       >
                         {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
                       </button>
@@ -2526,7 +2543,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
             {/* Small Grey Line below cards */}
             <Reveal>
-              <div className="text-center mt-8 text-xs text-fg-muted font-ibmarabic">
+              <div className="text-center mt-8 text-xs text-fg-muted font-tajawal">
                 {lang === "ar"
                   ? "مزايدة بلا حدود · الدفع عبر كليك · بدون رسوم خفية · + عمولة مشترٍ 5٪ عند الفوز"
                   : "Unlimited bidding · Pay via CliQ · No hidden fees · +5% buyer's premium on wins"}
@@ -2539,11 +2556,11 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <div className="relative rounded-[24px] bg-[#0A0A0A] text-white p-8 md:p-12 overflow-hidden border border-white/5 shadow-2xl">
                   
                   {/* Decorative faint grid lines or blurred glow */}
-                  <div className="absolute top-0 right-0 -translate-x-1/4 -translate-y-1/4 w-[200px] h-[200px] rounded-full bg-[#F05123]/10 blur-2xl pointer-events-none" />
+                  <div className="absolute top-0 right-0 -translate-x-1/4 -translate-y-1/4 w-[200px] h-[200px] rounded-full bg-accent/10 blur-2xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 translate-x-1/4 translate-y-1/4 w-[150px] h-[150px] rounded-full bg-surface-raised/5 blur-2xl pointer-events-none" />
 
                   {/* Corner Badge - Orange Gradient */}
-                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-[#FF6B35] to-[#D63E10] text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-ibmarabic shadow-md border border-white/10">
+                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-gradient-to-r from-accent to-accent-strong text-white text-[10px] md:text-xs font-bold px-3.5 py-1.5 rounded-full font-tajawal shadow-md border border-white/10">
                     {lang === "ar" ? "اعرض منتجك مجاناً — لفترة محدودة" : "Free to list — Limited time"}
                   </div>
 
@@ -2552,7 +2569,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       <h3 className="text-xl md:text-2xl font-bold font-alexandria tracking-tight leading-tight">
                         {lang === "ar" ? "البائع يستلم 95٪ — عمولة 5٪ فقط" : "Sellers keep 95% — just 5% commission"}
                       </h3>
-                      <p className="text-fg-muted text-xs md:text-sm leading-relaxed font-ibmarabic">
+                      <p className="text-fg-muted text-xs md:text-sm leading-relaxed font-tajawal">
                         {lang === "ar" 
                           ? "بدون رسوم عرض حالياً. لا رسوم إذا لم يُبَع المنتج. عمولة 5٪ فقط عندما يجد منتجك مشتريه."
                           : "No listing fees right now. No fees if the product is not sold. Just 5% commission when your product finds a buyer."}
@@ -2565,7 +2582,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'pricing' }); onEnter('upload'); }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.98 }}
-                        className="inline-block px-8 py-3.5 bg-surface-raised text-fg hover:bg-surface-sunken font-bold text-sm font-ibmarabic rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
+                        className="inline-block px-8 py-3.5 bg-surface-raised text-fg hover:bg-surface-sunken font-bold text-sm font-tajawal rounded-xl shadow-md transition-colors duration-200 text-center w-full lg:w-auto cursor-pointer"
                       >
                         {lang === "ar" ? "بيع معنا" : "Sell with Us"}
                       </motion.button>
@@ -2583,8 +2600,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             and inspects. We do not claim to inspect every lot ourselves. */}
         <section id="office-visit" className="py-[96px] bg-[#0A0A0A] text-white relative overflow-hidden">
           {/* Subtle abstract glow in the background */}
-          <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[400px] h-[400px] bg-[#F05123]/10 rounded-full blur-[120px] pointer-events-none" />
-          <div className="absolute -bottom-20 -right-20 w-[300px] h-[300px] bg-[#F05123]/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute -bottom-20 -right-20 w-[300px] h-[300px] bg-accent/10 rounded-full blur-[100px] pointer-events-none" />
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] rounded-3xl p-8 md:p-12 border border-gray-800 shadow-xl relative overflow-hidden">
@@ -2594,18 +2611,18 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 <div className="lg:col-span-7 space-y-6">
                   <Reveal>
                     <div>
-                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F05123]/20 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/30 mb-3">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-accent/20 text-accent text-xs font-bold font-tajawal border border-accent/30 mb-3">
                         <Building2 className="w-4 h-4" />
                         {lang === "ar" ? "المعاينة قبل المزايدة" : "Viewing before you bid"}
                       </span>
-                      <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white font-ibmarabic leading-tight">
+                      <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white font-tajawal leading-tight">
                         {lang === "ar" ? "مش لازم تصدقنا بالكلام بس — فلوسك محجوزة لحد ما تتأكد." : "Don't just take our word for it — your money is held until you're sure."}
                       </h2>
                     </div>
                   </Reveal>
 
                   <Reveal delay={0.1}>
-                    <p className="text-gray-300 text-base sm:text-lg font-ibmarabic leading-relaxed">
+                    <p className="text-gray-300 text-base sm:text-lg font-tajawal leading-relaxed">
                       {lang === "ar"
                         ? "بعض المنتجات بتقدر تعاينها قبل ما تزايد — إما بمكاتبنا أو عند البائع إذا كان عنده محل. وبكل الحالات، فلوسك محجوزة عندنا وما بتوصل البائع إلا بعد ما تستلم وتتأكد إن المنتج مطابق للوصف."
                         : "Some products can be viewed before you bid — at our offices, or at the seller's store where they have one. And in every case, your money is held by us and does not reach the seller until you receive the product and confirm it matches the description."}
@@ -2618,9 +2635,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         href={SUPPORT_WHATSAPP_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-raised text-fg hover:bg-surface-sunken font-bold font-ibmarabic transition-all duration-300 hover:scale-105 shadow-md text-center"
+                        className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-raised text-fg hover:bg-surface-sunken font-bold font-tajawal transition-all duration-300 hover:scale-105 shadow-md text-center"
                       >
-                        <MapPin className="w-5 h-5 text-[#F05123]" />
+                        <MapPin className="w-5 h-5 text-accent" />
                         {lang === "ar" ? "رتّب معاينة" : "Arrange a viewing"}
                       </a>
                       
@@ -2628,7 +2645,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                           office is not open around the clock. A pulsing green dot
                           read as "we are open right now" regardless of the hour. */}
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface-raised/5 border border-white/10 self-center">
-                        <span className="text-xs text-gray-300 font-ibmarabic">
+                        <span className="text-xs text-gray-300 font-tajawal">
                           {lang === "ar" ? "نسعد بزيارتكم" : "We'd be delighted to have you visit"}
                         </span>
                       </div>
@@ -2641,11 +2658,11 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <Reveal delay={0.3}>
                     <div className="relative group">
                       {/* Decorative glowing backdrops */}
-                      <div className="absolute -inset-4 bg-gradient-to-tr from-[#F05123]/20 to-[#F05123]/20 rounded-full blur-2xl group-hover:opacity-100 transition duration-1000 opacity-70" />
+                      <div className="absolute -inset-4 bg-gradient-to-tr from-accent/20 to-accent/20 rounded-full blur-2xl group-hover:opacity-100 transition duration-1000 opacity-70" />
                       
                       <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-[#1A1A1A] border border-gray-800 flex items-center justify-center shadow-2xl transition-all duration-500 group-hover:scale-110">
                         {/* MapPin & Building dynamic composition */}
-                        <div className="absolute text-[#F05123] animate-bounce duration-1000">
+                        <div className="absolute text-accent animate-bounce duration-1000">
                           <MapPin className="w-20 h-20 drop-shadow-[0_10px_15px_rgba(240,81,35,0.3)]" />
                         </div>
                         <div className="absolute text-white/10 pointer-events-none">
@@ -2668,14 +2685,14 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             
             {/* Title & Header */}
             <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16 gap-4">
-              <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 ${lang === "en" ? "tracking-wide" : ""}`}>
+              <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold font-tajawal border border-accent/20 ${lang === "en" ? "tracking-wide" : ""}`}>
                 <HelpCircle className="w-3.5 h-3.5" />
                 <span>{t.faq.title}</span>
               </span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria leading-tight">
                 {t.faq.title}
               </h2>
-              <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto">
+              <p className="text-fg text-sm sm:text-base font-tajawal max-w-xl mx-auto">
                 {t.faq.subtitle}
               </p>
             </div>
@@ -2687,7 +2704,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 return (
                   <div
                     key={idx}
-                    className="bg-surface-raised border border-line rounded-[16px] overflow-hidden transition-all duration-300 hover:border-[#F05123] shadow-[0_4px_24px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
+                    className="bg-surface-raised border border-line rounded-[16px] overflow-hidden transition-all duration-300 hover:border-accent shadow-[0_4px_24px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
                   >
                     <button
                       onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
@@ -2698,7 +2715,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       </span>
                       <div className="shrink-0 w-8 h-8 rounded-lg bg-surface border border-line flex items-center justify-center transition-colors">
                         <ChevronDown 
-                          className={`w-4 h-4 text-[#F05123] transition-transform duration-300 ${
+                          className={`w-4 h-4 text-accent transition-transform duration-300 ${
                             isOpen ? "rotate-180" : "rotate-0"
                           }`} 
                         />
@@ -2710,7 +2727,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
                       }`}
                     >
-                      <div className="px-6 pb-6 text-fg-muted text-sm sm:text-base font-ibmarabic leading-relaxed border-t border-line pt-5 space-y-3">
+                      <div className="px-6 pb-6 text-fg-muted text-sm sm:text-base font-tajawal leading-relaxed border-t border-line pt-5 space-y-3">
                         <p>{faq.a}</p>
                       </div>
                     </div>
@@ -2722,8 +2739,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             {/* Direct support WhatsApp callout */}
             <div className="mt-12 p-6 rounded-[16px] bg-surface border border-line flex flex-col sm:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-3.5 text-center sm:text-start">
-                <div className="w-12 h-12 rounded-[12px] bg-[#F05123]/10 flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-6 h-6 text-[#F05123]" />
+                <div className="w-12 h-12 rounded-[12px] bg-accent/10 flex items-center justify-center shrink-0">
+                  <MessageCircle className="w-6 h-6 text-accent" />
                 </div>
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-fg font-alexandria">
@@ -2757,31 +2774,32 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
             {/* Title */}
             <div className="flex flex-col items-center gap-4 text-center">
-              <span className={`inline-block px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 ${lang === "en" ? "tracking-wide" : ""}`}>
+              <span className={`inline-block px-3.5 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold font-tajawal border border-accent/20 ${lang === "en" ? "tracking-wide" : ""}`}>
                 {lang === "ar" ? "متاح الآن" : "NOW LIVE"}
               </span>
               <h2 className="text-4xl sm:text-5xl font-extrabold text-fg font-alexandria">
                 {t.comingSoon.title}
               </h2>
-              <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-lg mx-auto">
+              <p className="text-fg text-sm sm:text-base font-tajawal max-w-lg mx-auto">
                 {t.comingSoon.subtitle}
               </p>
-              <motion.button
-                type="button"
+              {/* The same primary the hero opens with, met again at the point
+                  the visitor has finished reading and is deciding. */}
+              <LandingButton
                 onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'coming_soon' }); onEnter(); }}
-                whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
-                whileTap={{ scale: 0.97 }}
-                className="mt-2 px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
+                className="mt-2 group"
+                trailing={
+                  <span aria-hidden="true" className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 motion-reduce:transition-none">→</span>
+                }
               >
-                <span>{lang === "ar" ? "جرّب المزاد الحي الآن" : "Try the live auction now"}</span>
-                <span className="inline-block transition-transform duration-300 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5">→</span>
-              </motion.button>
+                {lang === "ar" ? "جرّب المزاد الحي الآن" : "Try the live auction now"}
+              </LandingButton>
             </div>
 
             {/* Form Box with Slide Reveal and active focus states */}
             <Reveal delay={0.25}>
               <div className="max-w-2xl mx-auto bg-surface-raised border border-line rounded-[10px] p-6 sm:p-10 shadow-[0_12px_32px_rgba(0,0,0,0.08)] relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1 bg-[#F05123] rounded-t-[10px]"></div>
+                <div className="absolute top-0 inset-x-0 h-1 bg-accent rounded-t-[10px]"></div>
                 
                 <h3 className="text-lg sm:text-xl font-bold text-fg font-alexandria mb-6">
                   {t.comingSoon.formTitle}
@@ -2791,33 +2809,33 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   
                   {/* Full name input */}
                   <div className="text-start">
-                    <label htmlFor="full-name" className="text-xs text-fg-muted font-ibmarabic mb-1 block">
+                    <label htmlFor="full-name" className="text-xs text-fg-muted font-tajawal mb-1 block">
                       {t.comingSoon.formName}
                     </label>
                     <motion.input
-                      whileFocus={{ scale: 1.01, borderColor: "#F05123" }}
+                      whileFocus={{ scale: 1.01, borderColor: ACCENT }}
                       type="text"
                       id="full-name"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
                       placeholder={lang === "ar" ? "أدخل اسمك الكريم" : "Enter your full name"}
-                      className="w-full bg-surface border border-line rounded-[10px] px-4 py-3 text-sm text-fg placeholder-gray-400 focus:outline-none focus:border-[#F05123] focus:ring-1 focus:ring-[#F05123] transition duration-200"
+                      className="w-full bg-surface border border-line rounded-[10px] px-4 py-3 text-sm text-fg placeholder-gray-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition duration-200"
                     />
                   </div>
 
                   {/* Contact phone/email input */}
                   <div className="text-start">
-                    <label htmlFor="contact" className="text-xs text-fg-muted font-ibmarabic mb-1 block">
+                    <label htmlFor="contact" className="text-xs text-fg-muted font-tajawal mb-1 block">
                       {t.comingSoon.formContact} <span className="text-red-500">*</span>
                     </label>
                     <motion.input
-                      whileFocus={{ scale: 1.01, borderColor: "#F05123" }}
+                      whileFocus={{ scale: 1.01, borderColor: ACCENT }}
                       type="text"
                       id="contact"
                       value={formContact}
                       onChange={(e) => setFormContact(e.target.value)}
                       placeholder={lang === "ar" ? "example@email.com أو 0790000000" : "example@email.com or 0790000000"}
-                      className="w-full bg-surface border border-line rounded-[10px] px-4 py-3 text-sm text-fg placeholder-gray-400 focus:outline-none focus:border-[#F05123] focus:ring-1 focus:ring-[#F05123] transition duration-200"
+                      className="w-full bg-surface border border-line rounded-[10px] px-4 py-3 text-sm text-fg placeholder-gray-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition duration-200"
                     />
                   </div>
 
@@ -2828,7 +2846,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-[10px] text-xs font-ibmarabic text-start"
+                        className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-[10px] text-xs font-tajawal text-start"
                       >
                         {formError}
                       </motion.div>
@@ -2842,9 +2860,9 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-green-50 border border-green-200 text-emerald-700 p-3.5 rounded-[10px] text-xs font-ibmarabic text-start flex items-center gap-2"
+                        className="bg-green-50 border border-green-200 text-emerald-700 p-3.5 rounded-[10px] text-xs font-tajawal text-start flex items-center gap-2"
                       >
-                        <CheckCircle2 className="w-5 h-5 shrink-0 text-[#F05123]" />
+                        <CheckCircle2 className="w-5 h-5 shrink-0 text-accent" />
                         <span>{t.comingSoon.formSuccess}</span>
                       </motion.div>
                     )}
@@ -2855,7 +2873,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     type="submit"
-                    className="w-full py-4 rounded-[10px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-200 cursor-pointer font-ibmarabic"
+                    className="w-full py-4 rounded-[10px] bg-accent hover:bg-accent-strong text-white font-bold text-base shadow-sm transition-all duration-200 cursor-pointer font-tajawal"
                   >
                     {t.comingSoon.formSubmit}
                   </motion.button>
@@ -2863,7 +2881,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 </form>
 
                 {/* Experimental notice */}
-                <p className="text-[10px] text-fg-muted font-ibmarabic mt-5">
+                <p className="text-[10px] text-fg-muted font-tajawal mt-5">
                   {t.comingSoon.experimentalNote}
                 </p>
 
@@ -2871,14 +2889,14 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 {waitlist.length > 0 && (
                   <div className="mt-8 pt-6 border-t border-line text-start">
                     <h4 className="text-xs font-bold text-fg font-alexandria mb-3 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-[#F05123]" />
+                      <Users className="w-4 h-4 text-accent" />
                       <span>{t.comingSoon.registeredTitle} ({waitlist.length})</span>
                     </h4>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[120px] overflow-y-auto pr-1">
                       {waitlist.map((member, idx) => (
                       <div key={idx} className="bg-surface rounded-[10px] p-2.5 border border-line flex items-center justify-between text-xs">
-                        <span className="font-semibold text-fg truncate max-w-[120px] font-ibmarabic">
+                        <span className="font-semibold text-fg truncate max-w-[120px] font-tajawal">
                           {member.name}
                         </span>
                         <span className="font-mono text-fg-muted">
@@ -2900,7 +2918,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
         <section className="py-24 bg-[#0A0A0A] relative overflow-hidden">
           {/* Main Container */}
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#FF6B35] to-[#D63E10] px-6 py-16 sm:px-12 sm:py-20 md:p-20 shadow-2xl">
+            <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-accent to-accent-strong px-6 py-16 sm:px-12 sm:py-20 md:p-20 shadow-2xl">
               
               {/* Decorative visual elements for visual depth */}
               <div className="absolute top-0 left-0 -translate-x-1/3 -translate-y-1/3 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] rounded-full bg-surface-raised/10 blur-3xl pointer-events-none" />
@@ -2916,7 +2934,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 </Reveal>
 
                 <Reveal delay={0.15}>
-                  <p className="text-white/90 text-sm sm:text-lg font-ibmarabic max-w-xl mx-auto leading-relaxed">
+                  <p className="text-white/90 text-sm sm:text-lg font-tajawal max-w-xl mx-auto leading-relaxed">
                     {lang === "ar"
                       ? "انضم اليوم واستفد من فترة بدون رسوم عرض — البائع يستلم 95٪ وعمولتنا 5٪ فقط عند البيع الفعلي، + عمولة مشترٍ 5٪ عند الفوز."
                       : "Join today and take advantage of a listing fee-free period — sellers keep 95% with just 5% commission on actual sales, +5% buyer's premium on wins."}
@@ -2925,22 +2943,27 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
                 <Reveal delay={0.3}>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                    <motion.button
-                      type="button"
+                    {/* NOTE, deliberately left alone: this button says "ابدأ
+                        البيع الآن" but runs `onEnter()` and reports
+                        `browse_cta_clicked` — it browses. Behaviour and
+                        tracking are preserved exactly as found; only the
+                        styling is unified here. The label/handler mismatch is
+                        worth resolving, but silently changing either one would
+                        move a funnel number under someone's feet. */}
+                    <LandingButton
+                      variant="inverted"
                       onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'final' }); onEnter(); }}
-                      whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full sm:w-auto px-8 py-4 rounded-full bg-surface-raised text-[#D63E10] hover:bg-surface-sunken font-bold font-ibmarabic text-base transition-colors duration-200 text-center shadow-lg cursor-pointer"
+                      className="w-full sm:w-auto rounded-full"
                     >
                       {lang === "ar" ? "ابدأ البيع الآن" : "Start Selling Now"}
-                    </motion.button>
+                    </LandingButton>
                     
                     <motion.button
                       type="button"
                       onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'final_secondary' }); onEnter(); }}
                       whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.1)" }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full sm:w-auto px-8 py-4 rounded-full border-2 border-white bg-transparent text-white font-bold font-ibmarabic text-base transition-colors duration-200 text-center cursor-pointer"
+                      className="w-full sm:w-auto px-8 py-4 rounded-full border-2 border-white bg-transparent text-white font-bold font-tajawal text-base transition-colors duration-200 text-center cursor-pointer"
                     >
                       {lang === "ar" ? "تصفح المزادات" : "Browse Auctions"}
                     </motion.button>
@@ -2964,43 +2987,43 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               <div className="flex items-center justify-center md:justify-start">
                 <Logo className="h-8" iconClassName="h-8 w-8" textClassName="text-xl font-black text-fg font-sans" />
               </div>
-              <p className="text-xs text-fg-muted font-ibmarabic leading-relaxed max-w-sm">
+              <p className="text-xs text-fg-muted font-tajawal leading-relaxed max-w-sm">
                 {t.footer.desc}
               </p>
             </div>
 
             {/* Quick Links Column */}
             <div className="md:col-span-7 flex flex-wrap items-center justify-center md:justify-end gap-6 text-xs font-semibold text-fg-muted">
-              <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#why-mazzado" onClick={onSectionLinkClick("why-mazzado")} className="hover:text-accent transition-colors duration-200 font-tajawal">
                 {t.footer.links.whyUs}
               </a>
-              <a href="#categories" onClick={onSectionLinkClick("categories")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#categories" onClick={onSectionLinkClick("categories")} className="hover:text-accent transition-colors duration-200 font-tajawal">
                 {t.footer.links.categories}
               </a>
-              <a href="#pricing" onClick={onSectionLinkClick("pricing")} className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic">
+              <a href="#pricing" onClick={onSectionLinkClick("pricing")} className="hover:text-accent transition-colors duration-200 font-tajawal">
                 {t.nav.pricing}
               </a>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic font-semibold">
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors duration-200 font-tajawal font-semibold">
                 {t.footer.links.contact}
               </a>
               <button
                 type="button"
                 onClick={() => setIsRulesOpen(true)}
-                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
+                className="hover:text-accent transition-colors duration-200 font-tajawal cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
               >
                 {lang === "ar" ? "قواعد المزاد" : "Auction Rules"}
               </button>
               <button
                 type="button"
                 onClick={() => setIsTermsOpen(true)}
-                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
+                className="hover:text-accent transition-colors duration-200 font-tajawal cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
               >
                 {lang === "ar" ? "شروط الاستخدام" : "Terms of Use"}
               </button>
               <button
                 type="button"
                 onClick={() => setIsTermsOpen(true)}
-                className="hover:text-[#F05123] transition-colors duration-200 font-ibmarabic cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
+                className="hover:text-accent transition-colors duration-200 font-tajawal cursor-pointer bg-transparent border-none p-0 text-xs font-semibold text-fg-muted"
               >
                 {lang === "ar" ? "سياسة الخصوصية" : "Privacy Policy"}
               </button>
@@ -3009,7 +3032,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
           </div>
 
           {/* Company / Contact Info */}
-          <div className="pt-6 flex flex-col items-center justify-center gap-2.5 text-center text-xs text-fg-muted font-ibmarabic">
+          <div className="pt-6 flex flex-col items-center justify-center gap-2.5 text-center text-xs text-fg-muted font-tajawal">
             
             {/* ONE line, not two. This was a customer-service number and a
                 separate auctions-and-payment number; both now resolve to the
@@ -3019,7 +3042,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 sitting on the same element — which is exactly how the old pair
                 drifted. */}
             <div className="flex items-center justify-center">
-              <a href={SUPPORT_PHONE_TEL} className="flex items-center gap-1.5 hover:text-[#F05123] transition-colors duration-200">
+              <a href={SUPPORT_PHONE_TEL} className="flex items-center gap-1.5 hover:text-accent transition-colors duration-200">
                 <span>{lang === "ar" ? "خدمة العملاء والمزادات:" : "Customer Service & Auctions:"}</span>
                 <span className="font-mono" dir="ltr">{SUPPORT_PHONE_NATIONAL}</span>
               </a>
@@ -3047,7 +3070,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 rel="noopener noreferrer"
                 aria-label={lang === "ar" ? "مزادو على إنستغرام" : "MAZZADO on Instagram"}
                 title={lang === "ar" ? "مزادو على إنستغرام" : "MAZZADO on Instagram"}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-[#F05123]/40 hover:text-[#F05123]"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line/70 bg-surface-raised text-fg-muted shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-accent/40 hover:text-accent"
               >
                 <Instagram className="h-[18px] w-[18px]" />
               </a>
@@ -3060,13 +3083,13 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
           {/* Copyrights and Jordan Badge */}
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
-            <p className="text-xs text-fg-muted font-ibmarabic">
+            <p className="text-xs text-fg-muted font-tajawal">
               {t.footer.rights}
             </p>
 
             {/* Tiny secure seal */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-raised border border-line text-[10px] text-fg-muted font-ibmarabic shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-              <Lock className="w-3 h-3 text-[#F05123]" />
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-raised border border-line text-[10px] text-fg-muted font-tajawal shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <Lock className="w-3 h-3 text-accent" />
               <span>{lang === "ar" ? "مزادات تعمل في الأردن" : "Auctions operating in Jordan"}</span>
             </div>
           </div>
@@ -3084,19 +3107,25 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             transition={{ duration: 0.35, ease: "easeOut" }}
             className="fixed bottom-0 left-0 right-0 z-50 bg-surface-raised/95 backdrop-blur-md border-t border-line p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] md:hidden flex items-center justify-between gap-3"
           >
-            <button
-              type="button"
+            {/* ONE dominant action on a phone. The two buttons here used to be
+                the same width and the same weight — a filled gradient beside a
+                2px-outlined twin — so the bar asked the visitor to choose
+                rather than to act, at the exact moment they had finished
+                reading and were deciding. Browsing takes the width; selling
+                stays reachable as a quiet link, which is what it is: the
+                secondary journey for a different person. */}
+            <LandingButton
               onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'sticky' }); onEnter(); }}
-              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-gradient-to-br from-[#FF6B35] via-[#F05123] to-[#D63E10] text-white font-bold text-sm shadow-sm active:scale-95 transition-all duration-300 font-ibmarabic cursor-pointer"
+              className="flex-1"
             >
-              <span>{lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}</span>
-            </button>
+              {lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}
+            </LandingButton>
             <button
               type="button"
               onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'sticky' }); onEnter('upload'); }}
-              className="flex-1 py-4 min-h-[52px] flex items-center justify-center rounded-[12px] bg-surface-raised border-2 border-fg text-fg font-bold text-sm transition-all duration-300 active:scale-95 text-center font-ibmarabic cursor-pointer"
+              className="shrink-0 px-3 min-h-[56px] flex items-center justify-center text-fg-muted hover:text-accent underline underline-offset-4 decoration-line font-semibold text-sm transition-colors font-tajawal cursor-pointer"
             >
-              <span>{lang === "ar" ? "بيع قطعتك" : "Sell Your Item"}</span>
+              {lang === "ar" ? "بيع قطعتك" : "Sell"}
             </button>
           </motion.div>
         )}
