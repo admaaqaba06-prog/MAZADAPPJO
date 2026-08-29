@@ -14,6 +14,7 @@ import {
   Hash,
   Globe,
   Clock,
+  Truck,
   Users,
   Bell,
   Menu,
@@ -120,6 +121,12 @@ const renderMixedText = (text: string, isAr: boolean) => {
 };
 
 // Simulated Jordanian names for the interactive feed
+/**
+ * Icons for the hero proof row, positional like TRUST_ICONS. Kept beside the
+ * component rather than in translations: the copy is bilingual, the icon is not.
+ */
+const HERO_PROOF_ICONS = [Truck, Lock, Clock] as const;
+
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
 const EN_NAMES = ["Mustafa Al-Qudah", "Ahmad Al-Abadi", "Sarah Haddad", "Khalid Shawabkeh", "Rania Al-Fayez", "Hamzah Al-Masri", "Omar Al-Zoubi", "Hadeel Al-Khalayleh", "Tariq Al-Hussein", "Zaid Al-Nabulsi"];
 
@@ -1194,7 +1201,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     }
                   }
                 }}
-                className="lg:col-span-7 space-y-6 text-center lg:text-start"
+                className="relative z-10 lg:col-span-7 space-y-6 text-center lg:text-start"
               >
                 
                 {/* Badge */}
@@ -1215,7 +1222,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className={`text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
+                  className={`text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
@@ -1261,7 +1268,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 >
                   <motion.button
                     type="button"
-                    onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
+                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
@@ -1271,7 +1278,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   </motion.button>
                   <motion.button
                     type="button"
-                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
+                    onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-fg text-fg font-semibold text-base bg-surface-raised hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
@@ -1286,17 +1293,26 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="flex items-center justify-center lg:justify-start gap-5 sm:gap-7 pt-6 border-t border-line"
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 pt-6 border-t border-line"
                 >
-                  {t.hero.proof.map((s, i) => (
-                    <React.Fragment key={i}>
-                      {i > 0 && <span className="w-px h-7 bg-surface-sunken shrink-0" aria-hidden="true" />}
-                      <div className="text-center lg:text-start">
-                        <div dir="ltr" className="text-xl sm:text-2xl font-extrabold text-fg font-alexandria leading-none">{s.value}</div>
-                        <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-fg/50 font-ibmarabic mt-1.5">{s.label}</div>
+                  {t.hero.proof.map((s, i) => {
+                    const Icon = HERO_PROOF_ICONS[i] ?? Lock;
+                    return (
+                      // Icon ABOVE the words, not beside them. The hero copy column is
+                      // ~166px per cell at 1024, and an inline icon left too little
+                      // room for «توصيل خلال 48 ساعة» — it broke across two lines while
+                      // its neighbours sat on one, which read as a mistake.
+                      <div key={i} className="flex flex-col items-center lg:items-start gap-2 text-center lg:text-start">
+                        <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F05123]/25 bg-[#F05123]/10">
+                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-5 w-5 text-[#F05123]" />
+                        </span>
+                        <div className="min-w-0">
+                          <div dir={/^[0-9]/.test(s.value) ? "ltr" : undefined} className="text-sm sm:text-base font-extrabold text-fg font-alexandria leading-tight">{s.value}</div>
+                          <div className="text-[11px] sm:text-xs font-medium text-fg-muted font-ibmarabic leading-snug mt-0.5">{s.label}</div>
+                        </div>
                       </div>
-                    </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </motion.div>
 
               </motion.div>
@@ -1311,7 +1327,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 {/* Watch — upper left, pulled out so it reads clearly next to the phone */}
                 <div
                   aria-hidden="true"
-                  className="hidden lg:block absolute top-6 start-[-76px] z-0 w-[248px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[10deg] opacity-95 pointer-events-none select-none bg-surface-raised border border-black/5"
+                  className="hidden lg:block absolute top-6 start-0 xl:start-[-76px] z-0 w-[248px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[10deg] opacity-95 pointer-events-none select-none bg-surface-raised border border-black/5"
                 >
                   <img
                     src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=600&q=80"
@@ -2048,23 +2064,29 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               <div className="mt-16 bg-[#0A0A0A] text-white rounded-2xl p-8 border border-gray-800 shadow-xl">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                   {[
+                    // Terms, not counts. The three that stood here — 1,250+ sales,
+                    // 3,400+ listings, 15,000+ active users — were never measured, and
+                    // this bar sits directly under a heading that promises real
+                    // stories. Each of these is quoted from the locked rules —
+                    // `fees`, `paymentWindow` and `noDeposit` in
+                    // src/content/auctionRules.ts.
                     {
-                      arVal: "1,250+",
-                      enVal: "1,250+",
-                      arLabel: "عملية بيع ناجحة",
-                      enLabel: "Successful Sales"
+                      arVal: "5% + 5%",
+                      enVal: "5% + 5%",
+                      arLabel: "عمولة المشتري والبائع",
+                      enLabel: "Buyer + seller commission"
                     },
                     {
-                      arVal: "3,400+",
-                      enVal: "3,400+",
-                      arLabel: "منتج معروض",
-                      enLabel: "Listed Items"
+                      arVal: "24 ساعة",
+                      enVal: "24 hours",
+                      arLabel: "مهلة الدفع بعد الفوز",
+                      enLabel: "To pay after you win"
                     },
                     {
-                      arVal: "15,000+",
-                      enVal: "15,000+",
-                      arLabel: "مستخدم نشط",
-                      enLabel: "Active Users"
+                      arVal: "بدون تأمين",
+                      enVal: "No deposit",
+                      arLabel: "ما في وديعة للمزايدة",
+                      enLabel: "Nothing to pay to bid"
                     },
                     {
                       arVal: <Lock className="w-8 h-8 sm:w-9 sm:h-9 inline-block" aria-hidden="true" />,
