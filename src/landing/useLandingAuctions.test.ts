@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  compareLandingAuctions,
-  curateLandingAuctions,
-  isAwaitingFirstLandingBid,
-  mapToLandingAuction,
-} from './useLandingAuctions';
+import { compareLandingAuctions, curateLandingAuctions, mapToLandingAuction } from './useLandingAuctions';
 import type { LandingAuction } from './useLandingAuctions';
 import type { AuctionItem } from '../types';
 
@@ -336,100 +331,5 @@ describe('mapToLandingAuction — new fields', () => {
 
   it('leaves endTime undefined for a clockless lot rather than inventing a clock', () => {
     expect(mapToLandingAuction(auction({ endTime: undefined })).endTime).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The awaiting-first-bid predicate.
-//
-// This is the rule that decides whether a card may show a clock at all, so it
-// is the one place a "-56 years" countdown or a false "Be the first" badge gets
-// in. It is a PURE function on the mapped shape, exported so the hero and the
-// cards read one rule rather than each carrying their own — they briefly did,
-// and that is exactly how two surfaces end up disagreeing about the same lot.
-//
-// NOT the same as `isAwaitingFirstBid` in utils/auctionPhase.ts: that one
-// requires `startMode === 'first_bid'`, and `mapToLandingAuction` does not carry
-// `startMode`. It does not need to. A scheduled lot always ships an `endTime`
-// (AppContext writes `endTime` AND `endsAt` for every non-first_bid listing),
-// so on this shape "live, no clock, no bids" already implies first-bid.
-// ---------------------------------------------------------------------------
-describe('isAwaitingFirstLandingBid', () => {
-  const lot = (o: Partial<AuctionItem>): LandingAuction => mapToLandingAuction(auction(o));
-
-  it('requires no bids and no valid clock', () => {
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: undefined }))).toBe(true);
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 1, endTime: NOW + 60_000 }))).toBe(false);
-  });
-
-  it('is false as soon as a bid lands, clock or no clock', () => {
-    // A started `first_bid` lot is stamped with `endsAt`, which this shape does
-    // not carry, so it arrives clockless WITH bids. It must not be advertised
-    // as awaiting a first bid that has already happened.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 1, endTime: undefined }))).toBe(false);
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 25, endTime: undefined }))).toBe(false);
-  });
-
-  it('is false for a lot with a real future clock and no bids', () => {
-    // A scheduled lot before anyone bids. It has a countdown to show, so the
-    // first-bid explanation would be a false statement about its timing.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: NOW + 60_000 }))).toBe(false);
-  });
-
-  it('treats a bare 0 endTime as clockless, not as an epoch-1970 clock', () => {
-    // `isLiveNow` decides clocked-ness by falsiness, so it ADMITS a 0 endTime
-    // and curation keeps the lot. Read as a timestamp, 0 is 1970 — the shape
-    // that ships a card counting down from minus fifty-six years.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: 0 }))).toBe(true);
-  });
-
-  it('treats a NaN endTime as clockless', () => {
-    // Matches the comparator, which already classifies NaN as clockless so its
-    // subtraction can never return NaN.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: NaN as any }))).toBe(true);
-  });
-
-  it('treats an Infinity endTime as having no RENDERABLE clock', () => {
-    // The one value where this predicate deliberately parts company with
-    // `compareLandingAuctions`, which asks a different question. The comparator
-    // needs a TOTAL ORDER, and `Infinity > 0` is true, so it files such a lot
-    // among the clocked ones (last, since it subtracts). This predicate asks
-    // whether a countdown can be DRAWN, and `Infinity - now` formats as
-    // nothing a reader can use.
-    //
-    // The divergence is invisible: ordering makes no claim to a visitor, and a
-    // card gated on this predicate renders the first-bid explanation instead of
-    // an unbounded timer. Asserted rather than left implicit so a future edit to
-    // either function has to confront it.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: Infinity as any }))).toBe(true);
-  });
-
-  it('treats a negative endTime as clockless', () => {
-    // The one value where `isLiveNow` and the comparator genuinely diverge:
-    // `!(-5)` is false, so `isLiveNow` calls it clocked. Such a lot is dropped
-    // by the expiry check before it reaches a card, but the predicate must not
-    // hand a negative remaining time to a formatter if one ever slips through.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: 0, endTime: -5 }))).toBe(true);
-  });
-
-  it('treats an absent totalBids as zero rather than as a bid', () => {
-    // A doc mid-write, or one predating the counter, must not be reported as
-    // having a bid it does not have.
-    expect(isAwaitingFirstLandingBid(lot({ totalBids: undefined as any, endTime: undefined }))).toBe(true);
-  });
-
-  it('agrees with the comparator on every endTime a real doc can carry', () => {
-    // Both answer a version of "does this lot have a clock?", and for every
-    // value a Firestore doc actually holds they must agree — a disagreement
-    // means a lot sorted among the clocked ones while rendering "Be the first".
-    // `Infinity` is excluded on purpose and covered by the test above.
-    for (const endTime of [undefined, null, 0, NaN, -1, NOW + 1_000] as any[]) {
-      const a = lot({ endTime, totalBids: 0 });
-      const clockedByComparator = compareLandingAuctions(a, lot({ endTime: undefined, totalBids: 0 })) < 0;
-      expect(
-        isAwaitingFirstLandingBid(a),
-        `disagreement for endTime=${String(endTime)}`
-      ).toBe(!clockedByComparator);
-    }
   });
 });

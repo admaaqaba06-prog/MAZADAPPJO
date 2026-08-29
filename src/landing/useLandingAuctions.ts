@@ -81,45 +81,6 @@ export function mapToLandingAuction(a: AuctionItem): LandingAuction {
 }
 
 /**
- * Whether a curated lot is still waiting for its first bid — the ONE rule that
- * decides whether any landing surface may draw a clock.
- *
- * Exported and shared deliberately. The hero and the auction cards both need
- * this answer, and for one commit they each carried their own copy; two copies
- * of "when may a countdown be shown" is precisely how two surfaces end up
- * describing the same lot differently.
- *
- * `endTime` must be a FINITE POSITIVE number to count as a clock:
- *
- * - `undefined` / `null` — a `first_bid` lot before its first bid. The normal
- *   shape of the launch catalogue.
- * - `0` — `isLiveNow` decides clocked-ness by falsiness (`!0` is true), so it
- *   admits such a lot and curation keeps it. Read as a timestamp, 0 is 1970:
- *   this is the shape that ships a card counting down from minus fifty-six years.
- * - `NaN` — the comparator already classifies it as clockless so its
- *   subtraction cannot return `NaN`; this agrees with it.
- * - `Infinity` — no countdown can be DRAWN from it. This is the one value where
- *   this predicate and `compareLandingAuctions` part company: the comparator
- *   needs a total order and `Infinity > 0` holds, so it files the lot among the
- *   clocked ones. The divergence is invisible, because ordering makes no claim
- *   to a visitor while a badge does.
- *
- * An absent `totalBids` counts as zero: a doc mid-write must not be credited
- * with a bid it does not have.
- *
- * NOT `isAwaitingFirstBid` from `utils/auctionPhase.ts`, which additionally
- * requires `startMode === 'first_bid'`. `mapToLandingAuction` does not carry
- * `startMode`, and does not need to: `AppContext.createListing` writes BOTH
- * `endTime` and `endsAt` for every non-`first_bid` listing, so on this shape
- * "live, no clock, no bids" already implies a first-bid lot.
- */
-export function isAwaitingFirstLandingBid(a: LandingAuction): boolean {
-  const hasClock =
-    typeof a.endTime === 'number' && Number.isFinite(a.endTime) && a.endTime > 0;
-  return (a.totalBids || 0) === 0 && !hasClock;
-}
-
-/**
  * The marketplace strip's sort order: featured by rank, then clocked lots ending
  * soonest, then clockless newest first. A running clock is real urgency and earns
  * the top slots; a clockless lot has no meaningful position among clocked ones.
