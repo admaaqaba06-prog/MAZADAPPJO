@@ -1224,7 +1224,15 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className={`text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
+                  // Arabic gets more air and no negative tracking, both for the
+                  // same reason: this script carries marks OUTSIDE the line box.
+                  // «وبِع أسرع.» hangs a kasra below its letters and «اشترِ» one
+                  // above, so at leading 1.45 with a 10px gap the two lines
+                  // measured 10px apart as boxes and touched as glyphs.
+                  // `tracking-[-0.03em]` is a Latin habit — tightening a cursive
+                  // script pulls joined letters into each other; Arabic keeps
+                  // normal tracking and only the Latin branch is tightened.
+                  className={`text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-black text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.65] gap-4' : 'tracking-[-0.03em] leading-[1.02] gap-1'}`}
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-accent block relative pb-1">
