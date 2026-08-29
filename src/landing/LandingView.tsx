@@ -1261,7 +1261,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 >
                   <motion.button
                     type="button"
-                    onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
+                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] bg-[#F05123] hover:bg-[#D93E15] text-white font-bold text-base shadow-sm transition-all duration-300 text-center font-ibmarabic flex items-center justify-center gap-1.5 group cursor-pointer"
@@ -1271,7 +1271,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   </motion.button>
                   <motion.button
                     type="button"
-                    onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'hero' }); onEnter(); }}
+                    onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'hero' }); onEnter('upload'); }}
                     whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
                     whileTap={{ scale: 0.97 }}
                     className="w-full sm:w-auto px-8 py-4 rounded-[8px] border-[1.5px] border-fg text-fg font-semibold text-base bg-surface-raised hover:bg-[#0A0A0A] hover:text-white transition-all duration-300 text-center font-ibmarabic"
@@ -1292,7 +1292,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     <React.Fragment key={i}>
                       {i > 0 && <span className="w-px h-7 bg-surface-sunken shrink-0" aria-hidden="true" />}
                       <div className="text-center lg:text-start">
-                        <div dir="ltr" className="text-xl sm:text-2xl font-extrabold text-fg font-alexandria leading-none">{s.value}</div>
+                        <div dir={/^[0-9]/.test(s.value) ? "ltr" : undefined} className="text-xl sm:text-2xl font-extrabold text-fg font-alexandria leading-none">{s.value}</div>
                         <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-fg/50 font-ibmarabic mt-1.5">{s.label}</div>
                       </div>
                     </React.Fragment>
