@@ -3,6 +3,9 @@ import ThemeToggle from '../components/ui/ThemeToggle';
 import {
   Hammer,
   ShieldCheck,
+  FileSearch,
+  Zap,
+  Scale,
   Camera,
   CheckCircle2,
   XCircle,
@@ -66,6 +69,13 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
     </motion.div>
   );
 }
+
+/**
+ * Icons for the Trust & Safety cards, positional so the table sits beside the
+ * copy it illustrates instead of being spelled out inside the JSX. Indexed by
+ * card order, which is the order the four cards are declared in translations.
+ */
+const TRUST_ICONS = [ShieldCheck, FileSearch, Zap, Scale] as const;
 
 
 const translateLogTime = (timeStr: string, isAr: boolean): string => {
@@ -890,31 +900,6 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
   const getLineIcon = (type: string, className = "w-6 h-6 text-[#F05123]") => {
     switch (type) {
-      case "trust-0":
-        return (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-          </svg>
-        );
-      case "trust-1":
-        return (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-          </svg>
-        );
-      case "trust-2":
-        return (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-          </svg>
-        );
-      case "trust-3":
-        return (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0-17.25a9 9 0 11-9 9m9-9a9 9 0 109 9M9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.01h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.01h-.008V9.75z" />
-          </svg>
-        );
       case "cat-0":
         return (
           <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -1836,53 +1821,74 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
         <LiveMarketplaceSection lang={lang} t={t} onEnter={onEnter} formatPrice={formatPrice} />
 
-        {/* 3. Section "الثقة أولاً" (Trust First) */}
-        <section className="py-20 bg-surface-raised border-y border-line relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+        {/* 3. Section "الأمان والثقة" (Trust & Safety) */}
+        <section
+          aria-labelledby="trust-heading"
+          className="relative overflow-hidden py-20 sm:py-24 bg-surface-sunken border-y border-line"
+        >
+          {/*
+            The warm arc along the section's top edge. Decorative only — it
+            carries no information, so it is hidden from assistive tech and
+            takes no pointer events. The section's own `overflow-hidden` clips
+            it, which is what stops a 100%-wide glow from widening the document
+            on narrow screens; the landing root has bitten us there before.
+            Written as an arbitrary `background` because Tailwind's gradient
+            utilities cannot express an elliptical radial stop.
+          */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-40 [background:radial-gradient(60%_100%_at_50%_0%,rgba(240,81,35,0.26),transparent_72%)]"
+          />
+
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
             {/* Section Title */}
             <Reveal>
-              <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16 gap-4">
-                <span className={`inline-block px-3.5 py-1 rounded-full bg-[#F05123]/10 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/20 ${lang === "en" ? "tracking-wide" : ""}`}>
+              <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-12 sm:mb-16 gap-4">
+                <span className={`inline-block px-4 py-1.5 rounded-full bg-[#F05123]/5 text-[#F05123] text-xs font-bold font-ibmarabic border border-[#F05123]/40 ${lang === "en" ? "tracking-wide" : ""}`}>
                   {t.trust.badge}
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-fg font-alexandria">
+                <h2 id="trust-heading" className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-fg font-alexandria leading-[1.3]">
                   {t.trust.title}
                 </h2>
-                <p className="text-fg text-sm sm:text-base font-ibmarabic max-w-xl mx-auto">
+                <p className="text-fg-muted text-sm sm:text-base font-ibmarabic max-w-2xl mx-auto leading-relaxed">
                   {t.trust.subtitle}
                 </p>
               </div>
             </Reveal>
 
-            {/* Core Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {t.trust.cards.map((card, idx) => (
-                <Reveal key={idx} delay={idx * 0.1}>
-                  <motion.div
-                    whileHover={{ 
-                      y: -8, 
-                      borderColor: "#F05123",
-                      boxShadow: "0 12px 32px rgba(0,0,0,0.08)" 
-                    }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="bg-surface-raised rounded-[10px] p-6 border border-line shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 group h-full relative overflow-hidden"
-                  >
-                    {/* Golden accent bar at top on hover */}
-                    <span className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#F05123] scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
-
-                    <div className="w-12 h-12 rounded-[10px] bg-[#F05123]/10 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:bg-[#F05123]/15 transition-all duration-300">
-                      {getLineIcon(`trust-${idx}`, "w-6 h-6 text-[#F05123]")}
-                    </div>
-                    <h3 className="text-lg font-bold text-fg font-alexandria mb-2 group-hover:text-[#F05123] transition-colors">
-                      {card.title}
-                    </h3>
-                    <p className="text-xs text-fg-muted leading-relaxed font-ibmarabic">
-                      {card.desc}
-                    </p>
-                  </motion.div>
-                </Reveal>
-              ))}
+            {/*
+              Four across on large desktop, 2×2 on tablet, one column on mobile.
+              Card order is DOM order, so RTL lays them out right-to-left on its
+              own — «بائعون موثّقون» first means first-on-the-right in Arabic and
+              first-on-the-left in English, which is what both readings expect.
+            */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+              {t.trust.cards.map((card, idx) => {
+                const Icon = TRUST_ICONS[idx] ?? ShieldCheck;
+                return (
+                  <Reveal key={card.title} delay={idx * 0.08}>
+                    <article className="group relative h-full overflow-hidden rounded-2xl border border-line bg-surface-raised p-6 sm:p-7 text-center transition duration-300 hover:-translate-y-1 hover:border-[#F05123]/50 hover:shadow-[0_10px_30px_-12px_rgba(240,81,35,0.35)] motion-reduce:transform-none motion-reduce:transition-none">
+                      {/* The card's own restrained glow, same idea as the section's. */}
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-x-0 top-0 h-20 [background:radial-gradient(50%_100%_at_50%_0%,rgba(240,81,35,0.20),transparent_75%)]"
+                      />
+                      <div className="relative flex flex-col items-center">
+                        <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#F05123]/25 bg-[#F05123]/10 transition-colors duration-300 group-hover:bg-[#F05123]/15">
+                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-6 w-6 text-[#F05123]" />
+                        </span>
+                        <h3 className="text-base sm:text-lg font-bold text-fg font-alexandria mb-2">
+                          {card.title}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-fg-muted leading-relaxed font-ibmarabic">
+                          {card.desc}
+                        </p>
+                      </div>
+                    </article>
+                  </Reveal>
+                );
+              })}
             </div>
 
           </div>
