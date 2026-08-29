@@ -14,6 +14,7 @@ import {
   Hash,
   Globe,
   Clock,
+  Truck,
   Users,
   Bell,
   Menu,
@@ -120,6 +121,12 @@ const renderMixedText = (text: string, isAr: boolean) => {
 };
 
 // Simulated Jordanian names for the interactive feed
+/**
+ * Icons for the hero proof row, positional like TRUST_ICONS. Kept beside the
+ * component rather than in translations: the copy is bilingual, the icon is not.
+ */
+const HERO_PROOF_ICONS = [Truck, Lock, Clock] as const;
+
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
 const EN_NAMES = ["Mustafa Al-Qudah", "Ahmad Al-Abadi", "Sarah Haddad", "Khalid Shawabkeh", "Rania Al-Fayez", "Hamzah Al-Masri", "Omar Al-Zoubi", "Hadeel Al-Khalayleh", "Tariq Al-Hussein", "Zaid Al-Nabulsi"];
 
@@ -1286,17 +1293,26 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className="flex items-center justify-center lg:justify-start gap-5 sm:gap-7 pt-6 border-t border-line"
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 pt-6 border-t border-line"
                 >
-                  {t.hero.proof.map((s, i) => (
-                    <React.Fragment key={i}>
-                      {i > 0 && <span className="w-px h-7 bg-surface-sunken shrink-0" aria-hidden="true" />}
-                      <div className="text-center lg:text-start">
-                        <div dir={/^[0-9]/.test(s.value) ? "ltr" : undefined} className="text-xl sm:text-2xl font-extrabold text-fg font-alexandria leading-none">{s.value}</div>
-                        <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-fg/50 font-ibmarabic mt-1.5">{s.label}</div>
+                  {t.hero.proof.map((s, i) => {
+                    const Icon = HERO_PROOF_ICONS[i] ?? Lock;
+                    return (
+                      // Icon ABOVE the words, not beside them. The hero copy column is
+                      // ~166px per cell at 1024, and an inline icon left too little
+                      // room for «توصيل خلال 48 ساعة» — it broke across two lines while
+                      // its neighbours sat on one, which read as a mistake.
+                      <div key={i} className="flex flex-col items-center lg:items-start gap-2 text-center lg:text-start">
+                        <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F05123]/25 bg-[#F05123]/10">
+                          <Icon aria-hidden="true" strokeWidth={1.75} className="h-5 w-5 text-[#F05123]" />
+                        </span>
+                        <div className="min-w-0">
+                          <div dir={/^[0-9]/.test(s.value) ? "ltr" : undefined} className="text-sm sm:text-base font-extrabold text-fg font-alexandria leading-tight">{s.value}</div>
+                          <div className="text-[11px] sm:text-xs font-medium text-fg-muted font-ibmarabic leading-snug mt-0.5">{s.label}</div>
+                        </div>
                       </div>
-                    </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </motion.div>
 
               </motion.div>
