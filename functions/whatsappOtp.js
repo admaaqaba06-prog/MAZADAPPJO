@@ -65,7 +65,33 @@ function checkOtp(record, code, nowMs) {
   return match ? { ok: true } : { ok: false, reason: 'mismatch' };
 }
 
+/**
+ * Did the relay actually accept the OTP for delivery?
+ *
+ * `fetch` only rejects on a TRANSPORT failure — DNS, connection refused, the
+ * 5s abort. An HTTP 404 or 500 resolves normally, so the previous
+ * `await fetch(...)` inside a bare try/catch treated a dead webhook as a
+ * successful send: if the n8n workflow were deactivated or its path renamed,
+ * every caller would still have been told the code was on its way.
+ *
+ * Pure and here rather than in index.js so it is unit-testable without the
+ * Firebase Admin SDK, like the rest of this module.
+ *
+ * `null`/`undefined` means the fetch threw and there is no response — not
+ * delivered. A response with no `ok` field (a stub, a mock) is judged on
+ * `status` when it has one, and otherwise trusted as delivered: this decides
+ * whether to SHOW a warning, and inventing a failure from a shape we do not
+ * recognise would tell users the code failed when it may well have arrived.
+ */
+function isRelayDelivered(res) {
+  if (!res) return false;
+  if (typeof res.ok === 'boolean') return res.ok;
+  if (typeof res.status === 'number') return res.status >= 200 && res.status < 300;
+  return true;
+}
+
 module.exports = {
   OTP_TTL_MS, SEND_COOLDOWN_MS, MAX_SENDS_PER_HOUR, MAX_ATTEMPTS, CODE_LENGTH,
   normalizeJordanPhone, normalizePhone, generateOtpCode, hashOtp, canSendOtp, checkOtp,
+  isRelayDelivered,
 };

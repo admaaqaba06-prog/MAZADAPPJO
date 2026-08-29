@@ -82,6 +82,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   // (country + national + derived e164) is shared across both channels (same number, different delivery).
   const [phoneChannel, setPhoneChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [waSent, setWaSent] = useState(false); // code has been requested → show code entry
+  // The relay refused the send: a code exists but no WhatsApp message is coming.
+  const [waDeliveryFailed, setWaDeliveryFailed] = useState(false);
   const [waCode, setWaCode] = useState('');
   const [waBusy, setWaBusy] = useState(false);
   const [waErr, setWaErr] = useState('');
@@ -199,6 +201,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const handleWaSendCode = async () => {
     if (waBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setWaErr('');
+    setWaDeliveryFailed(false); // a retry starts clean — a past failure must not stick
     const e164 = phone.e164;
     if (!e164) {
       setWaErr(isAr ? 'أدخل رقم هاتف صالح' : 'Enter a valid phone number');
@@ -217,6 +220,29 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
         if (wait) startCooldown(wait); // reflect the server-imposed wait in the resend UI
         return;
       }
+      /**
+       * A code was ISSUED (`ok`) but the WhatsApp relay did not accept it for
+       * delivery. Do not advance to the code box: no message is coming, and a
+       * six-digit field with a spinner is how someone waits several minutes and
+       * then leaves. Say so, and leave SMS one tap away — it is a different
+       * provider with its own limit, so it works even while this one is down.
+       *
+       * The cooldown still starts, because the server counted this send against
+       * the rate limit and did not roll it back (rolling it back would let a
+       * caller reset the window by forcing failures). Starting it keeps the
+       * resend button honest about the wait.
+       */
+      setWaDeliveryFailed(res.delivered === false);
+      if (res.delivered === false) {
+        setWaErr(isAr
+          ? 'تعذّر إرسال الرمز عبر واتساب. استخدم "أرسل SMS" بالأسفل.'
+          : 'Could not send the code over WhatsApp. Use “Send SMS instead” below.');
+      }
+
+      // Advance either way. The error line and the SMS fallback link both live on
+      // THIS step, so staying on the phone field would hide the very thing the
+      // user needs to read and the button that gets them in. The code box is
+      // harmless: the code was issued and would still verify if it does arrive.
       setWaSent(true);
       startCooldown(); // (re)start the 60s resend window on every successful send
     } catch (e) {
@@ -481,9 +507,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                   </button>
                   <div className="text-center space-y-1 pt-1" id="wa-resend-block">
                     <p className="text-[11px] text-fg-muted font-medium">
-                      {isAr
-                        ? `أرسلنا رمزاً عبر واتساب إلى ${phone.e164 ?? ''}. لم يصلك؟`
-                        : `We sent a code on WhatsApp to ${phone.e164 ?? ''}. Didn't get it?`}
+                      {waDeliveryFailed
+                        ? (isAr
+                            ? 'لم نتمكن من إرسال الرمز عبر واتساب.'
+                            : 'We could not send the code over WhatsApp.')
+                        : (isAr
+                            ? `أرسلنا رمزاً عبر واتساب إلى ${phone.e164 ?? ''}. لم يصلك؟`
+                            : `We sent a code on WhatsApp to ${phone.e164 ?? ''}. Didn't get it?`)}
                     </p>
                     {cooldown > 0 ? (
                       <span className="text-xs text-fg-muted font-semibold" id="wa-resend-cooldown">
