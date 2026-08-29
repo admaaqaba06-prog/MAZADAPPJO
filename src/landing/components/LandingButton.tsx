@@ -21,7 +21,7 @@ import React from "react";
  * `prefers-reduced-motion` without the button moving.
  */
 export type LandingButtonVariant = "primary" | "secondary" | "ghost" | "inverted";
-export type LandingButtonSize = "md" | "lg";
+export type LandingButtonSize = "sm" | "md" | "lg";
 
 const BASE =
   // `border border-transparent` on EVERY variant, including the ones with no
@@ -36,8 +36,14 @@ const BASE =
   "active:scale-[0.98] motion-reduce:active:scale-100 motion-reduce:transition-none";
 
 const SIZES: Record<LandingButtonSize, string> = {
-  // 48px and 56px tall. Both clear the 44px touch target; `lg` is the hero and
-  // sticky-bar size, where the button is the page's main affordance.
+  // 52px, 48px and 56px tall — all three clear the 44px touch target.
+  // `sm` exists for the sticky bar, where two buttons share a 320px phone:
+  // `lg`'s 28px of side padding is not shrinkable, so it forced «ابدأ المزايدة
+  // — 1 دينار» onto a second line and grew the bar to 98px. Passing `px-3` at
+  // the call site does NOT fix that — `px-3` and `px-7` are both emitted and
+  // the stylesheet order decides, not the order in the class attribute. The
+  // size has to come from here.
+  sm: "px-3 py-3 text-sm min-h-[52px]",
   md: "px-5 py-3 text-sm min-h-[48px]",
   lg: "px-7 py-4 text-base min-h-[56px]",
 };

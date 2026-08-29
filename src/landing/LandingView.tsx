@@ -1289,6 +1289,25 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   </LandingButton>
                 </motion.div>
 
+                {/* The seller's benefit, scannable, sitting with the seller's
+                    button rather than in the buyer-facing headline.
+                    «خلال دقائق», NOT «خلال 15 دقيقة»: the only 15-minute figure
+                    anywhere in this codebase is `dropDuration.ts`'s 900-second
+                    AUCTION LENGTH option — nothing measures how long listing
+                    takes, so a number here would be invented. (That option is
+                    the likely origin of the old «بِعه خلال 15 دقيقة» line, which
+                    promised a completed SALE on the strength of an auction
+                    duration.) */}
+                <motion.p
+                  variants={{
+                    hidden: { opacity: 0, y: 24 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
+                  }}
+                  className="text-xs sm:text-sm text-fg-muted font-tajawal text-center lg:text-start"
+                >
+                  {t.hero.sellerNote}
+                </motion.p>
+
                 {/* Real proof row */}
                 <motion.div
                   variants={{
@@ -3107,26 +3126,32 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
             transition={{ duration: 0.35, ease: "easeOut" }}
             className="fixed bottom-0 left-0 right-0 z-50 bg-surface-raised/95 backdrop-blur-md border-t border-line p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] md:hidden flex items-center justify-between gap-3"
           >
-            {/* ONE dominant action on a phone. The two buttons here used to be
-                the same width and the same weight — a filled gradient beside a
-                2px-outlined twin — so the bar asked the visitor to choose
-                rather than to act, at the exact moment they had finished
-                reading and were deciding. Browsing takes the width; selling
-                stays reachable as a quiet link, which is what it is: the
-                secondary journey for a different person. */}
+            {/* One DOMINANT action, not one action. Both buttons used to be
+                `flex-1` — equal width, a filled gradient beside a 2px-outlined
+                twin — so the bar asked the visitor to choose at the exact
+                moment they had finished reading and were ready to act.
+                The ratio is proportional, never fixed: `flex-[2]` against
+                `flex-[1]` off a zero basis, so the split is 2:1 of whatever
+                width the phone actually has and both labels keep their share
+                when Arabic runs longer than English. `min-w-0` lets a cell
+                shrink below its content instead of forcing the bar wider than
+                the viewport. Selling stays a real, visible button — quieter,
+                not hidden. */}
             <LandingButton
+              size="sm"
               onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'sticky' }); onEnter(); }}
-              className="flex-1"
+              className="flex-[2] basis-0 min-w-0"
             >
               {lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}
             </LandingButton>
-            <button
-              type="button"
+            <LandingButton
+              variant="secondary"
+              size="sm"
               onClick={() => { emitLandingEvent('seller_cta_clicked', { location: 'sticky' }); onEnter('upload'); }}
-              className="shrink-0 px-3 min-h-[56px] flex items-center justify-center text-fg-muted hover:text-accent underline underline-offset-4 decoration-line font-semibold text-sm transition-colors font-tajawal cursor-pointer"
+              className="flex-[1] basis-0 min-w-0"
             >
               {lang === "ar" ? "بيع قطعتك" : "Sell"}
-            </button>
+            </LandingButton>
           </motion.div>
         )}
       </AnimatePresence>
