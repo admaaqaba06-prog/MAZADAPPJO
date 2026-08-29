@@ -1201,7 +1201,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     }
                   }
                 }}
-                className="lg:col-span-7 space-y-6 text-center lg:text-start"
+                className="relative z-10 lg:col-span-7 space-y-6 text-center lg:text-start"
               >
                 
                 {/* Badge */}
@@ -1222,7 +1222,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     hidden: { opacity: 0, y: 24 },
                     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
                   }}
-                  className={`text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
+                  className={`text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-[-0.03em] text-fg font-alexandria flex flex-col items-center lg:items-start ${lang === 'ar' ? 'leading-[1.45] gap-2.5' : 'leading-[1.02] gap-1'}`}
                 >
                   <span className="block">{t.hero.titleFirst}</span>
                   <span className="text-[#F05123] block relative pb-1">
@@ -1327,7 +1327,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 {/* Watch — upper left, pulled out so it reads clearly next to the phone */}
                 <div
                   aria-hidden="true"
-                  className="hidden lg:block absolute top-6 start-[-76px] z-0 w-[248px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[10deg] opacity-95 pointer-events-none select-none bg-surface-raised border border-black/5"
+                  className="hidden lg:block absolute top-6 start-0 xl:start-[-76px] z-0 w-[248px] rounded-[22px] overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.32)] -rotate-[10deg] opacity-95 pointer-events-none select-none bg-surface-raised border border-black/5"
                 >
                   <img
                     src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=600&q=80"
