@@ -231,15 +231,7 @@ function MainAppShell() {
   if (activeView === 'landing') {
     return (
       <div className="landing-root min-h-screen">
-        <LandingView
-          onEnter={(target) => { setActiveView((target as any) ?? 'discovery'); }}
-          // The auction id is latched BEFORE the view swaps, so `live` mounts
-          // already knowing which lot to show. Reversing these two lines would
-          // render LiveStreamView against the previously-selected auction — or
-          // against none at all on a cold visit — for one frame, which is the
-          // "tapped a card, got a different auction" class of bug.
-          onOpenAuction={(auctionId) => { setActiveAuctionId(auctionId); setActiveView('live'); }}
-        />
+        <LandingView onEnter={(target) => { setActiveView((target as any) ?? 'discovery'); }} />
       </div>
     );
   }
