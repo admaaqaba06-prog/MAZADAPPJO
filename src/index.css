@@ -341,3 +341,62 @@ body {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   CTA pending state (see src/hooks/useCtaPending.ts)
+   ---------------------------------------------------------------------------
+   A nav CTA whose destination is a lazily-loaded view used to give the user
+   NOTHING back: measured on production, a MutationObserver watching the whole
+   document never once fired for the button element itself between the tap and
+   the screen arriving 405ms later. The button looked broken, and on a slower
+   connection it looks broken for longer.
+
+   `data-cta-pending` is set on the touched control synchronously, in the same
+   tick as the click, so the acknowledgement cannot be late.
+
+   `pointer-events: none` is doing real work here, not just dimming: it stops
+   the browser dispatching a second click, which is the double-fire guard. The
+   hook swallows synthetic clicks separately, since CSS cannot stop those.
+
+   `cursor: wait` is deliberately NOT set — the element takes no pointer events,
+   so the cursor belongs to the parent and setting it here would do nothing. */
+[data-cta-pending] {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+/* The moving part: a thin accent bar that sweeps the control. Enough to read as
+   "working" without becoming a spinner that competes with the page. */
+[data-cta-pending]::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-accent);
+  transform-origin: var(--cta-sweep-origin, left);
+  animation: cta-sweep 900ms ease-in-out infinite;
+}
+
+/* The sweep needs a containing block. Buttons in this shell are already
+   `relative` in most cases; this makes it true for the rest without changing
+   layout. */
+[data-cta-pending] {
+  position: relative;
+}
+
+@keyframes cta-sweep {
+  0%   { transform: scaleX(0); opacity: 0.9; }
+  50%  { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(0); opacity: 0.9; }
+}
+
+/* Reduced motion: keep the acknowledgement, drop the movement. The bar stays,
+   full width and still — the information survives, the animation does not. */
+@media (prefers-reduced-motion: reduce) {
+  [data-cta-pending]::after {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
