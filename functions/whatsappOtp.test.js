@@ -93,44 +93,77 @@ describe('normalizePhone (any country)', () => {
 /* ======================================================================
    isRelayDelivered — the OTP relay's own answer, not an assumption.
 
-   The relay call was `await fetch(url, ...)` inside a bare try/catch, and the
-   callable returned `{ ok: true }` whatever came back. Two failures were
-   invisible: `fetch` only rejects on a TRANSPORT error, so an HTTP 404 or 500 —
-   a deactivated workflow, a renamed webhook path — resolved as a successful
-   send. With the relay's measured failure rate at ~60%, most people who signed
-   in were told a WhatsApp code was on its way when nothing had been sent, and
-   the SMS fallback sat unnoticed under the button.
+   There are TWO ways a resolved fetch can still be a failed delivery:
+   1. HTTP 404/500 — fetch resolves, but the relay endpoint rejected it.
+   2. HTTP 200 + `{ success:false }` — n8n/WaSender reached the provider, but
+      the linked WhatsApp session (or provider send) failed. This second case
+      is the one that silently reported "code sent" for every user while the
+      dashboard stayed green.
    ====================================================================== */
 describe('isRelayDelivered', () => {
-  it('trusts an explicit ok', () => {
-    expect(isRelayDelivered({ ok: true, status: 200 })).toBe(true);
-    expect(isRelayDelivered({ ok: false, status: 404 })).toBe(false);
-    expect(isRelayDelivered({ ok: false, status: 500 })).toBe(false);
+  it('trusts an explicit successful HTTP result when there is no failure body', async () => {
+    expect(await isRelayDelivered({ ok: true, status: 200 })).toBe(true);
+    expect(await isRelayDelivered({ ok: false, status: 404 })).toBe(false);
+    expect(await isRelayDelivered({ ok: false, status: 500 })).toBe(false);
   });
 
-  it('treats a missing response as not delivered', () => {
+  it('treats a missing response as not delivered', async () => {
     // This is the `fetch` threw / timed out path.
-    expect(isRelayDelivered(null)).toBe(false);
-    expect(isRelayDelivered(undefined)).toBe(false);
+    expect(await isRelayDelivered(null)).toBe(false);
+    expect(await isRelayDelivered(undefined)).toBe(false);
   });
 
-  it('falls back to the status code when ok is absent', () => {
-    expect(isRelayDelivered({ status: 200 })).toBe(true);
-    expect(isRelayDelivered({ status: 204 })).toBe(true);
-    expect(isRelayDelivered({ status: 404 })).toBe(false);
-    expect(isRelayDelivered({ status: 302 })).toBe(false);
+  it('falls back to the status code when ok is absent', async () => {
+    expect(await isRelayDelivered({ status: 200 })).toBe(true);
+    expect(await isRelayDelivered({ status: 204 })).toBe(true);
+    expect(await isRelayDelivered({ status: 404 })).toBe(false);
+    expect(await isRelayDelivered({ status: 302 })).toBe(false);
   });
 
-  it('does not invent a failure from an unrecognised shape', () => {
+  it('does not invent a failure from an unrecognised shape', async () => {
     // Deciding "not delivered" here would tell a user the code failed when it
     // may well have arrived. Only a shape that positively reports failure counts
     // as failure.
-    expect(isRelayDelivered({})).toBe(true);
+    expect(await isRelayDelivered({})).toBe(true);
   });
 
-  it('rejects the exact 404 n8n returns for an inactive workflow', () => {
+  it('rejects the exact 404 n8n returns for an inactive workflow', async () => {
     // Measured against the live endpoint: an unregistered/deactivated webhook
-    // answers 404 with a JSON body. `fetch` resolves, so only the status shows it.
-    expect(isRelayDelivered({ ok: false, status: 404, json: () => ({ code: 404 }) })).toBe(false);
+    // answers 404 with a JSON body. `fetch` resolves, so HTTP alone catches it.
+    expect(await isRelayDelivered({ ok: false, status: 404, json: async () => ({ code: 404 }) })).toBe(false);
+  });
+
+  it('rejects HTTP 200 when WaSender says success:false in the body', async () => {
+    // Regression: this is the exact class of failure that was laundered through
+    // n8n -> fetch -> callable -> client as a successful WhatsApp send.
+    const response = {
+      ok: true,
+      status: 200,
+      json: async () => ({ success: false, message: 'WhatsApp session disconnected' }),
+    };
+    expect(await isRelayDelivered(response)).toBe(false);
+  });
+
+  it('accepts HTTP 200 when the provider explicitly says success:true', async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true }),
+    };
+    expect(await isRelayDelivered(response)).toBe(true);
+  });
+
+  it('reads a one-item n8n last-node array and wrapped provider body', async () => {
+    expect(await isRelayDelivered({
+      ok: true,
+      status: 200,
+      json: async () => [{ success: false }],
+    })).toBe(false);
+
+    expect(await isRelayDelivered({
+      ok: true,
+      status: 200,
+      json: async () => ({ body: { success: false } }),
+    })).toBe(false);
   });
 });
