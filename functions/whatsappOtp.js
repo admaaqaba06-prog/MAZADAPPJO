@@ -69,22 +69,65 @@ function checkOtp(record, code, nowMs) {
  * Did the relay actually accept the OTP for delivery?
  *
  * `fetch` only rejects on a TRANSPORT failure — DNS, connection refused, the
- * 5s abort. An HTTP 404 or 500 resolves normally, so the previous
- * `await fetch(...)` inside a bare try/catch treated a dead webhook as a
- * successful send: if the n8n workflow were deactivated or its path renamed,
- * every caller would still have been told the code was on its way.
+ * 5s abort. An HTTP 404 or 500 resolves normally. There is a second failure
+ * class too: WaSender can answer HTTP 200 while its JSON body says
+ * `{ success: false }` (for example when its linked WhatsApp session drops).
+ * Treating only the HTTP status as delivery launders that provider failure into
+ * a green n8n run and eventually into a false "code sent" message in the UI.
  *
- * Pure and here rather than in index.js so it is unit-testable without the
- * Firebase Admin SDK, like the rest of this module.
+ * Reading a Fetch Response body is asynchronous, so callers MUST await this
+ * helper. `clone()` is used when available so this check does not consume the
+ * original response body. Test doubles without clone() may expose json()
+ * directly.
  *
- * `null`/`undefined` means the fetch threw and there is no response — not
- * delivered. A response with no `ok` field (a stub, a mock) is judged on
- * `status` when it has one, and otherwise trusted as delivered: this decides
- * whether to SHOW a warning, and inventing a failure from a shape we do not
- * recognise would tell users the code failed when it may well have arrived.
+ * An explicit provider/body failure wins over a 2xx status. If the body is
+ * empty, non-JSON, or has no recognised boolean, preserve the old HTTP fallback
+ * semantics; the n8n workflow should separately be configured to return the
+ * final WaSender body and fail its execution when that body says success:false.
  */
-function isRelayDelivered(res) {
+async function isRelayDelivered(res) {
   if (!res) return false;
+
+  // Transport reached a server, but HTTP itself rejected the request.
+  if (typeof res.ok === 'boolean' && res.ok === false) return false;
+  if (typeof res.status === 'number' && (res.status < 200 || res.status >= 300)) return false;
+
+  let body;
+  try {
+    if (typeof res.clone === 'function') {
+      const copy = res.clone();
+      if (copy && typeof copy.json === 'function') body = await copy.json();
+    } else if (typeof res.json === 'function') {
+      body = await res.json();
+    } else if (res.body && typeof res.body === 'object') {
+      // Simple test doubles may provide an already-parsed body object.
+      body = res.body;
+    }
+  } catch (_) {
+    // Empty/non-JSON body: fall back to the HTTP result below.
+  }
+
+  // n8n may return the last node as an array; some HTTP-request configurations
+  // wrap the provider payload under `body` or `data`. Inspect only these narrow,
+  // known shapes and only boolean flags — never infer failure from a message.
+  const candidates = [];
+  if (Array.isArray(body)) {
+    if (body.length === 1) candidates.push(body[0]);
+  } else if (body && typeof body === 'object') {
+    candidates.push(body);
+  }
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (typeof candidate.success === 'boolean') return candidate.success;
+    if (typeof candidate.ok === 'boolean') return candidate.ok;
+    for (const key of ['body', 'data']) {
+      const nested = candidate[key];
+      if (!nested || typeof nested !== 'object') continue;
+      if (typeof nested.success === 'boolean') return nested.success;
+      if (typeof nested.ok === 'boolean') return nested.ok;
+    }
+  }
+
   if (typeof res.ok === 'boolean') return res.ok;
   if (typeof res.status === 'number') return res.status >= 200 && res.status < 300;
   return true;
