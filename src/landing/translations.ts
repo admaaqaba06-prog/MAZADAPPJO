@@ -144,11 +144,11 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
       titleFirst: "اشترِ بأرخص سعر.",
-      titleGradient: "وبِع أسرع.",
+      titleGradient: "بِع أسرع.",
       // Two lines now, not three. The third span is guarded in LandingView so an
       // empty string does not leave a flex gap where a line used to be.
       titleLast: "",
-      desc: "سلع حقيقية بأسعار افتتاح واضحة. وأول مزايدة صحيحة هي اللي تشغّل عدّاد المزاد.",
+      desc: "فلوسك محجوزة عند مزادو — ما توصل البائع إلا بعد ما تستلم وتتأكد.",
       ctaPrimary: "تصفّح المزادات المباشرة",
       ctaSecondary: "اعرض سلعتك للبيع",
       sellerNote: "نزّل سلعتك وابدأ مزادك خلال دقائق",
@@ -378,7 +378,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       titleFirst: "Buy for less.",
       titleGradient: "Sell faster.",
       titleLast: "",
-      desc: "Real items with clear opening prices. The first valid bid is what starts the auction clock.",
+      desc: "Your money is held by Mazzado — the seller is paid only after you receive and confirm.",
       ctaPrimary: "Browse live auctions",
       ctaSecondary: "List your item",
       sellerNote: "List your item and start your auction in minutes",
