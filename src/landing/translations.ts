@@ -154,7 +154,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       sellerNote: "نزّل سلعتك وابدأ مزادك خلال دقائق",
       proof: [
         { value: "توصيل خلال 48 ساعة", label: "داخل عمّان ومحيطها" },
-        { value: "فلوسك محفوظة", label: "ما توصل البائع إلا بعد ما تستلم" },
+        { value: "بدون فصال", label: "السوق بيحدد السعر" },
         { value: "تمديد تلقائي", label: "إذا زايدت بآخر الثواني" },
       ],
       liveBadge: "مباشر الآن",
@@ -384,7 +384,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       sellerNote: "List your item and start your auction in minutes",
       proof: [
         { value: "Delivered in 48 hours", label: "Amman and nearby areas" },
-        { value: "Your money is held", label: "Released only after you receive" },
+        { value: "No haggling", label: "the market sets the price" },
         { value: "Auto-extend", label: "If you bid in the final seconds" },
       ],
       liveBadge: "Live Now",

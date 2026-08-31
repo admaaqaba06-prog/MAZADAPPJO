@@ -290,11 +290,24 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Metadata: the countdown moved off the image and down here, next to
             the bid count, so the two facts a bidder compares sit together. */}
-        <div className="flex items-center gap-3 text-[11px] font-medium text-fg-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-fg-muted">
           {!itemIsEnded && !awaitingFirstBid && (
             <span className={`flex items-center gap-1 ${isCritical ? 'font-bold text-danger' : ''}`}>
               <Clock className="h-3 w-3 shrink-0" />
               {secondsLeft === null ? '—' : formatCountdown(secondsLeft, isAr)}
+            </span>
+          )}
+          {/* A lot awaiting its first bid has NO countdown to show, and this
+              slot used to render nothing at all — so the card showed a price,
+              «0 مزايدة», and a conspicuous hole where every other lot shows
+              time. With the whole catalogue currently at zero bids, a visitor
+              arriving from an ad meets a grid of clockless items and reads it
+              as broken or abandoned. The explanation belongs in the slot where
+              the absence is felt, not in a paragraph elsewhere on the page. */}
+          {!itemIsEnded && awaitingFirstBid && (
+            <span className="flex items-center gap-1 font-semibold text-fg">
+              <Clock className="h-3 w-3 shrink-0" />
+              {isAr ? 'العدّاد بيبدأ مع أول مزايدة' : 'Timer starts at first bid'}
             </span>
           )}
           <span className="flex items-center gap-1">

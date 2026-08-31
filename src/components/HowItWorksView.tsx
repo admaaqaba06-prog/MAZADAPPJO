@@ -52,8 +52,13 @@ const STEPS: StepDef[] = [
     icon: <Gavel className="w-5 h-5" />,
     titleAr: 'تصفّح وزايد مجاناً',
     titleEn: 'Browse & bid free',
-    bodyAr: 'المشاهدة والمزايدة مجانية بالكامل — ما بتدفع إلا إذا فزت.',
-    bodyEn: 'Watching and bidding are completely free — you only pay if you win.',
+    // Was «مجانية بالكامل» / "completely free". Everything else in this list is
+    // accurate — step 1 directly above states the membership price — but
+    // "completely free" is stronger than the truth and contradicts that step on
+    // the same screen. «بلا أي رسوم إضافية» says the true thing: no charge on
+    // top of the membership, per bid.
+    bodyAr: 'المشاهدة والمزايدة بلا أي رسوم إضافية — ما بتدفع إلا إذا فزت.',
+    bodyEn: 'Watching and bidding carry no extra fees — you only pay if you win.',
   },
   {
     icon: <Trophy className="w-5 h-5" />,

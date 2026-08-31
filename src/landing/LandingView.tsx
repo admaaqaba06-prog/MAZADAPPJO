@@ -145,7 +145,11 @@ const renderMixedText = (text: string, isAr: boolean) => {
  */
 const ACCENT = "#F05123";
 
-const HERO_PROOF_ICONS = [Truck, Lock, Clock] as const;
+// Slot 2 was a padlock over «فلوسك محفوظة» — the escrow promise, which now
+// lives in the subheadline directly above. Two statements of the same guarantee
+// ~300px apart competed with each other, so this slot carries a DIFFERENT claim
+// («بدون فصال — السوق بيحدد السعر») and takes the icon that matches it.
+const HERO_PROOF_ICONS = [Truck, TrendingUp, Clock] as const;
 
 const AR_NAMES = ["مصطفى القضاة", "أحمد العبادي", "سارة حداد", "خالد الشوابكة", "رانيا الفايز", "حمزة المصري", "عمر الزعبي", "هديل الخلايلة", "طارق الحسين", "زيد النابلسي"];
 const EN_NAMES = ["Mustafa Al-Qudah", "Ahmad Al-Abadi", "Sarah Haddad", "Khalid Shawabkeh", "Rania Al-Fayez", "Hamzah Al-Masri", "Omar Al-Zoubi", "Hadeel Al-Khalayleh", "Tariq Al-Hussein", "Zaid Al-Nabulsi"];
