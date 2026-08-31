@@ -193,8 +193,18 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           strap. Letterboxing on surface-sunken shows the whole product. Square,
           so a two-column grid keeps one rhythm. */}
       <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-surface-sunken">
+        {/* The shimmer sits BEHIND the photo, not over it.
+            It used to be `z-10` — above the image — while the image itself was
+            held at `opacity-0` until `onLoad` fired. That made a decorative
+            animation the gate on whether the product was visible at all, and
+            when the callback was missed (see ListingImage: a cached image never
+            re-fires `load`) the card rendered as a black square. Measured on
+            production: eight of eight thumbnails fully loaded and invisible.
+            Now the photo is always opaque and paints over this as soon as it
+            has pixels; the shimmer only fills the gap underneath. A failure of
+            the load callback can no longer hide inventory. */}
         {!imageLoaded && (
-          <div className="absolute inset-0 z-10 animate-pulse bg-surface-sunken" />
+          <div className="absolute inset-0 animate-pulse bg-surface-sunken" />
         )}
 
         <ListingImage
@@ -202,7 +212,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           alt={item.title}
           isAr={isAr}
           className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${
-            !imageLoaded ? 'opacity-0' : itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
+            itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
           }`}
           imgClassName="object-contain p-2"
           onLoad={() => setImageLoaded(true)}
