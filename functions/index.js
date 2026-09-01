@@ -125,7 +125,7 @@ async function postOtpToRelay(phone, code) {
       body: JSON.stringify({ phone, code }),
       signal: AbortSignal.timeout(5000),
     });
-    const delivered = isRelayDelivered(res);
+    const delivered = await isRelayDelivered(res);
     if (!delivered) {
       console.warn('[otp] relay rejected the send:', res && res.status);
     }

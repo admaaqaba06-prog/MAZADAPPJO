@@ -61,18 +61,28 @@ jobs:
         run: npm install -g firebase-tools
 
       # Write the n8n env into functions/.env so the deployed functions can
-      # read process.env.N8N_WEBHOOK_URL / N8N_API_KEY / N8N_BASE_URL. If a
-      # secret is unset/empty, the var is empty and postToN8n()/pollN8nHealth()
-      # no-op — the notification pipe and health poller stay inert.
+      # read process.env.N8N_WEBHOOK_URL / N8N_OTP_WEBHOOK_URL / N8N_API_KEY /
+      # N8N_BASE_URL. If a secret is unset/empty, the var is empty and
+      # postToN8n()/pollN8nHealth() no-op — the notification pipe and health
+      # poller stay inert.
       # N8N_BASE_URL falls back to the known n8n Cloud instance if the secret
       # is empty. functions/.env is git-ignored; it exists only on the CI runner.
+      #
+      # N8N_OTP_WEBHOOK_URL was READ by postOtpToRelay but never written here,
+      # so setting that repo secret silently did nothing and the hardcoded
+      # OTP_RELAY_URL always won. It is the documented way to repoint OTP at a
+      # new n8n workspace without a code change, so it has to actually arrive.
+      # Left empty it stays empty, and postOtpToRelay falls back to the
+      # constant — same behaviour as before.
       - name: Configure Functions env (n8n webhook + health poll)
         env:
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          N8N_OTP_WEBHOOK_URL: ${{ secrets.N8N_OTP_WEBHOOK_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
           N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
         run: |
           printf 'N8N_WEBHOOK_URL=%s\n' "$N8N_WEBHOOK_URL" > functions/.env
+          printf 'N8N_OTP_WEBHOOK_URL=%s\n' "$N8N_OTP_WEBHOOK_URL" >> functions/.env
           printf 'N8N_API_KEY=%s\n' "$N8N_API_KEY" >> functions/.env
           printf 'N8N_BASE_URL=%s\n' "${N8N_BASE_URL:-https://mazadjo.app.n8n.cloud}" >> functions/.env
 
