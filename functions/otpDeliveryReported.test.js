@@ -50,6 +50,21 @@ describe('the OTP relay reports whether it delivered', () => {
     expect(body).toMatch(/isRelayDelivered\(/);
   });
 
+  it('AWAITS isRelayDelivered — an unawaited Promise is always truthy', () => {
+    // `isRelayDelivered` is async. Called without `await`, it hands back a
+    // pending Promise, and `if (!delivered)` on a Promise is never true — so
+    // the one server-side log line that reports a rejected relay send goes
+    // silent, and the only remaining evidence of a failure is the client's
+    // banner. The callable's return value still comes out right (an async
+    // function unwraps a returned Promise), which is exactly why this hides.
+    expect(relayBody()).toMatch(/await\s+isRelayDelivered\(/);
+  });
+
+  it('logs the rejected status, so a failure is visible server-side too', () => {
+    const body = relayBody();
+    expect(body).toMatch(/if \(!delivered\)[\s\S]{0,200}console\.warn/);
+  });
+
   it('returns a boolean on every path, including both failure paths', () => {
     const body = relayBody();
     // unset URL, rejected send, and the thrown/timed-out catch.
@@ -109,5 +124,32 @@ describe('the client stops claiming a code was sent when it was not', () => {
     const send = LOGIN.slice(LOGIN.indexOf('const handleWaSend'));
     const body = send.slice(0, send.indexOf('const handleWaVerify'));
     expect(body).toMatch(/setWaSent\(true\)/);
+  });
+});
+
+// The override the runbook tells you to reach for has to actually arrive.
+//
+// `postOtpToRelay` reads `process.env.N8N_OTP_WEBHOOK_URL` and falls back to a
+// hardcoded `OTP_RELAY_URL`. The deploy workflow writes functions/.env on the
+// CI runner, and it wrote N8N_WEBHOOK_URL / N8N_API_KEY / N8N_BASE_URL — but
+// not N8N_OTP_WEBHOOK_URL. So setting that repo secret to repoint OTP at a new
+// n8n workspace was a no-op: the constant won, every time, silently.
+//
+// This asserts the invariant rather than the one variable — any future
+// `process.env.N8N_*` read in index.js must be written by the workflow too.
+describe('every N8N_* var the functions read is written by the deploy workflow', () => {
+  const WORKFLOW = fs.readFileSync(
+    path.join(__dirname, '..', '.github', 'workflows', 'firebase-deploy.yml'), 'utf8');
+
+  it('writes each one into functions/.env', () => {
+    const read = [...new Set(
+      [...INDEX.matchAll(/process\.env\.(N8N_[A-Z0-9_]+)/g)].map((m) => m[1]),
+    )];
+    // Guard the guard: if the reads ever stop matching, this test proves nothing.
+    expect(read).toContain('N8N_OTP_WEBHOOK_URL');
+    for (const name of read) {
+      expect(WORKFLOW).toMatch(new RegExp(`printf '${name}=`));
+      expect(WORKFLOW).toMatch(new RegExp(`${name}: \\$\\{\\{ secrets\\.${name} \\}\\}`));
+    }
   });
 });
