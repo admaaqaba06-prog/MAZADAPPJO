@@ -60,9 +60,17 @@ describe('the OTP relay reports whether it delivered', () => {
     expect(relayBody()).toMatch(/await\s+isRelayDelivered\(/);
   });
 
-  it('logs the rejected status, so a failure is visible server-side too', () => {
+  it('logs the rejected send server-side, with the provider reason', () => {
     const body = relayBody();
-    expect(body).toMatch(/if \(!delivered\)[\s\S]{0,200}console\.warn/);
+    // Ordering, not distance: the original bound these 200 chars apart, so any
+    // comment added inside the block failed a test about logging.
+    expect(body).toMatch(/if \(!delivered\) \{[\s\S]*?console\.warn/);
+    // The status alone is not enough. WaSender answers HTTP 200 with
+    // {"success":false,"message":"Your Whatsapp Session is not connected ..."},
+    // so a log line carrying only the status prints "200" beside "rejected"
+    // and names no cause — which is how five days of failures stayed opaque.
+    expect(body).toMatch(/res\.clone\(\)\.text\(\)/);
+    expect(body).toMatch(/relay rejected the send:[^)]*detail/);
   });
 
   it('returns a boolean on every path, including both failure paths', () => {
