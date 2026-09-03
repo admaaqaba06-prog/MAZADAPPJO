@@ -288,6 +288,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const switchToSms = () => {
     setPhoneChannel('sms');
     setWaErr('');
+    setWaDeliveryFailed(false); // leaving the failed send behind — don't carry it back
     setWaSent(false);
     setWaCode('');
     clearCooldownTimer();
@@ -536,14 +537,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               {waErr && (
                 <p className="text-red-600 text-xs font-semibold" id="wa-login-error">{waErr}</p>
               )}
-              {/* Fallback: switch to the Firebase reCAPTCHA/SMS path */}
+              {/* Fallback: switch to the Firebase reCAPTCHA/SMS path.
+                  When the WhatsApp relay FAILED this stops being a footnote and
+                  becomes the primary action. The code field above is asking for a
+                  code that was never sent, so SMS — a genuinely separate provider
+                  — is the only way forward, and it must outrank the Verify button
+                  visually rather than hide beneath it.
+                  The label changes too: "No WhatsApp?" is the wrong question here.
+                  The user HAS WhatsApp; our relay could not deliver to it, so the
+                  default copy reads as not applying to them. */}
               <button
                 type="button"
                 onClick={switchToSms}
-                className="w-full text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors pt-1"
+                className={waDeliveryFailed
+                  ? 'w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all duration-200 ease-out'
+                  : 'w-full text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors pt-1'}
                 id="wa-sms-fallback-link"
               >
-                {isAr ? 'ما عندك واتساب؟ أرسل SMS' : 'No WhatsApp? Send SMS instead'}
+                {waDeliveryFailed
+                  ? (isAr ? 'أرسل الرمز عبر SMS' : 'Send the code by SMS')
+                  : (isAr ? 'ما عندك واتساب؟ أرسل SMS' : 'No WhatsApp? Send SMS instead')}
               </button>
               <button
                 type="button"
