@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN, CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 import { SUBSCRIPTION_TIERS } from '../constants/subscriptionTiers';
 import { translations } from '../utils/translations';
 import { Confetti, useToast } from './feedback';
@@ -83,7 +83,6 @@ export const SubscriptionView: React.FC = () => {
   const [paymentProofImage, setPaymentProofImage] = useState<string>('');
   const [transferFullName, setTransferFullName] = useState('');
   const [transferPhone, setTransferPhone] = useState('');
-  const [copied, setCopied] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
   // E4 — pay-to-bid acceptance gate for the Auction Rules.
   const [acceptedRules, setAcceptedRules] = useState(false);
@@ -139,12 +138,6 @@ export const SubscriptionView: React.FC = () => {
     }
     prevStatusRef.current = curr;
   }, [currentUser?.subscriptionStatus, isAr, showToast]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleCopyAlias = () => {
     navigator.clipboard.writeText(CLIQ_ALIAS);
@@ -435,7 +428,7 @@ export const SubscriptionView: React.FC = () => {
             </div>
             <div className="flex justify-between pb-1.5">
               <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
-              <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
+              <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? CLIQ_BANK_NAME_AR : CLIQ_BANK_NAME_EN}</span>
             </div>
           </div>
         </div>
