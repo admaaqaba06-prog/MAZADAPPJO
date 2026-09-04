@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ImageOff } from 'lucide-react';
 
 /**
@@ -42,6 +42,33 @@ const ListingImage: React.FC<Props> = ({
   const [failed, setFailed] = useState(false);
   const usable = typeof src === 'string' && src.trim() !== '' && !failed;
 
+  /**
+   * The cached-image race, which made `onLoad` a promise this component was
+   * quietly breaking.
+   *
+   * A cached image can finish decoding BEFORE React attaches the `onLoad`
+   * handler. The browser has already dispatched its `load` event by then, and
+   * it does not dispatch a second one — so the handler never fires, for an
+   * image that is fully present and painted. `complete` is the only way to
+   * observe that state after the fact.
+   *
+   * Measured on production /discover: all eight thumbnails sat at
+   * `complete: true` with valid `naturalWidth` (1024, 1200, 1000, 600, 500,
+   * 260, 600, 1100) while every caller gating on `onLoad` still believed they
+   * were loading.
+   *
+   * Keyed on `src` so a card recycled onto a different lot re-checks. The
+   * callback is read through a ref rather than listed as a dependency: callers
+   * pass an inline arrow, so depending on it would re-run this on every render.
+   */
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const onLoadRef = useRef(onLoad);
+  onLoadRef.current = onLoad;
+  useEffect(() => {
+    const node = imgRef.current;
+    if (node?.complete && node.naturalWidth > 0) onLoadRef.current?.();
+  }, [src]);
+
   if (!usable) {
     return (
       <div
@@ -59,6 +86,7 @@ const ListingImage: React.FC<Props> = ({
 
   return (
     <img
+      ref={imgRef}
       src={src as string}
       alt={alt}
       className={`${className} ${imgClassName}`}

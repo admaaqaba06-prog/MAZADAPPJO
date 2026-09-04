@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN } from '../constants/cliq';
+import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN, CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN, CLIQ_IBAN, formatIban } from '../constants/cliq';
 import { db, getCallableFunction } from '../services/firebase';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { arrayUnion, collection, query, orderBy, onSnapshot, addDoc, getDocs, where, limit, serverTimestamp } from 'firebase/firestore';
@@ -416,8 +416,6 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // CliQ recipient details — same constants as the membership (SubscriptionView) flow
-  const CLIQ_IBAN = 'JO83 CAPS 1020 0085 4100 00';
   const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
 
   const handleCopyIban = () => {
@@ -1639,12 +1637,12 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                         </div>
                         <div className="flex justify-between items-center border-b border-orange-100 pb-1.5">
                           <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
-                          <span className="font-black text-[#FF6B00] uppercase font-mono">ARAB BANK</span>
+                          <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? CLIQ_BANK_NAME_AR : CLIQ_BANK_NAME_EN}</span>
                         </div>
                         <div className="flex justify-between items-center gap-2">
                           <span className="font-bold text-fg-muted">IBAN:</span>
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{CLIQ_IBAN}</span>
+                            <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{formatIban(CLIQ_IBAN)}</span>
                             <button
                               type="button"
                               onClick={handleCopyIban}

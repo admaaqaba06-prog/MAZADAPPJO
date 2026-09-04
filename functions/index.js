@@ -127,7 +127,15 @@ async function postOtpToRelay(phone, code) {
     });
     const delivered = await isRelayDelivered(res);
     if (!delivered) {
-      console.warn('[otp] relay rejected the send:', res && res.status);
+      // Log the BODY, not just the status. The live failure mode is HTTP 200 with
+      // {"success":false,"message":"Your Whatsapp Session is not connected ..."},
+      // so a bare status of 200 in the logs reads as a success and names no cause.
+      // Never throws; reads a clone, so isRelayDelivered is undisturbed.
+      let detail = '';
+      try {
+        if (typeof res.clone === 'function') detail = (await res.clone().text() || '').slice(0, 300);
+      } catch (_) { /* unreadable body: the status alone is all we get */ }
+      console.warn('[otp] relay rejected the send:', res && res.status, detail);
     }
     return delivered;
   } catch (e) {

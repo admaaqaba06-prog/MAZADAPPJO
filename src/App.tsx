@@ -13,6 +13,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { ContactCompletionModal } from './components/ContactCompletionModal';
 import { isProfileComplete } from './utils/jordanCities';
+import { useCtaPending } from './hooks/useCtaPending';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
 import { BootSplash, ViewSkeleton } from './components/FeedbackStates';
 
@@ -190,6 +191,13 @@ function MainAppShell() {
 
   const isStrictAdmin = isAdminUser(currentUser);
 
+  // The landing page is where paid traffic arrives, and it was the one surface
+  // with no click feedback at all: its CTAs carried `active:scale-[0.98]`, a
+  // CSS pseudo-class that produces no DOM mutation and disappears the moment
+  // the finger lifts — precisely the window in which the user is waiting. Same
+  // hook the app shell uses, so both surfaces share one busy state.
+  const { onClickCapture: onLandingClickCapture } = useCtaPending(activeView);
+
   useEffect(() => {
     // Redundant with AppContext's initialNav (which already parses the entry
     // URL), but harmless and belt-and-suspenders. Mirror parseNav EXACTLY: the
@@ -230,7 +238,7 @@ function MainAppShell() {
   // still bypass the landing straight to the listing.
   if (activeView === 'landing') {
     return (
-      <div className="landing-root min-h-screen">
+      <div className="landing-root min-h-screen" onClickCapture={onLandingClickCapture}>
         <LandingView onEnter={(target) => { setActiveView((target as any) ?? 'discovery'); }} />
       </div>
     );

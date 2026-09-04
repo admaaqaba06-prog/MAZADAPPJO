@@ -51,5 +51,40 @@ export const CLIQ_ALIAS = 'MAZZADO';
  *
  * Same rule as the names above: this follows the BANK RECORD, not the brand.
  */
-export const CLIQ_BANK_NAME_AR = 'البنك الأهلي';
-export const CLIQ_BANK_NAME_EN = 'Al Ahli Bank';
+/**
+ * Updated 2026-09-04 to the bank's OFFICIAL name. It was 'Al Ahli Bank', which
+ * is not what the bank calls itself and is one word away from several other
+ * Jordanian banks — on a screen whose only job is telling someone where to send
+ * money, an approximate bank name is a defect.
+ *
+ * This is a NAMING correction, not an account move: the account is the same one
+ * confirmed on 2026-08-26. The destination itself is CLIQ_ALIAS, untouched.
+ */
+export const CLIQ_BANK_NAME_AR = 'البنك الأهلي الأردني';
+export const CLIQ_BANK_NAME_EN = 'Jordan Ahli Bank';
+
+/**
+ * The receiving IBAN — the fallback destination for anyone who would rather
+ * transfer by IBAN than by the CliQ alias.
+ *
+ * Added 2026-09-04, and it now lives HERE for the same reason the bank name
+ * does. Before this it was a bare literal inside OrderDetailsView, with a
+ * SECOND copy inside a dead SubscriptionView handler, and both read
+ * 'JO83 CAPS 1020 0085 4100 00' — bank code CAPS, Capital Bank of Jordan, which
+ * matched neither the old Arab Bank account nor the Jordan Ahli Bank account
+ * that replaced it. It could not have been a correct destination for either.
+ *
+ * Stored COMPACT (no spaces): that is the form a bank form accepts, and it is
+ * what the copy button must put on the clipboard. Group it for display with
+ * formatIban() — never re-type it by hand.
+ *
+ * Same non-negotiable rule as the names above: this follows the BANK RECORD.
+ * An IBAN also encodes its own bank in characters 5-8, so it must agree with
+ * CLIQ_BANK_NAME_* — brandBoundary.test.ts asserts that, and asserts the
+ * mod-97 checksum, so a typo cannot reach a payment screen.
+ */
+export const CLIQ_IBAN = 'JO82JONB9999000000001013478507';
+
+/** Group an IBAN in fours for reading. Display only — copy the raw value. */
+export const formatIban = (iban: string) =>
+  iban.replace(/(.{4})/g, '$1 ').trim();
