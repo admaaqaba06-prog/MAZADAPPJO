@@ -298,7 +298,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
   }, [descriptionText, descriptionExpanded, activeAuction?.id]);
 
   return (
-    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-surface-sunken relative select-none" id="mazad-jo-desktop-live-platform">
+    <div className="w-full h-[calc(100vh-64px)] flex flex-row overflow-hidden bg-surface-sunken relative select-none" id="mazzado-desktop-live-platform">
       
       {/* Toast Overlay */}
       {showToast && (

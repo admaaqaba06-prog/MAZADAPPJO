@@ -14,6 +14,7 @@ const {
   MAX_ATTEMPTS,
   isRelayDelivered,
 } = require('./whatsappOtp');
+const { otpMessage } = require('./otpCopy');
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
   approveSubscriptionRequest,
@@ -118,11 +119,32 @@ async function postOtpToRelay(phone, code) {
     console.warn('[otp] OTP relay URL unset — skipping OTP relay send');
     return false;
   }
+  // Render the message HERE, not in n8n. Same precedent notify() set for the
+  // notification pipe, which ships a pre-rendered `wa_text` so the workflow owns
+  // no wording (index.js:216, n8n/README.md). The OTP relay was the last place
+  // that still composed a sentence inside n8n, which is how the retired brand
+  // «مزاد جو» stayed in the most-read message the product sends: no test, no
+  // brand guard, no review, no git history could see it.
+  //
+  // Guarded on its own, BEFORE the payload literal, exactly as notify() does:
+  // this function must never throw (the code is already committed), so a broken
+  // renderer degrades to omitting the key rather than failing the send. n8n
+  // type-guards `wa_text` the same way build-messages.js:277 does and falls back
+  // to its own template, so a half-landed deploy sends the old wording, never a
+  // blank message.
+  let waText;
+  try {
+    waText = otpMessage(code);
+  } catch (e) {
+    console.warn('[otp] copy render failed, letting the relay template stand:', e && e.message);
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code }),
+      // `code` stays its own field: the relay still needs it, and n8n falls back
+      // to its own template until its node is pointed at wa_text.
+      body: JSON.stringify({ phone, code, ...(waText ? { wa_text: waText } : {}) }),
       signal: AbortSignal.timeout(5000),
     });
     const delivered = await isRelayDelivered(res);
