@@ -37,6 +37,7 @@ const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
 const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillmentNudge');
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
+const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = require('./subscriptionExpiry');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
@@ -1248,6 +1249,49 @@ async function openSecondChanceOffers(defaultedDocs) {
 }
 
 /**
+ * subscriptionExpirySweep
+ * Every 60 minutes: any membership still flagged 'active' whose expiry has
+ * passed is written to 'expired'.
+ *
+ * WHY THIS EXISTS AT ALL, given placeBid already refuses expired members and
+ * auctions/{id}/bids is `allow write: if false`: `subscriptionStatus` was a
+ * LATCH. It was written once at approval and never again, so the stored flag
+ * drifted permanently away from the expiry sitting beside it. Nothing was
+ * mis-granted — but every reader that trusted the flag instead of recomputing
+ * the date inherited the lie, which is why the admin subscriber count counted
+ * lapsed members and the account screen printed ACTIVE above a past date.
+ *
+ * 60 MINUTES, NOT 5. A membership boundary is a date, not a deadline anyone is
+ * racing: an hour of staleness in a *derived-anyway* flag costs nothing, since
+ * every gate that matters recomputes from the expiry on the spot. The interval
+ * is about keeping stored state honest, not about enforcement latency.
+ *
+ * `timeoutSeconds: 300` — two indexed queries plus one merge write per lapsed
+ * member. The default 60s is enough today; the headroom is for a backlog on the
+ * first run after deploy, which sweeps every member who has ever lapsed.
+ */
+exports.subscriptionExpirySweep = functions
+  .runWith({ timeoutSeconds: 300 })
+  .pubsub
+  .schedule('every 60 minutes')
+  .onRun(async () => {
+    try {
+      const summary = await expireLapsedSubscriptions({
+        db,
+        Timestamp: admin.firestore.Timestamp,
+        FieldValue: admin.firestore.FieldValue,
+        now: () => Date.now(),
+      });
+      console.log('[subscriptionExpirySweep] done', JSON.stringify(summary));
+    } catch (e) {
+      // A thrown sweep is a retried sweep with no record of why. Log and
+      // swallow: the next run is an hour away and the data is unchanged.
+      console.error('[subscriptionExpirySweep] run failed:', e && e.message);
+    }
+    return null;
+  });
+
+/**
  * paymentDefaultEnforcer
  * Every 30 minutes: any order still waiting_payment past its paymentDeadlineAt
  * is marked defaulted and the buyer is blocked (isBlocked) pending admin review.
@@ -1958,46 +2002,17 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
       if (isEffectivelyBlocked(userData, Date.now())) {
         return { success: false, message: 'Account restricted. Bidding disabled.' };
       }
-      // Expiry can arrive as a Timestamp, an epoch number, or — from legacy and
-      // admin writes — a DATE STRING. The string case used to fall through to
-      // null, and `null && …` short-circuits, so a string-stored expiry never
-      // expired anyone here: an lapsed member kept bidding. Also reads
-      // subscriptionExpiresAt, since buildGrantFields writes both fields from one
-      // value and a renewal that only landed on one must still count.
-      // Mirrors src/utils/membership.ts effectiveExpiryMs.
-      const toMs = (raw) => {
-        if (raw === null || raw === undefined || raw === '') return null;
-        if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? raw : null;
-        if (typeof raw.toMillis === 'function') {
-          const ms = raw.toMillis();
-          return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? ms : null;
-        }
-        if (typeof raw === 'string') {
-          const t = /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Date.parse(raw.trim());
-          return Number.isFinite(t) && t > 0 ? t : null;
-        }
-        return null;
-      };
-      const expiryCandidates = [toMs(userData.subscriptionExpiry), toMs(userData.subscriptionExpiresAt)]
-        .filter((v) => v !== null);
-      const subExpiryMs = expiryCandidates.length ? Math.max(...expiryCandidates) : null;
-      // An explicit permanent grant needs no date. NOTHING ISSUES THIS — every
-      // tier in subscriptionTiers.js has a finite durationDays — so it can only
-      // arrive by a deliberate admin write, which is what makes it a safe
-      // exemption. Mirrors src/utils/membership.ts isLifetimeMembership.
-      const lifetime = [userData.subscriptionTier, userData.subscriptionPlan].some(
-        (l) => typeof l === 'string' && ['lifetime', 'permanent'].includes(l.trim().toLowerCase())
-      );
-      // FAIL CLOSED on a missing or unreadable expiry. This used to pass: a null
-      // expiry short-circuited the `&&`, so an 'active' record with no date could
-      // bid forever without anything ever being able to expire it. An account we
-      // cannot verify is not entitled to bid — it is a data problem for support,
-      // not a licence.
-      if (
-        userData.subscriptionStatus !== 'active' ||
-        (!lifetime && subExpiryMs === null) ||
-        (subExpiryMs !== null && subExpiryMs <= Date.now())
-      ) {
+      // THE MEMBERSHIP GATE, from ./subscriptionExpiry — the same predicate the
+      // hourly expiry sweep uses to decide what to write, and mirrored a third
+      // time in src/utils/membership.ts for the UI. It used to live here as its
+      // own inline copy of the arithmetic, which is how the UI came to promise
+      // access this check refused. subscriptionExpiry.test.js binds the copies
+      // together so they cannot drift again.
+      //
+      // Still fails closed on a missing or unreadable expiry, and still handles
+      // a Timestamp, an epoch number and a legacy DATE STRING — the string case
+      // once fell through to null and let a lapsed member keep bidding.
+      if (!isActiveMemberServer(userData, Date.now())) {
         return { success: false, message: 'MEMBERSHIP_REQUIRED' };
       }
 

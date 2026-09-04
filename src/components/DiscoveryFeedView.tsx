@@ -1054,7 +1054,7 @@ export const DiscoveryFeedView: React.FC = () => {
 
       {/* Join Funnel Banner (Non-members only): 3-step money story + join CTA.
           Unrelated to the redesign — left in its normal place in the page flow. */}
-      {currentUser?.subscriptionStatus !== 'active' && (
+      {!isMember && (
         <div className="p-4">
           <div
             className="bg-accent-weak/70 border border-orange-100 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans"

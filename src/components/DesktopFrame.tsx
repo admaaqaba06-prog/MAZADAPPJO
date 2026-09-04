@@ -1,4 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 import ThemeToggle from './ui/ThemeToggle';
 import { useApp } from '../context/AppContext';
 import { useCtaPending } from '../hooks/useCtaPending';
@@ -521,7 +523,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
                 <span>
-                  {currentUser?.subscriptionStatus === 'active'
+                  {isActiveMember(currentUser, serverNow())
                     ? (isAr ? 'عضو ✓' : 'Member ✓')
                     : (isAr ? 'انضم بـ ١ د.أ' : 'Join — 1 JD')}
                 </span>

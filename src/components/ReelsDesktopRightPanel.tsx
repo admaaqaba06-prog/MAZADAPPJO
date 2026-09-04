@@ -1,4 +1,6 @@
 import React from 'react';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 import { useApp, useChat } from '../context/AppContext';
 import { Gavel, Info, ShieldCheck, UserCheck, Calendar, Clock } from 'lucide-react';
 import { SwipeToBid } from './SwipeToBid';
@@ -208,7 +210,7 @@ export const ReelsDesktopRightPanel: React.FC = () => {
           // E2: a blocked user is NOT hard-disabled here — the tap handlers above
           // catch isEffectivelyBlocked and open BanNoticeModal (explains why/when
           // it lifts). An expired cooldown falls through and bids normally.
-          disabled={(currentUser.subscriptionStatus !== 'active' && !isAr) || !isAuctionOpen(currentItem?.status)}
+          disabled={(!isActiveMember(currentUser, serverNow()) && !isAr) || !isAuctionOpen(currentItem?.status)}
           language={language as 'en' | 'ar'}
           // Desktop reel: the affordance is a click (SwipeToBid's onTap fallback),
           // not a swipe — so the label is click-oriented. Mobile keeps the swipe wording.

@@ -24,7 +24,8 @@ import { isValidCityId } from '../utils/jordanCities';
 import { stripReserve } from '../utils/reserveStrip';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
-import { computeServerOffset, setServerOffset } from '../utils/serverTime';
+import { computeServerOffset, setServerOffset, serverNow } from '../utils/serverTime';
+import { isActiveMember } from '../utils/membership';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
 import { isExpectedBidFailure } from '../utils/bidErrors';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
@@ -3401,7 +3402,11 @@ const fetchIP = async () => {
       setShowBanNotice(true);
       return { success: false, message: '🚫 Account restricted. Bidding disabled.' };
     }
-    if (currentUser.subscriptionStatus !== 'active') {
+    // DERIVED, not the stored flag. The server's placeBid gate compares the
+    // expiry to the clock, so testing the latch here waved a lapsed member
+    // through the client check only to have the server refuse them a
+    // round-trip later. Same predicate both sides now.
+    if (!isActiveMember(currentUser, serverNow())) {
       setShowSubscriptionPrompt(true);
       return {
         success: false,

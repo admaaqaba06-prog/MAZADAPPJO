@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { CLIQ_ALIAS, CLIQ_RECIPIENT_NAME_EN, CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 import { SUBSCRIPTION_TIERS } from '../constants/subscriptionTiers';
 import { translations } from '../utils/translations';
+import { useMembership } from '../hooks/useMembership';
 import { Confetti, useToast } from './feedback';
 import AuctionRulesModal from './AuctionRulesModal';
 import { ShieldCheck, Check, Copy, Sparkles, RefreshCw, CreditCard, ExternalLink, UploadCloud, Hourglass } from 'lucide-react';
@@ -110,12 +111,22 @@ export const SubscriptionView: React.FC = () => {
         'Buyer protection — Mazad holds your payment until you confirm receipt',
       ];
 
-  const formatExpiry = (v?: string | number | null): string | null => {
-    if (!v) return null;
-    const ms = typeof v === 'number' ? v : Date.parse(v);
+  // Membership, DERIVED from the expiry rather than read off the stored flag,
+  // and recomputed the moment it actually lapses. THIS SCREEN WAS THE BUG:
+  // it gated the member dashboard on `subscriptionStatus === 'active'` — a
+  // latch nothing ever reset — and then printed the expiry date directly
+  // underneath, so it said ACTIVE above a date that had already passed.
+  const membership = useMembership();
+
+  const formatExpiryMs = (ms?: number | null): string | null => {
     if (!ms || Number.isNaN(ms)) return null;
     return new Date(ms).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
+
+  // The GOVERNING expiry, not one arbitrary field. The old helper read only
+  // `subscriptionExpiry`, so a renewal that landed in `subscriptionExpiresAt`
+  // showed the member their previous, already-passed date.
+  const expiryLabel = formatExpiryMs(membership.expiresAtMs);
 
   // Show the pending state after a successful submit AND on refresh while the
   // request is still under review — kills the silent-success → duplicate-click loop.
@@ -231,7 +242,7 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Main Body */}
       <main className="w-full max-w-2xl mx-auto my-auto py-8">
-        {currentUser?.subscriptionStatus === 'active' && !upgrading ? (
+        {membership.isMember && !upgrading ? (
           /* ACTIVE MEMBER DASHBOARD — replaces the pricing form for paid members. */
           <div className="space-y-6" id="member-dashboard">
             {/* Your membership */}
@@ -250,9 +261,9 @@ export const SubscriptionView: React.FC = () => {
                   {isAr ? 'فعّال' : 'ACTIVE'}
                 </span>
               </div>
-              {formatExpiry(currentUser?.subscriptionExpiry) && (
+              {expiryLabel && (
                 <p className="text-xs text-fg-muted">
-                  {isAr ? 'يتجدد / ينتهي في ' : 'Renews / expires '}{formatExpiry(currentUser?.subscriptionExpiry)}
+                  {isAr ? 'يتجدد / ينتهي في ' : 'Renews / expires '}{expiryLabel}
                 </p>
               )}
             </div>
@@ -341,7 +352,7 @@ export const SubscriptionView: React.FC = () => {
         <>
         {/* An active member who tapped Upgrade can bail out of the pricing form
             back to their still-active membership dashboard (upgrading = false). */}
-        {currentUser?.subscriptionStatus === 'active' && upgrading && (
+        {membership.isMember && upgrading && (
           <button
             onClick={() => setUpgrading(false)}
             className="mb-4 text-xs font-bold text-fg-muted hover:text-fg flex items-center gap-1 cursor-pointer"
@@ -349,6 +360,41 @@ export const SubscriptionView: React.FC = () => {
             ← {isAr ? 'رجوع للعضوية' : 'Back to membership'}
           </button>
         )}
+        {/* NAME THE LAPSE. Before this, an expired member was dropped into the
+            pricing form with no explanation — the screen had just been telling
+            them they were active, so the form read as a bug rather than as a
+            renewal. `expired` is now a state the UI says out loud, with the date
+            it happened on. */}
+        {membership.status === 'expired' && !submitted && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-center" id="membership-expired-notice">
+            <p className="text-xs font-black text-amber-900">
+              {isAr ? 'انتهت عضويتك' : 'Your membership has expired'}
+            </p>
+            {expiryLabel && (
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                {isAr ? `انتهت في ${expiryLabel} — جدّدها للمتابعة في المزايدة` : `Expired ${expiryLabel} — renew to keep bidding`}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* FAIL-CLOSED STATE, and deliberately not called "expired": the account
+            claims to be active but carries no readable expiry, so we cannot tell
+            whether it is paid up. placeBid refuses it too, so the member would
+            otherwise hit a silent wall with no idea why. */}
+        {membership.status === 'needs_support' && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-center" id="membership-needs-support-notice">
+            <p className="text-xs font-black text-amber-900">
+              {isAr ? 'لا نستطيع تأكيد عضويتك' : "We can't confirm your membership"}
+            </p>
+            <p className="text-[11px] text-amber-800 mt-0.5">
+              {isAr
+                ? 'تواصل معنا على واتساب وسنصلحها — لا تدفع مرة أخرى.'
+                : "Message us on WhatsApp and we'll fix it — please don't pay again."}
+            </p>
+          </div>
+        )}
+
         <div className="text-center space-y-3 mb-8">
           <div className="mx-auto w-10 h-10 rounded-full bg-accent-weak/60 border border-orange-200/50 flex items-center justify-center text-[#FF6B00]">
             <ShieldCheck className="w-5 h-5 fill-current text-white stroke-[#FF6B00]" />

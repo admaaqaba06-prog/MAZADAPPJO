@@ -1,4 +1,6 @@
 import { useApp } from '../../context/AppContext';
+import { isActiveMember } from '../../utils/membership';
+import { serverNow } from '../../utils/serverTime';
 
 export function useAuth() {
   const { currentUser, wallet } = useApp();
@@ -7,7 +9,7 @@ export function useAuth() {
   const mappedUser = currentUser ? {
     id: currentUser.id,
     fullName: currentUser.name,
-    membershipStatus: currentUser.subscriptionStatus === 'active' ? 'Active' : 'Expired',
+    membershipStatus: isActiveMember(currentUser, serverNow()) ? 'Active' : 'Expired',
     availableBalance: wallet.availableBalance,
     walletBalance: wallet.totalBalance,
   } : null;
