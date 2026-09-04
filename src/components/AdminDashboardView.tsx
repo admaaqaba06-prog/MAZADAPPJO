@@ -218,23 +218,51 @@ export const AdminDashboardView: React.FC = () => {
 
   const n8nBot = systemStatus?.n8n?.bot;
   const n8nNotif = systemStatus?.n8n?.notifications;
+  // The OTP relay sits on the sign-in path, so its silence is the most
+  // expensive of the three — and it was the one nobody was watching.
+  const n8nOtp = systemStatus?.n8n?.otp;
   const statusAsOfMs = tsToMillis(systemStatus?.updatedAt);
 
+  /**
+   * Red at 20%, matching the server's incident threshold in
+   * functions/n8nHealth.js. It used to be 25% here, so a 21-25% rate wrote an
+   * incident into system_health while this card still showed amber — the board
+   * disagreeing with the alarm it is meant to explain.
+   * healthThresholds.parity.test.ts pins the two together.
+   */
   const rateSeverity = (stats: any): StatusSeverity => {
     if (!stats || typeof stats.failureRate !== 'number') return 'neutral';
-    if (stats.failureRate > 0.25) return 'bad';
+    // SILENCE IS NOT HEALTH. A workflow with no executions reports
+    // failureRate 0 — a number — so without this it rendered a green 0%.
+    // That is exactly how a retired workflow id passed for five weeks of
+    // perfect health, and reproducing it here would have undone the fix.
+    if (stats.neverRan) return 'bad';
+    if (stats.failureRate > 0.20) return 'bad';
+    // Ran before, nothing in the window. Worth a look, not worth an alarm.
+    if (stats.quiet) return 'warn';
     if (stats.failureRate >= 0.10) return 'warn';
     return 'ok';
   };
-  const rateValue = (stats: any): string =>
-    stats && typeof stats.failureRate === 'number'
-      ? `${Math.round(stats.failureRate * 100)}%`
-      : '—';
+  const rateValue = (stats: any): string => {
+    if (!stats || typeof stats.failureRate !== 'number') return '—';
+    // "0%" next to "no executions" reads as success. Say nothing ran instead.
+    if (stats.neverRan) return isAr ? 'لا شيء' : 'none';
+    return `${Math.round(stats.failureRate * 100)}%`;
+  };
   const rateSubtext = (stats: any): string => {
     if (!stats) return isAr ? 'بانتظار أول فحص' : 'awaiting first check';
     const asOf = statusAsOfMs || tsToMillis(stats.checkedAt);
     const asOfStr = asOf ? new Date(asOf).toLocaleTimeString(isAr ? 'ar-JO' : 'en-US') : '';
-    const runs = isAr ? `آخر ${stats.total} تشغيلة` : `last ${stats.total} runs`;
+    if (stats.neverRan) {
+      const none = isAr ? 'لا تنفيذات — تحقّق من المعرّف والتفعيل' : 'no executions — check the id and that it is active';
+      return asOfStr ? `${none} · ${isAr ? 'حتى' : 'as of'} ${asOfStr}` : none;
+    }
+    // Name the window: the rate used to cover "the last 100 runs ever", which
+    // is not a question anyone was asking of a health board.
+    const hours = typeof stats.windowHours === 'number' ? stats.windowHours : 24;
+    const runs = stats.quiet
+      ? (isAr ? `ولا تشغيلة خلال ${hours} ساعة` : `no runs in ${hours}h`)
+      : (isAr ? `${stats.total} تشغيلة خلال ${hours} ساعة` : `${stats.total} runs in ${hours}h`);
     return asOfStr ? `${runs} · ${isAr ? 'حتى' : 'as of'} ${asOfStr}` : runs;
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -1049,6 +1077,7 @@ export const AdminDashboardView: React.FC = () => {
               settlementFresh={settlementFresh}
               n8nBot={n8nBot}
               n8nNotif={n8nNotif}
+              n8nOtp={n8nOtp}
               rateValue={rateValue}
               rateSeverity={rateSeverity}
               rateSubtext={rateSubtext}

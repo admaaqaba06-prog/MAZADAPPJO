@@ -114,6 +114,7 @@ export interface SystemSectionProps {
   settlementFresh: boolean;
   n8nBot: any;
   n8nNotif: any;
+  n8nOtp: any;
   rateValue: (stats: any) => string;
   rateSeverity: (stats: any) => StatusSeverity;
   rateSubtext: (stats: any) => string;
@@ -138,6 +139,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
   settlementFresh,
   n8nBot,
   n8nNotif,
+  n8nOtp,
   rateValue,
   rateSeverity,
   rateSubtext,
@@ -400,8 +402,10 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
           </p>
         </div>
 
-        {/* Status board: n8n pipes (polled server-side) + Firestore-derived operational signals */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {/* Status board: n8n pipes (polled server-side) + Firestore-derived operational signals.
+            Six cards now — the OTP relay joined, and it is the one on the sign-in
+            path. xl:grid-cols-6 so the row still divides evenly. */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <HealthStatusCard
             icon="🤖"
             label={isAr ? 'صحة البوت' : 'Bot health'}
@@ -415,6 +419,13 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
             value={rateValue(n8nNotif)}
             severity={rateSeverity(n8nNotif)}
             subtext={rateSubtext(n8nNotif)}
+          />
+          <HealthStatusCard
+            icon="🔑"
+            label={isAr ? 'صحة رمز الدخول' : 'OTP health'}
+            value={rateValue(n8nOtp)}
+            severity={rateSeverity(n8nOtp)}
+            subtext={rateSubtext(n8nOtp)}
           />
           <HealthStatusCard
             icon="⏱️"

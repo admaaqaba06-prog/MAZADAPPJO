@@ -15,6 +15,9 @@ const {
   isRelayDelivered,
 } = require('./whatsappOtp');
 const { otpMessage } = require('./otpCopy');
+const {
+  N8N_HEALTH_WORKFLOWS, summarizeExecutions, incidentFor,
+} = require('./n8nHealth');
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
   approveSubscriptionRequest,
@@ -1490,18 +1493,21 @@ exports.paymentReminderSweep = functions.pubsub
 
 /**
  * pollN8nHealth
- * Every 15 minutes: pull execution stats for the two n8n workflows (WhatsApp
- * bot + notification pipe) via the n8n API and write a single status doc the
- * admin health tab reads in real time. If the failure rate crosses 20%,
- * append an incident to system_health (de-duped to at most one per hour per
- * workflow). Requires N8N_API_KEY + N8N_BASE_URL; if either is unset this is
- * a clean no-op (same discipline as postToN8n). NEVER throws — a failed poll
- * only logs and leaves the last-known system_status/current doc intact.
+ * Every 15 minutes: pull execution stats for the three watched n8n workflows
+ * (reply bot, notification pipe, OTP relay) via the n8n API and write a single
+ * status doc the admin health tab reads in real time. Raises a system_health
+ * incident when a workflow's failure rate crosses the threshold OR when it has
+ * no executions at all — see ./n8nHealth for why silence is its own alarm.
+ * De-duped to at most one incident per hour per workflow.
+ *
+ * Requires N8N_API_KEY + N8N_BASE_URL; if either is unset this is a clean no-op
+ * (same discipline as postToN8n). NEVER throws — a failed poll only logs and
+ * leaves the last-known system_status/current doc intact.
+ *
+ * The watched workflows, the window, the thresholds and the judgement all live
+ * in ./n8nHealth — pure, so every branch is EXECUTED by n8nHealth.test.js
+ * rather than asserted as source text.
  */
-const N8N_HEALTH_WORKFLOWS = [
-  { key: 'bot', id: 'WB0gnN7vZUmi4tS7', label: 'bot' },
-  { key: 'notifications', id: 'F8kFAQkiwlmxSYMI', label: 'notifications' },
-];
 
 exports.pollN8nHealth = functions.pubsub
   .schedule('every 15 minutes')
@@ -1530,15 +1536,8 @@ exports.pollN8nHealth = functions.pubsub
           const body = await res.json();
           // Tolerate both API shapes: { data: [...] } (n8n public API) or a bare array.
           const executions = Array.isArray(body) ? body : (Array.isArray(body.data) ? body.data : []);
-          const total = executions.length;
-          const errors = executions.filter((ex) =>
-            ex.status === 'error' || (ex.finished === false && !!ex.stoppedAt)
-          ).length;
-          const failureRate = total > 0 ? errors / total : 0;
           n8n[wf.key] = {
-            total,
-            errors,
-            failureRate,
+            ...summarizeExecutions(executions, Date.now()),
             checkedAt: admin.firestore.Timestamp.now(),
           };
         } catch (wfErr) {
@@ -1558,9 +1557,9 @@ exports.pollN8nHealth = functions.pubsub
 
       // Threshold incidents (de-duped: at most one per workflow per hour).
       for (const wf of N8N_HEALTH_WORKFLOWS) {
-        const stats = n8n[wf.key];
-        if (!stats || stats.failureRate <= 0.2) continue;
-        const title = `n8n ${wf.label} failure rate high`;
+        const incident = incidentFor(n8n[wf.key], wf.label);
+        if (!incident.raise) continue;
+        const title = incident.title;
         try {
           const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
           const recent = await db.collection('system_health')
@@ -1573,11 +1572,11 @@ exports.pollN8nHealth = functions.pubsub
           await db.collection('system_health').add({
             type: 'error',
             title,
-            details: `${Math.round(stats.failureRate * 100)}% over last ${stats.total} runs`,
+            details: incident.details,
             source: 'pollN8nHealth',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
-          console.log(`[pollN8nHealth] Incident logged: ${title} (${Math.round(stats.failureRate * 100)}%)`);
+          console.log(`[pollN8nHealth] Incident logged: ${title} — ${incident.details}`);
         } catch (incErr) {
           console.warn(`[pollN8nHealth] Incident write failed for ${wf.key}:`, incErr && incErr.message);
         }
