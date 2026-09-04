@@ -104,6 +104,70 @@ describe('the callable passes delivery through to the client', () => {
   });
 });
 
+// A failed WhatsApp send hands off to SMS by itself.
+//
+// Showing someone "we could not send it, try SMS" is still a dead end they have
+// to climb out of, and WaSender's session has been down since 26 Aug — so that
+// was every single person trying to register. SMS is Firebase Phone Auth, a
+// different provider with its own quota, so it works while the relay does not.
+//
+// Source-text assertions, same as the rest of this file: LoginView.tsx pulls in
+// firebase/auth and the app context, so it is not importable here.
+describe('a refused WhatsApp send falls back to SMS automatically', () => {
+  /** The body of `autoFallbackToSms`, declaration to the next one. */
+  function fallbackBody() {
+    const start = LOGIN.indexOf('const autoFallbackToSms');
+    if (start === -1) throw new Error('autoFallbackToSms not found — was it renamed?');
+    const end = LOGIN.indexOf('const handleWaSendCode', start);
+    if (end === -1) throw new Error('could not bound autoFallbackToSms');
+    return LOGIN.slice(start, end);
+  }
+
+  it('is attempted the moment the relay reports a failure', () => {
+    // Guarded by `delivered === false` specifically, NOT by a falsy check: an
+    // older callable that omits the field must keep the previous behaviour
+    // rather than start billing an SMS on every send.
+    expect(LOGIN).toMatch(/res\.delivered === false && await autoFallbackToSms\(/);
+  });
+
+  it('fires at most once per number', () => {
+    // Every WhatsApp send is failing, so without this a few taps on "resend"
+    // would quietly bill several SMS and read as a loop. Keyed on the number so
+    // correcting a typo still gets its own single attempt.
+    expect(fallbackBody()).toMatch(/if \(autoSmsSentForRef\.current === e164\) return false/);
+    expect(fallbackBody()).toMatch(/autoSmsSentForRef\.current = e164/);
+  });
+
+  it('never throws, and leaves the manual screen standing when SMS also fails', () => {
+    // This runs inside the send handler whose failure path the user is already
+    // looking at. If SMS refuses too, the WhatsApp failure screen — with its
+    // manual SMS button — has to survive rather than collapse into nothing.
+    const body = fallbackBody();
+    expect(body).toMatch(/catch \(e\) \{/);
+    expect(body).toMatch(/return false;/);
+    expect(body).toMatch(/clearRecaptcha\(\)/);
+  });
+
+  it('explains the switch instead of silently changing channel', () => {
+    // Landing on an SMS screen you did not ask for is its own confusion.
+    expect(LOGIN).toMatch(/setAutoSwitchedToSms\(true\)/);
+    expect(LOGIN).toMatch(/id="phone-auto-switch-note"/);
+    expect(LOGIN).toMatch(/تعذّر الإرسال عبر واتساب، فأرسلنا الرمز عبر SMS/);
+  });
+
+  it('does not explain it when the user chose SMS themselves', () => {
+    expect(LOGIN).toMatch(/setAutoSwitchedToSms\(false\)/);
+  });
+
+  it('shares ONE reCAPTCHA path with the manual button', () => {
+    // The verifier lifecycle here is subtle (clear, re-create, render before
+    // signInWithPhoneNumber). A second copy would drift from this one.
+    expect(LOGIN).toMatch(/const sendSmsCode = async \(e164: string\)/);
+    expect((LOGIN.match(/await sendSmsCode\(e164\)/g) ?? []).length).toBe(2);
+    expect((LOGIN.match(/new RecaptchaVerifier\(/g) ?? []).length).toBe(1);
+  });
+});
+
 describe('the client stops claiming a code was sent when it was not', () => {
   it('types `delivered` on both the context signature and the callable', () => {
     expect(CONTEXT).toMatch(/requestWhatsappOtp: \(phone: string\) => Promise<\{ ok: boolean; delivered\?: boolean/);

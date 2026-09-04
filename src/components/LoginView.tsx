@@ -87,6 +87,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const [waCode, setWaCode] = useState('');
   const [waBusy, setWaBusy] = useState(false);
   const [waErr, setWaErr] = useState('');
+  // The relay refused, so we sent the SMS ourselves and moved the user to that
+  // channel. Drives the one line explaining why the channel changed under them:
+  // an unexplained switch is its own kind of confusion.
+  const [autoSwitchedToSms, setAutoSwitchedToSms] = useState(false);
+  // Which number we have already auto-sent an SMS for. The fallback fires ONCE
+  // per number. Every WhatsApp send is failing right now, so without this a few
+  // taps on "resend" would quietly bill several SMS and read as a loop; a second
+  // failure on the same number falls through to the manual button instead.
+  const autoSmsSentForRef = useRef<string | null>(null);
 
   // Resend cooldown: after a successful send, block re-sending for RESEND_COOLDOWN_S
   // seconds (Jordanian carrier SMS can lag 10-60s, so give it room before a retry).
@@ -147,6 +156,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     if (container) container.innerHTML = '';
   };
 
+  /**
+   * Mint a fresh invisible reCAPTCHA and ask Firebase to send the SMS. Returns
+   * the ConfirmationResult; THROWS on failure, so each caller maps the error its
+   * own way.
+   *
+   * Shared by the manual SMS button and the automatic fallback: the reCAPTCHA
+   * lifecycle below is subtle enough that a second copy of it would drift.
+   */
+  const sendSmsCode = async (e164: string) => {
+    const { RecaptchaVerifier } = await import('firebase/auth');
+    const { auth } = await import('../services/firebase');
+    // Always start from a clean slate: tear down any prior verifier + wipe the
+    // container, then create a fresh one. Prevents "reCAPTCHA has already been
+    // rendered in this element" on retries and the Enterprise->v2 fallback.
+    clearRecaptcha();
+    recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+    // Force grecaptcha to load + register the widget BEFORE signInWithPhoneNumber
+    // triggers verify(). Without this, an invisible reCAPTCHA can be verify()'d
+    // before the script/widget is ready and the challenge silently never fires —
+    // the intermittent "reCAPTCHA doesn't fire" bug (worse cold / on slow networks).
+    await recaptchaRef.current.render();
+    return loginWithPhone(e164, recaptchaRef.current);
+  };
+
   const handleSendCode = async () => {
     if (phoneBusy) return; // ignore rapid double-clicks (belt-and-suspenders with the disabled button)
     setPhoneErr('');
@@ -157,19 +190,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     }
     setPhoneBusy(true);
     try {
-      const { RecaptchaVerifier } = await import('firebase/auth');
-      const { auth } = await import('../services/firebase');
-      // Always start from a clean slate: tear down any prior verifier + wipe the
-      // container, then create a fresh one. Prevents "reCAPTCHA has already been
-      // rendered in this element" on retries and the Enterprise->v2 fallback.
-      clearRecaptcha();
-      recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
-      // Force grecaptcha to load + register the widget BEFORE signInWithPhoneNumber
-      // triggers verify(). Without this, an invisible reCAPTCHA can be verify()'d
-      // before the script/widget is ready and the challenge silently never fires —
-      // the intermittent "reCAPTCHA doesn't fire" bug (worse cold / on slow networks).
-      await recaptchaRef.current.render();
-      const result = await loginWithPhone(e164, recaptchaRef.current);
+      const result = await sendSmsCode(e164);
       setConfirmation(result);
       startCooldown(); // (re)start the 60s resend window on every successful send
     } catch (e: any) {
@@ -195,6 +216,42 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     if (!res.success) setPhoneErr(res.message);
     else { clearCooldownTimer(); setCooldown(0); } // verified — no more resend timer
     // On success, onAuthStateChanged flips isAuthenticated and the app renders the main shell.
+  };
+
+  /**
+   * The WhatsApp relay refused the send, so send the SMS ourselves instead of
+   * parking someone in front of a code box for a message that is not coming.
+   * SMS is Firebase Phone Auth — a different provider with its own quota — so
+   * it works while the relay is down.
+   *
+   * Returns true when the user is now on the SMS channel with a code genuinely
+   * on its way; false when we did not take over and the caller should show the
+   * manual failed-send screen. NEVER throws: this runs inside a send handler
+   * whose failure path is the thing the user is already looking at.
+   */
+  const autoFallbackToSms = async (e164: string): Promise<boolean> => {
+    if (autoSmsSentForRef.current === e164) return false; // already spent this number's one try
+    try {
+      const result = await sendSmsCode(e164);
+      autoSmsSentForRef.current = e164;
+      // Hand over cleanly: same number, other carrier, code already sent.
+      setConfirmation(result);
+      setPhoneChannel('sms');
+      setAutoSwitchedToSms(true);
+      setPhoneErr('');
+      setWaErr('');
+      setWaDeliveryFailed(false);
+      setWaSent(false);
+      setWaCode('');
+      startCooldown();
+      return true;
+    } catch (e) {
+      // Both channels refused. Let the WhatsApp screen say so, with its manual
+      // SMS button, rather than swallowing this into a dead end.
+      console.warn('Automatic SMS fallback failed:', e);
+      clearRecaptcha();
+      return false;
+    }
   };
 
   // --- WhatsApp OTP (primary phone channel) ------------------------------------
@@ -232,6 +289,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
        * caller reset the window by forcing failures). Starting it keeps the
        * resend button honest about the wait.
        */
+      // WhatsApp refused. Try the other carrier ourselves before showing anyone
+      // a failure — a code they never asked twice for beats a dead end.
+      if (res.delivered === false && await autoFallbackToSms(e164)) return;
+
       setWaDeliveryFailed(res.delivered === false);
       if (res.delivered === false) {
         setWaErr(isAr
@@ -288,6 +349,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const switchToSms = () => {
     setPhoneChannel('sms');
     setWaErr('');
+    setWaDeliveryFailed(false); // leaving the failed send behind — don't carry it back
+    setAutoSwitchedToSms(false); // chosen, not automatic — nothing to explain
     setWaSent(false);
     setWaCode('');
     clearCooldownTimer();
@@ -297,6 +360,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   // Switch back to the WhatsApp primary channel, tearing down the reCAPTCHA verifier.
   const switchToWhatsapp = () => {
     setPhoneChannel('whatsapp');
+    setAutoSwitchedToSms(false);
     setPhoneErr('');
     setConfirmation(null);
     setSmsCode('');
@@ -536,14 +600,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               {waErr && (
                 <p className="text-red-600 text-xs font-semibold" id="wa-login-error">{waErr}</p>
               )}
-              {/* Fallback: switch to the Firebase reCAPTCHA/SMS path */}
+              {/* Fallback: switch to the Firebase reCAPTCHA/SMS path.
+                  When the WhatsApp relay FAILED this stops being a footnote and
+                  becomes the primary action. The code field above is asking for a
+                  code that was never sent, so SMS — a genuinely separate provider
+                  — is the only way forward, and it must outrank the Verify button
+                  visually rather than hide beneath it.
+                  The label changes too: "No WhatsApp?" is the wrong question here.
+                  The user HAS WhatsApp; our relay could not deliver to it, so the
+                  default copy reads as not applying to them. */}
               <button
                 type="button"
                 onClick={switchToSms}
-                className="w-full text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors pt-1"
+                className={waDeliveryFailed
+                  ? 'w-full h-11 bg-[#FF6B00] hover:bg-[#E05E00] text-white text-sm font-bold rounded-full shadow-sm transition-all duration-200 ease-out'
+                  : 'w-full text-xs text-[#FF6B00] hover:text-[#E05E00] font-bold transition-colors pt-1'}
                 id="wa-sms-fallback-link"
               >
-                {isAr ? 'ما عندك واتساب؟ أرسل SMS' : 'No WhatsApp? Send SMS instead'}
+                {waDeliveryFailed
+                  ? (isAr ? 'أرسل الرمز عبر SMS' : 'Send the code by SMS')
+                  : (isAr ? 'ما عندك واتساب؟ أرسل SMS' : 'No WhatsApp? Send SMS instead')}
               </button>
               <button
                 type="button"
@@ -586,6 +662,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
                 </>
               ) : (
                 <>
+                  {autoSwitchedToSms && (
+                    <p className="text-[11px] text-fg-muted font-medium text-center pb-1" id="phone-auto-switch-note">
+                      {isAr
+                        ? 'تعذّر الإرسال عبر واتساب، فأرسلنا الرمز عبر SMS.'
+                        : 'WhatsApp did not go through, so we sent the code by SMS.'}
+                    </p>
+                  )}
                   <input
                     type="tel"
                     inputMode="numeric"
