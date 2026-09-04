@@ -27,6 +27,7 @@ import {
   CLIQ_ALIAS,
   CLIQ_BANK_NAME_AR,
   CLIQ_BANK_NAME_EN,
+  CLIQ_IBAN,
 } from './cliq';
 import { BRAND_HOST } from './brand';
 
@@ -82,6 +83,41 @@ describe('payment identifiers do not follow the brand', () => {
     // customer to look for their money at the wrong bank.
     expect(CLIQ_BANK_NAME_EN).toBe('Jordan Ahli Bank');
     expect(CLIQ_BANK_NAME_AR).toBe('البنك الأهلي الأردني');
+  });
+
+  it('carries an IBAN whose checksum is valid', () => {
+    // A hand-typed IBAN is a wrong destination that looks right. mod-97 catches
+    // a transposed or dropped digit, which is exactly how one gets typed wrong.
+    expect(CLIQ_IBAN).toHaveLength(30); // Jordan
+    const re = CLIQ_IBAN.slice(4) + CLIQ_IBAN.slice(0, 4);
+    const digits = re.replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+    let rem = 0;
+    for (const d of digits) rem = (rem * 10 + Number(d)) % 97;
+    expect(rem).toBe(1);
+  });
+
+  it('carries an IBAN issued by the bank it names', () => {
+    // Characters 5-8 of an IBAN are the bank. The screens print the bank name
+    // and the IBAN side by side, so if these two ever disagree one of them is
+    // sending someone's money to the wrong place. JONB = Jordan Ahli Bank.
+    expect(CLIQ_IBAN.slice(4, 8)).toBe('JONB');
+    expect(CLIQ_BANK_NAME_EN).toBe('Jordan Ahli Bank');
+  });
+
+  it('keeps the IBAN out of the components', () => {
+    // It used to be a literal in OrderDetailsView plus a second, divergent copy
+    // in a dead SubscriptionView handler. Two copies meant one could be updated
+    // and the other left pointing at a closed account — which is what happened.
+    const offenders: string[] = [];
+    for (const file of sourceFiles('src')) {
+      if (file.includes('SellerCenterView') || file.includes('.test.')) continue;
+      if (file.replace(/\\/g, '/').endsWith('constants/cliq.ts')) continue;
+      const src = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
+      if (/JO\d{2} ?[A-Z]{4}/.test(src)) offenders.push(file.replace(/\\/g, '/'));
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('has no stale Arab Bank reference left in the app', () => {

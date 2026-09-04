@@ -83,7 +83,6 @@ export const SubscriptionView: React.FC = () => {
   const [paymentProofImage, setPaymentProofImage] = useState<string>('');
   const [transferFullName, setTransferFullName] = useState('');
   const [transferPhone, setTransferPhone] = useState('');
-  const [copied, setCopied] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
   // E4 — pay-to-bid acceptance gate for the Auction Rules.
   const [acceptedRules, setAcceptedRules] = useState(false);
@@ -139,12 +138,6 @@ export const SubscriptionView: React.FC = () => {
     }
     prevStatusRef.current = curr;
   }, [currentUser?.subscriptionStatus, isAr, showToast]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText('JO83 CAPS 1020 0085 4100 00');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleCopyAlias = () => {
     navigator.clipboard.writeText(CLIQ_ALIAS);
