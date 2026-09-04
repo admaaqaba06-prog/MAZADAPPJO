@@ -77,6 +77,19 @@ type Props = {
   className?: string;
   /** Rendered after the label, flipped for RTL by the caller's own markup. */
   trailing?: React.ReactNode;
+  /**
+   * Explicitly busy — for a caller that owns the work and knows when it ends
+   * (a form submit, an awaited call). Renders the SAME `data-cta-pending`
+   * state the shell's capture hook applies, so the landing has one busy look
+   * however it is triggered.
+   *
+   * Landing CTAs that only navigate do NOT need this: `useCtaPending`, mounted
+   * on the landing root in App.tsx, marks them automatically. `active:scale`
+   * was never enough on its own — it is a CSS pseudo-class, so it produces no
+   * DOM mutation and it vanishes the instant the finger lifts, which is exactly
+   * the window where the user is waiting and wants an answer.
+   */
+  busy?: boolean;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function LandingButton({
@@ -84,6 +97,7 @@ export function LandingButton({
   size = "lg",
   className = "",
   trailing,
+  busy = false,
   children,
   type = "button",
   ...rest
@@ -92,6 +106,7 @@ export function LandingButton({
     <button
       type={type}
       className={`${BASE} ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
+      {...(busy ? { "data-cta-pending": "true", "aria-busy": true } : null)}
       {...rest}
     >
       <span>{children}</span>

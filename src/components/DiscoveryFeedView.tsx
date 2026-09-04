@@ -193,8 +193,18 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           strap. Letterboxing on surface-sunken shows the whole product. Square,
           so a two-column grid keeps one rhythm. */}
       <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-surface-sunken">
+        {/* The shimmer sits BEHIND the photo, not over it.
+            It used to be `z-10` — above the image — while the image itself was
+            held at `opacity-0` until `onLoad` fired. That made a decorative
+            animation the gate on whether the product was visible at all, and
+            when the callback was missed (see ListingImage: a cached image never
+            re-fires `load`) the card rendered as a black square. Measured on
+            production: eight of eight thumbnails fully loaded and invisible.
+            Now the photo is always opaque and paints over this as soon as it
+            has pixels; the shimmer only fills the gap underneath. A failure of
+            the load callback can no longer hide inventory. */}
         {!imageLoaded && (
-          <div className="absolute inset-0 z-10 animate-pulse bg-surface-sunken" />
+          <div className="absolute inset-0 animate-pulse bg-surface-sunken" />
         )}
 
         <ListingImage
@@ -202,7 +212,7 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
           alt={item.title}
           isAr={isAr}
           className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${
-            !imageLoaded ? 'opacity-0' : itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
+            itemIsEnded ? 'opacity-60 grayscale-[35%]' : 'opacity-100'
           }`}
           imgClassName="object-contain p-2"
           onLoad={() => setImageLoaded(true)}
@@ -280,11 +290,24 @@ const PremiumAuctionCardBase: React.FC<PremiumAuctionCardProps> = ({
 
         {/* Metadata: the countdown moved off the image and down here, next to
             the bid count, so the two facts a bidder compares sit together. */}
-        <div className="flex items-center gap-3 text-[11px] font-medium text-fg-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-fg-muted">
           {!itemIsEnded && !awaitingFirstBid && (
             <span className={`flex items-center gap-1 ${isCritical ? 'font-bold text-danger' : ''}`}>
               <Clock className="h-3 w-3 shrink-0" />
               {secondsLeft === null ? '—' : formatCountdown(secondsLeft, isAr)}
+            </span>
+          )}
+          {/* A lot awaiting its first bid has NO countdown to show, and this
+              slot used to render nothing at all — so the card showed a price,
+              «0 مزايدة», and a conspicuous hole where every other lot shows
+              time. With the whole catalogue currently at zero bids, a visitor
+              arriving from an ad meets a grid of clockless items and reads it
+              as broken or abandoned. The explanation belongs in the slot where
+              the absence is felt, not in a paragraph elsewhere on the page. */}
+          {!itemIsEnded && awaitingFirstBid && (
+            <span className="flex items-center gap-1 font-semibold text-fg">
+              <Clock className="h-3 w-3 shrink-0" />
+              {isAr ? 'العدّاد بيبدأ مع أول مزايدة' : 'Timer starts at first bid'}
             </span>
           )}
           <span className="flex items-center gap-1">

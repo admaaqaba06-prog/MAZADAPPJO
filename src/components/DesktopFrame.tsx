@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ThemeToggle from './ui/ThemeToggle';
 import { useApp } from '../context/AppContext';
+import { useCtaPending } from '../hooks/useCtaPending';
 import { useSocialProof, formatRelativeTime } from '../hooks/useSocialProof';
 import { DESKTOP_MIN_WIDTH, isDesktopWidth } from '../utils/shellBreakpoint';
 import { useOwnsListing } from '../hooks/useOwnsListing';
@@ -140,11 +141,21 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
+  /* Every nav CTA in this shell gets its pending state from one capture
+     listener here, rather than seventeen copies of the same useState in a file
+     that was explicitly not to be refactored.
+
+     `activeView` does two jobs: it releases the mark when the route changes,
+     and it lets the hook compare against each button's `data-cta-target` so a
+     tap on the view you are ALREADY on is never marked at all. */
+  const { onClickCapture } = useCtaPending(activeView);
+
   return (
     <div 
       className="w-full h-[100dvh] overflow-hidden text-fg bg-surface-sunken/50 font-sans selection:bg-[#FF6B00]/20"
       style={{ direction: isAr ? 'rtl' : 'ltr' }}
       id="desktop-frame-root"
+      onClickCapture={onClickCapture}
     >
       {/* ======================================================================
           1. MOBILE EMULATOR LAYOUT (Presented on screens below 1024px / lg)
@@ -210,6 +221,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {/* Discover — same 'discovery' route, relabeled from "Home" */}
               <button
                 onClick={() => setActiveView('discovery')}
+                data-cta-target="discovery"
                 aria-current={activeView === 'discovery' ? 'page' : undefined}
                 className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'discovery'
@@ -229,6 +241,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
               <button
                 onClick={() => setActiveView('orders')}
+                data-cta-target="orders"
                 aria-current={activeView === 'orders' ? 'page' : undefined}
                 className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'orders'
@@ -278,6 +291,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   and SubscriptionView is the screen that asks. */}
               <button
                 onClick={() => setActiveView('wallet')}
+                data-cta-target="wallet"
                 aria-current={activeView === 'wallet' ? 'page' : undefined}
                 className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'wallet'
@@ -297,6 +311,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
               <button
                 onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
+                data-cta-target="profile"
                 aria-current={activeView === 'profile' ? 'page' : undefined}
                 className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   activeView === 'profile'
@@ -316,6 +331,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {isSeller && (
                 <button
                   onClick={() => setActiveView('seller-center')}
+                  data-cta-target="seller-center"
                   aria-current={activeView === 'seller-center' ? 'page' : undefined}
                   className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                     activeView === 'seller-center'
@@ -336,6 +352,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               {isStrictAdmin && (
                 <button
                   onClick={() => setActiveView('admin')}
+                  data-cta-target="admin"
                   aria-current={activeView === 'admin' ? 'page' : undefined}
                   className="relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer text-amber-600"
                   id="mobile-admin-tab-btn"
@@ -359,6 +376,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
               // the exact bug a partner review reported. 'upload' is not a
               // guest-allowed view, so the routing is unchanged; only the ASK is.
               onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
+              data-cta-target="upload"
               aria-label={isAr ? 'بيع' : 'Sell'}
               aria-current={activeView === 'upload' ? 'page' : undefined}
               className="absolute left-1/2 -top-[26px] -translate-x-1/2 transition-transform active:scale-95 cursor-pointer"
@@ -393,6 +411,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           {/* 1. Logo & App Name (Left) — routes to the landing page (path `/`). */}
           <div
             onClick={() => setActiveView('landing')}
+            data-cta-target="landing"
             className="flex items-center gap-3 cursor-pointer select-none group"
           >
             <BrandMark className="w-8 h-8 group-hover:scale-105 transition-all" />
@@ -407,6 +426,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
           <nav className="flex items-center gap-1 xl:gap-2" id="global-top-navigation">
             <button
               onClick={() => setActiveView('discovery')}
+              data-cta-target="discovery"
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'discovery'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -419,6 +439,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
             <button
               onClick={() => (isGuest ? requestSignIn('sell') : setActiveView('upload'))}
+              data-cta-target="upload"
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'upload'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -431,6 +452,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
             <button
               onClick={() => setActiveView('orders')}
+              data-cta-target="orders"
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'orders'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -444,6 +466,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
 
             <button
               onClick={() => setActiveView('about')}
+              data-cta-target="about"
               className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeView === 'about'
                   ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -458,6 +481,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {isSeller && (
               <button
                 onClick={() => setActiveView('seller-center')}
+                data-cta-target="seller-center"
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'seller-center'
                     ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -472,6 +496,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {isStrictAdmin && (
               <button
                 onClick={() => setActiveView('admin')}
+                data-cta-target="admin"
                 className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   activeView === 'admin'
                     ? 'bg-[#E85D04]/10 text-[#E85D04]'
@@ -491,6 +516,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
             {currentUser && (
               <div
                 onClick={() => setActiveView('wallet')}
+                data-cta-target="wallet"
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold font-mono cursor-pointer transition-colors bg-surface border-line/80 text-fg hover:border-line"
               >
                 <Coins className="w-3.5 h-3.5 text-[#E85D04]" />
@@ -570,6 +596,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     >
                       <button
                         onClick={() => { setIsUserMenuOpen(false); setActiveView('profile'); }}
+                        data-cta-target="profile"
                         className="w-full text-left rtl:text-right px-4 py-2.5 text-xs font-bold text-fg hover:bg-surface-sunken flex items-center gap-2.5 cursor-pointer"
                       >
                         <User className="w-4 h-4 text-fg-muted shrink-0 stroke-[1.75]" />
@@ -743,6 +770,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     </div>
                     <button
                       onClick={() => setActiveView('about')}
+                      data-cta-target="about"
                       className="text-[10px] font-extrabold text-[#E85D04] hover:text-orange-700 cursor-pointer flex items-center gap-1 pt-0.5"
                       id="rail-how-it-works-link"
                     >
