@@ -33,8 +33,38 @@ service cloud.firestore {
     function touchesSubscriptionGrantFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus', 'subscriptionExpiry', 'subscriptionPlan',
-        'subscriptionTier', 'subscriptionApprovedAt', 'subscriptionExpiresAt'
+        'subscriptionTier', 'subscriptionApprovedAt', 'subscriptionExpiresAt',
+        // Stamped only by the subscriptionExpirySweep (Admin SDK). Nothing gates
+        // on it, but it is the audit trail for WHEN a membership lapsed — a
+        // client that could rewrite it could make a lapse look recent or undo
+        // the record of one entirely.
+        'subscriptionExpiredAt'
       ]);
+    }
+
+    // Shape of a health row a CLIENT may write. See the system_health match
+    // block below for why this is pinned down rather than left open.
+    function isClientHealthRow() {
+      return request.resource.data.keys().hasOnly([
+               'type', 'title', 'details', 'userId', 'userEmail', 'timestamp', 'browser'
+             ])
+             && request.resource.data.keys().hasAll(['type', 'title', 'details'])
+             && request.resource.data.type in ['error', 'payment_fail', 'bid_fail', 'wallet_fail']
+             && request.resource.data.title is string
+             && request.resource.data.title.size() <= 200
+             && request.resource.data.details is string
+             && request.resource.data.details.size() <= 4000
+             // navigator.userAgent is client-supplied and otherwise unbounded.
+             && (!('browser' in request.resource.data)
+                 || (request.resource.data.browser is string
+                     && request.resource.data.browser.size() <= 500))
+             // Attributable to whoever is signed in. 'anonymous' stays allowed
+             // because the client falls back to it when the auth session has been
+             // restored but the user profile has not loaded yet — which is
+             // exactly one of the broken moments this log exists to capture.
+             && (!('userId' in request.resource.data)
+                 || request.resource.data.userId == request.auth.uid
+                 || request.resource.data.userId == 'anonymous');
     }
 
     // 1. Users block
@@ -322,9 +352,23 @@ service cloud.firestore {
     }
 
     // 9. System Health Logs
+    //
+    // Clients DO legitimately create rows here — AppContext logSystemHealth
+    // reports client-side error/payment/bid/wallet failures, and those are worth
+    // having. But `create: if isSignedIn()` with no validation meant any signed-in
+    // user could write arbitrary documents into the admin health log: unbounded
+    // payloads, invented `type` values that skew the board's own failure rates,
+    // and a forged `source` that would read as though a Cloud Function wrote it.
+    // #287 was a lesson in what a health board full of untrustworthy rows costs.
+    //
+    // So the client-writable shape is pinned: the four types the client actually
+    // reports, a bounded key set, size caps, and attribution to the caller.
+    // Server rows (source/createdAt, sweep and enforcer types) come in via the
+    // Admin SDK, which bypasses rules entirely — and because `hasOnly` forbids
+    // `source`, no client can dress a row up as one of them.
     match /system_health/{logId} {
       allow read: if isSignedIn() && isAdmin();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && isClientHealthRow();
       allow update, delete: if isSignedIn() && isAdmin();
     }
 

@@ -10,6 +10,7 @@ import { getAuctionMedia } from '../utils/auctionMedia';
 import { categoryLabel } from '../utils/categoryLabel';
 import { conditionLabel } from '../utils/conditionLabel';
 import { serverNow } from '../utils/serverTime';
+import { isActiveMember } from '../utils/membership';
 import { isAwaitingFirstBid } from '../utils/auctionPhase';
 import { CountdownPill } from './auction/CountdownPill';
 import { useBidFlow, resolveConfirm } from '../hooks/useBidFlow';
@@ -247,7 +248,7 @@ export const MobileAuctionView: React.FC<MobileAuctionViewProps> = ({
   };
 
   const showCoach =
-    currentUser?.subscriptionStatus === 'active' && sheetOpen;
+    isActiveMember(currentUser, serverNow()) && sheetOpen;
 
   // ----- Activity toasts (mockup mini-toasts) -----
   // Transition-detection via refs so we NEVER toast on first render/mount: we

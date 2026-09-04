@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SellerProfileModal } from './SellerProfileModal';
@@ -1105,7 +1107,7 @@ export const DesktopLiveAuctionLayout: React.FC<DesktopLiveAuctionLayoutProps> =
                         Hidden while a bid confirm is open so it can never overlap or
                         intercept clicks meant for the confirm dialog. */}
                     <FirstBidCoach
-                      show={currentUser?.subscriptionStatus === 'active' && pendingBid == null}
+                      show={isActiveMember(currentUser, serverNow()) && pendingBid == null}
                       isAr={isAr}
                     />
                     {/* A drag gesture is friction on a mouse, so desktop bids on a

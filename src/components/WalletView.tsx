@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { isActiveMember } from '../utils/membership';
+import { serverNow } from '../utils/serverTime';
 import { useApp } from '../context/AppContext';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
@@ -275,7 +277,9 @@ export const WalletView: React.FC = () => {
     return true;
   });
 
-  const activeSubscribers = users.filter(u => u.subscriptionStatus === 'active');
+  // Derived: this counted every account still carrying the never-reset 'active'
+  // latch, so the admin subscriber figure included every lapsed member.
+  const activeSubscribers = users.filter(u => isActiveMember(u, serverNow()));
 
   // Sum of local pending cliq deposits
   const myPendingDepositsSum = myPendingDeposits.reduce((sum, e) => sum + e.amount, 0);
