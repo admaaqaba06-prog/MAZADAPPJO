@@ -51,5 +51,14 @@ export const CLIQ_ALIAS = 'MAZZADO';
  *
  * Same rule as the names above: this follows the BANK RECORD, not the brand.
  */
-export const CLIQ_BANK_NAME_AR = 'البنك الأهلي';
-export const CLIQ_BANK_NAME_EN = 'Al Ahli Bank';
+/**
+ * Updated 2026-09-04 to the bank's OFFICIAL name. It was 'Al Ahli Bank', which
+ * is not what the bank calls itself and is one word away from several other
+ * Jordanian banks — on a screen whose only job is telling someone where to send
+ * money, an approximate bank name is a defect.
+ *
+ * This is a NAMING correction, not an account move: the account is the same one
+ * confirmed on 2026-08-26. The destination itself is CLIQ_ALIAS, untouched.
+ */
+export const CLIQ_BANK_NAME_AR = 'البنك الأهلي الأردني';
+export const CLIQ_BANK_NAME_EN = 'Jordan Ahli Bank';

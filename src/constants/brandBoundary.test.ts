@@ -80,8 +80,8 @@ describe('payment identifiers do not follow the brand', () => {
     // Was hardcoded in 17 places across 7 files, and every one of them said Arab
     // Bank after the account had already moved — seventeen lines telling a
     // customer to look for their money at the wrong bank.
-    expect(CLIQ_BANK_NAME_EN).toBe('Al Ahli Bank');
-    expect(CLIQ_BANK_NAME_AR).toBe('البنك الأهلي');
+    expect(CLIQ_BANK_NAME_EN).toBe('Jordan Ahli Bank');
+    expect(CLIQ_BANK_NAME_AR).toBe('البنك الأهلي الأردني');
   });
 
   it('has no stale Arab Bank reference left in the app', () => {
@@ -96,7 +96,10 @@ describe('payment identifiers do not follow the brand', () => {
       const src = readFileSync(file, 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\/\/[^\n]*/g, '');
-      if (/Arab Bank|البنك العربي/.test(src)) offenders.push(file.replace(/\\/g, '/'));
+      // CASE-INSENSITIVE. This guard existed and still shipped ARAB BANK to two
+      // live payment screens for nine days, because it was written /Arab Bank/
+      // and both offenders were uppercase inside a `uppercase font-mono` span.
+      if (/arab bank|البنك العربي/i.test(src)) offenders.push(file.replace(/\\/g, '/'));
     }
     expect(offenders).toEqual([]);
   });
