@@ -19,8 +19,9 @@
 // name are still pending their real registered values and are still pinned to
 // the old ones, because a guessed alias is a transfer that goes nowhere.
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ROOT, TS_EXTS, sourceFiles } from './sourceFiles';
 import {
   CLIQ_RECIPIENT_NAME_EN,
   CLIQ_RECIPIENT_NAME_AR,
@@ -30,16 +31,6 @@ import {
   CLIQ_IBAN,
 } from './cliq';
 import { BRAND_HOST } from './brand';
-
-/** Every source file under a directory, recursively. */
-function sourceFiles(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) sourceFiles(full, out);
-    else if (/\.(ts|tsx)$/.test(entry)) out.push(full);
-  }
-  return out;
-}
 
 describe('payment identifiers do not follow the brand', () => {
   it('keeps the CliQ alias the bank actually has registered', () => {
@@ -55,7 +46,7 @@ describe('payment identifiers do not follow the brand', () => {
     // file guards: the constant moves and the copy does not, so a screen keeps
     // pointing at a dead account.
     const offenders: string[] = [];
-    for (const file of sourceFiles('src')) {
+    for (const file of sourceFiles(join(ROOT, 'src'), TS_EXTS)) {
       if (file.includes('brandBoundary.test') || file.includes('constants/cliq.ts')) continue;
       const src = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
       if (/mazadjom/i.test(src)) offenders.push(file.replace(/\\/g, '/'));
@@ -109,7 +100,7 @@ describe('payment identifiers do not follow the brand', () => {
     // in a dead SubscriptionView handler. Two copies meant one could be updated
     // and the other left pointing at a closed account — which is what happened.
     const offenders: string[] = [];
-    for (const file of sourceFiles('src')) {
+    for (const file of sourceFiles(join(ROOT, 'src'), TS_EXTS)) {
       if (file.includes('SellerCenterView') || file.includes('.test.')) continue;
       if (file.replace(/\\/g, '/').endsWith('constants/cliq.ts')) continue;
       const src = readFileSync(file, 'utf8')
@@ -124,7 +115,7 @@ describe('payment identifiers do not follow the brand', () => {
     // The seller's own-bank placeholder in SellerCenterView is exempt: that is
     // an example of any Jordanian bank for a SELLER's field, not our account.
     const offenders: string[] = [];
-    for (const file of sourceFiles('src')) {
+    for (const file of sourceFiles(join(ROOT, 'src'), TS_EXTS)) {
       if (file.includes('SellerCenterView') || file.includes('.test.')) continue;
       // Comments stripped: cliq.ts records that the account MOVED from Arab
       // Bank, and a scan that reads its own rationale as a violation is a

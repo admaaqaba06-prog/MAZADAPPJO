@@ -87,6 +87,49 @@ describe('the OTP relay reports whether it delivered', () => {
   });
 });
 
+// The wording travels WITH the request, so n8n owns none of it.
+//
+// Until this landed, postOtpToRelay posted only { phone, code } and the n8n Send
+// OTP node composed the sentence. That put the most-read message the product
+// sends in the only place with no tests, no brand guard, no review and no git
+// history — and what shipped there read «رمز الدخول إلى مزاد جو», naming a brand
+// that is not allowed to appear. Nothing in this repo could have caught it.
+//
+// notify() had already set the precedent for the notification pipe: render in
+// Cloud Functions, ship a pre-rendered `wa_text`, let the workflow forward it.
+describe('the relay is handed the rendered message, not just the code', () => {
+  it('ships a pre-rendered wa_text, reusing notify()\'s key name', () => {
+    // Same key as the notification pipe on purpose: n8n/build-messages.js:277
+    // already type-guards `wa_text` and falls back to its own template, so a
+    // half-landed deploy sends the OLD wording rather than a blank message.
+    expect(relayBody()).toMatch(/wa_text: waText/);
+    expect(INDEX).toMatch(/const \{ otpMessage \} = require\('\.\/otpCopy'\)/);
+  });
+
+  it('still sends `code`, so the relay works either side of the deploy', () => {
+    // The n8n node keeps its own template until someone points it at wa_text.
+    // Dropping `code` here would blank the message in that window.
+    expect(relayBody()).toMatch(/JSON\.stringify\(\{ phone, code, \.\.\.\(waText \? \{ wa_text: waText \} : \{\}\)/);
+  });
+
+  it('renders inside its OWN try/catch, before the payload literal', () => {
+    // Same discipline as notify(): postOtpToRelay must never throw, because the
+    // OTP row is already written by the time it runs. A renderer that threw
+    // inside the payload literal would be evaluated by the caller, not by the
+    // fetch's catch — so the render is guarded separately and a failure omits
+    // the key instead of losing a code the user could still verify.
+    const body = relayBody();
+    const render = body.slice(body.indexOf('let waText'), body.indexOf('const res = await fetch'));
+    expect(render).toMatch(/try \{[\s\S]*otpMessage\(code\)[\s\S]*catch/);
+    expect(body.indexOf('let waText')).toBeLessThan(body.indexOf('JSON.stringify({ phone, code'));
+  });
+
+  it('omits the key rather than sending an empty one', () => {
+    // A blank wa_text would defeat n8n's type guard on the primary auth path.
+    expect(relayBody()).toMatch(/waText \? \{ wa_text: waText \} : \{\}/);
+  });
+});
+
 describe('the callable passes delivery through to the client', () => {
   it('returns `delivered` alongside `ok`', () => {
     // `ok` keeps meaning "a code was issued" — verify still depends on it.

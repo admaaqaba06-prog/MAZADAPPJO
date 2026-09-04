@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mazad-jo-cache-v1';
+const CACHE_NAME = 'mazzado-cache-v1';
 const OFFLINE_FALLBACK_URL = '/index.html';
 
 // Asset types to cache first (Static assets)
