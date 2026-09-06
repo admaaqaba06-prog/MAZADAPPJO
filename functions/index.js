@@ -38,6 +38,7 @@ const { sendFulfillmentNudge: sendFulfillmentNudgeTxn } = require('./fulfillment
 const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./disputeResolution');
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = require('./subscriptionExpiry');
+const { normalizeReservePrice, authorizeReserveWrite } = require('./auctionReserve');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
@@ -5819,6 +5820,82 @@ function otpDocId(e164) {
 }
 
 // Step 2: request an OTP. UNauthenticated by design.
+/**
+ * Store an auction's reserve price. THE ONLY WRITE PATH for `auctionSecrets`
+ * that a seller can reach.
+ *
+ * `auctionSecrets` is `allow write: if isAdmin()` and that rule is right — the
+ * amount is a secret and a browser must not hold write access to it. The old
+ * code ignored that and wrote the document straight from the seller's browser,
+ * so Firestore denied it, the failure was swallowed into a console.warn, and
+ * the lot went live carrying `reserveMet: false` with no amount stored. At
+ * settlement the document was simply ABSENT — not an error, so the fail-closed
+ * guard never fired — the reserve read as null, and null means "no reserve", so
+ * the lot was awarded at whatever the top bid happened to be.
+ *
+ * The Admin SDK bypasses rules, which is exactly why the decision about WHO may
+ * write has to be made here, explicitly, instead of being delegated to a rule
+ * that no longer applies. Both halves of that decision are pure and unit-tested
+ * in auctionReserve.js.
+ *
+ * Idempotent: called again with the same amount it simply rewrites it, so a
+ * client retry after a network wobble is safe.
+ */
+exports.setAuctionReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const callerUid = context.auth && context.auth.uid;
+  if (!callerUid) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول.');
+  }
+
+  const auctionId = data && typeof data.auctionId === 'string' ? data.auctionId.trim() : '';
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مفقود.');
+  }
+
+  // Rejecting an unusable amount rather than storing it is the point: a stored
+  // 0 or NaN is a reserve that silently never blocks anything, which is the
+  // failure mode this whole change exists to end.
+  const reservePrice = normalizeReservePrice(data && data.reservePrice);
+  if (reservePrice === null) {
+    throw new functions.https.HttpsError('invalid-argument', 'سعر الحد الأدنى غير صالح.');
+  }
+
+  const auctionSnap = await db.collection('auctions').doc(auctionId).get();
+  const auction = auctionSnap.exists ? auctionSnap.data() : null;
+
+  let isAdmin = false;
+  try {
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.exists ? callerSnap.data() || {} : {};
+    isAdmin = callerData.role === 'admin' || callerData.isAdmin === true;
+  } catch (e) {
+    // An unreadable caller doc is not admin. Fail closed on privilege.
+    console.warn(`[setAuctionReserve] caller lookup failed for ${callerUid}:`, e && e.message);
+  }
+
+  const verdict = authorizeReserveWrite({ callerUid, isAdmin, auction });
+  if (!verdict.ok) {
+    const messages = {
+      'not-found': 'المزاد غير موجود.',
+      'permission-denied': 'لا تملك صلاحية تعديل هذا المزاد.',
+      'unauthenticated': 'يجب تسجيل الدخول.',
+    };
+    throw new functions.https.HttpsError(verdict.code, messages[verdict.code] || 'غير مسموح.');
+  }
+
+  await db.collection('auctionSecrets').doc(auctionId).set({ reservePrice }, { merge: true });
+
+  // `reserveMet: false` is the world-readable half — the boolean only, never the
+  // amount. Settlement reads its PRESENCE to know a reserve was intended, so it
+  // must be written whenever the secret is, or a lot could still settle as if it
+  // had no reserve. Written here rather than trusted to the client for the same
+  // reason the amount is.
+  await db.collection('auctions').doc(auctionId).set({ reserveMet: false }, { merge: true });
+
+  console.log(`[setAuctionReserve] reserve stored for ${auctionId} by ${callerUid}${isAdmin ? ' (admin)' : ''}`);
+  return { success: true };
+});
+
 exports.requestWhatsappOtp = functions.runWith({ cors: true }).https.onCall(async (data) => {
   const e164 = normalizePhone(data && data.phone);
   if (!e164) {
