@@ -77,10 +77,45 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
   const [phoneErr, setPhoneErr] = useState('');
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
-  // WhatsApp OTP is the PRIMARY phone channel; the Firebase reCAPTCHA/SMS flow above is
-  // the fallback. `phoneChannel` picks which one the phone panel renders. `phone`
-  // (country + national + derived e164) is shared across both channels (same number, different delivery).
-  const [phoneChannel, setPhoneChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  /**
+   * SMS IS THE PRIMARY PHONE CHANNEL. WhatsApp is the alternative.
+   *
+   * It was the other way round, and WhatsApp could not carry it. The WhatsApp
+   * OTP goes out through WaSender, an UNOFFICIAL gateway that drives a linked
+   * WhatsApp device — so it depends on a session that WhatsApp itself keeps
+   * terminating. Read straight from the provider on the day of this change:
+   *
+   *   POST /webhook/send-otp -> HTTP 200
+   *   {"success":false,
+   *    "message":"Your Whatsapp Session is not connected please connect your
+   *               session first."}
+   *
+   * and the WaSender dashboard showing session "Buisness whatsapp"
+   * (+962785168550) as Logged Out. The same failure ran for five days in
+   * August before anyone noticed, because every layer reported success.
+   *
+   * That is not a bug to fix, it is the architecture: sending automated codes
+   * to people who never messaged the business is exactly the pattern WhatsApp
+   * terminates unofficial sessions for, and +962785168550 is ALSO the public
+   * support number printed on the site, so it collects reports while it sends.
+   * Authentication cannot sit on a channel that logs itself out.
+   *
+   * SMS is Firebase Phone Auth — a different provider, with its own quota, and
+   * no session to drop. WhatsApp stays one tap away for anyone who prefers it,
+   * and stays the right channel for NOTIFICATIONS (win, payment reminder),
+   * which are messages to people who already have an account.
+   *
+   * ONE constant, used everywhere the starting channel is decided, so flipping
+   * this back — after a move to the official WhatsApp Cloud API with an
+   * approved authentication template, say — is a one-line change rather than a
+   * hunt for scattered literals.
+   */
+  const PRIMARY_PHONE_CHANNEL: 'whatsapp' | 'sms' = 'sms';
+
+  // `phoneChannel` picks which one the phone panel renders. `phone` (country +
+  // national + derived e164) is shared across both channels — same number,
+  // different delivery.
+  const [phoneChannel, setPhoneChannel] = useState<'whatsapp' | 'sms'>(PRIMARY_PHONE_CHANNEL);
   const [waSent, setWaSent] = useState(false); // code has been requested → show code entry
   // The relay refused the send: a code exists but no WhatsApp message is coming.
   const [waDeliveryFailed, setWaDeliveryFailed] = useState(false);
@@ -345,7 +380,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     }
   };
 
-  // Switch to the Firebase reCAPTCHA/SMS fallback, clearing any WhatsApp progress.
+  // Switch to the Firebase reCAPTCHA/SMS channel, clearing any WhatsApp progress.
+  // Reachable from the WhatsApp panel; SMS is also where a phone sign-in now starts.
   const switchToSms = () => {
     setPhoneChannel('sms');
     setWaErr('');
@@ -357,7 +393,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     setCooldown(0);
   };
 
-  // Switch back to the WhatsApp primary channel, tearing down the reCAPTCHA verifier.
+  // Switch to WhatsApp — the alternative channel now, not the primary —
+  // tearing down the reCAPTCHA verifier the SMS path minted.
   const switchToWhatsapp = () => {
     setPhoneChannel('whatsapp');
     setAutoSwitchedToSms(false);
@@ -375,7 +412,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
     setSmsCode('');
     setPhoneErr('');
     // reset WhatsApp channel state too, and default back to the primary channel
-    setPhoneChannel('whatsapp');
+    setPhoneChannel(PRIMARY_PHONE_CHANNEL);
     setWaSent(false);
     setWaCode('');
     setWaErr('');
@@ -722,7 +759,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBack }) => {
               {phoneErr && (
                 <p className="text-red-600 text-xs font-semibold" id="phone-login-error">{phoneErr}</p>
               )}
-              {/* Back to the WhatsApp primary channel */}
+              {/* Opt into WhatsApp instead. Kept because some users prefer it,
+                  and it must stay reachable even though it is no longer the
+                  channel a sign-in starts on. */}
               <button
                 type="button"
                 onClick={switchToWhatsapp}
