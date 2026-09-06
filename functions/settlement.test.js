@@ -135,6 +135,60 @@ describe('resolveSettlement', () => {
     expect(resolveSettlement({ totalBids: 0, winnerId: null, finalPrice: 0, reservePrice: 200 }))
       .toEqual({ outcome: 'unsold', status: 'ended' });
   });
+
+  /* ======================================================================
+     A RESERVE THAT EXISTS BUT CANNOT BE READ MUST NOT AWARD.
+
+     The bug these pin: `auctionSecrets` rules are `allow write: if isAdmin()`,
+     so createListing's browser write was denied for every non-admin seller and
+     the error was swallowed. The lot went live with `reserveMet: false` on the
+     public doc and NO amount stored. An absent document is not a read error, so
+     the fail-closed guard never fired — `reservePrice` was null, and a null
+     reserve means "no reserve", so the lot sold at whatever the top bid was.
+     ====================================================================== */
+  it('refuses to award when a reserve was set but its amount is missing', () => {
+    expect(resolveSettlement({
+      totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: null, reserveIntended: true,
+    })).toEqual({ outcome: 'reserve_not_met', status: 'reserve_not_met', reserveUnverifiable: true });
+  });
+
+  it('refuses even when the top bid is high — the bar is unknown, not cleared', () => {
+    // The whole point: we cannot prove 9999 cleared it, so we do not award.
+    expect(resolveSettlement({
+      totalBids: 9, winnerId: 'u1', finalPrice: 9999, reservePrice: undefined, reserveIntended: true,
+    }).outcome).toBe('reserve_not_met');
+  });
+
+  it('still sells normally when no reserve was ever intended', () => {
+    // The common case must not regress: a lot with no reserve sells as before.
+    expect(resolveSettlement({
+      totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: null, reserveIntended: false,
+    })).toEqual({ outcome: 'sold', status: 'completed' });
+  });
+
+  it('sells when the reserve is both intended AND readable AND cleared', () => {
+    expect(resolveSettlement({
+      totalBids: 3, winnerId: 'u1', finalPrice: 250, reservePrice: 200, reserveIntended: true,
+    })).toEqual({ outcome: 'sold', status: 'completed' });
+  });
+
+  it('reports an ordinary under-reserve without the unverifiable flag', () => {
+    // A KNOWN reserve that was not met is a different situation from an
+    // unreadable one, and admins should be able to tell them apart.
+    const d = resolveSettlement({
+      totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: 200, reserveIntended: true,
+    });
+    expect(d.outcome).toBe('reserve_not_met');
+    expect(d.reserveUnverifiable).toBeUndefined();
+  });
+
+  it('does not block a no-bid lot from closing just because the reserve is unreadable', () => {
+    // Nothing to award, so nothing to protect — this must still end cleanly
+    // rather than getting stuck in the cron.
+    expect(resolveSettlement({
+      totalBids: 0, winnerId: null, finalPrice: 0, reservePrice: null, reserveIntended: true,
+    })).toEqual({ outcome: 'unsold', status: 'ended' });
+  });
 });
 
 describe('nextAuctionNumber', () => {

@@ -16,8 +16,37 @@ function reserveMet(finalPrice, reservePrice) {
  * - reserve_not_met: real bids + winner but under reserve -> 'reserve_not_met' (NO order)
  * - unsold: no bids / no winner -> 'ended'
  */
-function resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice }) {
+function resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, reserveIntended = false }) {
   if (totalBids > 0 && winnerId) {
+    /**
+     * A RESERVE WAS SET ON THIS LOT BUT ITS AMOUNT IS NOT READABLE.
+     *
+     * This is the hole that awarded lots below their reserve. The amount lives
+     * in `auctionSecrets/{auctionId}`, whose rules are `allow write: if
+     * isAdmin()` — so the browser write in createListing was DENIED for every
+     * non-admin seller, the error was swallowed to a console.warn, the seller
+     * was told the auction had been created, and the lot went live with no
+     * retrievable reserve. Settlement then read an ABSENT document, which is
+     * not a read error, so the existing fail-closed guard above did not fire:
+     * `reservePrice` stayed null, `reserveMet(price, null)` returned true, and
+     * the lot sold at whatever the top bid happened to be.
+     *
+     * `reserveIntended` closes it. The public auction doc records that a reserve
+     * exists — createListing writes `reserveMet: false` alongside it — so the
+     * INTENT survives even when the amount does not. When the intent is there
+     * and the amount is not, we cannot prove the top bid cleared the bar, so we
+     * must not award.
+     *
+     * `reserve_not_met` rather than aborting the run: aborting would make the
+     * per-minute cron retry this lot forever and it would never resolve. This
+     * outcome creates no order, leaves the money untouched, and opens the
+     * below-reserve offer so the SELLER decides whether to accept the top bid.
+     * Safe and recoverable, which is the pair we want — selling below an
+     * unknown reserve is neither.
+     */
+    if (reserveIntended && (reservePrice === null || reservePrice === undefined)) {
+      return { outcome: 'reserve_not_met', status: 'reserve_not_met', reserveUnverifiable: true };
+    }
     if (reserveMet(finalPrice, reservePrice)) {
       return { outcome: 'sold', status: 'completed' };
     }

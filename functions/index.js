@@ -445,7 +445,31 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     // masked winnerName / 'Buyer' when the user doc is missing.
     const realWinnerName = (winnerSnap && winnerSnap.exists && winnerSnap.data().name) || winnerName;
 
-    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice });
+    /**
+     * Did this lot have a reserve AT ALL? The amount is admin-only and lives in
+     * auctionSecrets; the world-readable auction doc carries the boolean
+     * `reserveMet` whenever createListing set a reserve. So the field's PRESENCE
+     * is the surviving record of intent even when the amount was never stored —
+     * which is exactly the case that was selling lots below their reserve. See
+     * resolveSettlement for the full chain.
+     *
+     * Presence, not truthiness: `reserveMet` is flipped to `true` by
+     * onBidCreated once a qualifying bid lands, so testing the value would miss
+     * every lot that had already cleared its bar.
+     */
+    const reserveIntended = Object.prototype.hasOwnProperty.call(auctionData || {}, 'reserveMet');
+
+    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, reserveIntended });
+
+    if (decision.reserveUnverifiable) {
+      // Loud on purpose. This lot needs an admin to restore its reserve amount;
+      // until then it will keep landing here instead of completing.
+      console.error(
+        `[settleAuctionTxn] RESERVE UNVERIFIABLE for ${auctionId}: the auction doc records a reserve ` +
+        `(reserveMet present) but auctionSecrets/${auctionId} has no reservePrice. Refusing to award ` +
+        `(top bid ${finalPrice}). Restore the reserve amount, or accept the below-reserve offer.`
+      );
+    }
 
     if (decision.outcome === 'sold') {
       // Mark completed
