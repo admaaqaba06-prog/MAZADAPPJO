@@ -4104,12 +4104,51 @@ const fetchIP = async () => {
       handleFirestoreError(dbErr, OperationType.CREATE, `auctions/${newListingId}`);
     }
 
-    // Reserve is stored server-side only (admin/CF-readable), never on the auction doc.
+    /**
+     * Reserve is stored server-side only, never on the auction doc.
+     *
+     * This USED to be `setDoc(doc(db, 'auctionSecrets', ...))` — a write from
+     * the browser, as the seller, to a collection whose rules are
+     * `allow write: if isAdmin()`. Firestore denied it for every non-admin
+     * seller and the error was swallowed into a console.warn, so the seller was
+     * told the auction had been created while the reserve existed nowhere. The
+     * lot then settled as if it had no reserve and sold at the top bid.
+     *
+     * The callable writes it from a trusted context and checks ownership
+     * itself; the rules stay shut.
+     */
     if (reservePrice && reservePrice > 0) {
       try {
-        await setDoc(doc(db, 'auctionSecrets', newListingId), { reservePrice });
-      } catch (resErr) {
-        console.warn('[createListing] reserve secret write failed:', resErr);
+        const setReserve = await getCallableFunction<
+          { auctionId: string; reservePrice: number },
+          { success: boolean }
+        >('setAuctionReserve');
+        await setReserve({ auctionId: newListingId, reservePrice });
+      } catch (resErr: any) {
+        /**
+         * LOUD, because the quiet version is what caused the bug.
+         *
+         * The auction write directly above this raises a notification, a toast
+         * AND handleFirestoreError on failure. This one raised nothing, which
+         * is precisely why nobody noticed that no reserve was ever being
+         * stored. The lot is already live at this point and cannot be unwound
+         * from here, so the seller has to be told plainly that it is live
+         * WITHOUT the protection they asked for.
+         *
+         * Settlement will not award such a lot — it refuses when a reserve was
+         * intended but its amount is unreadable — so the money is safe either
+         * way. This message exists so the seller finds out now rather than when
+         * the auction fails to complete.
+         */
+        console.error('[createListing] reserve write failed:', resErr);
+        const reserveFailTitle = language === 'ar'
+          ? '⚠️ لم يُحفظ سعر الحد الأدنى'
+          : '⚠️ Reserve price was not saved';
+        const reserveFailMsg = language === 'ar'
+          ? 'المزاد نُشر، لكن سعر الحد الأدنى لم يُحفظ. لن يُرسى المزاد تلقائياً قبل مراجعتنا — تواصل معنا لضبط السعر.'
+          : 'The auction is live, but its reserve price was not saved. It will not be awarded automatically until we review it — contact us to set the reserve.';
+        addNotification(reserveFailTitle, reserveFailMsg, 'alert');
+        showToast({ title: reserveFailTitle, message: reserveFailMsg, type: 'warn' });
       }
     }
 
