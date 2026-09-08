@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { VideoUploadForm } from './VideoUploadForm';
 import { resizeImage } from '../utils/resizeImage';
 import { validateDescription } from '../utils/listingDescription';
+import { draftHasMedia } from '../utils/listingMedia';
 import { CATEGORIES } from '../utils/categories';
 import {
   filesFromTransfer,
@@ -113,8 +114,15 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   const handleSimulatedListingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customVideoUrl) {
-      alert(isAr ? 'الرجاء رفع فيديو أولاً.' : 'Please upload a video first.');
+    // Video is OPTIONAL. What a listing actually needs is SOME media, which is
+    // the one rule in utils/listingMedia (`draftHasMedia`) that the admin drop
+    // builder already uses — a video, a cover image, or a gallery photo will do.
+    // This used to demand a video specifically, which failed otherwise-complete
+    // submissions that had a perfectly good cover photo.
+    if (!draftHasMedia({ thumbnailFile: rawThumbnailFile ?? customThumbnailUrl, videoFile: rawVideoFile ?? customVideoUrl, gallery: extraPhotos })) {
+      alert(isAr
+        ? 'أضف وسائط واحدة على الأقل: فيديو أو صورة غلاف.'
+        : 'Add at least one piece of media: a video or a cover image.');
       return;
     }
     if (!title.trim()) {
@@ -318,7 +326,7 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
               <div className="space-y-2.5">
                 <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
                   <span className="text-[#FF6B00]">①</span> 
-                  {isAr ? 'فيديو المعروض والمنتج' : 'Product Video'}
+                  {isAr ? 'فيديو المعروض والمنتج (اختياري)' : 'Product Video (Optional)'}
                 </label>
                 
                 <div className="bg-surface-raised rounded-2xl">

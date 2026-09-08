@@ -57,6 +57,7 @@ function build(lang, data) {
         : d.offerStatus === 'pending_seller'
           ? { type: 'info', title: 'Second chance — your decision', description: `The winner of "${t}" never paid. The next-highest bid is ${d.topBid || ''} JOD, under your asking price — accept it?` }
           : { type: 'info', title: 'A second chance for you', description: `The winner of "${t}" never paid, so the item is offered to you at your bid of ${d.topBid || ''} JOD — accept it?` },
+      below_reserve_pending: { type: 'info', title: 'Your bid is with the seller', description: `Your bid on "${t}" was the highest but did not reach the reserve. The seller has a limited window to accept it.` },
       below_reserve_seller_accepted: { type: 'win', title: 'The seller accepted your offer', description: `The seller accepted your bid on "${t}". Confirm to buy.` },
       below_reserve_declined: sc && d.declinedBy === 'buyer'
         ? { type: 'info', title: 'Second chance closed', description: `The bidder turned down the second chance on "${t}". You can list the item again.` }
@@ -105,6 +106,7 @@ function build(lang, data) {
       : d.offerStatus === 'pending_seller'
         ? { type: 'info', title: 'فرصة ثانية — بانتظار قرارك', description: `لم يكمل الفائز بـ"${t}" الدفع. أعلى مزايدة بعده ${d.topBid || ''} د.أ وهي أقل من سعرك المطلوب — تقبل؟` }
         : { type: 'info', title: 'فرصة ثانية لك', description: `لم يكمل الفائز بـ"${t}" الدفع، والمنتج معروض عليك بمزايدتك ${d.topBid || ''} د.أ — تقبل؟` },
+    below_reserve_pending: { type: 'info', title: 'مزايدتك بانتظار البائع', description: `كانت مزايدتك على "${t}" الأعلى لكنها لم تبلغ السعر المطلوب. أمام البائع مهلة لقبولها.` },
     below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على "${t}". أكّد للشراء.` },
     below_reserve_declined: sc && d.declinedBy === 'buyer'
       ? { type: 'info', title: 'أُغلقت الفرصة الثانية', description: `رفض المزايد الفرصة الثانية على "${t}". يمكنك إعادة عرض المنتج.` }

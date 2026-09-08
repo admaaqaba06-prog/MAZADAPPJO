@@ -39,7 +39,8 @@ const { stampDisputeResolution: stampDisputeResolutionTxn } = require('./dispute
 const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatus');
 const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = require('./subscriptionExpiry');
 const { normalizeReservePrice, authorizeReserveWrite } = require('./auctionReserve');
-const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired } = require('./settlement');
+const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired, resolveReserveTolerancePct, belowReservePublicStatus } = require('./settlement');
+const { bidRateLimitConfig, readBidRateLimitState, evaluateBidRateLimit } = require('./bidRateLimit');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
 const { resolveEscrowWinner, shouldRefundEscrow } = require('./escrowRepair');
@@ -461,7 +462,14 @@ async function settleAuctionTxn(auctionRef, auctionData) {
      */
     const reserveIntended = Object.prototype.hasOwnProperty.call(auctionData || {}, 'reserveMet');
 
-    const decision = resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, reserveIntended });
+    // Tolerance band is per-auction (clamped) and read from the FRESH snapshot,
+    // so an admin edit between the sweep query and this txn is honoured. It only
+    // narrows which reserve-not-met lots OPEN AN OFFER; `reserveIntended` above
+    // still decides, on its own, whether the lot may be awarded at all.
+    const decision = resolveSettlement({
+      totalBids, winnerId, finalPrice, reservePrice, reserveIntended,
+      tolerancePct: resolveReserveTolerancePct(freshData),
+    });
 
     if (decision.reserveUnverifiable) {
       // Loud on purpose. This lot needs an admin to restore its reserve amount;
@@ -563,7 +571,13 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       // confirm via the acceptBelowReserve / confirmBelowReserve callables.
       // reserve_not_met already implies totalBids>0 && winnerId, so there is
       // always a real top bid to offer.
-      if (winnerId) {
+      //
+      // TOLERANCE GATE: only a top bid inside the band (>= reserve x (1 - pct))
+      // is worth putting to the seller. Below the floor the lot just closes
+      // reserve_not_met with NO offer — no seller prompt, no notification, and
+      // critically nothing said to the bidder, because "your bid missed the
+      // near-miss band" would disclose roughly where the reserve sits.
+      if (winnerId && decision.offerBelowReserve) {
         rnmUpdate.belowReserveOffer = {
           topBid: finalPrice,
           topBidderId: winnerId,
@@ -581,15 +595,22 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       settled = true;
       // (notify) capture the seller prompt — sent post-commit (never inside the
       // retrying txn). Seller phone is fetched post-commit only when set.
-      if (winnerId) {
+      if (winnerId && decision.offerBelowReserve) {
         belowReserveNotify = {
           sellerId: auctionData.sellerId || freshData.sellerId || '',
+          // The top bidder is told, in-app only, that their near-miss bid is
+          // now with the seller. Without this the buyer's side of the 24h
+          // window was silent: they saw the lot end and heard nothing until
+          // (and unless) the seller accepted.
+          topBidderId: winnerId,
           auctionId,
           auctionTitle: auctionData.title || freshData.title || '',
           topBid: finalPrice,
         };
       }
-      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (top ${finalPrice} < reserve ${reservePrice}) — below-reserve offer opened, no order created`);
+      // reserveClass is SERVER-SIDE LOGGING ONLY. It names the band, never the
+      // amount, and never leaves this process.
+      console.log(`[settleAuctionTxn] Reserve not met for ${auctionId} (${decision.reserveClass}) — ${decision.offerBelowReserve ? 'below-reserve offer opened' : 'top bid outside tolerance, no offer opened'}, no order created`);
     } else {
       // Close without bidder
       const unsoldUpdate = {
@@ -680,6 +701,26 @@ async function settleAuctionTxn(auctionRef, auctionData) {
       auctionTitle: belowReserveNotify.auctionTitle,
       topBid: belowReserveNotify.topBid,
       idempotencyKey: `${belowReserveNotify.auctionId}_below_reserve_offer`,
+    } });
+  }
+
+  // (notify) and tell the TOP BIDDER their bid is with the seller. Separate
+  // await, not chained onto the seller's: notify() never throws, but a failure
+  // to reach one party must not silently skip the other.
+  //
+  // In-app ONLY (CHANNEL_POLICY.below_reserve_pending), so this sends no
+  // WhatsApp and no email and never posts to n8n. It also says nothing the
+  // buyer does not already know — their own bid, and that the lot's public
+  // status is reserve_not_met. It carries no reserve amount and no tolerance
+  // floor, and it is sent ONLY when an offer was actually stamped: a top bid
+  // that fell outside the band gets no message at all, because "your bid was
+  // too far below" would disclose roughly where the reserve sits.
+  if (belowReserveNotify && belowReserveNotify.topBidderId) {
+    await notify({ uid: belowReserveNotify.topBidderId, event: 'below_reserve_pending', data: {
+      auctionId: belowReserveNotify.auctionId,
+      auctionTitle: belowReserveNotify.auctionTitle,
+      topBid: belowReserveNotify.topBid,
+      idempotencyKey: `${belowReserveNotify.auctionId}_below_reserve_pending`,
     } });
   }
 
@@ -2017,11 +2058,37 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
       }
       const userData = userSnap.data();
 
-      // Idempotency: Server-side rate limit check (prevent bids faster than every 1.5 seconds)
-      const lastBidAt = userData.lastBidAt || 0;
+      // Server-side per-USER bidding rate limit (./bidRateLimit). Subsumes the
+      // old inline 1.5s check — that rule survives as `minBidIntervalMs`, now
+      // alongside an hourly cap, a daily cap and a cooldown, all configurable.
+      //
+      // Evaluated INSIDE this transaction against the user doc read above, so:
+      // no extra read, concurrent bids serialize on users/{uid} rather than all
+      // reading the same pre-increment count, and no amount of client-side
+      // tampering (page refresh, sign-out/in, a different auctionId, an edited
+      // request payload) touches the counters — they are keyed on the verified
+      // context.auth.uid and stored server-side.
       const now = Date.now();
-      if (now - lastBidAt < 1500) {
-        return { success: false, message: 'يرجى الانتظار لحظة قبل المزايدة مرة أخرى' };
+      const rateVerdict = evaluateBidRateLimit(
+        readBidRateLimitState(userData),
+        now,
+        bidRateLimitConfig(),
+      );
+      if (!rateVerdict.allowed) {
+        if (rateVerdict.persist) {
+          // The cooldown that was just opened must be recorded, so it applies
+          // to the NEXT attempt too. This is the only write on a rejected bid.
+          transaction.update(userRef, { bidRateLimit: rateVerdict.nextState });
+        }
+        // Client-safe: a code and a retry hint. No limit, no count, no config.
+        return {
+          success: false,
+          code: rateVerdict.code,
+          retryAfterMs: rateVerdict.retryAfterMs,
+          message: rateVerdict.code === 'BIDDING_RATE_LIMITED'
+            ? 'BIDDING_RATE_LIMITED'
+            : 'يرجى الانتظار لحظة قبل المزايدة مرة أخرى',
+        };
       }
 
       if (isEffectivelyBlocked(userData, Date.now())) {
@@ -2048,6 +2115,19 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
         return { success: false, message: 'Auction listing not found.' };
       }
       const auctionData = auctionSnap.data();
+
+      // COUNT THE ATTEMPT, not the success. Written here — after the LAST read
+      // in this transaction, before the first validation that can return — so
+      // that a bidder who spams bids the server rejects (below minimum, wrong
+      // status, ended) still burns quota. Counting only successful bids left the
+      // whole limiter bypassable by sending deliberately invalid amounts: those
+      // paths returned before any write, so no counter ever moved and
+      // `lastBidAtMs` never advanced, which disarmed the burst guard too.
+      transaction.update(userRef, {
+        lastBidAt: now,
+        bidRateLimit: rateVerdict.nextState,
+      });
+
       if (auctionData.status !== 'live' && auctionData.status !== 'active') {
         return { success: false, message: 'This auction is not accepting bids.' };
       }
@@ -2068,11 +2148,6 @@ exports.placeBid = functions.runWith({ cors: true, minInstances: 1, maxInstances
       if (amountFils < minRequiredFils) {
         return { success: false, message: `Minimum bid of ${(minRequiredFils / 1000).toLocaleString()} JOD required.` };
       }
-
-      // 5. Update user profile with rate limit timestamp
-      transaction.update(userRef, {
-        lastBidAt: now
-      });
 
       // 7. + 10. Write new bid document and update the auction details
       // (anti-sniping and pricing) via the shared helper.
@@ -3199,7 +3274,7 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
       // Idempotency: an order already exists (this call already ran, or the
       // buyer already confirmed) — do not double-create or reopen.
       if (orderSnap.exists) {
-        return { success: true, alreadyAccepted: true, message: 'تم قبول العرض مسبقاً.' };
+        return { success: true, alreadyAccepted: true, offerStatus: belowReservePublicStatus('pending_buyer'), message: 'تم قبول العرض مسبقاً.' };
       }
 
       if (offer.status !== 'pending_seller') {
@@ -3273,7 +3348,7 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
         auctionTitle: auctionData.title || '',
         topBid,
       };
-      return { success: true, message: 'تم قبول العرض. بانتظار تأكيد المشتري.' };
+      return { success: true, offerStatus: belowReservePublicStatus('pending_buyer'), message: 'تم قبول العرض. بانتظار تأكيد المشتري.' };
     });
 
     // (notify) prompt the buyer to confirm. Post-commit, never-throws — a webhook
@@ -3294,6 +3369,131 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
     if (error instanceof functions.https.HttpsError) throw error;
     console.error('Error in acceptBelowReserve:', error);
     throw new functions.https.HttpsError('internal', error.message || 'تعذر قبول العرض.');
+  }
+});
+
+/**
+ * rejectBelowReserve — the SELLER (or an admin) turns down a below-reserve
+ * near-miss offer that is still awaiting their decision.
+ *
+ * This is the missing half of the seller's Accept/Reject pair. `acceptBelowReserve`
+ * existed; the only "decline" was `declineBelowReserve`, which is the BUYER
+ * walking away AFTER acceptance — it requires an order to exist and refuses any
+ * caller who is not that order's buyer. A seller facing a `pending_seller` offer
+ * therefore had exactly one button, and rejecting meant letting the 24h window
+ * lapse.
+ *
+ * Rejecting is terminal: status goes to 'declined', which is the same state a
+ * lapsed/declined offer reaches, so belowReserveBlocksRelist stops blocking and
+ * the lot becomes relistable immediately instead of 24h later.
+ *
+ * Security: ownership is derived from the AUCTION DOC's sellerId compared to the
+ * verified context.auth.uid — never from anything in `data`. Idempotent, and
+ * guarded on both status and expiry the same way acceptBelowReserve is.
+ */
+exports.rejectBelowReserve = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
+  }
+  const callerUserId = context.auth.uid;
+  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
+  const { auctionId } = data || {};
+  if (!auctionId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
+  }
+
+  try {
+    let bidderNotify = null;
+    const result = await db.runTransaction(async (transaction) => {
+      bidderNotify = null; // reset each attempt — a retried txn must not re-emit a prior attempt's notify
+      const auctionRef = db.collection('auctions').doc(auctionId);
+      const orderRef = db.collection('orders').doc(auctionId);
+      const callerRef = db.collection('users').doc(callerUserId);
+
+      const [auctionSnap, orderSnap, callerSnap] = await Promise.all([
+        transaction.get(auctionRef),
+        transaction.get(orderRef),
+        transaction.get(callerRef),
+      ]);
+
+      if (!auctionSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'المزاد غير موجود.');
+      }
+      const auctionData = auctionSnap.data();
+      const offer = auctionData.belowReserveOffer;
+      if (!offer) {
+        throw new functions.https.HttpsError('failed-precondition', 'لا يوجد عرض أقل من السعر المطلوب لهذا المزاد.');
+      }
+
+      // Authorization from SERVER state only: the auction's own sellerId, or an
+      // admin. Nothing the caller sent is consulted.
+      const callerData = callerSnap.exists ? callerSnap.data() : {};
+      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;
+      if (!isAdmin && !isSeller) {
+        throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
+      }
+
+      // Idempotency: already rejected (or lapsed into a terminal state) — say so
+      // and change nothing, rather than throwing at a seller who double-tapped.
+      if (offer.status === 'declined' || offer.status === 'expired') {
+        return {
+          success: true,
+          alreadyRejected: true,
+          offerStatus: belowReservePublicStatus(offer.status),
+          message: 'تم رفض العرض مسبقاً.',
+        };
+      }
+
+      // The seller already accepted — an order exists and the buyer is being
+      // asked. Walking that back is the buyer's call (declineBelowReserve) or
+      // an admin cancellation, not a second seller decision.
+      if (offer.status !== 'pending_seller' || orderSnap.exists) {
+        throw new functions.https.HttpsError('failed-precondition', 'العرض لم يعد بانتظار موافقة البائع.');
+      }
+      if (isBelowReserveOfferExpired(offer, Date.now())) {
+        throw new functions.https.HttpsError('failed-precondition', 'انتهت مهلة الرد على هذا العرض.');
+      }
+
+      transaction.update(auctionRef, {
+        'belowReserveOffer.status': 'declined',
+        'belowReserveOffer.sellerRejectedAt': admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      if (offer.topBidderId) {
+        bidderNotify = {
+          topBidderId: offer.topBidderId,
+          auctionTitle: auctionData.title || '',
+        };
+      }
+      return {
+        success: true,
+        offerStatus: belowReservePublicStatus('declined'),
+        message: 'تم رفض العرض.',
+      };
+    });
+
+    // (notify) tell the top bidder the lot did not go their way. Reuses the
+    // existing below_reserve_declined event — from the bidder's side a seller
+    // rejection and a buyer-side decline read identically: the offer is dead.
+    // Post-commit and never-throws, matching the rest of this family.
+    if (bidderNotify) {
+      await notify({
+        uid: bidderNotify.topBidderId,
+        event: 'below_reserve_declined',
+        data: {
+          auctionId,
+          auctionTitle: bidderNotify.auctionTitle,
+          idempotencyKey: `${auctionId}_below_reserve_seller_rejected`,
+        },
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in rejectBelowReserve:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'تعذر رفض العرض.');
   }
 });
 
@@ -3451,7 +3651,7 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
 
       // Idempotency: already declined/cancelled.
       if (orderData.status === 'cancelled') {
-        return { success: true, alreadyDeclined: true, message: 'تم رفض العرض مسبقاً.' };
+        return { success: true, alreadyDeclined: true, offerStatus: belowReservePublicStatus('declined'), message: 'تم رفض العرض مسبقاً.' };
       }
       // Only a still-pending (un-confirmed) offer can be declined. A confirmed
       // (waiting_payment) obligation can't be walked back here.
@@ -3477,7 +3677,7 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
           };
         }
       }
-      return { success: true, message: 'تم رفض العرض.' };
+      return { success: true, offerStatus: belowReservePublicStatus('declined'), message: 'تم رفض العرض.' };
     });
 
     if (bidderNotify) {

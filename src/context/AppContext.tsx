@@ -28,6 +28,7 @@ import { computeServerOffset, setServerOffset, serverNow } from '../utils/server
 import { isActiveMember } from '../utils/membership';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
 import { isExpectedBidFailure } from '../utils/bidErrors';
+import { isRateLimited, cooldownUntil, rateLimitMessage } from '../utils/bidRateLimitNotice';
 import { syncAuctionsFromSnapshot } from '../utils/auctionsSync';
 import { readGuestBrowsingFlag } from '../utils/guestGate';
 import { isEffectivelyBlocked } from '../utils/banStatus';
@@ -188,9 +189,16 @@ interface AppContextProps {
 
   // Real-time Event Actions
   placeBid: (auctionId: string, amount: number) => Promise<{ success: boolean; message: string }>;
+  /**
+   * Epoch ms until the SERVER's bidding cooldown lifts; 0 when not limited.
+   * Display/disable only — see utils/bidRateLimitNotice.
+   */
+  bidCooldownUntil: number;
   requestWithdrawal: (amount: number, method: string, accountDetails: any) => Promise<{ success: boolean; message: string }>;
   // E3 Slice C — below-reserve near-miss
   acceptBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  /** Seller/admin turns down a still-pending below-reserve offer. */
+  rejectBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   confirmBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   declineBelowReserve: (auctionId: string) => Promise<{ success: boolean; message: string }>;
   // Second Chance Offer — seller/runner-up act on a defaulted lot's offer
@@ -488,6 +496,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sliding window rate limiters for fraud prevention
   const lastBidTimestampRef = useRef<number>(0);
   const bidTimestampsRef = useRef<number[]>([]);
+  // Server-issued bidding cooldown deadline (epoch ms, 0 = none). The ref is
+  // what placeBid reads synchronously (state would be a render behind on a fast
+  // double-tap); the state is what the UI subscribes to. Both are a MIRROR of a
+  // server decision — the authority is functions/bidRateLimit.js, and this
+  // resets to 0 on reload, which is exactly why it cannot be the enforcement.
+  const bidCooldownUntilRef = useRef<number>(0);
+  const [bidCooldownUntil, setBidCooldownUntil] = useState<number>(0);
   // Live mirror of the auctions array for stable callbacks (placeBid) that
   // must read CURRENT auction flags (isSimulated) without taking `auctions`
   // as a dep — which would re-memoize on every snapshot. Synced below.
@@ -3395,6 +3410,17 @@ const fetchIP = async () => {
 
     const now = Date.now();
 
+    // 0.5. Serving a server-issued cooldown — don't spend a round-trip on a
+    // refusal we already know the answer to. Purely an optimisation: if this ref
+    // is cleared (reload, devtools) the request goes through and the SERVER
+    // refuses it, which is where the limit actually lives.
+    if (bidCooldownUntilRef.current > now) {
+      return {
+        success: false,
+        message: rateLimitMessage(bidCooldownUntilRef.current, now, language === 'ar'),
+      };
+    }
+
     // 1. Double check blocking status. E2: an EXPIRED cooldown no longer blocks
     // (matches the server placeBid gate); a permanent/active block still does and
     // opens the BanNoticeModal instead of a terse toast.
@@ -3473,12 +3499,18 @@ const fetchIP = async () => {
     }
 
     try {
-      const placeBidCallable = await getCallableFunction<{ auctionId: string; amount: number }, { success: boolean; message: string }>('placeBid');
+      const placeBidCallable = await getCallableFunction<{ auctionId: string; amount: number }, { success: boolean; message: string; code?: string; retryAfterMs?: number }>('placeBid');
       const result = await placeBidCallable({ auctionId, amount });
       if (result.data.success) {
         // Update security refs
         lastBidTimestampRef.current = Date.now();
         bidTimestampsRef.current = [...updatedWindow, Date.now()];
+        // A bid the server accepted proves no cooldown is in force — clear any
+        // stale local deadline (e.g. one whose window elapsed while idle).
+        if (bidCooldownUntilRef.current !== 0) {
+          bidCooldownUntilRef.current = 0;
+          setBidCooldownUntil(0);
+        }
 
         // Record analytical conversion metrics — fire-and-forget (service
         // handles its own errors). Wave 3 metric hygiene: an admin bidding on
@@ -3521,6 +3553,18 @@ const fetchIP = async () => {
               ? 'المزايدة تتطلب عضوية — انضم بـ ١ دينار فقط'
               : 'Membership required to bid — join for 1 JD'
           };
+        }
+        // SERVER rate limit. Record the deadline so the UI can hold the button
+        // down for the cooldown instead of firing refusals the server will
+        // reject anyway. This ref is a courtesy, not a control: clearing it
+        // changes nothing, the server refuses regardless.
+        if (isRateLimited(result.data)) {
+          const until = cooldownUntil(result.data, Date.now());
+          bidCooldownUntilRef.current = until;
+          setBidCooldownUntil(until);
+          const msg = rateLimitMessage(until, Date.now(), language === 'ar');
+          showToast({ title: language === 'ar' ? '⏳ مهلة مؤقتة' : '⏳ Cooldown', message: msg, type: 'warn' });
+          return { success: false, message: msg };
         }
       }
       return {
@@ -3621,6 +3665,29 @@ const fetchIP = async () => {
     } catch (error: any) {
       console.error('Cloud function acceptBelowReserve failed:', error);
       const msg = error.message || (language === 'ar' ? 'تعذر قبول العرض.' : 'Failed to accept offer.');
+      showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
+      return { success: false, message: msg };
+    }
+  }, [addNotification, showToast, language]);
+
+  // Seller-side REJECT. Mirrors acceptBelowReserve exactly; every permission
+  // check and the terminal status live server-side in rejectBelowReserve.
+  const rejectBelowReserve = useCallback(async (auctionId: string) => {
+    try {
+      const callable = await getCallableFunction<{ auctionId: string }, { success: boolean; message: string; alreadyRejected?: boolean; offerStatus?: string }>('rejectBelowReserve');
+      const result = await callable({ auctionId });
+      if (result.data?.success) {
+        addNotification(
+          language === 'ar' ? 'تم رفض العرض' : 'Offer Rejected',
+          result.data.message || (language === 'ar' ? 'تم رفض العرض. يمكنك إعادة إدراج القطعة.' : 'Offer rejected. You can relist the item.'),
+          'info'
+        );
+        return { success: true, message: result.data.message };
+      }
+      return { success: false, message: result.data?.message || 'Failed to reject offer.' };
+    } catch (error: any) {
+      console.error('Cloud function rejectBelowReserve failed:', error);
+      const msg = error.message || (language === 'ar' ? 'تعذر رفض العرض.' : 'Failed to reject offer.');
       showToast({ title: language === 'ar' ? '❌ خطأ' : '❌ Error', message: msg, type: 'warn' });
       return { success: false, message: msg };
     }
@@ -5074,8 +5141,14 @@ const fetchIP = async () => {
         idFrontUrl: idFrontUrl || '',
         idBackUrl: idBackUrl || '',
         passportUrl: passportUrl || '',
-        businessLicenseUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
-        nationalIdUrl: 'https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=500'
+        // These two were hardcoded STOCK PHOTOS (Unsplash placeholders left over
+        // from the prototype). An admin opening a verification request saw a
+        // stranger's photograph rendered as this seller's national ID and
+        // business licence — a reviewer could approve on the strength of an
+        // image that was never uploaded by anyone. Now empty when not supplied,
+        // which is also what an OPTIONAL document must look like: absent.
+        businessLicenseUrl: '',
+        nationalIdUrl: ''
       };
       
       await setDoc(doc(db, 'sellerVerificationRequests', id), reqData);
@@ -5497,8 +5570,10 @@ const fetchIP = async () => {
       globalWalletSubView, setGlobalWalletSubView,
       globalSelectedOrderId, setGlobalSelectedOrderId,
       placeBid,
+      bidCooldownUntil,
       requestWithdrawal,
       acceptBelowReserve,
+      rejectBelowReserve,
       confirmBelowReserve,
       declineBelowReserve,
       respondToSecondChance,
@@ -5596,7 +5671,7 @@ const fetchIP = async () => {
     showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
-    placeBid, requestWithdrawal, acceptBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,
+    placeBid, bidCooldownUntil, requestWithdrawal, acceptBelowReserve, rejectBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,
     markAllAsRead, approveListing, rejectListing, verifySeller, banUser,
     unbanUser, releaseEscrow, refundEscrow, deleteAuction, repairEndedAuctionOrder,
     repairStuckEscrowsForEndedAuction, approveWithdrawal, rejectWithdrawal,

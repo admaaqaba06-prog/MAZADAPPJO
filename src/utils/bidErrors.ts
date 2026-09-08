@@ -18,6 +18,10 @@ const EXPECTED_FRAGMENTS = [
   'not accepting',
   'MEMBERSHIP_REQUIRED',
   'PRICE_MOVED_RETRY',
+  // Server-side bid rate limit (functions/bidRateLimit.js). An expected "no",
+  // not an incident — a bid war that trips a spam cap is the cap working.
+  'BIDDING_RATE_LIMITED',
+  'BID_TOO_FAST',
 ] as const;
 
 /**

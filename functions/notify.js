@@ -13,6 +13,12 @@ const CHANNEL_POLICY = {
   payment_reminder: ALL,
   below_reserve_offer: ALL,
   below_reserve_seller_accepted: ALL,
+  // In-app ONLY, deliberately. This fires at settlement to tell a top bidder
+  // their near-miss bid is with the seller. It is a courtesy, not news worth
+  // a WhatsApp message or an email — and INAPP_ONLY means notify() never
+  // posts it to n8n at all (the postToN8n branch is gated on whatsapp||email),
+  // so the live workflow needs no change to support it.
+  below_reserve_pending: INAPP_ONLY,
   below_reserve_declined: INAPP_ONLY,
   outbid: INAPP_WA,
   order_preparing: ALL,

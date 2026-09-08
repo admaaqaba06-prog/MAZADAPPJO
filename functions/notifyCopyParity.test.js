@@ -100,7 +100,8 @@ function payload(extra = {}) {
 
 const CANONICAL_EVENTS = [
   'auction_won', 'payment_due', 'payment_reminder', 'below_reserve_offer',
-  'below_reserve_seller_accepted', 'below_reserve_declined', 'outbid',
+  'below_reserve_seller_accepted', 'below_reserve_declined',
+  'below_reserve_pending', 'outbid',
   'order_preparing', 'order_shipped', 'order_delivered', 'order_completed',
   'order_refunded', 'membership_rejected', 'order_payment_rejected',
   'account_banned', 'ban_lifted', 'seller_ship_nudge', 'buyer_confirm_nudge',
@@ -135,7 +136,7 @@ const DATA_VARIANTS = [
 ];
 
 describe('n8n build-messages.js mirrors functions/notify.js copyFor (drift guard)', () => {
-  it('both cover exactly the same 20 events', () => {
+  it('both cover exactly the same 21 events', () => {
     // The app-side Arabic map moved out of notify.js and into messageCopy.js
     // (one bilingual source; notify.js now re-exports copyFor). The n8n node
     // still hand-mirrors it, so this comparison still guards drift — it just

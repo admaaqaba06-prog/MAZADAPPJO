@@ -121,19 +121,27 @@ describe('reserveMet', () => {
 describe('resolveSettlement', () => {
   it('sold: bids exist, has winner, reserve met', () => {
     expect(resolveSettlement({ totalBids: 3, winnerId: 'u1', finalPrice: 250, reservePrice: 200 }))
-      .toEqual({ outcome: 'sold', status: 'completed' });
+      .toEqual({ outcome: 'sold', status: 'completed', offerBelowReserve: false, reserveClass: 'reserve_met' });
   });
   it('sold: no reserve set', () => {
     expect(resolveSettlement({ totalBids: 1, winnerId: 'u1', finalPrice: 5, reservePrice: null }))
-      .toEqual({ outcome: 'sold', status: 'completed' });
+      .toEqual({ outcome: 'sold', status: 'completed', offerBelowReserve: false, reserveClass: 'reserve_met' });
   });
   it('reserve_not_met: bids exist but under reserve', () => {
+    // 150 against a 200 reserve is 25% down — OUTSIDE the default 10% band, so
+    // no offer is opened. This case's shape is why the tolerance gate had to be
+    // added deliberately rather than inferred: before it, EVERY reserve_not_met
+    // lot opened an offer regardless of how far off the top bid was.
     expect(resolveSettlement({ totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: 200 }))
-      .toEqual({ outcome: 'reserve_not_met', status: 'reserve_not_met' });
+      .toEqual({ outcome: 'reserve_not_met', status: 'reserve_not_met', offerBelowReserve: false, reserveClass: 'below_tolerance' });
+  });
+  it('reserve_not_met WITHIN tolerance: opens an offer', () => {
+    expect(resolveSettlement({ totalBids: 3, winnerId: 'u1', finalPrice: 190, reservePrice: 200 }))
+      .toEqual({ outcome: 'reserve_not_met', status: 'reserve_not_met', offerBelowReserve: true, reserveClass: 'within_tolerance' });
   });
   it('unsold: no bids / no winner', () => {
     expect(resolveSettlement({ totalBids: 0, winnerId: null, finalPrice: 0, reservePrice: 200 }))
-      .toEqual({ outcome: 'unsold', status: 'ended' });
+      .toEqual({ outcome: 'unsold', status: 'ended', offerBelowReserve: false, reserveClass: 'unsold' });
   });
 
   /* ======================================================================
@@ -149,7 +157,14 @@ describe('resolveSettlement', () => {
   it('refuses to award when a reserve was set but its amount is missing', () => {
     expect(resolveSettlement({
       totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: null, reserveIntended: true,
-    })).toEqual({ outcome: 'reserve_not_met', status: 'reserve_not_met', reserveUnverifiable: true });
+    })).toEqual({
+      outcome: 'reserve_not_met', status: 'reserve_not_met', reserveUnverifiable: true,
+      // The tolerance band cannot apply to an unknown reserve — there is no
+      // amount to take a percentage of — so the offer still opens and the
+      // seller still gets to decide. Suppressing it here would remove the
+      // recourse this branch exists to provide.
+      offerBelowReserve: true, reserveClass: 'unverifiable',
+    });
   });
 
   it('refuses even when the top bid is high — the bar is unknown, not cleared', () => {
@@ -163,13 +178,13 @@ describe('resolveSettlement', () => {
     // The common case must not regress: a lot with no reserve sells as before.
     expect(resolveSettlement({
       totalBids: 3, winnerId: 'u1', finalPrice: 150, reservePrice: null, reserveIntended: false,
-    })).toEqual({ outcome: 'sold', status: 'completed' });
+    })).toEqual({ outcome: 'sold', status: 'completed', offerBelowReserve: false, reserveClass: 'reserve_met' });
   });
 
   it('sells when the reserve is both intended AND readable AND cleared', () => {
     expect(resolveSettlement({
       totalBids: 3, winnerId: 'u1', finalPrice: 250, reservePrice: 200, reserveIntended: true,
-    })).toEqual({ outcome: 'sold', status: 'completed' });
+    })).toEqual({ outcome: 'sold', status: 'completed', offerBelowReserve: false, reserveClass: 'reserve_met' });
   });
 
   it('reports an ordinary under-reserve without the unverifiable flag', () => {
@@ -187,7 +202,7 @@ describe('resolveSettlement', () => {
     // rather than getting stuck in the cron.
     expect(resolveSettlement({
       totalBids: 0, winnerId: null, finalPrice: 0, reservePrice: null, reserveIntended: true,
-    })).toEqual({ outcome: 'unsold', status: 'ended' });
+    })).toEqual({ outcome: 'unsold', status: 'ended', offerBelowReserve: false, reserveClass: 'unsold' });
   });
 });
 
