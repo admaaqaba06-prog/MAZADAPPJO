@@ -97,7 +97,17 @@ service cloud.firestore {
           request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'wonCount'
+            'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'wonCount',
+            // ANTI-SPAM STATE — server-only, for the same reason the flags above
+            // are. `placeBid` keeps the bidding rate-limit counters here
+            // (functions/bidRateLimit.js) and Cloud Functions bypass rules, so
+            // they can still be written by the limiter. Without these two keys
+            // the whole limiter is one browser-console call from being reset:
+            //   updateDoc(doc(db,'users',myUid), { bidRateLimit: {} })
+            // `lastBidAt` is listed for the same reason and closes a hole that
+            // pre-dates the limiter — the old inline 1.5s burst guard read it
+            // straight off this doc, and was self-resettable the whole time.
+            'lastBidAt', 'bidRateLimit'
           ]) &&
           // Owner may CLAIM an email once (empty -> string) but can never CHANGE
           // a non-empty email (it's the receipt/contact identity). "Empty" covers

@@ -10,13 +10,92 @@ function reserveMet(finalPrice, reservePrice) {
   return finalPrice >= reservePrice;
 }
 
+// ---------------------------------------------------------------------------
+// Reserve tolerance ("near miss" band)
+// ---------------------------------------------------------------------------
+// A top bid that lands just under the reserve is worth putting to the seller; a
+// top bid that is nowhere near it is not, and pestering the seller about it just
+// trains them to ignore the prompt. The tolerance is the width of that band,
+// as a PERCENTAGE OF THE RESERVE: 10% on a 1,000 JOD reserve puts the floor at
+// 900 JOD.
+//
+// WHERE THIS IS ENFORCED — and where it deliberately is NOT. This is a
+// SETTLEMENT-TIME gate. It decides whether an ended, reserve-not-met auction
+// opens a belowReserveOffer. It is NOT a bid-time gate: rejecting live bids
+// under the floor would make it impossible to bid a lot UP to its reserve (a
+// lot opening at 50 with a 1,000 reserve would refuse every bid under 900), and
+// the rejection itself would tell the bidder the reserve to within the
+// tolerance band. The floor is never sent to a client, at any point.
+const DEFAULT_RESERVE_TOLERANCE_PCT = 10;
+const MIN_RESERVE_TOLERANCE_PCT = 0;
+const MAX_RESERVE_TOLERANCE_PCT = 50;
+
+/**
+ * Per-auction tolerance override (`reserveTolerancePct`), clamped, defaulting to
+ * 10%. Clamped rather than trusted because the field sits on the auction doc,
+ * which admins write from a browser: 0 disables the band (only an exact-reserve
+ * bid qualifies... which means nothing does, since that is 'reserve met'), and
+ * anything past 50% would offer the seller half their reserve.
+ */
+function resolveReserveTolerancePct(auctionData) {
+  // `?? undefined` matters: without it a null/absent auction doc reaches
+  // Number(null) === 0, which is finite and non-negative, so the guard below
+  // accepts it and returns a 0% band. That silently means "only a bid at the
+  // exact reserve is a near miss" — i.e. no offer ever opens — which is the
+  // opposite of the default, and it would fail silently.
+  const raw = Number(auctionData?.reserveTolerancePct ?? undefined);
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_RESERVE_TOLERANCE_PCT;
+  return Math.min(MAX_RESERVE_TOLERANCE_PCT, Math.max(MIN_RESERVE_TOLERANCE_PCT, Math.round(raw)));
+}
+
+/**
+ * The lowest bid, in integer fils, that still counts as a near miss.
+ *
+ * MONEY SAFETY: `reserveFils * (100 - pct)` is exact integer arithmetic (a
+ * 10,000,000 JOD reserve is 1e10 fils, times 100 is 1e12 — three orders of
+ * magnitude inside Number.MAX_SAFE_INTEGER), and the single division is rounded
+ * ONCE with ceil. No JOD-denominated float ever enters the comparison. Ceil, not
+ * round or floor, so the floor is never a fraction of a fil BELOW the true
+ * percentage — the band errs toward the seller, never against them.
+ */
+function toleranceFloorFils(reserveFils, tolerancePct) {
+  const r = Math.round(Number(reserveFils) || 0);
+  if (r <= 0) return 0;
+  const pct = Math.min(MAX_RESERVE_TOLERANCE_PCT, Math.max(MIN_RESERVE_TOLERANCE_PCT, Math.round(Number(tolerancePct) || 0)));
+  return Math.ceil((r * (100 - pct)) / 100);
+}
+
+/**
+ * Classify a final price against a hidden reserve. The ONE place the band is
+ * decided, so the settlement branch and its tests cannot drift apart.
+ *
+ * Boundaries, stated explicitly because the task asked for them:
+ *   price >= reserve        -> 'reserve_met'      (bid EXACTLY the reserve qualifies)
+ *   price == floor          -> 'within_tolerance' (the floor is INCLUSIVE)
+ *   price == floor + 1 fil  -> 'within_tolerance'
+ *   price == floor - 1 fil  -> 'below_tolerance'
+ *   no reserve set          -> 'reserve_met'      (nothing to miss)
+ */
+function classifyAgainstReserve({ finalPriceFils, reserveFils, tolerancePct }) {
+  const price = Math.round(Number(finalPriceFils) || 0);
+  const reserve = Math.round(Number(reserveFils) || 0);
+  if (reserve <= 0) return 'reserve_met';
+  if (price >= reserve) return 'reserve_met';
+  return price >= toleranceFloorFils(reserve, tolerancePct) ? 'within_tolerance' : 'below_tolerance';
+}
+
 /**
  * Decide how an expired auction settles.
  * - sold: real bids + a winner + reserve met  -> status 'completed' (create order)
  * - reserve_not_met: real bids + winner but under reserve -> 'reserve_not_met' (NO order)
  * - unsold: no bids / no winner -> 'ended'
+ *
+ * On a reserve_not_met outcome, `offerBelowReserve` says whether the top bid
+ * landed inside the tolerance band and so is worth offering to the seller. When
+ * it is false the lot simply closes reserve_not_met with no offer stamped — the
+ * bidder is told nothing, which is what keeps the floor secret.
  */
-function resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, reserveIntended = false }) {
+function resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, reserveIntended = false, tolerancePct = DEFAULT_RESERVE_TOLERANCE_PCT }) {
   if (totalBids > 0 && winnerId) {
     /**
      * A RESERVE WAS SET ON THIS LOT BUT ITS AMOUNT IS NOT READABLE.
@@ -45,14 +124,38 @@ function resolveSettlement({ totalBids, winnerId, finalPrice, reservePrice, rese
      * unknown reserve is neither.
      */
     if (reserveIntended && (reservePrice === null || reservePrice === undefined)) {
-      return { outcome: 'reserve_not_met', status: 'reserve_not_met', reserveUnverifiable: true };
+      // THE TOLERANCE BAND DOES NOT APPLY HERE, and must not be allowed to.
+      // The band is a percentage OF THE RESERVE; with no readable amount there
+      // is no floor to compute, and `classifyAgainstReserve` would read the
+      // missing reserve as 0 and answer 'reserve_met' — which would suppress
+      // the offer entirely. That would strip the seller's recourse on exactly
+      // the lots this branch exists to rescue. `offerBelowReserve: true` keeps
+      // the behaviour this branch was written for: no sale, no order, and the
+      // seller is asked.
+      return {
+        outcome: 'reserve_not_met',
+        status: 'reserve_not_met',
+        reserveUnverifiable: true,
+        offerBelowReserve: true,
+        reserveClass: 'unverifiable',
+      };
     }
     if (reserveMet(finalPrice, reservePrice)) {
-      return { outcome: 'sold', status: 'completed' };
+      return { outcome: 'sold', status: 'completed', offerBelowReserve: false, reserveClass: 'reserve_met' };
     }
-    return { outcome: 'reserve_not_met', status: 'reserve_not_met' };
+    const reserveClass = classifyAgainstReserve({
+      finalPriceFils: Math.round(Number(finalPrice) * 1000),
+      reserveFils: Math.round(Number(reservePrice) * 1000),
+      tolerancePct,
+    });
+    return {
+      outcome: 'reserve_not_met',
+      status: 'reserve_not_met',
+      offerBelowReserve: reserveClass === 'within_tolerance',
+      reserveClass,
+    };
   }
-  return { outcome: 'unsold', status: 'ended' };
+  return { outcome: 'unsold', status: 'ended', offerBelowReserve: false, reserveClass: 'unsold' };
 }
 
 /**
@@ -190,6 +293,37 @@ const MAX_AUTO_RELISTS = 2;
 // The seller-decision window is 24h from settlement.
 const BELOW_RESERVE_WINDOW_HOURS = 24;
 
+/**
+ * PUBLIC (API-contract) vocabulary for a below-reserve offer.
+ *
+ * The stored vocabulary above is NOT renamed, on purpose. `secondChanceOffer`
+ * shares it verbatim (both are read by belowReserveBlocksRelist), live auction
+ * documents already carry it, and the four callables branch on it — renaming
+ * would be a data migration across two features to gain nothing but different
+ * spelling. Instead the stored value is MAPPED to the contract vocabulary at
+ * the response boundary, which is the only place a client ever sees it:
+ *
+ *   pending_seller           -> pending_seller_decision
+ *   pending_buyer, confirmed -> accepted_below_reserve   (seller said yes)
+ *   declined, expired        -> rejected_below_reserve   (offer is dead)
+ *
+ * `pending_buyer` and `confirmed` collapse because both mean "the seller
+ * accepted"; the buyer-confirmation step after that is order state, and lives on
+ * the order's own status, not here.
+ */
+const BELOW_RESERVE_PUBLIC_STATUS = {
+  pending_seller: 'pending_seller_decision',
+  pending_buyer: 'accepted_below_reserve',
+  confirmed: 'accepted_below_reserve',
+  declined: 'rejected_below_reserve',
+  expired: 'rejected_below_reserve',
+};
+
+/** Map a stored offer status to the client-facing one. Unknown -> null. */
+function belowReservePublicStatus(status) {
+  return BELOW_RESERVE_PUBLIC_STATUS[status] || null;
+}
+
 /** Milliseconds at which a below-reserve offer opened at `nowMs` expires. */
 function belowReserveExpiryMs(nowMs, hours = BELOW_RESERVE_WINDOW_HOURS) {
   return nowMs + hours * 3600 * 1000;
@@ -257,6 +391,14 @@ function shouldAutoRelist(auction, nowMs) {
 module.exports = {
   reserveMet,
   resolveSettlement,
+  DEFAULT_RESERVE_TOLERANCE_PCT,
+  MIN_RESERVE_TOLERANCE_PCT,
+  MAX_RESERVE_TOLERANCE_PCT,
+  resolveReserveTolerancePct,
+  toleranceFloorFils,
+  classifyAgainstReserve,
+  BELOW_RESERVE_PUBLIC_STATUS,
+  belowReservePublicStatus,
   MAX_AUTO_RELISTS,
   shouldAutoRelist,
   BELOW_RESERVE_WINDOW_HOURS,

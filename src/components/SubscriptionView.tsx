@@ -97,17 +97,21 @@ export const SubscriptionView: React.FC = () => {
   const currentRank = TIER_RANK[currentTierId] ?? 0;
   const isTopTier = currentRank >= 2;
 
+  // NOTE: no pay-on-delivery / COD bullet here. It was advertised as a VIP
+  // member benefit and the platform has never had the feature — payment is CliQ
+  // with an admin-verified receipt, end to end. See content/legalTerms.ts, which
+  // already struck the same claim from the formal terms for the same reason:
+  // promising a payment channel that cannot be honoured is what a
+  // consumer-protection complaint is built out of.
   const memberBenefits = isAr
     ? [
         'زايد مجاناً — لا رسوم على كل مزايدة',
         'ادفع فقط عند الفوز (+٥٪ عمولة المشتري)',
-        'الدفع عند الاستلام: متاح لمشتركي VIP',
         'حماية المشتري: مزاد يحتفظ بمبلغك حتى تأكيد الاستلام',
       ]
     : [
         'Bid freely — no per-bid fees',
         'Pay only when you win (+5% buyer premium)',
-        'VIP pay-on-delivery',
         'Buyer protection — Mazad holds your payment until you confirm receipt',
       ];
 

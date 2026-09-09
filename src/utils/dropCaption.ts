@@ -22,11 +22,14 @@ const RULES = [
   '⚠️ عند انتهاء الوقت يتم اعتماد آخر مزايدة مسجلة',
 ];
 
+// No pay-on-delivery line: this caption is pasted into WhatsApp as the public
+// terms of a drop, and the platform has no cash-on-delivery path — payment is
+// CliQ with an admin-verified receipt. Removed alongside the same claim in
+// SubscriptionView and legalTerms.
 const TERMS = [
   '🛡️ حماية المشتري: مزاد بيحتفظ بمبلغك حتى تأكيد الاستلام',
   '⚠️ المزايدة للمشتركين فقط',
   '💰 الدفع: فوري بعد رسو المزاد',
-  '🏆 الدفع عند الاستلام: متاح لمشتركي Mazzado VIP فقط',
   '🚚 التسليم: خلال 2 – 4 أيام',
 ];
 

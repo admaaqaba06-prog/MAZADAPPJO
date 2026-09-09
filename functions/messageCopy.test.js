@@ -6,6 +6,7 @@
 // what let the branded email layer ship dead on 2026-07-29 and stay dead —
 // nothing compared what the server rendered to what the node actually sent.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 const { copyFor, resolveLang, SUPPORTED_LANGS } = require('./messageCopy.js');
 const { CHANNEL_POLICY } = require('./notify.js');
 
@@ -37,9 +38,29 @@ const DATA_VARIANTS = [
 
 describe('completeness — no event may ship half-translated', () => {
   it('covers exactly the events the n8n contract routes', () => {
-    // 20 keys. The live workflow silently drops anything else, so an event
+    // 21 keys. The live workflow silently drops anything else, so an event
     // here that is not in CHANNEL_POLICY is copy that can never be delivered.
-    expect(EVENTS).toHaveLength(20);
+    expect(EVENTS).toHaveLength(21);
+  });
+
+  it('every event with copy has a channel policy, and vice versa', () => {
+    // The count above is a snapshot; THIS is the invariant it was standing in
+    // for. Copy without a policy can never be delivered; a policy without copy
+    // renders the blank unknown-event fallback into a customer's bell. Asserted
+    // directly so the next event that is added has to satisfy the real rule,
+    // not just move a number.
+    const src = readFileSync(new URL('./messageCopy.js', import.meta.url), 'utf8');
+    const anchor = src.indexOf('const M = {');
+    const open = src.indexOf('{', anchor);
+    let depth = 0;
+    let end = open;
+    for (; end < src.length; end++) {
+      if (src[end] === '{') depth++;
+      else if (src[end] === '}') { depth--; if (depth === 0) break; }
+    }
+    const map = src.slice(open, end);
+    const copyKeys = [...map.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]).sort();
+    expect(copyKeys).toEqual([...EVENTS].sort());
   });
 
   it('returns a non-empty title and description for every event, in BOTH languages', () => {

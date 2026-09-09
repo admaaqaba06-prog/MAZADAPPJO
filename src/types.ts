@@ -146,6 +146,16 @@ export interface AuctionItem {
    * Maintained by onBidCreated; authoritative sale decision re-checks in settleAuctionTxn.
    */
   reserveMet?: boolean;
+  /**
+   * Width of the below-reserve "near miss" band, as a percentage of the hidden
+   * reserve (default 10, clamped 0-50 server-side). Admin-set. Safe to carry on
+   * the world-readable auction doc BECAUSE the reserve itself is not here: a
+   * percentage with no base discloses nothing. The FLOOR it implies is computed
+   * only inside Cloud Functions (settlement.js toleranceFloorFils) and is never
+   * sent to a client. Used at SETTLEMENT to decide whether a reserve-not-met top
+   * bid is close enough to put to the seller — never at bid time.
+   */
+  reserveTolerancePct?: number;
   channel?: 'phones' | 'cars' | 'misc';
   scheduledStartAt?: number | null;
   /**
@@ -174,8 +184,19 @@ export interface AuctionItem {
     topBidderName: string;
     /** Firestore Timestamp — seller/buyer decision window (24h from settlement). */
     expiresAt: any;
-    status: 'pending_seller' | 'pending_buyer' | 'confirmed' | 'declined';
+    /**
+     * STORED vocabulary. The API/client contract uses a different one — see
+     * `belowReserveOfferPublicStatus` in utils/reserveStatus.ts, which is the
+     * mirror of functions/settlement.js's `belowReservePublicStatus`:
+     *   pending_seller           -> 'pending_seller_decision'
+     *   pending_buyer, confirmed -> 'accepted_below_reserve'
+     *   declined, expired        -> 'rejected_below_reserve'
+     * 'expired' is stamped by the auto-relist sweep on a lapsed offer.
+     */
+    status: 'pending_seller' | 'pending_buyer' | 'confirmed' | 'declined' | 'expired';
     sellerAcceptedAt?: any;
+    /** Seller (or admin) turned the offer down via the rejectBelowReserve callable. */
+    sellerRejectedAt?: any;
     buyerConfirmedAt?: any;
     buyerDeclinedAt?: any;
   };

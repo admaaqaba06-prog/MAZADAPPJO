@@ -35,6 +35,7 @@ function copyFor(event, data) {
       : d.offerStatus === 'pending_seller'
         ? { type: 'info', title: 'فرصة ثانية — بانتظار قرارك', description: `لم يكمل الفائز بـ"${t}" الدفع. أعلى مزايدة بعده ${d.topBid || ''} د.أ وهي أقل من سعرك المطلوب — تقبل؟` }
         : { type: 'info', title: 'فرصة ثانية لك', description: `لم يكمل الفائز بـ"${t}" الدفع، والمنتج معروض عليك بمزايدتك ${d.topBid || ''} د.أ — تقبل؟` },
+    below_reserve_pending: { type: 'info', title: 'مزايدتك بانتظار البائع', description: `كانت مزايدتك على "${t}" الأعلى لكنها لم تبلغ السعر المطلوب. أمام البائع مهلة لقبولها.` },
     below_reserve_seller_accepted: { type: 'win', title: 'البائع قبل عرضك', description: `قبل البائع مزايدتك على "${t}". أكّد للشراء.` },
     below_reserve_declined: sc && d.declinedBy === 'buyer'
       ? { type: 'info', title: 'أُغلقت الفرصة الثانية', description: `رفض المزايد الفرصة الثانية على "${t}". يمكنك إعادة عرض المنتج.` }

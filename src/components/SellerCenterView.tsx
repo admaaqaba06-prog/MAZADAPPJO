@@ -4,6 +4,7 @@ import { db, getFirebaseStorage } from '../services/firebase';
 import { translations } from '../utils/translations';
 import { sellerNet } from '../utils/bidMath';
 import { secondChanceViewState } from '../utils/secondChanceOffer';
+import { offerAwaitsSeller } from '../utils/reserveStatus';
 import { SecondChanceCard } from './order/SecondChanceCard';
 import { OrderDetailsView } from './OrderDetailsView';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
@@ -382,6 +383,7 @@ export const SellerCenterView: React.FC = () => {
     submitVerificationRequest,
     requestWithdrawal,
     acceptBelowReserve,
+    rejectBelowReserve,
     respondToSecondChance,
     setActiveView
   } = useApp();
@@ -781,12 +783,27 @@ export const SellerCenterView: React.FC = () => {
   // money-path callable; the pending order + buyer-confirm step live server-side.
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
   const handleAcceptBelowReserve = async (auctionId: string) => {
-    if (acceptingOfferId) return;
+    if (acceptingOfferId || rejectingOfferId) return;
     setAcceptingOfferId(auctionId);
     try {
       await acceptBelowReserve(auctionId);
     } finally {
       setAcceptingOfferId(null);
+    }
+  };
+
+  // Seller turns the offer down. Separate busy id from accept so one in-flight
+  // decision disables BOTH buttons — the two are mutually exclusive terminal
+  // actions and firing them together is a race the seller should never be able
+  // to start (the server refuses the second either way; this stops the attempt).
+  const [rejectingOfferId, setRejectingOfferId] = useState<string | null>(null);
+  const handleRejectBelowReserve = async (auctionId: string) => {
+    if (acceptingOfferId || rejectingOfferId) return;
+    setRejectingOfferId(auctionId);
+    try {
+      await rejectBelowReserve(auctionId);
+    } finally {
+      setRejectingOfferId(null);
     }
   };
 
@@ -1399,11 +1416,12 @@ export const SellerCenterView: React.FC = () => {
                     // E3 Slice C — below-reserve near-miss: offer awaiting THIS
                     // seller's decision and still within its 24h window.
                     const offer = auction.belowReserveOffer;
-                    const offerExpMs = offer?.expiresAt
-                      ? (typeof offer.expiresAt?.toMillis === 'function' ? offer.expiresAt.toMillis()
-                        : offer.expiresAt?.seconds ? offer.expiresAt.seconds * 1000 : 0)
-                      : 0;
-                    const showAcceptOffer = offer?.status === 'pending_seller' && (!offerExpMs || offerExpMs > Date.now());
+                    // Shared with the server's own guard vocabulary via
+                    // utils/reserveStatus — the inline timestamp decoding this
+                    // replaces treated a MISSING expiresAt as expiry 0 and then
+                    // rescued it with `!offerExpMs`, which is the same fail-open
+                    // answer by accident rather than on purpose.
+                    const showAcceptOffer = offerAwaitsSeller(offer, Date.now());
                     // Second Chance Offer (winner defaulted). Same pure decision
                     // the card itself makes, asked here only so the card's
                     // wrapper margin doesn't render around nothing.
@@ -1525,23 +1543,37 @@ export const SellerCenterView: React.FC = () => {
                               </p>
                               <p className="text-[10px] text-amber-700/90 font-semibold leading-relaxed">
                                 {isAr
-                                  ? 'عند القبول، يُرسل العرض للمشتري ليؤكد الشراء قبل أن يصبح طلباً نهائياً.'
-                                  : 'If you accept, the offer goes to the buyer to confirm before it becomes a final order.'}
+                                  ? 'عند القبول، يُرسل العرض للمشتري ليؤكد الشراء قبل أن يصبح طلباً نهائياً. عند الرفض، يمكنك إعادة إدراج القطعة فوراً.'
+                                  : 'If you accept, the offer goes to the buyer to confirm before it becomes a final order. If you reject, you can relist the item straight away.'}
                               </p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleAcceptBelowReserve(auction.id)}
-                            disabled={acceptingOfferId === auction.id}
-                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black text-xs rounded-xl transition-all active:scale-[0.98] cursor-pointer"
-                            id={`accept-below-reserve-${auction.id}`}
-                          >
-                            <span>
-                              {acceptingOfferId === auction.id
-                                ? (isAr ? 'جارٍ...' : 'Accepting...')
-                                : (isAr ? 'اقبل آخر سعر' : 'Accept last price')}
-                            </span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleAcceptBelowReserve(auction.id)}
+                              disabled={acceptingOfferId === auction.id || rejectingOfferId === auction.id}
+                              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black text-xs rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                              id={`accept-below-reserve-${auction.id}`}
+                            >
+                              <span>
+                                {acceptingOfferId === auction.id
+                                  ? (isAr ? 'جارٍ...' : 'Accepting...')
+                                  : (isAr ? 'اقبل آخر سعر' : 'Accept last price')}
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleRejectBelowReserve(auction.id)}
+                              disabled={acceptingOfferId === auction.id || rejectingOfferId === auction.id}
+                              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-raised hover:bg-surface-sunken disabled:opacity-60 border border-amber-300 text-amber-900 font-black text-xs rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                              id={`reject-below-reserve-${auction.id}`}
+                            >
+                              <span>
+                                {rejectingOfferId === auction.id
+                                  ? (isAr ? 'جارٍ...' : 'Rejecting...')
+                                  : (isAr ? 'ارفض العرض' : 'Reject offer')}
+                              </span>
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -2255,7 +2287,11 @@ export const SellerCenterView: React.FC = () => {
 
             <form onSubmit={async (e) => {
               e.preventDefault();
-              if (!idFrontFile || !idBackFile) return;
+              // ID documents are OPTIONAL. A seller may apply with no documents
+              // and attach them later (or be asked for them by a reviewer) —
+              // a missing upload must not block an otherwise valid application.
+              // The uploads themselves are unchanged; only the requirement is
+              // gone. An admin still approves or rejects every request.
               setIsVerSubmitting(true);
               try {
                 const userId = currentUser?.id || 'unknown';
@@ -2265,15 +2301,21 @@ export const SellerCenterView: React.FC = () => {
                 const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
                 const storageInstance = await getFirebaseStorage();
                 
-                // 1. Upload ID Front file
-                const frontRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_front_${idFrontFile.name}`);
-                const frontSnap = await uploadBytes(frontRef, idFrontFile);
-                const idFrontUrl = await getDownloadURL(frontSnap.ref);
-                
-                // 2. Upload ID Back file
-                const backRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_back_${idBackFile.name}`);
-                const backSnap = await uploadBytes(backRef, idBackFile);
-                const idBackUrl = await getDownloadURL(backSnap.ref);
+                // 1. Upload ID Front file (if provided)
+                let idFrontUrl = '';
+                if (idFrontFile) {
+                  const frontRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_front_${idFrontFile.name}`);
+                  const frontSnap = await uploadBytes(frontRef, idFrontFile);
+                  idFrontUrl = await getDownloadURL(frontSnap.ref);
+                }
+
+                // 2. Upload ID Back file (if provided)
+                let idBackUrl = '';
+                if (idBackFile) {
+                  const backRef = ref(storageInstance, `verification-documents/${userId}/${timestamp}_back_${idBackFile.name}`);
+                  const backSnap = await uploadBytes(backRef, idBackFile);
+                  idBackUrl = await getDownloadURL(backSnap.ref);
+                }
                 
                 // 3. Upload Passport file if selected
                 let passportUrl = '';
@@ -2349,7 +2391,7 @@ export const SellerCenterView: React.FC = () => {
                 {/* ID FRONT */}
                 <div className="space-y-1">
                   <span className="block text-[11px] text-fg-muted font-bold">
-                    {isAr ? 'صورة الوجه الأمامي للهوية الوطنية (مطلوب)' : 'National ID - Front Image (Required)'}
+                    {isAr ? 'صورة الوجه الأمامي للهوية الوطنية (اختياري)' : 'National ID - Front Image (Optional)'}
                   </span>
                   <input 
                     type="file" 
@@ -2384,7 +2426,7 @@ export const SellerCenterView: React.FC = () => {
                 {/* ID BACK */}
                 <div className="space-y-1">
                   <span className="block text-[11px] text-fg-muted font-bold">
-                    {isAr ? 'صورة الوجه الخلفي للهوية الوطنية (مطلوب)' : 'National ID - Back Image (Required)'}
+                    {isAr ? 'صورة الوجه الخلفي للهوية الوطنية (اختياري)' : 'National ID - Back Image (Optional)'}
                   </span>
                   <input 
                     type="file" 
@@ -2467,7 +2509,7 @@ export const SellerCenterView: React.FC = () => {
 
               <button 
                 type="submit"
-                disabled={isVerSubmitting || !idFrontFile || !idBackFile}
+                disabled={isVerSubmitting}
                 className="w-full py-3.5 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-600 text-white font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-500/15 text-center flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 disabled:from-gray-300 disabled:to-gray-400"
               >
                 <ShieldCheck className="w-4 h-4" />
