@@ -41,6 +41,7 @@ const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = requ
 const { normalizeReservePrice, authorizeReserveWrite } = require('./auctionReserve');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired, resolveReserveTolerancePct, belowReservePublicStatus } = require('./settlement');
 const { authorizeOrderRepair, auctionRecordsReserve } = require('./orderRepair');
+const { OFFER_FIELDS, PENDING_STATUSES, lapsedOffers, undatableOffers, expiryNotification, expiryNeedsCopy } = require('./offerExpiry');
 const { bidRateLimitConfig, readBidRateLimitState, evaluateBidRateLimit } = require('./bidRateLimit');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
@@ -1232,6 +1233,101 @@ async function retryUnnotifiedSecondChanceOffers() {
 }
 
 /**
+ * Retire offers whose window closed with nobody answering.
+ *
+ * The 24h window is enforced when somebody ACTS — every accept/confirm/reject/
+ * decline callable refuses a lapsed offer. Nothing enforced it when nobody
+ * acted, which is the case the window exists for. An ignored offer therefore
+ * sat at `pending_seller` forever: both parties kept seeing a decision that
+ * could no longer be made, neither was ever told the window closed, and the
+ * lot's own record of what happened never reached a terminal value.
+ *
+ * `autoRelistSweep` expires offers in passing, but only on lots it is
+ * relisting, and `shouldAutoRelist` requires `autoRelist === true` — so every
+ * lot whose seller did not opt into auto-relisting was skipped entirely.
+ *
+ * Queries by STATUS, not by expiry: an equality match on a nested field uses
+ * the automatic single-field index, so this needs no composite index, and the
+ * result set is bounded by how many offers are pending right now rather than
+ * by how many have ever expired. Expiry is then decided in `offerExpiry.js`.
+ *
+ * Runs on the enforcer's 30-minute tick beside the other offer housekeeping.
+ * NEVER THROWS — the enforcer also lifts expired bans, and a stuck offer must
+ * not stop that.
+ */
+async function expireLapsedOffers() {
+  try {
+    const nowMs = Date.now();
+
+    // One auction can hold both offer fields, and four queries can return it
+    // more than once. Collect first, decide once.
+    const candidates = new Map();
+    for (const field of OFFER_FIELDS) {
+      for (const status of PENDING_STATUSES) {
+        const snap = await db.collection('auctions')
+          .where(`${field}.status`, '==', status)
+          .limit(100)
+          .get();
+        for (const d of snap.docs) candidates.set(d.id, d);
+      }
+    }
+
+    for (const docSnap of candidates.values()) {
+      const auction = docSnap.data() || {};
+
+      // Loud, and deliberately NOT auto-fixed: with no datable timestamp
+      // anywhere, retiring the offer would be a guess, and a wrong guess here
+      // cancels a live offer. These are stuck until someone looks.
+      for (const stuck of undatableOffers(auction)) {
+        console.error(
+          `[offerExpiry] ${docSnap.id}.${stuck.field} is pending with no usable expiresAt and ` +
+          `nothing to derive one from — it can never expire and blocks relisting. Needs a human.`,
+        );
+      }
+
+      for (const lapsed of lapsedOffers(auction, nowMs)) {
+        const { field, offer, derived } = lapsed;
+        try {
+          await docSnap.ref.update({
+            [`${field}.status`]: 'expired',
+            [`${field}.expiredAt`]: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`[offerExpiry] retired ${offer.status} ${field} on ${docSnap.id}${derived ? ' (deadline derived — it had no usable expiresAt)' : ''}`);
+        } catch (e) {
+          console.error(`[offerExpiry] could not retire ${field} on ${docSnap.id} (non-fatal):`, e && e.message);
+          continue; // no write, so send nothing
+        }
+
+        const plan = expiryNotification(auction, field, offer);
+        if (plan) {
+          await notify({
+            uid: plan.uid,
+            event: plan.event,
+            data: {
+              auctionId: docSnap.id,
+              auctionTitle: auction.title || '',
+              ...plan.data,
+              idempotencyKey: `${docSnap.id}_${field}_expired`,
+            },
+          });
+        } else if (expiryNeedsCopy(offer)) {
+          // The seller accepted and the buyer never confirmed, so the seller
+          // lost a sale they had agreed to — and there is no string that says
+          // that. Rendering the bidder's wording at them would be worse than
+          // the silence, so the gap is logged rather than papered over.
+          console.warn(
+            `[offerExpiry] ${docSnap.id}.${field} lapsed at pending_buyer — seller ${auction.sellerId} ` +
+            `was NOT notified: no copy exists for "the buyer did not confirm".`,
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[offerExpiry] sweep failed (non-fatal):', e && e.message);
+  }
+}
+
+/**
  * Open a second-chance offer on each freshly-defaulted lot.
  *
  * Runs AFTER the enforcer's batch commits: finding the runner-up needs a bids
@@ -1466,6 +1562,12 @@ exports.paymentDefaultEnforcer = functions
       // offer was opened on some earlier run, and the runs that can rescue it
       // are overwhelmingly the ones where nothing new defaults.
       await retryUnnotifiedSecondChanceOffers();
+
+      // A3. Retire offers whose 24h window closed with nobody answering.
+      // Same reason as A2 for sitting above the early return: the lapsed
+      // offers are from earlier runs, so the ticks that can clear them are
+      // precisely the quiet ones where nothing new defaults.
+      await expireLapsedOffers();
 
       // B. Default any order past its payment deadline and advance the buyer's
       // strike ladder (1st = 48h, repeat = 3-month). Group by buyer so a buyer
