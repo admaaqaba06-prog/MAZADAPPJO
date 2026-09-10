@@ -40,6 +40,8 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = require('./subscriptionExpiry');
 const { normalizeReservePrice, authorizeReserveWrite } = require('./auctionReserve');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired, resolveReserveTolerancePct, belowReservePublicStatus } = require('./settlement');
+const { authorizeOrderRepair, auctionRecordsReserve } = require('./orderRepair');
+const { OFFER_FIELDS, PENDING_STATUSES, lapsedOffers, undatableOffers, expiryNotification, expiryNeedsCopy } = require('./offerExpiry');
 const { bidRateLimitConfig, readBidRateLimitState, evaluateBidRateLimit } = require('./bidRateLimit');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
@@ -390,20 +392,11 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     }
   }
 
-  // Reserve lives in an admin/server-only doc (never on the world-readable
-  // auction). Read it here; the authoritative sale decision re-derives price
-  // from the in-txn snapshot below.
-  // FAIL CLOSED: if this read errors we must NOT settle — defaulting to
-  // "no reserve" could irreversibly sell below reserve. Abort this auction's
-  // settlement for this run; the per-minute cron retries next sweep.
-  let reservePrice = null;
-  try {
-    const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
-    if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
-  } catch (secErr) {
-    console.error(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId} — aborting settlement this run (fail closed):`, secErr);
-    throw secErr;
-  }
+  // The reserve lives in an admin/server-only doc (never on the world-readable
+  // auction). It is read INSIDE the transaction below, alongside every other
+  // read the decision depends on — see the note at that read for why it cannot
+  // be read out here.
+  const secretRef = db.collection('auctionSecrets').doc(auctionId);
 
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
@@ -418,9 +411,46 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     settled = false;
     settledOrderId = null;
     const freshDoc = await transaction.get(auctionRef);
-    const freshData = freshDoc.data();
+    // A lot deleted between the sweep query and this transaction: `.data()` is
+    // undefined and the status check below would throw INSIDE the transaction,
+    // which the cron then logs as a settlement failure and retries forever.
+    if (!freshDoc.exists) {
+      console.warn(`[settleAuctionTxn] ${auctionId} disappeared before settlement — nothing to do.`);
+      return;
+    }
+    const freshData = freshDoc.data() || {};
 
+    /**
+     * ALREADY SETTLED? `settledAt` as well as `status`.
+     *
+     * Status alone is not a record that a lot has settled, because
+     * "Approve & go live" OVERWRITES it back to `live`. That happened in
+     * production on `auction-new-1784771726248-7597`: a winner defaulted, an
+     * admin hit the obvious green button, and the dead lot re-opened carrying
+     * its old `currentPrice` and `currentBidderId`.
+     *
+     * `src/utils/approvalGuard.ts` refuses that approval now — but it is a
+     * CLIENT guard, and this is the server. If a lot reaches here re-opened,
+     * the status check passes and it settles a SECOND time; orders are keyed
+     * `orders/{auctionId}` and creation is `if (!orderSnap.exists)`, so the
+     * defaulted order still holds the id, the new winner gets no order at all,
+     * and the lot sells with nothing behind it.
+     *
+     * `settledAt` survives the status overwrite, so it is the durable record.
+     * Refusing here is the safe half of the trade: the lot stays unsettled and
+     * visible instead of selling to someone who would receive nothing, and the
+     * correct recovery — relisting into a NEW document — is what the relist
+     * paths already do (autoRelistSweep mints a fresh id and builds the child
+     * field-by-field, so it carries no `settledAt` of its own).
+     */
     if (['completed', 'ended', 'reserve_not_met'].includes(freshData.status)) {
+      return;
+    }
+    if (freshData.settledAt != null) {
+      console.warn(
+        `[settleAuctionTxn] ${auctionId} carries settledAt but status is '${freshData.status}' — ` +
+        `it was re-opened after settling. Refusing to settle it twice; relist it as a new lot instead.`,
+      );
       return;
     }
 
@@ -442,6 +472,32 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
+    /**
+     * THE RESERVE AMOUNT, READ INSIDE THE TRANSACTION.
+     *
+     * It used to be read before `runTransaction` opened, which left the one
+     * value the sale hinges on outside the consistency guarantee protecting
+     * everything else. Two ways that goes wrong, both narrow and both
+     * unrecoverable once an order exists:
+     *
+     *   - `setAuctionReserve` lands between the outer read and this
+     *     transaction. We settle against an amount the seller has replaced.
+     *   - The reserve is set for the FIRST time in that gap. The outer read
+     *     returned nothing, and the pre-transaction snapshot has no
+     *     `reserveMet` either, so intent reads false too — a lot with a live
+     *     reserve is awarded as though it never had one.
+     *
+     * Reading it here puts the secret in the transaction's read set, so a
+     * concurrent write to it forces a retry rather than a stale award. This is
+     * the same thing autoRelistSweep already does when it copies a reserve.
+     *
+     * Still FAIL CLOSED: a throw here aborts the transaction, settleAuctionTxn
+     * rejects, and the per-minute cron retries. Defaulting to "no reserve"
+     * would sell the lot, and that cannot be taken back.
+     */
+    const secretSnap = await transaction.get(secretRef);
+    const reservePrice = secretSnap.exists ? (secretSnap.data().reservePrice ?? null) : null;
+
     // winnerName above is derived from the (now MASKED) public auction doc.
     // The PRIVATE order needs the REAL buyer name — resolve it from the user
     // doc read above (all reads stay before any writes). Fall back to the
@@ -459,8 +515,15 @@ async function settleAuctionTxn(auctionRef, auctionData) {
      * Presence, not truthiness: `reserveMet` is flipped to `true` by
      * onBidCreated once a qualifying bid lands, so testing the value would miss
      * every lot that had already cleared its bar.
+     *
+     * From `freshData`, not the pre-transaction snapshot. Every other input to
+     * the decision — winner, price, bid count, tolerance — is taken from the
+     * in-transaction read for the reason given above them, and intent was the
+     * one that was not. A reserve set in that gap leaves the stale snapshot
+     * with no `reserveMet`, and the lot is then awarded as though it never had
+     * a reserve: the exact failure the flag was added to prevent.
      */
-    const reserveIntended = Object.prototype.hasOwnProperty.call(auctionData || {}, 'reserveMet');
+    const reserveIntended = auctionRecordsReserve(freshData);
 
     // Tolerance band is per-auction (clamped) and read from the FRESH snapshot,
     // so an admin edit between the sweep query and this txn is honoured. It only
@@ -1170,6 +1233,101 @@ async function retryUnnotifiedSecondChanceOffers() {
 }
 
 /**
+ * Retire offers whose window closed with nobody answering.
+ *
+ * The 24h window is enforced when somebody ACTS — every accept/confirm/reject/
+ * decline callable refuses a lapsed offer. Nothing enforced it when nobody
+ * acted, which is the case the window exists for. An ignored offer therefore
+ * sat at `pending_seller` forever: both parties kept seeing a decision that
+ * could no longer be made, neither was ever told the window closed, and the
+ * lot's own record of what happened never reached a terminal value.
+ *
+ * `autoRelistSweep` expires offers in passing, but only on lots it is
+ * relisting, and `shouldAutoRelist` requires `autoRelist === true` — so every
+ * lot whose seller did not opt into auto-relisting was skipped entirely.
+ *
+ * Queries by STATUS, not by expiry: an equality match on a nested field uses
+ * the automatic single-field index, so this needs no composite index, and the
+ * result set is bounded by how many offers are pending right now rather than
+ * by how many have ever expired. Expiry is then decided in `offerExpiry.js`.
+ *
+ * Runs on the enforcer's 30-minute tick beside the other offer housekeeping.
+ * NEVER THROWS — the enforcer also lifts expired bans, and a stuck offer must
+ * not stop that.
+ */
+async function expireLapsedOffers() {
+  try {
+    const nowMs = Date.now();
+
+    // One auction can hold both offer fields, and four queries can return it
+    // more than once. Collect first, decide once.
+    const candidates = new Map();
+    for (const field of OFFER_FIELDS) {
+      for (const status of PENDING_STATUSES) {
+        const snap = await db.collection('auctions')
+          .where(`${field}.status`, '==', status)
+          .limit(100)
+          .get();
+        for (const d of snap.docs) candidates.set(d.id, d);
+      }
+    }
+
+    for (const docSnap of candidates.values()) {
+      const auction = docSnap.data() || {};
+
+      // Loud, and deliberately NOT auto-fixed: with no datable timestamp
+      // anywhere, retiring the offer would be a guess, and a wrong guess here
+      // cancels a live offer. These are stuck until someone looks.
+      for (const stuck of undatableOffers(auction)) {
+        console.error(
+          `[offerExpiry] ${docSnap.id}.${stuck.field} is pending with no usable expiresAt and ` +
+          `nothing to derive one from — it can never expire and blocks relisting. Needs a human.`,
+        );
+      }
+
+      for (const lapsed of lapsedOffers(auction, nowMs)) {
+        const { field, offer, derived } = lapsed;
+        try {
+          await docSnap.ref.update({
+            [`${field}.status`]: 'expired',
+            [`${field}.expiredAt`]: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`[offerExpiry] retired ${offer.status} ${field} on ${docSnap.id}${derived ? ' (deadline derived — it had no usable expiresAt)' : ''}`);
+        } catch (e) {
+          console.error(`[offerExpiry] could not retire ${field} on ${docSnap.id} (non-fatal):`, e && e.message);
+          continue; // no write, so send nothing
+        }
+
+        const plan = expiryNotification(auction, field, offer);
+        if (plan) {
+          await notify({
+            uid: plan.uid,
+            event: plan.event,
+            data: {
+              auctionId: docSnap.id,
+              auctionTitle: auction.title || '',
+              ...plan.data,
+              idempotencyKey: `${docSnap.id}_${field}_expired`,
+            },
+          });
+        } else if (expiryNeedsCopy(offer)) {
+          // The seller accepted and the buyer never confirmed, so the seller
+          // lost a sale they had agreed to — and there is no string that says
+          // that. Rendering the bidder's wording at them would be worse than
+          // the silence, so the gap is logged rather than papered over.
+          console.warn(
+            `[offerExpiry] ${docSnap.id}.${field} lapsed at pending_buyer — seller ${auction.sellerId} ` +
+            `was NOT notified: no copy exists for "the buyer did not confirm".`,
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[offerExpiry] sweep failed (non-fatal):', e && e.message);
+  }
+}
+
+/**
  * Open a second-chance offer on each freshly-defaulted lot.
  *
  * Runs AFTER the enforcer's batch commits: finding the runner-up needs a bids
@@ -1404,6 +1562,12 @@ exports.paymentDefaultEnforcer = functions
       // offer was opened on some earlier run, and the runs that can rescue it
       // are overwhelmingly the ones where nothing new defaults.
       await retryUnnotifiedSecondChanceOffers();
+
+      // A3. Retire offers whose 24h window closed with nobody answering.
+      // Same reason as A2 for sitting above the early return: the lapsed
+      // offers are from earlier runs, so the ticks that can clear them are
+      // precisely the quiet ones where nothing new defaults.
+      await expireLapsedOffers();
 
       // B. Default any order past its payment deadline and advance the buyer's
       // strike ladder (1st = 48h, repeat = 3-month). Group by buyer so a buyer
@@ -3129,11 +3293,46 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       console.warn(`[repairEndedAuctionOrder] winner name lookup failed for ${winnerId}:`, nameErr);
     }
 
-    // Check if Order already exists
     const orderRef = db.collection('orders').doc(auctionId);
     const orderSnap = await orderRef.get();
-    if (orderSnap.exists) {
-      return { success: false, message: `Order for auction ${auctionId} already exists.` };
+
+    /**
+     * THE REPAIR RUNS THE SAME SETTLEMENT DECISION AS THE CRON.
+     *
+     * Everything below this comment used to be absent. The repair read the
+     * winner and the price, checked that no order existed, and wrote one —
+     * without reading the reserve amount, the `reserveMet` marker, or even the
+     * auction's own status. So a lot that closed CORRECTLY as `reserve_not_met`
+     * (no order, seller asked) was indistinguishable, in the admin's list of
+     * ended auctions without orders, from a lot the closer had genuinely
+     * dropped. One click awarded it below its reserve and billed the buyer.
+     *
+     * FAIL CLOSED on the secrets read, exactly as settleAuctionTxn does: if we
+     * cannot read the reserve we cannot prove the bid cleared it, and an
+     * unreadable reserve must never be worth the same as no reserve.
+     */
+    let reservePrice = null;
+    try {
+      const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+      if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+    } catch (secErr) {
+      console.error(`[repairEndedAuctionOrder] auctionSecrets read failed for ${auctionId} — refusing to repair (fail closed):`, secErr);
+      return { success: false, message: 'Could not read the reserve for this auction. Nothing was written; try again.' };
+    }
+
+    const decision = resolveSettlement({
+      totalBids: auctionData.totalBids || 0,
+      winnerId,
+      finalPrice,
+      reservePrice,
+      reserveIntended: auctionRecordsReserve(auctionData),
+      tolerancePct: resolveReserveTolerancePct(auctionData),
+    });
+
+    const permitted = authorizeOrderRepair({ auction: auctionData, decision, orderExists: orderSnap.exists });
+    if (!permitted.ok) {
+      console.warn(`[repairEndedAuctionOrder] refused for ${auctionId} (${permitted.code}): ${permitted.message}`);
+      return { success: false, code: permitted.code, message: permitted.message };
     }
 
     // Query escrow if any exists

@@ -17,9 +17,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SRC = new URL('..', import.meta.url).pathname;
-const FUNCTIONS = new URL('../../functions', import.meta.url).pathname;
+const SRC = fileURLToPath(new URL('..', import.meta.url));
+const FUNCTIONS = fileURLToPath(new URL('../../functions', import.meta.url));
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
