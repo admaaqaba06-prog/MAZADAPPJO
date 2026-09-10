@@ -391,20 +391,11 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     }
   }
 
-  // Reserve lives in an admin/server-only doc (never on the world-readable
-  // auction). Read it here; the authoritative sale decision re-derives price
-  // from the in-txn snapshot below.
-  // FAIL CLOSED: if this read errors we must NOT settle — defaulting to
-  // "no reserve" could irreversibly sell below reserve. Abort this auction's
-  // settlement for this run; the per-minute cron retries next sweep.
-  let reservePrice = null;
-  try {
-    const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
-    if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
-  } catch (secErr) {
-    console.error(`[settleAuctionTxn] auctionSecrets fetch failed for ${auctionId} — aborting settlement this run (fail closed):`, secErr);
-    throw secErr;
-  }
+  // The reserve lives in an admin/server-only doc (never on the world-readable
+  // auction). It is read INSIDE the transaction below, alongside every other
+  // read the decision depends on — see the note at that read for why it cannot
+  // be read out here.
+  const secretRef = db.collection('auctionSecrets').doc(auctionId);
 
   // (notify) set ONLY on a real settlement this run; fired AFTER the txn commits.
   let notifyData = null;
@@ -419,9 +410,46 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     settled = false;
     settledOrderId = null;
     const freshDoc = await transaction.get(auctionRef);
-    const freshData = freshDoc.data();
+    // A lot deleted between the sweep query and this transaction: `.data()` is
+    // undefined and the status check below would throw INSIDE the transaction,
+    // which the cron then logs as a settlement failure and retries forever.
+    if (!freshDoc.exists) {
+      console.warn(`[settleAuctionTxn] ${auctionId} disappeared before settlement — nothing to do.`);
+      return;
+    }
+    const freshData = freshDoc.data() || {};
 
+    /**
+     * ALREADY SETTLED? `settledAt` as well as `status`.
+     *
+     * Status alone is not a record that a lot has settled, because
+     * "Approve & go live" OVERWRITES it back to `live`. That happened in
+     * production on `auction-new-1784771726248-7597`: a winner defaulted, an
+     * admin hit the obvious green button, and the dead lot re-opened carrying
+     * its old `currentPrice` and `currentBidderId`.
+     *
+     * `src/utils/approvalGuard.ts` refuses that approval now — but it is a
+     * CLIENT guard, and this is the server. If a lot reaches here re-opened,
+     * the status check passes and it settles a SECOND time; orders are keyed
+     * `orders/{auctionId}` and creation is `if (!orderSnap.exists)`, so the
+     * defaulted order still holds the id, the new winner gets no order at all,
+     * and the lot sells with nothing behind it.
+     *
+     * `settledAt` survives the status overwrite, so it is the durable record.
+     * Refusing here is the safe half of the trade: the lot stays unsettled and
+     * visible instead of selling to someone who would receive nothing, and the
+     * correct recovery — relisting into a NEW document — is what the relist
+     * paths already do (autoRelistSweep mints a fresh id and builds the child
+     * field-by-field, so it carries no `settledAt` of its own).
+     */
     if (['completed', 'ended', 'reserve_not_met'].includes(freshData.status)) {
+      return;
+    }
+    if (freshData.settledAt != null) {
+      console.warn(
+        `[settleAuctionTxn] ${auctionId} carries settledAt but status is '${freshData.status}' — ` +
+        `it was re-opened after settling. Refusing to settle it twice; relist it as a new lot instead.`,
+      );
       return;
     }
 
@@ -443,6 +471,32 @@ async function settleAuctionTxn(auctionRef, auctionData) {
     const winnerRef = winnerId ? db.collection('users').doc(winnerId) : null;
     const winnerSnap = winnerRef ? await transaction.get(winnerRef) : null;
 
+    /**
+     * THE RESERVE AMOUNT, READ INSIDE THE TRANSACTION.
+     *
+     * It used to be read before `runTransaction` opened, which left the one
+     * value the sale hinges on outside the consistency guarantee protecting
+     * everything else. Two ways that goes wrong, both narrow and both
+     * unrecoverable once an order exists:
+     *
+     *   - `setAuctionReserve` lands between the outer read and this
+     *     transaction. We settle against an amount the seller has replaced.
+     *   - The reserve is set for the FIRST time in that gap. The outer read
+     *     returned nothing, and the pre-transaction snapshot has no
+     *     `reserveMet` either, so intent reads false too — a lot with a live
+     *     reserve is awarded as though it never had one.
+     *
+     * Reading it here puts the secret in the transaction's read set, so a
+     * concurrent write to it forces a retry rather than a stale award. This is
+     * the same thing autoRelistSweep already does when it copies a reserve.
+     *
+     * Still FAIL CLOSED: a throw here aborts the transaction, settleAuctionTxn
+     * rejects, and the per-minute cron retries. Defaulting to "no reserve"
+     * would sell the lot, and that cannot be taken back.
+     */
+    const secretSnap = await transaction.get(secretRef);
+    const reservePrice = secretSnap.exists ? (secretSnap.data().reservePrice ?? null) : null;
+
     // winnerName above is derived from the (now MASKED) public auction doc.
     // The PRIVATE order needs the REAL buyer name — resolve it from the user
     // doc read above (all reads stay before any writes). Fall back to the
@@ -460,8 +514,15 @@ async function settleAuctionTxn(auctionRef, auctionData) {
      * Presence, not truthiness: `reserveMet` is flipped to `true` by
      * onBidCreated once a qualifying bid lands, so testing the value would miss
      * every lot that had already cleared its bar.
+     *
+     * From `freshData`, not the pre-transaction snapshot. Every other input to
+     * the decision — winner, price, bid count, tolerance — is taken from the
+     * in-transaction read for the reason given above them, and intent was the
+     * one that was not. A reserve set in that gap leaves the stale snapshot
+     * with no `reserveMet`, and the lot is then awarded as though it never had
+     * a reserve: the exact failure the flag was added to prevent.
      */
-    const reserveIntended = Object.prototype.hasOwnProperty.call(auctionData || {}, 'reserveMet');
+    const reserveIntended = auctionRecordsReserve(freshData);
 
     // Tolerance band is per-auction (clamped) and read from the FRESH snapshot,
     // so an admin edit between the sweep query and this txn is honoured. It only

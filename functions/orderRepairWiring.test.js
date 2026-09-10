@@ -81,12 +81,20 @@ describe('repairEndedAuctionOrder consults the settlement decision', () => {
 });
 
 describe('the two settlement paths stay in agreement', () => {
-  it('both derive reserve intent from the PRESENCE of reserveMet', () => {
-    // settleAuctionTxn does it inline; the repair path goes through the
-    // helper. Both must mean the same thing, or one path will award a lot the
-    // other refuses.
-    expect(SRC).toMatch(/hasOwnProperty\.call\([^)]*,\s*'reserveMet'\)/);
+  it('both derive reserve intent through the SAME helper', () => {
+    // Originally settleAuctionTxn did this inline and only the repair path
+    // used the helper — two spellings of one rule, free to drift. They now
+    // share `auctionRecordsReserve`, so "presence, not truthiness" is decided
+    // in exactly one place and both callers inherit it.
+    const settle = SRC.slice(SRC.indexOf('async function settleAuctionTxn'));
+    expect(settle).toMatch(/auctionRecordsReserve\(freshData\)/);
     expect(bodyOf('repairEndedAuctionOrder')).toMatch(/auctionRecordsReserve\(/);
+  });
+
+  it('no path spells the rule out inline any more', () => {
+    // An inline `hasOwnProperty(..., 'reserveMet')` reintroduces the second
+    // copy this consolidation removed.
+    expect(SRC).not.toMatch(/hasOwnProperty\.call\([^)]*,\s*'reserveMet'\)/);
   });
 
   it('no order-creating path skips resolveSettlement', () => {
