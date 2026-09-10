@@ -40,6 +40,7 @@ const { userStatusForSubscriptionRequest } = require('./subscriptionRequestStatu
 const { expireLapsedSubscriptions, isActiveMember: isActiveMemberServer } = require('./subscriptionExpiry');
 const { normalizeReservePrice, authorizeReserveWrite } = require('./auctionReserve');
 const { resolveSettlement, reserveMet, resolvePaymentWindowHours, resolveAntiSnipe, computeSoftCloseEnd, computeBidEndTime, sellerCommissionFils, sellerNetFils, buyerPremiumJod, totalDueJod, shouldAutoRelist, MAX_AUTO_RELISTS, belowReserveExpiryMs, isBelowReserveOfferExpired, resolveReserveTolerancePct, belowReservePublicStatus } = require('./settlement');
+const { authorizeOrderRepair, auctionRecordsReserve } = require('./orderRepair');
 const { bidRateLimitConfig, readBidRateLimitState, evaluateBidRateLimit } = require('./bidRateLimit');
 const { pickRunnerUp, shouldSkipRunnerUp, openingStateFor, buildOfferRecord, needsNotifyRetry, secondChanceOrderId } = require('./secondChance');
 const { respondToSecondChance: respondToSecondChanceTxn } = require('./secondChanceRespond');
@@ -3129,11 +3130,46 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       console.warn(`[repairEndedAuctionOrder] winner name lookup failed for ${winnerId}:`, nameErr);
     }
 
-    // Check if Order already exists
     const orderRef = db.collection('orders').doc(auctionId);
     const orderSnap = await orderRef.get();
-    if (orderSnap.exists) {
-      return { success: false, message: `Order for auction ${auctionId} already exists.` };
+
+    /**
+     * THE REPAIR RUNS THE SAME SETTLEMENT DECISION AS THE CRON.
+     *
+     * Everything below this comment used to be absent. The repair read the
+     * winner and the price, checked that no order existed, and wrote one —
+     * without reading the reserve amount, the `reserveMet` marker, or even the
+     * auction's own status. So a lot that closed CORRECTLY as `reserve_not_met`
+     * (no order, seller asked) was indistinguishable, in the admin's list of
+     * ended auctions without orders, from a lot the closer had genuinely
+     * dropped. One click awarded it below its reserve and billed the buyer.
+     *
+     * FAIL CLOSED on the secrets read, exactly as settleAuctionTxn does: if we
+     * cannot read the reserve we cannot prove the bid cleared it, and an
+     * unreadable reserve must never be worth the same as no reserve.
+     */
+    let reservePrice = null;
+    try {
+      const secretSnap = await db.collection('auctionSecrets').doc(auctionId).get();
+      if (secretSnap.exists) reservePrice = secretSnap.data().reservePrice ?? null;
+    } catch (secErr) {
+      console.error(`[repairEndedAuctionOrder] auctionSecrets read failed for ${auctionId} — refusing to repair (fail closed):`, secErr);
+      return { success: false, message: 'Could not read the reserve for this auction. Nothing was written; try again.' };
+    }
+
+    const decision = resolveSettlement({
+      totalBids: auctionData.totalBids || 0,
+      winnerId,
+      finalPrice,
+      reservePrice,
+      reserveIntended: auctionRecordsReserve(auctionData),
+      tolerancePct: resolveReserveTolerancePct(auctionData),
+    });
+
+    const permitted = authorizeOrderRepair({ auction: auctionData, decision, orderExists: orderSnap.exists });
+    if (!permitted.ok) {
+      console.warn(`[repairEndedAuctionOrder] refused for ${auctionId} (${permitted.code}): ${permitted.message}`);
+      return { success: false, code: permitted.code, message: permitted.message };
     }
 
     // Query escrow if any exists
