@@ -67,6 +67,72 @@ service cloud.firestore {
                  || request.resource.data.userId == 'anonymous');
     }
 
+    // Notification plumbing (CR-02 / CR-03). ALL of it is server-owned:
+    // Cloud Functions bypass rules entirely, so these blocks exist to state
+    // that no CLIENT may touch them.
+    //
+    // notifications_log is the send ledger — it is what enforces "never the
+    // same auction twice" and the 24h cap. A client that could write it could
+    // erase its own cap row and be messaged on every run; one that could
+    // delete rows could make the digest resend everything. Admins may read it
+    // to answer "why did/didn't this user get a message", and nothing more.
+    match /notifications_log/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Per-run summaries (attempted / sent / failed / skipped). Read-only
+    // evidence of what each run did, including dry runs.
+    match /notificationRuns/{runId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // The kill switch. Admin-writable ON PURPOSE — the whole point of
+    // `dailyEnabled` / `featuredEnabled` is stopping a send from the console
+    // without a redeploy, which is useless if it needs an engineer.
+    match /config/notifications {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Nothing else under config/ is client-reachable.
+    match /config/{docId} {
+      allow read, write: if false;
+    }
+
+    // 0.5 Categories — the CR-01 interest taxonomy.
+    //
+    // World-readable on purpose: the onboarding grid is the first screen after
+    // sign-up and the read happens while the auth profile may still be
+    // settling, so gating it on isSignedIn() would intermittently blank the
+    // grid at exactly the wrong moment. There is nothing private here — these
+    // are the same category names already printed on every auction card.
+    //
+    // Writes are admin-only. The point of the collection is that an admin can
+    // add or retire a category without a deploy; letting a client do it would
+    // let anyone inject a category that every new user is then asked to pick.
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Consent audit trail (CR-01). APPEND-ONLY BY DESIGN.
+    //
+    // `users/{uid}.notificationConsent` records the current state, but the
+    // owner can overwrite their own user doc, so it cannot prove what was
+    // agreed to or when. These rows can be created and then never changed or
+    // removed by anyone — including the user and including an admin — which is
+    // what makes them usable as the record that an opt-in happened before a
+    // marketing message went out.
+    match /users/{userId}/consentEvents/{eventId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isSignedIn() && isOwner(userId)
+             && request.resource.data.granted is bool
+             && request.resource.data.channel in ["whatsapp", "push", "none"];
+      allow update, delete: if false;
+    }
+
     // 1. Users block
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
