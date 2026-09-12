@@ -74,17 +74,30 @@ jobs:
       # new n8n workspace without a code change, so it has to actually arrive.
       # Left empty it stays empty, and postOtpToRelay falls back to the
       # constant — same behaviour as before.
+      # CR-02 adds three more. N8N_INBOUND_SECRET is the load-bearing one:
+      # notificationsInbound FAILS CLOSED without it (503 on every request),
+      # so an unset secret means every opt-out a customer sends is silently
+      # dropped — the one failure this feature cannot detect on its own.
+      # DIGEST_HOUR/DIGEST_MINUTE are read at DEPLOY time (the cron string is
+      # baked into the Cloud Scheduler job); empty means 19:00 Amman. STOPPING
+      # a send needs no redeploy — that lever is config/notifications.
       - name: Configure Functions env (n8n webhook + health poll)
         env:
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
           N8N_OTP_WEBHOOK_URL: ${{ secrets.N8N_OTP_WEBHOOK_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
           N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
+          N8N_INBOUND_SECRET: ${{ secrets.N8N_INBOUND_SECRET }}
+          DIGEST_HOUR: ${{ vars.DIGEST_HOUR }}
+          DIGEST_MINUTE: ${{ vars.DIGEST_MINUTE }}
         run: |
           printf 'N8N_WEBHOOK_URL=%s\n' "$N8N_WEBHOOK_URL" > functions/.env
           printf 'N8N_OTP_WEBHOOK_URL=%s\n' "$N8N_OTP_WEBHOOK_URL" >> functions/.env
           printf 'N8N_API_KEY=%s\n' "$N8N_API_KEY" >> functions/.env
           printf 'N8N_BASE_URL=%s\n' "${N8N_BASE_URL:-https://mazadjo.app.n8n.cloud}" >> functions/.env
+          printf 'N8N_INBOUND_SECRET=%s\n' "$N8N_INBOUND_SECRET" >> functions/.env
+          printf 'DIGEST_HOUR=%s\n' "${DIGEST_HOUR:-19}" >> functions/.env
+          printf 'DIGEST_MINUTE=%s\n' "${DIGEST_MINUTE:-0}" >> functions/.env
 
       - name: Deploy rules, storage, and functions
         run: firebase deploy --only firestore,storage,functions --project mazadjoapp --non-interactive --force

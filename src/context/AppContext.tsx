@@ -24,6 +24,7 @@ import { isValidCityId } from '../utils/jordanCities';
 import { stripReserve } from '../utils/reserveStrip';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
+import type { SaveInterestsInput } from '../utils/interests';
 import { computeServerOffset, setServerOffset, serverNow } from '../utils/serverTime';
 import { isActiveMember } from '../utils/membership';
 import { distinctSellerIds, nextMissingSellerIds } from '../utils/sellerPrefetch';
@@ -75,7 +76,7 @@ import {
   PhoneAuthProvider,
   linkWithCredential
 } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, deleteField, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, addDoc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc, deleteField, Timestamp, query, where, orderBy, limit, getCountFromServer, getDocFromServer, writeBatch, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { postSignInView, type SignInIntent } from '../utils/signInIntent';
 import { 
   User, SellerProfile, AuctionItem, Bid, Wallet, 
@@ -334,6 +335,8 @@ interface AppContextProps {
 
   // Onboarding Additions
   completeOnboarding: () => Promise<void>;
+  /** CR-01 — one atomic write for the interests + notification consent step. */
+  saveInterests: (input: SaveInterestsInput) => Promise<void>;
   resetOnboarding: (userId?: string) => Promise<void>;
   markHintAsShown: (hintKey: string) => Promise<void>;
 
@@ -5079,6 +5082,63 @@ const fetchIP = async () => {
     }
   }, [currentUser]);
 
+  const saveInterests = useCallback(async (input: SaveInterestsInput) => {
+    if (!currentUser || currentUser.id === 'unauthenticated') {
+      throw new Error('saveInterests requires a signed-in user');
+    }
+    const uid = currentUser.id;
+    const consent = input.notifyChannel !== 'none' && (input.notifyDaily || input.notifyFeatured);
+
+    // ONE batch, so the preferences and the consent record cannot land apart.
+    // A half-applied save is the bad case in both directions: prefs without a
+    // consent row is a send we cannot prove was agreed to, and a consent row
+    // without prefs is a user who agreed and then never hears from us.
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', uid), {
+      interests: input.interests,
+      interestsSkipped: input.interestsSkipped,
+      interestsUpdatedAt: serverTimestamp(),
+      notifyDaily: input.notifyDaily,
+      notifyFeatured: input.notifyFeatured,
+      notifyChannel: input.notifyChannel,
+      notificationConsent: {
+        granted: consent,
+        channel: input.notifyChannel,
+        at: Timestamp.now(),
+        source: input.interestsSkipped ? 'onboarding-skip' : 'onboarding',
+      },
+    });
+    // APPEND-ONLY audit trail. `notificationConsent` above is only the latest
+    // state and the owner can overwrite it, so it proves nothing on its own —
+    // this subcollection is the record that a send was agreed to, and the
+    // rules allow create but never update or delete.
+    batch.set(doc(collection(db, 'users', uid, 'consentEvents')), {
+      granted: consent,
+      channel: input.notifyChannel,
+      notifyDaily: input.notifyDaily,
+      notifyFeatured: input.notifyFeatured,
+      interests: input.interests,
+      at: serverTimestamp(),
+      source: input.interestsSkipped ? 'onboarding-skip' : 'onboarding',
+    });
+
+    try {
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+      throw err;
+    }
+
+    setCurrentUser(prev => ({
+      ...prev,
+      interests: input.interests,
+      interestsSkipped: input.interestsSkipped,
+      notifyDaily: input.notifyDaily,
+      notifyFeatured: input.notifyFeatured,
+      notifyChannel: input.notifyChannel,
+    }));
+  }, [currentUser]);
+
   const resetOnboarding = useCallback(async (userId?: string) => {
     const targetUserId = userId || (currentUser && currentUser.id !== 'unauthenticated' ? currentUser.id : null);
     if (targetUserId) {
@@ -5625,6 +5685,7 @@ const fetchIP = async () => {
       subscribeUser,
       updateOwnProfile,
       completeOnboarding,
+      saveInterests,
       resetOnboarding,
       markHintAsShown,
       watchlist,
@@ -5678,7 +5739,7 @@ const fetchIP = async () => {
     createListing, setLanguage, requestSignIn, dismissSignIn, login, loginWithGoogle, loginWithPhone,
     confirmPhoneCode, requestWhatsappOtp, verifyWhatsappOtp, signInWhatsapp, linkPhoneSendCode, linkPhoneToAccount, attachWhatsappPhone, saveEmail,
     logout, registerUser, subscribeUser, updateOwnProfile,
-    completeOnboarding, resetOnboarding, markHintAsShown, toggleWatchlist,
+    completeOnboarding, saveInterests, resetOnboarding, markHintAsShown, toggleWatchlist,
     setAutoBid, removeAutoBid, sendChatMessage, updateMaintenanceMode,
     updateFeatureFlag, logSystemHealth, submitVerificationRequest,
     submitSellerReview, submitSellerReport, submitDispute, respondToDispute,

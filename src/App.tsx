@@ -13,6 +13,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { ContactCompletionModal } from './components/ContactCompletionModal';
 import { isProfileComplete } from './utils/jordanCities';
+import { needsInterestsOnboarding } from './utils/interests';
 import { useCtaPending } from './hooks/useCtaPending';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
 import { BootSplash, ViewSkeleton } from './components/FeedbackStates';
@@ -33,6 +34,7 @@ const SellView = lazy(() => import('./components/SellView').then(m => ({ default
 const MyOrdersView = lazy(() => import('./components/MyOrdersView').then(m => ({ default: m.MyOrdersView })));
 const HowItWorksView = lazy(() => import('./components/HowItWorksView').then(m => ({ default: m.HowItWorksView })));
 const ProhibitedItemsView = lazy(() => import('./components/ProhibitedItemsView').then(m => ({ default: m.ProhibitedItemsView })));
+const InterestsPicker = lazy(() => import('./components/InterestsPicker').then(m => ({ default: m.InterestsPicker })));
 
 function ActiveViewRenderer() {
   const { activeView, currentUser } = useApp();
@@ -52,6 +54,11 @@ function ActiveViewRenderer() {
       return <ProhibitedItemsView />;
     case 'watchlist':
       return <WatchlistView />;
+    case 'onboarding-interests':
+      // The gate below is what FORCES this screen; reaching the route any
+      // other way (a bookmark, Back after saving) must not re-ask someone who
+      // has already answered.
+      return needsInterestsOnboarding(currentUser) ? <InterestsPicker mode="onboarding" /> : <DiscoveryFeedView />;
     case 'profile':
       return <ProfileView />;
     case 'seller-center':
@@ -191,6 +198,42 @@ function MainAppShell() {
 
   const isStrictAdmin = isAdminUser(currentUser);
 
+  // CR-01 session latch — see the gate below for why a boolean in React state
+  // is not enough on its own. sessionStorage (not local) so a genuinely new
+  // session re-evaluates against the user doc rather than trusting a months-old
+  // flag on a shared device.
+  const [interestsLatched, setInterestsLatched] = React.useState(() => {
+    try {
+      return sessionStorage.getItem('mazad_interests_done') === '1';
+    } catch {
+      return false;
+    }
+  });
+  React.useEffect(() => {
+    if (!interestsLatched) return;
+    try {
+      sessionStorage.setItem('mazad_interests_done', '1');
+    } catch {
+      /* private mode — the in-memory latch still holds for this session */
+    }
+  }, [interestsLatched]);
+
+  // Put the step on its own URL while it is showing, so a refresh reloads the
+  // step instead of the shell behind it.
+  // EVERY condition the gate renders under, in one place — because the effect
+  // below runs no matter which branch of this component returned. An early
+  // return stops rendering, not effects: gating only the JSX let the URL be
+  // rewritten to /onboarding/interests for signed-out visitors and for users
+  // still sitting in the profile-completion step.
+  const interestsGateOpen =
+    isAuthenticated &&
+    isProfileComplete(currentUser) &&
+    needsInterestsOnboarding(currentUser) &&
+    !interestsLatched;
+  React.useEffect(() => {
+    if (interestsGateOpen) setActiveView('onboarding-interests');
+  }, [interestsGateOpen, setActiveView]);
+
   // The landing page is where paid traffic arrives, and it was the one surface
   // with no click feedback at all: its CTAs carried `active:scale-[0.98]`, a
   // CSS pseudo-class that produces no DOM mutation and disappears the moment
@@ -303,6 +346,37 @@ function MainAppShell() {
     return (
       <div className="min-h-screen bg-surface-raised">
         <ProfileCompletionModal />
+      </div>
+    );
+  }
+
+  // 2.6. CR-01 interests gate. Sits AFTER profile completion deliberately: a
+  // user with no name or city has not finished being a user yet, and stacking
+  // two full-screen steps in the other order asks what they like before it
+  // asks who they are.
+  //
+  // Rendered as a gate rather than navigated to, for the same reason the
+  // profile gate is: there is no DesktopFrame here, so there is no nav bar to
+  // escape through, and "forced through the screen once" is structural instead
+  // of a redirect that a Back tap can undo. The URL is still pushed to
+  // /onboarding/interests so a refresh reloads the step (and the in-progress
+  // picks, which InterestsPicker drafts to localStorage).
+  if (interestsGateOpen) {
+    return (
+      <div className="min-h-screen bg-surface">
+        <Suspense fallback={<ViewSkeleton />}>
+          <InterestsPicker
+            mode="onboarding"
+            onDone={() => {
+              // Latch for the session. The user doc write has landed, but a
+              // listener re-emitting a pre-write snapshot would otherwise
+              // bounce them straight back into the step they just finished —
+              // the same resurrection OnboardingModal latches against.
+              setInterestsLatched(true);
+              setActiveView('discovery');
+            }}
+          />
+        </Suspense>
       </div>
     );
   }

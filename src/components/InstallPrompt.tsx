@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Share, Download, X, Plus } from 'lucide-react';
+import { Share, Download, X, Plus, ArrowDown } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { BrandMark } from './BrandMark';
 import {
@@ -7,6 +7,10 @@ import {
   isIOSSafari,
   isDismissed,
   persistDismissal,
+  persistInstalled,
+  noteSession,
+  hasInstallEarnedFlag,
+  hasEarnedPrompt,
   resolveInstallMode,
   type InstallMode,
   type BeforeInstallPromptEvent,
@@ -63,7 +67,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
     const onInstalled = () => {
       deferredPrompt.current = null;
       setHasDeferredPrompt(false);
-      persistDismissal();
+      persistInstalled();
       setDismissed(true);
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
@@ -72,6 +76,17 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
       window.removeEventListener('appinstalled', onInstalled);
     };
+  }, []);
+
+  // Count the session ONCE, on mount, and work out whether the ask has been
+  // earned yet. CR-04 is explicit that the sheet must not appear on a first
+  // page load: it may appear from the second session onwards, or as soon as
+  // the user does something that signals real intent (their first bid, flagged
+  // by markInstallEarned in the bid flow).
+  const [earned, setEarned] = useState(false);
+  useEffect(() => {
+    const sessionCount = noteSession();
+    setEarned(hasEarnedPrompt({ sessionCount, didMeaningfulAction: hasInstallEarnedFlag() }));
   }, []);
 
   // Short delay before the banner is allowed to appear.
@@ -85,6 +100,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
     dismissed,
     hasDeferredPrompt,
     iosSafari,
+    earned,
   });
 
   const shouldRender = ready && !suppressed && mode !== null;
@@ -122,7 +138,9 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
     }
   };
 
-  const title = isAr ? 'أضِف مزادو إلى شاشتك الرئيسية' : 'Add Mazzado to your Home Screen';
+  // Jordanian colloquial, per CR-04. The audience is Arabic-first and speaks
+  // 'ضيف', not the MSA 'أضِف' that was here.
+  const title = isAr ? 'ضيف مزادو على شاشتك الرئيسية' : 'Add Mazzado to your Home Screen';
 
   return (
     <div
@@ -150,7 +168,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
                 <>
                   <span>اضغط زر المشاركة</span>
                   <Share className="w-3.5 h-3.5 text-[#FF6B00] shrink-0" />
-                  <span>ثم &laquo;إضافة إلى الشاشة الرئيسية&raquo;</span>
+                  <span>بالأسفل، وبعدين اختار &laquo;إضافة إلى الشاشة الرئيسية&raquo;</span>
                 </>
               ) : (
                 <>
@@ -185,6 +203,24 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ suppressed = false
           <X className="w-4 h-4" strokeWidth={2.5} />
         </button>
       </div>
+
+      {/* The pointer CR-04 asks for. iOS Safari puts Share in the BOTTOM
+          toolbar — below this sheet — so the arrow points down, out of the
+          card, at roughly where the thumb has to go. Purely decorative and
+          pointer-events-none, so it can never swallow a tap meant for the
+          card or the toolbar behind it. Only for the iOS branch: the Android
+          card has a real Install button and nothing to point at. */}
+      {mode === 'ios' && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[#FF6B00] transition-opacity duration-300 ${
+            entered ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{ top: '100%' }}
+        >
+          <ArrowDown className="w-5 h-5 animate-bounce" strokeWidth={2.5} />
+        </span>
+      )}
     </div>
   );
 };

@@ -136,7 +136,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     seller_center: 'مركز البائع',
     active_auctions: 'المزادات النشطة',
     completed_sales: 'المبيعات المكتملة',
-    pending_orders: 'الطلبات المعلقة',
+    pending_orders: 'طلبات معلقة',
     total_revenue: 'إجمالي الإيرادات',
     wallet_balance: 'رصيد المحفظة المتاح',
     escrow_locked: 'المحجوز في الضمان',
@@ -207,8 +207,8 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     all_caught_up_sub: 'كل مزاداتك وطلباتك تحت السيطرة.',
     recent_activity: 'آخر النشاطات',
     active_listings: 'مزادات نشطة',
-    live_bids_now: 'مزايدات مباشرة الآن',
-    this_month_sales: 'مبيعات هذا الشهر',
+    live_bids_now: 'مزايدات الآن',
+    this_month_sales: 'مبيعات الشهر',
     view_details: 'عرض',
     // Action item labels + CTAs (by kind)
     act_ship_label: 'طلبات بانتظار الشحن',
@@ -255,7 +255,7 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     seller_center: 'Seller Center',
     active_auctions: 'Active Auctions',
     completed_sales: 'Completed Sales',
-    pending_orders: 'Pending Orders',
+    pending_orders: 'Pending',
     total_revenue: 'Total Revenue',
     wallet_balance: 'Available Wallet Balance',
     escrow_locked: 'Escrow Locked',
@@ -325,9 +325,9 @@ const sellerTranslations: Record<string, Record<string, string>> = {
     all_caught_up: "You're all caught up",
     all_caught_up_sub: 'Every listing and order is under control.',
     recent_activity: 'Recent activity',
-    active_listings: 'Active listings',
-    live_bids_now: 'Live bids now',
-    this_month_sales: 'This-month sales',
+    active_listings: 'Listings',
+    live_bids_now: 'Live bids',
+    this_month_sales: 'This month',
     view_details: 'View',
     // Action item labels + CTAs (by kind)
     act_ship_label: 'Orders to ship',
@@ -1251,7 +1251,7 @@ export const SellerCenterView: React.FC = () => {
                   return (
                     <div key={idx} className="bg-surface-raised rounded-2xl p-4 border border-line shadow-sm flex items-center justify-between gap-2">
                       <div className="space-y-1 min-w-0">
-                        <p className="text-[10px] text-fg-muted font-bold tracking-wider uppercase leading-none truncate">{m.title}</p>
+                        <p className="text-[10px] text-fg-muted font-bold tracking-wide uppercase leading-none truncate">{m.title}</p>
                         <p className="text-base md:text-lg font-black text-fg leading-tight tabular-nums">{m.value}</p>
                       </div>
                       <div className="p-2 rounded-xl bg-accent-weak text-[#FF6B00] shrink-0">

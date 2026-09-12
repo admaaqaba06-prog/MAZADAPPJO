@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import AuctionRulesModal from './AuctionRulesModal';
 import { useMembership } from '../hooks/useMembership';
+import { InterestsPicker } from './InterestsPicker';
 import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL } from '../constants/support';
 
 /** Order states that count as a "win" the buyer followed through on (paid → completed). */
@@ -577,6 +578,24 @@ export const ProfileView: React.FC = () => {
                 <span>{isAr ? 'ترقية وتحديث الاشتراك' : 'Upgrade & Manage Plans'}</span>
                 <Sparkles className="w-3.5 h-3.5" />
               </button>
+            </div>
+
+            {/* اهتماماتي — CR-01. The SAME component the onboarding step
+                mounts, in settings mode. This is the opt-out surface: turning
+                the toggle off here is what must actually exclude the user from
+                the CR-02 daily digest and the CR-03 featured alert, which is
+                why it shares the save path rather than reimplementing it. */}
+            <div className="bg-surface-raised border border-line rounded-3xl p-6 space-y-4" id="profile-interests">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FF6B00]/10 flex items-center justify-center text-[#FF6B00]">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-sans font-black text-xs text-fg uppercase tracking-wider">{isAr ? 'اهتماماتي' : 'My interests'}</h3>
+                  <p className="text-[9px] text-fg-muted">{isAr ? 'الفئات الي بتوصلك تنبيهات عنها' : 'The categories we alert you about'}</p>
+                </div>
+              </div>
+              <InterestsPicker mode="settings" />
             </div>
 
             {/* Sessions & Security Card */}

@@ -232,7 +232,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 }`}
               >
                 <Home className="w-6 h-6" strokeWidth={1.9} />
-                <span className={`text-[11px] tracking-normal ${activeView === 'discovery' ? 'font-semibold' : 'font-medium'}`}>
+                <span className={`w-full truncate px-0.5 text-center text-[11px] tracking-normal ${activeView === 'discovery' ? 'font-semibold' : 'font-medium'}`}>
                   {isAr ? 'اكتشف' : 'Discover'}
                 </span>
                 {/* Active underline — 20px, orange, no filled background. */}
@@ -263,7 +263,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                     />
                   )}
                 </span>
-                <span className={`text-[11px] tracking-normal ${activeView === 'orders' ? 'font-semibold' : 'font-medium'}`}>
+                <span className={`w-full truncate px-0.5 text-center text-[11px] tracking-normal ${activeView === 'orders' ? 'font-semibold' : 'font-medium'}`}>
                   {isAr ? 'مشترياتي' : 'Orders'}
                 </span>
                 {activeView === 'orders' && (
@@ -277,40 +277,19 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 flank it. */}
             <div className="w-[78px] shrink-0" aria-hidden="true" />
 
-            {/* TRAILING GROUP — the left-hand half under RTL. */}
+            {/* TRAILING GROUP — the left-hand half under RTL.
+
+                MEMBERSHIP IS DELIBERATELY NOT A TAB HERE. It was one, and it is
+                what broke this bar: five labelled tabs split 2/3 around the
+                reserved centre gave the trailing three ~62px each at 375px,
+                while "Membership" needs ~78px — so it ran into "Profile" on
+                every iPhone-width screen. The destination is not orphaned by
+                its removal: ProfileView already carries a full membership
+                block — status, expiry, and an "Upgrade & Manage Plans" button
+                onto the same 'wallet' route — which is a richer entry point
+                than a 11px tab label ever was. Re-adding the tab re-opens the
+                collision; put new destinations in Profile instead. */}
             <div className="flex flex-1 items-stretch justify-around">
-              {/* Membership. The fourth tab the reference has and this bar
-                  lacked, and it earns the slot on its own merits rather than to
-                  fill a gap: membership is what GATES bidding here, so it is the
-                  conversion step the whole feed pushes towards, and it had no
-                  mobile entry point at all — the only way in was a desktop pill
-                  hidden behind `sm:` and `currentUser`.
-
-                  Route is `wallet`, which renders SubscriptionView; the internal
-                  name is historical. `Coins` is the icon the desktop pill already
-                  uses for this destination, kept so the two agree. Guests get the
-                  same tab, because joining is exactly what a guest is here to do
-                  and SubscriptionView is the screen that asks. */}
-              <button
-                onClick={() => setActiveView('wallet')}
-                data-cta-target="wallet"
-                aria-current={activeView === 'wallet' ? 'page' : undefined}
-                className={`relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                  activeView === 'wallet'
-                    ? 'text-[#FF6B00]'
-                    : activeView === 'live' ? 'text-zinc-400 hover:text-zinc-200' : 'text-fg-muted hover:text-fg'
-                }`}
-                id="mobile-subscription-tab-btn"
-              >
-                <Coins className="w-6 h-6" strokeWidth={1.9} />
-                <span className={`text-[11px] tracking-normal ${activeView === 'wallet' ? 'font-semibold' : 'font-medium'}`}>
-                  {isAr ? 'اشتراكي' : 'Membership'}
-                </span>
-                {activeView === 'wallet' && (
-                  <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
-                )}
-              </button>
-
               <button
                 onClick={() => (isGuest ? requestSignIn('account') : setActiveView('profile'))}
                 data-cta-target="profile"
@@ -322,7 +301,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 }`}
               >
                 <User className="w-6 h-6" strokeWidth={1.9} />
-                <span className={`text-[11px] tracking-normal ${activeView === 'profile' ? 'font-semibold' : 'font-medium'}`}>
+                <span className={`w-full truncate px-0.5 text-center text-[11px] tracking-normal ${activeView === 'profile' ? 'font-semibold' : 'font-medium'}`}>
                   {isGuest ? (isAr ? 'دخول' : 'Sign in') : (isAr ? 'حسابي' : 'Profile')}
                 </span>
                 {activeView === 'profile' && (
@@ -342,7 +321,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   }`}
                 >
                   <Store className="w-6 h-6" strokeWidth={1.9} />
-                  <span className={`text-[11px] tracking-normal ${activeView === 'seller-center' ? 'font-semibold' : 'font-medium'}`}>
+                  <span className={`w-full truncate px-0.5 text-center text-[11px] tracking-normal ${activeView === 'seller-center' ? 'font-semibold' : 'font-medium'}`}>
                     {isAr ? 'المتجر' : 'Seller'}
                   </span>
                   {activeView === 'seller-center' && (
@@ -360,7 +339,7 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                   id="mobile-admin-tab-btn"
                 >
                   <ShieldAlert className="w-6 h-6 animate-pulse" strokeWidth={1.9} />
-                  <span className="text-[11px] font-medium tracking-normal">{isAr ? 'المشرف' : 'Admin'}</span>
+                  <span className="w-full truncate px-0.5 text-center text-[11px] font-medium tracking-normal">{isAr ? 'المشرف' : 'Admin'}</span>
                   {activeView === 'admin' && (
                     <span aria-hidden="true" className="absolute bottom-2 h-[2.5px] w-5 rounded-full bg-[#FF6B00]" />
                   )}

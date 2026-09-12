@@ -18,6 +18,14 @@ const { otpMessage } = require('./otpCopy');
 const {
   N8N_HEALTH_WORKFLOWS, summarizeExecutions, incidentFor,
 } = require('./n8nHealth');
+const { runDailyDigest } = require("./dailyDigestRun");
+const {
+  isStopMessage,
+  isStartMessage,
+  optOutConfirmation,
+  QUIET_START_HOUR: DIGEST_QUIET_START,
+  QUIET_END_HOUR: DIGEST_QUIET_END,
+} = require("./dailyDigest");
 const { resolveTierByPrice } = require('./subscriptionTiers');
 const {
   approveSubscriptionRequest,
@@ -6489,3 +6497,260 @@ exports.attachWhatsappPhone = functions.runWith({ cors: true }).https.onCall(asy
 
 
 
+
+/* =========================================================================
+ * CR-02 — daily "new auctions matching your interests" digest.
+ *
+ * Decisions live in ./dailyDigest.js, the run order in ./dailyDigestRun.js.
+ * What is here is the wiring only: the relay call, the schedule, an admin
+ * trigger, and the inbound opt-out webhook.
+ * ========================================================================= */
+
+/**
+ * The send hour, as a CONFIG value rather than a literal in the cron string.
+ *
+ * Read at deploy time, because `.schedule()` is baked into the Cloud Scheduler
+ * job — changing it needs a redeploy. That is fine and is a different lever
+ * from the kill switch, which is read at RUN time precisely so stopping a send
+ * never needs one.
+ *
+ * 19:00 Amman is the default: before the evening browsing peak. Worth A/B'ing
+ * against 21:00, which is why it is a variable at all.
+ */
+const DIGEST_HOUR = (() => {
+  const raw = Number(process.env.DIGEST_HOUR);
+  return Number.isInteger(raw) && raw >= 0 && raw <= 23 ? raw : 19;
+})();
+const DIGEST_MINUTE = (() => {
+  const raw = Number(process.env.DIGEST_MINUTE);
+  return Number.isInteger(raw) && raw >= 0 && raw <= 59 ? raw : 0;
+})();
+
+// A misconfigured hour is silent otherwise: the job fires, the quiet-hours gate
+// rejects it, and the logs read like a working cron that never sends.
+if (DIGEST_HOUR >= DIGEST_QUIET_START || DIGEST_HOUR < DIGEST_QUIET_END) {
+  console.warn(
+    `[dailyDigest] DIGEST_HOUR=${DIGEST_HOUR} is inside quiet hours ` +
+      `(${DIGEST_QUIET_START}:00-${DIGEST_QUIET_END}:00 Amman). Every run will exit without sending.`,
+  );
+}
+
+/**
+ * Hand one digest to the n8n relay. Returns whether it was ACCEPTED.
+ *
+ * Modelled on postOtpToRelay, not postToN8n: the fire-and-forget variant
+ * returns nothing, and this caller has to know, because it writes the
+ * notifications_log row that decides whether the user is ever told about these
+ * lots again. Recording a send that never happened is how a lot goes missing
+ * permanently.
+ *
+ * No n8n change is needed for this event. Build Messages forwards a non-blank
+ * `wa_text` straight through (n8n/build-messages.js) and gates the send on
+ * `channels.whatsapp` plus a plausible phone — so the workflow stays a
+ * forwarder and the copy stays in this repo.
+ */
+async function postDigestToN8n({ phone, text, uid, lang }) {
+  const url = process.env.N8N_WEBHOOK_URL;
+  if (!url) {
+    console.warn('[dailyDigest] N8N_WEBHOOK_URL unset — cannot send.');
+    return false;
+  }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'daily_digest',
+        phone,
+        email: '',
+        name: '',
+        // Explicitly NOT email and NOT in-app: this is a WhatsApp digest, and
+        // an in-app copy of it would be a bell notification per evening that
+        // nobody asked for.
+        channels: { inapp: false, whatsapp: true, email: false },
+        wa_text: text,
+        // One key per user per calendar day, so a replayed webhook is
+        // recognisable downstream even though the real guard is the log.
+        idempotencyKey: `${uid}_daily_digest_${new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10)}`,
+        lang,
+        ts: Date.now(),
+      }),
+      // Longer than the 5s the money paths allow: nothing is waiting on this,
+      // and a digest cut off at 5s would be logged as failed and retried.
+      signal: AbortSignal.timeout(10000),
+    });
+    const delivered = await isRelayDelivered(res);
+    if (!delivered) {
+      // Log the BODY: the live failure mode is HTTP 200 with
+      // {"success":false,"message":"Your Whatsapp Session is not connected"}.
+      let detail = '';
+      try {
+        if (typeof res.clone === 'function') detail = (await res.clone().text() || '').slice(0, 300);
+      } catch (_) { /* unreadable body */ }
+      console.warn('[dailyDigest] relay rejected the send:', res && res.status, detail);
+    }
+    return delivered;
+  } catch (e) {
+    console.warn('[dailyDigest] relay send failed:', e && e.message);
+    return false;
+  }
+}
+
+/** Shared options for both entry points into the run. */
+function digestDeps(extra) {
+  return {
+    db,
+    send: postDigestToN8n,
+    resolveLang: (user) => safeResolveLang(user, 'dailyDigest'),
+    normalizePhone,
+    serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+    ...extra,
+  };
+}
+
+/** Record every run, dry or real, so a rehearsal is reviewable afterwards. */
+async function recordDigestRun(summary) {
+  try {
+    await db.collection('notificationRuns').add({
+      kind: 'daily_digest',
+      at: admin.firestore.FieldValue.serverTimestamp(),
+      ...summary,
+    });
+  } catch (e) {
+    console.error('[dailyDigest] run summary write failed:', e && e.message);
+  }
+}
+
+/**
+ * The scheduled send. 540s and 512MB because the work is one relay round trip
+ * per subscriber, bounded by the concurrency limit inside the run.
+ */
+exports.dailyInterestDigest = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .pubsub
+  .schedule(`${DIGEST_MINUTE} ${DIGEST_HOUR} * * *`)
+  .timeZone('Asia/Amman')
+  .onRun(async () => {
+    try {
+      const summary = await runDailyDigest(digestDeps({}));
+      await recordDigestRun(summary);
+    } catch (e) {
+      // A thrown run would be retried by the scheduler, and a retry is a
+      // second evening message for everyone already sent. The per-user log cap
+      // would catch that, but this is the cheaper place to stop it.
+      console.error('[dailyDigest] run failed:', e);
+    }
+    return null;
+  });
+
+/**
+ * Admin trigger. DRY RUN BY DEFAULT — `{ dryRun: false }` has to be passed
+ * explicitly to send anything, because the obvious mistake here (calling it to
+ * "see what it does") is the one that messages every subscriber at once.
+ */
+exports.runDailyDigestNow = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    await assertAdmin(context);
+    const dryRun = !(data && data.dryRun === false);
+    const summary = await runDailyDigest(digestDeps({ dryRun }));
+    await recordDigestRun(summary);
+    return { ok: true, dryRun, summary };
+  });
+
+/**
+ * Inbound WhatsApp handler — the "إيقاف" path, called by n8n.
+ *
+ * Requires a shared secret and FAILS CLOSED without one. This endpoint edits
+ * notification settings by phone number alone; unauthenticated, anyone who
+ * guessed the URL could silence any customer, and silence is the one failure
+ * this feature cannot detect on its own.
+ */
+exports.notificationsInbound = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).json({ ok: false, error: 'method_not_allowed' });
+    return;
+  }
+  const secret = process.env.N8N_INBOUND_SECRET;
+  if (!secret) {
+    console.error('[notificationsInbound] N8N_INBOUND_SECRET unset — refusing every request.');
+    res.status(503).json({ ok: false, error: 'not_configured' });
+    return;
+  }
+  const provided = String(req.get('x-mazad-signature') || (req.body && req.body.token) || '');
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    res.status(403).json({ ok: false, error: 'forbidden' });
+    return;
+  }
+
+  const body = req.body || {};
+  const text = String(body.text || body.message || '');
+  const stop = isStopMessage(text);
+  const start = isStartMessage(text);
+  if (!stop && !start) {
+    // Not an opt-out. Say so plainly rather than guessing — a wrong guess here
+    // either silences someone who asked a question, or ignores someone who
+    // asked to be left alone.
+    res.status(200).json({ ok: true, action: 'ignored' });
+    return;
+  }
+
+  const e164 = normalizePhone(body.phone || body.from);
+  if (!e164) {
+    res.status(400).json({ ok: false, error: 'bad_phone' });
+    return;
+  }
+
+  // The number may be on either field — phone signups write phoneNumber,
+  // older profiles carry phone.
+  let hit = null;
+  for (const field of ['phoneNumber', 'phone']) {
+    const snap = await db.collection('users').where(field, '==', e164).limit(1).get();
+    if (!snap.empty) { hit = snap.docs[0]; break; }
+  }
+  if (!hit) {
+    // Nothing to change, and we still answer 200: an unknown number is not an
+    // error n8n should retry.
+    res.status(200).json({ ok: true, action: 'unknown_number' });
+    return;
+  }
+
+  const lang = safeResolveLang(hit.data(), 'notificationsInbound');
+  const on = start;
+  await hit.ref.update({
+    notifyDaily: on,
+    notifyFeatured: on,
+    notifyChannel: on ? 'whatsapp' : 'none',
+    notificationConsent: {
+      granted: on,
+      channel: on ? 'whatsapp' : 'none',
+      at: admin.firestore.Timestamp.now(),
+      source: on ? 'whatsapp-start' : 'whatsapp-stop',
+    },
+  });
+  // Same append-only trail CR-01 writes. An opt-OUT is exactly as important to
+  // be able to prove as an opt-in.
+  try {
+    await hit.ref.collection('consentEvents').add({
+      granted: on,
+      channel: on ? 'whatsapp' : 'none',
+      notifyDaily: on,
+      notifyFeatured: on,
+      at: admin.firestore.FieldValue.serverTimestamp(),
+      source: on ? 'whatsapp-start' : 'whatsapp-stop',
+    });
+  } catch (e) {
+    console.error('[notificationsInbound] consent event write failed:', e && e.message);
+  }
+
+  res.status(200).json({
+    ok: true,
+    action: on ? 'resubscribed' : 'unsubscribed',
+    // n8n sends this back verbatim, same contract as wa_text.
+    wa_text: on
+      ? (lang === 'en' ? 'Done — auction alerts are back on.' : 'تمام، رجّعنا التنبيهات. بنبعتلك أول ما ينزل إشي بيهمك.')
+      : optOutConfirmation(lang),
+  });
+});
