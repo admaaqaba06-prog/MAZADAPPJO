@@ -4,6 +4,7 @@ import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
 import { isActiveMember } from '../utils/membership';
 import { serverNow } from '../utils/serverTime';
+import { markInstallEarned } from '../utils/installPrompt';
 
 type BidResult = { success: boolean; message: string } | void;
 type BidExecute = (amount: number) => Promise<BidResult> | BidResult;
@@ -101,7 +102,14 @@ export function useBidFlow(execute: BidExecute) {
     setPendingBid(null);
     setSubmitting(true);
     try {
-      return await execute(amount);
+      const result = await execute(amount);
+      // CR-04: a placed bid is the "meaningful action" that earns the
+      // Add-to-Home-Screen ask. Flagged here rather than in the prompt because
+      // this is the only place that knows a bid actually SUCCEEDED — and on
+      // iOS an installed app is the sole route to free web push, so the first
+      // bid is exactly when the offer is worth making.
+      if (!result || result.success) markInstallEarned();
+      return result;
     } finally {
       inFlight.current = false;
       setSubmitting(false);

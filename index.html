@@ -12,7 +12,12 @@
          text) under light, 'black-translucent' under dark. The value here is only
          what ships in the HTML before that script runs. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Mazzado" />
+    <!-- The label under the icon on an iOS home screen. iOS takes it from
+         HERE, not from the manifest's short_name, so the two have to be set
+         together or the installed app is called something the manifest never
+         says. Arabic, because that is the brand the Arabic-first audience
+         recognises. -->
+    <meta name="apple-mobile-web-app-title" content="مزادو" />
 
     <!-- Pre-paint theme. MUST be inline, synchronous, and before any stylesheet:
          anything deferred runs after the first paint, so the page flashes light

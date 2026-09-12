@@ -1,15 +1,15 @@
 {
-  "name": "Mazzado — Live Auctions in Jordan",
-  "short_name": "Mazzado",
-  "description": "Real-time auctions in Jordan. Browse and bid free — pay via CliQ only when you win. Mazad holds your payment until you confirm receipt.",
-  "start_url": "/",
+  "name": "مزادو",
+  "short_name": "مزادو",
+  "description": "مزادات مباشرة في الأردن. تصفّح وزايد مجاناً — وادفع عبر كليك فقط لما تفوز. مزادو بيحتفظ بفلوسك لحد ما تستلم وتأكّد.",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F7F6F3",
-  "theme_color": "#FFFFFF",
-  "orientation": "portrait-primary",
+  "background_color": "#FF6B00",
+  "theme_color": "#FF6B00",
+  "orientation": "portrait",
   "lang": "ar",
-  "dir": "auto",
+  "dir": "rtl",
   "categories": [
     "shopping",
     "business"
