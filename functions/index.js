@@ -19,6 +19,16 @@ const {
   N8N_HEALTH_WORKFLOWS, summarizeExecutions, incidentFor,
 } = require('./n8nHealth');
 const { runDailyDigest } = require("./dailyDigestRun");
+const { runFeaturedAlert, readRecentBroadcasts } = require("./featuredAlertRun");
+const {
+  validateReason,
+  isFeaturedCapped,
+  nextAllowedAt,
+  capMessage,
+  FEATURED_WINDOW_MS,
+  FEATURED_MAX_PER_WINDOW,
+  REASON_MAX: FEATURED_REASON_MAX,
+} = require("./featuredAlert");
 const {
   isStopMessage,
   isStartMessage,
@@ -6753,4 +6763,149 @@ exports.notificationsInbound = functions.https.onRequest(async (req, res) => {
       ? (lang === 'en' ? 'Done — auction alerts are back on.' : 'تمام، رجّعنا التنبيهات. بنبعتلك أول ما ينزل إشي بيهمك.')
       : optOutConfirmation(lang),
   });
+});
+
+/* =========================================================================
+ * CR-03 — featured auction alert.
+ *
+ * A CALLABLE, not a Firestore trigger on `isFeatured`.
+ *
+ * "Setting the flag triggers the broadcast" reads like an onUpdate trigger,
+ * and a trigger cannot satisfy the other half of the same requirement: the
+ * admin has to see a BLOCKING message when the weekly cap is spent. By the
+ * time a trigger runs the write has already landed, so the cap could only be
+ * reported after the fact — or enforced by silently dropping a send the admin
+ * believes went out, which is worse than either.
+ *
+ * Putting the cap in the callable is also what makes it unbypassable from the
+ * UI, as the spec requires: there is no client path that sets the flag and
+ * broadcasts except through this function, and this function counts first.
+ * ========================================================================= */
+
+/** Ledger of featured broadcasts. The cap counts rows here. */
+const FEATURED_BROADCASTS = 'featuredBroadcasts';
+
+exports.broadcastFeaturedAuction = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    await assertAdmin(context);
+
+    const auctionId = String((data && data.auctionId) || '').trim();
+    if (!auctionId) {
+      throw new functions.https.HttpsError('invalid-argument', 'auctionId is required.');
+    }
+
+    // The reason is validated HERE as well as inside the run, so the admin gets
+    // a precise error instead of a generic refusal.
+    const check = validateReason(data && data.featuredReason);
+    if (!check.ok) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        check.code === 'reason_too_long'
+          ? `السبب طويل — خليه بحدود ${FEATURED_REASON_MAX} حرف.`
+          : 'لازم تكتب سبب قصير للتمييز، مثلاً: سعره بادي من ٥ دنانير.',
+        { code: check.code },
+      );
+    }
+
+    const sendToAll = data && data.sendToAll === true;
+    const dryRun = data && data.dryRun === true;
+    const nowMs = Date.now();
+
+    // THE CAP, before anything is written or sent. A dry run is exempt from
+    // consuming a slot but not from being told it would be blocked — an admin
+    // rehearsing against a spent cap needs to know that now, not after.
+    const recent = await readRecentBroadcasts(db, nowMs, FEATURED_WINDOW_MS);
+    if (isFeaturedCapped(recent, nowMs)) {
+      const next = nextAllowedAt(recent, nowMs);
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        capMessage(next, 'ar'),
+        { code: 'featured_capped', nextAllowedAt: next, capMessageEn: capMessage(next, 'en') },
+      );
+    }
+
+    // Flag the lot. This is the field the landing feed already sorts on, so a
+    // lot we are shouting about also ranks where the shouting points.
+    if (!dryRun) {
+      await db.collection('auctions').doc(auctionId).update({
+        isFeatured: true,
+        featuredReason: check.reason,
+        featuredAlertAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    const summary = await runFeaturedAlert({
+      db,
+      auctionId,
+      reason: check.reason,
+      sendToAll,
+      dryRun,
+      send: postDigestToN8n,
+      resolveLang: (user) => safeResolveLang(user, 'featuredAlert'),
+      normalizePhone,
+      serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // The run can still refuse after the cap check — quiet hours, a lot that
+    // went off-live between the two reads, the kill switch. Surface that as an
+    // error rather than a success with sent=0, which reads as "nobody matched".
+    if (summary.refused) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        FEATURED_REFUSALS[summary.refused] || 'ما قدرنا نبعت التنبيه.',
+        { code: summary.refused },
+      );
+    }
+
+    // Consume a slot only when something ACTUALLY went out. A broadcast that
+    // matched nobody spent no attention, so it should not spend a slot either.
+    if (!dryRun && summary.sent > 0) {
+      await db.collection(FEATURED_BROADCASTS).add({
+        auctionId,
+        reason: check.reason,
+        sendToAll,
+        at: Date.now(),
+        sentCount: summary.sent,
+        by: context.auth && context.auth.uid,
+      });
+    }
+
+    await recordDigestRun({ ...summary, kind: 'featured_alert' });
+    return { ok: true, dryRun, summary };
+  });
+
+/** Arabic for each way the run can refuse after the cap check passed. */
+const FEATURED_REFUSALS = {
+  killSwitch: 'تنبيهات المزادات المميزة موقوفة حالياً من الإعدادات.',
+  quietHours: 'ما بنبعت تنبيهات بين ١١ مساءً و٩ صباحاً بتوقيت عمّان. جرّب بعدين.',
+  auction_not_found: 'ما لقينا هذا المزاد.',
+  auction_not_live: 'المزاد مش مباشر، فما بنقدر نبعت عنه تنبيه.',
+  capped: 'انتهى سقف التنبيهات المميزة لهذا الأسبوع.',
+  reason_required: 'لازم تكتب سبب قصير للتمييز.',
+  reason_too_long: 'السبب طويل — خليه أقصر.',
+};
+
+/**
+ * How many featured slots are left, and when the next one frees up.
+ *
+ * The admin screen calls this to DISABLE the button and show the blocking
+ * message before anything is typed — the cap is enforced in the callable
+ * above regardless, so this is purely so the UI can tell the truth up front
+ * rather than letting someone write a reason and then refusing them.
+ */
+exports.featuredAlertQuota = functions.https.onCall(async (_data, context) => {
+  await assertAdmin(context);
+  const nowMs = Date.now();
+  const recent = await readRecentBroadcasts(db, nowMs, FEATURED_WINDOW_MS);
+  const capped = isFeaturedCapped(recent, nowMs);
+  const next = nextAllowedAt(recent, nowMs);
+  return {
+    used: recent.length,
+    max: FEATURED_MAX_PER_WINDOW,
+    capped,
+    nextAllowedAt: next,
+    message: capped ? capMessage(next, 'ar') : null,
+    messageEn: capped ? capMessage(next, 'en') : null,
+  };
 });

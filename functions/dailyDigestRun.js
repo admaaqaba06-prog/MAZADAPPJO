@@ -285,4 +285,4 @@ async function runDailyDigest({
   return { ...summary, freshLots: fresh.length, dryRun, intended };
 }
 
-module.exports = { runDailyDigest, sendWithRetry, mapWithConcurrency, capKey };
+module.exports = { runDailyDigest, sendWithRetry, mapWithConcurrency, readLogDocs, capKey };

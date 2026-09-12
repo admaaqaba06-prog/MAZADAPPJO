@@ -80,6 +80,12 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [consent, setConsent] = useState<boolean>(DEFAULT_NOTIFY_PREFS.notifyDaily);
+  // CR-03 requires the two alerts to be independently mutable: a user may keep
+  // featured alerts while muting the daily digest, or the reverse. Onboarding
+  // still asks ONCE — a first-run screen that opens with two notification
+  // switches is asking someone to make a distinction they have no basis for
+  // yet — and settings is where the two come apart.
+  const [consentFeatured, setConsentFeatured] = useState<boolean>(DEFAULT_NOTIFY_PREFS.notifyFeatured);
   const [busy, setBusy] = useState<null | 'save' | 'skip'>(null);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -93,6 +99,7 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
     setSelected(sanitizeSelection(base, categories));
     if (draft) setConsent(draft.consent);
     else if (currentUser && currentUser.notifyDaily !== undefined) setConsent(!!currentUser.notifyDaily);
+    if (currentUser && currentUser.notifyFeatured !== undefined) setConsentFeatured(!!currentUser.notifyFeatured);
     setHydrated(true);
   }, [loading, hydrated, categories, saved, isOnboarding, currentUser]);
 
@@ -119,8 +126,13 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
         interests: sanitizeSelection(ids, categories),
         interestsSkipped: skipped,
         notifyDaily: consent,
-        notifyFeatured: consent,
-        notifyChannel: (consent ? 'whatsapp' : 'none') as NotifyChannel,
+        // Onboarding sets both from the single question it asked. Settings
+        // sends them separately, so turning one off there leaves the other on.
+        notifyFeatured: isOnboarding ? consent : consentFeatured,
+        // The channel only goes to 'none' when BOTH are off — otherwise
+        // muting the digest would silently mute featured alerts too, via a
+        // field the user never saw.
+        notifyChannel: ((isOnboarding ? consent : consent || consentFeatured) ? 'whatsapp' : 'none') as NotifyChannel,
       });
       clearDraft();
       if (onDone) onDone();
@@ -175,25 +187,23 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
     </div>
   );
 
-  const consentToggle = (
+  /** One switch. Parameterised because settings shows two of them. */
+  const toggleRow = (opts: { id: string; on: boolean; onToggle: () => void; label: string }) => (
     <button
+      key={opts.id}
       type="button"
       role="switch"
-      aria-checked={consent}
-      onClick={() => setConsent(v => !v)}
-      id="interests-consent-toggle"
+      aria-checked={opts.on}
+      onClick={opts.onToggle}
+      id={opts.id}
       className="w-full flex items-center gap-3 rounded-2xl border border-line bg-surface-raised p-4 text-start cursor-pointer"
     >
       <MessageCircle className="w-5 h-5 shrink-0 text-[#25D366]" strokeWidth={2} />
-      <span className="flex-1 min-w-0 text-[13px] font-semibold text-fg leading-snug">
-        {isAr
-          ? 'ابعتولي تنبيهات على واتساب بالمزادات الجديدة'
-          : 'Send me WhatsApp alerts about new auctions'}
-      </span>
+      <span className="flex-1 min-w-0 text-[13px] font-semibold text-fg leading-snug">{opts.label}</span>
       <span
         aria-hidden="true"
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          consent ? 'bg-[#FF6B00]' : 'bg-fg-muted/30'
+          opts.on ? 'bg-[#FF6B00]' : 'bg-fg-muted/30'
         }`}
       >
         <span
@@ -202,11 +212,38 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
           // hardcoded light-mode backgrounds. The admin switches in
           // SystemSection already use this same token for their knob.
           className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface-raised shadow transition-all ${
-            consent ? 'start-[1.375rem]' : 'start-0.5'
+            opts.on ? 'start-[1.375rem]' : 'start-0.5'
           }`}
         />
       </span>
     </button>
+  );
+
+  // Onboarding asks once; settings splits the two.
+  const consentToggle = toggleRow({
+    id: 'interests-consent-toggle',
+    on: consent,
+    onToggle: () => setConsent(v => !v),
+    label: isAr
+      ? 'ابعتولي تنبيهات على واتساب بالمزادات الجديدة'
+      : 'Send me WhatsApp alerts about new auctions',
+  });
+
+  const settingsToggles = (
+    <div className="space-y-2">
+      {toggleRow({
+        id: 'interests-consent-toggle',
+        on: consent,
+        onToggle: () => setConsent(v => !v),
+        label: isAr ? 'الملخص اليومي للمزادات الجديدة' : 'Daily digest of new auctions',
+      })}
+      {toggleRow({
+        id: 'interests-featured-toggle',
+        on: consentFeatured,
+        onToggle: () => setConsentFeatured(v => !v),
+        label: isAr ? 'تنبيه المزادات المميزة' : 'Featured auction alerts',
+      })}
+    </div>
   );
 
   if (loading) {
@@ -220,12 +257,15 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
   // ---- Settings mount: a block inside Profile, no full-screen chrome. ----
   if (!isOnboarding) {
     const savedConsent = currentUser && currentUser.notifyDaily !== undefined ? !!currentUser.notifyDaily : true;
+    const savedFeatured = currentUser && currentUser.notifyFeatured !== undefined ? !!currentUser.notifyFeatured : true;
     const dirty =
-      selected.slice().sort().join('|') !== saved.slice().sort().join('|') || consent !== savedConsent;
+      selected.slice().sort().join('|') !== saved.slice().sort().join('|') ||
+      consent !== savedConsent ||
+      consentFeatured !== savedFeatured;
     return (
       <div className="space-y-4" id="interests-settings">
         {grid}
-        {consentToggle}
+        {settingsToggles}
         {error && <p className="text-[12px] font-semibold text-red-500">{error}</p>}
         <button
           type="button"
@@ -240,8 +280,8 @@ export const InterestsPicker: React.FC<Props> = ({ mode, onDone }) => {
             what it does rather than leaving it to the switch alone. */}
         <p className="text-[11px] text-fg-muted leading-snug">
           {isAr
-            ? 'لما تطفي التنبيهات، بنوقف نبعتلك الملخص اليومي وتنبيهات المزادات المميزة.'
-            : 'Turning alerts off stops both the daily digest and featured-auction alerts.'}
+            ? 'كل تنبيه لحاله — فيك توقف الملخص اليومي وتضل توصلك المزادات المميزة، أو العكس.'
+            : 'Each one is separate — you can mute the daily digest and keep featured alerts, or the reverse.'}
         </p>
       </div>
     );

@@ -121,10 +121,17 @@ describe('interests save', () => {
     expect(toggleFn).toMatch(/setSelected/);
   });
 
-  it('turns the channel off when consent is withdrawn', () => {
+  it('turns the channel off only when EVERY alert is off', () => {
     // notifyChannel 'none' is the belt to notifyDaily/notifyFeatured's braces:
-    // CR-02 should have two independent reasons to skip an opted-out user.
-    expect(code(read('components/InterestsPicker.tsx'))).toMatch(/consent \? 'whatsapp' : 'none'/);
+    // the digest should have two independent reasons to skip an opted-out user.
+    //
+    // CR-03 made this condition more precise rather than looser. The channel is
+    // a third switch the user never sees, so flipping it to 'none' the moment
+    // the DAILY digest was muted would have silently killed featured alerts
+    // too — through a field nobody touched, which is exactly the independence
+    // CR-03 requires.
+    expect(code(read('components/InterestsPicker.tsx')))
+      .toMatch(/consent \|\| consentFeatured\) \? 'whatsapp' : 'none'/);
   });
 });
 

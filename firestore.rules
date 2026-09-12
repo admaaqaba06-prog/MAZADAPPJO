@@ -81,6 +81,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The featured-alert ledger (CR-03). The 2-per-7-days cap COUNTS ROWS
+    // HERE, so a client that could write it could mint itself extra slots, and
+    // one that could delete rows could clear the cap entirely — which is the
+    // single rule the spec says must not be bypassable from the UI.
+    match /featuredBroadcasts/{broadcastId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Per-run summaries (attempted / sent / failed / skipped). Read-only
     // evidence of what each run did, including dry runs.
     match /notificationRuns/{runId} {

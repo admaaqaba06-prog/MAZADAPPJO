@@ -29,6 +29,7 @@ const OurDropsSection = React.lazy(() => import('./admin/OurDropsSection'));
 const OrdersLedgerSection = React.lazy(() => import('./admin/OrdersLedgerSection'));
 const MembersSection = React.lazy(() => import('./admin/MembersSection'));
 const FeaturedSection = React.lazy(() => import('./admin/FeaturedSection'));
+const FeaturedAlertSection = React.lazy(() => import('./admin/FeaturedAlertSection'));
 const AuctionLookupSection = React.lazy(() => import('./admin/AuctionLookupSection'));
 const AuditLogSection = React.lazy(() => import('./admin/AuditLogSection'));
 const SystemSection = React.lazy(() => import('./admin/SystemSection'));
@@ -991,6 +992,12 @@ export const AdminDashboardView: React.FC = () => {
                 re-cut collapsed tabs deliberately. */}
             <div className="mb-4">
               <FeaturedSection isAr={isAr} />
+            </div>
+            {/* Directly below featuring, and deliberately a SEPARATE card: the
+                one above reorders the feed, this one messages people. Same
+                word, different blast radius. */}
+            <div className="mb-4">
+              <FeaturedAlertSection isAr={isAr} />
             </div>
             <OurDropsSection
               isAr={isAr}
