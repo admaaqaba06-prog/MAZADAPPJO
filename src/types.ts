@@ -49,6 +49,34 @@ export interface User {
     completedSales: number;
   };
   onboardingCompleted?: boolean;
+  /**
+   * CR-01 interest capture. `interests` holds CATEGORY IDS, which are the same
+   * canonical values `auctions/{id}.category` stores — see utils/interests.ts
+   * for why auto-ids would have quietly broken the digest.
+   *
+   * Empty + `interestsSkipped` is an answered skip; empty WITHOUT it is a user
+   * who has not been asked yet. The two have to stay distinguishable or every
+   * skipper gets re-prompted on each login.
+   */
+  interests?: string[];
+  interestsUpdatedAt?: any;
+  interestsSkipped?: boolean;
+  /** Daily "new auctions matching your interests" digest (CR-02). */
+  notifyDaily?: boolean;
+  /** Featured-auction alerts (CR-03). Independent of `notifyDaily`. */
+  notifyFeatured?: boolean;
+  notifyChannel?: "whatsapp" | "push" | "none";
+  /**
+   * Current consent snapshot. The AUDIT record is the append-only
+   * `users/{uid}/consentEvents` subcollection — this field is only the latest
+   * state, and the owner can overwrite it, so it proves nothing on its own.
+   */
+  notificationConsent?: {
+    granted: boolean;
+    channel: "whatsapp" | "push" | "none";
+    at: any;
+    source: string;
+  };
   shownHints?: { [key: string]: boolean };
   /**
    * Reserved for future seller KYC (Wave 4 groundwork) — NOT captured or
