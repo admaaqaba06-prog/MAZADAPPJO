@@ -24,6 +24,7 @@ import { isValidCityId } from '../utils/jordanCities';
 import { stripReserve } from '../utils/reserveStrip';
 import { toE164Jordan } from '../utils/phoneNumber';
 import { serializeNav, parseNav, isModalCloseTransition, type NavNode } from '../utils/navUrl';
+import { trackPageView, trackRegistration, trackBid, trackListItem } from '../lib/pixel';
 import type { SaveInterestsInput } from '../utils/interests';
 import { computeServerOffset, setServerOffset, serverNow } from '../utils/serverTime';
 import { isActiveMember } from '../utils/membership';
@@ -770,6 +771,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     historyNodeRef.current = url;
   }, [deriveNavNode]);
 
+  // Meta Pixel PageView. index.html deliberately omits it: this is an SPA, so
+  // the document loads once and a PageView there would fire once per session.
+  //
+  // DECLARED IMMEDIATELY AFTER THE SYNC EFFECT ON PURPOSE. React runs a
+  // component's effects in declaration order, so by the time this one runs the
+  // push/replaceState above has already committed and `fbq` — which reads
+  // document.location itself — reports the page the user actually landed on.
+  // Firing from a child component instead would report the PREVIOUS URL, since
+  // child effects flush before the parent's.
+  //
+  // IT KEEPS ITS OWN REF rather than reusing historyNodeRef, and that is what
+  // makes Back/Forward work. The popstate handler below pre-sets
+  // historyNodeRef to the popped URL precisely so the sync effect does NOT
+  // re-push — so anything keyed on that ref, or placed inside that effect after
+  // its early return, would silently miss every browser navigation. This ref is
+  // only ever written here, so a pop still reads as a change.
+  //
+  // One event per navigation: the whole node (view + auction + modal) collapses
+  // into a single serialized URL, so a change of view AND auction together is
+  // one string comparison and one PageView, not two.
+  const lastPixelUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = serializeNav(deriveNavNode());
+    if (lastPixelUrlRef.current === url) return;
+    lastPixelUrlRef.current = url;
+    trackPageView();
+  }, [deriveNavNode]);
+
   // Single popstate listener (mounted once). Reads the popped node from
   // event.state (fallback: parse the current URL) and applies it. Pre-setting
   // historyNodeRef guards the sync effect above from re-pushing.
@@ -1122,6 +1152,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 lastLoginIP: ip,
                 lastSeen: new Date().toISOString()
               }, { merge: true }); // (review SF1) server onUserCreated trigger also creates this doc; merge avoids clobbering server-set fields
+              // Meta Pixel: the account now exists. INSIDE the try, after the
+              // write resolves — a rejected setDoc must not be counted as a
+              // registration. This branch is provider-agnostic (phone OTP,
+              // Google, email), so it is the one place that sees every signup;
+              // registerUser alone would miss phone signups, which are the
+              // primary path here.
+              trackRegistration();
             } catch (error) {
               handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
             }
@@ -3522,6 +3559,12 @@ const fetchIP = async () => {
         // filter-at-read).
         const isSimTarget = auctionsStateRef.current.find(a => a.id === auctionId)?.isSimulated === true;
         if (!isSimTarget) {
+          // Meta Pixel: the SERVER accepted this bid — we are inside
+          // `if (result.data.success)`, past the callable, so this counts a
+          // completed action rather than an attempt. Behind the same
+          // isSimulated gate as the funnel events below: an admin testing on a
+          // simulated lot must not train ad delivery on fake conversions.
+          trackBid(auctionId, amount);
           logAnalyticsEvent('bid_placed', currentUser.id, currentUser.email, {
             auctionId,
             amount
@@ -4244,6 +4287,12 @@ const fetchIP = async () => {
         'win'
       );
     }
+
+    // Meta Pixel: the listing document has been written. Placed at the single
+    // success return, after every write and gate above it — every failure path
+    // in createListing throws or returns before reaching here, so this cannot
+    // count a listing that was not created.
+    trackListItem(newListingId);
 
     return newListingId;
   }, [sellerProfile, currentUser, addNotification, showToast, language]);

@@ -162,8 +162,11 @@ describe('index.html absolute urls point at the live host', () => {
   });
 
   it('uses the brand host for every absolute url it owns', () => {
+    // Third-party infrastructure hosts are excluded because the rule is about
+    // urls this site OWNS — a vendor CDN pointing anywhere but its vendor would
+    // be the bug. connect.facebook.net serves the Meta Pixel loader.
     const ours = html.match(/https:\/\/[^"'\s>]+/g)!.filter(
-      (u) => !/(googleapis|gstatic|schema\.org|w3\.org)/.test(u),
+      (u) => !/(googleapis|gstatic|schema\.org|w3\.org|connect\.facebook\.net)/.test(u),
     );
     expect(ours.length, 'expected index.html to carry absolute self-referencing urls').toBeGreaterThan(0);
     for (const url of ours) {
