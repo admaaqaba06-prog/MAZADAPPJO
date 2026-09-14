@@ -800,6 +800,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     trackPageView();
   }, [deriveNavNode]);
 
+  // Second source for the SAME event, listening to the navigation itself rather
+  // than to the state it produces.
+  //
+  // The effect above only sees a route change if it round-trips through the six
+  // values deriveNavNode depends on. That is true for ordinary navigation, and
+  // browser Back/Forward was verified firing correctly through it on the live
+  // site. It is NOT guaranteed on a screen whose view is forced by a gate
+  // effect rather than set by navigation (the onboarding gate in MainAppShell
+  // is one): there, a pop can land on a URL whose state is immediately
+  // overwritten, and the PageView is lost with no trace.
+  //
+  // Reading `window.location` here is what makes this robust — at popstate time
+  // the browser has ALREADY applied the new URL, so this is the destination,
+  // never the previous page, and it does not depend on React having re-rendered
+  // yet. Normalised through parseNav/serializeNav so it is byte-identical to
+  // what the effect above produces; a raw location string would differ whenever
+  // an unmodelled param (an ad click id, say) is present and would then
+  // double-count.
+  //
+  // NO DOUBLE-FIRE: both paths write and check the same lastPixelUrlRef, so
+  // whichever observes a given navigation first claims it and the other returns
+  // early. Back-navigation matters here — open a listing, go back, open another
+  // is the core browsing loop of an auction site, and losing it would leave the
+  // retargeting audiences missing a large share of real views.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPixelPop = () => {
+      const url = serializeNav(parseNav(window.location.pathname + window.location.search));
+      if (lastPixelUrlRef.current === url) return;
+      lastPixelUrlRef.current = url;
+      trackPageView();
+    };
+    window.addEventListener('popstate', onPixelPop);
+    return () => window.removeEventListener('popstate', onPixelPop);
+  }, []);
+
   // Single popstate listener (mounted once). Reads the popped node from
   // event.state (fallback: parse the current URL) and applies it. Pre-setting
   // historyNodeRef guards the sync effect above from re-pushing.
