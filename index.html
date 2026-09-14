@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
+    <!-- Meta Pixel.
+         NOTE: fbq('track', 'PageView') is deliberately NOT called here. This is a
+         single-page app with a state-based router, so the browser only ever loads
+         this document once — a PageView here would fire exactly one time per
+         session and then never again. It is fired from AppContext instead, on
+         every committed URL change (in-app navigation AND browser back/forward).
+         Do not add it back. -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window,document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1685691263561385');
+    </script>
+
     <!-- PWA Core Setup -->
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="mobile-web-app-capable" content="yes" />
