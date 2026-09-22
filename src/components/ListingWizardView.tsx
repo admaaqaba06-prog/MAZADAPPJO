@@ -4,6 +4,10 @@ import { VideoUploadForm } from './VideoUploadForm';
 import { resizeImage } from '../utils/resizeImage';
 import { validateDescription } from '../utils/listingDescription';
 import { draftHasMedia } from '../utils/listingMedia';
+import {
+  splitPhotos, promoteToCover, removePhoto, remainingSlots, MAX_LISTING_PHOTOS,
+  type ListingPhoto,
+} from '../utils/listingPhotos';
 import { CATEGORIES } from '../utils/categories';
 import {
   filesFromTransfer,
@@ -40,50 +44,69 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
   const [customVideoUrl, setCustomVideoUrl] = useState<string | null>(null);
   const [rawVideoFile, setRawVideoFile] = useState<File | null>(null);
 
-  // Thumbnail assets references
-  const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
-  const [rawThumbnailFile, setRawThumbnailFile] = useState<File | null>(null);
-  // Drag highlight + refusal reason for the cover zone.
-  const [coverDragOver, setCoverDragOver] = useState(false);
-  const [coverError, setCoverError] = useState<MediaRefusal | null>(null);
+  /**
+   * ONE photo list. The first photo is the cover.
+   *
+   * There used to be two separate uploads — "cover image" and "extra gallery
+   * photos" — which asked a seller to understand what a cover WAS before they
+   * could list a phone. They are the same medium; the split existed only
+   * because the backend stores a thumbnail and a gallery in different fields.
+   * That split now happens at submit (`splitPhotos`), where it is a storage
+   * detail rather than a question put to the seller.
+   */
+  const [photos, setPhotos] = useState<ListingPhoto[]>([]);
+  const [photoDragOver, setPhotoDragOver] = useState(false);
+  const [photoError, setPhotoError] = useState<MediaRefusal | null>(null);
 
   /**
-   * One intake for the cover, used by the picker AND the drop, so the validation
-   * cannot diverge between them. Checked against the server ceiling in
-   * `storage.rules` (20MB on auction-thumbnails) — the upload would be rejected
-   * there anyway, and a refusal that arrives before the upload can be explained.
-   * Revokes the previous object URL so replacing a cover does not leak a blob.
+   * One intake for every photo, used by the picker AND the drop, so validation
+   * cannot diverge between them.
+   *
+   * EVERY file is checked, not just the first. The old code ran `checkCoverFile`
+   * on the cover and nothing at all on gallery photos — which was survivable
+   * only while the two were different things. Now any photo can be promoted to
+   * cover, so a gallery photo that skipped the size check would fail at upload
+   * against the 20MB ceiling in `storage.rules` after the seller had already
+   * filled in the whole form.
    */
-  const takeCover = (file: File | null) => {
-    if (!file) {
-      if (customThumbnailUrl) URL.revokeObjectURL(customThumbnailUrl);
-      setCoverError(null);
-      setRawThumbnailFile(null);
-      setCustomThumbnailUrl(null);
-      return;
+  const addPhotos = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPhotoError(null);
+    const accepted: ListingPhoto[] = [];
+    let refusal: MediaRefusal | null = null;
+    for (const file of Array.from(files)) {
+      const check = checkCoverFile(file);
+      if (!check.ok) { refusal = refusal ?? (check.reason ?? 'wrong_type'); continue; }
+      accepted.push({ file, url: URL.createObjectURL(file) });
     }
-    const check = checkCoverFile(file);
-    if (!check.ok) { setCoverError(check.reason ?? 'wrong_type'); return; }
-    if (customThumbnailUrl) URL.revokeObjectURL(customThumbnailUrl);
-    setCoverError(null);
-    setRawThumbnailFile(file);
-    setCustomThumbnailUrl(URL.createObjectURL(file));
+    if (refusal) setPhotoError(refusal);
+    if (accepted.length === 0) return;
+    setPhotos(prev => {
+      const room = remainingSlots(prev);
+      // Revoke what does not fit rather than leaking the blobs for photos the
+      // seller never sees.
+      accepted.slice(room).forEach(p => URL.revokeObjectURL(p.url));
+      return [...prev, ...accepted.slice(0, room)];
+    });
   };
 
-  // Wave 2 (media gallery): up to 3 EXTRA photos beyond the cover → mediaUrls
-  const [extraPhotos, setExtraPhotos] = useState<{ file: File; url: string }[]>([]);
-
-  const addExtraPhotos = (files: FileList | null) => {
-    if (!files) return;
-    const incoming = Array.from(files).filter(f => f.type.startsWith('image/'));
-    setExtraPhotos(prev =>
-      [...prev, ...incoming.map(file => ({ file, url: URL.createObjectURL(file) }))].slice(0, 3)
-    );
+  const dropPhoto = (idx: number) => {
+    setPhotos(prev => {
+      const going = prev[idx];
+      if (going) URL.revokeObjectURL(going.url);
+      return removePhoto(prev, idx);
+    });
   };
 
-  const removeExtraPhoto = (idx: number) => {
-    setExtraPhotos(prev => prev.filter((_, i) => i !== idx));
-  };
+  /** "Use this one as the cover" — moves it to the front. */
+  const makeCover = (idx: number) => setPhotos(prev => promoteToCover(prev, idx));
+
+  // The shape the backend still wants: a thumbnail and a gallery. Derived here
+  // so `createListing` and the media gate below are untouched by the UI change.
+  const { cover: coverPhoto, gallery: galleryPhotos } = splitPhotos(photos);
+  const rawThumbnailFile = coverPhoto?.file ?? null;
+  const customThumbnailUrl = coverPhoto?.url ?? null;
+  const extraPhotos = galleryPhotos;
 
   // Wave 4: required listing-time ownership + legality attestation
   const [ownershipAttested, setOwnershipAttested] = useState(false);
@@ -341,113 +364,97 @@ export const ListingWizardView: React.FC<ListingWizardViewProps> = ({ onDone }) 
               </div>
 
               {/* STEP 1.5 — Thumbnail Image */}
+              {/* STEP 1.5 — Photos. ONE picker; the first photo is the cover. */}
               <div className="space-y-2.5">
                 <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
-                  <span className="text-[#FF6B00]">①.⑤</span> 
-                  {isAr ? 'صورة غلاف المزاد (اختياري)' : 'Auction Thumbnail Image (Optional)'}
+                  <span className="text-[#FF6B00]">①.⑤</span>
+                  {isAr ? 'صور المنتج' : 'Product Photos'}
                 </label>
-                
-                <div className="bg-surface-raised rounded-2xl border border-line p-4">
-                  {customThumbnailUrl ? (
-                    <div className="relative rounded-xl overflow-hidden max-h-[160px] bg-black">
-                      <img src={customThumbnailUrl} alt={isAr ? 'معاينة الصورة المصغرة' : 'Thumbnail preview'} className="w-full h-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={() => takeCover(null)}
-                        className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer"
-                      >
-                        {isAr ? 'حذف صورة الغلاف' : 'Remove Cover'}
-                      </button>
-                    </div>
-                  ) : (
-                    /* Drop + click. `onDragOver` MUST preventDefault or the
-                       browser navigates to the dropped image and the form is
-                       lost. The label click path is untouched, so the mobile
-                       picker behaves exactly as before. */
-                    <label
-                      className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${coverDragOver ? 'border-[#F05123] bg-accent-weak' : 'border-line hover:bg-surface-sunken'}`}
-                      onDragOver={(e) => { e.preventDefault(); setCoverDragOver(true); }}
-                      onDragEnter={(e) => { e.preventDefault(); setCoverDragOver(true); }}
-                      onDragLeave={() => setCoverDragOver(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setCoverDragOver(false);
-                        takeCover(filesFromTransfer(e.dataTransfer, isImageFile)[0] ?? null);
-                      }}
-                    >
-                      <span className="text-2xl">🖼️</span>
-                      <span className="text-xs font-bold text-fg-muted mt-2">
-                        {coverDragOver
-                          ? (isAr ? 'أفلت الصورة هنا' : 'Drop the image here')
-                          : (isAr ? 'اسحب صورة الغلاف أو اضغط لاختيارها' : 'Drag a cover image here, or click to choose')}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          takeCover(e.target.files?.[0] ?? null);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
-                  {coverError && (
-                    <p className="mt-2 text-[11px] font-bold text-danger" role="alert">
-                      {coverError === 'wrong_type'
-                        ? (isAr ? 'الملف ليس صورة. الصور فقط.' : 'That file is not an image. Images only.')
-                        : (isAr
-                            ? `الصورة أكبر من ${MAX_COVER_BYTES / (1024 * 1024)} ميجابايت.`
-                            : `The image is larger than ${MAX_COVER_BYTES / (1024 * 1024)}MB.`)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* STEP 1.6 — Extra gallery photos (Wave 2 media gallery) */}
-              <div className="space-y-2.5">
-                <label className="text-xs lg:text-sm font-extrabold text-fg flex items-center gap-1.5">
-                  <span className="text-[#FF6B00]">①.⑥</span>
-                  {isAr ? 'صور إضافية للمعرض (حتى ٣ — اختياري)' : 'Extra Gallery Photos (up to 3 — Optional)'}
-                </label>
+                <p className="text-[11px] text-fg-muted font-medium -mt-1">
+                  {isAr
+                    ? 'أول صورة تصير صورة الغلاف تلقائياً. تقدر تغيّرها بضغطة.'
+                    : 'The first photo becomes the cover automatically. Tap any other to change it.'}
+                </p>
 
                 <div className="bg-surface-raised rounded-2xl border border-line p-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    {extraPhotos.map((photo, idx) => (
+                  <div
+                    className={`grid grid-cols-3 gap-2 rounded-xl transition-colors ${photoDragOver ? 'ring-2 ring-[#F05123] bg-accent-weak' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setPhotoDragOver(true); }}
+                    onDragEnter={(e) => { e.preventDefault(); setPhotoDragOver(true); }}
+                    onDragLeave={() => setPhotoDragOver(false)}
+                    onDrop={(e) => {
+                      // preventDefault or the browser navigates to the dropped
+                      // image and the whole form is lost.
+                      e.preventDefault();
+                      setPhotoDragOver(false);
+                      const dropped = filesFromTransfer(e.dataTransfer, isImageFile);
+                      const dt = new DataTransfer();
+                      dropped.forEach(f => dt.items.add(f));
+                      addPhotos(dt.files);
+                    }}
+                  >
+                    {photos.map((photo, idx) => (
                       <div key={photo.url} className="relative rounded-xl overflow-hidden bg-black aspect-square">
-                        <img src={photo.url} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img src={photo.url} alt={`${idx + 1}`} className="w-full h-full object-cover" />
+
+                        {idx === 0 ? (
+                          <span className="absolute bottom-1 start-1 bg-[#F05123] text-white rounded-md px-1.5 py-0.5 text-[9px] font-black">
+                            {isAr ? 'الغلاف' : 'Cover'}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => makeCover(idx)}
+                            className="absolute bottom-1 start-1 bg-black/70 hover:bg-[#F05123] text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer transition-colors"
+                          >
+                            {isAr ? 'اجعلها الغلاف' : 'Make cover'}
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => removeExtraPhoto(idx)}
-                          className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer"
+                          onClick={() => dropPhoto(idx)}
+                          aria-label={isAr ? 'حذف الصورة' : 'Remove photo'}
+                          className="absolute top-1 end-1 bg-red-600 hover:bg-red-700 text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer"
                         >
                           {isAr ? 'حذف' : 'Remove'}
                         </button>
                       </div>
                     ))}
-                    {extraPhotos.length < 3 && (
+
+                    {remainingSlots(photos) > 0 && (
                       <label className="flex flex-col items-center justify-center border-2 border-dashed border-line rounded-xl aspect-square cursor-pointer hover:bg-surface-sunken transition-colors">
                         <span className="text-xl">📸</span>
                         <span className="text-[10px] font-bold text-fg-muted mt-1 text-center px-1">
-                          {isAr ? 'إضافة صورة' : 'Add photo'}
+                          {photos.length === 0
+                            ? (isAr ? 'أضف صور' : 'Add photos')
+                            : (isAr ? 'إضافة صورة' : 'Add photo')}
                         </span>
                         <input
                           type="file"
                           accept="image/*"
                           multiple
                           className="hidden"
-                          onChange={(e) => {
-                            addExtraPhotos(e.target.files);
-                            e.target.value = '';
-                          }}
+                          onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }}
                         />
                       </label>
                     )}
                   </div>
+
+                  {photoError && (
+                    <p className="mt-2 text-[11px] font-bold text-danger" role="alert">
+                      {photoError === 'wrong_type'
+                        ? (isAr ? 'أحد الملفات ليس صورة. الصور فقط.' : 'One of those files is not an image. Images only.')
+                        : (isAr
+                            ? `إحدى الصور أكبر من ${MAX_COVER_BYTES / (1024 * 1024)} ميجابايت.`
+                            : `One of those images is larger than ${MAX_COVER_BYTES / (1024 * 1024)}MB.`)}
+                    </p>
+                  )}
+
                   <p className="text-[10px] text-fg-muted mt-2 font-medium">
                     {isAr
-                      ? 'يستطيع المزايدون التنقل بين هذه الصور داخل غرفة المزاد.'
-                      : 'Bidders can swipe through these photos inside the live room.'}
+                      ? `حتى ${MAX_LISTING_PHOTOS} صور. يستطيع المزايدون التنقل بينها داخل غرفة المزاد.`
+                      : `Up to ${MAX_LISTING_PHOTOS} photos. Bidders can swipe through them inside the live room.`}
                   </p>
                 </div>
               </div>
