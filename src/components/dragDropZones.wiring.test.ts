@@ -70,9 +70,15 @@ describe('the cover zones accept a drop and validate it', () => {
     expect(PICKER).toMatch(/checkCoverFile\(/);
   });
 
-  it('the seller cover does the same', () => {
+  it('the seller photos zone does the same', () => {
+    // The seller wizard no longer has a separate "cover" drop zone: one photo
+    // list replaced the cover + gallery pair, and the first photo IS the cover.
+    // The invariant is unchanged and slightly stronger — the drop is still read
+    // through `filesFromTransfer(..., isImageFile)` and still routed through a
+    // checked intake, except that intake now runs `checkCoverFile` on EVERY
+    // file rather than only on the one destined to be the cover.
     expect(WIZARD).toMatch(/filesFromTransfer\(e\.dataTransfer, isImageFile\)/);
-    expect(WIZARD).toMatch(/takeCover\(/);
+    expect(WIZARD).toMatch(/addPhotos\(/);
     expect(WIZARD).toMatch(/checkCoverFile\(/);
   });
 
