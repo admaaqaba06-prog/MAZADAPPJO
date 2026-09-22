@@ -10,6 +10,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { Tv, CheckCircle, Trash2, Trophy, PackageOpen } from 'lucide-react';
+import { resolveCourierContact, formatCourierBlock } from '../../utils/courierContact';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -299,10 +300,17 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                   <div className="space-y-4">
                     {completedAuctions.map((item) => {
                       const winnerUser = users.find(u => u.id === item.currentBidderId);
-                      const winnerNameStr = winnerUser?.name || item.currentBidderName || (isAr ? 'لا يوجد مزايدين' : 'No bids placed');
-                      const winnerPhoneStr = winnerUser?.phoneNumber || winnerUser?.transferPhone || (item.currentBidderId ? '+962 7 9888 1234' : 'N/A');
-                      const winnerEmailStr = winnerUser?.email || (item.currentBidderId ? 'winner@example.com' : 'N/A');
-                      const winnerCityStr = winnerUser?.city || (item.currentBidderId ? 'Amman' : 'N/A');
+                      // Nothing is substituted for a missing field any more. This
+                      // block used to fill its gaps with '+962 7 9888 1234',
+                      // 'winner@example.com' and 'Amman' — and only when
+                      // currentBidderId existed, which made them read as resolved
+                      // data rather than placeholders. The phone was a `tel:` link,
+                      // so an admin could tap it and dial a number belonging to
+                      // nobody, and the city went into a "dispatch confirmed"
+                      // message. A real parcel could be sent on that.
+                      const contact = resolveCourierContact(winnerUser, item.currentBidderName);
+                      const unknown = isAr ? 'غير متوفر' : 'Not available';
+                      const winnerNameStr = contact.name || (isAr ? 'لا يوجد مزايدين' : 'No bids placed');
 
                       return (
                         <div key={item.id} className="bg-surface-raised border border-line p-5 rounded-2xl space-y-4 shadow-xs">
@@ -335,17 +343,31 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                                 </div>
                                 <div>
                                   <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'رقم الهاتف للتوصيل:' : 'TELEPHONE'}</span>
-                                  <a href={`tel:${winnerPhoneStr}`} className="font-black text-[#FF6B00] hover:underline font-mono">{winnerPhoneStr}</a>
+                                  {/* tel: ONLY on a real number — a dialable link
+                                      around a placeholder is the actual hazard. */}
+                                  {contact.phone ? (
+                                    <a href={`tel:${contact.phone}`} className="font-black text-[#FF6B00] hover:underline font-mono">{contact.phone}</a>
+                                  ) : (
+                                    <span className="font-black text-amber-700 font-mono">{unknown}</span>
+                                  )}
                                 </div>
                                 <div className="sm:mt-1">
                                   <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'البريد الإلكتروني:' : 'EMAIL'}</span>
-                                  <span className="font-medium text-fg font-mono truncate block">{winnerEmailStr}</span>
+                                  <span className={`font-medium font-mono truncate block ${contact.email ? 'text-fg' : 'text-amber-700'}`}>{contact.email || unknown}</span>
                                 </div>
                                 <div className="sm:mt-1">
                                   <span className="text-fg-muted text-[9px] uppercase font-mono block mb-0.5">{isAr ? 'المدينة والمنطقة:' : 'REGION'}</span>
-                                  <span className="font-bold text-fg">{winnerCityStr}</span>
+                                  <span className={`font-bold ${contact.city ? 'text-fg' : 'text-amber-700'}`}>{contact.city || unknown}</span>
                                 </div>
                               </div>
+
+                              {!contact.isDispatchable && (
+                                <p className="text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                                  ⚠️ {isAr
+                                    ? 'بيانات التوصيل ناقصة — لا تُرسل الطرد قبل التواصل مع المشتري والتأكد منها.'
+                                    : 'Delivery details are incomplete — do not dispatch before confirming them with the buyer.'}
+                                </p>
+                              )}
                             </div>
                           ) : (
                             <div className="text-xs text-amber-800 italic bg-amber-50/50 p-3 rounded-xl border border-amber-100">
@@ -409,10 +431,33 @@ export const OurDropsSection: React.FC<OurDropsSectionProps> = ({
                                   {isAr ? 'إرجاع الضمانات العالقة 🔒' : 'REPAIR ESCROWS 🔒'}
                                 </button>
                                 <button 
-                                  onClick={() => alert(isAr ? `تم نسخ معلومات الفائز وتأكيد بوليصة شحن المزاد بانتظار تسليم شركة الشحن في ${winnerCityStr}.` : `Copied winner’s shipping coordinates for Jordan regional dispatch!`)}
-                                  className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-[11px] rounded-xl transition-all"
+                                  // It used to only alert() that it had copied the
+                                  // winner's details — and copy nothing at all. It
+                                  // now really writes to the clipboard, and refuses
+                                  // rather than claiming success when the details
+                                  // are incomplete.
+                                  disabled={!contact.isDispatchable}
+                                  onClick={async () => {
+                                    const block = formatCourierBlock(contact, { title: item.title, auctionNumber: (item as any).auctionNumber });
+                                    if (!block) {
+                                      alert(isAr
+                                        ? 'بيانات التوصيل ناقصة — لم يُنسخ شيء. تواصل مع المشتري أولاً.'
+                                        : 'Delivery details are incomplete — nothing was copied. Contact the buyer first.');
+                                      return;
+                                    }
+                                    try {
+                                      await navigator.clipboard.writeText(block);
+                                      alert(isAr ? 'تم نسخ بيانات الشحن.' : 'Dispatch details copied.');
+                                    } catch {
+                                      // The clipboard can be blocked (permissions,
+                                      // insecure context). Show the text so it can be
+                                      // copied by hand, rather than report success.
+                                      window.prompt(isAr ? 'انسخ البيانات يدوياً:' : 'Copy manually:', block);
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-[11px] rounded-xl transition-all"
                                 >
-                                  {isAr ? 'نسخ بيانات الشحن والتنسيق ✈️' : 'DISPATCH LOT ✈️'}
+                                  {isAr ? 'نسخ بيانات الشحن والتنسيق ✈️' : 'COPY DISPATCH DETAILS ✈️'}
                                 </button>
                               </div>
                             </div>
