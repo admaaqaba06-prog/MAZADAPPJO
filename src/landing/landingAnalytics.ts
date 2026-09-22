@@ -13,7 +13,12 @@ export type LandingEventName =
   | 'category_selected'
   | 'language_switched'
   | 'seller_form_started'
-  | 'seller_form_submitted';
+  | 'seller_form_submitted'
+  // Register-to-bid on a launch announcement. Distinct from
+  // `browse_cta_clicked` on purpose: one is "show me the marketplace" and the
+  // other is "I want to bid on this lot", and collapsing them would make the
+  // announcement look like it converted nobody.
+  | 'auction_register_clicked';
 
 export interface LandingEventPayload {
   event: LandingEventName;

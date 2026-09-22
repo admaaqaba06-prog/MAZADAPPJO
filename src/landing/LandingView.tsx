@@ -51,6 +51,7 @@ import { priceLabel } from '../utils/bidLabels';
 import { categoryLabel } from '../utils/categoryLabel';
 import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE_TEL, SUPPORT_PHONE_NATIONAL, SOCIAL_INSTAGRAM_URL } from '../constants/support';
 import { useApp } from "../context/AppContext";
+import { IPhoneAuctionSection } from "./components/IPhoneAuctionSection";
 import { Logo } from "./components/Logo";
 import { LandingButton } from "./components/LandingButton";
 import TermsModal from "../components/TermsModal";
@@ -423,7 +424,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
   // Delegating to the context's `setLanguage` is what closes that: it owns the
   // one persistence path (src/utils/languagePersistence.ts), including the
   // signed-out guard. Not re-implemented here — one write, one guard.
-  const { setLanguage } = useApp();
+  const { setLanguage, requestSignIn } = useApp();
   const [lang, setLang] = useState<"ar" | "en">(() => (localStorage.getItem('mazad_language') === 'en' ? 'en' : 'ar'));
   const toggleLang = () => {
     const next = lang === "ar" ? "en" : "ar";
@@ -1882,6 +1883,20 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
 
 
+
+        {/* 2. Launch announcement — directly under the hero, where paid traffic
+            lands. "Register to bid" opens the EXISTING phone+OTP sign-in with
+            the 'bid' intent; there is no second registration form and no new
+            collection, so nothing here can write to Firestore on its own. */}
+        <IPhoneAuctionSection
+          isAr={lang === "ar"}
+          copy={t.iphoneAuction}
+          onEnter={onEnter}
+          onRegister={() => {
+            emitLandingEvent('auction_register_clicked', { location: 'iphone_auction' });
+            requestSignIn('bid');
+          }}
+        />
 
         <LiveMarketplaceSection lang={lang} t={t} onEnter={onEnter} formatPrice={formatPrice} />
 
