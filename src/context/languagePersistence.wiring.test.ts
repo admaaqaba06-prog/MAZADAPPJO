@@ -330,7 +330,13 @@ describe("the landing page's own toggle persists too", () => {
     // to remove.
     expect(TOGGLE).toMatch(/setLanguage\(next\)/);
     expect(stripComments(LANDING)).toMatch(/import \{ useApp \} from "\.\.\/context\/AppContext";/);
-    expect(stripComments(LANDING)).toMatch(/const \{ setLanguage \} = useApp\(\);/);
+    // setLanguage must come from useApp(), not from a local stub. Whether the
+    // page destructures anything ELSE alongside it is not part of that
+    // guarantee — the original literal `{ setLanguage }` also failed the moment
+    // the page legitimately needed a second context value, which says nothing
+    // about language persistence. The call above already pins that the toggle
+    // invokes it.
+    expect(stripComments(LANDING)).toMatch(/const \{[^}]*\bsetLanguage\b[^}]*\} = useApp\(\);/);
   });
 
   it('flips locally BEFORE it persists', () => {

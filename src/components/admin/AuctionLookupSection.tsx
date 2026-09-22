@@ -5,6 +5,7 @@ import { useAdminAuctionSearch } from '../../hooks/useAdminAuctionSearch';
 import { buildAuctionUrl } from '../../utils/deepLink';
 import { EmptyState, AdminListSkeleton } from '../FeedbackStates';
 import { SearchX } from 'lucide-react';
+import { SellerContactReveal } from './SellerContactReveal';
 
 /**
  * Admin Auction Lookup (closed-auction admin search).
@@ -19,8 +20,14 @@ import { SearchX } from 'lucide-react';
  * which is fine: it lights up the moment the index + backfill land, with NO change
  * here. Every not-yet-indexed field is rendered defensively (missing → hidden).
  *
- * Purely presentational + the search hook; creates NO Firestore listeners and
- * writes nothing (the provider uses the public search-only key).
+ * Presentational + the search hook; creates NO Firestore listeners and writes
+ * nothing (the provider uses the public search-only key).
+ *
+ * ONE EXCEPTION, AND IT IS OPT-IN: `SellerContactReveal` on each row does two
+ * `getDoc` reads — auction -> sellerId -> user — but only after an admin
+ * presses its button, and it subscribes to nothing. Search results stay free of
+ * Firestore traffic; a lookup costs two reads and only when someone asks for a
+ * phone number.
  */
 export interface AuctionLookupSectionProps {
   isAr: boolean;
@@ -79,11 +86,16 @@ const AuctionRow: React.FC<{ auction: AuctionItem; isAr: boolean }> = ({ auction
   const href = auction.id ? buildAuctionUrl(auction.id, window.location.origin) : undefined;
 
   return (
+    // The card is a wrapper, not the link itself: the seller-contact control is
+    // a BUTTON, and a button nested inside an anchor is invalid HTML — the
+    // browser is free to fire the navigation instead of the click. So the link
+    // covers the listing details and the contact control sits beside it.
+    <div className="bg-surface-raised border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-all animate-fadeIn">
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="block bg-surface-raised border border-line rounded-2xl p-4 shadow-sm hover:border-line hover:shadow-md transition-all animate-fadeIn"
+      className="block"
     >
       {/* Header: #number + title + status */}
       <div className="flex items-start justify-between gap-3">
@@ -134,6 +146,8 @@ const AuctionRow: React.FC<{ auction: AuctionItem; isAr: boolean }> = ({ auction
         )}
       </div>
     </a>
+    {auction.id ? <SellerContactReveal auctionId={auction.id} isAr={isAr} /> : null}
+    </div>
   );
 };
 

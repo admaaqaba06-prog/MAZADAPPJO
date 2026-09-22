@@ -11,6 +11,23 @@ export interface TranslationType {
     reserveBtn: string;
     langBtn: string;
   };
+  /** Launch announcement under the hero — see components/IPhoneAuctionSection.tsx. */
+  iphoneAuction: {
+    badge: string;
+    /** Split so "17" can carry the accent colour without markup in a string. */
+    titleBefore: string;
+    titleAccent: string;
+    titleAfter: string;
+    subtitle: string;
+    openingPrice: string;
+    units: { days: string; hours: string; minutes: string; seconds: string };
+    ctaRegister: string;
+    ctaDetails: string;
+    liveTitle: string;
+    ctaLive: string;
+    productName: string;
+    productTagline: string;
+  };
   hero: {
     badge: string;
     titleFirst: string;
@@ -140,6 +157,23 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       pricing: "اشتراكات",
       reserveBtn: "تواصل معنا",
       langBtn: "English",
+    },
+    iphoneAuction: {
+      badge: "مزاد مميز",
+      titleBefore: "آيفون ",
+      titleAccent: "17",
+      titleAfter: " برو ماكس",
+      subtitle: "فرصتك لامتلاك أحدث آيفون … بسعر أفضل!",
+      openingPrice: "يبدأ من 1 دينار فقط",
+      units: { days: "أيام", hours: "ساعات", minutes: "دقائق", seconds: "ثواني" },
+      ctaRegister: "سجّل للمزايدة",
+      ctaDetails: "عرض التفاصيل",
+      liveTitle: "المزاد بدأ الآن",
+      ctaLive: "زايد الآن",
+      // Name and tagline stay English in BOTH languages: it is how the device
+      // is branded and how buyers actually search for it.
+      productName: "iPhone 17 Pro Max",
+      productTagline: "Bigger thinking. Bolder moves.",
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
@@ -372,6 +406,21 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       pricing: "Subscriptions",
       reserveBtn: "Contact Us",
       langBtn: "العربية",
+    },
+    iphoneAuction: {
+      badge: "Featured auction",
+      titleBefore: "iPhone ",
+      titleAccent: "17",
+      titleAfter: " Pro Max",
+      subtitle: "Your chance to own the newest iPhone — for less.",
+      openingPrice: "Opening bid: just 1 JOD",
+      units: { days: "Days", hours: "Hours", minutes: "Minutes", seconds: "Seconds" },
+      ctaRegister: "Register to bid",
+      ctaDetails: "View details",
+      liveTitle: "Bidding is open",
+      ctaLive: "Bid now",
+      productName: "iPhone 17 Pro Max",
+      productTagline: "Bigger thinking. Bolder moves.",
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
