@@ -3,6 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from './utils/deepLink';
 import { resolveUnauthenticatedScreen, canGuestAccessView } from './utils/guestGate';
 import { isAdminUser } from './utils/adminAuth';
+import { postOnboardingView } from './utils/signInIntent';
 import { canSeeSimulated } from './utils/simVisibility';
 import { useSimulatorEnabled } from './hooks/useSimulatorEnabled';
 import { DesktopFrame } from './components/DesktopFrame';
@@ -12,7 +13,6 @@ import { BanNoticeModal } from './components/BanNoticeModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { ContactCompletionModal } from './components/ContactCompletionModal';
-import { isProfileComplete } from './utils/jordanCities';
 import { needsInterestsOnboarding } from './utils/interests';
 import { useCtaPending } from './hooks/useCtaPending';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
@@ -194,7 +194,7 @@ function SimulatorOnBanner() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, contactModalOpen, setContactModalOpen, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, contactModalOpen, setContactModalOpen, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, activeAuctionId, profileFieldPrompt, setProfileFieldPrompt, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
 
@@ -225,9 +225,10 @@ function MainAppShell() {
   // return stops rendering, not effects: gating only the JSX let the URL be
   // rewritten to /onboarding/interests for signed-out visitors and for users
   // still sitting in the profile-completion step.
+  // No longer gated on profile completeness: that step is gone, and waiting on
+  // it would have pinned the interests screen shut forever.
   const interestsGateOpen =
     isAuthenticated &&
-    isProfileComplete(currentUser) &&
     needsInterestsOnboarding(currentUser) &&
     !interestsLatched;
   React.useEffect(() => {
@@ -336,23 +337,22 @@ function MainAppShell() {
     );
   }
 
-  // 2.5. Profile-completion gate (Auth/KYC Wave 2): authenticated but the
-  // profile is missing name and/or city (phone signups arrive as 'User' with
-  // no city; Google/FB signups have no city). Full-screen, non-dismissable —
-  // the marketplace stays closed until name + city exist. The deep-link
-  // capture above has already run, so activeAuctionId/activeView are latched
-  // and the user lands on the captured auction right after completing.
-  if (!isProfileComplete(currentUser)) {
-    return (
-      <div className="min-h-screen bg-surface-raised">
-        <ProfileCompletionModal />
-      </div>
-    );
-  }
+  // 2.5. THE PROFILE-COMPLETION WALL IS GONE, deliberately.
+  //
+  // It used to render here, full-screen and non-dismissable, until the user had
+  // both a name and a city. EVERY phone signup hit it by construction — the new
+  // user document is written with `name: 'User'` and `city: ''` — so the last
+  // step of an eight-screen signup was a wall asking for two things the visitor
+  // did not need in order to do the thing they came for.
+  //
+  // Both are still required, at the moment they are used rather than up front:
+  // the name at the bid gate (BID_GATE_ORDER in utils/guestGate.ts), the city at
+  // the win, where it is a delivery address rather than a form field. The modal
+  // itself is still mounted below — it is now opened by those gates, one field
+  // at a time, instead of blocking the marketplace.
 
-  // 2.6. CR-01 interests gate. Sits AFTER profile completion deliberately: a
-  // user with no name or city has not finished being a user yet, and stacking
-  // two full-screen steps in the other order asks what they like before it
+  // 2.6. CR-01 interests gate. It no longer waits on profile completion, which
+  // no longer exists as a step — a user with no name or city
   // asks who they are.
   //
   // Rendered as a gate rather than navigated to, for the same reason the
@@ -373,7 +373,13 @@ function MainAppShell() {
               // bounce them straight back into the step they just finished —
               // the same resurrection OnboardingModal latches against.
               setInterestsLatched(true);
-              setActiveView('discovery');
+              // Back to the lot they arrived for. This used to be a hard
+              // 'discovery', which dropped the latched auction — so a visitor
+              // who clicked an influencer story for a SPECIFIC lot, and signed
+              // up to bid on it, was released into a generic feed with the
+              // thing that brought them gone. Everything else about that
+              // round-trip already worked; this was the one line that undid it.
+              setActiveView(postOnboardingView(activeAuctionId));
             }}
           />
         </Suspense>
@@ -414,6 +420,15 @@ function MainAppShell() {
         {/* Global E5 contact-completion gate (member missing phone/email before a
             bid/sell action). Mounted unconditionally — it self-hides when !open and
             its recaptcha-cleanup effects rely on the open transition. */}
+        {/* Single-field profile prompts, opened by the gates that need them.
+            Dismissible on purpose — declining just abandons the action. */}
+        {profileFieldPrompt && (
+          <ProfileCompletionModal
+            field={profileFieldPrompt}
+            onClose={() => setProfileFieldPrompt(null)}
+          />
+        )}
+
         <ContactCompletionModal
           open={contactModalOpen}
           onClose={() => setContactModalOpen(false)}

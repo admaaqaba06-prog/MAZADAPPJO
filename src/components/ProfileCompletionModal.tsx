@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './feedback';
 import { translations } from '../utils/translations';
-import { JORDAN_GOVERNORATES, isProfileComplete, isValidCityId, needsName } from '../utils/jordanCities';
+import { JORDAN_GOVERNORATES, isProfileComplete, isValidCityId, needsName, needsCity } from '../utils/jordanCities';
 import { UserRound, MapPin, Mail, ArrowRight, ArrowLeft } from 'lucide-react';
 
 /**
@@ -16,7 +16,25 @@ import { UserRound, MapPin, Mail, ArrowRight, ArrowLeft } from 'lucide-react';
  *  - City:  required for everyone (no signup path collects it).
  *  - Email: optional, receipts only, shown only when the account has none.
  */
-export const ProfileCompletionModal: React.FC = () => {
+export interface ProfileCompletionModalProps {
+  /**
+   * Ask for ONE field. Omit for the legacy "everything still missing" form.
+   *
+   * This is what lets the profile be filled in at the moments it is used
+   * instead of in one wall after signup: 'name' when a bid needs someone to
+   * attribute, 'city' when a won lot needs somewhere to go. Asking for both at
+   * once was the old behaviour and is what made the step feel like a form.
+   */
+  field?: 'name' | 'city';
+  /**
+   * Provided when the prompt is dismissible — i.e. whenever it was opened by a
+   * gate rather than being the app's only rendered content. The action that
+   * opened it is simply abandoned, exactly as the photo and contact gates do.
+   */
+  onClose?: () => void;
+}
+
+export const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ field, onClose }) => {
   const { currentUser, updateOwnProfile, language } = useApp();
   const { showToast } = useToast();
   const t = translations[language as 'en' | 'ar'];
@@ -24,8 +42,12 @@ export const ProfileCompletionModal: React.FC = () => {
 
   // Shared rule (jordanCities.needsName): blank, the 'User' placeholder, or a
   // phone-number-looking name all require a real name to be entered here.
-  const showNameField = needsName(currentUser);
-  const needsEmail = !currentUser?.email;
+  // When `field` names one, it alone renders — the others are not merely hidden
+  // but excluded from validation below, so an unrendered field cannot block a
+  // submit the user has no way to satisfy.
+  const showNameField = field ? field === 'name' : needsName(currentUser);
+  const showCityField = field ? field === 'city' : true;
+  const needsEmail = field ? false : !currentUser?.email;
 
   const [name, setName] = useState('');
   // Seed from the account when it already holds a valid governorate id (e.g.
@@ -39,7 +61,12 @@ export const ProfileCompletionModal: React.FC = () => {
 
   // Safety valve: if completeness flips while mounted (e.g. another tab saved),
   // render nothing — App.tsx unmounts us on the next currentUser update anyway.
-  if (isProfileComplete(currentUser)) return null;
+  // Safety valve. With a single `field` the question is whether THAT field is
+  // still needed — the legacy form asks about the whole profile.
+  const stillNeeded = field === 'name' ? needsName(currentUser)
+    : field === 'city' ? needsCity(currentUser)
+    : !isProfileComplete(currentUser);
+  if (!stillNeeded) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,14 +76,17 @@ export const ProfileCompletionModal: React.FC = () => {
       setFieldError(t.profileNameRequired);
       return;
     }
-    if (!city) {
+    if (showCityField && !city) {
       setFieldError(t.profileCityRequired);
       return;
     }
     setFieldError(null);
     setSaving(true);
     try {
-      const fields: { name?: string; city?: string; email?: string } = { city };
+      // Only send what was actually asked for — a single-field prompt must not
+      // write an empty city over a real one.
+      const fields: { name?: string; city?: string; email?: string } = {};
+      if (showCityField) fields.city = city;
       if (showNameField) fields.name = name.trim();
       if (needsEmail && email.trim()) fields.email = email.trim();
 
@@ -128,7 +158,8 @@ export const ProfileCompletionModal: React.FC = () => {
             </label>
           )}
 
-          {/* City — required on ALL paths */}
+          {/* City — asked at the WIN, where it is a delivery address. */}
+          {showCityField && (
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5" />
@@ -150,6 +181,7 @@ export const ProfileCompletionModal: React.FC = () => {
               ))}
             </select>
           </label>
+          )}
 
           {/* Email — optional, receipts only, only when account has none */}
           {needsEmail && (

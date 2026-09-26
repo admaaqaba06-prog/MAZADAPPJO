@@ -67,3 +67,25 @@ export function signInPrompt(intent: SignInIntent | null | undefined, isAr: bool
 export function postSignInView(intent: SignInIntent | null | undefined): string | null {
   return intent === 'sell' ? 'upload' : null;
 }
+
+/**
+ * Where to land after the onboarding gates finish.
+ *
+ * THE INFLUENCER PROBLEM. A visitor arrives from a story on `/auction/:id`,
+ * MainAppShell captures the id, and they sign up to bid on THAT lot. The
+ * interests gate then finished with a hard `setActiveView('discovery')`, which
+ * dropped the latched auction on the floor — so the last thing a campaign click
+ * saw was a generic feed, and the specific thing that brought them was gone.
+ *
+ * Everything else about the round-trip already worked: `activeAuctionId`
+ * survives signup, and `postSignInView` above deliberately returns null so the
+ * latched view is left alone. This gate was the one place that overwrote it.
+ *
+ * Returns the view to switch to. Discovery remains the answer for someone who
+ * arrived at the front door with no particular lot in mind.
+ */
+export function postOnboardingView(activeAuctionId: string | null | undefined): 'live' | 'discovery' {
+  return typeof activeAuctionId === 'string' && activeAuctionId.trim() !== ''
+    ? 'live'
+    : 'discovery';
+}

@@ -56,14 +56,41 @@ export function needsName(user: any): boolean {
 }
 
 /**
- * A profile is complete when the user has a real name (phone signups get the
- * placeholder 'User'; a phone-number-looking name doesn't count either) and a
- * city. Email is optional — receipts only — and is deliberately NOT part of
- * completeness.
+ * True when the user still needs to provide a city.
+ *
+ * ASKED AT THE WIN, NOT AT SIGNUP. A city is a DELIVERY address: nobody needs
+ * one to browse, and nobody needs one to bid. It is required when a lot is won
+ * and has to be sent somewhere — see the payment/fulfilment path.
+ */
+export function needsCity(user: any): boolean {
+  if (!user) return true;
+  const city = typeof user.city === 'string' ? user.city.trim() : '';
+  return city === '';
+}
+
+/**
+ * WHY THIS NO LONGER GATES THE APP.
+ *
+ * `isProfileComplete` used to require a name AND a city, and App.tsx rendered a
+ * non-dismissible full-screen modal until both existed. Every phone signup hit
+ * it by construction — the new user document is written with `name: 'User'` and
+ * `city: ''` — so the last step of an eight-screen signup was a wall asking for
+ * two things the visitor did not need in order to do the thing they came for.
+ *
+ * Both fields are still required, just at the moment they are actually used:
+ *   - `needsName`  -> the bid gate. A bid shows a name in the history and on
+ *                     the order, so it cannot be placed anonymously.
+ *   - `needsCity`  -> the win. A city is a delivery address and is meaningless
+ *                     before there is something to deliver.
+ *
+ * This is kept as the "everything we will eventually need is present" predicate
+ * for surfaces that legitimately want the whole profile (admin views, the
+ * profile screen's own completeness hint). It must NOT be used to block
+ * navigation again.
  */
 export function isProfileComplete(user: any): boolean {
   if (!user) return false;
   if (needsName(user)) return false;
-  if (!user.city) return false;
+  if (needsCity(user)) return false;
   return true;
 }

@@ -3,6 +3,7 @@ import {
   SIGN_IN_INTENTS,
   signInPrompt,
   postSignInView,
+  postOnboardingView,
   type SignInIntent,
 } from './signInIntent';
 
@@ -61,5 +62,33 @@ describe('postSignInView', () => {
       expect(postSignInView(intent), intent).toBeNull();
     }
     expect(postSignInView(null)).toBeNull();
+  });
+});
+
+describe('postOnboardingView — the influencer deep link survives onboarding', () => {
+  it('returns to the lot the visitor arrived for', () => {
+    // The whole point. A story click on /auction/:id that ends in a generic
+    // feed has lost the specific thing that brought the person.
+    expect(postOnboardingView('auction-new-123')).toBe('live');
+  });
+
+  it('goes to discovery when no lot was latched', () => {
+    // Someone who arrived at the front door with nothing particular in mind.
+    expect(postOnboardingView(null)).toBe('discovery');
+    expect(postOnboardingView(undefined)).toBe('discovery');
+  });
+
+  it('treats a blank id as no lot rather than routing to an empty live view', () => {
+    // `activeAuctionId` is a string state; '' and '   ' are reachable and would
+    // send the user to a live view with nothing to show.
+    expect(postOnboardingView('')).toBe('discovery');
+    expect(postOnboardingView('   ')).toBe('discovery');
+  });
+
+  it('is unaffected by the sign-in intent, which answers a different question', () => {
+    // postSignInView decides where a SIGN-IN lands; this decides where the
+    // onboarding GATES release to. They are not the same moment.
+    expect(postSignInView('sell')).toBe('upload');
+    expect(postOnboardingView('auction-1')).toBe('live');
   });
 });

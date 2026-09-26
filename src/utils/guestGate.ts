@@ -45,35 +45,69 @@ export function resolveGuestWriteAction(isAuthenticated: boolean): 'signup' | 'p
   return isAuthenticated ? 'proceed' : 'signup';
 }
 
-export type BidGateDecision = 'signin' | 'membership' | 'photo' | 'contact' | 'proceed';
+export type BidGateDecision = 'signin' | 'membership' | 'name' | 'photo' | 'contact' | 'proceed';
 
 export interface BidGateArgs {
   isAuthenticated: boolean;
   isMember: boolean;
+  /** A real display name — not the 'User' placeholder a phone signup starts with. */
+  hasName: boolean;
   /** Whether the user has a REAL uploaded/linked profile photo (see hasRealPhoto). */
   hasPhoto: boolean;
   /** resolveMissingContact(user) shows nothing missing (verified phone + email). */
   contactComplete: boolean;
 }
 
+/** The blocking steps, in the order a bid tap meets them. */
+export type BidGateStep = Exclude<BidGateDecision, 'proceed'>;
+
 /**
- * The single ordered gate a bid tap must pass, added to enforce the trust rule
- * "a real photo is required to bid" WITHOUT touching the server bid path. Order,
- * cheapest-blocker first:
- *   1. signin     — a guest must sign up (wins over every later gate).
- *   2. membership — an authenticated non-member is invited to join.
- *   3. photo      — an authenticated member with NO real photo must add one.
- *   4. contact    — a member with a photo but incomplete contact info must complete it.
- *   5. proceed    — member with a photo and complete contact → stage the confirm.
- * A guest is always routed to sign-in first even if the (impossible) member/photo
- * flags say otherwise, so no members-only sheet can ever show to a logged-out tap.
+ * ⚠️ THE ORDER LIVES HERE, AND ONLY HERE. Reorder by editing this array.
+ *
+ * Each step is an independent predicate in `BID_GATE_SATISFIED` below; none of
+ * them reads another's state. That separation is deliberate and load-bearing:
+ *
+ * THE PAYWALL DECISION IS STILL OPEN. Whether a first bid is free or sits
+ * behind the 1/4/7 JD membership has not been decided, and it changes where
+ * 'membership' belongs in this list — possibly removing it for a first bid
+ * entirely. Nothing else should have to change when it does. In particular,
+ * DO NOT fold the name check into the membership branch, or make a later step
+ * assume an earlier one has passed: the moment they are entangled, moving one
+ * line becomes a rewrite.
+ *
+ * Treat this order as provisional until that decision lands.
+ */
+export const BID_GATE_ORDER: readonly BidGateStep[] = [
+  'signin',     // a guest must sign up — also hard-enforced below
+  'membership', // ⚠️ provisional position; see the paywall note above
+  'name',       // a bid shows a name in the history and on the order
+  'photo',      // the "real photo to bid" trust rule
+  'contact',    // verified phone + email, for the order and its notifications
+];
+
+/** One predicate per step. True means "this step is satisfied, move on". */
+const BID_GATE_SATISFIED: Record<BidGateStep, (a: BidGateArgs) => boolean> = {
+  signin: (a) => a.isAuthenticated,
+  membership: (a) => a.isMember,
+  name: (a) => a.hasName,
+  photo: (a) => a.hasPhoto,
+  contact: (a) => a.contactComplete,
+};
+
+/**
+ * The single ordered gate a bid tap must pass, without touching the server bid
+ * path — this only decides whether to stage the confirm.
+ *
+ * Sign-in is checked BEFORE the loop and independently of its position in the
+ * array, so a logged-out tap can never be shown a members-only sheet no matter
+ * how the order is later rearranged. Every other step is resolved by walking
+ * the array above.
  */
 export function resolveBidGate(args: BidGateArgs): BidGateDecision {
-  const { isAuthenticated, isMember, hasPhoto, contactComplete } = args;
-  if (!isAuthenticated) return 'signin';
-  if (!isMember) return 'membership';
-  if (!hasPhoto) return 'photo';
-  if (!contactComplete) return 'contact';
+  if (!args.isAuthenticated) return 'signin';
+  for (const step of BID_GATE_ORDER) {
+    if (!BID_GATE_SATISFIED[step](args)) return step;
+  }
   return 'proceed';
 }
 

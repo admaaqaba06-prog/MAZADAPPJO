@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  BID_GATE_ORDER,
   canGuestAccessView,
   isGuestSession,
   readGuestBrowsingFlag,
@@ -40,18 +41,18 @@ describe('resolveBidTap — the "should this tap sign up or proceed" decision', 
 
 describe('resolveBidGate — ordered signin → membership → photo → proceed', () => {
   it('guest → signin (regardless of member/photo flags)', () => {
-    expect(resolveBidGate({ isAuthenticated: false, isMember: false, hasPhoto: false, contactComplete: false })).toBe('signin');
-    expect(resolveBidGate({ isAuthenticated: false, isMember: true, hasPhoto: true, contactComplete: true })).toBe('signin');
+    expect(resolveBidGate({ isAuthenticated: false, isMember: false, hasName: true, hasPhoto: false, contactComplete: false })).toBe('signin');
+    expect(resolveBidGate({ isAuthenticated: false, isMember: true, hasName: true, hasPhoto: true, contactComplete: true })).toBe('signin');
   });
   it('authenticated non-member → membership', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: true, contactComplete: true })).toBe('membership');
-    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasPhoto: false, contactComplete: false })).toBe('membership');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasName: true, hasPhoto: true, contactComplete: true })).toBe('membership');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: false, hasName: true, hasPhoto: false, contactComplete: false })).toBe('membership');
   });
   it('member without a real photo → photo', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: false, contactComplete: true })).toBe('photo');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasName: true, hasPhoto: false, contactComplete: true })).toBe('photo');
   });
   it('member with a real photo and complete contact → proceed', () => {
-    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasPhoto: true, contactComplete: true })).toBe('proceed');
+    expect(resolveBidGate({ isAuthenticated: true, isMember: true, hasName: true, hasPhoto: true, contactComplete: true })).toBe('proceed');
   });
 });
 
@@ -190,7 +191,7 @@ describe('resolveMissingContact', () => {
 });
 
 describe('resolveBidGate — contact step', () => {
-  const base = { isAuthenticated: true, isMember: true, hasPhoto: true, contactComplete: true };
+  const base = { isAuthenticated: true, isMember: true, hasName: true, hasPhoto: true, contactComplete: true };
   it('member with photo but incomplete contact -> contact', () => {
     expect(resolveBidGate({ ...base, contactComplete: false })).toBe('contact');
   });
@@ -202,5 +203,61 @@ describe('resolveBidGate — contact step', () => {
   });
   it('guest still routes to signin regardless of contact', () => {
     expect(resolveBidGate({ ...base, isAuthenticated: false, contactComplete: false })).toBe('signin');
+  });
+});
+
+describe('the name step, and the order being reorderable', () => {
+  const ok = { isAuthenticated: true, isMember: true, hasName: true, hasPhoto: true, contactComplete: true };
+
+  it('asks for a name before staging a bid', () => {
+    // A bid shows a name in the history and on the order, so it cannot be
+    // placed anonymously. Asked here rather than in a wall after signup.
+    expect(resolveBidGate({ ...ok, hasName: false })).toBe('name');
+  });
+
+  it('proceeds once the name exists', () => {
+    expect(resolveBidGate(ok)).toBe('proceed');
+  });
+
+  it('sign-in still wins over every other step, wherever they sit', () => {
+    // Hard-enforced before the loop: a logged-out tap must never be shown a
+    // members-only sheet, no matter how the order is later rearranged.
+    expect(resolveBidGate({ ...ok, isAuthenticated: false, isMember: false, hasName: false })).toBe('signin');
+  });
+
+  it('returns the FIRST unsatisfied step in BID_GATE_ORDER, not a fixed one', () => {
+    // The behaviour that makes the array authoritative.
+    const allMissing = { isAuthenticated: true, isMember: false, hasName: false, hasPhoto: false, contactComplete: false };
+    const firstBlocking = BID_GATE_ORDER.find(s => s !== 'signin')!;
+    expect(resolveBidGate(allMissing)).toBe(firstBlocking);
+  });
+
+  it('every step in the order is reachable — no unreachable entries', () => {
+    // A step listed but never returned would be dead config that reads as
+    // enforcement. Satisfy everything before it, break only it.
+    const satisfied: Record<string, keyof typeof ok> = {
+      membership: 'isMember', name: 'hasName', photo: 'hasPhoto', contact: 'contactComplete',
+    };
+    for (const step of BID_GATE_ORDER) {
+      if (step === 'signin') continue;
+      const args = { ...ok };
+      for (const earlier of BID_GATE_ORDER) {
+        if (earlier === step) break;
+        if (earlier !== 'signin') (args as any)[satisfied[earlier]] = true;
+      }
+      (args as any)[satisfied[step]] = false;
+      expect(resolveBidGate(args), `${step} is listed in BID_GATE_ORDER but never returned`).toBe(step);
+    }
+  });
+
+  it('the paywall position is data, not control flow', () => {
+    // The entanglement note in guestGate.ts promises the membership step can be
+    // moved or dropped by editing one array. That is only true while no other
+    // step's predicate reads isMember.
+    expect(BID_GATE_ORDER).toContain('membership');
+    const withoutMembership = { ...ok, isMember: false };
+    // With membership satisfied-by-assumption removed from consideration, the
+    // name check must still behave identically.
+    expect(resolveBidGate({ ...withoutMembership, hasName: false, isMember: true })).toBe('name');
   });
 });
