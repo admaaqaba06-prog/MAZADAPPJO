@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveBidGate, isContactComplete } from '../utils/guestGate';
 import { hasRealPhoto } from '../utils/avatarPlaceholder';
+import { needsName } from '../utils/jordanCities';
 import { isActiveMember } from '../utils/membership';
 import { serverNow } from '../utils/serverTime';
 import { markInstallEarned } from '../utils/installPrompt';
@@ -44,9 +45,12 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  * can branch on success/failure.
  */
 export function useBidFlow(execute: BidExecute) {
-  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, requestSignIn } = useApp();
+  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt, requestSignIn } = useApp();
   const isMember = isActiveMember(currentUser, serverNow());
   const isGuest = !isAuthenticated;
+  // A bid puts a name in the history and on the order, so it cannot be placed
+  // anonymously. Asked HERE rather than at signup — see BID_GATE_ORDER.
+  const hasName = !needsName(currentUser);
   const hasPhoto = hasRealPhoto(currentUser);
   const contactComplete = isContactComplete(currentUser);
 
@@ -69,13 +73,20 @@ export function useBidFlow(execute: BidExecute) {
   //   member, photo, complete contact    -> stage the confirm
   // The server bid path is untouched — this only decides whether to stage.
   const startBid = useCallback((amount: number) => {
-    const decision = resolveBidGate({ isAuthenticated, isMember, hasPhoto, contactComplete });
+    const decision = resolveBidGate({ isAuthenticated, isMember, hasName, hasPhoto, contactComplete });
     if (decision === 'signin') {
       requestSignIn('bid');
       return;
     }
     if (decision === 'membership') {
       setShowSubscriptionPrompt(true);
+      return;
+    }
+    if (decision === 'name') {
+      // Ask for the name HERE, not after signup. Same shape as every other gate:
+      // the prompt opens, the bid is dropped, and the user re-taps once the
+      // field exists. No amount is stashed, for the reason given below.
+      setProfileFieldPrompt('name');
       return;
     }
     if (decision === 'photo') {
@@ -92,7 +103,7 @@ export function useBidFlow(execute: BidExecute) {
       return;
     }
     setPendingBid(amount);
-  }, [isAuthenticated, isMember, hasPhoto, contactComplete, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen]);
+  }, [isAuthenticated, isMember, hasName, hasPhoto, contactComplete, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 

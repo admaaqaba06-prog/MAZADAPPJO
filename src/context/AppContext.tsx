@@ -327,6 +327,16 @@ interface AppContextProps {
   attachWhatsappPhone: (phone: string, code: string) => Promise<{ ok: boolean }>;
   saveEmail: (email: string) => Promise<void>;
   // Whether the contact-completion modal is open (mounted by the bid/sell gates in A4).
+  /**
+   * Which single profile field a gate is currently asking for, or null.
+   *
+   * Replaces the non-dismissible profile wall that used to sit after signup:
+   * the fields are now requested at the moment they are used — the name when a
+   * bid needs someone to attribute, the city when a won lot needs somewhere to
+   * go — one at a time rather than as a form.
+   */
+  profileFieldPrompt: 'name' | 'city' | null;
+  setProfileFieldPrompt: (f: 'name' | 'city' | null) => void;
   contactModalOpen: boolean;
   setContactModalOpen: (open: boolean) => void;
   subscribeUser: (jd: number, paymentProofImage?: string, transferFullName?: string, transferPhone?: string, planId?: string) => Promise<boolean>;
@@ -691,6 +701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [showBanNotice, setShowBanNotice] = useState<boolean>(false);
   // E5 contact completion: a member with a photo but a missing contact channel
   // (phone or email) who taps bid/sell is shown the ContactCompletionModal (A4 mounts it).
+  const [profileFieldPrompt, setProfileFieldPrompt] = useState<'name' | 'city' | null>(null);
   const [contactModalOpen, setContactModalOpen] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [globalWalletSubView, setGlobalWalletSubView] = useState<'wallet-home' | 'transactions' | 'orders'>('wallet-home');
@@ -5763,6 +5774,8 @@ const fetchIP = async () => {
       linkPhoneToAccount,
       attachWhatsappPhone,
       saveEmail,
+      profileFieldPrompt,
+      setProfileFieldPrompt,
       contactModalOpen,
       setContactModalOpen,
       logout,
@@ -5814,7 +5827,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, signInIntent, watchlist, autoBids,
-    showSubscriptionPrompt, showPhotoGate, showBanNotice, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, showPhotoGate, showBanNotice, profileFieldPrompt, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, bidCooldownUntil, requestWithdrawal, acceptBelowReserve, rejectBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,

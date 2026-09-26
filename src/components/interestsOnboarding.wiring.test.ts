@@ -40,18 +40,30 @@ describe('interests step routing', () => {
     expect(app).toMatch(/interestsGateOpen[\s\S]{0,200}return \(/);
   });
 
-  it('asks who you are before it asks what you like', () => {
+  it('no longer stacks a profile wall in front of it', () => {
+    // This used to assert the ORDER of two consecutive full-screen steps —
+    // profile first, then interests. There is now only one: the profile wall
+    // was removed because every phone signup hit it by construction (the new
+    // user doc is written with name 'User' and city ''), which made the last
+    // step of an eight-screen signup a form for two fields the visitor did not
+    // need in order to do what they came for.
+    //
+    // Both fields are still required, at the moment they are used: the name at
+    // the bid gate (BID_GATE_ORDER), the city at the win. So the invariant here
+    // inverts — the wall must STAY gone.
     const app = code(read('App.tsx'));
-    const profileGate = app.indexOf('if (!isProfileComplete(currentUser))');
-    // The BRACED form is the gate. `if (interestsGateOpen) setActiveView(...)`
-    // is the URL-sync effect and appears much earlier in the component, so a
-    // bare indexOf finds that instead and this assertion passes or fails for
-    // reasons that have nothing to do with gate order.
-    const interestsGate = app.indexOf('if (interestsGateOpen) {');
-    expect(profileGate).toBeGreaterThan(-1);
-    expect(interestsGate).toBeGreaterThan(-1);
-    // Two full-screen steps in a row; this is the order they belong in.
-    expect(interestsGate).toBeGreaterThan(profileGate);
+    expect(app).not.toMatch(/if \(!isProfileComplete\(currentUser\)\)/);
+    expect(app.indexOf('if (interestsGateOpen) {')).toBeGreaterThan(-1);
+  });
+
+  it('does not wait on profile completeness, which no longer exists as a step', () => {
+    // interestsGateOpen used to include isProfileComplete(currentUser). Leaving
+    // that in would have pinned the interests screen shut forever once the
+    // profile step stopped running.
+    const app = code(read('App.tsx'));
+    const flag = app.slice(app.indexOf('const interestsGateOpen ='), app.indexOf(';', app.indexOf('const interestsGateOpen =')));
+    expect(flag).not.toMatch(/isProfileComplete/);
+    expect(flag).toMatch(/needsInterestsOnboarding\(currentUser\)/);
   });
 
   it('does not re-ask someone who reaches the route another way', () => {
@@ -68,8 +80,12 @@ describe('interests step routing', () => {
     // to live in the flag the effect reads, not only around the JSX.
     const app = code(read('App.tsx'));
     const flag = app.slice(app.indexOf('const interestsGateOpen ='), app.indexOf('React.useEffect(() => {', app.indexOf('const interestsGateOpen =')));
+    // `isAuthenticated` is the one that actually protects a signed-out visitor.
+    // `isProfileComplete` was also asserted here, but only because it happened
+    // to sit in the same expression while the profile wall existed — it never
+    // had anything to do with auth, and requiring it now would pin the step
+    // shut forever.
     expect(flag).toMatch(/isAuthenticated/);
-    expect(flag).toMatch(/isProfileComplete\(currentUser\)/);
     expect(flag).toMatch(/needsInterestsOnboarding\(currentUser\)/);
   });
 
