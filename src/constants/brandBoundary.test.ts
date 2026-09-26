@@ -174,3 +174,46 @@ describe('index.html absolute urls point at the live host', () => {
     }
   });
 });
+
+describe('the Meta Pixel stays deferred', () => {
+  // Measured before this change: fbevents.js + Meta's config fetch were 246KB,
+  // 26% of a cold load and 63% of a repeat one — the two heaviest files on the
+  // page, each bigger than the whole app bundle. Restoring Meta's copy-paste
+  // snippet would quietly put that back on the critical path.
+  const PIXEL = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const CODE = PIXEL.replace(/<!--[\s\S]*?-->/g, '');
+
+  it('still defines fbq synchronously, so no call can throw or be lost', () => {
+    // The stub owns `n.queue`; fbevents.js drains it on arrival. Without the
+    // stub, an early fbq() would be a TypeError instead of a queued event.
+    expect(CODE).toMatch(/f\.fbq/);
+    expect(CODE).toMatch(/n\.queue\s*=\s*\[\]/);
+    expect(CODE).toMatch(/fbq\('init', '1685691263561385'\)/);
+  });
+
+  it('does NOT inject the remote script inside the stub', () => {
+    // Meta's stock snippet ends `...t.src=v;s.parentNode.insertBefore(t,s)}`
+    // INSIDE the IIFE, which is what makes it render-blocking-adjacent. The
+    // deferred loader must be the only injector.
+    const stub = CODE.slice(CODE.indexOf('!function(f,b,e,v,n,t,s)'), CODE.indexOf('fbq(\'init\''));
+    expect(stub).not.toMatch(/connect\.facebook\.net/);
+    expect(stub).not.toMatch(/insertBefore/);
+  });
+
+  it('loads on first interaction OR after load, whichever comes first', () => {
+    expect(CODE).toMatch(/addEventListener\('load'/);
+    for (const ev of ['pointerdown', 'keydown', 'touchstart', 'scroll']) {
+      expect(CODE, `deferred pixel no longer wakes on ${ev}`).toContain(`'${ev}'`);
+    }
+  });
+
+  it('handles the case where load already fired', () => {
+    // A warm cache can have `load` behind us by the time this parses; a
+    // listener added then never runs and an idle visitor goes unmeasured.
+    expect(CODE).toMatch(/readyState === 'complete'/);
+  });
+
+  it('fetches the script exactly once', () => {
+    expect((CODE.match(/connect\.facebook\.net/g) || [])).toHaveLength(1);
+  });
+});
