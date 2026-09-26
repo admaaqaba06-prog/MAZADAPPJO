@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { JORDAN_GOVERNORATES, CITY_IDS, isValidCityId, isProfileComplete, needsName } from './jordanCities';
+import { JORDAN_GOVERNORATES, CITY_IDS, isValidCityId, isProfileComplete, needsName , needsCity } from './jordanCities';
 
 describe('JORDAN_GOVERNORATES', () => {
   it('contains exactly the 12 governorates of Jordan', () => {
@@ -103,5 +103,42 @@ describe('needsName', () => {
     expect(needsName({ name: 'Tareq Al-Omari' })).toBe(false);
     // Short digit strings are not phone-like (pattern requires 6+ chars).
     expect(needsName({ name: 'Abu 79' })).toBe(false);
+  });
+});
+
+describe('a legacy account is not broken by moving the fields', () => {
+  // The population that existed before this change: every phone signup was
+  // written with name 'User' and city '', and the wall is what used to fix
+  // them. With the wall gone they must browse freely and be asked at the
+  // moment each field is used — not crash, and not be silently let through.
+  const legacy = { name: 'User', city: '' };
+
+  it('browses freely — nothing about them blocks the app any more', () => {
+    // isProfileComplete is still false, but it no longer gates navigation.
+    expect(isProfileComplete(legacy)).toBe(false);
+  });
+
+  it('is asked for a name when they bid', () => {
+    expect(needsName(legacy)).toBe(true);
+  });
+
+  it('is asked for a city at the win, separately', () => {
+    expect(needsCity(legacy)).toBe(true);
+  });
+
+  it('a legacy user who already has a real name is NOT re-asked for it', () => {
+    expect(needsName({ name: 'كرم', city: '' })).toBe(false);
+    expect(needsCity({ name: 'كرم', city: '' })).toBe(true);
+  });
+
+  it('treats a whitespace-only city as missing rather than present', () => {
+    expect(needsCity({ name: 'كرم', city: '   ' })).toBe(true);
+  });
+
+  it('a fully-filled legacy account is asked for nothing', () => {
+    const done = { name: 'كرم', city: 'amman' };
+    expect(needsName(done)).toBe(false);
+    expect(needsCity(done)).toBe(false);
+    expect(isProfileComplete(done)).toBe(true);
   });
 });

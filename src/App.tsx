@@ -13,7 +13,6 @@ import { BanNoticeModal } from './components/BanNoticeModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { ContactCompletionModal } from './components/ContactCompletionModal';
-import { isProfileComplete } from './utils/jordanCities';
 import { needsInterestsOnboarding } from './utils/interests';
 import { useCtaPending } from './hooks/useCtaPending';
 import { ToastProvider, ReviewPrompt } from './components/feedback';
