@@ -3,6 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { parseAuctionIdFromSearch, parseAuctionIdFromPath } from './utils/deepLink';
 import { resolveUnauthenticatedScreen, canGuestAccessView } from './utils/guestGate';
 import { isAdminUser } from './utils/adminAuth';
+import { postOnboardingView } from './utils/signInIntent';
 import { canSeeSimulated } from './utils/simVisibility';
 import { useSimulatorEnabled } from './hooks/useSimulatorEnabled';
 import { DesktopFrame } from './components/DesktopFrame';
@@ -194,7 +195,7 @@ function SimulatorOnBanner() {
 }
 
 function MainAppShell() {
-  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, contactModalOpen, setContactModalOpen, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, featureFlags, signInRequested, dismissSignIn } = useApp();
+  const { isAuthenticated, authReady, showSubscriptionPrompt, setShowSubscriptionPrompt, showPhotoGate, setShowPhotoGate, contactModalOpen, setContactModalOpen, showBanNotice, setShowBanNotice, maintenanceMode, currentUser, setActiveView, setActiveAuctionId, activeView, activeAuctionId, featureFlags, signInRequested, dismissSignIn } = useApp();
 
   const isStrictAdmin = isAdminUser(currentUser);
 
@@ -373,7 +374,13 @@ function MainAppShell() {
               // bounce them straight back into the step they just finished —
               // the same resurrection OnboardingModal latches against.
               setInterestsLatched(true);
-              setActiveView('discovery');
+              // Back to the lot they arrived for. This used to be a hard
+              // 'discovery', which dropped the latched auction — so a visitor
+              // who clicked an influencer story for a SPECIFIC lot, and signed
+              // up to bid on it, was released into a generic feed with the
+              // thing that brought them gone. Everything else about that
+              // round-trip already worked; this was the one line that undid it.
+              setActiveView(postOnboardingView(activeAuctionId));
             }}
           />
         </Suspense>
