@@ -17,3 +17,11 @@ coverage/
 *-serviceaccount*.json
 serviceAccount*.json
 scripts/admin/*.json
+
+# BAE / Staq CliQ gateway material — NEVER commit (signed client cert + key)
+*.crt
+*.pem
+*.key
+*.p12
+*.pfx
+signedCert*

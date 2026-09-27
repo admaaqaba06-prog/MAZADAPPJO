@@ -408,6 +408,35 @@ export interface Order {
    */
   sellerCommission?: number;
   sellerNet?: number;
+  /**
+   * Embedded CliQ (Bank al Etihad / Staq) — the GATEWAY payment, distinct from
+   * the manual transfer above. Mazzado raises a request, the payer approves it
+   * in their own banking app, and a webhook reports the outcome.
+   *
+   * ALL OF THESE ARE SERVER-WRITTEN. They are on the orders update denylist in
+   * firestore.rules: `cliqPaymentStatus` is the paid flag, and the two
+   * timestamps ARE the 90-minute duplicate lock, so a client that could write
+   * them could pay for free or raise unlimited requests.
+   *
+   * The payer's FULL identifier is NOT here: orders are seller-readable and
+   * Firestore has no field-level read denylist, so it lives in the admin-only
+   * cliqPayerIdentifiers/{orderId} doc. Only the masked form is on the order.
+   */
+  cliqPaymentStatus?: 'none' | 'pending' | 'paid' | 'rejected' | 'expired';
+  cliqRequestId?: string;
+  cliqRequestCreatedAt?: any;
+  cliqRequestExpiresAt?: any;
+  cliqPayerIdentifierType?: 'alias' | 'mobile';
+  /** MASKED only. The full value is admin-only in cliqPayerIdentifiers/{orderId}. */
+  cliqPayerIdentifierMasked?: string;
+  /** First 8 chars of the payer's IBAN, returned by BAE before submission. */
+  cliqPayerIbanPrefix?: string | null;
+  cliqAmount?: number;
+  cliqFees?: number;
+  cliqTotal?: number;
+  cliqSettledAt?: any;
+  /** Which rail settled this order. Absent on the manual-transfer path. */
+  paymentMethod?: 'cliq_gateway';
   paymentDeadlineAt?: any;
   paymentProofUrl?: string;
   /**

@@ -626,6 +626,44 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                   </div>
                 </div>
 
+                {/* Embedded CliQ gateway (Bank al Etihad). OFF until the BAE
+                    integration is live — see the note in AppContext. */}
+                <div className="py-3 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <h5 className="text-xs font-extrabold text-fg leading-none">
+                      {isAr ? 'الدفع المدمج عبر كليك (بنك الاتحاد)' : 'Embedded CliQ (Bank al Etihad)'}
+                    </h5>
+                    <p className="text-[10px] text-fg-muted mt-1">
+                      {isAr
+                        ? 'لا تفعّله قبل ربط بنك الاتحاد فعلياً — بدون الربط يُخبَر المشتري أن الطلب وصل لبنكه وهو لم يصل.'
+                        : 'Do NOT enable before Bank al Etihad is actually connected — without it the buyer is told a request reached their bank when none was sent.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-full ${
+                      featureFlags?.enableCliqGateway ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                    }`}>
+                      {featureFlags?.enableCliqGateway ? (isAr ? 'فعال' : 'ON') : (isAr ? 'معطل' : 'OFF')}
+                    </span>
+                    <button
+                      onClick={() => updateFeatureFlag('enableCliqGateway', !featureFlags?.enableCliqGateway)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        // Themed token for the off state, not the literal gray
+                        // the older toggles above still carry: theme.guard.test
+                        // ratchets that backlog down and refuses new ones, and a
+                        // hardcoded light gray is invisible in the dark theme.
+                        featureFlags?.enableCliqGateway ? 'bg-emerald-600' : 'bg-surface-sunken'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface-raised shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          featureFlags?.enableCliqGateway ? (isAr ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Wallets Deposits Gate */}
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">

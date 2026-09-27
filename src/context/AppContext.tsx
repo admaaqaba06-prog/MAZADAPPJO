@@ -394,6 +394,16 @@ interface AppContextProps {
     // siteSettings/featureFlags.enableAlgoliaSearch === true to opt in. Stays
     // dormant until the index is backfilled; OFF = today's client-side search.
     enableAlgoliaSearch: boolean;
+    // Embedded CliQ (Bank al Etihad) checkout. Default OFF and FAIL-CLOSED
+    // (=== true), same convention as enableAlgoliaSearch above and the
+    // opposite of enableGuestBrowsing.
+    //
+    // OFF IS THE CORRECT DEFAULT UNTIL THE BAE INTEGRATION IS LIVE. With the
+    // rail visible but no gateway behind it, a real buyer picks CliQ, is told
+    // "we sent the request to your bank" — which is not true, nothing was sent
+    // — and is then locked out of retrying for 90 minutes by the duplicate
+    // guard while their payment deadline runs down.
+    enableCliqGateway: boolean;
   };
   updateMaintenanceMode: (enabled: boolean, messageAr?: string, messageEn?: string, expectedDuration?: string) => Promise<void>;
   updateFeatureFlag: (flag: string, value: boolean) => Promise<void>;
@@ -502,7 +512,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enableWallets: true,
     enablePushNotifications: true,
     enableGuestBrowsing: true,
-    enableAlgoliaSearch: false
+    enableAlgoliaSearch: false,
+    enableCliqGateway: false
   });
 
   const [systemHealthLogs, setSystemHealthLogs] = useState<any[]>([]);
@@ -1421,6 +1432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enablePushNotifications: data.enablePushNotifications !== false,
           enableGuestBrowsing: readGuestBrowsingFlag(data),
           enableAlgoliaSearch: data.enableAlgoliaSearch === true,
+          enableCliqGateway: data.enableCliqGateway === true,
         });
       } else {
         setFeatureFlags({
@@ -1430,6 +1442,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           enablePushNotifications: true,
           enableGuestBrowsing: true,
           enableAlgoliaSearch: false,
+          enableCliqGateway: false,
         });
       }
     }, (err) => {

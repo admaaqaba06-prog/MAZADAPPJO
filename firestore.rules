@@ -504,6 +504,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The payer's FULL CliQ identifier (bank-registered mobile or alias).
+    //
+    // Lives here and not on the order for the reason spelled out above
+    // `deliveryCodes`: `orders/{orderId}` grants `allow read` to the buyer AND
+    // THE SELLER, Firestore has no field-level read denylist, and a granted
+    // read returns every field. The cliq* update denylist below stops WRITES
+    // and does nothing for reads — so an identifier on the order doc would give
+    // the seller the buyer's phone number the moment a request is raised,
+    // defeating revealCounterpartyContact's paymentVerified gate.
+    //
+    // NOT readable by the buyer either: they typed it, their own UI shows the
+    // masked copy on the order, and nothing in the app needs to read it back.
+    // Admin only, for reconciliation against BAE's settlement reports.
+    // Written ONLY by createCliqPaymentRequest via the Admin SDK.
+    match /cliqPayerIdentifiers/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /
@@ -534,6 +553,20 @@ service cloud.firestore {
             // proof/paid directly. (Was: buyer could self-claim unpaid->paid.)
             'paymentStatus', 'paymentProofUrl', 'cliqSenderPhone',
             'txnRef', 'txnRefNormalized', 'paymentAttempts', 'paymentSubmittedAt',
+            // Embedded CliQ (Bank al Etihad / Staq) — SERVER-ONLY, every field.
+            // Two separate holes close here, and both are things BAE tests:
+            //   1. `cliqPaymentStatus` is the paid flag. A buyer who could
+            //      write it would mark their own gateway payment received.
+            //   2. `cliqRequestCreatedAt` / `cliqRequestExpiresAt` ARE the
+            //      90-minute duplicate lock. A buyer who could move the expiry
+            //      could mint unlimited concurrent requests — the lock is only
+            //      as strong as the immutability of the timestamp it reads.
+            // `cliqPayerIdentifier` is the payer's banking handle and is
+            // written once, by the callable, from a normalized value.
+            'cliqPaymentStatus', 'cliqRequestId', 'cliqRequestCreatedAt',
+            'cliqRequestExpiresAt', 'cliqPayerIdentifierType', 'cliqPayerIdentifierMasked',
+            'cliqPayerIbanPrefix', 'cliqAmount', 'cliqFees', 'cliqTotal',
+            'cliqSettledAt', 'paymentMethod',
             // Ownership of chasing an order is a Mazad ops decision — a seller
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.
