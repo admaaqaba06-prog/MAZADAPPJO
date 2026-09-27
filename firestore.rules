@@ -534,6 +534,20 @@ service cloud.firestore {
             // proof/paid directly. (Was: buyer could self-claim unpaid->paid.)
             'paymentStatus', 'paymentProofUrl', 'cliqSenderPhone',
             'txnRef', 'txnRefNormalized', 'paymentAttempts', 'paymentSubmittedAt',
+            // Embedded CliQ (Bank al Etihad / Staq) — SERVER-ONLY, every field.
+            // Two separate holes close here, and both are things BAE tests:
+            //   1. `cliqPaymentStatus` is the paid flag. A buyer who could
+            //      write it would mark their own gateway payment received.
+            //   2. `cliqRequestCreatedAt` / `cliqRequestExpiresAt` ARE the
+            //      90-minute duplicate lock. A buyer who could move the expiry
+            //      could mint unlimited concurrent requests — the lock is only
+            //      as strong as the immutability of the timestamp it reads.
+            // `cliqPayerIdentifier` is the payer's banking handle and is
+            // written once, by the callable, from a normalized value.
+            'cliqPaymentStatus', 'cliqRequestId', 'cliqRequestCreatedAt',
+            'cliqRequestExpiresAt', 'cliqPayerIdentifierType', 'cliqPayerIdentifier',
+            'cliqPayerIbanPrefix', 'cliqAmount', 'cliqFees', 'cliqTotal',
+            'cliqSettledAt', 'paymentMethod',
             // Ownership of chasing an order is a Mazad ops decision — a seller
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.

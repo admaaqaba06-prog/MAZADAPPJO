@@ -11,7 +11,20 @@ export type AnalyticsEventType =
   | 'membership_submitted'
   | 'first_bid'
   | 'auction_won_seen'
-  | 'payment_submitted';
+  | 'payment_submitted'
+  // Embedded CliQ funnel (Bank al Etihad / Staq). Metadata carries orderId,
+  // auctionId, amount and payerBankName — the BANK NAME ONLY. The payer's
+  // alias, mobile and IBAN must never appear here: they are banking
+  // identifiers, and this collection is queried for reporting.
+  | 'cliq_payment_selected'
+  | 'cliq_details_entered'
+  | 'cliq_confirmation_viewed'
+  | 'cliq_disclaimer_acknowledged'
+  | 'cliq_request_submitted'
+  | 'cliq_payment_paid'
+  | 'cliq_payment_rejected'
+  | 'cliq_payment_expired'
+  | 'cliq_duplicate_blocked';
 
 export interface AnalyticsEvent {
   id?: string;

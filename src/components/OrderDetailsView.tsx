@@ -37,6 +37,7 @@ import {
   X
 } from 'lucide-react';
 import { Order, ReturnReason } from '../types';
+import CliqPaymentFlow from './order/CliqPaymentFlow';
 import { translations } from '../utils/translations';
 import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
 import { validateDeliveryAddress, sanitizeDeliveryAddress } from '../utils/deliveryAddress';
@@ -71,6 +72,20 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const [copiedIban, setCopiedIban] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
+  /**
+   * Which payment rail the buyer picked (BAE embedded-CliQ SCREEN 1).
+   *
+   * null = the choice has not been made and the selector is showing. The two
+   * rails are genuinely different products, not a toggle on one:
+   *   'manual'  — the existing flow. The buyer transfers to our public CliQ
+   *               alias themselves and uploads a receipt; an admin verifies it.
+   *   'gateway' — Bank al Etihad's embedded CliQ. We raise a request, the buyer
+   *               approves it inside their own bank app, a webhook confirms it.
+   * Deliberately NOT persisted: a buyer who abandons the gateway flow must be
+   * able to fall back to the manual one, and a half-finished choice is not a
+   * fact about the order.
+   */
+  const [payRail, setPayRail] = useState<'manual' | 'gateway' | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>('');
   const [activities, setActivities] = useState<any[]>([]);
@@ -1564,8 +1579,72 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
               {/* Buyer specific operations */}
               {isBuyer && (
                 <>
-                  {order.status === 'waiting_payment' && (
+                  {/* SCREEN 1 — payment method. Both options settle the same
+                      order for the same total; they differ in who moves the
+                      money. Neither is preselected: defaulting would quietly
+                      migrate every buyer onto a rail we are still onboarding. */}
+                  {order.status === 'waiting_payment' && payRail === null && (
+                    <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-3" id="payment-method-select">
+                      <div className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5">
+                        <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
+                        <span>{isAr ? 'اختر طريقة الدفع' : 'Choose a payment method'}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setPayRail('gateway')}
+                        className="w-full text-start bg-surface-raised border border-line hover:border-[#FF6B00] rounded-xl p-3.5 cursor-pointer transition-colors"
+                      >
+                        {/* TODO: BAE CliQ API — swap in the official CliQ mark
+                            once BAE supplies the brand assets. Until then this
+                            is a text label: shipping an approximation of a
+                            payment scheme's logo is worse than no logo. */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-black text-fg">
+                            {isAr ? 'الدفع عبر كليك (CliQ)' : 'Pay with CliQ'}
+                          </span>
+                          <span className="text-[9px] font-black text-white bg-[#FF6B00] rounded-full px-2 py-0.5 shrink-0">
+                            {isAr ? 'الأسرع' : 'FASTEST'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-fg-muted font-bold leading-snug mt-1">
+                          {isAr
+                            ? 'بنرسل طلب دفع لتطبيق بنكك، وبتوافق عليه من عندك. بدون تحويل يدوي ولا صور إيصالات.'
+                            : 'We send a payment request to your bank app and you approve it there. No manual transfer, no receipt screenshots.'}
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPayRail('manual')}
+                        className="w-full text-start bg-surface-raised border border-line hover:border-[#FF6B00] rounded-xl p-3.5 cursor-pointer transition-colors"
+                      >
+                        <span className="text-[13px] font-black text-fg block">
+                          {isAr ? 'تحويل يدوي عبر كليك' : 'Manual CliQ transfer'}
+                        </span>
+                        <p className="text-[10.5px] text-fg-muted font-bold leading-snug mt-1">
+                          {isAr
+                            ? 'بتحوّل بنفسك على اسم مزادو المستعار، وبترفع صورة الإيصال.'
+                            : "You transfer to Mazzado's alias yourself and upload the receipt."}
+                        </p>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SCREENS 2–7 */}
+                  {order.status === 'waiting_payment' && payRail === 'gateway' && (
+                    <CliqPaymentFlow order={order} isAr={isAr} onBack={() => setPayRail(null)} />
+                  )}
+
+                  {order.status === 'waiting_payment' && payRail === 'manual' && (
                     <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
+                      <button
+                        type="button"
+                        onClick={() => setPayRail(null)}
+                        className="text-[10px] font-black text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer"
+                      >
+                        {isAr ? '← تغيير طريقة الدفع' : '← Change payment method'}
+                      </button>
                       {/* Amount due */}
                       <div className="text-center space-y-1 border-b border-orange-100 pb-3">
                         <span className="text-[9px] text-fg-muted uppercase font-black font-mono block">

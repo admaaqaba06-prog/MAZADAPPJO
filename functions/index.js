@@ -34,6 +34,7 @@ const {
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
+const { createCliqRequest: createCliqRequestTxn, applyCliqWebhook: applyCliqWebhookTxn } = require('./cliqPayment');
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
@@ -2889,6 +2890,91 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     console.error('Error in submitOrderPayment:', error);
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * createCliqPaymentRequest — embedded CliQ (Bank al Etihad / Staq).
+ *
+ * The buyer picks CliQ and gives their alias or mobile; this raises the request
+ * against their bank. It does NOT mark anything paid — only applyCliqWebhook
+ * can, and that is not reachable from a client.
+ *
+ * The 90-minute duplicate lock and the amount check live in cliqPayment.js,
+ * inside the transaction, because a browser can be refreshed and a refresh must
+ * not mint a second request. See cliqPayment.test.js.
+ */
+exports.createCliqPaymentRequest = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
+  }
+  try {
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const result = await createCliqRequestTxn(deps, {
+      orderId: data && data.orderId,
+      buyerUid: context.auth.uid,
+      identifierType: data && data.identifierType,
+      identifier: data && data.identifier,
+      expectedTotal: data && data.expectedTotal,
+    });
+    // NEVER log the identifier — it is the payer's banking handle.
+    console.log(`[createCliqPaymentRequest] order=${data && data.orderId} by ${context.auth.uid} total=${result.total}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in createCliqPaymentRequest:', error.code || error.message);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
+    const err = new functions.https.HttpsError(code, error.message || 'Operation failed.', error.details);
+    throw err;
+  }
+});
+
+/**
+ * cliqDemoAdvance — DEMO MODE ONLY, admin-gated.
+ *
+ * BAE evaluates a recorded walkthrough of the seven screens before production
+ * keys exist, so the status screen needs a way to reach paid / rejected /
+ * expired without a bank. This drives the SAME applyCliqWebhook the real
+ * webhook will, so what BAE sees on the video is the real state machine and not
+ * a mock of it.
+ *
+ * Admin-only on purpose: it is the one callable that can move an order to paid
+ * without money arriving. It is also restricted to SIMULATED orders — an admin
+ * mis-tapping this on a real buyer's order would mark a genuine sale paid for
+ * free.
+ *
+ * TODO: BAE CliQ API — replace with the real webhook handler (verify the BAE
+ * signature against CLIQ_WEBHOOK_SECRET, then call applyCliqWebhookTxn). Delete
+ * this callable once production keys are live.
+ */
+exports.cliqDemoAdvance = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const adminUid = await assertAdmin(context);
+  const orderId = data && data.orderId;
+  const outcome = data && data.outcome;
+  try {
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderSnap.exists) {
+      throw new functions.https.HttpsError('not-found', `Order ${orderId} not found.`);
+    }
+    if (orderSnap.data().isSimulated !== true) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Demo advance is restricted to simulated orders.'
+      );
+    }
+    const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
+    const result = await applyCliqWebhookTxn(deps, {
+      orderId,
+      requestId: data && data.requestId,
+      outcome,
+    });
+    console.log(`[cliqDemoAdvance] order=${orderId} outcome=${outcome} by ${adminUid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in cliqDemoAdvance:', error.code || error.message);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
   }
 });
