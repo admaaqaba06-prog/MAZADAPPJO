@@ -2909,6 +2909,26 @@ exports.createCliqPaymentRequest = functions.runWith({ cors: true }).https.onCal
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
   }
+  // THE KILL SWITCH, SERVER SIDE. The UI hides the rail behind the same flag,
+  // but a hidden button is not a disabled payment rail — this callable is
+  // reachable directly. Fail CLOSED: an absent siteSettings/featureFlags doc,
+  // an absent field, or a read failure all leave the gateway off, because the
+  // harm of raising a request no bank receives (a buyer told their payment was
+  // sent, then locked out for 90 minutes) is worse than the harm of refusing.
+  let gatewayEnabled = false;
+  try {
+    const flagsSnap = await db.collection('siteSettings').doc('featureFlags').get();
+    gatewayEnabled = flagsSnap.exists && flagsSnap.data().enableCliqGateway === true;
+  } catch (flagErr) {
+    console.error('[createCliqPaymentRequest] could not read featureFlags; failing closed:', flagErr.message);
+  }
+  if (!gatewayEnabled) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'الدفع عبر كليك غير متاح حالياً. استخدم التحويل اليدوي.'
+    );
+  }
+
   try {
     const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
     const result = await createCliqRequestTxn(deps, {

@@ -418,15 +418,17 @@ export interface Order {
    * timestamps ARE the 90-minute duplicate lock, so a client that could write
    * them could pay for free or raise unlimited requests.
    *
-   * `cliqPayerIdentifier` is the payer's banking handle — never send it to
-   * analytics; maskCliqIdentifier() exists for anything that displays it.
+   * The payer's FULL identifier is NOT here: orders are seller-readable and
+   * Firestore has no field-level read denylist, so it lives in the admin-only
+   * cliqPayerIdentifiers/{orderId} doc. Only the masked form is on the order.
    */
   cliqPaymentStatus?: 'none' | 'pending' | 'paid' | 'rejected' | 'expired';
   cliqRequestId?: string;
   cliqRequestCreatedAt?: any;
   cliqRequestExpiresAt?: any;
   cliqPayerIdentifierType?: 'alias' | 'mobile';
-  cliqPayerIdentifier?: string;
+  /** MASKED only. The full value is admin-only in cliqPayerIdentifiers/{orderId}. */
+  cliqPayerIdentifierMasked?: string;
   /** First 8 chars of the payer's IBAN, returned by BAE before submission. */
   cliqPayerIbanPrefix?: string | null;
   cliqAmount?: number;

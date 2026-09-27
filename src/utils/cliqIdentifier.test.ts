@@ -133,4 +133,21 @@ describe('client/server parity — normalization is implemented twice', () => {
   it('agrees that an unknown identifier type is never valid', () => {
     expect(server.normalizeCliqIdentifier('iban', 'JO82JONB9999000000001013478507')).toBe('');
   });
+
+  it('masks identically on both sides — the server mask is what the buyer sees', () => {
+    // The order doc now carries only the SERVER-masked value (the full
+    // identifier is admin-only), so the UI renders whatever the server wrote.
+    // If the two masks diverged, the buyer would be shown a form of their own
+    // handle this codebase never intended to display.
+    const MASK_CASES: Array<['alias' | 'mobile', string]> = [
+      ['mobile', '+962790000123'], ['mobile', '+962771234567'],
+      ['alias', 'MAZZADO123'], ['alias', 'ab'], ['alias', 'abc'], ['alias', ''],
+    ];
+    for (const [type, value] of MASK_CASES) {
+      expect(
+        maskCliqIdentifier(type, value),
+        `mask diverged on ${type} / ${value}`
+      ).toBe(server.maskCliqIdentifier(type, value));
+    }
+  });
 });

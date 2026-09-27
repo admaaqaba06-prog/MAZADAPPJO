@@ -100,6 +100,21 @@ function normalizeCliqIdentifier(type, raw) {
   return '';
 }
 
+/**
+ * Display-safe identifier. Mirrors maskCliqIdentifier in
+ * src/utils/cliqIdentifier.ts — cliqIdentifier.test.ts pins them together.
+ *
+ * THIS IS THE ONLY FORM THAT MAY GO ON THE ORDER DOC. See the identifier
+ * split in createCliqRequest below for why.
+ */
+function maskCliqIdentifier(type, value) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (!s) return '';
+  if (type === 'mobile') return `••••${s.slice(-3)}`;
+  if (s.length <= 2) return '••';
+  return `${s.slice(0, 2)}${'•'.repeat(Math.max(2, s.length - 2))}`;
+}
+
 // --- amount ------------------------------------------------------------------
 /**
  * The amount the payer is asked for is the one the SETTLER already persisted on
@@ -195,13 +210,41 @@ async function createCliqRequest(deps, args = {}) {
 
     const expiresAtMs = nowMs + ttlMs;
 
+    /**
+     * THE IDENTIFIER IS SPLIT IN TWO, AND THIS IS NOT OPTIONAL.
+     *
+     * `orders/{orderId}` grants `allow read` to the buyer AND THE SELLER, and
+     * Firestore has no field-level read denylist — a granted read returns every
+     * field. The update denylist added for cliq* stops WRITES; it does nothing
+     * for reads.
+     *
+     * So putting the payer's CliQ identifier on the order doc would hand the
+     * SELLER the buyer's bank-registered mobile number the moment a request is
+     * raised — before any payment, and in direct defeat of
+     * contactReveal.js:44, which refuses to share a counterparty's contact
+     * until `paymentVerified === true`.
+     *
+     * Same lesson, same fix as `deliveryCodes` (see firestore.rules): the full
+     * value lives in its own admin-only document, and only the MASKED form —
+     * which is all the buyer's own UI ever displays — goes on the order.
+     */
+    const secretRef = db.collection('cliqPayerIdentifiers').doc(orderId);
+    txn.set(secretRef, {
+      orderId,
+      buyerId: buyerUid,
+      identifierType,
+      identifier: normalized,
+      createdAt: Timestamp.fromMillis(nowMs),
+    }, { merge: true });
+
     txn.set(orderRef, {
       cliqPaymentStatus: 'pending',
       cliqRequestId: requestId,
       cliqRequestCreatedAt: Timestamp.fromMillis(nowMs),
       cliqRequestExpiresAt: Timestamp.fromMillis(expiresAtMs),
       cliqPayerIdentifierType: identifierType,
-      cliqPayerIdentifier: normalized,
+      // MASKED ONLY — never `normalized`. See the note above.
+      cliqPayerIdentifierMasked: maskCliqIdentifier(identifierType, normalized),
       cliqPayerIbanPrefix: payerIbanPrefix,
       cliqAmount: money.amount,
       cliqFees: money.fees,
@@ -290,6 +333,7 @@ module.exports = {
   cliqRequestState,
   normalizeCliqIdentifier,
   normalizeJordanMobile,
+  maskCliqIdentifier,
   resolveCliqAmount,
   createCliqRequest,
   applyCliqWebhook,

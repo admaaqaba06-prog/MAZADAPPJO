@@ -60,7 +60,7 @@ interface OrderDetailsViewProps {
 }
 
 export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onBack }) => {
-  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn, sellerRespondToReturn, rateBuyer } = useApp();
+  const { orders, language, currentUser, addNotification, sellerProfiles, myReviews, setReviewPromptOrderId, updateOwnProfile, requestReturn, sellerRespondToReturn, rateBuyer, featureFlags } = useApp();
   const isAr = language === 'ar';
   const t = translations[language as 'en' | 'ar'];
 
@@ -86,6 +86,25 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
    * fact about the order.
    */
   const [payRail, setPayRail] = useState<'manual' | 'gateway' | null>(null);
+
+  /**
+   * The gateway is OFF until Bank al Etihad is actually connected.
+   *
+   * With the rail visible but no gateway behind it, createCliqPaymentRequest
+   * mints a local id, no bank ever hears about it, and the buyer is told "we
+   * sent the request to your bank". They then cannot retry for 90 minutes,
+   * because the duplicate guard is doing its job, while their payment deadline
+   * runs down. So the flag gates the CHOICE, not just the panel.
+   *
+   * Fail-closed by construction (`=== true` in AppContext), and enforced again
+   * in the callable — a flag that only hides a button is not a kill switch for
+   * a payment rail.
+   *
+   * When it is off there is no choice to make, so the manual panel renders
+   * directly and the buyer sees exactly what they see today.
+   */
+  const cliqGatewayEnabled = featureFlags?.enableCliqGateway === true;
+  const activeRail = cliqGatewayEnabled ? payRail : 'manual';
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>('');
   const [activities, setActivities] = useState<any[]>([]);
@@ -1583,7 +1602,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       order for the same total; they differ in who moves the
                       money. Neither is preselected: defaulting would quietly
                       migrate every buyer onto a rail we are still onboarding. */}
-                  {order.status === 'waiting_payment' && payRail === null && (
+                  {order.status === 'waiting_payment' && activeRail === null && (
                     <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-3" id="payment-method-select">
                       <div className="text-[10px] font-black text-fg uppercase tracking-tight font-mono flex items-center gap-1.5">
                         <Landmark className="w-3.5 h-3.5 text-[#FF6B00]" />
@@ -1632,19 +1651,24 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   )}
 
                   {/* SCREENS 2–7 */}
-                  {order.status === 'waiting_payment' && payRail === 'gateway' && (
+                  {order.status === 'waiting_payment' && activeRail === 'gateway' && (
                     <CliqPaymentFlow order={order} isAr={isAr} onBack={() => setPayRail(null)} />
                   )}
 
-                  {order.status === 'waiting_payment' && payRail === 'manual' && (
+                  {order.status === 'waiting_payment' && activeRail === 'manual' && (
                     <div className="bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-4" id="buyer-cliq-payment-panel">
-                      <button
-                        type="button"
-                        onClick={() => setPayRail(null)}
-                        className="text-[10px] font-black text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer"
-                      >
-                        {isAr ? '← تغيير طريقة الدفع' : '← Change payment method'}
-                      </button>
+                      {/* Only when there is another rail to change TO. With the
+                          gateway off, activeRail is pinned to 'manual', so this
+                          would be a control that visibly does nothing. */}
+                      {cliqGatewayEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => setPayRail(null)}
+                          className="text-[10px] font-black text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer"
+                        >
+                          {isAr ? '← تغيير طريقة الدفع' : '← Change payment method'}
+                        </button>
+                      )}
                       {/* Amount due */}
                       <div className="text-center space-y-1 border-b border-orange-100 pb-3">
                         <span className="text-[9px] text-fg-muted uppercase font-black font-mono block">

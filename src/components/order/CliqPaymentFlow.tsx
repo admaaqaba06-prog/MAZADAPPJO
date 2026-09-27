@@ -36,7 +36,7 @@ import {
 } from '../../utils/cliqRequest';
 import {
   type CliqIdentifierType, isValidCliqIdentifier, normalizeCliqIdentifier,
-  maskCliqIdentifier, JO_MOBILE_PLACEHOLDER,
+  JO_MOBILE_PLACEHOLDER,
 } from '../../utils/cliqIdentifier';
 import { getBankNameFromIban, isKnownBank } from '../../utils/cliqIban';
 import { CLIQ_PROCESSING_MAX_HOURS, arabicHours } from '../../constants/cliqGateway';
@@ -428,12 +428,13 @@ export default function CliqPaymentFlow({ order, isAr, onBack }: Props) {
             </p>
           </div>
 
-          {order.cliqPayerIdentifierType && order.cliqPayerIdentifier && (
+          {/* The server masks this before it is written. The full identifier
+              never reaches the order doc, because the SELLER can read that doc
+              — see the split in functions/cliqPayment.js. */}
+          {order.cliqPayerIdentifierMasked && (
             <p className="text-[10px] text-fg-muted font-bold text-center">
               {isAr ? 'أُرسل إلى: ' : 'Sent to: '}
-              <span dir="ltr" className="font-mono">
-                {maskCliqIdentifier(order.cliqPayerIdentifierType, order.cliqPayerIdentifier)}
-              </span>
+              <span dir="ltr" className="font-mono">{order.cliqPayerIdentifierMasked}</span>
             </p>
           )}
         </>

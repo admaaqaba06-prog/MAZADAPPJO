@@ -67,7 +67,8 @@ function args(overrides = {}) {
   };
 }
 
-const lastWrite = (db) => db._writes[db._writes.length - 1].data;
+const orderWrite = (db) => db._writes.filter((w) => w.path.startsWith('orders/')).pop().data;
+const lastWrite = orderWrite;
 
 describe('createCliqRequest — the happy path', () => {
   it('opens a pending request with a 90-minute window and the normalized identifier', async () => {
@@ -79,7 +80,7 @@ describe('createCliqRequest — the happy path', () => {
 
     const w = lastWrite(db);
     expect(w.cliqPaymentStatus).toBe('pending');
-    expect(w.cliqPayerIdentifier).toBe('+962790000000'); // normalized, not raw
+    expect(w.cliqPayerIdentifierMasked).toBe('••••000'); // masked, never the raw handle
     expect(w.cliqRequestExpiresAt.toMillis()).toBe(NOW_MS + CLIQ_REQUEST_TTL_MS);
   });
 
@@ -88,6 +89,31 @@ describe('createCliqRequest — the happy path', () => {
     await createCliqRequest(deps(db), args());
     const w = lastWrite(db);
     expect(w.cliqAmount + w.cliqFees).toBeCloseTo(w.cliqTotal, 6);
+  });
+
+  it('NEVER puts the payer identifier on the seller-readable order doc', async () => {
+    // orders grant  to the SELLER and Firestore has no field-level
+    // read denylist, so an identifier here is the buyer's phone number handed
+    // to the seller before any payment — defeating contactReveal's
+    // paymentVerified gate. This is the regression test for that.
+    const db = makeFakeDb({ 'orders/o1': WAITING });
+    await createCliqRequest(deps(db), args());
+
+    const orderWrite = db._writes.find((w) => w.path === 'orders/o1').data;
+    expect(orderWrite.cliqPayerIdentifier).toBeUndefined();
+    expect(orderWrite.cliqPayerIdentifierMasked).toBe('••••000');
+    expect(JSON.stringify(orderWrite)).not.toContain('+962790000000');
+    expect(JSON.stringify(orderWrite)).not.toContain('790000000');
+  });
+
+  it('keeps the full identifier in the admin-only cliqPayerIdentifiers doc', async () => {
+    const db = makeFakeDb({ 'orders/o1': WAITING });
+    await createCliqRequest(deps(db), args());
+
+    const secret = db._writes.find((w) => w.path === 'cliqPayerIdentifiers/o1');
+    expect(secret, 'the full identifier was not persisted anywhere').toBeTruthy();
+    expect(secret.data.identifier).toBe('+962790000000');
+    expect(secret.data.buyerId).toBe('b1');
   });
 
   it('does NOT advance the order status — raising a request is not paying', async () => {
@@ -123,7 +149,7 @@ describe('createCliqRequest — the 90-minute duplicate lock', () => {
     const db = makeFakeDb(fixtures);
 
     await createCliqRequest(deps(db), args());
-    fixtures['orders/o1'] = { ...WAITING, ...db._writes[0].data };
+    fixtures['orders/o1'] = { ...WAITING, ...orderWrite(db) };
 
     await expect(createCliqRequest(deps(db), args())).rejects.toMatchObject({
       code: 'resource-exhausted',
