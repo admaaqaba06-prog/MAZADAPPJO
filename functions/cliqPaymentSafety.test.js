@@ -6,7 +6,7 @@
 // renders. The fixes are all server-side for the same reason.
 
 import { describe, it, expect } from 'vitest';
-import { createCliqRequest, applyCliqWebhook, isCliqRequestLive } from './cliqPayment.js';
+import { createCliqRequest, applyCliqWebhook, isCliqRequestLive, MAX_CLIQ_REQUESTS } from './cliqPayment.js';
 
 const NOW_MS = 1750000000000;
 
@@ -43,6 +43,7 @@ const WAITING = {
   totalDue: 12.6,
   deliveryAddress: { governorate: 'amman', area: 'Abdoun' },
   deliveryPhone: '0791111111',
+  paymentDeadlineAt: { toMillis: () => NOW_MS + 24 * 3600 * 1000 },
 };
 
 const args = (o = {}) => ({
@@ -173,5 +174,58 @@ describe('isCliqRequestLive — who paymentDefaultEnforcer must skip', () => {
     for (const cliqPaymentStatus of ['paid', 'rejected', 'expired']) {
       expect(isCliqRequestLive({ cliqPaymentStatus }, NOW_MS)).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The enforcer deferral must stay BOUNDED.
+//
+// paymentDefaultEnforcer skips an order whose CliQ request is live, and the
+// comment there called that bounded because a request lapses after 90 minutes.
+// That is true of ONE request and says nothing about the next. The sweep runs
+// every 30 minutes and the TTL is 90, so one request per cycle covers every
+// intervening sweep — a buyer who never opens their banking app could hold a
+// seller's lot indefinitely, take no strike, and keep the runner-up from ever
+// being offered it.
+describe('a buyer cannot defer their own payment deadline forever', () => {
+  const PAST = { ...WAITING, paymentDeadlineAt: { toMillis: () => NOW_MS - 1 } };
+
+  it('refuses a NEW request once the payment deadline has passed', async () => {
+    const db = makeFakeDb({ 'orders/o1': PAST });
+    await expect(createCliqRequest(deps(db), args())).rejects.toMatchObject({
+      code: 'failed-precondition',
+    });
+    expect(db._writes).toHaveLength(0);
+  });
+
+  it('still allows a request right up to the deadline', async () => {
+    const db = makeFakeDb({
+      'orders/o1': { ...WAITING, paymentDeadlineAt: { toMillis: () => NOW_MS + 1 } },
+    });
+    await expect(createCliqRequest(deps(db), args())).resolves.toBeTruthy();
+  });
+
+  it('does not require a deadline that was never set', async () => {
+    // Legacy orders predate paymentDeadlineAt; refusing them would strand a
+    // buyer who has done nothing wrong.
+    const { paymentDeadlineAt, ...noDeadline } = WAITING;
+    const db = makeFakeDb({ 'orders/o1': noDeadline });
+    await expect(createCliqRequest(deps(db), args())).resolves.toBeTruthy();
+  });
+
+  it('caps the number of requests per order', async () => {
+    // Each request is a real prompt pushed into someone's banking app, so an
+    // unbounded retry loop is abusive even inside the deadline.
+    const db = makeFakeDb({ 'orders/o1': { ...WAITING, cliqRequestAttempts: MAX_CLIQ_REQUESTS } });
+    await expect(createCliqRequest(deps(db), args())).rejects.toMatchObject({
+      code: 'resource-exhausted',
+    });
+  });
+
+  it('counts each request it grants', async () => {
+    const db = makeFakeDb({ 'orders/o1': { ...WAITING, cliqRequestAttempts: 2 } });
+    await createCliqRequest(deps(db), args());
+    const order = db._writes.find((w) => w.path === 'orders/o1').data;
+    expect(order.cliqRequestAttempts).toBe(3);
   });
 });

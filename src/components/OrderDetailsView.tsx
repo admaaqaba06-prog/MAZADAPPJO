@@ -454,6 +454,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
 
   const handleCopyIban = () => {
+    if (!CLIQ_IBAN) return; // nothing to copy while the IBAN is suppressed
     navigator.clipboard.writeText(CLIQ_IBAN);
     setCopiedIban(true);
     setTimeout(() => setCopiedIban(false), 2000);
@@ -1752,19 +1753,27 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
                           <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? CLIQ_BANK_NAME_AR : CLIQ_BANK_NAME_EN}</span>
                         </div>
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="font-bold text-fg-muted">IBAN:</span>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{formatIban(CLIQ_IBAN)}</span>
-                            <button
-                              type="button"
-                              onClick={handleCopyIban}
-                              className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
-                            >
-                              {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
+                        {/* The IBAN is a FALLBACK destination; the alias above
+                            is the primary one and is live. While CLIQ_IBAN is
+                            null (account moved banks, new IBAN not yet in hand)
+                            the whole row is dropped — an empty IBAN beside a
+                            copy button reads as a destination that failed to
+                            load, and the button would copy ''. */}
+                        {CLIQ_IBAN && (
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="font-bold text-fg-muted">IBAN:</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{formatIban(CLIQ_IBAN)}</span>
+                              <button
+                                type="button"
+                                onClick={handleCopyIban}
+                                className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                              >
+                                {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       {/* W4 — delivery address + phone (required before payment) */}

@@ -582,7 +582,9 @@ service cloud.firestore {
             'cliqPaymentStatus', 'cliqRequestId', 'cliqRequestCreatedAt',
             'cliqRequestExpiresAt', 'cliqPayerIdentifierType', 'cliqPayerIdentifierMasked',
             'cliqPayerIbanPrefix', 'cliqAmount', 'cliqFees', 'cliqTotal',
-            'cliqSettledAt', 'paymentMethod',
+            'cliqSettledAt', 'paymentMethod', 'cliqRequestAttempts',
+            'cliqPaidOutOfBand', 'cliqPaidOutOfBandStatus',
+            'cliqSupersededPaid', 'cliqSupersededPaidRequestId', 'cliqSupersededPaidAt',
             // Ownership of chasing an order is a Mazad ops decision — a seller
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.

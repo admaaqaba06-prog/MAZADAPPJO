@@ -31,13 +31,17 @@ import {
   CLIQ_IBAN,
 } from './cliq';
 import { BRAND_HOST } from './brand';
+import { getBankNameFromIban } from '../utils/cliqIban';
 
 describe('payment identifiers do not follow the brand', () => {
   it('keeps the CliQ alias the bank actually has registered', () => {
     // 'mazadjom' until 2026-08-26, when the account moved to Al Ahli Bank and
     // that alias was confirmed DEAD — every payment screen was handing customers
     // a destination that no longer resolved.
-    expect(CLIQ_ALIAS).toBe('MAZZADO');
+    // 'MAZZADO' until 2026-09-28, when the account moved again — to Bank al
+    // Etihad — and was re-registered as MAZZADO26. Confirmed by the account
+    // owner before this line changed, per the bank-first rule in cliq.ts.
+    expect(CLIQ_ALIAS).toBe('MAZZADO26');
   });
 
   it('has no hardcoded copy of the alias left anywhere', () => {
@@ -72,13 +76,23 @@ describe('payment identifiers do not follow the brand', () => {
     // Was hardcoded in 17 places across 7 files, and every one of them said Arab
     // Bank after the account had already moved — seventeen lines telling a
     // customer to look for their money at the wrong bank.
-    expect(CLIQ_BANK_NAME_EN).toBe('Jordan Ahli Bank');
-    expect(CLIQ_BANK_NAME_AR).toBe('البنك الأهلي الأردني');
+    // Moved again 2026-09-28: Jordan Ahli Bank -> Bank al Etihad. The English
+    // spelling follows the official code list Staq supplied (BankCodes.xlsx).
+    expect(CLIQ_BANK_NAME_EN).toBe('Bank al Etihad');
+    expect(CLIQ_BANK_NAME_AR).toBe('بنك الاتحاد');
   });
 
-  it('carries an IBAN whose checksum is valid', () => {
+  // THE IBAN IS CURRENTLY NULL — suppressed 2026-09-28 pending the Bank al
+  // Etihad one, because the stored value was a Jordan Ahli (JONB) IBAN and the
+  // account has moved. These two now guard the RULE rather than a literal, so
+  // they keep working whether the IBAN is absent or restored, and they refuse a
+  // restored value that disagrees with the bank we name. Pinning a new literal
+  // instead would prove only that someone typed it twice.
+
+  it('carries an IBAN whose checksum is valid, if it carries one at all', () => {
     // A hand-typed IBAN is a wrong destination that looks right. mod-97 catches
     // a transposed or dropped digit, which is exactly how one gets typed wrong.
+    if (CLIQ_IBAN === null) return; // suppressed; the row is hidden — see below
     expect(CLIQ_IBAN).toHaveLength(30); // Jordan
     const re = CLIQ_IBAN.slice(4) + CLIQ_IBAN.slice(0, 4);
     const digits = re.replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
@@ -90,9 +104,22 @@ describe('payment identifiers do not follow the brand', () => {
   it('carries an IBAN issued by the bank it names', () => {
     // Characters 5-8 of an IBAN are the bank. The screens print the bank name
     // and the IBAN side by side, so if these two ever disagree one of them is
-    // sending someone's money to the wrong place. JONB = Jordan Ahli Bank.
-    expect(CLIQ_IBAN.slice(4, 8)).toBe('JONB');
-    expect(CLIQ_BANK_NAME_EN).toBe('Jordan Ahli Bank');
+    // sending someone's money to the wrong place.
+    //
+    // Derived from the official code list rather than restated, so restoring an
+    // IBAN from the WRONG bank fails here without anyone having to remember to
+    // update this line. UBSI = Bank al Etihad (BankCodes.xlsx: UBSIJOAX).
+    if (CLIQ_IBAN === null) return;
+    expect(getBankNameFromIban(CLIQ_IBAN, false)).toBe(CLIQ_BANK_NAME_EN);
+    expect(getBankNameFromIban(CLIQ_IBAN, true)).toBe(CLIQ_BANK_NAME_AR);
+  });
+
+  it('hides the IBAN row while no IBAN is set, rather than rendering a blank', () => {
+    // The suppression is only safe if the UI actually drops the row. A rendered
+    // empty IBAN next to a copy button is worse than no row: it looks like a
+    // destination that failed to load, and the copy button yields ''.
+    const view = readFileSync(join(ROOT, 'src/components/OrderDetailsView.tsx'), 'utf8');
+    expect(view).toMatch(/CLIQ_IBAN\s*&&/);
   });
 
   it('keeps the IBAN out of the components', () => {
@@ -123,6 +150,14 @@ describe('payment identifiers do not follow the brand', () => {
       const src = readFileSync(file, 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\/\/[^\n]*/g, '');
+      // utils/cliqIban.ts is exempt for the same reason SellerCenterView is: it
+      // holds the official list of every PAYER bank in Jordan, transcribed from
+      // Staq's BankCodes.xlsx, and several are legitimately named "Arab Bank
+      // PLC", "Arab Jordan Investment Bank", "Egyptian Arab Land Bank". None is
+      // OUR destination — that is CLIQ_BANK_NAME_*, pinned separately above.
+      // Deliberately a single-file exemption, so a stale destination anywhere
+      // else is still caught.
+      if (file.replace(/\\/g, '/').endsWith('src/utils/cliqIban.ts')) continue;
       // CASE-INSENSITIVE. This guard existed and still shipped ARAB BANK to two
       // live payment screens for nine days, because it was written /Arab Bank/
       // and both offenders were uppercase inside a `uppercase font-mono` span.

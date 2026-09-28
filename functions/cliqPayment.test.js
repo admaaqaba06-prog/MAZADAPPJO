@@ -57,6 +57,8 @@ const WAITING = {
   // A delivery address is a precondition of paying on BOTH rails.
   deliveryAddress: { governorate: 'amman', area: 'Abdoun' },
   deliveryPhone: '0791111111',
+  // A payment deadline is now a precondition of raising a request.
+  paymentDeadlineAt: { toMillis: () => 1750000000000 + 24 * 3600 * 1000 },
 };
 
 function args(overrides = {}) {
@@ -294,11 +296,30 @@ describe('applyCliqWebhook — the only path to paid', () => {
     expect(db._writes).toHaveLength(0);
   });
 
-  it('ignores a late webhook for a superseded request', async () => {
+  it('ignores a late REJECTED/EXPIRED webhook for a superseded request', async () => {
+    for (const outcome of ['rejected', 'expired']) {
+      const db = makeFakeDb({ 'orders/o1': { ...PENDING, cliqRequestId: 'req_2' } });
+      const out = await applyCliqWebhook(deps(db), { orderId: 'o1', requestId: 'req_1', outcome });
+      expect(out.ignored).toBe('stale_request');
+      expect(db._writes).toHaveLength(0);
+    }
+  });
+
+  it('RECORDS a late PAID webhook for a superseded request instead of dropping it', async () => {
+    // Was asserted the other way. Dropping it left money moved at the bank with
+    // no trace on our side — the 90-minute lock lapses before the 2-hour
+    // settlement window the disclaimer promises, so this is a designed
+    // collision, not a corner case.
     const db = makeFakeDb({ 'orders/o1': { ...PENDING, cliqRequestId: 'req_2' } });
     const out = await applyCliqWebhook(deps(db), { orderId: 'o1', requestId: 'req_1', outcome: 'paid' });
-    expect(out.ignored).toBe('stale_request');
-    expect(db._writes).toHaveLength(0);
+
+    expect(out.needsReconciliation).toBe(true);
+    const order = db._writes.find((w) => w.path === 'orders/o1').data;
+    expect(order.cliqSupersededPaid).toBe(true);
+    expect(order.cliqSupersededPaidRequestId).toBe('req_1');
+    // Must NOT clobber the live request's own state.
+    expect(order.cliqPaymentStatus).toBeUndefined();
+    expect(db._writes.some((w) => w.path.startsWith('system_health/'))).toBe(true);
   });
 
   it('never un-pays an order that a later rejection arrives for', async () => {
