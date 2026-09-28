@@ -75,7 +75,11 @@ describe('submitOrderPayment', () => {
     const result = await submitOrderPayment(deps(db), goodArgs());
 
     expect(result).toEqual({ orderId: 'o1', attempts: 1 });
-    expect(db._writes).toHaveLength(2);
+    // Three docs, named rather than counted: the reference reservation, the
+    // admin-only sender phone, and the order itself.
+    expect(db._writes.map((w) => w.path).sort()).toEqual([
+      'cliqPaymentSenders/o1', 'orders/o1', 'paymentReferences/CLIQ12345',
+    ]);
 
     // 1) reference reservation
     const refW = db._writes.find((w) => w.path === 'paymentReferences/CLIQ12345');
@@ -90,7 +94,9 @@ describe('submitOrderPayment', () => {
     expect(orderW).toBeTruthy();
     expect(orderW.options).toEqual({ merge: true });
     expect(orderW.data.paymentProofUrl).toBe('https://proofs.example/r.png');
-    expect(orderW.data.cliqSenderPhone).toBe('0790000000');
+    // The full number must NOT be on the seller-readable order doc.
+    expect(orderW.data.cliqSenderPhone).toBeUndefined();
+    expect(orderW.data.cliqSenderPhoneMasked).toBe('••••000');
     expect(orderW.data.txnRef).toBe('CLIQ12345');
     expect(orderW.data.txnRefNormalized).toBe('CLIQ12345');
     expect(orderW.data.paymentAttempts).toBe(1);
@@ -206,5 +212,45 @@ describe('submitOrderPayment', () => {
     const orderW = db._writes.find((w) => w.path === 'orders/o1');
     expect(orderW.data.deliveryAddress).toEqual({ governorate: 'Irbid' });
     expect(orderW.data.deliveryPhone).toBe('0799999999');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The sender phone must never reach the seller.
+//
+// `orders/{orderId}` grants `allow read` to the buyer AND the seller, and
+// Firestore has no field-level read denylist, so a granted read returns every
+// field. The admin UI guarded the DISPLAY (`isAdmin && ...`), but a seller
+// reading the document directly walked past that — while
+// revealCounterpartyContact exists precisely to withhold a counterparty's
+// contact until payment is verified. Same leak, same fix, as the gateway rail's
+// cliqPayerIdentifier.
+describe('sender phone is split away from the seller-readable order doc', () => {
+  it('writes only the masked form on the order', async () => {
+    const db = makeFakeDb({ 'orders/o1': WAITING });
+    await submitOrderPayment(deps(db), goodArgs());
+    const order = db._writes.find((w) => w.path === 'orders/o1').data;
+
+    expect(order.cliqSenderPhone).toBeUndefined();
+    expect(order.cliqSenderPhoneMasked).toBe('••••000');
+    expect(JSON.stringify(order)).not.toContain('0790000000');
+  });
+
+  it('keeps the full number in the admin-only cliqPaymentSenders doc', async () => {
+    const db = makeFakeDb({ 'orders/o1': WAITING });
+    await submitOrderPayment(deps(db), goodArgs());
+    const sender = db._writes.find((w) => w.path === 'cliqPaymentSenders/o1');
+
+    expect(sender, 'admins would have nothing to match a transfer against').toBeTruthy();
+    expect(sender.data.senderPhone).toBe('0790000000');
+    expect(sender.data.buyerId).toBe('b1');
+  });
+
+  it('masks a short or odd number without leaking it whole', async () => {
+    const db = makeFakeDb({ 'orders/o1': WAITING });
+    await submitOrderPayment(deps(db), goodArgs({ cliqSenderPhone: '  0791234567  ' }));
+    const order = db._writes.find((w) => w.path === 'orders/o1').data;
+    expect(order.cliqSenderPhoneMasked).toBe('••••567');
+    expect(order.cliqSenderPhoneMasked).not.toContain('079');
   });
 });

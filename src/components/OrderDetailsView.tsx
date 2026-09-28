@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Order, ReturnReason } from '../types';
 import CliqPaymentFlow from './order/CliqPaymentFlow';
+import CliqSenderReveal from './admin/CliqSenderReveal';
 import { translations } from '../utils/translations';
 import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
 import { validateDeliveryAddress, sanitizeDeliveryAddress } from '../utils/deliveryAddress';
@@ -453,6 +454,7 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   const totalDue = order.totalDue ?? winTotalDue(order.winningBidAmount);
 
   const handleCopyIban = () => {
+    if (!CLIQ_IBAN) return; // nothing to copy while the IBAN is suppressed
     navigator.clipboard.writeText(CLIQ_IBAN);
     setCopiedIban(true);
     setTimeout(() => setCopiedIban(false), 2000);
@@ -1563,7 +1565,11 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
 
               {/* E1 — CliQ sender phone, shown to admin so they can match the
                   incoming transfer to this order (the number the money came from). */}
-              {isAdmin && order.cliqSenderPhone && (
+              {/* The full number is NOT on this document any more — it is
+                  admin-only in cliqPaymentSenders/{orderId}, because orders are
+                  seller-readable and a UI `isAdmin &&` is not a read rule.
+                  Revealed on demand; legacy orders still carry the old field. */}
+              {isAdmin && (order.cliqSenderPhoneMasked || order.cliqSenderPhone) && (
                 <div className="bg-surface border border-line p-4 rounded-2xl space-y-3 flex flex-col justify-between" id="admin-cliq-sender-phone">
                   <div className="space-y-1.5">
                     <div className="p-2 bg-accent-weak text-[#FF6B00] rounded-xl w-fit">
@@ -1574,9 +1580,14 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                       {isAr ? 'الرقم الذي حُوّل منه الدفع — طابقه مع الحوالة الواردة' : 'The number the payment was sent from — match it to the incoming transfer'}
                     </p>
                   </div>
-                  <span className="font-mono font-black text-fg text-sm select-all block mt-2" dir="ltr">
-                    {order.cliqSenderPhone}
-                  </span>
+                  <div className="mt-2">
+                    <CliqSenderReveal
+                      orderId={order.id}
+                      masked={order.cliqSenderPhoneMasked}
+                      legacyFull={order.cliqSenderPhone}
+                      isAr={isAr}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1742,19 +1753,27 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                           <span className="font-bold text-fg-muted">{isAr ? 'البنك' : 'Bank'}:</span>
                           <span className="font-black text-[#FF6B00] uppercase font-mono">{isAr ? CLIQ_BANK_NAME_AR : CLIQ_BANK_NAME_EN}</span>
                         </div>
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="font-bold text-fg-muted">IBAN:</span>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{formatIban(CLIQ_IBAN)}</span>
-                            <button
-                              type="button"
-                              onClick={handleCopyIban}
-                              className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
-                            >
-                              {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
+                        {/* The IBAN is a FALLBACK destination; the alias above
+                            is the primary one and is live. While CLIQ_IBAN is
+                            null (account moved banks, new IBAN not yet in hand)
+                            the whole row is dropped — an empty IBAN beside a
+                            copy button reads as a destination that failed to
+                            load, and the button would copy ''. */}
+                        {CLIQ_IBAN && (
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="font-bold text-fg-muted">IBAN:</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono font-black text-fg select-all text-[10.5px] truncate">{formatIban(CLIQ_IBAN)}</span>
+                              <button
+                                type="button"
+                                onClick={handleCopyIban}
+                                className="p-1 bg-surface-raised border border-line rounded-xl text-fg-muted hover:text-[#FF6B00] transition-colors cursor-pointer shrink-0"
+                              >
+                                {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       {/* W4 — delivery address + phone (required before payment) */}

@@ -18,6 +18,20 @@ const { normalizePaymentRef, isValidPaymentRef } = require('./paymentReference')
 
 const MAX_ATTEMPTS = 3;
 
+/**
+ * Last three digits, for a number the SELLER can see.
+ *
+ * Enough for the buyer to recognise which of their numbers they entered, and
+ * not enough for anyone else to call them. Matches the shape of
+ * maskCliqIdentifier in cliqPayment.js / src/utils/cliqIdentifier.ts, so every
+ * masked phone in the app reads the same way.
+ */
+function maskSenderPhone(raw) {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return '';
+  return `••••${s.slice(-3)}`;
+}
+
 function makeError(code, message) {
   const err = new Error(message);
   err.code = code;
@@ -72,9 +86,36 @@ async function submitOrderPayment(deps, args = {}) {
       createdAt: Timestamp.fromMillis(now()),
     }, { merge: true });
 
+    /**
+     * THE SENDER PHONE IS SPLIT, FOR THE SAME REASON THE GATEWAY IDENTIFIER IS.
+     *
+     * `orders/{orderId}` grants `allow read` to the buyer AND THE SELLER, and
+     * Firestore has no field-level read denylist — a granted read returns every
+     * field. The update denylist stops WRITES only.
+     *
+     * So `cliqSenderPhone` on the order handed the SELLER the buyer's phone
+     * number the moment payment was submitted, before any verification. The UI
+     * already guarded it (`isAdmin && order.cliqSenderPhone`), but a seller
+     * reading the document directly bypassed that entirely — and
+     * revealCounterpartyContact exists precisely to withhold a counterparty's
+     * contact until `paymentVerified` is true.
+     *
+     * Same fix as `cliqPayerIdentifiers` and `deliveryCodes`: the full number
+     * lives in its own admin-only document, and only a masked form stays on the
+     * order. Admins reveal the full value on demand when matching a transfer.
+     */
+    const senderRef = db.collection('cliqPaymentSenders').doc(orderId);
+    txn.set(senderRef, {
+      orderId,
+      buyerId: buyerUid,
+      senderPhone: String(cliqSenderPhone).trim(),
+      createdAt: Timestamp.fromMillis(now()),
+    }, { merge: true });
+
     txn.set(orderRef, {
       paymentProofUrl: proofUrl,
-      cliqSenderPhone: String(cliqSenderPhone).trim(),
+      // MASKED ONLY — never the full number. See the note above.
+      cliqSenderPhoneMasked: maskSenderPhone(String(cliqSenderPhone).trim()),
       txnRef,
       txnRefNormalized: normRef,
       paymentAttempts: attempts + 1,

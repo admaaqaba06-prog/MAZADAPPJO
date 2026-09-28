@@ -34,7 +34,9 @@ describe('bankCodeFromIban', () => {
   });
 
   it('works on a full IBAN, not only a prefix', () => {
-    expect(bankCodeFromIban(CLIQ_IBAN)).toBe('JONB');
+    // Staq's own sample from the API doc. Not our account — ours is suppressed
+    // while the Bank al Etihad IBAN is outstanding, so it cannot be used here.
+    expect(bankCodeFromIban('JO21UBSI1010000088005553535')).toBe('UBSI');
   });
 
   it('refuses anything that is not a Jordanian IBAN shape', () => {
@@ -85,20 +87,30 @@ describe('isKnownBank', () => {
 });
 
 describe('the map contains only codes established as fact', () => {
-  it('agrees with our own receiving IBAN', () => {
+  it('agrees with our own receiving IBAN once one is set', () => {
     // constants/cliq.ts pins CLIQ_IBAN and CLIQ_BANK_NAME_* to the bank record,
     // and brandBoundary.test.ts asserts they agree. This ties the new lookup to
     // that same fact instead of restating it: if the account moves banks, the
     // existing guard fails first and this one follows.
+    // Null while the account move to Bank al Etihad is mid-flight; the same
+    // agreement is asserted in brandBoundary.test.ts, which is where the
+    // destination lives. Skipping here keeps that one guard, not zero.
+    if (CLIQ_IBAN === null) return;
     expect(getBankNameFromIban(CLIQ_IBAN, false)).toBe(CLIQ_BANK_NAME_EN);
     expect(getBankNameFromIban(CLIQ_IBAN, true)).toBe(CLIQ_BANK_NAME_AR);
   });
 
-  it('every entry is a 4-letter uppercase code with both languages filled', () => {
+  it('every entry is a 4-letter uppercase code with an English name', () => {
+    // English is REQUIRED — it is transcribed verbatim from Staq's BankCodes
+    // list. Arabic is optional on purpose: getBankNameFromIban falls back to
+    // English rather than inventing a translation for a bank we were not given
+    // one for. See the module header.
     for (const [code, names] of Object.entries(bankCodeToName)) {
       expect(code, `${code} is not a 4-letter uppercase bank code`).toMatch(/^[A-Z]{4}$/);
-      expect(names.ar.trim().length, `${code} has no Arabic name`).toBeGreaterThan(0);
       expect(names.en.trim().length, `${code} has no English name`).toBeGreaterThan(0);
+      if (names.ar !== undefined) {
+        expect(names.ar.trim().length, `${code} has a blank Arabic name`).toBeGreaterThan(0);
+      }
     }
   });
 });

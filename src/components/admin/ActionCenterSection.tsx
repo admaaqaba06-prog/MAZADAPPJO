@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CliqSenderReveal from './CliqSenderReveal';
 import { formatWaitingFor, type ActionRow } from '../../utils/actionQueue';
 import { PaymentVerifyCard } from './PaymentVerifyCard';
 import { ListingApprovalCard } from './cards/ListingApprovalCard';
@@ -94,13 +95,21 @@ export const ActionCenterSection: React.FC<ActionCenterSectionProps> = ({
       case 'verify_order_payment': {
         const order = findOrder(r.entityId);
         if (!order) return null;
+        const senderSlot = (
+          <CliqSenderReveal
+            orderId={order.id}
+            masked={order.cliqSenderPhoneMasked}
+            legacyFull={order.cliqSenderPhone}
+            isAr={isAr}
+          />
+        );
         return (
           <PaymentVerifyCard
             record={order}
             title={order.auctionTitle || order.id}
             expectedAmountJod={Number(order.totalDue ?? order.winningBidAmount ?? 0)}
             payerName={order.buyerName || userName(order.buyerId)}
-            cliqSenderPhone={order.cliqSenderPhone}
+            senderSlot={senderSlot}
             approveLabel={isAr ? 'تأكيد الدفع' : 'Mark verified'}
             isAr={isAr}
             busy={busy}

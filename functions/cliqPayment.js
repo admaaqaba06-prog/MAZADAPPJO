@@ -24,6 +24,9 @@
 
 const CLIQ_REQUEST_TTL_MS = 90 * 60 * 1000;
 
+/** Max CliQ requests per order. Each one pushes a prompt into a banking app. */
+const MAX_CLIQ_REQUESTS = 5;
+
 const CLIQ_STATUSES = ['none', 'pending', 'paid', 'rejected', 'expired'];
 const RETRYABLE = new Set(['none', 'rejected', 'expired']);
 
@@ -225,6 +228,35 @@ async function createCliqRequest(deps, args = {}) {
       throw makeError('failed-precondition', 'A delivery address and phone are required before paying.');
     }
 
+    // A REQUEST CANNOT BE RAISED AFTER THE PAYMENT DEADLINE HAS PASSED.
+    //
+    // This closes a hole created by the enforcer deferral. paymentDefaultEnforcer
+    // skips an order whose CliQ request is live, and the comment there calls the
+    // deferral bounded because a request lapses after 90 minutes. That is true of
+    // ONE request. It says nothing about the next one.
+    //
+    // The sweep runs every 30 minutes and the TTL is 90, so a single request per
+    // cycle covers every intervening sweep and still leaves a 30-minute gap in
+    // which to raise the next — by hand, no automation. A buyer who simply never
+    // opens their banking app could hold a seller's lot indefinitely, take no
+    // strike, and keep the runner-up from ever being offered it.
+    //
+    // Refusing here rather than in the enforcer keeps the deferral honest: an
+    // already-live request still runs its 90 minutes, but nothing new starts
+    // after the deadline, so the order defaults at most one TTL late.
+    const deadlineMs = readMillis(o.paymentDeadlineAt);
+    if (deadlineMs != null && nowMs > deadlineMs) {
+      throw makeError('failed-precondition', 'The payment deadline for this order has passed.');
+    }
+
+    // Defence in depth, mirroring MAX_ATTEMPTS in orderPaymentSubmit.js. Every
+    // request is a real push notification into someone's banking app, so an
+    // unbounded retry loop is abusive even inside the deadline.
+    const attempts = Number(o.cliqRequestAttempts) || 0;
+    if (attempts >= MAX_CLIQ_REQUESTS) {
+      throw makeError('resource-exhausted', 'Too many CliQ payment attempts for this order.');
+    }
+
     const money = resolveCliqAmount(o);
     if (!money) throw makeError('failed-precondition', 'This order has no settled total to charge.');
 
@@ -281,6 +313,7 @@ async function createCliqRequest(deps, args = {}) {
       // MASKED ONLY — never `normalized`. See the note above.
       cliqPayerIdentifierMasked: maskCliqIdentifier(identifierType, normalized),
       cliqPayerIbanPrefix: payerIbanPrefix,
+      cliqRequestAttempts: attempts + 1,
       cliqAmount: money.amount,
       cliqFees: money.fees,
       cliqTotal: money.total,
@@ -322,10 +355,39 @@ async function applyCliqWebhook(deps, args = {}) {
     if (!snap.exists) throw makeError('not-found', `Order ${orderId} not found.`);
     const o = snap.data() || {};
 
-    // A late webhook for a superseded request must not reopen it. Matching the
+    // A late webhook for a SUPERSEDED request must not reopen it. Matching the
     // id is what makes this safe to retry, and webhooks are retried.
-    if (requestId && o.cliqRequestId && o.cliqRequestId !== requestId) {
+    //
+    // But 'paid' is not symmetric with the others and must not be dropped here.
+    // The collision is between two numbers in this file: the lock lapses at 90
+    // minutes while the disclaimer promises settlement may take two hours. A
+    // payer who approves near the end of their window sees the request expire,
+    // retries, overwrites cliqRequestId — and the ORIGINAL request then settles.
+    // Discarding that leaves money moved at the bank with no trace anywhere on
+    // our side, which is exactly the failure the out-of-band branch below was
+    // written to prevent. Same rule applies: record it, escalate it, force
+    // nothing.
+    const superseded = !!(requestId && o.cliqRequestId && o.cliqRequestId !== requestId);
+    if (superseded && outcome !== 'paid') {
       return { orderId, ignored: 'stale_request' };
+    }
+    if (superseded) {
+      txn.set(orderRef, {
+        cliqSupersededPaid: true,
+        cliqSupersededPaidRequestId: requestId,
+        cliqSupersededPaidAt: Timestamp.fromMillis(nowMs),
+        updatedAt: Timestamp.fromMillis(nowMs),
+      }, { merge: true });
+      txn.set(db.collection('system_health').doc(), {
+        type: 'payment_fail',
+        title: 'CliQ payment settled against a superseded request',
+        details: `Order ${orderId} received a paid webhook for request ${requestId}, but the order has since moved to request ${o.cliqRequestId}. The money moved at the bank. Check for a DOUBLE payment before refunding — the current request may also settle.`,
+        source: 'applyCliqWebhook',
+        createdAt: Timestamp.fromMillis(nowMs),
+      });
+      // Deliberately does NOT write cliqPaymentStatus: the live request is a
+      // different one, and overwriting its state would hide a second payment.
+      return { orderId, outcome: 'paid', needsReconciliation: true, supersededRequestId: requestId };
     }
     // Idempotent: the same terminal outcome arriving twice is a no-op, not an
     // error, and not a second status write.
@@ -387,6 +449,7 @@ async function applyCliqWebhook(deps, args = {}) {
 
 module.exports = {
   CLIQ_REQUEST_TTL_MS,
+  MAX_CLIQ_REQUESTS,
   CLIQ_STATUSES,
   cliqRequestState,
   isCliqRequestLive,

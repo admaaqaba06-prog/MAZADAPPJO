@@ -37,7 +37,17 @@ export const CLIQ_RECIPIENT_NAME_EN = 'MAZZADO';
  * re-registering it there sends customers' money to an alias that no longer
  * resolves.
  */
-export const CLIQ_ALIAS = 'MAZZADO';
+/**
+ * Updated 2026-09-28: 'MAZZADO' -> 'MAZZADO26', together with the move to Bank
+ * al Etihad below. Confirmed by the account owner as the registered, live
+ * destination — the file's rule (bank first, confirm, then edit) was followed.
+ *
+ * NOT the same thing as the embedded-CliQ gateway alias. BAE requires the
+ * gateway to use a DIFFERENT alias so gateway payments (which fire webhooks)
+ * stay distinguishable from manual transfers sent straight here; that one lives
+ * in Firebase secrets and never enters this repo. See constants/cliqGateway.ts.
+ */
+export const CLIQ_ALIAS = 'MAZZADO26';
 
 /**
  * The bank holding the receiving account.
@@ -60,8 +70,15 @@ export const CLIQ_ALIAS = 'MAZZADO';
  * This is a NAMING correction, not an account move: the account is the same one
  * confirmed on 2026-08-26. The destination itself is CLIQ_ALIAS, untouched.
  */
-export const CLIQ_BANK_NAME_AR = 'البنك الأهلي الأردني';
-export const CLIQ_BANK_NAME_EN = 'Jordan Ahli Bank';
+/**
+ * Updated 2026-09-28: Jordan Ahli Bank -> Bank al Etihad. This is an ACCOUNT
+ * MOVE, confirmed by the account owner, not a naming correction.
+ *
+ * The English name is the one Bank al Etihad is listed under in the official
+ * code list Staq supplied (BankCodes.xlsx: "BANK ALETIHAD", code UBSIJOAX).
+ */
+export const CLIQ_BANK_NAME_AR = 'بنك الاتحاد';
+export const CLIQ_BANK_NAME_EN = 'Bank al Etihad';
 
 /**
  * The receiving IBAN — the fallback destination for anyone who would rather
@@ -83,7 +100,27 @@ export const CLIQ_BANK_NAME_EN = 'Jordan Ahli Bank';
  * CLIQ_BANK_NAME_* — brandBoundary.test.ts asserts that, and asserts the
  * mod-97 checksum, so a typo cannot reach a payment screen.
  */
-export const CLIQ_IBAN = 'JO82JONB9999000000001013478507';
+/**
+ * ⚠️ SUPPRESSED 2026-09-28 — awaiting the Bank al Etihad IBAN.
+ *
+ * It was 'JO82JONB9999000000001013478507'. JONB is Jordan Ahli Bank, and the
+ * account has MOVED to Bank al Etihad, so that string is now a destination at a
+ * bank we no longer hold the account with. It was being shown to customers as a
+ * transfer target and offered on a copy button.
+ *
+ * Null until the real one arrives, and the UI hides the row entirely. Showing
+ * NOTHING is strictly safer than showing a stale IBAN: a customer with no IBAN
+ * uses the alias, which is correct and live; a customer with the old IBAN sends
+ * money to an account we may no longer control. This is the same failure the
+ * file's header describes from the 'mazadjom' era, and the reason the
+ * bank-first rule exists.
+ *
+ * TO RESTORE: paste the Bank al Etihad IBAN for CLIQ_ALIAS here, taken from a
+ * statement or a completed transfer — never re-typed from a message. It must
+ * start JO, and characters 5-8 must be UBSI; brandBoundary.test.ts asserts both
+ * that and the mod-97 checksum, so a typo cannot reach a payment screen.
+ */
+export const CLIQ_IBAN: string | null = null;
 
 /** Group an IBAN in fours for reading. Display only — copy the raw value. */
 export const formatIban = (iban: string) =>
