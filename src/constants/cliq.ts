@@ -101,26 +101,27 @@ export const CLIQ_BANK_NAME_EN = 'Bank al Etihad';
  * mod-97 checksum, so a typo cannot reach a payment screen.
  */
 /**
- * ⚠️ SUPPRESSED 2026-09-28 — awaiting the Bank al Etihad IBAN.
+ * Restored 2026-09-28 with the Bank al Etihad account, supplied by the account
+ * owner. It was suppressed for part of that day rather than left holding the
+ * old 'JO82JONB9999000000001013478507' — JONB is Jordan Ahli Bank, and once the
+ * account moved, that string was a destination at a bank we no longer hold the
+ * account with, sitting on a payment screen behind a copy button.
  *
- * It was 'JO82JONB9999000000001013478507'. JONB is Jordan Ahli Bank, and the
- * account has MOVED to Bank al Etihad, so that string is now a destination at a
- * bank we no longer hold the account with. It was being shown to customers as a
- * transfer target and offered on a copy button.
+ * Checked before it was pasted, not after: 30 characters (Jordan), starts JO,
+ * characters 5-8 are UBSI (Bank al Etihad, per Staq's BankCodes list), mod-97
+ * remainder 1, and the account number it embeds — 0700 1126 2650 1001 —
+ * matches the one on the account. brandBoundary.test.ts re-asserts the length,
+ * the checksum, and that the bank it encodes agrees with CLIQ_BANK_NAME_*, so a
+ * typo cannot reach a payment screen.
  *
- * Null until the real one arrives, and the UI hides the row entirely. Showing
- * NOTHING is strictly safer than showing a stale IBAN: a customer with no IBAN
- * uses the alias, which is correct and live; a customer with the old IBAN sends
- * money to an account we may no longer control. This is the same failure the
- * file's header describes from the 'mazadjom' era, and the reason the
- * bank-first rule exists.
+ * Stored COMPACT (no spaces): that is the form a bank form accepts, and it is
+ * what the copy button must put on the clipboard. Group it for display with
+ * formatIban() — never re-type it by hand.
  *
- * TO RESTORE: paste the Bank al Etihad IBAN for CLIQ_ALIAS here, taken from a
- * statement or a completed transfer — never re-typed from a message. It must
- * start JO, and characters 5-8 must be UBSI; brandBoundary.test.ts asserts both
- * that and the mod-97 checksum, so a typo cannot reach a payment screen.
+ * The type stays `string | null`: suppressing the IBAN is the correct response
+ * to the next account move, and the UI and its guard already handle absence.
  */
-export const CLIQ_IBAN: string | null = null;
+export const CLIQ_IBAN: string | null = 'JO03UBSI7000000700112626501001';
 
 /** Group an IBAN in fours for reading. Display only — copy the raw value. */
 export const formatIban = (iban: string) =>
