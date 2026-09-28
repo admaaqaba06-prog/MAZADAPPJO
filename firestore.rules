@@ -523,6 +523,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The phone the buyer's MANUAL CliQ transfer was sent from.
+    //
+    // Same leak, same fix as cliqPayerIdentifiers above — this one is older.
+    // `cliqSenderPhone` sat on the order doc, which the SELLER can read, so a
+    // seller reading the document directly got the buyer's phone number the
+    // moment payment was submitted. The admin UI guarded it
+    // (`isAdmin && order.cliqSenderPhone`), but a UI guard is not a read rule.
+    //
+    // Admins need the FULL number to match an incoming transfer, so it is
+    // revealed on demand from here rather than masked away entirely.
+    // Written ONLY by submitOrderPayment via the Admin SDK.
+    match /cliqPaymentSenders/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       // S1 — orders are SERVER-CREATED ONLY (settleAuctionTxn /
@@ -551,7 +567,7 @@ service cloud.firestore {
             // and every payment-proof field are denylisted here so a client
             // cannot bypass the reference-uniqueness check by writing
             // proof/paid directly. (Was: buyer could self-claim unpaid->paid.)
-            'paymentStatus', 'paymentProofUrl', 'cliqSenderPhone',
+            'paymentStatus', 'paymentProofUrl', 'cliqSenderPhone', 'cliqSenderPhoneMasked',
             'txnRef', 'txnRefNormalized', 'paymentAttempts', 'paymentSubmittedAt',
             // Embedded CliQ (Bank al Etihad / Staq) — SERVER-ONLY, every field.
             // Two separate holes close here, and both are things BAE tests:

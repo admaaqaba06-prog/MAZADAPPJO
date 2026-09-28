@@ -19,7 +19,12 @@ export interface PaymentVerifyCardProps {
   amountMismatch?: boolean;             // caller-computed (e.g. sub price ≠ canonical tier price)
   payerName: string;
   payerPhone?: string;
-  cliqSenderPhone?: string;             // E1 — phone the CliQ transfer is coming FROM (match the incoming money)
+  // E1 — phone the CliQ transfer came FROM (match the incoming money).
+  // MASKED on the order; the full value is admin-only and revealed on demand.
+  // Rendered by the CALLER, because revealing it reads Firestore and this file
+  // is presentational by contract (see the header). The caller passes
+  // <CliqSenderReveal/>; the card only decides where it sits.
+  senderSlot?: React.ReactNode;
   isDuplicateReceipt?: boolean;         // caller-computed via findDuplicateFingerprints
   phoneAmountDup?: boolean;             // Wave 1 — SOFT signal: same CliQ phone + amount as another order (does NOT block approve)
   approveLabel: string;                 // caller-localized ('Approve' / 'Mark verified')
@@ -42,7 +47,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
   amountMismatch,
   payerName,
   payerPhone,
-  cliqSenderPhone,
+  senderSlot,
   isDuplicateReceipt,
   phoneAmountDup,
   approveLabel,
@@ -120,12 +125,7 @@ export const PaymentVerifyCard: React.FC<PaymentVerifyCardProps> = ({
           {payerPhone && <p className="text-[11px] text-fg-muted font-mono mt-0.5" dir="ltr">{payerPhone}</p>}
           {/* E1 — the number the CliQ money is coming FROM (may differ from the
               account/delivery phone; used to match the incoming transfer). */}
-          {cliqSenderPhone && (
-            <p className="text-[10px] text-[#FF6B00] font-mono font-bold mt-1">
-              <span className="text-fg-muted font-semibold">{isAr ? 'مُرسِل كليك:' : 'CliQ from:'}</span>{' '}
-              <span dir="ltr">{cliqSenderPhone}</span>
-            </p>
-          )}
+          {senderSlot}
           {/* Wave 1 — CliQ transaction reference (server-written). Muted dash
               for legacy orders that predate the reference. */}
           <p className="text-[10px] font-mono font-bold mt-1">

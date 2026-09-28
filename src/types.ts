@@ -444,6 +444,9 @@ export interface Order {
    * from their account number, e.g. a family member pays). Buyer-writable on
    * their own order at the pay step; surfaced to admin to match the transfer.
    */
+  /** MASKED only. Full number is admin-only in cliqPaymentSenders/{orderId}. */
+  cliqSenderPhoneMasked?: string;
+  /** @deprecated Pre-split orders only — never written for new payments. */
   cliqSenderPhone?: string;
   /** Wave 1 — CliQ transaction reference the buyer entered at the pay step. Server-written; buyers cannot reuse a reference (hard-blocked at submit). Surfaced to admin to match the transfer. */
   txnRef?: string;
