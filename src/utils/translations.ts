@@ -1,3 +1,4 @@
+import { CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 export const translations = {
   en: {
     appName: "MAZZADO",
@@ -34,7 +35,7 @@ export const translations = {
     planAnnualUnit: " / Year",
     mostPopular: "MOST POPULAR",
     bestValue: "BEST VALUE",
-    subLockText: "Funds are transferred via CliQ to Mazzado's account at Al Ahli Bank and held until your order completes.",
+    subLockText: `Funds are transferred via CliQ to Mazzado's account at ${CLIQ_BANK_NAME_EN} and held until your order completes.`,
     secureCheckoutBtn: "ACTIVATE UNLIMITED BIDDING: ",
     plansFeatures: [
       "Access all high-ticket watch, vehicle & fashion live auctions",
@@ -174,7 +175,7 @@ export const translations = {
     planAnnualUnit: " / سنوياً",
     mostPopular: "الأكثر اختياراً",
     bestValue: "أفضل قيمة",
-    subLockText: "تُحوَّل الأموال عبر كليك إلى حساب مزادو في البنك الأهلي وتبقى محفوظة حتى اكتمال طلبك.",
+    subLockText: `تُحوَّل الأموال عبر كليك إلى حساب مزادو في ${CLIQ_BANK_NAME_AR} وتبقى محفوظة حتى اكتمال طلبك.`,
     secureCheckoutBtn: "تفعيل اشتراك المزايدة اللامحدودة: ",
     plansFeatures: [
       "الوصول لكل المزادات المباشرة الفاخرة للسيارات، الساعات والموضة",

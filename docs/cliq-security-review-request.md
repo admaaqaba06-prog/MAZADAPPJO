@@ -84,12 +84,14 @@ Your onboarding note says the gateway alias must not be the business name, so th
 payments are distinguishable from manual transfers sent directly to the public alias. We
 understand and agree.
 
-Our situation: our public alias `MAZZADO` is registered and is the **live destination for
-manual transfers today**. We have not renamed it. We intend to register a separate technical
-alias for the gateway, and hold it in secret storage rather than in code.
+Our situation: our public alias is now `MAZZADO26`, at Bank al Etihad, and it is the **live
+destination for manual transfers today**. We intend to register a **separate** technical alias
+for the gateway, and hold it in secret storage rather than in code.
 
-**Please confirm the naming constraints** and whether you recommend a separate account behind
-it for reconciliation, as your note suggested.
+Because both rails now sit at Bank al Etihad, the two are otherwise indistinguishable on a
+single statement — which we read as making the separate gateway alias more necessary, not
+less. **Please confirm the naming constraints**, and whether you recommend a separate account
+behind the gateway alias for reconciliation, as your note suggested.
 
 ### 6. Bank code list
 

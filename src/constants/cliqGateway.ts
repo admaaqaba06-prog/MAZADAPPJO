@@ -5,12 +5,17 @@
  *
  * Mazzado now has TWO CliQ destinations, and they must not be merged:
  *
- *   constants/cliq.ts  CLIQ_ALIAS = 'MAZZADO'
+ *   constants/cliq.ts  CLIQ_ALIAS  (currently MAZZADO26, at Bank al Etihad)
  *     The MANUAL transfer target. A buyer opens their own banking app and
- *     sends money to it, then uploads a screenshot. Shown on screen. Already
- *     registered at Jordan Ahli Bank. DO NOT RENAME IT — the file's own rule
- *     is bank-record-first, and a rename ahead of the bank sends customers'
- *     money to an alias that no longer resolves.
+ *     sends money to it, then uploads a screenshot. Shown on screen. It moved
+ *     to Bank al Etihad on 2026-09-28 (MAZZADO -> MAZZADO26), AFTER the bank
+ *     record changed — never rename it here first, because a rename ahead of
+ *     the bank sends customers' money to an alias that no longer resolves.
+ *
+ *     NOTE: both rails now sit at Bank al Etihad. That does NOT merge them —
+ *     see WHY THEY MUST DIFFER below; if anything it makes a distinct gateway
+ *     alias more necessary, since same-bank transfers are otherwise
+ *     indistinguishable on the statement.
  *
  *   GATEWAY_ALIAS below
  *     The EMBEDDED target. Bank al Etihad raises the request against it and
@@ -41,6 +46,18 @@
  * (Optional, per BAE) link a separate bank account to the gateway alias so
  * reconciliation is a statement filter rather than a join.
  */
+
+/**
+ * The gateway PARTNER, for admin-facing labels.
+ *
+ * Deliberately separate from CLIQ_BANK_NAME_* in constants/cliq.ts even though
+ * both read "Bank al Etihad" today. They are different facts: that one is where
+ * our money lands, this one is whose API raises the request. If the manual
+ * account moved banks again, an admin label wired to the destination constant
+ * would silently start naming the wrong integration partner.
+ */
+export const GATEWAY_BANK_NAME_AR = 'بنك الاتحاد';
+export const GATEWAY_BANK_NAME_EN = 'Bank al Etihad';
 
 /** Documented for ops; resolved server-side from secrets, never bundled. */
 export const GATEWAY_ALIAS_SECRET_NAME = 'CLIQ_GATEWAY_ALIAS';
