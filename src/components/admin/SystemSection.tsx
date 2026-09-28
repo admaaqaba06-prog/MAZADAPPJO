@@ -13,6 +13,7 @@ import {
 import { isAdminUser } from '../../utils/adminAuth';
 import { collection, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { db, getCallableFunction } from '../../services/firebase';
+import { GATEWAY_BANK_NAME_AR, GATEWAY_BANK_NAME_EN } from '../../constants/cliqGateway';
 
 // Lazy: the simulator console (bots, spawn presets) is admin-only tooling —
 // keep it out of the main dashboard chunk.
@@ -631,12 +632,12 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 <div className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <h5 className="text-xs font-extrabold text-fg leading-none">
-                      {isAr ? 'الدفع المدمج عبر كليك (بنك الاتحاد)' : 'Embedded CliQ (Bank al Etihad)'}
+                      {isAr ? `الدفع المدمج عبر كليك (${GATEWAY_BANK_NAME_AR})` : `Embedded CliQ (${GATEWAY_BANK_NAME_EN})`}
                     </h5>
                     <p className="text-[10px] text-fg-muted mt-1">
                       {isAr
-                        ? 'لا تفعّله قبل ربط بنك الاتحاد فعلياً — بدون الربط يُخبَر المشتري أن الطلب وصل لبنكه وهو لم يصل.'
-                        : 'Do NOT enable before Bank al Etihad is actually connected — without it the buyer is told a request reached their bank when none was sent.'}
+                        ? `لا تفعّله قبل ربط ${GATEWAY_BANK_NAME_AR} فعلياً — بدون الربط يُخبَر المشتري أن الطلب وصل لبنكه وهو لم يصل.`
+                        : `Do NOT enable before ${GATEWAY_BANK_NAME_EN} is actually connected — without it the buyer is told a request reached their bank when none was sent.`}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

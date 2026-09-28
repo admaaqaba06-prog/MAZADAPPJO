@@ -43,6 +43,7 @@ import {
   Store
 } from 'lucide-react';
 import { EscrowTransaction } from '../types';
+import { CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 
 export const WalletView: React.FC = () => {
   const { 
@@ -832,8 +833,8 @@ export const WalletView: React.FC = () => {
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
                 {isAr
-                  ? 'تُحوَّل الأموال عبر كليك إلى حساب مزادو في البنك الأهلي وتبقى محفوظة حتى اكتمال طلبك.'
-                  : "Funds are transferred via CliQ to Mazzado's account at Al Ahli Bank and held until your order completes."}
+                  ? `تُحوَّل الأموال عبر كليك إلى حساب مزادو في ${CLIQ_BANK_NAME_AR} وتبقى محفوظة حتى اكتمال طلبك.`
+                  : `Funds are transferred via CliQ to Mazzado's account at ${CLIQ_BANK_NAME_EN} and held until your order completes.`}
               </p>
             </div>
 

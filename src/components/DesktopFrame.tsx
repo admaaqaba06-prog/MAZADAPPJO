@@ -15,6 +15,7 @@ import { translations } from '../utils/translations';
 import TermsModal from './TermsModal';
 import { NotificationCenter } from './NotificationCenter';
 import { InstallPrompt } from './InstallPrompt';
+import { CLIQ_BANK_NAME_AR, CLIQ_BANK_NAME_EN } from '../constants/cliq';
 
 const AdminPanel = lazy(() => import('./AdminPanel'));
 import { ReelsDesktopRightPanel } from './ReelsDesktopRightPanel';
@@ -800,8 +801,8 @@ export const DesktopFrame: React.FC<DesktopFrameProps> = ({ children }) => {
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="text-[9.5px] text-fg-muted font-medium leading-relaxed">
                   {isAr
-                    ? 'مدفوعاتك عبر كليك إلى حساب مزادو في البنك الأهلي.'
-                    : "Payments via CliQ to Mazzado's Al Ahli Bank account."}
+                    ? `مدفوعاتك عبر كليك إلى حساب مزادو في ${CLIQ_BANK_NAME_AR}.`
+                    : `Payments via CliQ to Mazzado's ${CLIQ_BANK_NAME_EN} account.`}
                 </p>
               </div>
 

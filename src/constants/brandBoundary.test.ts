@@ -31,7 +31,7 @@ import {
   CLIQ_IBAN,
 } from './cliq';
 import { BRAND_HOST } from './brand';
-import { getBankNameFromIban } from '../utils/cliqIban';
+import { getBankNameFromIban, bankCodeToName } from '../utils/cliqIban';
 
 describe('payment identifiers do not follow the brand', () => {
   it('keeps the CliQ alias the bank actually has registered', () => {
@@ -134,6 +134,54 @@ describe('payment identifiers do not follow the brand', () => {
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\/\/[^\n]*/g, '');
       if (/JO\d{2} ?[A-Z]{4}/.test(src)) offenders.push(file.replace(/\\/g, '/'));
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('names NO bank in a literal anywhere outside the source of truth', () => {
+    // THE GENERAL FORM OF THE BUG THIS FILE KEEPS CATCHING LATE.
+    //
+    // The scan below it looks only for /arab bank/. So when the account moved
+    // Arab Bank -> Jordan Ahli, the hardcoded copy was rewritten to say "Al
+    // Ahli Bank" and this suite went green — and stayed green when the account
+    // moved AGAIN to Bank al Etihad, while fourteen customer-facing lines in
+    // four files still told customers their money was at Jordan Ahli. A guard
+    // that names one bank only ever catches one migration.
+    //
+    // So: no bank name may appear as a LITERAL in src/ at all. The destination
+    // is CLIQ_BANK_NAME_AR/EN and nothing else. The forbidden list is derived
+    // from the official code list rather than typed out, so a bank that enters
+    // that list is covered without anyone remembering this test exists.
+    const names = Object.values(bankCodeToName).flatMap((n) => [n.en, n.ar].filter(Boolean) as string[]);
+    // Plus the colloquial forms that appear in copy but not in the official
+    // list — 'Al Ahli Bank' is how the last migration spelled it.
+    const forbidden = [...names, 'Al Ahli Bank', 'البنك الأهلي', 'Arab Bank', 'البنك العربي']
+      // Short/ambiguous entries would fire on ordinary words.
+      .filter((n) => /bank|بنك|مصرف/i.test(n));
+
+    const offenders: string[] = [];
+    for (const file of sourceFiles(join(ROOT, 'src'), TS_EXTS)) {
+      const rel = file.replace(/\\/g, '/');
+      // constants/cliq.ts IS the destination; cliqIban.ts IS the payer list;
+      // cliqGateway.ts is ops documentation; SellerCenterView's placeholder is
+      // an example for the SELLER's own bank field. Everything else must go
+      // through the constants.
+      if (
+        rel.endsWith('src/constants/cliq.ts') ||
+        rel.endsWith('src/utils/cliqIban.ts') ||
+        rel.endsWith('src/constants/cliqGateway.ts') ||
+        rel.includes('SellerCenterView') ||
+        rel.includes('.test.')
+      ) continue;
+      // Comments are stripped: files legitimately record which bank they used
+      // to name, and a scan that reads its own rationale as a violation is a
+      // mistake this repo has now made three times.
+      const src = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
+      for (const name of forbidden) {
+        if (src.includes(name)) offenders.push(`${rel} -> ${name}`);
+      }
     }
     expect(offenders).toEqual([]);
   });
