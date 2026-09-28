@@ -40,6 +40,7 @@ import {
 } from '../../utils/cliqIdentifier';
 import { getBankNameFromIban, isKnownBank } from '../../utils/cliqIban';
 import { CLIQ_PROCESSING_MAX_HOURS, arabicHours } from '../../constants/cliqGateway';
+import { validateDeliveryAddress } from '../../utils/deliveryAddress';
 
 type Step = 'amount' | 'details' | 'confirm' | 'submitted';
 
@@ -93,6 +94,11 @@ export default function CliqPaymentFlow({ order, isAr, onBack }: Props) {
     : Math.max(0, total - amount);
 
   const valid = isValidCliqIdentifier(identifierType, identifier);
+
+  // Mirrors the server precondition in functions/cliqPayment.js. Deliberately
+  // the same shape as the manual rail's gate, so neither rail is the cheaper
+  // door into a paid-but-undeliverable order.
+  const hasDeliveryDetails = validateDeliveryAddress(order.deliveryAddress, order.deliveryPhone).valid;
   const bankName = getBankNameFromIban(order.cliqPayerIbanPrefix, isAr);
 
   // Analytics carry the bank NAME and never the identifier or the IBAN.
@@ -169,6 +175,36 @@ export default function CliqPaymentFlow({ order, isAr, onBack }: Props) {
   );
 
   const shell = 'bg-accent-weak border border-[#FF6B00] rounded-2xl p-4 space-y-4';
+
+  // ---- Precondition: somewhere to deliver ----------------------------------
+  //
+  // createCliqRequest refuses without a delivery address + phone, because a
+  // gateway payment flips the order to 'paid' and unmounts the only form that
+  // collects them — leaving a paid order nobody can ship. That refusal is the
+  // real guard; this screen exists so the buyer meets an explanation rather
+  // than a server error, and has a route to the form that takes it.
+  if (!hasDeliveryDetails) {
+    return (
+      <div className={shell} id="cliq-screen-needs-address">
+        <Header title={isAr ? 'الدفع عبر كليك (CliQ)' : 'Pay with CliQ'} />
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-[11.5px] text-amber-900 font-bold leading-relaxed">
+            {isAr
+              ? 'قبل الدفع لازم نعرف وين نوصّل القطعة. أضف عنوان التوصيل ورقم هاتفك من شاشة التحويل اليدوي، وبعدها ارجع لكليك.'
+              : 'Before paying we need to know where to deliver. Add your delivery address and phone on the manual transfer screen, then come back to CliQ.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full bg-[#FF6B00] text-white rounded-xl py-3.5 text-sm font-black cursor-pointer hover:brightness-110 transition-all"
+        >
+          {isAr ? 'أضف عنوان التوصيل' : 'Add delivery address'}
+        </button>
+      </div>
+    );
+  }
 
   // ---- SCREEN 2 — amount, non-editable -------------------------------------
   if (step === 'amount') {
