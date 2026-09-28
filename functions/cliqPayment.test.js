@@ -54,6 +54,9 @@ const WAITING = {
   winningBidAmount: 12,
   buyersPremium: 0.6,
   totalDue: 12.6,
+  // A delivery address is a precondition of paying on BOTH rails.
+  deliveryAddress: { governorate: 'amman', area: 'Abdoun' },
+  deliveryPhone: '0791111111',
 };
 
 function args(overrides = {}) {

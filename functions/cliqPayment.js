@@ -77,6 +77,20 @@ function cliqRequestState(order, nowMs) {
   return { status: stored, canCreate: RETRYABLE.has(stored), remainingMs: 0, blockedReason: 'none' };
 }
 
+/**
+ * True while a CliQ request is genuinely outstanding — pending AND inside its
+ * 90-minute window.
+ *
+ * Used by paymentDefaultEnforcer to skip a buyer who is mid-request. It is
+ * deliberately built on cliqRequestState rather than reading the status field
+ * directly, so a request whose window has quietly lapsed counts as NOT live and
+ * the buyer defaults normally. A bare `cliqPaymentStatus === 'pending'` check
+ * would let a stale flag postpone the deadline forever.
+ */
+function isCliqRequestLive(order, nowMs) {
+  return cliqRequestState(order, nowMs).status === 'pending';
+}
+
 // --- identifier validation (mirrors src/utils/cliqIdentifier.ts) -------------
 const ALIAS_RE = /^[A-Za-z0-9]{3,35}$/;
 const JO_MOBILE_RE = /^(?:\+962|00962|0)?(7[789]\d{6,7})$/;
@@ -188,6 +202,27 @@ async function createCliqRequest(deps, args = {}) {
       const err = makeError('resource-exhausted', 'A CliQ request is already pending for this payment.');
       err.details = { remainingMs: state.remainingMs };
       throw err;
+    }
+
+    // A PAID ORDER WITH NOWHERE TO SEND IT IS NOT A SUCCESS.
+    //
+    // The manual rail treats a delivery address + phone as a hard precondition
+    // of payment (OrderDetailsView's validateDeliveryAddress gate, persisted by
+    // orderPaymentSubmit). The gateway rail must not be the cheaper door into
+    // the same state: its address form lives inside the manual panel, and that
+    // panel only renders while status === 'waiting_payment' — so the moment a
+    // gateway payment flips the order to 'paid', the last surface on which the
+    // buyer could ever supply an address unmounts. The seller is then looking
+    // at a paid order with no governorate, no area and no phone, and only an
+    // admin editing Firestore by hand can fix it.
+    //
+    // Refusing here makes that state unreachable rather than merely unlikely.
+    const addr = o.deliveryAddress;
+    const hasAddress = !!addr && typeof addr === 'object'
+      && typeof addr.governorate === 'string' && addr.governorate.trim() !== '';
+    const hasPhone = typeof o.deliveryPhone === 'string' && o.deliveryPhone.trim() !== '';
+    if (!hasAddress || !hasPhone) {
+      throw makeError('failed-precondition', 'A delivery address and phone are required before paying.');
     }
 
     const money = resolveCliqAmount(o);
@@ -304,10 +339,33 @@ async function applyCliqWebhook(deps, args = {}) {
     };
 
     if (outcome === 'paid') {
-      // Advance the EXISTING order machine — no parallel status system.
-      // waiting_payment -> paid is the same edge the manual path uses.
+      // MONEY HAS ALREADY MOVED. This branch must never throw.
+      //
+      // The order can legitimately have left waiting_payment while the request
+      // was live — paymentDefaultEnforcer runs every 30 minutes and defaults
+      // anything past its deadline, and our own disclaimer tells the payer
+      // processing may take up to two hours. If we threw here, the throw would
+      // abort the whole transaction: cliqPaymentStatus would stay 'pending',
+      // cliqSettledAt would never be written, and every BAE webhook retry would
+      // throw identically. The bank would have taken the buyer's money and our
+      // system would hold no record of it at all.
+      //
+      // So a payment that lands on a non-waiting_payment order is RECORDED and
+      // escalated instead. It does not force the order to 'paid' — a defaulted
+      // lot may already be with the runner-up, and silently reviving it would
+      // sell one item twice. A human resolves it; the money is never invisible.
       if (o.status !== 'waiting_payment') {
-        throw makeError('failed-precondition', `Order ${orderId} is not awaiting payment.`);
+        patch.cliqPaidOutOfBand = true;
+        patch.cliqPaidOutOfBandStatus = o.status || null;
+        txn.set(orderRef, patch, { merge: true });
+        txn.set(db.collection('system_health').doc(), {
+          type: 'payment_fail',
+          title: 'CliQ payment received on an order that was no longer awaiting payment',
+          details: `Order ${orderId} status='${o.status}' received a CliQ payment of ${o.cliqTotal ?? o.totalDue ?? '?'} JOD (request ${o.cliqRequestId || requestId || '?'}). The money moved at the bank. Refund or reinstate — do NOT leave this unresolved.`,
+          source: 'applyCliqWebhook',
+          createdAt: Timestamp.fromMillis(nowMs),
+        });
+        return { orderId, outcome: 'paid', needsReconciliation: true, orderStatus: o.status };
       }
       patch.status = 'paid';
       patch.paymentStatus = 'paid';
@@ -331,6 +389,7 @@ module.exports = {
   CLIQ_REQUEST_TTL_MS,
   CLIQ_STATUSES,
   cliqRequestState,
+  isCliqRequestLive,
   normalizeCliqIdentifier,
   normalizeJordanMobile,
   maskCliqIdentifier,

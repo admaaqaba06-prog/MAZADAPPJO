@@ -34,7 +34,7 @@ const {
 } = require('./subscriptionApproval');
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
-const { createCliqRequest: createCliqRequestTxn, applyCliqWebhook: applyCliqWebhookTxn } = require('./cliqPayment');
+const { createCliqRequest: createCliqRequestTxn, applyCliqWebhook: applyCliqWebhookTxn, isCliqRequestLive } = require('./cliqPayment');
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
@@ -1590,6 +1590,23 @@ exports.paymentDefaultEnforcer = functions
       const ordersByBuyer = new Map();
       const noBuyer = [];
       for (const doc of snap.docs) {
+        // A buyer with a LIVE CliQ request is not a non-payer. They have been
+        // told by our own screen to approve it in their bank app, and our own
+        // disclaimer says that can take up to two hours — while this sweep runs
+        // every 30 minutes. Defaulting them mid-request would block them, add a
+        // strike (48h first offence, 3 months on repeat) and hand their lot to
+        // the runner-up, for doing exactly what we asked.
+        //
+        // Deferring is safe: the request expires after 90 minutes, at which
+        // point cliqPaymentStatus stops being 'pending' and the NEXT sweep
+        // defaults them normally. Nothing escapes the ladder, it only waits.
+        // Filtered here rather than in the query because Firestore cannot
+        // express "!= pending OR missing" alongside the two range/equality
+        // clauses above without a composite index and a second query.
+        if (isCliqRequestLive(doc.data(), Date.now())) {
+          console.log(`[paymentDefaultEnforcer] deferring ${doc.id} — CliQ request pending`);
+          continue;
+        }
         const buyerId = doc.data().buyerId;
         if (!buyerId) { noBuyer.push(doc); continue; }
         if (!ordersByBuyer.has(buyerId)) ordersByBuyer.set(buyerId, []);
