@@ -131,7 +131,11 @@ describe('client/server parity — normalization is implemented twice', () => {
   });
 
   it('agrees that an unknown identifier type is never valid', () => {
-    expect(server.normalizeCliqIdentifier('iban', 'JO82JONB9999000000001013478507')).toBe('');
+    // A synthetic IBAN on purpose. This fixture previously held our own former
+    // Jordan Ahli account number, which had no business being a test input —
+    // it is a real account identifier, and test files get read, copied and sent
+    // to third parties far more casually than config does.
+    expect(server.normalizeCliqIdentifier('iban', 'JO00XXXX0000000000000000000000')).toBe('');
   });
 
   it('masks identically on both sides — the server mask is what the buyer sees', () => {
