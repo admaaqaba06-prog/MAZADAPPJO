@@ -57,6 +57,7 @@ import { BrandMark } from './BrandMark';
 import { SUPPORT_WHATSAPP_URL } from '../constants/support';
 import { isActiveMember } from '../utils/membership';
 import { serverNow } from '../utils/serverTime';
+import { loadedCountBadge, liveNowPhrase } from '../utils/loadedCount';
 
 const WHATSAPP_URL = SUPPORT_WHATSAPP_URL;
 
@@ -996,9 +997,9 @@ export const DiscoveryFeedView: React.FC = () => {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-surface-raised"></span>
             </span>
             <span className="text-xs font-bold tracking-tight truncate">
-              {isAr
-                ? `مباشر الآن — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'مزاد' : 'مزادات'}`
-                : `Live now — ${liveNowAuctions.length} ${liveNowAuctions.length === 1 ? 'auction' : 'auctions'}`}
+              {/* A FLOOR while more pages remain — liveItems is paginated, so
+                  its length is how many we FETCHED, not how many are live. */}
+              {liveNowPhrase(liveNowAuctions.length, feed.hasMoreLive, isAr)}
             </span>
           </span>
           <span className="flex items-center gap-1.5 text-[11px] font-bold shrink-0 bg-surface-raised/20 hover:bg-surface-raised/30 rounded-lg px-2.5 py-0.5 transition-colors">
@@ -1262,8 +1263,9 @@ export const DiscoveryFeedView: React.FC = () => {
                   <h2 className="text-sm font-black text-fg uppercase tracking-tight">
                     {isAr ? 'مباشر الآن' : 'Live now'}
                   </h2>
-                  <span className="text-[10px] font-mono font-black bg-red-600 text-white px-2 py-0.5 rounded-full">
-                    {liveList.length}
+                  {/* dir=ltr keeps the "+" to the right of the digits in RTL. */}
+                  <span dir="ltr" className="text-[10px] font-mono font-black bg-red-600 text-white px-2 py-0.5 rounded-full">
+                    {loadedCountBadge(liveList.length, feed.hasMoreLive)}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
