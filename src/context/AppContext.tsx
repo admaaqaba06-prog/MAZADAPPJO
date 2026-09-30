@@ -1574,6 +1574,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // silently stripped console-granted admins and resurrected onboarding
           isAdmin: fbData.isAdmin !== undefined ? fbData.isAdmin === true : currentUser.isAdmin,
           onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : currentUser.onboardingCompleted,
+          // ⚠️ THE INTERESTS SCREEN CAME BACK ON EVERY SNAPSHOT WITHOUT THESE.
+          //
+          // This object is an ALLOWLIST built from scratch, not a spread: a
+          // field that is not named here is DROPPED. saveInterests wrote
+          // `interests`/`interestsSkipped` to Firestore and mirrored them into
+          // local state correctly — and then the very snapshot that write
+          // triggered rebuilt currentUser without them, needsInterestsOnboarding
+          // saw no interests again, and the user was sent back to
+          // /onboarding/interests. Every single time, forever.
+          //
+          // That is the third time this allowlist has eaten a field; the line
+          // above records the last two. Anything saveInterests writes must be
+          // named here — interestsMergeSurvival.test.ts now asserts exactly
+          // that, so the next field added to that save cannot be forgotten.
+          interests: fbData.interests !== undefined ? fbData.interests : currentUser.interests,
+          interestsSkipped: fbData.interestsSkipped !== undefined ? fbData.interestsSkipped : currentUser.interestsSkipped,
+          // Saved in the same batch, and just as silently dropped: a user who
+          // turned WhatsApp alerts on saw the toggle flip back.
+          notifyDaily: fbData.notifyDaily !== undefined ? fbData.notifyDaily : currentUser.notifyDaily,
+          notifyFeatured: fbData.notifyFeatured !== undefined ? fbData.notifyFeatured : currentUser.notifyFeatured,
+          notifyChannel: fbData.notifyChannel !== undefined ? fbData.notifyChannel : currentUser.notifyChannel,
         };
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(mergedUser);
