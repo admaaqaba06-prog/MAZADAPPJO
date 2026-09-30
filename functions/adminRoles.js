@@ -10,25 +10,27 @@
  * access with individual accounts, and a personal address hardcoded as a
  * superuser does not meet it.
  *
- * TWO STORES, AND BOTH ARE NECESSARY:
+ * ONE SOURCE OF TRUTH: users/{uid}.role
  *
- *   users/{uid}.role = 'admin'   read by firestore.rules and by the callables
- *   custom claim  admin: true    read by storage.rules
+ * An earlier draft of this file also set a Firebase custom claim, because
+ * storage.rules reads `request.auth.token.admin` and cannot see a Firestore
+ * document. That was rejected, and the reasoning is worth keeping:
  *
- * storage.rules cannot see Firestore documents as it is written today — its
- * isAdmin() accepts only `request.auth.token.admin == true` or the hardcoded
- * email. Nothing in this codebase has ever called setCustomUserClaims, so that
- * claim has never been set, which means the email literal is currently the ONLY
- * working admin path for Storage. Removing it without setting the claim first
- * would lock every administrator out of payment proofs. Granting both together
- * is what makes the literal safe to delete.
+ *   - TWO STORES CAN DIVERGE. A grant that writes both is two writes that can
+ *     half-fail, and an admin editing users/{uid} in the Firebase console would
+ *     change the role without touching the claim. "Is this person an admin?"
+ *     would then have two answers, and the security question becomes which
+ *     store you happened to ask.
+ *   - A CLAIM CANNOT BE REVOKED PROMPTLY. Custom claims live in the ID token,
+ *     so a revoked administrator keeps Storage access until their token
+ *     refreshes — up to an hour. For the one action you most want to be
+ *     instant, that is the wrong property.
  *
- * THE CLAIM NEEDS A FRESH TOKEN. Custom claims land in the ID token, and an
- * already-signed-in session keeps its old one until it refreshes (about an hour,
- * or immediately on getIdToken(true)). A newly granted admin may therefore need
- * to sign out and back in before Storage lets them through. That is a property
- * of Firebase Auth, not a bug here, and it is why the migration verifies access
- * before any literal is removed.
+ * storage.rules now reads the same document through firestore.get(). The read
+ * sits behind `isOwner(userId) || isAdmin()` and Firestore rules short-circuit,
+ * so an ordinary owner fetching their own receipt never triggers it; it is
+ * evaluated only for an admin reading someone else's file, or a delete. That is
+ * a handful of reads, and the price of having one answer.
  */
 
 function makeError(code, message) {
@@ -59,10 +61,9 @@ function canRevoke(actorUid, targetUid) {
 /**
  * Grant admin to the account with this email.
  *
- * Both stores are written, and the audit row is written in the same batch as the
- * role so a grant cannot exist without a record of who made it. The custom claim
- * is set outside the batch because it lives in Auth, not Firestore — see the
- * ordering note below.
+ * The role and the audit row are written in ONE batch, so a grant cannot exist
+ * without a record of who made it — which is the whole point of an audit trail
+ * a reviewer is going to read.
  */
 async function grantAdmin(deps, args = {}) {
   const { db, auth, Timestamp, now = () => Date.now() } = deps;
@@ -83,13 +84,6 @@ async function grantAdmin(deps, args = {}) {
   }
 
   const ts = Timestamp.fromMillis(now());
-
-  // The CLAIM FIRST, then the role. If the claim succeeds and the role write
-  // fails, the account has Storage access but not Firestore admin — visible,
-  // recoverable by re-running. The other order would give Firestore admin with
-  // no Storage access, which looks like a working grant until someone opens a
-  // payment proof.
-  await auth.setCustomUserClaims(user.uid, { ...(user.customClaims || {}), admin: true });
 
   const batch = db.batch();
   batch.set(db.collection('users').doc(user.uid), {
@@ -114,8 +108,9 @@ async function grantAdmin(deps, args = {}) {
 /**
  * Remove admin from the account with this email.
  *
- * Clears both stores. The audit row is kept — an access-control record that
- * deletes its own history answers no question a reviewer will ask.
+ * Takes effect immediately — the next rule evaluation reads the changed
+ * document. The audit row is kept: an access-control record that deletes its own
+ * history answers no question a reviewer will ask.
  */
 async function revokeAdmin(deps, args = {}) {
   const { db, auth, Timestamp, now = () => Date.now() } = deps;
@@ -137,10 +132,6 @@ async function revokeAdmin(deps, args = {}) {
   }
 
   const ts = Timestamp.fromMillis(now());
-
-  const claims = { ...(user.customClaims || {}) };
-  delete claims.admin;
-  await auth.setCustomUserClaims(user.uid, claims);
 
   const batch = db.batch();
   batch.set(db.collection('users').doc(user.uid), {

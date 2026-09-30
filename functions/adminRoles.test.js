@@ -56,12 +56,17 @@ function deps(db, auth) {
 
 const actor = { actorUid: 'uid_actor', actorEmail: 'owner@mazzado.com' };
 
-describe('grantAdmin writes BOTH stores', () => {
-  it('sets the custom claim, which is the only thing storage.rules can read', async () => {
+describe('grantAdmin writes the role', () => {
+  it('NEVER writes a custom claim — one source of truth', async () => {
+    // An earlier draft set a claim for storage.rules. Two stores can diverge:
+    // a console edit changes the role without the claim, and a revoked claim
+    // lingers in the ID token for up to an hour. storage.rules now reads the
+    // same document through firestore.get().
     const auth = makeFakeAuth(USERS);
     const db = makeFakeDb();
     await grantAdmin(deps(db, auth), { email: 'karam@mazzado.com', ...actor });
-    expect(auth._claims.uid_karam).toEqual({ admin: true });
+    expect(auth._order).toEqual([]);
+    expect(auth._claims).toEqual({});
   });
 
   it('sets the role, which is what firestore.rules and the callables read', async () => {
@@ -71,24 +76,6 @@ describe('grantAdmin writes BOTH stores', () => {
     const w = db._writes.find((x) => x.path === 'users/uid_karam');
     expect(w.data.role).toBe('admin');
     expect(w.data.isAdmin).toBe(true);
-  });
-
-  it('sets the CLAIM FIRST', async () => {
-    // If the claim lands and the role write fails, the account has Storage but
-    // not Firestore admin — visible, and fixed by re-running. The other order
-    // gives Firestore admin with no Storage access, which looks like a working
-    // grant until someone opens a payment proof.
-    const auth = makeFakeAuth(USERS);
-    const db = makeFakeDb();
-    await grantAdmin(deps(db, auth), { email: 'karam@mazzado.com', ...actor });
-    expect([...auth._order, ...db._order]).toEqual(['claim', 'firestore']);
-  });
-
-  it('preserves other claims rather than overwriting the object', async () => {
-    const auth = makeFakeAuth({ 'karam@mazzado.com': { uid: 'uid_karam', customClaims: { tier: 'gold' } } });
-    const db = makeFakeDb();
-    await grantAdmin(deps(db, auth), { email: 'karam@mazzado.com', ...actor });
-    expect(auth._claims.uid_karam).toEqual({ tier: 'gold', admin: true });
   });
 
   it('records who granted it, in the same batch as the role', async () => {
@@ -115,14 +102,14 @@ describe('grantAdmin writes BOTH stores', () => {
 });
 
 describe('revokeAdmin', () => {
-  it('clears both stores', async () => {
+  it('clears the role, immediately', async () => {
     const auth = makeFakeAuth(USERS);
     const db = makeFakeDb();
     await revokeAdmin(deps(db, auth), { email: 'karam@mazzado.com', ...actor });
-    expect(auth._claims.uid_karam.admin).toBeUndefined();
     const w = db._writes.find((x) => x.path === 'users/uid_karam');
     expect(w.data.role).toBe('user');
     expect(w.data.isAdmin).toBe(false);
+    expect(auth._claims).toEqual({});
   });
 
   it('REFUSES SELF-REVOCATION', async () => {
