@@ -35,6 +35,7 @@ const {
 const { verifyOrderPayment: verifyOrderPaymentTxn, rejectOrderPayment: rejectOrderPaymentTxn } = require('./orderPaymentVerify');
 const { submitOrderPayment: submitOrderPaymentTxn } = require('./orderPaymentSubmit');
 const { createCliqRequest: createCliqRequestTxn, applyCliqWebhook: applyCliqWebhookTxn, isCliqRequestLive } = require('./cliqPayment');
+const { grantAdmin: grantAdminCore, revokeAdmin: revokeAdminCore } = require('./adminRoles');
 const { assignOrderRef } = require('./assignOrderRef');
 const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
@@ -2908,6 +2909,67 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
     if (error instanceof functions.https.HttpsError) throw error;
     const code = ['not-found', 'permission-denied', 'failed-precondition', 'resource-exhausted', 'invalid-argument', 'already-exists'].includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * grantAdminRole / revokeAdminRole — administrative access as a ROLE.
+ *
+ * Replaces the hardcoded identity that currently grants admin in Cloud
+ * Functions, firestore.rules, storage.rules and the client. Each writes BOTH
+ * stores, because the two rule files read different things: firestore.rules
+ * reads users/{uid}.role, storage.rules reads the custom claim and cannot see
+ * Firestore documents at all. See functions/adminRoles.js for why the claim is
+ * written first.
+ *
+ * ADMIN-GATED, WHICH IS ALSO THE BOOTSTRAP. Only an existing administrator can
+ * grant one, and during the migration the existing administrator is the
+ * hardcoded identity — which is precisely why these deploy BEFORE any literal
+ * is removed. Grant first, verify the granted account works, then delete the
+ * literals.
+ *
+ * The acting admin's uid and email are taken from the verified token, never
+ * from the request payload, so the audit trail records who actually called.
+ */
+exports.grantAdminRole = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const actorUid = await assertAdmin(context);
+  try {
+    const result = await grantAdminCore(
+      { db, auth: admin.auth(), Timestamp: admin.firestore.Timestamp, now: () => Date.now() },
+      {
+        email: data && data.email,
+        actorUid,
+        actorEmail: (context.auth.token && context.auth.token.email) || null,
+      }
+    );
+    console.log(`[grantAdminRole] ${result.email} granted by ${actorUid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in grantAdminRole:', error.code || error.message);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'invalid-argument', 'unauthenticated', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Could not grant administrative access.');
+  }
+});
+
+exports.revokeAdminRole = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  const actorUid = await assertAdmin(context);
+  try {
+    const result = await revokeAdminCore(
+      { db, auth: admin.auth(), Timestamp: admin.firestore.Timestamp, now: () => Date.now() },
+      {
+        email: data && data.email,
+        actorUid,
+        actorEmail: (context.auth.token && context.auth.token.email) || null,
+      }
+    );
+    console.log(`[revokeAdminRole] ${result.email} revoked by ${actorUid}`);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error in revokeAdminRole:', error.code || error.message);
+    if (error instanceof functions.https.HttpsError) throw error;
+    const code = ['not-found', 'invalid-argument', 'unauthenticated', 'failed-precondition'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'Could not revoke administrative access.');
   }
 });
 
