@@ -1,0 +1,116 @@
+# Mazzado-specific static analysis.
+#
+# The public rulesets in the workflow cover language-level defects. These cover
+# the invariants THIS codebase has actually broken, each one written after a
+# real incident or a real review finding — which is why they are worth more to
+# us than another generic pack, and why they are the honest thing to show a
+# bank's security reviewer.
+#
+# A rule that cries wolf gets suppressed and then ignored, so each one is
+# narrow, and the places that legitimately do the thing are excluded by path.
+
+rules:
+  # -------------------------------------------------------------------------
+  - id: mazzado-hardcoded-admin-identity
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Hardcoded admin identity. Administrative access must come from the role
+      record (users/{uid}.role == 'admin'), never from an email address or uid
+      written into source. A literal identity cannot be revoked without a
+      deploy, survives the person leaving, and is published to anyone who can
+      read the repository.
+    patterns:
+      - pattern-regex: (admaaqaba06@gmail\.com|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
+    paths:
+      exclude:
+        - docs/
+        - .semgrep/
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-client-writes-money-state
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      The browser must never write a money or settlement field. Orders are
+      server-created and every financial field is on the orders update denylist
+      in firestore.rules; this write would either be rejected at the rules layer
+      or, if the denylist were ever loosened, let a buyer settle their own
+      order. Do it in a Cloud Function.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $F(..., { ..., paymentStatus: 'paid', ... }, ...)
+          - pattern: |
+              $F(..., { ..., paymentVerified: true, ... }, ...)
+          - pattern: |
+              $F(..., { ..., cliqPaymentStatus: 'paid', ... }, ...)
+    paths:
+      include:
+        - src/
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-payer-identifier-to-analytics
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A payer's banking identifier (CliQ alias, mobile, IBAN) must never reach
+      analytics or the pixel. Send the masked form, or the bank NAME only.
+      See utils/cliqIdentifier.ts maskCliqIdentifier.
+    patterns:
+      - pattern-either:
+          - pattern: logAnalyticsEvent(..., { ..., cliqPayerIdentifier: ..., ... })
+          - pattern: logAnalyticsEvent(..., { ..., iban: ..., ... })
+          - pattern: logAnalyticsEvent(..., { ..., phoneNumber: ..., ... })
+          - pattern: $W.fbq(..., { ..., phoneNumber: ..., ... })
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-secret-in-source
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Looks like a credential in source. Keys, tokens and certificates belong in
+      Firebase secrets. Nothing of this kind may be committed — see the
+      .gitignore rules for *.crt / *.pem / *.key.
+    patterns:
+      - pattern-regex: >-
+          (?i)(BEGIN (RSA |EC )?PRIVATE KEY|client_secret\s*[:=]\s*['"][^'"]{12,}|api[_-]?key\s*[:=]\s*['"][A-Za-z0-9_\-]{20,})
+    paths:
+      exclude:
+        - docs/
+        - .semgrep/
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-bank-name-literal
+    languages: [typescript, typescriptreact]
+    severity: WARNING
+    message: >-
+      Bank names must come from CLIQ_BANK_NAME_AR/EN, never a literal. The
+      account has moved banks twice; each time, literals in copy were left
+      behind telling customers to look for their money at the wrong bank.
+    patterns:
+      - pattern-regex: >-
+          (Bank al Etihad|Jordan Ahli Bank|Al Ahli Bank|Arab Bank)
+    paths:
+      include:
+        - src/
+      exclude:
+        - src/constants/cliq.ts
+        - src/constants/cliqGateway.ts
+        - src/utils/cliqIban.ts
+        - src/components/SellerCenterView.tsx
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-dangerous-html
+    languages: [typescriptreact, javascript, typescript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML renders unescaped markup. Auction titles,
+      descriptions and chat messages are user-supplied; this is a stored-XSS
+      sink. Render as text.
+    pattern: dangerouslySetInnerHTML={...}
+    paths:
+      include:
+        - src/
