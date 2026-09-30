@@ -1059,7 +1059,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const hasAdminClaim = !!idTokenResult.claims.admin;
           const userEmail = user.email ? user.email.toLowerCase().trim() : '';
           const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
-          let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+          // Reads the STORED role. It used to be derived from the hardcoded email
+            // alone, so an administrator granted by role came back as 'user' and the
+            // admin panel — which gates on role — stayed invisible to them.
+            let loadedRole: 'admin' | 'user' | 'seller' =
+              (fbData.role === 'admin' || fbData.isAdmin === true || isAdminEmail)
+                ? 'admin'
+                : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
 
           const loadedUser: User = {
             id: user.uid,
@@ -1068,7 +1074,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: fbData.email || user.email || '',
             avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: loadedRole,
-            isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
+            // Each path stands alone. These were AND-ed with the hardcoded email, so a
+              // genuine admin:true claim evaluated to false for anyone else — the literal
+              // neutered the very RBAC primitive meant to replace it.
+              isAdmin: fbData.isAdmin === true || fbData.role === 'admin' || hasAdminClaim || isAdminEmail,
             accountStatus: fbData.accountStatus || 'active',
             isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
             isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -1309,7 +1318,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               fbData.sessionId = newSessionId;
             }
 
-            let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+            // Reads the STORED role. It used to be derived from the hardcoded email
+            // alone, so an administrator granted by role came back as 'user' and the
+            // admin panel — which gates on role — stayed invisible to them.
+            let loadedRole: 'admin' | 'user' | 'seller' =
+              (fbData.role === 'admin' || fbData.isAdmin === true || isAdminEmail)
+                ? 'admin'
+                : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
             
             if (isAdminEmail && fbData.role !== 'admin') {
               loadedRole = 'admin';
@@ -1318,14 +1333,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } catch (updateErr) {
                 console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
               }
-            } else if (!isAdminEmail && fbData.role === 'admin' && fbData.isAdmin !== true) {
-              loadedRole = 'user';
-              try {
-                await updateDoc(userRef, { role: 'user', isAdmin: false });
-              } catch (downgradeErr) {
-                console.warn("Failed to automatically downgrade unauthorized admin role in Firestore:", downgradeErr);
-              }
             }
+            // ⚠️ THE BROWSER NO LONGER DEMOTES ANYONE.
+            //
+            // This used to be an `else if` that, for any account whose email is
+            // not the hardcoded one, wrote `role:'user', isAdmin:false` over a
+            // stored `role:'admin'`. It protected nothing: firestore.rules puts
+            // `role` and `isAdmin` on the denylist for a user updating their own
+            // document, so nobody can self-promote — the only way that field
+            // says 'admin' is that an administrator or a Cloud Function put it
+            // there. The branch existed to undo an attack the rules already make
+            // impossible.
+            //
+            // What it DID do was demote real administrators. Every admin granted
+            // by role rather than by the literal would be silently downgraded by
+            // their own browser on sign-in, and the write succeeded because at
+            // evaluation time the document still said 'admin'. Authorization is
+            // the rules' job; a client that writes privilege fields is a bug
+            // whatever it writes.
             
             loadedUser = {
               id: uid,
@@ -1334,7 +1359,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: loadedRole,
-              isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
+              // Each path stands alone. These were AND-ed with the hardcoded email, so a
+              // genuine admin:true claim evaluated to false for anyone else — the literal
+              // neutered the very RBAC primitive meant to replace it.
+              isAdmin: fbData.isAdmin === true || fbData.role === 'admin' || hasAdminClaim || isAdminEmail,
               accountStatus: fbData.accountStatus || 'active',
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,

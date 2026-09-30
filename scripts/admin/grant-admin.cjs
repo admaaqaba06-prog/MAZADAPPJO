@@ -17,10 +17,20 @@
  * claim: storage.rules reads the same document via firestore.get(). One source
  * of truth, see functions/adminRoles.js.
  *
+ * IDENTIFIED BY EMAIL **OR** UID. Mazzado has no email/password sign-in — the
+ * only ways in are a phone OTP and Google. So an administrator may well have no
+ * email on their auth record at all, and looking them up by one would make the
+ * role impossible to grant to a phone account. Pass whichever identifier that
+ * person actually has.
+ *
  * USAGE
  *   set GOOGLE_APPLICATION_CREDENTIALS=<path to a service-account json>
- *   node scripts/admin/grant-admin.cjs karam@mazzado.com            # dry run
- *   node scripts/admin/grant-admin.cjs karam@mazzado.com --apply    # writes
+ *   node scripts/admin/grant-admin.cjs karam@mazzado.com          # dry run
+ *   node scripts/admin/grant-admin.cjs karam@mazzado.com --apply  # writes
+ *   node scripts/admin/grant-admin.cjs --uid <firebase-uid> --apply
+ *
+ * To find the uid of a phone account: Firebase console -> Authentication, or
+ * sign in as them and read auth.currentUser.uid.
  *
  * It REFUSES to run without GOOGLE_APPLICATION_CREDENTIALS rather than falling
  * back to any ambient credentials it might find, and it does nothing at all
@@ -31,8 +41,11 @@
 
 const path = require('path');
 
-const email = (process.argv[2] || '').trim().toLowerCase();
-const APPLY = process.argv.includes('--apply');
+const args = process.argv.slice(2);
+const APPLY = args.includes('--apply');
+const uidFlag = args.indexOf('--uid');
+const uidArg = uidFlag !== -1 ? (args[uidFlag + 1] || '').trim() : '';
+const email = uidArg ? '' : (args.find((a) => !a.startsWith('--')) || '').trim().toLowerCase();
 
 function die(msg) {
   console.error(`\n  ✖ ${msg}\n`);
@@ -61,7 +74,7 @@ const auth = admin.auth();
 
 (async () => {
   console.log(`\n  project : ${process.env.GOOGLE_CLOUD_PROJECT || admin.app().options.projectId || '(from credentials)'}`);
-  console.log(`  target  : ${email}`);
+  console.log(`  target  : ${uidArg ? 'uid ' + uidArg : email}`);
   console.log(`  mode    : ${APPLY ? 'APPLY (writes)' : 'dry run (no writes)'}\n`);
 
   let user;
@@ -106,7 +119,7 @@ const auth = admin.auth();
   batch.set(db.collection('adminRoleAudit').doc(), {
     action: 'grant',
     targetUid: user.uid,
-    targetEmail: email,
+    targetEmail: user.email || email || null,
     actorUid: 'bootstrap-script',
     actorEmail: null,
     note: 'one-time bootstrap via Admin SDK',
