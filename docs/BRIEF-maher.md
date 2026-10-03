@@ -186,11 +186,19 @@ call, not yours.
 5. **Only then**, remove every literal — functions, `firestore.rules`, `storage.rules`,
    client — and deploy. Verify both admins still work afterwards.
 
-### B2. An admin UI for granting roles
+### B2. An admin UI for granting roles — ~~build~~ **DONE, review it**
 
-`grep -rn "grantAdminRole" src/` returns nothing. The callables can only be reached from
-a browser console today. Add it to the admin panel — the Members tab is the obvious home,
-it already has a search and shows every user.
+Corrected after Maher pointed it out: this was built in the same commit that wrote this
+brief, so the instruction above was stale the moment it was written.
+
+`src/components/admin/AdminRoleToggle.tsx`, wired into the Members row. Four states,
+checked in the browser: normal user, existing admin, yourself (no self-revoke offered —
+the server refuses it), and a phone-only account with no email (both callables identify
+by email). A grant asks twice.
+
+Review it rather than rebuild it. The one thing worth a second opinion: rendering the
+control is not authorisation — `assertAdmin` re-checks server side — so it is deliberately
+not hidden from anyone.
 
 ### B3. Second admin
 
@@ -217,8 +225,27 @@ the panel from admins granted the other way.
 **Nobody may revoke themselves.** `adminRoles.js` enforces it. It is how an access-control
 system removes its own last operator. Leave it.
 
-**`firestore.rules` has 5 occurrences of the literal**, not 1 — lines ~16, 18, 155, 163,
-190. The uid literal appears once, at ~16. Check current line numbers; the file moves.
+**⚠️ DO NOT GREP FOR THE PLAIN ADDRESS IN `firestore.rules`. IT RETURNS ZERO.**
+
+Caught by Maher, and it is the sharpest trap in this migration. All four email
+occurrences in that file are written **escaped for the rules regex engine**:
+
+```
+request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')
+```
+
+So `grep "admaaqaba06@gmail\.com" firestore.rules` finds **nothing**, and anyone who
+trusts that result leaves four live admin grants behind believing the file is clean.
+
+**Grep the local part — `admaaqaba06` — which no escaping can hide.** Current positions:
+lines ~16 (the **uid** literal, a different string), 18, 155, 163, 190. The file moves;
+re-check before editing.
+
+The Semgrep rule had the identical blind spot and has been fixed: it declared
+`languages: [javascript, typescript]`, so it never opened a `.rules` file at all, and its
+pattern contained `@gmail\.com`, which would not have matched the escaped form even if it
+had. It is now `languages: [generic]` matching the local part. A SAST rule that cannot see
+the authorization layer is a clean report over a live finding.
 
 ---
 

@@ -12,7 +12,12 @@
 rules:
   # -------------------------------------------------------------------------
   - id: mazzado-hardcoded-admin-identity
-    languages: [javascript, typescript]
+    # `generic`, NOT [javascript, typescript]. The first version of this rule
+    # declared JS/TS and therefore never opened firestore.rules or storage.rules
+    # — which is where four of the five grants live. A SAST rule that cannot see
+    # the authorization layer is a clean report over a live finding, which is
+    # exactly the failure docs/security/sast-policy.md warns a bank about.
+    languages: [generic]
     severity: ERROR
     message: >-
       Hardcoded admin identity. Administrative access must come from the role
@@ -21,11 +26,18 @@ rules:
       deploy, survives the person leaving, and is published to anyone who can
       read the repository.
     patterns:
-      - pattern-regex: (admaaqaba06@gmail\.com|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
+      # Matches the LOCAL PART only, deliberately. In firestore.rules the
+      # address is written admaaqaba06@gmail\\.com — escaped for the rules
+      # regex engine — so a pattern containing `@gmail\.com` matches zero of
+      # those four occurrences while appearing to cover them. Anyone grepping
+      # the plain address in that file gets no hits and concludes it is clean.
+      # The local part cannot be escaped away.
+      - pattern-regex: (admaaqaba06|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
     paths:
       exclude:
         - docs/
         - .semgrep/
+        - '*.md'
 
   # -------------------------------------------------------------------------
   - id: mazzado-client-writes-money-state
