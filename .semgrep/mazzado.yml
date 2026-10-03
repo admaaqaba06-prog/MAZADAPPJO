@@ -12,7 +12,11 @@
 rules:
   # -------------------------------------------------------------------------
   - id: mazzado-hardcoded-admin-identity
-    languages: [javascript, typescript]
+    # `generic`, NOT [javascript, typescript]. firestore.rules and storage.rules
+    # are neither, so a JS/TS rule never opens them — and that is where four of
+    # the five grants live. A SAST rule that cannot see the authorization layer
+    # is a clean report over a live finding.
+    languages: [generic]
     severity: ERROR
     message: >-
       Hardcoded admin identity. Administrative access must come from the role
@@ -21,11 +25,16 @@ rules:
       deploy, survives the person leaving, and is published to anyone who can
       read the repository.
     patterns:
-      - pattern-regex: (admaaqaba06@gmail\.com|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
+      # LOCAL PART only. firestore.rules writes the address escaped for its own
+      # regex engine — admaaqaba06@gmail\\.com — so a pattern containing
+      # `@gmail\.com` matches none of those four occurrences while appearing to
+      # cover them. Grepping the plain address in that file returns zero hits.
+      - pattern-regex: (admaaqaba06|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
     paths:
       exclude:
         - docs/
         - .semgrep/
+        - '*.md'
 
   # -------------------------------------------------------------------------
   - id: mazzado-client-writes-money-state
@@ -83,7 +92,7 @@ rules:
 
   # -------------------------------------------------------------------------
   - id: mazzado-bank-name-literal
-    languages: [typescript, typescriptreact]
+    languages: [typescript, tsx]
     severity: WARNING
     message: >-
       Bank names must come from CLIQ_BANK_NAME_AR/EN, never a literal. The
@@ -104,7 +113,7 @@ rules:
 
   # -------------------------------------------------------------------------
   - id: mazzado-dangerous-html
-    languages: [typescriptreact, javascript, typescript]
+    languages: [tsx, javascript, typescript]
     severity: ERROR
     message: >-
       dangerouslySetInnerHTML renders unescaped markup. Auction titles,

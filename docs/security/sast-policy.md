@@ -62,16 +62,31 @@ the security scan rather than a linter nobody runs.
 | Weekly, Mondays 04:00 UTC | Semgrep adds rules after our last commit. A repository with no pushes is not a repository with no vulnerabilities. |
 | On demand (`workflow_dispatch`) | For a review or an audit request |
 
-## 4. The build fails on a finding
+## 4. The build fails on a finding — from the phase-3 commit
 
-`semgrep scan --error` exits non-zero on any result, which fails the check on the
-pull request.
+`semgrep scan --error` exits non-zero on any result, failing the check on the pull
+request.
 
 This is deliberate. A scanner whose output is advisory becomes a list nobody
 reads: findings accumulate, the count becomes background noise, and the report
 handed to a reviewer is a backlog rather than a result. Failing the build keeps
 the number at zero by construction, because the only moment it can rise is a pull
 request that someone is already looking at.
+
+**Stated plainly: `--error` is not on yet.** One finding already exists and is
+mid-removal — the hardcoded administrative identity, about twenty occurrences,
+§7 below. Turning the gate on today would fail every build on something we have
+already found, documented and scheduled.
+
+The alternatives were worse. Excluding those files would hide the finding from
+the very report this document exists to support. Lowering its severity would not
+help either, because `--error` exits non-zero on findings of any severity.
+
+So the scan runs today on every pull request, publishes SARIF to the Security tab
+and keeps the artifact — it simply does not block a merge. **The pull request that
+deletes the last literal restores `--error` in the same commit**, and from there
+the count is zero by construction. That sequencing is recorded in the workflow
+file next to the missing flag, so it cannot be quietly forgotten.
 
 ## 5. Remediation process
 

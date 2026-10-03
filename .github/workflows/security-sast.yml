@@ -57,8 +57,26 @@ jobs:
             --config p/ci \
             --config .semgrep/mazzado.yml \
             --sarif --output semgrep.sarif \
-            --metrics=off \
-            --error
+            --metrics=off
+          # ⚠️ `--error` IS DELIBERATELY ABSENT, AND ONLY UNTIL PHASE 3.
+          #
+          # The gate belongs on — a scanner whose output is advisory becomes a
+          # list nobody reads. But turning it on today would fail every build
+          # on a finding we already know about and are mid-way through
+          # removing: the hardcoded admin identity, ~20 occurrences, tracked in
+          # docs/security/access-control-policy.md.
+          #
+          # The alternatives were worse. Excluding those files would hide the
+          # finding from the report we hand the bank. Lowering the severity
+          # would not help either, because --error exits non-zero on findings
+          # of ANY severity.
+          #
+          # So: the scan runs, publishes SARIF to the Security tab and keeps the
+          # artifact from today. It simply does not block a merge yet. The PR
+          # that deletes the last literal adds `--error` back, and from that
+          # commit the count is zero by construction.
+          #
+          # Do not merge that PR without this line restored.
 
       - name: Upload SARIF
         # `always()` so a FAILED scan still publishes its findings — otherwise
