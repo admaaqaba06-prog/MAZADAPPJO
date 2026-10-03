@@ -2922,7 +2922,59 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
  * inside the transaction, because a browser can be refreshed and a refresh must
  * not mint a second request. See cliqPayment.test.js.
  */
-exports.createCliqPaymentRequest = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+/**
+ * STATIC OUTBOUND IP — required by Bank al Etihad's whitelist.
+ *
+ * Cloud Functions have no fixed egress address by default; outbound traffic
+ * leaves from a large, shifting Google pool, so there is nothing a bank can
+ * whitelist. Routing this function through a Serverless VPC connector whose
+ * network has a Cloud NAT bound to a reserved address gives it one:
+ *
+ *   connector  mazzado-egress        (us-central1, READY)
+ *   router     mazzado-router
+ *   NAT        mazzado-nat  ->  mazzado-bae-egress  =  35.193.49.148
+ *
+ * ⚠️ ON THIS FUNCTION ONLY, and deliberately. `ALL_TRAFFIC` sends *everything*
+ * this function emits through the NAT — Firestore included. That is fine here:
+ * it runs once per payment. Putting it on a hot path like placeBid would bill
+ * NAT on every bid and add a hop to a live auction. Do not copy this block
+ * onto a high-frequency function.
+ *
+ * If the connector is ever deleted, deploys of this function FAIL rather than
+ * silently falling back to dynamic egress — which is the safe direction: a
+ * failed deploy is visible, a silently-changed source IP is not, and the bank
+ * would simply start refusing our calls.
+ */
+const BAE_EGRESS = {
+  vpcConnector: 'mazzado-egress',
+  vpcConnectorEgressSettings: 'ALL_TRAFFIC',
+};
+
+/**
+ * Report the address our outbound calls actually leave from. Admin only.
+ *
+ * Provisioning a NAT proves a reservation exists; it does not prove THIS
+ * function uses it. Before giving a bank an IP to whitelist, that needs to be
+ * observed rather than assumed — a wrong number here is discovered when a real
+ * customer's payment fails.
+ *
+ * Carries the same egress config as the payment function above, so what it
+ * reports is what that function would use.
+ */
+exports.checkEgressIp = functions.runWith({ cors: true, ...BAE_EGRESS }).https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const body = await res.json();
+    console.log('[checkEgressIp] outbound address:', body && body.ip);
+    return { ip: (body && body.ip) || null };
+  } catch (error) {
+    console.error('Error in checkEgressIp:', error.message);
+    throw new functions.https.HttpsError('internal', error.message || 'Could not determine the outbound address.');
+  }
+});
+
+exports.createCliqPaymentRequest = functions.runWith({ cors: true, ...BAE_EGRESS }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
   }
